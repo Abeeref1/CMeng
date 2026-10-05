@@ -105,5 +105,45 @@
     "bytes": 376864,
     "role": "known-regression-only, never fresh",
     "observedSource": "Thirteen visible source items. First two quantities visibly 7.00 and 31.00 have noisy OCR readings; retain their rows and source glyph evidence while quantities stay unknown."
+  },
+  {
+    "filename": "faint-awarded-boq-page.pdf",
+    "fixtureSha256": "04fed64d851d466e63e9f7d4300f71bff23bbe9ed1f78aa8bdd299fe16556ebe",
+    "sourceSha256": "c9af6e7c02558449f570fed748268ac97535e979f9e1a17a424bba462aaf7e7b",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/benguet-01-2025%20%5B4-5%5D.pdf",
+    "originalPage": 2,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "faint-body-rules-page.pdf",
+    "fixtureSha256": "e29b33e87090a472ec016da9094d3d35a1b6d1edbd3ada4c87d4ce3fa75648a0",
+    "sourceSha256": "7320bc8dceae6aa44fcadf1886085b483d1e45ae4e943a6629330033460a2939",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa_mp5.pdf",
+    "originalPage": 2,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "native-leading-blank-column.pdf",
+    "fixtureSha256": "e7ee8d5f7f1ee9c756ea33a6c54bd896b3bfcaeaa9aba45c8ceccb9d11b26ec9",
+    "sourceSha256": "8b87b9b74913870a8ce62ef6f842598bf8a2c3d555f43cf98acadd3413ee0950",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-APAYAO-01-2025.pdf",
+    "originalPage": 53,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "native-items-of-work.pdf",
+    "fixtureSha256": "982b7562d6749822adcdce1896a19d6b2b084802418e03af114fd4b06b340db9",
+    "sourceSha256": "a0e4eb405026d2c8061622ca08479826fe8157a284eac9e8ab1384409bb6ac45",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-KALINGA-08-2023.pdf",
+    "originalPage": 108,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "multiple-quantities-tables.pdf",
+    "fixtureSha256": "4c140c46d77eaa3bb6f73de9aab65b55c2b2cda7580deac8f9fd3afa767d6b93",
+    "sourceSha256": "9a336d1669133349b4e2e63ae626290e92874084c2598be0463743e504d69c90",
+    "sourceUrl": "https://www.pced.gov.ph/wp-content/uploads/2025/04/Infrastructure_Bidding-Docs-for-Elevator-April-2025-FINAL-rev.pdf",
+    "originalPage": 50,
+    "scope": "External failure on 9697676; regression-only. Two tables, Quantities heading."
   }
 ]

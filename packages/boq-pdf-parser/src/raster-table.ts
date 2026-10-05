@@ -43,24 +43,44 @@ function horizontal(r:Raster,x:number,width:number,top:number,bottom:number,thre
 }
 /** Faded rules can cross several pixel rows. Require an almost continuous
  * stroke across the cell, so pale text cannot supply a new row boundary. */
-function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number):number[]{
- const selected:number[]=[];
+function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number,minStroke=.75,bridgeGaps=false):number[]{
+ const selected:number[]=[],maxGap=Math.max(2,Math.ceil(width*.01));
  for(let y=Math.max(2,top);y<Math.min(r.height-2,bottom);y++){
-  let dark=0,run=0,longest=0;
+  let dark=0,run=0,longest=0,gaps=0;
   for(let xx=x;xx<x+width;xx++){
    let ink=false;for(let dy=-2;dy<=2;dy++)if(r.pixels[((y+dy)*r.width+xx)*4]!<235){ink=true;break;}
-   if(ink){dark++;run++;longest=Math.max(longest,run);}else run=0;
+   // A scan can erase tiny portions of a long rule. Bridge at most one
+   // percent of the cell width, retaining the high total stroke density.
+   if(ink){dark++;run++;gaps=0;longest=Math.max(longest,run);}
+   else if(bridgeGaps&&run&&++gaps<=maxGap)run++;else run=0;
   }
-  if(dark>=width*.92&&longest>=Math.max(40,width*.75))selected.push(y);
+  if(dark>=width*.92&&longest>=Math.max(40,width*minStroke))selected.push(y);
  }
  return groupedPositions(selected);
 }
-function grid(r:Raster){
+/** Pale column rules must form a long continuous stroke. Counting scattered
+ * text pixels at a lighter threshold would invent columns through the numbers. */
+function faintVertical(r:Raster):number[]{
+ const selected:number[]=[];
+ for(let x=2;x<r.width-2;x++){
+  let run=0,longest=0;
+  for(let y=0;y<r.height;y++){
+   let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<235){ink=true;break;}
+   if(ink){run++;longest=Math.max(longest,run);}else run=0;
+  }
+  if(longest>r.height*.26)selected.push(x);
+ }
+ return groupedPositions(selected);
+}
+function grid(r:Raster,enhanced=false){
  const vertical:number[]=[];
  for(let x=0;x<r.width;x++){let dark=0;for(let y=0;y<r.height;y++)if(r.pixels[(y*r.width+x)*4]!<170)dark++;
   if(dark>r.height*.26)vertical.push(x);
  }
  const xs=groupedPositions(vertical).filter((x,i,a)=>!i||x-a[i-1]!>12);
+ const paleColumns=xs.length<4;
+ if(enhanced&&paleColumns)for(const x of faintVertical(r))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
+ xs.sort((a,b)=>a-b);
  if(xs.length<4||xs.length>80)return null;
  // A section can interrupt the item/description separator for much of the
  // page. Recover actual shorter vertical strokes inside the established grid;
@@ -85,6 +105,17 @@ function grid(r:Raster){
   const width=xs[i+1]!-x-8;
   return width>=10?horizontal(r,x+4,width,0,r.height,135,.67):[];
  }).sort((a,b)=>a-b);
+ // The dark header can be the only dark horizontal part of a scanned table.
+ // Establish the body extent from pale rules independently present in at least
+ // two columns; searching only within the dark extent would erase its rows.
+ const faintRules=xs.slice(0,-1).flatMap((x,i)=>{
+  const width=xs[i+1]!-x-8;
+  return width>=10?faintHorizontal(r,x+4,width,0,r.height,.75,true).map(y=>({y,column:i})):[];
+ });
+ const darkTop=ys[0]??0,darkBottom=ys.at(-1)??0;
+ const paleExtent=enhanced&&(paleColumns||darkBottom-darkTop<r.height*.25);
+ for(const rule of faintRules)if(paleExtent&&faintRules.some(other=>other.column!==rule.column&&Math.abs(other.y-rule.y)<=8)&&!ys.some(y=>Math.abs(y-rule.y)<=8))ys.push(rule.y);
+ ys.sort((a,b)=>a-b);
  if(ys.length<3)return null;
  const top=ys[0]!,bottom=ys.at(-1)!;
  const columns=xs.slice(0,-1).map((x,i)=>{
@@ -93,7 +124,10 @@ function grid(r:Raster){
   const boundaries=mergePositions([top,bottom,...horizontal(r,l,width,top,bottom+1,135,.67),...horizontal(r,l,width,top,bottom+1,185,.50)]);
   // Preserve the coordinates of established dark rules and supplement only
   // missing ones; changing a good crop can unnecessarily change OCR evidence.
-  for(const y of faintHorizontal(r,l,width,top,bottom+1))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,paleExtent))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  // A damaged rule may consist of several long strokes in this column. It
+  // can divide cells only when a separate column corroborates its position.
+  for(const y of paleExtent?faintHorizontal(r,l,width,top,bottom+1,.35,true):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   boundaries.sort((a,b)=>a-b);
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can
@@ -133,6 +167,20 @@ function cropPng(r:Raster,b:Box,scale=2):Buffer{
  const canvas=crop(r,b,scale);
  try{return canvas.toBuffer('image/png');}
  finally{canvas.width=1;canvas.height=1;}
+}
+/** Text-only contrast reading. Dark lettering on a coloured band can be
+ * unreadable to OCR even when the cell geometry is clear. Never use this
+ * transform to certify a body number; originals and numeric policy stay intact. */
+function contrastTextPng(r:Raster,b:Box):Buffer{
+ const canvas=crop(r,b),ctx=canvas.getContext('2d');
+ try{
+  const data=ctx.getImageData(0,0,canvas.width,canvas.height);
+  for(let i=0;i<data.data.length;i+=4){
+   const value=Math.max(data.data[i]!,data.data[i+1]!,data.data[i+2]!)<100?0:255;
+   data.data[i]=data.data[i+1]=data.data[i+2]=value;
+  }
+  ctx.putImageData(data,0,0);return canvas.toBuffer('image/png');
+ }finally{canvas.width=1;canvas.height=1;}
 }
 /** Remove only thin rules whose strokes continue outside the source cell.
  * Cropping at native resolution also prevents interpolation from pulling an
@@ -202,7 +250,7 @@ function strictNumber(text:string){
 }
 function unitKey(text:string):string|null{
  const key=simple(text).toLowerCase().replace(/[.\s]/g,'');
- return /^(?:m|m2|m3|m²|m³|sqm|cum|lm|sqft|cuft|ft|ft2|ft3|in|kg|g|t|ton|tons|tonne|tonnes|l|litre|litres|liter|liters|each|ea|no|nos|nr|piece|pieces|pc|pcs|unit|units|set|sets|lot|lots|ls|sum|month|months|day|days|hour|hours|hr|hrs|week|weeks|roll|rolls|pair|pairs|عدد|م|م٢|م٣|كجم|طن|شهر|يوم|ساعة)$/.test(key)?key:null;
+ return /^(?:m|m2|m3|m²|m³|sqm|cum|lm|sqft|cuft|ft|ft2|ft3|in|kg|g|t|ton|tons|tonne|tonnes|l|litre|litres|liter|liters|each|ea|no|nos|nr|piece|pieces|pc|pcs|unit|units|set|sets|lot|lots|ls|sum|lumpsum|month|months|day|days|hour|hours|hr|hrs|week|weeks|roll|rolls|pair|pairs|عدد|م|م٢|م٣|كجم|طن|شهر|يوم|ساعة)$/.test(key)?key:null;
 }
 
 /** Recover a ruled BOQ from its pixels. Every value stays attached to the
@@ -211,6 +259,9 @@ function unitKey(text:string):string|null{
  * This establishes candidate source facts only, never document authority. */
 export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number):Promise<RasterBoqTable|null>{
  const original=await loadImage(Buffer.from(image));
+ // Exhaust established orientation/skew recovery before expanding pale rules.
+ // Otherwise a tilted pale grid can win early and change valid numeric crops.
+ for(const enhanced of [false,true]){
  const rotations=[0,90,270,180];
  for(const rotation of rotations){
   const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
@@ -219,7 +270,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   const c=createCanvas(width,height),ctx=c.getContext('2d');
   ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.translate(c.width/2,c.height/2);ctx.rotate(rotation*Math.PI/180);ctx.drawImage(original,-original.width/2,-original.height/2);ctx.resetTransform();
   try{
-  const r=raster(c),g=grid(r);
+  const r=raster(c),g=grid(r,enhanced);
   const queueDeskew=()=>{if(rigid){const correction=verticalSkew(r);if(correction!==null)rotations.push(rotation+correction);}};
   if(!g){queueDeskew();continue;}
   const cache=new Map<string,Promise<RasterCellEvidence>>();
@@ -247,6 +298,26 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     // Using that maximum silently discarded a real first line item.
     const descriptionHeader=cells[descriptionIndex]!;
     headerBottom=descriptionHeader.bounds.y+descriptionHeader.bounds.height;break;
+   }
+  }
+  if(enhanced&&!header&&topCells.flat().some(cell=>/description|quantit|amount|unit|rate/i.test(cell.text))){
+   // Shading can split one column's header into two apparent cells. Try the
+   // enclosing physical spans present in other columns, at the top of the
+   // table only. Roles still require recognized headings, never column order.
+   const spans=[...new Map(topCells.flatMap(col=>col.slice(0,3)).map(cell=>[
+    cell.bounds.y+':'+cell.bounds.height,{y:cell.bounds.y,height:cell.bounds.height}
+   ])).values()].sort((a,b)=>a.y-b.y||b.height-a.height);
+   for(const span of spans){
+    const boxes=g.columns.map(col=>{
+     const first=col[0];return first?{x:first.x,width:first.width,...span}:null;
+    });
+    const values:string[]=[];
+    for(const box of boxes){
+     const result=box&&box.width>=12&&box.height>=12&&hasInk(r,box)?await provider.recognize(contrastTextPng(r,box),pageNumber,{segmentation:'line'}):null;
+     values.push(result?.text.trim()??'');
+    }
+    const mapped=detectBoqHeader([values]);
+    if(mapped){header=mapped;headerValues=values;headerBottom=span.y+span.height;break;}
    }
   }
   if(!header){queueDeskew();continue;}
@@ -301,6 +372,17 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
      if(!nonempty.length)continue;
      if(nonempty.length!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_MULTIPLE_CELLS');continue;}
      const cell=nonempty[0]!;
+     if(enhanced&&role==='description'&&(cell.confidence??0)<.90){
+      const reread=await provider.recognize(contrastTextPng(r,cell.bounds),pageNumber,{segmentation:'block'});
+      cell.confirmation={text:reread.text.trim(),confidence:reread.confidence};
+      if(reread.text.trim()&&(reread.confidence??0)>=.90){
+       row[index]=simple(reread.text);
+       // Better candidate wording is not certified source truth. Preserve
+       // the first reading and flag disagreement for source review.
+       if(simple(cell.text)!==row[index])issues.push('BOQ_RASTER_DESCRIPTION_REVIEW_REQUIRED');
+       continue;
+      }
+     }
      if(role==='unit'){
       const second=await provider.recognize(cropPng(r,cell.bounds,1),pageNumber,{segmentation:'word'});
       cell.confirmation={text:second.text.trim(),confidence:second.confidence};
@@ -336,6 +418,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   }
   if(rows.length>1)return {rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height};
   }finally{c.width=1;c.height=1;}
+ }
  }
  return null;
 }

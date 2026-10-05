@@ -27,6 +27,33 @@ const known=[
  {file:'flood-page-1.pdf',rows:[['Project Billboard',1],['Occupational Safety',4],['0.23m thick',2331],['0.10m thick',1480],['Curb & Gutter',740],['Roadway Excavation',245],['Hard Rock',3351],['Lean Concrete',11]] as [string,number][]},
  {file:'electrical-page-2.pdf',rows:[['Provision of Field Office',3],['Layout and Staking',126],['Project Billboard',1],['Occupational Safety',3],['Temporary Enclosure',89],['Scaffolding',55],['Removal of Tent Framing',472],['Structure Excavation (Solid Rock)',7],['Embankment',6],['Gravel Fill',5],['Soil Poisoning',5]] as [string,number][]},
 ];
+test('two scanned tables with Quantities headers retain every quantified row',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('multiple-quantities-tables.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,36,'All 26 general requirement and 10 elevator quantity rows remain available');
+ for(const tokens of [['Permits','Clearances'],['elevator equipment','main building'],['elevator equipment','Library'],['Accelerograph']])
+  assert.ok(items.some(item=>tokens.every(token=>item.description.toLowerCase().includes(token.toLowerCase()))),tokens.join(' '));
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.equal(result.complete,false);
+});
+
+test('faint vertical grid rules retain all awarded BOQ source rows',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('faint-awarded-boq-page.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,44,'All 44 physical priced rows must remain available for review');
+ for(const description of ['Project Billboard','Personal Protective','Clearing and Grubbing']){
+  assert.ok(items.some(item=>item.description.includes(description)),description+' must remain attached to its source cells');
+ }
+ assert.equal(result.complete,false);
+});
+
+test('a dark table header cannot clip a faint BOQ body out of the review',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('faint-body-rules-page.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,32,'All 32 physical source rows, including unpriced component quantities, must be retained');
+ for(const description of ['Clearing and Grubbing','Common Structural Excavation','EMT Clamp'])assert.ok(items.some(item=>item.description.includes(description)),description);
+ assert.equal(result.complete,false);
+});
 for(const source of known)test('offline BOQ regression retains source quantities: '+source.file,{timeout:180000},async()=>{
  const progress:{page:number;total:number;phase:string}[]=[];
  const result=await parseBoqPdf(original(source.file),{ocrProvider:reader(),onProgress:(page,total,phase)=>progress.push({page,total,phase})});

@@ -30,7 +30,30 @@ function cell(row: readonly string[], column: number | null): string | null {
 function looksLikeTotal(description: string): boolean {
   const normalized = description.toLowerCase().replace(/\s+/g, " ").trim();
   return /\b(total|subtotal|sub total|carried|brought forward|summary)\b/.test(normalized) ||
+    /^approved budget for (?:the )?contract\b/.test(normalized) ||
     /(الإجمالي|اجمالي|المجموع|مرحّل|مرحل)/.test(normalized);
+}
+
+/** Native extraction can split the body below a merged description header.
+ * Move role coordinates only across explicitly empty leading subdivisions;
+ * never remove cells, infer missing numerics, or shift a nonempty item code. */
+function nativeRowRoles(rows: readonly (readonly string[])[], headerRow: number,
+  roles: Record<number, BoqColumnRole>, row: readonly string[]): Record<number, BoqColumnRole> {
+  const width = rows[headerRow - 1]?.length ?? 0;
+  const extra = row.length - width;
+  if (extra > 0 && roleColumn(roles, "description") === 1 &&
+      row.slice(0, extra).every(value => !value.trim()) && cell(row, extra + 1)) {
+    return Object.fromEntries(Object.entries(roles).map(([column, role]) => [Number(column) + extra, role]));
+  }
+  // A labelled total may merge the description and quantity columns. Retain
+  // its one explicit final amount at the original coordinate, not as a unit.
+  if (row.length < width && looksLikeTotal(row[0] ?? "") &&
+      roleColumn(roles, "amount") === width && row.length >= 2 &&
+      row.slice(1, -1).every(value => !value.trim()) &&
+      parseStrictNumeric(row.at(-1) ?? "").status === "valid") {
+    return {1: "description", [row.length]: "amount"};
+  }
+  return roles;
 }
 
 function arithmeticValid(quantity: number, rate: number, amount: number): boolean {
@@ -115,6 +138,7 @@ function parseTableRows(
   tableNumber: number,
   rows: readonly (readonly string[])[],
   inheritedDiagnostics: string[] = [],
+  native = false,
 ): { items: BoqPdfLineItem[]; diagnostics: string[] } {
   const diagnostics = [...inheritedDiagnostics];
   const header = detectBoqHeader(rows);
@@ -128,15 +152,18 @@ function parseTableRows(
   for (let index = header.headerRow; index < rows.length; index += 1) {
     const row = rows[index] ?? [];
     if (row.every((value) => !String(value).trim())) continue;
+    // Repeated headings between tables/sections are structure, never priced rows.
+    if (detectBoqHeader([row])) continue;
+    const roles = native ? nativeRowRoles(rows, header.headerRow, header.roles, row) : header.roles;
 
-    const itemNumber = cell(row, roleColumn(header.roles, "item_number"));
-    const section = cell(row, roleColumn(header.roles, "section"));
-    const description = cell(row, roleColumn(header.roles, "description")) ?? "";
-    const unit = cell(row, roleColumn(header.roles, "unit"));
-    const currency = cell(row, roleColumn(header.roles, "currency"));
-    const quantityRaw = cell(row, roleColumn(header.roles, "quantity"));
-    const rateRaw = cell(row, roleColumn(header.roles, "rate"));
-    const amountRaw = cell(row, roleColumn(header.roles, "amount"));
+    const itemNumber = cell(row, roleColumn(roles, "item_number"));
+    const section = cell(row, roleColumn(roles, "section"));
+    const description = cell(row, roleColumn(roles, "description")) ?? "";
+    const unit = cell(row, roleColumn(roles, "unit"));
+    const currency = cell(row, roleColumn(roles, "currency"));
+    const quantityRaw = cell(row, roleColumn(roles, "quantity"));
+    const rateRaw = cell(row, roleColumn(roles, "rate"));
+    const amountRaw = cell(row, roleColumn(roles, "amount"));
 
     if (
       !itemNumber &&
@@ -212,7 +239,7 @@ function parseTableRows(
       "amount",
       "currency",
     ] as BoqColumnRole[]) {
-      const column = roleColumn(header.roles, role);
+      const column = roleColumn(roles, role);
       if (column === null) continue;
       sourceCells[role] = {
         page,
@@ -342,6 +369,8 @@ async function parseBoqPdfWithOpenProvider(
             page.pageNumber,
             index + 1,
             rows,
+            [],
+            true,
           );
           items.push(...parsed.items);
           diagnostics.push(
