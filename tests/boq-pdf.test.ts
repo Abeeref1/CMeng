@@ -146,7 +146,7 @@ test("OCR BOQ page requires structured extractor, not plain OCR text", async () 
   );
 });
 
-test("OCR plus high-confidence structured extractor still passes BOQ arithmetic validation", async () => {
+test("balanced high-confidence OCR retains its readings without certifying numeric truth", async () => {
   const parsed = await parseBoqPdf(await blankScannedPlaceholderPdf(), {
     ocrProvider: new FakeOcr(),
     aiTableExtractor: {
@@ -164,12 +164,18 @@ test("OCR plus high-confidence structured extractor still passes BOQ arithmetic 
     },
   });
 
-  assert.equal(parsed.complete, true);
+  assert.equal(parsed.complete, false);
   assert.equal(parsed.ocrTablePages, 1);
   assert.equal(parsed.candidateRows, 1);
-  assert.equal(parsed.verifiedRows, 1);
+  assert.equal(parsed.verifiedRows, 0);
+  assert.equal(parsed.unresolvedRows, 1);
+  assert.deepEqual(parsed.unresolvedPages, [1]);
+  assert.equal(parsed.items[0]!.quantity, 100);
+  assert.equal(parsed.items[0]!.rate, 20);
   assert.equal(parsed.items[0]!.amount, 2000);
   assert.equal(parsed.items[0]!.sourceCells.amount!.page, 1);
+  assert.ok(parsed.items[0]!.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED'));
+  assert.ok(!parsed.items[0]!.diagnostics.includes('BOQ_AMOUNT_ARITHMETIC_MISMATCH'),'The observed arithmetic still balances; that alone does not certify OCR');
 });
 
 test("AI-extracted OCR BOQ with wrong arithmetic remains unresolved", async () => {

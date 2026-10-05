@@ -55,7 +55,7 @@ high confidence, exact OCR spans and balanced arithmetic. None becomes a
 canonical numeric fact. Positive native/zero cases, adopted/restored state,
 cached quantities, S-curves and actual Ask/JSON/Excel output paths are covered.
 Three trust tests fail meaningfully on the preceding product modules; the native
-positive case passes there. Six source-geometry cases likewise fail before the
+positive case passes there. Seven source-geometry cases likewise fail before the
 correction. The added row-retention case protects unreadable physical items.
 
 Focused evidence: 141 relevant regressions passed before the additional
@@ -63,6 +63,15 @@ Ask/JSON/Excel case, and all five numeric-trust cases pass including that output
 integration. The whole original-source replay passes its population/hash checks.
 Full current-candidate regression and release gates must finish before claiming
 this candidate has passed them.
+
+The full run exposed one legacy test that expected high-confidence, balanced OCR
+to produce `complete: true` and one verified row. That is precisely the automatic
+promotion removed by this policy. Its expected certification is changed to
+unresolved, while its exact observed quantity/rate/amount (100, 20, 2000), source
+page and absence of an arithmetic conflict remain asserted. This is an explicit
+contract change, not a change to the correct source numbers or a relaxed numeric
+tolerance. The first full run's failure is retained as evidence; it is not counted
+as a passing run.
 
 Previous candidate bdf936f passed GitHub Verify 2237 and Scale 2122: 1,096
 regressions, a separate internal 100-project cohort, the unchanged 5,000 ms cold
