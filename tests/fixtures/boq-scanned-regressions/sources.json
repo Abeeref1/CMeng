@@ -163,5 +163,21 @@
     "fixtureSha256": "2dbb7583cd4f7ff0c14bcbde6bdce35d55f4720d0d755d7e87c29a4abe1740a3",
     "bytes": 595224,
     "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "very-pale-column-rules.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao15%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "6e307ebc3a88a3f5ab10e841e0c7f1694fe62bb8548c04f2492f61a8675ef4a6",
+    "fixtureSha256": "24eec595039955c1eff1e2bb70ffac8ee537fb62fa4cf4a519a86694fc699e7c",
+    "provenance": "Exact original page, copied without raster or text alteration. Failed external input retained as regression; never fresh acceptance."
+  },
+  {
+    "filename": "pale-pricing-column-rules.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20alspip04%202024.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "9de1f8b496894294b06ee8bd03292492a7912ecbc65870f8d720745f22835506",
+    "fixtureSha256": "7b5b067836e1abd81e2c4d0f3ec767d31da086d72f177f12445ff3735038043f",
+    "provenance": "Exact original page, copied without raster or text alteration. Failed external input retained as regression; never fresh acceptance."
   }
 ]

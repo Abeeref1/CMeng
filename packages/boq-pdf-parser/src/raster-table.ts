@@ -65,7 +65,7 @@ function faintVertical(r:Raster):number[]{
  for(let x=2;x<r.width-2;x++){
   let run=0,longest=0;
   for(let y=0;y<r.height;y++){
-   let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<235){ink=true;break;}
+   let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<245){ink=true;break;}
    if(ink){run++;longest=Math.max(longest,run);}else run=0;
   }
   if(longest>r.height*.26)selected.push(x);

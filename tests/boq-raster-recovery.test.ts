@@ -27,6 +27,17 @@ const known=[
  {file:'flood-page-1.pdf',rows:[['Project Billboard',1],['Occupational Safety',4],['0.23m thick',2331],['0.10m thick',1480],['Curb & Gutter',740],['Roadway Excavation',245],['Hard Rock',3351],['Lean Concrete',11]] as [string,number][]},
  {file:'electrical-page-2.pdf',rows:[['Provision of Field Office',3],['Layout and Staking',126],['Project Billboard',1],['Occupational Safety',3],['Temporary Enclosure',89],['Scaffolding',55],['Removal of Tent Framing',472],['Structure Excavation (Solid Rock)',7],['Embankment',6],['Gravel Fill',5],['Soil Poisoning',5]] as [string,number][]},
 ];
+for(const source of [
+ {file:'very-pale-column-rules.pdf',count:22,anchors:[['Cofferdam',49.73],['Precast Reinforced',3],['Reinforcing Steel',4335.96]]},
+ {file:'pale-pricing-column-rules.pdf',count:31,anchors:[['Solar Street',18],['Rubble Masonry',412.5],['Construction Health',1]]},
+] as const)test('very pale column separators retain every priced source row: '+source.file,{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original(source.file),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,source.count,'Independent original-page row count, with no extra heading rows');
+ for(const [description,quantity]of source.anchors){const item=items.find(row=>row.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity,description);}
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.equal(result.complete,false);
+});
 test('very pale pricing rules separate every quantity row and keep heading cells out of the review',{timeout:180000},async()=>{
  const result=await parseBoqPdf(original('faint-merged-pricing-rows.pdf'),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');
