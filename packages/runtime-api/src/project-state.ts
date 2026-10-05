@@ -69,6 +69,7 @@ import {
 } from "../../xer-parser/src";
 import {
   TesseractOcrProvider,
+  fragmentedPdfText,
 } from "../../pdf-document-parser/src";
 import {
   parseSubmittedManpowerPlan,
@@ -2337,7 +2338,7 @@ export class RuntimeProjectStore {
       for(const document of [...state.evidenceDocuments]){
         try{
           const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
-          if(contractRead?.complete)continue;
+          if(contractRead?.complete&&!contractRead.pages.some(p=>p.method==='native'&&fragmentedPdfText(p.text)))continue;
           if(await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead)&&state.evidenceDocuments.includes(document)){
             // Physical reading does not grant authority. Retain per-page facts
             // with their source locations, including pages beyond identification.

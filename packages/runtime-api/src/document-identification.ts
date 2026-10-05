@@ -11,6 +11,7 @@ import JSZip from "jszip";
 
 import {
   TesseractOcrProvider,
+  fragmentedPdfText,
   type OcrProvider,
 } from "../../pdf-document-parser/src";
 import type {
@@ -430,7 +431,7 @@ async function extractPdfSample(
     if (
       meaningfulCharacters(
         nativeText,
-      ) >= 80
+      ) >= 80 && !fragmentedPdfText(nativeText)
     ) {
       return {
         text: nativeText,
@@ -455,7 +456,7 @@ async function extractPdfSample(
       return {
         text: nativeText,
         method:
-          nativeText
+          nativeText && !fragmentedPdfText(nativeText)
             ? "native_text"
             : "unreadable",
         ocrUsed: false,
@@ -534,7 +535,7 @@ async function extractPdfSample(
             chosen[index] ??
               index + 1,
           );
-        if (ocr.text?.trim()) {
+        if (ocr.text?.trim() && !fragmentedPdfText(ocr.text)) {
           texts.push(
             ocr.text,
           );
