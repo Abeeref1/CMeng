@@ -161,7 +161,7 @@
       "In progress",
       "1.07,1.08,1.10,1.11",
       "Unchanged valid assertions; no failed/cancelled/skipped checks",
-      "169c419 Verify2239/Scale2124 passed. This follow-up has 66 passing focused checks including UI component tests. Full exact-candidate regression and release gates pending; previous-head results are historical.",
+      "169c419 Verify2239/Scale2124 passed. This follow-up has 67 passing focused checks including UI component tests and a reproduced stale-revision confirmation guard. The earlier local full run ended without a final result and is not counted as passed. Full exact-candidate regression and release gates pending; previous-head results are historical.",
       null
     ],
     [

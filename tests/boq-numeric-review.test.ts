@@ -10,7 +10,7 @@ import {PDFDocument} from 'pdf-lib';
 import ExcelJS from 'exceljs';
 import {ingestBoq,quarantineUnconfirmedBoqNumerics} from '../packages/boq-ingestion/src';
 import {RuntimeProjectStore,runtimeProjects} from '../packages/runtime-api/src/project-state';
-import {boqNumericReview,type BoqNumericReviewInput} from '../packages/runtime-api/src/boq-numeric-review';
+import {applyBoqNumericReviews,boqNumericReview,type BoqNumericReviewInput} from '../packages/runtime-api/src/boq-numeric-review';
 import {resolveBoqSource,suppliedBoqFigures} from '../packages/runtime-api/src/boq-source';
 import {projectActions} from '../packages/runtime-api/src/project-actions';
 import {createCmengServer} from '../packages/runtime-api/src/server';
@@ -116,6 +116,21 @@ test('a changed reading or source cannot inherit confirmation; cross-project cop
  assert.ok(resolveBoqSource(otherState,'S').quantities!.items.every(i=>i.contractQuantity===null));
  state.boq!.sourceHashSha256='changed-source';assert.ok(resolveBoqSource(state,'S').quantities!.items.every(i=>i.contractQuantity===null));
  assert.equal(state.boqNumericReviews![0]!.sourceHash,originalHash,'The original decision is retained in history');
+});
+
+test('a saved review cannot be rebound to another revision or ingestion with identical readings',async t=>{
+ const {store}=newStore(t),projectId='REVISION-'+randomUUID(),source=await scan(projectId);store.attachBoq(source.boq,source.bytes,'Source.pdf');
+ const state=store.getOrCreate(projectId);store.confirmBoqNumericReadings(projectId,inputFor(state,source.truth));
+ const saved=JSON.stringify(state.boqNumericReviews);
+ assert.deepEqual(applyBoqNumericReviews(state.boq!,state).canonicalItems.map(i=>i.quantity),source.truth);
+ for(const field of ['revision','ingestion']){
+   const changed=structuredClone(state.boq!);
+   if(field==='revision')changed.evidenceReceipt.revisionId+='-new';else changed.ingestionId+='-new';
+   const effective=applyBoqNumericReviews(changed,state);
+   assert.ok(effective.canonicalItems.every(i=>i.quantity===null&&!i.numericConfirmation),'A saved decision must not be rebound to a different '+field);
+ }
+ assert.equal(JSON.stringify(state.boqNumericReviews),saved,'The original saved decisions remain intact');
+ assert.deepEqual(applyBoqNumericReviews(state.boq!,state).canonicalItems.map(i=>i.quantity),source.truth);
 });
 
 test('confirmed quantities drive mappings and S-curves without changing measured installations',async t=>{

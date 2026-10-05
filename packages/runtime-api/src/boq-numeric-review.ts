@@ -21,13 +21,13 @@ export function reviewableBoqs(state:ProjectRuntimeState):BoqIngestionResult[]{
 export function applyBoqNumericReviews(boq:BoqIngestionResult,state:ProjectRuntimeState):BoqIngestionResult {
  const readings=quarantineUnconfirmedBoqNumerics(boq),decisions=state.boqNumericReviews??[];
  if(!decisions.length)return readings;
- const byItem=new Map(decisions.filter(d=>d.projectId===state.projectId&&d.sourceHash===boq.sourceHashSha256).map(d=>[d.itemId,d]));
+ const byItem=new Map(decisions.filter(d=>d.projectId===state.projectId&&d.sourceHash===boq.sourceHashSha256&&d.revisionId===boq.evidenceReceipt.revisionId&&d.ingestionId===boq.ingestionId).map(d=>[d.itemId,d]));
  let changed=false;
  const canonicalItems=readings.canonicalItems.map(item=>{
    const d=byItem.get(item.itemId);
    if(!d||d.fingerprint!==boqNumericFingerprint(item))return item;
    changed=true;
-   return {...item,numericConfirmation:{...d,projectId:boq.projectId,revisionId:boq.evidenceReceipt.revisionId}};
+   return {...item,numericConfirmation:{...d,projectId:boq.projectId}};
  });
  return changed?quarantineUnconfirmedBoqNumerics({...readings,canonicalItems}):readings;
 }
