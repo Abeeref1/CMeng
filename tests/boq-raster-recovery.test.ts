@@ -37,11 +37,20 @@ for(const source of [
  // do not substitute terminology absent from that source page.
  {file:'compact-pale-boq-9.pdf',count:9,anchors:[['170',43.25],['Reinforcement Steel',1064.29],['Billboard',1]]},
  {file:'blank-heading-numeric-hallucination.pdf',count:33,anchors:[['Clearing',444],['Reinforcing Steel',671.83],['Billboard',1]]},
+ {file:'recognized-header-merged-body.pdf',count:15,anchors:[['COMMON EXCAVATION',42.53],['RUBBLE MASONRY',43.57],['Billboard',1]]},
+ {file:'compact-total-label.pdf',count:5,anchors:[['Clearing',581],['Common Excavation',56.36],['Rubble Masonry',268.08]]},
+ {file:'near-white-column-rule.pdf',count:15,anchors:[['Rubble Masonry',25.02],['Backfill',3.28],['Billboard',1]]},
+ {file:'merged-wrapped-descriptions.pdf',count:28,anchors:[['Fabricated Screen',3],['Marble Tank',3],['Gravel Blanket',2.38]]},
 ] as const)test('very pale column separators retain every priced source row: '+source.file,{timeout:180000},async()=>{
  const result=await parseBoqPdf(original(source.file),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');
  assert.equal(items.length,source.count,'Independent original-page row count, with no extra heading rows');
  for(const [description,quantity]of source.anchors){const item=items.find(row=>row.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity,description);}
+ if(source.file==='merged-wrapped-descriptions.pdf'){
+  const pipelines=items.filter(row=>row.description.includes('Procurement')&&row.description.includes('Pipeline'));
+  assert.deepEqual(pipelines.map(row=>row.quantity),[516,799],'Both original pipeline quantities must stay attached to separate descriptions');
+  assert.ok(pipelines.every(row=>row.diagnostics.includes('BOQ_RASTER_DESCRIPTION_BOUNDARY_REVIEW_REQUIRED')));
+ }
  assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
  assert.equal(result.complete,false);
 });

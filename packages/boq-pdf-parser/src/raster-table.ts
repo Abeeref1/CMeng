@@ -60,12 +60,12 @@ function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number
 }
 /** Pale column rules must form a long continuous stroke. Counting scattered
  * text pixels at a lighter threshold would invent columns through the numbers. */
-function faintVertical(r:Raster,minHeightFraction=.26):number[]{
+function faintVertical(r:Raster,minHeightFraction=.26,inkThreshold=245):number[]{
  const selected:number[]=[];
  for(let x=2;x<r.width-2;x++){
   let run=0,longest=0;
   for(let y=0;y<r.height;y++){
-   let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<245){ink=true;break;}
+   let ink=false;for(let dx=-2;dx<=2;dx++)if(r.pixels[(y*r.width+x+dx)*4]!<inkThreshold){ink=true;break;}
    if(ink){run++;longest=Math.max(longest,run);}else run=0;
   }
   if(longest>r.height*minHeightFraction)selected.push(x);
@@ -79,7 +79,7 @@ function grid(r:Raster,enhanced=false,compact=false){
  }
  const xs=groupedPositions(vertical).filter((x,i,a)=>!i||x-a[i-1]!>12);
  const paleColumns=xs.length<4;
- if(enhanced&&(paleColumns||compact))for(const x of faintVertical(r,compact?.10:.26))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
+ if(enhanced&&(paleColumns||compact))for(const x of faintVertical(r,compact?.10:.26,compact?250:245))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
  xs.sort((a,b)=>a-b);
  if(xs.length<4||xs.length>80)return null;
  // A section can interrupt the item/description separator for much of the
@@ -110,7 +110,7 @@ function grid(r:Raster,enhanced=false,compact=false){
  // two columns; searching only within the dark extent would erase its rows.
  const faintRules=xs.slice(0,-1).flatMap((x,i)=>{
   const width=xs[i+1]!-x-8;
-  return width>=10?faintHorizontal(r,x+4,width,0,r.height,.75,true,enhanced?245:235).map(y=>({y,column:i})):[];
+  return width>=10?faintHorizontal(r,x+4,width,0,r.height,.75,true,compact?250:enhanced?245:235).map(y=>({y,column:i})):[];
  });
  const darkTop=ys[0]??0,darkBottom=ys.at(-1)??0;
  const paleExtent=enhanced&&(paleColumns||darkBottom-darkTop<r.height*.25);
@@ -124,10 +124,10 @@ function grid(r:Raster,enhanced=false,compact=false){
   const boundaries=mergePositions([top,bottom,...horizontal(r,l,width,top,bottom+1,135,.67),...horizontal(r,l,width,top,bottom+1,185,.50)]);
   // Preserve the coordinates of established dark rules and supplement only
   // missing ones; changing a good crop can unnecessarily change OCR evidence.
-  for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,enhanced,enhanced?245:235))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,enhanced,compact?250:enhanced?245:235))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   // A damaged rule may consist of several long strokes in this column. It
   // can divide cells only when a separate column corroborates its position.
-  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,245):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,compact?250:245):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   boundaries.sort((a,b)=>a-b);
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can
@@ -259,6 +259,7 @@ function unitKey(text:string):string|null{
  * This establishes candidate source facts only, never document authority. */
 export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number):Promise<RasterBoqTable|null>{
  const original=await loadImage(Buffer.from(image));
+ let mergedFallback:RasterBoqTable|null=null;
  // Exhaust established orientation/skew recovery before expanding pale rules.
  // Otherwise a tilted pale grid can win early and change valid numeric crops.
  // A short table can occupy less than a quarter of a full page. Try shorter
@@ -266,7 +267,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
  // recognized physical header cells still have to establish every role.
  for(const recovery of ['standard','pale','compact'] as const){
  const enhanced=recovery!=='standard';
- const rotations=[0,90,270,180];
+ const rotations:number[]=[0,90,270,180];
  for(const rotation of rotations){
   const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
   const width=rigid?(quarter?original.height:original.width):Math.ceil(Math.abs(original.width*Math.cos(angle))+Math.abs(original.height*Math.sin(angle)));
@@ -327,10 +328,32 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   if(!header){queueDeskew();continue;}
   const roles=header.roles,descriptionColumn=Number(Object.keys(roles).find(k=>roles[Number(k)]==='description'))-1;
   const rows:string[][]=[headerValues],evidenceRows:Record<string,RasterCellEvidence[]>[]=[{}],diagnostics:string[][]=[[]];
-  const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom);
+  const recoveredDescriptionBoxes=new Set<Box>();
+  const roleColumn=(role:BoqColumnRole)=>g.columns[Number(Object.keys(roles).find(k=>roles[Number(k)]===role))-1]??[];
+  const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom).flatMap(box=>{
+   if(!enhanced)return [box];
+   // Some originals omit the description divider entirely. A cut then needs
+   // aligned physical boundaries in quantity, unit and a pricing column, plus
+   // a blank band through the description itself. Never split on text wrapping
+   // or an OCR number alone; both resulting description spans must contain ink.
+   const cuts=roleColumn('quantity').flatMap((cell,index,column)=>{
+    const next=column[index+1];if(!next||next.y-cell.y-cell.height>10)return [];
+    const y=Math.round((cell.y+cell.height+next.y)/2);
+    if(y<box.y+12||y>box.y+box.height-12)return [];
+    const aligns=(role:BoqColumnRole)=>roleColumn(role).some((other,j,a)=>a[j+1]&&Math.abs((other.y+other.height+a[j+1]!.y)/2-y)<=8&&a[j+1]!.y-other.y-other.height<=10);
+    if(!aligns('unit')||!(['rate','amount'] as const).some(aligns))return [];
+    for(let yy=y-2;yy<=y+2;yy++)for(let x=box.x+4;x<box.x+box.width-4;x++)if(r.pixels[(yy*r.width+x)*4]!<235)return [];
+    return [y];
+   });
+   if(!cuts.length)return [box];
+   const edges=[box.y-2,...cuts,box.y+box.height+2];
+   const pieces=edges.slice(0,-1).map((y,i)=>({...box,y:y+2,height:edges[i+1]!-y-4}));
+   if(pieces.some(piece=>piece.height<10||!hasInk(r,piece)))return [box];
+   pieces.forEach(piece=>recoveredDescriptionBoxes.add(piece));return pieces;
+  });
   for(const box of descBoxes){
    const desc=await read(box);if(!desc.text.trim())continue;
-   const row=Array(g.columns.length).fill('') as string[],evidence:Record<string,RasterCellEvidence[]>={},issues:string[]=[];
+   const row=Array(g.columns.length).fill('') as string[],evidence:Record<string,RasterCellEvidence[]>={},issues:string[]=recoveredDescriptionBoxes.has(box)?['BOQ_RASTER_DESCRIPTION_BOUNDARY_REVIEW_REQUIRED']:[];
    for(const [column,role] of Object.entries(roles)){
     const index=Number(column)-1,boxes=(g.columns[index]??[]).filter(b=>{
      const center=b.y+b.height/2;return center>=box.y-4&&center<=box.y+box.height+4;
@@ -420,9 +443,20 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
    }
    rows.push(row);evidenceRows.push(evidence);diagnostics.push(issues);
   }
-  if(rows.length>1)return {rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height};
+  if(rows.length>1){
+   const result={rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height};
+   // A recognizable header is not enough when one description cell spans
+   // several quantity/unit cells. Let pale/compact geometry try to separate
+   // the physical rows; retain the unresolved original if none succeeds.
+   if(diagnostics.some(row=>row.includes('BOQ_RASTER_QUANTITY_MULTIPLE_CELLS')||row.includes('BOQ_RASTER_UNIT_MULTIPLE_CELLS'))){
+    if(!mergedFallback||rows.length>mergedFallback.rows.length)mergedFallback=result;
+    queueDeskew();
+    continue;
+   }
+   return result;
+  }
   }finally{c.width=1;c.height=1;}
  }
  }
- return null;
+ return mergedFallback;
 }

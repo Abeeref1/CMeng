@@ -30,6 +30,7 @@ function cell(row: readonly string[], column: number | null): string | null {
 function looksLikeTotal(description: string): boolean {
   const normalized = description.toLowerCase().replace(/\s+/g, " ").trim();
   return /\b(total|subtotal|sub total|carried|brought forward|summary)\b/.test(normalized) ||
+    /\b(?:totalcontractcost|totalcost|grandtotal)\b/.test(normalized) ||
     /^approved budget for (?:the )?contract\b/.test(normalized) ||
     /(الإجمالي|اجمالي|المجموع|مرحّل|مرحل)/.test(normalized);
 }

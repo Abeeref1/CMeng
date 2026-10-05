@@ -219,5 +219,37 @@
     "sourceSha256": "9469146f751a1d4bc8403e8e1817e42da45aa55a4a6068225ecbbffe807398a4",
     "fixtureSha256": "3c88c5e27f9035bcd1d6266ded0c4f52c5005266dc32e8eb3f06cf2a1366aba3",
     "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "recognized-header-merged-body.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp15%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "74c0690c2bd8a90cf24d8154c099155f3af1c3d0b1772193c7def71c1ff93e9d",
+    "fixtureSha256": "0ae74a232c258e1d5c3222a89703d24c2209e6b377197aa73f48f002ecf5f10d",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "compact-total-label.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp04%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "d768395322fcfdcbc45e9588aaaec985d44ac96d4f74ec44b21ab018eb1de374",
+    "fixtureSha256": "2ba36937e4fe5033d7b86097b3cb62a24b3fa9b08b6e74d400155d703f98d677",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "near-white-column-rule.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao39%202026.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "7c6ccc4ba09df75a5d9e4dc7d21bd953b086d94d9cfc8ebfef7e72a279275e7c",
+    "fixtureSha256": "8b87ea306cf6537e49a8c54e21f6d7694cc3ee00351ed3e93b28e243eece3fa5",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "merged-wrapped-descriptions.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/mp-21-2026-noa_boq_260603_000437.pdf",
+    "sourcePage": 2,
+    "sourceSha256": "dba97e954012900d7821d05de6fb1524a652654c28276ecee5bf8b4788382ed9",
+    "fixtureSha256": "bca35122f6950d18e324cd3d25add1f3af17bba170f9bdc3a23e002120b1b70c",
+    "provenance": "Unchanged original page retained after external failure; regression only."
   }
 ]
