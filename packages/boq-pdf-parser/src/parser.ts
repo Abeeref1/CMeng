@@ -4,7 +4,7 @@ import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import {parseNativeBoqText,parseAlignedNativeBoqText} from './native-text';
 import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
-import {readRasterBoqTable} from './raster-table';
+import {readRasterBoqTable,type RasterBoqTable} from './raster-table';
 import type {
   AiBoqCellEvidence,
   AiBoqTableExtraction,
@@ -306,6 +306,7 @@ async function parseBoqPdfWithOpenProvider(
       tablePageByNumber.set(page.num, page);
     }
 
+    let precedingRaster:{page:number;table:RasterBoqTable}|undefined;
     for (const page of pageResult.pages) {
       const nativeTables:string[][][]=tablePageByNumber.get(page.pageNumber)?.tables??[];
       if(page.method==='native'&&nativeTables.length===0){
@@ -330,8 +331,9 @@ async function parseBoqPdfWithOpenProvider(
             options.onProgress?.(page.pageNumber,pageResult.totalPages,'table_read');
             return result;
           }};
-          const raster=image?await readRasterBoqTable(image,cellProvider,page.pageNumber):null;
+          const raster=image?await readRasterBoqTable(image,cellProvider,page.pageNumber,precedingRaster?.page===page.pageNumber-1?precedingRaster.table:undefined):null;
           if(raster){
+            precedingRaster={page:page.pageNumber,table:raster};
             const parsed=parseTableRows(page.pageNumber,1,raster.rows);
             for(const item of parsed.items){
               const evidence=raster.cells[item.row-1]??{};

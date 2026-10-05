@@ -57,6 +57,29 @@ for(const source of [
  assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
  assert.equal(result.complete,false);
 });
+test('headerless continuation retains all original quantity rows and flags inherited roles',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('continuation-without-header.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.page===2&&row.rowKind==='line_item');
+ // Original oracle counted wrapped Mesh twice; the preserved correction
+ // enumerates 4 earthwork + 5 concrete + 6 generator-room items.
+ assert.equal(items.length,15,'All 15 original continuation items; wrapped text is not a new item');
+ assert.deepEqual(items.map(item=>item.quantity),[35,28,3,54,9,8,584,1007,102,87,47,136,1,16,16]);
+ for(const [description,quantity] of [['Soil Poisoning',54],['Formworks',102],['Anchor Bolt',16]] as const){
+  const item=items.find(row=>row.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity);
+ }
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_RASTER_CONTINUATION_HEADER_REVIEW_REQUIRED')&&item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.equal(result.complete,false);
+});
+test('ink-bearing descriptions cannot disappear after an empty first OCR reading',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('native-scan-row-crops.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,16,'All 16 original rows, including Mobilization and Demobilization');
+ for(const [description,quantity] of [['Billboard',1],['Scaffolding',10],['Removal of Ceiling',85],['Mobilization',1],['Demobilization',1]] as const){
+  const item=items.find(row=>row.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity);
+ }
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.equal(result.complete,false);
+});
 test('very pale pricing rules separate every quantity row and keep heading cells out of the review',{timeout:180000},async()=>{
  const result=await parseBoqPdf(original('faint-merged-pricing-rows.pdf'),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');
@@ -109,14 +132,14 @@ for(const source of known)test('offline BOQ regression retains source quantities
  assert.ok(result.items.every(row=>row.rate===null&&row.amount===null),'These source pages are unpriced; blank price cells remain unknown');
 });
 
-async function synthetic(rotation=0,shuffle=false){
+async function synthetic(rotation=0,shuffle=false,omitHeader=false){
  const c=createCanvas(1800,1150),ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='black';ctx.font='bold 30px Arial';ctx.fillText('BILL OF QUANTITIES',80,100);
  const columns=shuffle?['Quantity','Item code','Unit','Description']:['Item code','Description','Quantity','Unit'];
  const widths=shuffle?[300,260,250,830]:[260,830,300,250],xs=[80];for(const w of widths)xs.push(xs.at(-1)!+w);
  const ys=[180,280,440,600,760,920];ctx.lineWidth=3;
  for(const x of xs){ctx.beginPath();ctx.moveTo(x,ys[0]!);ctx.lineTo(x,ys.at(-1)!);ctx.stroke();}
  for(const y of ys){ctx.beginPath();ctx.moveTo(xs[0]!,y);ctx.lineTo(xs.at(-1)!,y);ctx.stroke();}
- columns.forEach((h,i)=>ctx.fillText(h,xs[i]!+18,242));ctx.font='30px Arial';
+ if(!omitHeader)columns.forEach((h,i)=>ctx.fillText(h,xs[i]!+18,242));ctx.font='30px Arial';
  const data=[{description:'Concrete foundations',quantity:'125.50',unit:'m3',id:'101'},{description:'Temporary access',quantity:'0.00',unit:'month',id:'102'},{description:'Safety management',quantity:'5.00',unit:'month',id:'103'},{description:'Formwork preparation',quantity:'42.25',unit:'m2',id:'104'}];
  for(let row=0;row<data.length;row++){
   const d=data[row]!,top=ys[row+1]!;
@@ -261,4 +284,14 @@ for(const source of faintPages)test('faint source rules retain separate BOQ rows
   assert.equal(cell.text,'400');assert.ok(cell.additionalReadings!.length>=3,'Retain the additional original-pixel reading');
  }
  assert.equal(result.complete,false);
+});
+
+for(const kind of ['changed-columns','intervening-page'] as const)test('continuation mapping cannot cross '+kind,{timeout:180000},async()=>{
+ const pdf=await PDFDocument.create();
+ const first=await PDFDocument.load(await synthetic());for(const page of await pdf.copyPages(first,[0]))pdf.addPage(page);
+ if(kind==='intervening-page')pdf.addPage([900,575]);
+ const last=await PDFDocument.load(await synthetic(0,kind==='changed-columns',true));for(const page of await pdf.copyPages(last,[0]))pdf.addPage(page);
+ const result=await parseBoqPdf(await pdf.save(),{ocrProvider:reader()});
+ assert.equal(result.items.filter(item=>item.page===1&&item.rowKind==='line_item').length,4);
+ assert.equal(result.items.filter(item=>item.page===pdf.getPageCount()&&item.rowKind==='line_item').length,0,'Unrelated table cannot inherit earlier roles');
 });

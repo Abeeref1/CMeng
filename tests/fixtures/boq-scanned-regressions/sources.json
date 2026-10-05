@@ -279,5 +279,29 @@
     "fixtureSha256": "c6298cfad86f7856786d972947a8884a2c196816fe715f605a69aeb26c4738a8",
     "bytes": 675968,
     "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "continuation-without-header.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/07/2.-OCM-CDFENGINEERING-26-BLDG-00067-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "5f9a7a1d6f7848ae96c82c46cb1196b296195264ab304c0e695b0f5d937f5c5f",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "43f5af586bca34a9ffe19da317c1b873986210dc06c6d99ce9a97b7fdc3e97b3",
+    "bytes": 939732,
+    "role": "known-regression-only, never fresh",
+    "sourceQualification": "Original manual oracle said 16; direct source recount establishes 15: 4 earthwork, 5 concrete, 6 generator-room items. Mesh is a wrapped word, not a second row. Original zero-row product failure retained; all 15 quantities asserted in regression."
+  },
+  {
+    "filename": "native-scan-row-crops.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/3.-ENGINEERING-26-BLDG-00102-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "9b137508c719e5d93e44e5e5278a24a20f6c9ba467af8b9f94c8273b98d15c97",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "f506960f811390f8ad2ea3de3d1cd7c7b08ae27fda67dfed6b3cfa9520478688",
+    "bytes": 392533,
+    "role": "known-regression-only, never fresh"
   }
 ]

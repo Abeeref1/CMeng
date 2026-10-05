@@ -19,6 +19,7 @@ export interface RasterBoqTable {
   rotation:number;
   imageWidth:number;
   imageHeight:number;
+  columnEdges:number[];
 }
 type Box=RasterCellEvidence['bounds'];
 type Raster={canvas:Canvas;pixels:Uint8ClampedArray;width:number;height:number};
@@ -194,6 +195,24 @@ function contrastTextPng(r:Raster,b:Box):Buffer{
   ctx.putImageData(data,0,0);return canvas.toBuffer('image/png');
  }finally{canvas.width=1;canvas.height=1;}
 }
+/** Clear connected crop-edge rules for description rereads only. Interior
+ * pixels stay intact; numeric reads never use this text transform. */
+function descriptionCellPng(r:Raster,b:Box):Buffer{
+ const c=createCanvas(b.width,b.height),ctx=c.getContext('2d');
+ try{
+  ctx.drawImage(r.canvas,b.x,b.y,b.width,b.height,0,0,b.width,b.height);
+  const image=ctx.getImageData(0,0,c.width,c.height),p=image.data,w=c.width,h=c.height;
+  const columns:number[]=[],rows:number[]=[];
+  for(let x=0;x<w;x++)if(x<5||x>=w-5){let n=0;for(let y=0;y<h;y++)if(p[(y*w+x)*4]!<235)n++;if(n>=h*.8)columns.push(x);}
+  for(let y=0;y<h;y++)if(y<5||y>=h-5){let n=0;for(let x=0;x<w;x++)if(p[(y*w+x)*4]!<235)n++;if(n>=w*.8)rows.push(y);}
+  for(const x of columns)for(let y=0;y<h;y++){const i=(y*w+x)*4;p[i]=p[i+1]=p[i+2]=255;}
+  for(const y of rows)for(let x=0;x<w;x++){const i=(y*w+x)*4;p[i]=p[i+1]=p[i+2]=255;}
+  ctx.putImageData(image,0,0);
+  const out=createCanvas(w*3+24,h*3+24),oc=out.getContext('2d');
+  try{oc.fillStyle='white';oc.fillRect(0,0,out.width,out.height);oc.drawImage(c,2,2,w-4,h-4,18,18,(w-4)*3,(h-4)*3);return out.toBuffer('image/png');}
+  finally{out.width=1;out.height=1;}
+ }finally{c.width=1;c.height=1;}
+}
 /** Remove only thin rules whose strokes continue outside the source cell.
  * Cropping at native resolution also prevents interpolation from pulling an
  * adjacent rule into the enlarged text. Original pixels remain unchanged. */
@@ -269,7 +288,7 @@ function unitKey(text:string):string|null{
  * physical description cell it overlaps; column order never supplies a value.
  * Conflicting/low-confidence readings remain empty, with both readings retained.
  * This establishes candidate source facts only, never document authority. */
-export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number):Promise<RasterBoqTable|null>{
+export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number,previous?:RasterBoqTable):Promise<RasterBoqTable|null>{
  const original=await loadImage(Buffer.from(image));
  let mergedFallback:RasterBoqTable|null=null;
  let tableOrientation:number|null=null;
@@ -305,7 +324,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   const topCells:RasterCellEvidence[][]=[];
   for(const column of g.columns)topCells.push(await readBoxes(column.slice(0,8)));
   const possible=mergePositions(topCells.flat().map(c=>Math.round(c.bounds.y+c.bounds.height/2))).sort((a,b)=>a-b);
-  let header:ReturnType<typeof detectBoqHeader>=null,headerBottom=0,headerValues:string[]=[];
+  let header:ReturnType<typeof detectBoqHeader>=null,headerBottom=0,headerValues:string[]=[],inheritedHeader=false;
   for(const y of possible){
    const cells=topCells.map(col=>col.find(c=>y>=c.bounds.y&&y<=c.bounds.y+c.bounds.height));
    const values=cells.map(c=>c?.text??''),mapped=detectBoqHeader([values]);
@@ -339,8 +358,27 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     if(mapped){header=mapped;headerValues=values;headerBottom=span.y+span.height;break;}
    }
   }
+  // A continuation may omit the repeated header. Reuse only the immediately
+  // preceding page's explicit roles when every ruled column aligns, the page
+  // orientation agrees, and independent quantity/unit cells establish a body.
+  // This never certifies its readings: inherited roles remain review evidence.
+  if(!header&&previous&&!topCells.flat().some(cell=>/description|quantity|\bqty\b|unit cost|item code|item no/i.test(cell.text))&&
+     g.xs.length===previous.columnEdges.length&&Math.abs(r.width/r.height-previous.imageWidth/previous.imageHeight)<.02&&
+     Math.abs(rotation-previous.rotation)<.6&&g.xs.every((x,i)=>Math.abs(x/r.width-previous.columnEdges[i]!/previous.imageWidth)<.015)){
+   const mapped=detectBoqHeader([previous.rows[0]!]);
+   const readings=(role:BoqColumnRole)=>topCells[Number(Object.keys(mapped?.roles??{}).find(k=>mapped!.roles[Number(k)]===role))-1]??[];
+   if(mapped&&readings('quantity').filter(cell=>strictNumber(cell.text)!==null).length>=2&&readings('unit').filter(cell=>unitKey(cell.text)!==null).length>=2){
+    header=mapped;headerValues=[...previous.rows[0]!];headerBottom=g.top;inheritedHeader=true;
+   }
+  }
   if(!header){queueDeskew();continue;}
   const roles=header.roles,descriptionColumn=Number(Object.keys(roles).find(k=>roles[Number(k)]==='description'))-1;
+   // Recovery must not erase columns already established by a physical
+   // header. A tilted/pale alternative recognizing only price headings is
+   // not a replacement for an existing quantity-and-unit table.
+   const established=mergedFallback&&detectBoqHeader([mergedFallback.rows[0]!]);
+   if(established&&Object.values(established.roles).some(role=>!Object.values(roles).includes(role))){queueDeskew();continue;}
+
   const rows:string[][]=[headerValues],evidenceRows:Record<string,RasterCellEvidence[]>[]=[{}],diagnostics:string[][]=[[]];
   const recoveredDescriptionBoxes=new Set<Box>(g.inferredCells);
   let descriptionStart=descriptionColumn;
@@ -378,13 +416,28 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
    pieces.forEach(piece=>recoveredDescriptionBoxes.add(piece));return pieces;
   });
   for(const box of descBoxes){
-   const desc=await read(box);if(!desc.text.trim())continue;
-   const row=Array(g.columns.length).fill('') as string[],evidence:Record<string,RasterCellEvidence[]>={},issues:string[]=recoveredDescriptionBoxes.has(box)?['BOQ_RASTER_DESCRIPTION_BOUNDARY_REVIEW_REQUIRED']:[];
+   const desc=await read(box);
+   let descriptionText=desc.text;
+   if((!desc.text.trim()||(desc.confidence??0)<.90)&&hasInk(r,box)){
+    const contrast=await provider.recognize(contrastTextPng(r,box),pageNumber,{segmentation:'block'});
+    const isolated=await provider.recognize(descriptionCellPng(r,box),pageNumber,{segmentation:'line'});
+    desc.confirmation={text:contrast.text.trim(),confidence:contrast.confidence};
+    desc.additionalReadings=[{text:isolated.text.trim(),confidence:isolated.confidence}];
+    const candidate=[desc,desc.confirmation,...desc.additionalReadings].filter(reading=>(reading.text.match(/[a-z\u0600-\u06ff]/gi)?.length??0)>=2).sort((a,b)=>(b.confidence??0)-(a.confidence??0))[0];
+    if(candidate)descriptionText=candidate.text;
+   }
+   if(!descriptionText.trim())continue;
+   const row=Array(g.columns.length).fill('') as string[],evidence:Record<string,RasterCellEvidence[]>={},issues:string[]=[...(recoveredDescriptionBoxes.has(box)?['BOQ_RASTER_DESCRIPTION_BOUNDARY_REVIEW_REQUIRED']:[]),...(inheritedHeader?['BOQ_RASTER_CONTINUATION_HEADER_REVIEW_REQUIRED']:[])];
    for(const [column,role] of Object.entries(roles)){
     const index=Number(column)-1,boxes=(g.columns[index]??[]).filter(b=>{
      const center=b.y+b.height/2;return center>=box.y-4&&center<=box.y+box.height+4;
     });
     const cells=role==='description'?[desc]:await readBoxes(boxes);evidence[role]=cells;
+    if(role==='description'){
+     row[index]=simple(descriptionText);
+     if(simple(desc.text)!==row[index])issues.push('BOQ_RASTER_DESCRIPTION_REVIEW_REQUIRED');
+     continue;
+    }
     if(numericRoles.has(role)){
      // An empty first OCR result is not evidence that the physical cell is
      // empty. Read every ink-bearing cell before deciding its row population.
@@ -426,17 +479,6 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
      if(!nonempty.length)continue;
      if(nonempty.length!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_MULTIPLE_CELLS');continue;}
      const cell=nonempty[0]!;
-     if(enhanced&&role==='description'&&(cell.confidence??0)<.90){
-      const reread=await provider.recognize(contrastTextPng(r,cell.bounds),pageNumber,{segmentation:'block'});
-      cell.confirmation={text:reread.text.trim(),confidence:reread.confidence};
-      if(reread.text.trim()&&(reread.confidence??0)>=.90){
-       row[index]=simple(reread.text);
-       // Better candidate wording is not certified source truth. Preserve
-       // the first reading and flag disagreement for source review.
-       if(simple(cell.text)!==row[index])issues.push('BOQ_RASTER_DESCRIPTION_REVIEW_REQUIRED');
-       continue;
-      }
-     }
      if(role==='unit'){
       const second=await provider.recognize(cropPng(r,cell.bounds,1),pageNumber,{segmentation:'word'});
       cell.confirmation={text:second.text.trim(),confidence:second.confidence};
@@ -461,9 +503,9 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
       if(confident.length<2||new Set(nonblank.map(v=>simple(v.text))).size!==1){issues.push('BOQ_RASTER_ITEM_NUMBER_REVIEW_REQUIRED');continue;}
       row[index]=simple(confident[0]!.text);continue;
      }
-     if(cell.confidence===null||cell.confidence<(role==='description'?.70:.90)){
+     if(cell.confidence===null||cell.confidence<.90){
       issues.push('BOQ_RASTER_'+role.toUpperCase()+'_REVIEW_REQUIRED');
-      if(role!=='description')continue;
+      continue;
      }
      row[index]=simple(cell.text);
     }
@@ -476,12 +518,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
    rows.push(row);evidenceRows.push(evidence);diagnostics.push(issues);
   }
   if(rows.length>1){
-   const result={rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height};
-   // Recovery must not erase columns already established by a physical
-   // header. A tilted/pale alternative recognizing only price headings is
-   // not a replacement for an existing quantity-and-unit table.
-   const established=mergedFallback&&detectBoqHeader([mergedFallback.rows[0]!]);
-   if(established&&Object.values(established.roles).some(role=>!Object.values(roles).includes(role))){queueDeskew();continue;}
+   const result={rows,cells:evidenceRows,diagnostics,rotation,imageWidth:r.width,imageHeight:r.height,columnEdges:[...g.xs]};
    // A recognizable header is not enough when one description cell spans
    // several quantity/unit cells. Let pale/compact geometry try to separate
    // the physical rows; retain the unresolved original if none succeeds.
