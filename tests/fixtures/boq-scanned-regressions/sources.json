@@ -35,5 +35,75 @@
     "bytes": 400319,
     "role": "known-regression-only, never fresh",
     "observedSource": "Painting Works, Steel (Color: Paved Path): quantity 3.00 sq.m.; OCR variant returned 300"
+  },
+  {
+    "filename": "building-page-7.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 7,
+    "fixtureSha256": "ee625d2bf27e2884b93ce7b790bf20a1ea817118d6e8d9f8cdc5c3ceb80c5b7c",
+    "bytes": 391503,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "First body row: Painting Works, Oil Wood Stain (Color: Walnut), quantity 38.00 sq.m.; preceding reader omitted the entire row."
+  },
+  {
+    "filename": "building-page-3.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 3,
+    "fixtureSha256": "8f9180b0b27cdaffb7bf9e1239a4ed6aa959e5102f964397419b112af2caf3fe",
+    "bytes": 389928,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Eleven source items, including Chipping Works 147.00; skewed table was missed completely."
+  },
+  {
+    "filename": "building-page-9.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 9,
+    "fixtureSha256": "fe8252fead8d6d817a159372c6d312d9e0465f4f422d69b8853e71ec156b7f85",
+    "bytes": 364796,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Twelve visible source items; a pale 1.00 initially read as empty hid the straight anti-bacterial grab bar."
+  },
+  {
+    "filename": "building-page-13.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 13,
+    "fixtureSha256": "4944ab7f68264f1dc2f1f6a7f0bba3f106d355c6aca1104a9af850ff29e0db71",
+    "bytes": 363437,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Fifteen visible items; faded borders merged the oval eye bolt and fabricated pull box and pale quantity cells hid other rows."
+  },
+  {
+    "filename": "building-page-17.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 17,
+    "fixtureSha256": "45725b627e4a80bcbe54a756442756036e68c28b8e6202d391941262e3bf5bd5",
+    "bytes": 356050,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Fourteen visible items; faded lower rules merged screen, WiFi, walkway, cable and earth-pit rows."
+  },
+  {
+    "filename": "building-page-18.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 18,
+    "fixtureSha256": "644a855cd9b9521f1c57e06062fe41eeb124ed12344840268067c85ce22fe7c4",
+    "bytes": 365424,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Nine visible items; an interrupted column rule hid the table; faint exhaust-pipe 4.00 was read as 400 by agreeing OCR variants."
+  },
+  {
+    "filename": "building-page-11.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 11,
+    "fixtureSha256": "5d66b8a4e22a4b2711e6c8b9e30c208f12a97c743a638bdea1e664fa6f168153",
+    "bytes": 376864,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Thirteen visible source items. First two quantities visibly 7.00 and 31.00 have noisy OCR readings; retain their rows and source glyph evidence while quantities stay unknown."
   }
 ]

@@ -386,6 +386,15 @@ test('supplied BOQ rows are visible, searchable and pageable without schedule or
    'Challenge position must lead; source BOQ remains searchable supporting evidence below.');
 });
 
+test('unconfirmed numeric observations are clearly separated from usable BOQ figures',()=>{
+ const boq={sourceFilename:'scan.pdf',itemCount:1,rows:[{itemId:'OCR-1',description:'Source item',unit:'m2',quantity:null,rate:null,amount:null,currency:'SAR',sourceNumericReadings:{quantity:300,rate:4,amount:1200}}]};
+ const html=runInNewContext(functions(['renderSuppliedBoqRows'])+';renderSuppliedBoqRows(boq)',{...common,boq});
+ assert.equal((html.match(/Needs source confirmation/g)||[]).length,3);
+ assert.match(html,/Unconfirmed source readings — excluded from calculations/);
+ assert.match(html,/300/);assert.match(html,/1200/);
+ assert.doesNotMatch(html,/<td>300<\/td>|<td>1200<\/td>/);
+});
+
 test('primary findings hide internal codes and the banner action needs no click',()=>{
  const code=functions(['readerIssue','renderIssueAssessment','renderPositionVerdict','experienceDisclosure']);
  const issue={kind:'data_quality',summary:'CALENDAR_CYCLE:ACTIVITY_1',detail:'CLAUSE_PARSE_FAILURE:ARTICLE_1',code:'SOURCE_QUALITY',action:'Resolve CALENDAR_CYCLE:ACTIVITY_1',owner:'Project evidence owner',moduleKeys:[]};

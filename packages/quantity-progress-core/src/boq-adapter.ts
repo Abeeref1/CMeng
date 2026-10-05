@@ -12,6 +12,7 @@ import type {
   QuantitySourceRef,
 } from "./types";
 import {admissibleBoqQuantity} from './boq-quantity';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 
 function id(
   sheet: string,
@@ -116,6 +117,7 @@ export function quantityItemsFromBoqPdf(
       item.page +
       ":t" +
       item.table;
+    const diagnostics=[...item.diagnostics,...(result.pageRead?.pages.some(page=>page.pageNumber===item.page&&page.method==='native')?[]:[BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED])];
 
     return [
       {
@@ -128,7 +130,7 @@ export function quantityItemsFromBoqPdf(
         section: item.section,
         description: item.description,
         unit: item.unit,
-        contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnostics).contractQuantity,
+        contractQuantity: admissibleBoqQuantity(item.quantity,diagnostics).contractQuantity,
         sourceRefs: [
           ref(
             "boq_pdf",
@@ -141,7 +143,7 @@ export function quantityItemsFromBoqPdf(
           ),
         ],
         diagnostics: [
-          ...admissibleBoqQuantity(item.quantity,item.diagnostics).diagnostics,
+          ...admissibleBoqQuantity(item.quantity,diagnostics).diagnostics,
           ...(item.status === "unresolved"
             ? [
                 "QUANTITY_ITEM_SOURCE_UNRESOLVED",

@@ -1,8 +1,9 @@
 import { detectBoqHeader } from "../../boq-parser/src/headers";
-import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
+import { parseStrictNumeric, resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import {parseNativeBoqText} from './native-text';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 import {readRasterBoqTable} from './raster-table';
 import type {
   AiBoqCellEvidence,
@@ -299,9 +300,10 @@ async function parseBoqPdfWithOpenProvider(
               const evidence=raster.cells[item.row-1]??{};
               const issues=raster.diagnostics[item.row-1]??[];
               item.rasterEvidence={rotation:raster.rotation,imageWidth:raster.imageWidth,imageHeight:raster.imageHeight,cells:evidence};
-              item.diagnostics.push('BOQ_OFFLINE_RASTER_CELL_EVIDENCE',...issues);
+              item.diagnostics.push('BOQ_OFFLINE_RASTER_CELL_EVIDENCE',BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED,...issues);
+              item.status='unresolved';
               // A withheld numeric reading is not a section or an empty row.
-              if(item.rowKind==='section'&&['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>/\d/.test(c.text))))item.rowKind='line_item';
+              if(item.rowKind==='section'&&(item.unit!==null||['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>c.hasText||[c.text,c.confirmation?.text,...(c.additionalReadings??[]).map(v=>v.text)].some(text=>text&&/^[+\-]?[\d.,\s]+$/.test(text)&&parseStrictNumeric(text).status==='valid')))))item.rowKind='line_item';
               if(issues.length){item.status='unresolved';unresolvedPages.add(page.pageNumber);}
             }
             items.push(...parsed.items);ocrTablePages++;
@@ -410,6 +412,9 @@ async function parseBoqPdfWithOpenProvider(
           evidence.rows,
           extraction.diagnostics,
         );
+        for(const item of parsed.items){item.status='unresolved';item.diagnostics.push(BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED);}
+        unresolvedPages.add(page.pageNumber);
+        diagnostics.push(BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED);
         items.push(...parsed.items);
         ocrTablePages += 1;
 

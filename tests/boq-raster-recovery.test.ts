@@ -110,8 +110,13 @@ test('restored misclassified BOQ exposes candidate rows without changing source 
   const before=JSON.stringify(state.activeEvidenceBasis);assert.equal(await refreshDeferredPdfBoq(doc,state,reader),true);
   assert.equal(doc.documentType,'supporting_document');assert.equal(doc.basisState,'active');assert.equal(doc.linkedArtifactId,null);assert.equal(doc.sourceHashSha256,hash);assert.equal(createHash('sha256').update(readFileSync(path)).digest('hex'),hash);assert.equal(JSON.stringify(state.activeEvidenceBasis),before);
   assert.equal(documentClassificationForReview(doc).documentType,'boq');assert.equal(documentClassificationForReview(doc).reviewRequired,true);
-  const selected=resolveBoqSource(state,'');assert.equal(selected.selection.state,'candidate');assert.equal(selected.selection.adoptedSource,false);assert.equal(selected.boq!.canonicalItems.find(row=>row.description==='Roadway Excavation')!.quantity,245);assert.equal(state.boq,null);
+  const selected=resolveBoqSource(state,'');assert.equal(selected.selection.state,'candidate');assert.equal(selected.selection.adoptedSource,false);
+  const excavation=selected.boq!.canonicalItems.find(row=>row.description==='Roadway Excavation')!;
+  assert.equal(excavation.quantity,null);assert.equal(excavation.sourceNumericReadings!.quantity,245);assert.equal(state.boq,null);
   assert.equal(await refreshDeferredPdfBoq(doc,state,()=>{throw Error('Unchanged receipt must not rerun OCR');}),false);
+  doc.boqTableRead!.producerVersion='offline-boq-cells-v1';
+  assert.equal(await refreshDeferredPdfBoq(doc,state,reader),true,'The older reader receipt cannot hide rows recovered by the geometry correction');
+  assert.equal(doc.boqTableRead!.producerVersion,'offline-boq-cells-v2');assert.equal(doc.sourceHashSha256,hash);assert.equal(doc.basisState,'active');assert.equal(doc.documentType,'supporting_document');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -120,4 +125,71 @@ test('legacy BOQ without a source hash cannot gain a reading receipt or call OCR
  const state={projectId:'missing-hash',evidenceDocuments:[doc],boq:null,boqRevisions:[]} as unknown as ProjectRuntimeState;
  await assert.rejects(refreshDeferredPdfBoq(doc,state,()=>{throw Error('Unverified source must not start OCR');}),/BOQ_REFRESH_SOURCE_HASH_MISSING/);
  assert.equal(doc.boqTableRead,undefined);assert.equal(state.boq,null);assert.equal(state.boqRevisions.length,0);
+});
+
+test('slightly uneven header borders cannot hide the first BOQ body row',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('building-page-7.pdf'),{ocrProvider:reader()});
+ const first=result.items.filter(row=>row.description.includes('Oil Wood Stain'));
+ assert.equal(first.length,1,'The visible first source row must remain in the population');
+ assert.equal(first[0]!.quantity,38);assert.ok(first[0]!.rasterEvidence?.cells.quantity?.length);
+ assert.equal(result.items.filter(row=>row.rowKind==='line_item').length,12);
+ assert.equal(result.complete,false);
+});
+
+test('small scan skew cannot erase an otherwise ruled BOQ page',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('building-page-3.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');assert.equal(items.length,11);
+ for(const [description,quantity]of [['Chipping Works',147],['Solid Rock',18],['Embankment',19],['50 mm x 75 mm',102]]as const){
+  const item=items.find(row=>row.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity,description);assert.ok(item.rasterEvidence);
+ }
+ // The source states 421.00, but the retained readings disagree (41.00 versus
+ // 421.00). Recovering a missing page must not bypass numeric quarantine.
+ const steel=items.find(row=>row.description.includes('Grade 40'))!;
+ assert.equal(steel.quantity,null);assert.ok(steel.diagnostics.includes('BOQ_RASTER_QUANTITY_REVIEW_REQUIRED'));
+ const cell=steel.rasterEvidence!.cells.quantity![0]!;
+ const texts=[cell.text,cell.confirmation?.text,...(cell.additionalReadings??[]).map(reading=>reading.text)];
+ assert.ok(texts.includes('41.00'));assert.ok(texts.includes('421.00'));
+ assert.equal(items.find(row=>row.description.includes('Grade 60'))!.quantity,null,'One high-confidence reading is insufficient for the stated 451.00');
+ assert.equal(result.complete,false);
+});
+
+const faintPages=[
+ {page:9,quantities:[2,1,1,1,8,2,1,358,4,172,3,28]},
+ {page:11,quantities:[7,31,6,5,5,2,1,1,1,16,4,2,4]},
+ {page:13,quantities:[1,144,5,7,70,8,5,3,3,13,2,1,2,1044,3]},
+ {page:17,quantities:[2,36,1,1,2,2,9,2,1,1,1,20,20,1]},
+ {page:18,quantities:[1,2,2,2,1,1,1,1,4]},
+];
+for(const source of faintPages)test('faint source rules retain separate BOQ rows: building page '+source.page,{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('building-page-'+source.page+'.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ assert.equal(items.length,source.quantities.length,'Every visibly distinct item must remain in the candidate population');
+ items.forEach((item,index)=>{
+  if(item.quantity!==null)assert.equal(item.quantity,source.quantities[index],item.description);
+  assert.ok(item.rasterEvidence?.cells.description?.length);
+  assert.equal(item.rate,null);assert.equal(item.amount,null);
+ });
+ if(source.page===9)assert.ok(items.some(item=>item.description.includes('Anti-Bacterial')),'An empty first OCR reading cannot turn an item into a section');
+ if(source.page===11){
+  assert.equal(items[0]!.quantity,null);assert.equal(items[1]!.quantity,null);
+  assert.ok(items.slice(0,2).every(item=>item.rasterEvidence!.cells.quantity!.some(cell=>cell.hasText)),'Unreadable numeric glyphs retain a physical line item even when every OCR interpretation contains noise');
+ }
+ if(source.page===13){
+  const box=items.find(item=>item.description==='50mm x 100mm PVC Utility Box')!;
+  // Visible truth is 13.00, but the original crops read "i. 13.00" with low
+  // confidence. Processed-only agreement is insufficient under the same guard
+  // that prevents the faint 4.00 becoming 400. Keep the item, unit and readings.
+  assert.equal(box.quantity,null);assert.equal(box.unit,'set');
+  assert.ok(box.diagnostics.includes('BOQ_RASTER_QUANTITY_ORIGINAL_CONFIRMATION_REQUIRED'));
+  assert.ok(box.rasterEvidence!.cells.quantity!.some(cell=>cell.confirmation?.text==='13.00'));
+ }
+ if(source.page===17){assert.equal(items.find(item=>item.description.includes('MC4 Connector'))!.quantity,36);assert.ok(items.some(item=>item.description==='Wifi Extender'));}
+ if(source.page===18){
+  const pipe=items.find(item=>item.description.startsWith('Exhaust Pipe'))!;
+  assert.equal(pipe.quantity,null,'The visible 4.00 must never become 400 despite agreement between processed rereads');
+  assert.ok(pipe.diagnostics.includes('BOQ_RASTER_QUANTITY_ORIGINAL_CONFIRMATION_REQUIRED'));
+  const cell=pipe.rasterEvidence!.cells.quantity!.find(cell=>cell.text.trim())!;
+  assert.equal(cell.text,'400');assert.ok(cell.additionalReadings!.length>=3,'Retain the additional original-pixel reading');
+ }
+ assert.equal(result.complete,false);
 });

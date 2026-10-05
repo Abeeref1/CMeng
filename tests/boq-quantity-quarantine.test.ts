@@ -36,13 +36,18 @@ for(const [name,parse]of [['XLSX',parseBoqWorkbook],['OOXML',parseBoqOoxmlWorkbo
 test('PDF arithmetic mismatch is quarantined after source-backed structured extraction',async()=>{
  const pdf=await PDFDocument.create();pdf.addPage([595,842]);const text=rows.map(row=>row.join(' ')).join('\n');
  const parsed=await parseBoqPdf(await pdf.save(),{ocrProvider:{name:'fixture-source-reading',recognize:async()=>({text,confidence:.99,language:'eng',diagnostics:[]})},aiTableExtractor:{name:'fixture-source-spans',extract:async()=>({confidence:.99,diagnostics:[],rows:rows.map(row=>row.map(value=>{const start=value?text.indexOf(value):0;return{value,sourceStart:start,sourceEnd:start+value.length,sourceText:value};}))})}});
- check(quantityItemsFromBoqPdf(parsed));
+ const items=quantityItemsFromBoqPdf(parsed);
+ assert.ok(items.every(item=>item.contractQuantity===null),'Even arithmetically consistent OCR values require independent source confirmation');
+ assert.ok(items[0]!.diagnostics.includes('BOQ_AMOUNT_ARITHMETIC_MISMATCH'));
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.deepEqual(parsed.items.filter(item=>item.rowKind==='line_item').map(item=>item.quantity),[300,3,7,0],'Raw OCR observations remain inspectable');
 });
 for(const format of ['csv','xlsx']as const){
  test(format+' canonical ingestion retains raw source readings but quarantines calculated quantities',async()=>{
   const boq=await ingestBoq({projectId:'QUARANTINE',bytes:format==='csv'?csv:await workbook(),verifiedMediaType:format==='csv'?'text/csv':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',receivedAt:'2026-10-05'});
   const before=JSON.stringify(boq),model=quantityModelFromBoq(boq,'S',null);check(model.items);
-  assert.equal(suppliedBoqFigures(boq,model).rows[0]!.quantity,300,'the as-read source remains inspectable with its mismatch diagnostic');assert.equal(JSON.stringify(boq),before);
+  const row=suppliedBoqFigures(boq,model).rows[0]!;
+  assert.equal(row.quantity,null);assert.equal(row.sourceNumericReadings!.quantity,300,'the observation remains inspectable separately from calculation fields');assert.equal(JSON.stringify(boq),before);
  });
 }
 test('cached and durably restored legacy quantities cannot bypass a source arithmetic mismatch',async t=>{
@@ -59,7 +64,7 @@ test('cached and durably restored legacy quantities cannot bypass a source arith
  store.updateControls(state.projectId,{});
  const restored=new RuntimeProjectStore({dataDir,durable:true}).getOrCreate(state.projectId);
  check(restored.quantities!.items);assert.deepEqual(restored.quantities!.allocations,state.quantities.allocations);assert.deepEqual(restored.quantities!.installedSnapshots,state.quantities.installedSnapshots);
- assert.equal(restored.boq!.canonicalItems[0]!.quantity,300);assert.equal(restored.boq!.sourceHashSha256,boq.sourceHashSha256);
+ assert.equal(restored.boq!.canonicalItems[0]!.quantity,null);assert.equal(restored.boq!.canonicalItems[0]!.sourceNumericReadings!.quantity,300);assert.equal(restored.boq!.sourceHashSha256,boq.sourceHashSha256);
 });
 
 test('quarantined quantities cannot survive in saved S-curve plans or establish complete mixed-item mapping',async()=>{

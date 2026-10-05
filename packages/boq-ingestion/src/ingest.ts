@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import {quarantineUnconfirmedBoqNumerics} from './numeric-evidence';
 
 import {
   createSourceManifest,
@@ -452,7 +453,7 @@ export async function ingestBoq(
         ? "partial_candidate"
         : "unavailable";
 
-  return {
+  return quarantineUnconfirmedBoqNumerics({
     ingestionId: stableId(
       "boqingest",
       createHash("sha256")
@@ -481,5 +482,5 @@ export async function ingestBoq(
     ...(pdfRead?{pdfRead}:{}),
     diagnostics,
     receivedAt: input.receivedAt,
-  };
+  });
 }

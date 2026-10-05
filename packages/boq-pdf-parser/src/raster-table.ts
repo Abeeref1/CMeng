@@ -10,6 +10,7 @@ export interface RasterCellEvidence {
   bounds:{x:number;y:number;width:number;height:number};
   confirmation?:{text:string;confidence:number|null};
   additionalReadings?:{text:string;confidence:number|null}[];
+  hasText?:boolean;
 }
 export interface RasterBoqTable {
   rows:string[][];
@@ -40,6 +41,20 @@ function horizontal(r:Raster,x:number,width:number,top:number,bottom:number,thre
  }
  return groupedPositions(selected);
 }
+/** Faded rules can cross several pixel rows. Require an almost continuous
+ * stroke across the cell, so pale text cannot supply a new row boundary. */
+function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number):number[]{
+ const selected:number[]=[];
+ for(let y=Math.max(2,top);y<Math.min(r.height-2,bottom);y++){
+  let dark=0,run=0,longest=0;
+  for(let xx=x;xx<x+width;xx++){
+   let ink=false;for(let dy=-2;dy<=2;dy++)if(r.pixels[((y+dy)*r.width+xx)*4]!<235){ink=true;break;}
+   if(ink){dark++;run++;longest=Math.max(longest,run);}else run=0;
+  }
+  if(dark>=width*.92&&longest>=Math.max(40,width*.75))selected.push(y);
+ }
+ return groupedPositions(selected);
+}
 function grid(r:Raster){
  const vertical:number[]=[];
  for(let x=0;x<r.width;x++){let dark=0;for(let y=0;y<r.height;y++)if(r.pixels[(y*r.width+x)*4]!<170)dark++;
@@ -47,6 +62,23 @@ function grid(r:Raster){
  }
  const xs=groupedPositions(vertical).filter((x,i,a)=>!i||x-a[i-1]!>12);
  if(xs.length<4||xs.length>80)return null;
+ // A section can interrupt the item/description separator for much of the
+ // page. Recover actual shorter vertical strokes inside the established grid;
+ // never infer a column from the expected order of BOQ fields.
+ const shortRules:number[]=[];
+ for(let x=xs[0]!;x<=xs.at(-1)!;x++){
+  let dark=0,run=0,longest=0;
+  for(let y=0;y<r.height;y++){
+   const at=(y*r.width+x)*4;
+   // Broad shaded bands are not vertical rules. A real thin stroke has
+   // lighter pixels beside it; otherwise every column in a band would qualify.
+   if(r.pixels[at]!<185&&(r.pixels[at-16]!>=185||r.pixels[at+16]!>=185)){dark++;run++;longest=Math.max(longest,run);}else run=0;
+  }
+  if(longest>=Math.max(40,r.height*.02)&&dark>r.height*.1)shortRules.push(x);
+ }
+ for(const x of groupedPositions(shortRules))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
+ xs.sort((a,b)=>a-b);
+ if(xs.length>80)return null;
  // Find the extent in individual columns. A slightly tilted rule can cross
  // an entire page without occupying most pixels on any single full-width row.
  const ys=xs.slice(0,-1).flatMap((x,i)=>{
@@ -59,6 +91,10 @@ function grid(r:Raster){
   const l=x+4,width=xs[i+1]!-l-4;
   if(width<10)return [];
   const boundaries=mergePositions([top,bottom,...horizontal(r,l,width,top,bottom+1,135,.67),...horizontal(r,l,width,top,bottom+1,185,.50)]);
+  // Preserve the coordinates of established dark rules and supplement only
+  // missing ones; changing a good crop can unnecessarily change OCR evidence.
+  for(const y of faintHorizontal(r,l,width,top,bottom+1))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  boundaries.sort((a,b)=>a-b);
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can
    // turn "sq.m." into "sa.m." or a thousands comma into a decimal point.
@@ -67,6 +103,26 @@ function grid(r:Raster){
   });
  });
  return {xs,top,bottom,columns};
+}
+/** Estimate small scan skew from long vertical strokes, not recognized values.
+ * A tilted table spreads each rule across many image columns, so a fixed-column
+ * histogram can miss an entire page. Header and cell validation still apply. */
+function verticalSkew(r:Raster):number|null{
+ const step=8,threshold=r.height/step*.26;
+ let bestAngle=0,bestScore=0,zeroScore=0;
+ for(let n=-20;n<=20;n++){
+  const angle=n/10,slope=Math.tan(angle*Math.PI/180),hist=new Uint16Array(r.width+2*r.height);
+  for(let y=0;y<r.height;y+=step){const offset=r.height-Math.round(y*slope);
+   for(let x=0;x<r.width;x++)if(r.pixels[(y*r.width+x)*4]!<170)hist[x+offset]!++;
+  }
+  const peaks:number[]=[];let peak=0;
+  for(const value of hist){if(value>threshold)peak=Math.max(peak,value);else if(peak){peaks.push(peak);peak=0;}}
+  if(peak)peaks.push(peak);
+  const score=peaks.length>=4&&peaks.length<=80?peaks.reduce((sum,value)=>sum+value*value,0):0;
+  if(n===0)zeroScore=score;
+  if(score>bestScore){bestAngle=angle;bestScore=score;}
+ }
+ return bestAngle!==0&&bestScore>zeroScore*1.2?bestAngle:null;
 }
 function crop(r:Raster,b:Box,scale=2):Canvas{
  const border=12,c=createCanvas(Math.round(b.width*scale)+border*2,Math.round(b.height*scale)+border*2),ctx=c.getContext('2d');
@@ -120,7 +176,24 @@ function isolatedCellPng(r:Raster,b:Box,scale:number):Buffer{
  }finally{c.width=1;c.height=1;}
 }
 function hasInk(r:Raster,b:Box):boolean{
- let n=0;for(let y=b.y;y<b.y+b.height;y++)for(let x=b.x;x<b.x+b.width;x++)if(r.pixels[(y*r.width+x)*4]!<135&&++n>=18)return true;return false;
+ let n=0;for(let y=b.y;y<b.y+b.height;y++)for(let x=b.x;x<b.x+b.width;x++)if(r.pixels[(y*r.width+x)*4]!<235&&++n>=18)return true;return false;
+}
+/** Distinguish a numeral-sized mark from a blank cell's border or shading.
+ * This only decides whether OCR has text to inspect; it never supplies a value. */
+function hasNumericInk(r:Raster,b:Box):boolean{
+ const w=b.width,h=b.height,visited=new Uint8Array(w*h);
+ const dark=(at:number)=>r.pixels[((b.y+Math.floor(at/w))*r.width+b.x+at%w)*4]!<235;
+ for(let start=0;start<w*h;start++){
+  if(visited[start]||!dark(start))continue;
+  const queue=[start];visited[start]=1;let minX=w,maxX=0,minY=h,maxY=0;
+  for(let i=0;i<queue.length;i++){
+   const at=queue[i]!,x=at%w,y=Math.floor(at/w);minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+   for(const next of [at-1,at+1,at-w,at+w])if(next>=0&&next<w*h&&!visited[next]&&Math.abs(next%w-x)+Math.abs(Math.floor(next/w)-y)===1&&dark(next)){visited[next]=1;queue.push(next);}
+  }
+  const height=maxY-minY+1,width=maxX-minX+1;
+  if(queue.length>=15&&height>=Math.max(7,h*.25)&&width>=2&&width<=height*2&&width<w*.5&&minX>1&&maxX<w-2&&minY>0&&maxY<h-1)return true;
+ }
+ return false;
 }
 function simple(text:string){return text.replace(/\s+/g,' ').trim();}
 function strictNumber(text:string){
@@ -138,11 +211,17 @@ function unitKey(text:string):string|null{
  * This establishes candidate source facts only, never document authority. */
 export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,pageNumber:number):Promise<RasterBoqTable|null>{
  const original=await loadImage(Buffer.from(image));
- for(const rotation of [0,90,270,180]){
-  const quarter=rotation===90||rotation===270,c=createCanvas(quarter?original.height:original.width,quarter?original.width:original.height),ctx=c.getContext('2d');
+ const rotations=[0,90,270,180];
+ for(const rotation of rotations){
+  const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
+  const width=rigid?(quarter?original.height:original.width):Math.ceil(Math.abs(original.width*Math.cos(angle))+Math.abs(original.height*Math.sin(angle)));
+  const height=rigid?(quarter?original.width:original.height):Math.ceil(Math.abs(original.width*Math.sin(angle))+Math.abs(original.height*Math.cos(angle)));
+  const c=createCanvas(width,height),ctx=c.getContext('2d');
   ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.translate(c.width/2,c.height/2);ctx.rotate(rotation*Math.PI/180);ctx.drawImage(original,-original.width/2,-original.height/2);ctx.resetTransform();
   try{
-  const r=raster(c),g=grid(r);if(!g)continue;
+  const r=raster(c),g=grid(r);
+  const queueDeskew=()=>{if(rigid){const correction=verticalSkew(r);if(correction!==null)rotations.push(rotation+correction);}};
+  if(!g){queueDeskew();continue;}
   const cache=new Map<string,Promise<RasterCellEvidence>>();
   const read=(b:Box)=>{
    const key=JSON.stringify(b);let p=cache.get(key);if(!p){p=(async()=>{
@@ -160,9 +239,17 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   for(const y of possible){
    const cells=topCells.map(col=>col.find(c=>y>=c.bounds.y&&y<=c.bounds.y+c.bounds.height));
    const values=cells.map(c=>c?.text??''),mapped=detectBoqHeader([values]);
-   if(mapped){header=mapped;headerValues=values;headerBottom=Math.max(...cells.filter(c=>c).map(c=>c!.bounds.y+c!.bounds.height));break;}
+   if(mapped){
+    header=mapped;headerValues=values;
+    const descriptionIndex=Number(Object.keys(mapped.roles).find(k=>mapped.roles[Number(k)]==='description'))-1;
+    // Body rows are anchored to description cells. An unrelated column's
+    // tilted/merged header can end a few pixels below the first body cell.
+    // Using that maximum silently discarded a real first line item.
+    const descriptionHeader=cells[descriptionIndex]!;
+    headerBottom=descriptionHeader.bounds.y+descriptionHeader.bounds.height;break;
+   }
   }
-  if(!header)continue;
+  if(!header){queueDeskew();continue;}
   const roles=header.roles,descriptionColumn=Number(Object.keys(roles).find(k=>roles[Number(k)]==='description'))-1;
   const rows:string[][]=[headerValues],evidenceRows:Record<string,RasterCellEvidence[]>[]=[{}],diagnostics:string[][]=[[]];
   const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom);
@@ -174,25 +261,44 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
      const center=b.y+b.height/2;return center>=box.y-4&&center<=box.y+box.height+4;
     });
     const cells=role==='description'?[desc]:await readBoxes(boxes);evidence[role]=cells;
-    const nonempty=cells.filter(c=>c.text.trim());
-    if(!nonempty.length)continue;
     if(numericRoles.has(role)){
+     // An empty first OCR result is not evidence that the physical cell is
+     // empty. Read every ink-bearing cell before deciding its row population.
+     for(const cell of cells)cell.hasText=hasNumericInk(r,cell.bounds);
+     const textCells=cells.filter(c=>strictNumber(c.text)!==null||c.hasText);
+     for(const cell of textCells){
+      const second=await provider.recognize(cropPng(r,cell.bounds,1.5),pageNumber,{segmentation:'line'});
+      cell.confirmation={text:second.text.trim(),confidence:second.confidence};
+      const third=await provider.recognize(isolatedCellPng(r,cell.bounds,2),pageNumber,{segmentation:'block'});
+      const fourth=await provider.recognize(isolatedCellPng(r,cell.bounds,1.5),pageNumber,{segmentation:'line'});
+      cell.additionalReadings=[{text:third.text.trim(),confidence:third.confidence},{text:fourth.text.trim(),confidence:fourth.confidence}];
+     }
+     const readingsOf=(c:RasterCellEvidence)=>[{text:c.text,confidence:c.confidence},...(c.confirmation?[c.confirmation]:[]),...(c.additionalReadings??[])];
+     const nonempty=textCells.filter(c=>readingsOf(c).some(v=>v.text.trim()));
+     if(!nonempty.length)continue;
      if(nonempty.length!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_MULTIPLE_CELLS');continue;}
      const cell=nonempty[0]!;
-     const second=await provider.recognize(cropPng(r,cell.bounds,1.5),pageNumber,{segmentation:'line'});
-     cell.confirmation={text:second.text.trim(),confidence:second.confidence};
-     const third=await provider.recognize(isolatedCellPng(r,cell.bounds,2),pageNumber,{segmentation:'block'});
-     const fourth=await provider.recognize(isolatedCellPng(r,cell.bounds,1.5),pageNumber,{segmentation:'line'});
-     cell.additionalReadings=[{text:third.text.trim(),confidence:third.confidence},{text:fourth.text.trim(),confidence:fourth.confidence}];
-     const readings=[{text:cell.text,confidence:cell.confidence},cell.confirmation,...cell.additionalReadings];
-     const numeric=readings.filter(v=>strictNumber(v.text)!==null);
+     // Grid removal can make several correlated rereads confidently agree on
+     // a lost decimal. A weak original reading needs another unaltered crop;
+     // processed-image agreement alone cannot certify a pale source number.
+     let originalConfirmed=true;
+     if((cell.confidence??0)<.90){
+      const fifth=await provider.recognize(cropPng(r,cell.bounds,3),pageNumber,{segmentation:'block'});
+      cell.additionalReadings!.push({text:fifth.text.trim(),confidence:fifth.confidence});
+      originalConfirmed=[cell.confirmation!,{text:fifth.text.trim(),confidence:fifth.confidence}].every(v=>(v.confidence??0)>=.90&&strictNumber(v.text)!==null);
+     }
+     const readings=[{text:cell.text,confidence:cell.confidence},cell.confirmation,...cell.additionalReadings!];
+     const numeric=readings.filter((v):v is {text:string;confidence:number|null}=>!!v&&strictNumber(v.text)!==null);
      const confident=numeric.filter(v=>(v.confidence??0)>=.90),values=new Set(numeric.map(v=>strictNumber(v.text)));
      // Preserve disagreement across original and isolated pixels. Two equally
      // readings of 3.00 and 300 must never be silently reconciled. A confidence
      // score cannot discard a contrary, syntactically valid source reading.
-     if(confident.length<2||values.size!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_REVIEW_REQUIRED');continue;}
+     if(!originalConfirmed)issues.push('BOQ_RASTER_'+role.toUpperCase()+'_ORIGINAL_CONFIRMATION_REQUIRED');
+     if(!originalConfirmed||confident.length<2||values.size!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_REVIEW_REQUIRED');continue;}
      row[index]=confident[0]!.text;
     }else{
+     const nonempty=cells.filter(c=>c.text.trim());
+     if(!nonempty.length)continue;
      if(nonempty.length!==1){issues.push('BOQ_RASTER_'+role.toUpperCase()+'_MULTIPLE_CELLS');continue;}
      const cell=nonempty[0]!;
      if(role==='unit'){

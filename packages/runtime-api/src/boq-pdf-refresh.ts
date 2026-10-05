@@ -5,7 +5,7 @@ import type {OcrProvider} from '../../pdf-document-parser/src';
 import type {StoredEvidenceDocument,ProjectRuntimeState} from './project-state-types';
 import {quantityModelFromBoq} from './boq-source';
 
-const producerVersion='offline-boq-cells-v1';
+const producerVersion='offline-boq-cells-v2';
 const running=new WeakMap<StoredEvidenceDocument,Promise<boolean>>();
 /** Refresh derived rows, not the uploaded document or its adoption history. */
 export function refreshDeferredPdfBoq(document:StoredEvidenceDocument,state:ProjectRuntimeState,createProvider:()=>OcrProvider|undefined,onPageRead?:(pageNumber:number,totalPages:number)=>void):Promise<boolean>{

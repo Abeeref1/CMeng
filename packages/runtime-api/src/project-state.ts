@@ -38,6 +38,7 @@ import {
 
 import {
   ingestBoq,
+  quarantineUnconfirmedBoqNumerics,
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
@@ -1278,6 +1279,8 @@ function hydrateProject(
     );
   }
 
+  if(hydrated.boq)hydrated.boq=quarantineUnconfirmedBoqNumerics(hydrated.boq);
+  hydrated.boqRevisions=hydrated.boqRevisions.map(quarantineUnconfirmedBoqNumerics);
   hydrated.quantities=quarantineBoqQuantityModel(hydrated.quantities,hydrated.boq);
   return hydrated;
 }

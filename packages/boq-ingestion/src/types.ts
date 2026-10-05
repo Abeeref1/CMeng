@@ -25,6 +25,8 @@ export interface CanonicalBoqCommercialItem {
   status: "verified" | "unresolved";
   diagnostics: string[];
   sourceCellEvidence?: import('../../boq-pdf-parser/src').BoqPdfLineItem['rasterEvidence'];
+  /** Retained OCR observations. Never calculation inputs or confirmed totals. */
+  sourceNumericReadings?: {quantity:number|null;rate:number|null;amount:number|null};
 }
 
 export interface BoqIngestionResult {

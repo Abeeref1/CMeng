@@ -1,6 +1,7 @@
 import {boqItemContinuity} from './boq-item-continuity';
-import type {BoqIngestionResult} from '../../boq-ingestion/src';
-import {admissibleBoqQuantity,type CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
+import {quarantineUnconfirmedBoqNumerics,type BoqIngestionResult} from '../../boq-ingestion/src';
+import {admissibleBoqQuantity,boqNumericsNeedConfirmation,type CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
 import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src';
@@ -15,7 +16,7 @@ function readableRetainedSource(boq:BoqIngestionResult|null,document:ProjectRunt
  const cached=recoveredSources.get(boq);if(cached?.reading===read)return cached.value;
  const rows=read.result.pages.filter(p=>p.method==='native').flatMap(p=>parseNativeBoqText(p.pageNumber,p.text));
  if(!rows.length)return boq;
- const value:BoqIngestionResult={...boq,state:'partial_candidate',complete:false,candidateRows:rows.length,verifiedRows:0,unresolvedRows:rows.length,coveragePercent:null,canonicalItems:rows.map(r=>({itemId:boq.sourceHashSha256+':native:p'+r.page+':l'+r.row,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,quantity:r.quantity,rate:r.rate,amount:r.amount,currency:r.currency,sourceFormat:'pdf',status:r.status,diagnostics:r.diagnostics,
+ const value:BoqIngestionResult={...boq,pdfRead:read.result,state:'partial_candidate',complete:false,candidateRows:rows.length,verifiedRows:0,unresolvedRows:rows.length,coveragePercent:null,canonicalItems:rows.map(r=>({itemId:boq.sourceHashSha256+':native:p'+r.page+':l'+r.row,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,quantity:r.quantity,rate:r.rate,amount:r.amount,currency:r.currency,sourceFormat:'pdf',status:r.status,diagnostics:r.diagnostics,
    sourceRefs:['evidence-receipt:'+boq.evidenceReceipt.receiptId,'sha256:'+boq.sourceHashSha256+':pdf:page:'+r.page+':text-line:'+r.row]})),diagnostics:[...boq.diagnostics,'BOQ_RETAINED_NATIVE_TEXT_RECOVERY_PARTIAL']};
  recoveredSources.set(boq,{reading:read,value});return value;
 }
@@ -34,12 +35,13 @@ export function hasReadableBoqPopulation(boq: BoqIngestionResult) {
  * Keep source rows, allocations and installed measurements intact. */
 export function quarantineBoqQuantityModel(model:CanonicalQuantityProgressModel|null,boq:BoqIngestionResult|null) {
   if(!model)return model;
+  if(boq)boq=quarantineUnconfirmedBoqNumerics(boq);
   const sources=new Map((boq?.canonicalItems??[]).map(item=>[item.itemId,item]));
   let changed=false;
   const items=model.items.map(item=>{
     const source=sources.get(item.quantityItemId);
-    const diagnostics=[...new Set([...item.diagnostics,...(source?.diagnostics??[])])];
-    if(!diagnostics.includes('BOQ_AMOUNT_ARITHMETIC_MISMATCH'))return item;
+    const diagnostics=[...new Set([...(item.diagnostics??[]),...(source?.diagnostics??[]),...(!source&&item.sourceRefs.some(ref=>ref.source==='boq_pdf')?[BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED]:[])])];
+    if(!boqNumericsNeedConfirmation(diagnostics))return item;
     const safe=admissibleBoqQuantity(source?.quantity??item.contractQuantity,diagnostics);
     if(item.contractQuantity===null&&safe.diagnostics.length===item.diagnostics.length&&safe.diagnostics.every(code=>item.diagnostics.includes(code)))return item;
     changed=true;return {...item,...safe};
@@ -50,19 +52,22 @@ export function quarantineBoqQuantityModel(model:CanonicalQuantityProgressModel|
 /** Display supplied figures independently of schedule links, progress, productivity
  * or approval. A missing field does not suppress the other fields in its row. */
 export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:CanonicalQuantityProgressModel|null) {
+  if(boq)boq=quarantineUnconfirmedBoqNumerics(boq);
+  else quantities=quarantineBoqQuantityModel(quantities,null);
   const rows=boq?boq.canonicalItems.map(item=>({
     itemId:item.itemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
     unit:item.unit,quantity:item.quantity,rate:item.rate,amount:item.amount,currency:item.currency,
     sourceRefs:item.sourceRefs,readingStatus:item.status,readingDiagnostics:item.diagnostics,
+    sourceNumericReadings:item.sourceNumericReadings??null,
   })):(quantities?.items??[]).map(item=>({
     itemId:item.quantityItemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
     unit:item.unit,quantity:item.contractQuantity,rate:null,amount:null,currency:null,
-    sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),
+    sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),sourceNumericReadings:null,
   }));
   const populationKnown = boq ? hasReadableBoqPopulation(boq) : quantities !== null;
   return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
     itemCount:populationKnown?rows.length:null,readableQuantityCount:populationKnown?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
-    basis:'Figures as read from the supplied BOQ. Schedule links and calculation inputs do not block these figures.',rows};
+    basis:'Source-native figures retain their readings. Unconfirmed scan observations are shown separately and excluded from calculations; unknown values are not zero.',rows};
 }
 
 /** Source-family validation is shared by all consumers, including restored
@@ -85,7 +90,8 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const candidates=established.length?established:usable;
   const selectedOriginal=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===artifactId(candidates[0]!))??null:null;
   const source=usable.find(d=>artifactId(d)===selectedOriginal?.ingestionId);
-  const selected=readableRetainedSource(selectedOriginal,source);
+  const recovered=readableRetainedSource(selectedOriginal,source);
+  const selected=recovered?quarantineUnconfirmedBoqNumerics(recovered):null;
   const readable = selected ? hasReadableBoqPopulation(selected) : false;
   const selection={state:selected?(!readable?'unreadable':source&&!adopted(source)?'candidate':'source'):'missing',
     sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,
@@ -102,6 +108,7 @@ export function quantityModelFromBoq(
   existing:
     CanonicalQuantityProgressModel | null,
 ): CanonicalQuantityProgressModel {
+  result=quarantineUnconfirmedBoqNumerics(result);
   const source =
     result.sourceFormat === "pdf"
       ? "boq_pdf" as const

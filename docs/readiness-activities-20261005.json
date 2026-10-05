@@ -1,6 +1,6 @@
 {
   "asOf": "2026-10-05",
-  "candidate": "f6bd3a0cf6d6d70ec2c291e391b8eaffd66bb0ec",
+  "candidate": "bdf936fc0fa610a3f4bc70f40b460f59ff26cf7b",
   "production": "828b4ad9dc0a628b19c64d83b865b4e95244ec0f",
   "reviewRelease": "9831316a6ae9c4405c4c81482d31a827500b9686",
   "rules": [
@@ -71,7 +71,7 @@
       "Complete",
       "1.02",
       "Read exact-version job logs and conclusions",
-      "Verify2235: regression/100 internal projects passed; cold dashboard failed 5024.903ms against 5000ms. Scale2120 passed.",
+      "Verify2237 and Scale2122 passed on bdf936f. Verify: 1096 regressions, separate internal 100-project cohort, 4771ms cold dashboard (<5000ms), 20k upload-to-ready 3678ms, restart/durability and Delivery gates passed.",
       "2026-10-05"
     ],
     [
@@ -107,11 +107,11 @@
     [
       "1.07",
       1,
-      "Repair BOQ reading and classification gaps",
+      "Repair BOQ source coverage and system numeric trust",
       "In progress",
       "1.06",
-      "Readable source quantities retained; ambiguous cells withheld",
-      "28 retained BOQ pages: 220 candidate items, 214 quantity readings, 104 units; six conflicting/unreadable quantities withheld. All source hashes match; coverage remains partial.",
+      "Retain every source row; prevent unconfirmed numeric observations entering calculation facts",
+      "All 340 item rows recovered across all 28 original pages; hashes unchanged. 295 unconfirmed quantity readings match assistant visual transcription; 45 unresolved. All scan numerics withheld from calculation by one shared policy. Focused 141 tests plus Ask/JSON/Excel integration pass; full gates running.",
       null
     ],
     [
@@ -151,7 +151,7 @@
       "In progress",
       "1.07",
       "Regression fails before fix and passes after; sources hashed",
-      "Four hashed source PDF pages and eight arithmetic quarantine regressions committed in f6bd3a0. Before/after proofs include 3.00/300, source mutation, restored quantities, stale S-curve allocations and explicit zero.",
+      "Six additional hashed original-page regressions fail on old geometry. New numeric policy tests fail on old product modules, including 100 correlated decimal errors; native values and explicit zero remain usable. Ask/JSON/Excel outputs preserve null facts and separately named observations.",
       null
     ],
     [
@@ -161,7 +161,7 @@
       "In progress",
       "1.07,1.08,1.10,1.11",
       "Unchanged valid assertions; no failed/cancelled/skipped checks",
-      "102 relevant quantity/feasibility/Ask/reporting tests pass. Full current regression and isolated internal 100-project phase running; CI started for f6bd3a0. Earlier 1080-test result is historical only.",
+      "Previous bdf936f Verify2237 and Scale2122 passed. System-policy candidate now running full verification; those earlier receipts are not transferred to new code.",
       null
     ],
     [
@@ -191,7 +191,7 @@
       "Open",
       "1.12",
       "Observed health version equals tested candidate; data preserved",
-      "Review has one pending change to 0d48a507; later fixes need later candidate",
+      "Review remains 9831316. Old 0d48a507 pending deployment is stale and must not be applied; prepare current exact candidate only after its gates pass.",
       null
     ],
     [
@@ -815,17 +815,17 @@
       null
     ]
   ],
-  "updatedAt": "2026-10-05T06:15:48.920650+00:00",
+  "updatedAt": "2026-10-05T07:34:10.422357+00:00",
   "timezone": "Asia/Dubai",
-  "engineeringCandidate": "f6bd3a0: quantity quarantine + offline BOQ reader; full local regression and CI running",
+  "engineeringCandidate": "System numeric trust boundary: focused and source replay passed; full verification running; push pending",
   "blockers": [
     [
       "B01",
       "1.07",
-      "OPEN FAILURE",
-      "Scanned BOQ quantities missing or misread",
-      "28 retained source pages: 220 items, 214 quantity readings, 104 units; six quantities withheld. Hashes match. Coverage, missing units/codes and independent truth still unresolved.",
-      "Visually reconcile remaining source fields and prove full population coverage; counts alone cannot establish source correctness."
+      "SYSTEM FIX UNDER FULL VERIFICATION",
+      "Shared trust failure allowed uncertain OCR numbers into calculation facts",
+      "All 340 physical source rows recovered. One policy separates OCR observations from canonical quantity/rate/amount; confidence, repeated OCR agreement, balanced arithmetic and document adoption cannot promote them.",
+      "Finish exact-candidate gates and hosted proof; scan observations require independently supported source values before use."
     ],
     [
       "B02",
@@ -854,42 +854,51 @@
     [
       "B05",
       "1.15, 1.16",
-      "REVIEW VERSION BEHIND",
+      "HOSTED PROOF PENDING",
       "Hosted review does not contain the newest fixes",
-      "Review observed at 9831316; production at 828b4ad9. PR213 now contains c873620. Offline table changes remain under local verification.",
-      "Finish and record exact candidate, then review deployment and hosted regression with required deployment authorization"
+      "bdf936f Verify2237 and Scale2122 passed; hosted review remains 9831316. Additional system-policy changes are being verified.",
+      "Prepare the exact tested review candidate and complete hosted regression after deployment approval."
     ],
     [
       "B06",
       "1.07, 1.12",
-      "CORRECTED; FULL CHECK RUNNING",
+      "TESTED; COMMITTED",
       "Native image-processing crash during new BOQ tests",
-      "Sequential cell recognition and synchronous native image encoding avoid the reproduced native crash. Three complete source BOQs (28 pages) now finish; full candidate regression running.",
+      "Full regression and all retained BOQs finish. Real 18-page restored BOQ worker completed in 167.48s; second restart 0.43s, same receipt/hash/authority. Native crash did not recur.",
       "Finish all original BOQs and the full regression run; retain the crash-triggering tests."
     ],
     [
       "B07",
       "1.07, 1.11, 1.12",
-      "CORRECTED; FULL CHECK RUNNING",
-      "Decimal loss and overly permissive AI source validation",
-      "Conflicting OCR readings withheld; AI cannot strip decimals/signs or select numeric substrings. Source 3.00 vs OCR 300 retained as exact regression. Relevant 37-test reader suite passed before final quantity guard.",
-      "Finish latest source replay and final regression. Conflicting values remain unknown; AI confidence cannot certify a number."
+      "SAME FAILURE FAMILY AS B01",
+      "Decimal loss and permissive AI source validation",
+      "3.00/300 and 4.00/400 are correlated OCR failure examples, not separate project-specific fixes. 100 different exact-span, high-confidence, arithmetic-balanced decimal errors are all withheld by shared policy.",
+      "Retain adversarial regressions; verify all consumers preserve the numeric trust decision."
     ],
     [
       "B08",
       "1.12, 1.15",
-      "LOCAL FIX PASSES; CI PENDING",
+      "PASSED ON bdf936f",
       "Cold calculated dashboard exceeded agreed speed limit",
-      "Previous CI cold dashboard 5024.9ms failed unchanged 5000ms gate. Generic issue traversal correction locally passed at 4135.6ms; upload-to-ready 3091.7ms. New CI required.",
-      "Profile and fix the generic cold-path bottleneck; retain the 5000ms gate and rerun skipped release checks."
+      "Verify2237 passes cold dashboard 4771.202ms under unchanged 5000ms; 20k upload-to-ready 3677.866ms; durability and Delivery pass.",
+      "Run unchanged release gates for the new system-policy candidate."
     ],
     [
       "B09",
       "1.07, 1.11, 1.12",
-      "CORRECTED; FULL CHECK RUNNING",
-      "Arithmetic warnings leaked suspect quantities into totals and restored plans",
-      "Pasted isolated-worktree patch was absent here. Seven new checks reproduced failures. Shared guard now covers three adapters, saved-state restoration, setter and S-curve plans. Eight new regressions plus relevant suite: 102 passed.",
-      "Complete latest full regression and CI, preserve raw source readings/diagnostics, and verify the exact hosted candidate."
+      "SAME FAILURE FAMILY AS B01",
+      "Diagnostics and retained caches allowed unsafe quantity propagation",
+      "Arithmetic guard extended to quantity/rate/amount and restored models. 100 correlated OCR cases plus positive native/zero, cached/adopted, S-curve and actual Ask/JSON/Excel cases pass.",
+      "Finish full current-code regression and exact hosted verification; never represent withheld values as zero."
+    ],
+    [
+      "B10",
+      "1.07, 1.11, 1.12",
+      "340-ROW REPLAY PASSED",
+      "Source population omitted or merged by table geometry",
+      "28/28 page item counts match assistant visual transcription: building224, flood24, electrical92. All three source hashes unchanged; sources still partial/unconfirmed.",
+      "Complete permanent regression run on exact candidate. This known-source replay is not fresh or independent acceptance."
     ]
-  ]
+  ],
+  "activeFailure": "Shared numeric trust boundary implemented; full gates, hosted proof and independent acceptance pending."
 }
