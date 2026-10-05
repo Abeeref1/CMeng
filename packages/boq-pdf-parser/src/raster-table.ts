@@ -43,12 +43,12 @@ function horizontal(r:Raster,x:number,width:number,top:number,bottom:number,thre
 }
 /** Faded rules can cross several pixel rows. Require an almost continuous
  * stroke across the cell, so pale text cannot supply a new row boundary. */
-function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number,minStroke=.75,bridgeGaps=false):number[]{
+function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number,minStroke=.75,bridgeGaps=false,inkThreshold=235):number[]{
  const selected:number[]=[],maxGap=Math.max(2,Math.ceil(width*.01));
  for(let y=Math.max(2,top);y<Math.min(r.height-2,bottom);y++){
   let dark=0,run=0,longest=0,gaps=0;
   for(let xx=x;xx<x+width;xx++){
-   let ink=false;for(let dy=-2;dy<=2;dy++)if(r.pixels[((y+dy)*r.width+xx)*4]!<235){ink=true;break;}
+   let ink=false;for(let dy=-2;dy<=2;dy++)if(r.pixels[((y+dy)*r.width+xx)*4]!<inkThreshold){ink=true;break;}
    // A scan can erase tiny portions of a long rule. Bridge at most one
    // percent of the cell width, retaining the high total stroke density.
    if(ink){dark++;run++;gaps=0;longest=Math.max(longest,run);}
@@ -110,7 +110,7 @@ function grid(r:Raster,enhanced=false){
  // two columns; searching only within the dark extent would erase its rows.
  const faintRules=xs.slice(0,-1).flatMap((x,i)=>{
   const width=xs[i+1]!-x-8;
-  return width>=10?faintHorizontal(r,x+4,width,0,r.height,.75,true).map(y=>({y,column:i})):[];
+  return width>=10?faintHorizontal(r,x+4,width,0,r.height,.75,true,enhanced?245:235).map(y=>({y,column:i})):[];
  });
  const darkTop=ys[0]??0,darkBottom=ys.at(-1)??0;
  const paleExtent=enhanced&&(paleColumns||darkBottom-darkTop<r.height*.25);
@@ -124,10 +124,10 @@ function grid(r:Raster,enhanced=false){
   const boundaries=mergePositions([top,bottom,...horizontal(r,l,width,top,bottom+1,135,.67),...horizontal(r,l,width,top,bottom+1,185,.50)]);
   // Preserve the coordinates of established dark rules and supplement only
   // missing ones; changing a good crop can unnecessarily change OCR evidence.
-  for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,paleExtent))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,enhanced,enhanced?245:235))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   // A damaged rule may consist of several long strokes in this column. It
   // can divide cells only when a separate column corroborates its position.
-  for(const y of paleExtent?faintHorizontal(r,l,width,top,bottom+1,.35,true):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,245):[])if(faintRules.some(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8)&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   boundaries.sort((a,b)=>a-b);
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can

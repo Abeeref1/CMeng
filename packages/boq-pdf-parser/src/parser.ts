@@ -2,7 +2,7 @@ import { detectBoqHeader } from "../../boq-parser/src/headers";
 import { parseStrictNumeric, resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
 import type { BoqColumnRole } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
-import {parseNativeBoqText} from './native-text';
+import {parseNativeBoqText,parseAlignedNativeBoqText} from './native-text';
 import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 import {readRasterBoqTable} from './raster-table';
 import type {
@@ -307,6 +307,15 @@ async function parseBoqPdfWithOpenProvider(
 
     for (const page of pageResult.pages) {
       const nativeTables:string[][][]=tablePageByNumber.get(page.pageNumber)?.tables??[];
+      if(page.method==='native'&&nativeTables.length===0){
+        const aligned=parseAlignedNativeBoqText(page.pageNumber,page.text);
+        if(aligned.length){
+          items.push(...aligned);nativeTablePages++;
+          unresolvedPages.add(page.pageNumber);
+          diagnostics.push('BOQ_NATIVE_ALIGNED_TABLE_RECOVERED:'+page.pageNumber,'BOQ_NATIVE_PAGE_COVERAGE_REVIEW_REQUIRED:'+page.pageNumber);
+          continue;
+        }
+      }
       if(options.ocrProvider&&nativeTables.length===0){
         try{
           const screenshot=await parser.getScreenshot({partial:[page.pageNumber],scale:3,imageBuffer:true,imageDataUrl:false});

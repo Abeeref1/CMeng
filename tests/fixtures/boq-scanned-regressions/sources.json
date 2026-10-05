@@ -145,5 +145,23 @@
     "sourceUrl": "https://www.pced.gov.ph/wp-content/uploads/2025/04/Infrastructure_Bidding-Docs-for-Elevator-April-2025-FINAL-rev.pdf",
     "originalPage": 50,
     "scope": "External failure on 9697676; regression-only. Two tables, Quantities heading."
+  },
+  {
+    "filename": "native-double-rules.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/cw-kalinga-48-2022.pdf",
+    "originalSourceSha256": "bb108843f9e6d97df13255ba81d2a67bea84cb31a0640fc98850e9e57c40fb04",
+    "originalPage": 60,
+    "fixtureSha256": "ca9156f5a27ecea361eae28394835b4756e94dc640b628f99f1e0e5808c5ca15",
+    "bytes": 124574,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "faint-merged-pricing-rows.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20alspip03%202024.pdf",
+    "originalSourceSha256": "7ed10da1485dd04cd8435e4e03462427c7633ed7088d15e7f625b1473878094d",
+    "originalPage": 2,
+    "fixtureSha256": "2dbb7583cd4f7ff0c14bcbde6bdce35d55f4720d0d755d7e87c29a4abe1740a3",
+    "bytes": 595224,
+    "role": "known-regression-only, never fresh"
   }
 ]

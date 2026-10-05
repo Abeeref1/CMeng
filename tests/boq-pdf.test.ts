@@ -7,6 +7,36 @@ import {randomInt,randomUUID,createHash} from 'node:crypto';
 
 import { parseBoqPdf } from "../packages/boq-pdf-parser/src";
 import type { OcrPageResult, OcrProvider } from "../packages/pdf-document-parser/src";
+import {parseAlignedNativeBoqText} from '../packages/boq-pdf-parser/src/native-text';
+
+test('a double-ruled native BOQ retains all fourteen same-line quantities without OCR confirmation',async()=>{
+ let ocrCalls=0;
+ const parsed=await parseBoqPdf(readFileSync(resolve('tests/fixtures/boq-scanned-regressions/native-double-rules.pdf')),{ocrProvider:{name:'must-not-read-native',async recognize(){ocrCalls++;throw Error('Native values need no OCR');}}});
+ const rows=parsed.items.filter(i=>i.rowKind==='line_item');assert.equal(rows.length,14);assert.equal(ocrCalls,0);
+ for(const [description,quantity,amount]of [['Emergency Quarantine',1,42470.36],['Common Excavation',24309.87,2122980.95],['Gravel Blanket',330.67,488680.66]]as const){
+  const row=rows.find(i=>i.description.includes(description));assert.ok(row,description);assert.equal(row.quantity,quantity);assert.equal(row.amount,amount);assert.equal(row.rate,null);assert.equal(row.status,'verified');
+  assert.ok(!row.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED'));
+ }
+ assert.equal(parsed.complete,false,'Same-line facts do not certify complete page coverage');
+});
+
+test('native aligned recovery rejects detached values, missing closure, changed columns and malformed lines',()=>{
+ const source='ITEMS OF WORK QUANTITY UNIT AMOUNT\nScope A 0.00 Lot 0.00\nScope B -2.50 Cu.m. -25.00\nAPPROVED BUDGET FOR THE CONTRACT -25.00';
+ assert.deepEqual(parseAlignedNativeBoqText(1,source).map(i=>[i.quantity,i.amount]),[[0,0],[-2.5,-25]]);
+ for(const invalid of [source.replace(' -2.50 Cu.m.','\n-2.50 Cu.m.'),source.replace(' -25.00\n','\n-25.00\n'),source.replace('QUANTITY UNIT AMOUNT','AMOUNT UNIT QUANTITY'),source.split('\n').slice(0,-1).join('\n'),source.replace('-2.50 Cu.m.','2.5.0 Cu.m.')])assert.equal(parseAlignedNativeBoqText(1,invalid).length,0);
+});
+
+test('ten fresh native linear-table projects preserve independently generated quantities, zero and negatives',async()=>{
+ const receipts=[];
+ for(let p=0;p<10;p++){
+  const projectId='NATIVE-LINEAR-'+randomUUID(),truth=[0,-randomInt(1,900)/100,randomInt(100,90000)/100];
+  const lines=['ITEMS OF WORK QUANTITY UNIT AMOUNT',...truth.map((q,i)=>'Scope '+(i+1)+' '+q.toFixed(2)+' Lot '+(q*10).toFixed(2)),'TOTAL CONTRACT COST '+(truth.reduce((a,b)=>a+b,0)*10).toFixed(2)];
+  const pdf=await PDFDocument.create();pdf.addPage([700,850]).drawText(lines.join('\n'),{x:30,y:750,size:10,lineHeight:20});const bytes=Buffer.from(await pdf.save());
+  const parsed=await parseBoqPdf(bytes),rows=parsed.items.filter(i=>i.rowKind==='line_item');assert.deepEqual(rows.map(i=>i.quantity),truth);assert.deepEqual(rows.map(i=>i.amount),truth.map(q=>Number((q*10).toFixed(2))));assert.ok(rows.every(i=>i.status==='verified'));
+  receipts.push({projectId,sha256:createHash('sha256').update(bytes).digest('hex'),truth});
+ }
+ console.log(JSON.stringify({cohort:'fresh-native-linear',projects:receipts}));
+});
 
 test('a merged native description header retains rows with an empty leading subdivision',async()=>{
  const parsed=await parseBoqPdf(readFileSync(resolve('tests/fixtures/boq-scanned-regressions/native-leading-blank-column.pdf')));

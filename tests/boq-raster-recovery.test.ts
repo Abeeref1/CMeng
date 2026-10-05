@@ -27,6 +27,18 @@ const known=[
  {file:'flood-page-1.pdf',rows:[['Project Billboard',1],['Occupational Safety',4],['0.23m thick',2331],['0.10m thick',1480],['Curb & Gutter',740],['Roadway Excavation',245],['Hard Rock',3351],['Lean Concrete',11]] as [string,number][]},
  {file:'electrical-page-2.pdf',rows:[['Provision of Field Office',3],['Layout and Staking',126],['Project Billboard',1],['Occupational Safety',3],['Temporary Enclosure',89],['Scaffolding',55],['Removal of Tent Framing',472],['Structure Excavation (Solid Rock)',7],['Embankment',6],['Gravel Fill',5],['Soil Poisoning',5]] as [string,number][]},
 ];
+test('very pale pricing rules separate every quantity row and keep heading cells out of the review',{timeout:180000},async()=>{
+ const result=await parseBoqPdf(original('faint-merged-pricing-rows.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(row=>row.rowKind==='line_item');
+ const quantities=[1,1,3,3,3,3,3,3,600,600,447.12,280.8,224.64,113.26,3,3,1,216,216,6,6,300,300,300,300,320,320,68,68,432,2,2];
+ assert.equal(items.length,32,'All 32 independently transcribed quantity rows remain distinct; headings are not extra items');
+ items.forEach((item,index)=>{if(item.quantity!==null)assert.equal(item.quantity,quantities[index],item.description);});
+ for(const [description,quantity]of [['Structure Backfill',280.8],['211 kg/sq.cm. Concrete',224.64],['Virgin Neoprene',113.26]]as const){
+  const item=items.find(i=>i.description.includes(description));assert.ok(item,description);assert.equal(item.quantity,quantity);
+ }
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.equal(result.complete,false);
+});
 test('two scanned tables with Quantities headers retain every quantified row',{timeout:180000},async()=>{
  const result=await parseBoqPdf(original('multiple-quantities-tables.pdf'),{ocrProvider:reader()});
  const items=result.items.filter(row=>row.rowKind==='line_item');
