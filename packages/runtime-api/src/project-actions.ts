@@ -1,4 +1,5 @@
 import {projectReviewGroup} from './project-review-groups';
+import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
 import type {ControlIssueAssessment,ControlIssue} from '../../truth-kernel/src';
@@ -142,6 +143,13 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
 }
 export function projectActions(state:ProjectRuntimeState,assessment:ControlIssueAssessment,context:{completionPosition?:unknown}={}){
   const actions=programmeActions(state);
+  const numericReview=boqNumericReview(state);
+  if(numericReview.pendingCount)actions.push({id:'boq-numeric-review',category:'review',title:'Review BOQ readings together',
+    reason:numericReview.pendingCount+' item readings remain to check across '+numericReview.sources.filter(s=>s.pendingCount).length+' source(s). '+numericReview.automaticCount+' native rows need no numeric confirmation; '+numericReview.confirmedCount+' reviewed rows are already saved.',
+    recordCount:numericReview.pendingCount,resolution:{kind:'choose',requiresUserAction:true,
+      instruction:'Open one review, check the source and save the reviewed rows together. Each decision is reused in quantities, reports and Ask.',
+      completionRule:'Only unresolved readings remain in this action; accepted readings are not requested again.'},
+    target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ readings'}});
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     if(d.basisState==='candidate'){

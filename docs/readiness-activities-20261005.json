@@ -1,6 +1,6 @@
 {
   "asOf": "2026-10-05",
-  "candidate": "bdf936fc0fa610a3f4bc70f40b460f59ff26cf7b",
+  "candidate": "BOQ numeric-review follow-up to 169c419; see git history for the exact commit",
   "production": "828b4ad9dc0a628b19c64d83b865b4e95244ec0f",
   "reviewRelease": "9831316a6ae9c4405c4c81482d31a827500b9686",
   "rules": [
@@ -108,11 +108,11 @@
       "1.07",
       1,
       "Repair BOQ source coverage and system numeric trust",
-      "In progress",
+      "Complete",
       "1.06",
       "Retain every source row; prevent unconfirmed numeric observations entering calculation facts",
-      "All 340 item rows recovered across all 28 original pages; hashes unchanged. 295 unconfirmed quantity readings match assistant visual transcription; 45 unresolved. All scan numerics withheld from calculation by one shared policy. Focused 141 tests plus Ask/JSON/Excel integration pass; full gates running.",
-      null
+      "Shared numeric guard plus consolidated BOQ review implemented. Native values remain automatic; scan decisions are saved once, source-bound, and propagated through quantities, S-curves, Ask and reports. Original files/readings retained. Scans still require source review; not an OCR-accuracy certification.",
+      "2026-10-05"
     ],
     [
       "1.08",
@@ -148,11 +148,11 @@
       "1.11",
       1,
       "Retain exact failures as permanent regressions",
-      "In progress",
+      "Complete",
       "1.07",
       "Regression fails before fix and passes after; sources hashed",
-      "Six additional hashed original-page regressions fail on old geometry. New numeric policy tests fail on old product modules, including 100 correlated decimal errors; native values and explicit zero remain usable. Ask/JSON/Excel outputs preserve null facts and separately named observations.",
-      null
+      "Permanent numeric-review regressions cover batch validation, retries, failed durable save, restart, source changes, project isolation and actual HTTP/Ask/JSON/Excel. Original numeric-trust regressions remain unchanged.",
+      "2026-10-05"
     ],
     [
       "1.12",
@@ -161,17 +161,17 @@
       "In progress",
       "1.07,1.08,1.10,1.11",
       "Unchanged valid assertions; no failed/cancelled/skipped checks",
-      "Previous bdf936f Verify2237 and Scale2122 passed. System-policy candidate now running full verification; those earlier receipts are not transferred to new code.",
+      "169c419 Verify2239/Scale2124 passed. This follow-up has 66 passing focused checks including UI component tests. Full exact-candidate regression and release gates pending; previous-head results are historical.",
       null
     ],
     [
       "1.13",
       1,
       "Run fresh materially exercised feature cohorts",
-      "Open",
+      "In progress",
       "1.12",
       "At least ten new projects per affected family; seeds and hashes retained",
-      "Known and generated inputs labelled accurately",
+      "Ten fresh generated workflow projects pass per run; source hashes and independent numeric truth recorded. Deliberately wrong injected OCR exercises review propagation, not OCR recognition accuracy. Full new feature cohorts remain part of current CI.",
       null
     ],
     [
@@ -191,7 +191,7 @@
       "Open",
       "1.12",
       "Observed health version equals tested candidate; data preserved",
-      "Review remains 9831316. Old 0d48a507 pending deployment is stale and must not be applied; prepare current exact candidate only after its gates pass.",
+      "Live review remains 9831316. Previously staged 169c419 is superseded by this follow-up; stage the final tested source only. Deployment requires explicit confirmation under Railway accept_deploy.",
       null
     ],
     [
@@ -519,7 +519,7 @@
       4,
       "Every page and applicable management lens",
       "Waiting",
-      "4.01\u20134.13",
+      "4.01–4.13",
       "Calculations, tables, charts, filters, search, paging and drill-down",
       "Inventory live navigation; no fixed page count as acceptance",
       null
@@ -609,7 +609,7 @@
       5,
       "Management facts, priorities and actions across lenses",
       "Waiting",
-      "5.01\u20135.07",
+      "5.01–5.07",
       "Specialist/Controls/Director/Executive facts agree",
       "No repeated priorities or unexplained contradictions",
       null
@@ -679,7 +679,7 @@
       6,
       "Charts, units, source links, dates and missing states",
       "Waiting",
-      "6.01\u20136.05",
+      "6.01–6.05",
       "Exported figures and narratives retain governed meaning",
       "Arabic/English, readable labels and source locators",
       null
@@ -759,7 +759,7 @@
       7,
       "100+ focused cases for critical feature families",
       "Waiting",
-      "7.01\u20137.06",
+      "7.01–7.06",
       "Material cases, documented coverage and no weakened gates",
       "Count cases by family and actual exercise",
       null
@@ -815,9 +815,9 @@
       null
     ]
   ],
-  "updatedAt": "2026-10-05T07:34:10.422357+00:00",
+  "updatedAt": "2026-10-05T09:16:21.050560+00:00",
   "timezone": "Asia/Dubai",
-  "engineeringCandidate": "System numeric trust boundary: focused and source replay passed; full verification running; push pending",
+  "engineeringCandidate": "Consolidated source-bound BOQ review implemented; 66 focused checks passed; full current-candidate gates pending",
   "blockers": [
     [
       "B01",
@@ -898,7 +898,15 @@
       "Source population omitted or merged by table geometry",
       "28/28 page item counts match assistant visual transcription: building224, flood24, electrical92. All three source hashes unchanged; sources still partial/unconfirmed.",
       "Complete permanent regression run on exact candidate. This known-source replay is not fresh or independent acceptance."
+    ],
+    [
+      "B11",
+      "1.07, 1.11, 1.12, 1.15, 1.16",
+      "REVIEW FLOW IMPLEMENTED; FINAL GATES OPEN",
+      "Unconfirmed BOQ readings had no usable save-and-reuse workflow",
+      "One source-bound batch now resolves readings across the shared calculation model. Focused tests pass; native rows need no numeric confirmation.",
+      "Finish current-candidate full/release checks, hosted workflow verification and independent acceptance. Do not label scan accuracy or any readiness stage complete."
     ]
   ],
-  "activeFailure": "Shared numeric trust boundary implemented; full gates, hosted proof and independent acceptance pending."
+  "activeFailure": "No focused regression failure. Final current-candidate gates, hosted review, fresh external acceptance and independent Stage 1 acceptance remain open."
 }

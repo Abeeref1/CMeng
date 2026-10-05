@@ -1,4 +1,7 @@
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
+import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {phaseProgrammePosition} from './phase-programmes';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
@@ -1905,6 +1908,29 @@ async function route(
       return;
     }
     json(res, 200, overview);
+    return;
+  }
+
+  const boqReviewMatch=/^\/api\/projects\/([^/]+)\/boq\/numeric-review(?:\/source\/([^/]+))?$/.exec(url.pathname);
+  if(boqReviewMatch){
+    const projectId=decodeURIComponent(boqReviewMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'&&boqReviewMatch[2]){
+        const ingestionId=decodeURIComponent(boqReviewMatch[2]),boq=reviewableBoqs(state).find(b=>b.ingestionId===ingestionId);
+        const document=boq&&state.evidenceDocuments.find(d=>d.sourceHashSha256===boq.sourceHashSha256&&(d.linkedArtifactId===ingestionId||d.boqTableRead?.ingestionId===ingestionId));
+        if(!document){json(res,404,{error:'original_source_not_available'});return;}
+        const bytes=readFileSync(document.storedPath);
+        if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('The retained source does not match its recorded identity.');
+        res.writeHead(200,{'Content-Type':document.mediaType,'Content-Length':bytes.length,'Content-Disposition':document.mediaType==='application/pdf'?'inline':'attachment','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});res.end(bytes);return;
+      }
+      if(req.method==='GET'){json(res,200,boqNumericReview(state));return;}
+      if(req.method==='POST'&&!boqReviewMatch[2]){
+        const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqNumericReadings(projectId,input);invalidateProject(projectId);json(res,200,result);return;
+      }
+      json(res,405,{error:'boq_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'boq_review_not_saved',message:error instanceof Error?error.message:String(error)});}
     return;
   }
 

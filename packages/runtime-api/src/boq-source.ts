@@ -1,4 +1,5 @@
 import {boqItemContinuity} from './boq-item-continuity';
+import {applyBoqNumericReviews} from './boq-numeric-review';
 import {quarantineUnconfirmedBoqNumerics,type BoqIngestionResult} from '../../boq-ingestion/src';
 import {admissibleBoqQuantity,boqNumericsNeedConfirmation,type CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
 import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
@@ -59,6 +60,7 @@ export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:Canoni
     unit:item.unit,quantity:item.quantity,rate:item.rate,amount:item.amount,currency:item.currency,
     sourceRefs:item.sourceRefs,readingStatus:item.status,readingDiagnostics:item.diagnostics,
     sourceNumericReadings:item.sourceNumericReadings??null,
+    numericConfirmation:item.numericConfirmation??null,
   })):(quantities?.items??[]).map(item=>({
     itemId:item.quantityItemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
     unit:item.unit,quantity:item.contractQuantity,rate:null,amount:null,currency:null,
@@ -91,7 +93,7 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const selectedOriginal=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===artifactId(candidates[0]!))??null:null;
   const source=usable.find(d=>artifactId(d)===selectedOriginal?.ingestionId);
   const recovered=readableRetainedSource(selectedOriginal,source);
-  const selected=recovered?quarantineUnconfirmedBoqNumerics(recovered):null;
+  const selected=recovered?applyBoqNumericReviews(recovered,state):null;
   const readable = selected ? hasReadableBoqPopulation(selected) : false;
   const selection={state:selected?(!readable?'unreadable':source&&!adopted(source)?'candidate':'source'):'missing',
     sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,

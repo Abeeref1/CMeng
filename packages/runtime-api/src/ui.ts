@@ -10,6 +10,7 @@ import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
+import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-review';
 import {basisReviewScript} from './ui-basis-review';
 import { experienceStyles, experienceScript } from './ui-experience';
 
@@ -226,6 +227,7 @@ ${projectDiagnosisStyles}
 ${askAiStyles}
 ${systemReviewStyles}
 ${projectActionsStyles}
+${boqNumericReviewStyles}
 .planning-missing-kpis{margin:10px 0 16px;border:1px solid #e3e9ef;border-radius:9px;background:#fbfcfe}.planning-missing-kpis>summary{padding:10px 12px;font-size:11.5px;color:#5c6e80}.planning-missing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:10px 12px}.planning-missing-grid div{padding:8px 9px;border:1px solid #e7ecf1;border-radius:7px;background:#fff}.planning-missing-grid b{display:block;font-size:11px}.planning-missing-grid span{display:block;margin-top:3px;font-size:10.5px;color:#6b7a8a;line-height:1.4}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
@@ -433,6 +435,7 @@ ${answerFirstScript}
 ${projectDiagnosisScript}
 ${systemReviewScript}
 ${projectActionsScript}
+${boqNumericReviewScript}
 ${basisReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
@@ -756,9 +759,9 @@ function renderSuppliedBoqRows(boq,page=0,query=''){
   const pageCount=Math.max(1,Math.ceil(rows.length/100)),index=Math.max(0,Math.min(pageCount-1,page)),start=index*100;
   const field=v=>v===null||v===undefined||v===''?'Unresolved: not read from BOQ':typeof v==='number'?fmt(v):String(v);
   const body=rows.slice(start,start+100).map(r=>{
-    const observed=r.sourceNumericReadings;
+    const observed=r.numericConfirmation?null:r.sourceNumericReadings;
     const cells=[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map((v,i)=>'<td>'+escapeHtml(observed&&i>=3&&i<=5?'Needs source confirmation':field(v))+'</td>').join('');
-    const note=observed?'<tr><td colspan="7"><b>Unconfirmed source readings — excluded from calculations.</b> '+['quantity','rate','amount'].filter(key=>observed[key]!==null&&observed[key]!==undefined).map(key=>escapeHtml(humanizeKey(key)+': '+field(observed[key]))).join(' · ')+'</td></tr>':'';
+    const note=observed?'<tr><td colspan="7"><b>Unconfirmed source readings — excluded from calculations.</b> '+['quantity','rate','amount'].filter(key=>observed[key]!==null&&observed[key]!==undefined).map(key=>escapeHtml(humanizeKey(key)+': '+field(observed[key]))).join(' · ')+'</td></tr>':r.numericConfirmation?'<tr><td colspan="7">Source readings confirmed on '+escapeHtml(formatDocumentTime(r.numericConfirmation.confirmedAt))+'. Original readings retained.</td></tr>':'';
     return '<tr>'+cells+'</tr>'+note;
   }).join('');
   return '<p>'+escapeHtml(rows.length?'Items '+fmt(start+1)+'–'+fmt(Math.min(start+100,rows.length))+' of '+fmt(rows.length)+(term?' matching items':''):'No matching BOQ items')+' · Page '+(index+1)+' of '+pageCount+'. Every item is available through these pages and in the Excel and data downloads.</p>'+

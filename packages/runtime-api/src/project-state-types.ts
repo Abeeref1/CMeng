@@ -445,6 +445,8 @@ export interface ProjectRuntimeState {
   >;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
+  boqNumericReviews?: import('./boq-numeric-review').BoqNumericReviewDecision[];
+  boqNumericReviewBatches?: Array<{batchId:string;payloadHash:string;confirmedAt:string;itemCount:number}>;
   quantities:
     CanonicalQuantityProgressModel | null;
   contract: ContractDocumentResult | null;

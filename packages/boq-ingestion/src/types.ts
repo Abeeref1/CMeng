@@ -27,6 +27,9 @@ export interface CanonicalBoqCommercialItem {
   sourceCellEvidence?: import('../../boq-pdf-parser/src').BoqPdfLineItem['rasterEvidence'];
   /** Retained OCR observations. Never calculation inputs or confirmed totals. */
   sourceNumericReadings?: {quantity:number|null;rate:number|null;amount:number|null};
+  /** Reviewed calculation overlay. Original readings, files and authority remain unchanged. */
+  numericConfirmation?: import('./numeric-confirmation').BoqNumericConfirmation;
+  sourceReadingDiagnostics?: string[];
 }
 
 export interface BoqIngestionResult {

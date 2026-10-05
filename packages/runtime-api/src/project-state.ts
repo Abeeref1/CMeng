@@ -1,4 +1,5 @@
 import {hasSourceDocumentIdentity} from './evidence-control';
+import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
 import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
 import {isDeepStrictEqual} from 'node:util';
 import {phaseProgrammeState} from './phase-programmes';
@@ -5362,6 +5363,17 @@ export class RuntimeProjectStore {
     if(!base)return;
     const amendments=state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId&&e.basisState==='additive'&&(!e.relationshipDecision?.targetDocumentId||e.relationshipDecision.targetDocumentId===base.documentId))).map(d=>d.result);
     state.contract=base.result;state.contractFamily=linkContractFamily(base.result,amendments);promoteContractTimeBasis(state);
+  }
+
+  confirmBoqNumericReadings(projectId:string,input:BoqNumericReviewInput){
+    const state=this.get(projectId);if(!state)throw new Error('Project not found.');
+    const prepared=prepareBoqNumericReview(state,input,auditContext().actor.id);
+    if(!prepared.duplicate){
+      state.boqNumericReviews=[...(state.boqNumericReviews??[]),...prepared.decisions];
+      state.boqNumericReviewBatches=[...(state.boqNumericReviewBatches??[]),{batchId:input.batchId,payloadHash:prepared.payloadHash,confirmedAt:new Date().toISOString(),itemCount:prepared.decisions.length}];
+      this.touchEvidence(state);
+    }
+    return {...boqNumericReview(this.get(projectId)!),duplicate:prepared.duplicate};
   }
 
   async confirmTableColumnMeaning(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;sheetName:string;columnIndex:number;rawHeader:string;meaning:string;note?:string|null}){
