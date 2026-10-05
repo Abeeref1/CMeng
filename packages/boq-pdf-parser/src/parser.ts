@@ -342,7 +342,15 @@ async function parseBoqPdfWithOpenProvider(
               // A withheld numeric reading is not a section or an empty row.
               // A low-confidence hallucination over an empty ruled cell must
               // not turn a section heading into a new quantity-review item.
-              if(item.rowKind==='section'&&(item.unit!==null||['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>c.hasText||[c,c.confirmation,...(c.additionalReadings??[])].some(reading=>reading&&(reading.confidence??0)>=.70&&/^[+\-]?[\d.,\s]+$/.test(reading.text)&&parseStrictNumeric(reading.text).status==='valid')))))item.rowKind='line_item';
+              if(item.rowKind==='section'&&(item.unit!==null||['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>{
+                const readings=[c,c.confirmation,...(c.additionalReadings??[])].filter((reading):reading is NonNullable<typeof reading>=>!!reading);
+                const numeric=readings.some(reading=>(reading.confidence??0)>=.70&&/^[+\-]?[\d.,\s]+$/.test(reading.text)&&parseStrictNumeric(reading.text).status==='valid');
+                // A merged heading can extend into nominal numeric columns.
+                // Repeated alphabetic wording there is text, not an unreadable
+                // quantity. Retain ink-only candidates when OCR is inconclusive.
+                const prose=readings.filter(reading=>(reading.confidence??0)>=.50&&!/\d/.test(reading.text)&&(reading.text.match(/[a-z]/gi)?.length??0)>=3).length>=2;
+                return numeric||c.hasText&&!prose;
+              }))))item.rowKind='line_item';
               if(issues.length){item.status='unresolved';unresolvedPages.add(page.pageNumber);}
             }
             items.push(...parsed.items);ocrTablePages++;

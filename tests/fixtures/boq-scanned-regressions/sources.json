@@ -251,5 +251,15 @@
     "sourceSha256": "dba97e954012900d7821d05de6fb1524a652654c28276ecee5bf8b4788382ed9",
     "fixtureSha256": "bca35122f6950d18e324cd3d25add1f3af17bba170f9bdc3a23e002120b1b70c",
     "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "merged-heading-prose.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20kalinga-13-2024.PDF",
+    "originalSourceSha256": "46d42695fdeb1bbd88167a61647d9fc2a34dd71a66fd9cb55a929ce11534ab55",
+    "originalPage": 2,
+    "fixtureSha256": "1216324d7a74eb864911d8f7be4aa29e1e312ed99cacc8517be7243f53cec2c7",
+    "bytes": 729549,
+    "role": "known-regression-only, never fresh",
+    "sourceQualification": "BOQ printed contract ID differs from publisher filename and project title; no authority claim."
   }
 ]
