@@ -33,6 +33,24 @@ engineering has started.
 
 ## Rule governing every stage
 
+### Independent reviewer clarification — 6 October 2026
+
+The user explicitly clarified: "the consultant can be other chatgpt agent";
+the purpose is testing without influence from the agent that built the system.
+An independent ChatGPT agent may therefore perform the consultant challenge.
+An outside human appointment is not a prerequisite for this acceptance process.
+
+The reviewer starts with a clean context, receives the product scope and access,
+and creates its own inputs and expected results before observing CMeng outputs.
+The builder does not supply fixtures, numerical answers, or instructions to pass
+the product, and does not inspect untested expectations. Failures and source
+bytes are retained. After a repair, the reviewer replays the original failure
+as regression and tests a separate fresh cohort. Acceptance is limited to the
+release, feature scope, pages and outputs actually challenged. Untested or
+blocked work remains open; this is independent AI review, not a claim of human
+professional certification. These independence and coverage requirements apply
+to every stage and do not waive defects or authorize production promotion.
+
 Every stage receives real regression, adversarial and fresh unseen testing.
 After internal acceptance, provide a hard independent-consultant challenge pack
 for that same stage. The consultant uses different black-box inputs and unseen
