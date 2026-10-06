@@ -5,8 +5,31 @@ the historical A–K development batches, suite names and green CI runs do not
 replace it. Existing features and the original domain requirements remain in
 scope. Dated acceptance receipts retain their historical evidence only.
 
-Current stage: **Stage 1, open**. No enterprise readiness or production handover
-is certified by this document. Stages 2–7 have not passed their acceptance gates.
+Acceptance: **Stage 1, open; 0 of 7 stages accepted**. No enterprise readiness
+or production handover is certified by this document.
+
+## Execution amendment — 6 October 2026
+
+The user explicitly authorized continuing the engineering and testing for
+Stages 2–7 now, with the evidence compiled for independent review later.
+Pending Stage 1 historical-origin decisions and independent acceptance no
+longer prevent that work. This changes execution order, not the required
+coverage, assertions, independence or final acceptance standard.
+
+Track engineering work and acceptance separately. Preserve each stage's
+outstanding decisions and findings; do not describe an internally tested stage
+as independently accepted. Follow technical dependencies where they matter
+(for example, validate a reference calculator before relying on it to certify
+CMeng). Other implementation, test design and verification can proceed.
+Any defect found is fixed and retested against the affected shared behavior.
+Only a demonstrated material defect blocks dependent work: wrong figures or
+dates, false authority, source loss, isolation/access failure or unusable core
+behavior. Keep unaffected work moving. Historical classification, outstanding
+paperwork, minor presentation issues and pending independent decisions remain
+on the open-items register without stopping unrelated engineering. They are
+not silently waived or relabeled complete.
+Do not merge or promote the production release merely because later-stage
+engineering has started.
 
 ## Rule governing every stage
 
@@ -16,7 +39,9 @@ for that same stage. The consultant uses different black-box inputs and unseen
 projects, challenges page/lens/report/export/Ask consistency, and attacks
 malformed, duplicate, missing, future, conflicting and authority cases. A
 consultant finding reopens the same stage. Internal tests cannot stand in for
-independent acceptance. Do not advance with a finding scheduled for later.
+independent acceptance. No finding can be deferred out of final acceptance.
+Engineering may proceed under the execution amendment above while an
+independent decision is pending.
 
 A failed blind project permanently becomes regression data. Its project, seed
 and input files cannot be counted again as unseen proof. A feature cohort counts

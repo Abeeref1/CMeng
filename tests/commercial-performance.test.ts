@@ -10,6 +10,32 @@ import {
   type CommercialPerformanceInput,
 } from "../packages/commercial-performance/src";
 
+test('derived cost and historic EVM retain source uncertainty instead of becoming established arithmetic',()=>{
+  for(const state of ['official','candidate','partial','conflicted','missing'] as const){
+    const model=input();
+    const original=model.costSnapshots.find(s=>s.asOf==='2026-08-31')!;
+    model.costSnapshots=[{...original,asOf:'2026-07-31',state},{...original,state}];model.costMetrics=[];
+    const result=buildCommercialPerformance(model),position=result.costControl.positions[0]!;
+    const history=result.evmPerformance.series[0]!.points[0]!;
+    for(const metric of ['cpi','spi','sv','cv'] as const){
+      for(const row of [position,history]){
+        const finding=row[metric];
+        assert.equal(finding.state,state==='official'?'established':state);
+        if(state==='conflicted'||state==='missing')assert.equal(finding.value,null);
+        else assert.notEqual(finding.value,null);
+      }
+    }
+    for(const scenario of position.eacScenarios.filter(s=>s.method!=='source_reported')){
+      assert.equal(scenario.value.state,state==='official'?'established':state);
+      if(state==='conflicted'||state==='missing')assert.equal(scenario.value.value,null);
+      assert.equal(scenario.official,false);
+    }
+    assert.equal(position.ev.value,original.values.ev,'The original source value must remain available separately.');
+    if(state!=='official')assert.notEqual(result.evmPerformance.state,'established');
+    if(state==='candidate'||state==='partial')assert.ok(result.costControl.managementSummary.every(line=>line.startsWith('Provisional '+state+' evidence:')));
+  }
+});
+
 function foundation() {
   const input:
     CommercialFoundationInput = {

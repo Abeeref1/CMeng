@@ -1,6 +1,39 @@
 import ExcelJS from 'exceljs';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {createHash,randomBytes} from 'node:crypto';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {join,resolve} from 'node:path';
+
+async function persistBlindRound<T extends {projectId:string}>(seed:string,projects:T[]){
+  const destination=process.env.CMENG_BLIND_EVIDENCE_DIR?.trim();
+  if(destination){
+    const roundId=createHash('sha256').update(seed).digest('hex');
+    const directory=join(resolve(destination),roundId);
+    await mkdir(directory,{recursive:true});
+    const retain=async(value:unknown):Promise<unknown>=>{
+      if(Array.isArray(value))return Promise.all(value.map(retain));
+      if(value&&typeof value==='object'){
+        const document=value as Record<string,unknown>;
+        if(document.bytes instanceof Uint8Array){
+        const sourceHash=createHash('sha256').update(document.bytes).digest('hex');
+        const sourcePath=join('sources',sourceHash+'.bin');
+        await mkdir(join(directory,'sources'),{recursive:true});
+        await writeFile(join(directory,sourcePath),document.bytes);
+        const {bytes,...metadata}=document;
+        return {...metadata,sourceHash,sourcePath,sizeBytes:bytes.length};
+        }
+        return Object.fromEntries(await Promise.all(Object.entries(document).map(async([key,child])=>[key,await retain(child)])));
+      }
+      return value;
+    };
+    const retained=await retain(projects);
+    await writeFile(join(directory,'input-manifest.json'),JSON.stringify({
+      seed,roundId,classification:'internal generated cohort; not external independent acceptance',
+      generatedAt:new Date().toISOString(),projects:retained,
+    },null,2)+'\n');
+  }
+  return {seed,projects};
+}
 
 export type BlindScenario =
   | 'complete'
@@ -280,7 +313,7 @@ export async function generateBlindProject(seed:string,index=0):Promise<BlindPro
 export async function generateBlindRound(seed:string,count:number){
   const projects:BlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 export interface StorageBlindProject extends BlindProject {
@@ -300,7 +333,7 @@ export async function generateStorageBlindProject(seed:string,index=0):Promise<S
 export async function generateStorageBlindRound(seed:string,count:number){
   const projects:StorageBlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateStorageBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 const mixedHeaders:Record<string,string[]>={
@@ -373,7 +406,7 @@ export async function generateMixedWorkbookBlindProject(seed:string,index=0):Pro
 export async function generateMixedWorkbookBlindRound(seed:string,count:number){
   const projects:BlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateMixedWorkbookBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 
@@ -442,7 +475,7 @@ export async function generateLifecycleMixedWorkbookBlindProject(seed:string,ind
 export async function generateLifecycleMixedWorkbookBlindRound(seed:string,count:number){
   const projects:LifecycleMixedBlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateLifecycleMixedWorkbookBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 
@@ -502,7 +535,7 @@ export async function generateSemanticAiBlindProject(seed:string,index=0):Promis
 export async function generateSemanticAiBlindRound(seed:string,count:number){
   const projects:SemanticAiBlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateSemanticAiBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 
@@ -550,7 +583,7 @@ export async function generateScheduleLifecycleBlindProject(seed:string,index=0)
 export async function generateScheduleLifecycleBlindRound(seed:string,count:number){
   const projects:ScheduleLifecycleBlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateScheduleLifecycleBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 
@@ -654,7 +687,7 @@ export async function generateDeliveryFeatureBlindProject(seed:string,index=0):P
 export async function generateDeliveryFeatureBlindRound(seed:string,count:number){
   const projects:DeliveryFeatureBlindProject[]=[];
   for(let i=0;i<count;i++)projects.push(await generateDeliveryFeatureBlindProject(seed,i));
-  return {seed,projects};
+  return persistBlindRound(seed,projects);
 }
 
 
@@ -821,7 +854,7 @@ export async function generateCommercialFeatureBlindProject(seed:string,index=0)
       expectedDomains:['schedule','contract','evm','payments','variations','claims','bonds']}};
 }
 export async function generateCommercialFeatureBlindRound(seed:string,count:number){
-  const projects:CommercialFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateCommercialFeatureBlindProject(seed,i));return {seed,projects};
+  const projects:CommercialFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateCommercialFeatureBlindProject(seed,i));return persistBlindRound(seed,projects);
 }
 
 export interface DelayFeatureBlindProject extends BlindProject {}
@@ -858,7 +891,7 @@ export async function generateDelayFeatureBlindProject(seed:string,index=0):Prom
     truth:{scheduleActivities:activityCount,payments:null,variations:null,risks:null,claims:claimRows.length,procurement:null,quality:null,expectedDomains:['schedule','contract','claims']}};
 }
 export async function generateDelayFeatureBlindRound(seed:string,count:number){
-  const projects:DelayFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateDelayFeatureBlindProject(seed,i));return {seed,projects};
+  const projects:DelayFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateDelayFeatureBlindProject(seed,i));return persistBlindRound(seed,projects);
 }
 
 
@@ -909,7 +942,7 @@ export async function generateProgressFeatureBlindProject(seed:string,index=0):P
       expectedDomains:['schedule','boq','measurements','resources']}};
 }
 export async function generateProgressFeatureBlindRound(seed:string,count:number){
-  const projects:ProgressFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateProgressFeatureBlindProject(seed,i));return {seed,projects};
+  const projects:ProgressFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateProgressFeatureBlindProject(seed,i));return persistBlindRound(seed,projects);
 }
 
 
@@ -985,7 +1018,7 @@ export async function generateForecastFeatureBlindProject(seed:string,index=0):P
     truth:{scheduleActivities:6,payments:null,variations:null,risks:null,claims:null,procurement:null,quality:null,expectedDomains:['schedule','boq','measurements','productivity','contract']}};
 }
 export async function generateForecastFeatureBlindRound(seed:string,count:number){
-  const projects:ForecastFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateForecastFeatureBlindProject(seed,i));return {seed,projects};
+  const projects:ForecastFeatureBlindProject[]=[];for(let i=0;i<count;i++)projects.push(await generateForecastFeatureBlindProject(seed,i));return persistBlindRound(seed,projects);
 }
 
 export function defaultBlindSeed(){

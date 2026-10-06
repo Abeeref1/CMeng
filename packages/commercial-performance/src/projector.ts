@@ -310,6 +310,26 @@ function calc(
   return {...result, validationScope:'arithmetic_only'};
 }
 
+function calcFromSnapshot(
+  snapshot: PerformanceCostSnapshotInput,
+  value: number | null,
+  options: Parameters<typeof calc>[1],
+): CommercialFinding<number> {
+  const withheld=snapshot.state==='conflicted'||snapshot.state==='missing';
+  const result=calc(withheld?null:value,options);
+  if(snapshot.state==='official')return result;
+  // A successful division does not resolve a candidate, incomplete or
+  // conflicting source. Preserve that state in every derived consumer.
+  return {...result,
+    state:result.value===null&&!withheld?'missing':stateForSnapshot(snapshot),
+    action:snapshot.state==='conflicted'
+      ?'Resolve conflicting cost evidence before using the calculated position.'
+      :snapshot.state==='missing'?'Provide the missing cost evidence.'
+      :'Confirm the source basis before using this provisional calculation.',
+    diagnostics:uniq([...result.diagnostics,'DERIVED_COST_RETAINS_SOURCE_STATE:'+snapshot.state]),
+  };
+}
+
 function safeRatio(
   numerator: number | null,
   denominator: number | null,
@@ -567,7 +587,7 @@ function eacScenarios(
   values.push({
     method:
       "bac_over_cpi",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       cpiEac,
       {
         asOf:
@@ -596,7 +616,7 @@ function eacScenarios(
   values.push({
     method:
       "ac_plus_remaining_budget",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       simpleEac,
       {
         asOf:
@@ -625,7 +645,7 @@ function eacScenarios(
   values.push({
     method:
       "ac_plus_source_etc",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       bottomUp,
       {
         asOf:
@@ -932,7 +952,7 @@ function costControl(
         : null;
 
     const spi =
-      calc(spiValue, {
+      calcFromSnapshot(snapshot, spiValue, {
         asOf:
           snapshot.asOf,
         method: "EV / PV",
@@ -947,7 +967,7 @@ function costControl(
           "PV and EV are required for SPI.",
       });
     const cpi =
-      calc(cpiValue, {
+      calcFromSnapshot(snapshot, cpiValue, {
         asOf:
           snapshot.asOf,
         method: "EV / AC",
@@ -962,7 +982,7 @@ function costControl(
           "EV and AC are required for CPI.",
       });
     const sv =
-      calc(svValue, {
+      calcFromSnapshot(snapshot, svValue, {
         asOf:
           snapshot.asOf,
         method: "EV - PV",
@@ -981,7 +1001,7 @@ function costControl(
           "PV and EV are required for schedule variance.",
       });
     const cv =
-      calc(cvValue, {
+      calcFromSnapshot(snapshot, cvValue, {
         asOf:
           snapshot.asOf,
         method: "EV - AC",
@@ -1000,7 +1020,7 @@ function costControl(
           "EV and AC are required for cost variance.",
       });
     const calculatedVac =
-      calc(
+      calcFromSnapshot(snapshot,
         calculatedVacValue,
         {
           asOf:
@@ -1017,7 +1037,7 @@ function costControl(
         },
       );
     const tcpiBudget =
-      calc(
+      calcFromSnapshot(snapshot,
         tcpiBudgetValue,
         {
           asOf:
@@ -1032,7 +1052,7 @@ function costControl(
         },
       );
     const tcpiForecast =
-      calc(
+      calcFromSnapshot(snapshot,
         tcpiForecastValue,
         {
           asOf:
@@ -1153,7 +1173,7 @@ function costControl(
       position.cpi.value < 1
     ) {
       managementSummary.push(
-        position.currency +
+        (position.cpi.state==='established'?'':'Provisional '+position.cpi.state+' evidence: ') + position.currency +
           " CPI " +
           position.cpi.value +
           " indicates adverse cost efficiency.",
@@ -1165,7 +1185,7 @@ function costControl(
       position.spi.value < 1
     ) {
       managementSummary.push(
-        position.currency +
+        (position.spi.state==='established'?'':'Provisional '+position.spi.state+' evidence: ') + position.currency +
           " SPI " +
           position.spi.value +
           " indicates earned value is behind planned value.",
@@ -1179,7 +1199,7 @@ function costControl(
         .calculatedVac.value < 0
     ) {
       managementSummary.push(
-        position.currency +
+        (position.calculatedVac.state==='established'?'':'Provisional '+position.calculatedVac.state+' evidence: ') + position.currency +
           " forecast indicates an overrun against BAC of " +
           Math.abs(
             position
@@ -1318,7 +1338,7 @@ function evmPerformance(
             pv,
             ev,
             ac,
-            spi: calc(
+            spi: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeRatio(
                     ev.value,
@@ -1337,7 +1357,7 @@ function evmPerformance(
                   "PV and EV are required for SPI at this period.",
               },
             ),
-            cpi: calc(
+            cpi: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeRatio(
                     ev.value,
@@ -1356,7 +1376,7 @@ function evmPerformance(
                   "EV and AC are required for CPI at this period.",
               },
             ),
-            sv: calc(
+            sv: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeSubtract(
                     ev.value,
@@ -1375,7 +1395,7 @@ function evmPerformance(
                   "PV and EV are required for SV.",
               },
             ),
-            cv: calc(
+            cv: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeSubtract(
                     ev.value,
@@ -1447,7 +1467,8 @@ function evmPerformance(
         ? "missing" as const
         : series.every(
               (item) =>
-                item.coveragePercent === 100 && item.points.length >= 2 && item.taxBasis !== "unknown",
+                item.coveragePercent === 100 && item.points.length >= 2 && item.taxBasis !== "unknown" &&
+                item.points.every(point=>[point.pv,point.ev,point.ac].every(value=>value.state==='established')),
             )
           ? "established" as const
           : "partial" as const,

@@ -3225,7 +3225,7 @@ function renderCommercialVisual(key,data){
   };
   const findingMeta=(finding)=>{
     if(!finding)return"Missing";
-    const bits=finding.validationScope==="arithmetic_only"?["Arithmetic checked", "source reconciliation separate"]:[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
+    const bits=finding.validationScope==="arithmetic_only"?["Arithmetic checked", "source reconciliation separate",...(finding.state&&finding.state!=="established"?[humanizeKey(finding.state)]:[])]:[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
     if(finding.coverage)bits.push((key==="cost-forecast"?"Snapshot metric evidence: ":"Finding evidence: ")+fmt(finding.coverage.known)+" / "+fmt(finding.coverage.total)+(finding.coverage.percent==null?"":" ("+fmt(finding.coverage.percent)+"%)"));
     if(finding.basis?.asOfDate)bits.push("as of "+planningShortDate(finding.basis.asOfDate));
     return bits.join(" · ");

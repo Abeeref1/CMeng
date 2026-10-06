@@ -2,6 +2,7 @@ import {prepareBoqPageReview,boqPageReview,type BoqPageReviewInput} from './boq-
 import {hasSourceDocumentIdentity} from './evidence-control';
 import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
 import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
+import {restoreSourcePaths} from './restore-source-paths';
 import {isDeepStrictEqual} from 'node:util';
 import {phaseProgrammeState} from './phase-programmes';
 import {hasFinancialSecurityContent} from './security-document-content';
@@ -1447,6 +1448,7 @@ export class RuntimeProjectStore {
           hydrateProject(
             serialized,
           );
+        if(restoreSourcePaths(state,this.dataDir))restoredStateChanged=true;
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         let controlBasisMigrated = false;
@@ -1720,6 +1722,7 @@ export class RuntimeProjectStore {
       const saved=existsSync(this.stateFile)?readSnapshotJson<RuntimeStateSnapshot>(this.stateFile):{schemaVersion:1,projects:[]};
       if(saved.schemaVersion!==1||!Array.isArray(saved.projects))throw new Error('PROJECT_SNAPSHOT_INVALID');
       const restored=saved.projects.map(hydrateProject);
+      for(const state of restored)restoreSourcePaths(state,this.dataDir);
       this.projects.clear();this.auditWatermarks.clear();this.auditSourceFingerprints.clear();
       for(const state of restored){this.projects.set(state.projectId,state);this.auditWatermarks.set(state.projectId,{fingerprint:this.auditFingerprint(state),version:state.version});this.auditSourceFingerprints.set(state.projectId,this.auditSources(state));}
       this.restoreFailure=null;

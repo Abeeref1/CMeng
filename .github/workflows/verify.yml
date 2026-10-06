@@ -33,7 +33,20 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npm run verify 2>&1 | tee /tmp/cmeng-verify.log
+          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs npm run verify 2>&1 | tee /tmp/cmeng-verify.log
+
+      - name: Independent fresh calculations and relocated restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=/tmp/cmeng-verification/independent
+          python3 scripts/independent-cpm-reference.py "$evidence/cpm"
+          node scripts/compare-independent-cpm.cjs "$evidence/cpm"
+          python3 scripts/independent-commercial-notice-reference.py "$evidence/commercial-notice"
+          node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
+          python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"
+          node scripts/compare-independent-ledger-delivery.cjs "$evidence/ledger-delivery"
+          node scripts/fresh-restore-verification.cjs "$evidence/restore"
 
       - name: Cold dashboard release target
         shell: bash

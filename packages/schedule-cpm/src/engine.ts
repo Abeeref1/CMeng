@@ -788,13 +788,18 @@ export function calculateCpm(
       }
     }
 
-    const lateFinishCandidate =
-      candidates.length > 0
-        ? candidates.reduce((a,b)=>Math.min(a,b),Infinity)
-        : previousWorkingInstant(
-            context.calendar.calendar,
-            latePassFinish,
-          );
+    // Every execution task must finish by the project finish target, including
+    // predecessors of SS/SF links whose successors may finish before them.
+    // Otherwise a long predecessor can receive positive float even though it
+    // determines project completion, and disappear from the critical list.
+    const projectFinishBound = previousWorkingInstant(
+      context.calendar.calendar,
+      latePassFinish,
+    );
+    const lateFinishCandidate = candidates.reduce(
+      (latest,candidate)=>Math.min(latest,candidate),
+      projectFinishBound,
+    );
 
     const lateFinish =
       previousWorkingInstant(

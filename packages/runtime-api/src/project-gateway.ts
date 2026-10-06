@@ -1,4 +1,5 @@
 import {retainedAuditSessionKey} from './audit-session-key';
+import {ApplicationAccess,applicationPolicyFromEnvironment,type ApplicationAccessPolicy,type ApplicationPrincipal} from './application-access';
 import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
@@ -11,7 +12,7 @@ import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry
 import {projectWorkerCapacity} from './project-worker-capacity';
 import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,createHmac} from 'node:crypto';
 import {ExternalAccess,filePolicy} from '../../external-intelligence/src/access';
 import {ExternalIntelligenceService} from '../../external-intelligence/src/service';
 import {ExternalHttp} from '../../external-intelligence/src/http';
@@ -20,7 +21,7 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
-export async function createProjectGateway(root:string,options:{maxWorkers?:number}={}){
+export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);
@@ -41,6 +42,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const backend:ExternalBackend={catalogue:externalAuthorityMetadata,state:(projectId,authorityIds)=>invoke(projectId,{action:'state',authorityIds}),analyse:(projectId,user,plan)=>invoke(projectId,{action:'analyse',user,plan}),retrieve:(projectId,user,session,operation,query,limit)=>invoke(projectId,{action:'retrieve',user,session,operation,query,limit})};
     externalHttp=new ExternalHttp(access,new ExternalIntelligenceService(access,backend),askSettingsPath);return externalHttp;
   }
+  const applicationPolicy=options.appPolicy??applicationPolicyFromEnvironment;
+  const applicationAccess=new ApplicationAccess(applicationPolicy,req=>externalController().access.identity(req),()=>externalPolicy()?.publicOrigin??null);
+  const accessMode=()=>{try{return applicationPolicy()?'protected':'public_review';}catch{return 'unavailable';}};
+  const actorHeaders=new WeakMap<IncomingMessage,Record<string,string>>();
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
@@ -154,7 +159,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
         if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
-        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
+        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,...actorHeaders.get(req),host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
           const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
@@ -182,36 +187,41 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     }
   }
   const server=createServer((req,res)=>{void (async()=>{
+    delete req.headers['x-cmeng-verified-actor'];delete req.headers['x-cmeng-verified-actor-signature'];
     const url=new URL(req.url??'/','http://localhost');
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
+    const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
+    if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
     if(req.method==='GET'&&url.pathname==='/api/portfolio'){
-      const visible=[...catalog.values()].filter(e=>!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
+      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
       return;
     }
     if(req.method==='GET'&&url.pathname==='/api/background-work'){
-      send(res,200,{projects:[...updating].filter(([,n])=>n>0).map(([projectId])=>({projectId,state:'processing'})),uploads:[...progress.values()]});return;
+      send(res,200,{projects:[...updating].filter(([id,n])=>n>0&&applicationAccess.visible(principal,id)).map(([projectId])=>({projectId,state:'processing'})),uploads:[...progress.values()].filter(p=>applicationAccess.visible(principal,p.projectId))});return;
     }
     if(req.method==='POST'&&url.pathname==='/api/projects'){
+      applicationAccess.administrator(principal);
       let body='';for await(const chunk of req){body+=chunk;if(body.length>8192){send(res,413,{error:'request_too_large'});return;}}
       let id=normalizeProjectCode(JSON.parse(body).projectId??'');if(!id){send(res,400,{error:'project_id_required',message:'Enter a project code.'});return;}
       const existing=[...catalog.keys()].find(key=>normalizeProjectCode(key)===id);
       if(existing&&catalog.get(existing)?.metadata){send(res,409,{error:'project_code_already_exists',projectId:existing,message:'Project code '+existing+' already exists. Open the existing project instead.'});return;}
       if(existing)id=existing;
       await register(id);
-      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http')},body:JSON.stringify({projectId:id})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
+      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http'),...actorHeaders.get(req)},body:JSON.stringify({projectId:id})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
     }
     const match=/^\/api\/projects\/([^/]+)(\/.*)?$/.exec(url.pathname);
     if(match){
       const supplied=decodeURIComponent(match[1]!);const id=catalog.has(supplied)?supplied:[...catalog.keys()].find(key=>normalizeProjectCode(key)===normalizeProjectCode(supplied))??normalizeProjectCode(supplied);
       if(!id){send(res,400,{error:'project_id_required'});return;}
+      applicationAccess.project(principal,id,req.method==='POST'&&match[2]==='/intelligence/ask'?'GET':req.method);
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
-      if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}await register(id);}
+      if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
@@ -242,9 +252,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       }
       await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);return;
     }
-    if(url.pathname.startsWith('/api/')){await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
+    if(url.pathname.startsWith('/api/')){if(!(req.method==='GET'&&/^\/api\/(?:schedule|commercial|delivery)\/modules$/.test(url.pathname)))applicationAccess.administrator(principal);await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
     send(res,404,{error:'not_found'});
-  })().catch(error=>send(res,400,{error:'request_failed',message:error instanceof Error?error.message:String(error)}));});
+  })().catch(error=>send(res,error.statusCode??400,{error:error.code??'request_failed',message:error instanceof Error?error.message:String(error)}));});
   server.requestTimeout=0;
   // One low-priority summary at a time; leave capacity for interactive projects and uploads.
   let warming=false;

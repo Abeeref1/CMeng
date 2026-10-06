@@ -160,6 +160,21 @@ test('driving trace keeps parallel ties, omits a non-binding predecessor and pre
   assert.deepEqual(finishLinked.drivingNetwork?.activityIds,['A','B']);assert.equal(finishLinked.drivingNetwork?.relationships[0]?.type,'FF');
 });
 
+test('every activity remains bounded by project finish even when a start link permits its successor to finish first',()=>{
+  for(const type of ['SS','SF'] as const){
+    const model=chainModel({activities:[activity('LONG',{remainingDurationHours:40}),activity('SHORT',{remainingDurationHours:8})],
+      relationships:[{relationshipId:'START-LINK',predecessorActivityId:'LONG',successorActivityId:'SHORT',type,lagHours:0,external:false,sourceRefs:[],diagnostics:[]}]});
+    const result=calculateCpm(model);
+    assert.equal(result.projectFinishIso,'2026-01-09T16:00:00.000Z');
+    assert.equal(result.activities.find(a=>a.activityId==='LONG')?.totalFloatHours,0);
+    assert.ok(result.criticalActivityIds.includes('LONG'));
+    for(const row of result.activities)assert.ok(row.lateFinishIso!<=result.projectFinishIso!,row.activityId+' exceeds the project finish');
+    const required=calculateCpm(model,{requiredFinishIso:'2026-01-08T16:00:00.000Z'});
+    assert.equal(required.activities.find(a=>a.activityId==='LONG')?.totalFloatHours,-8);
+    for(const row of required.activities)assert.ok(row.lateFinishIso!<=required.latePassFinishIso!,row.activityId+' exceeds the required finish');
+  }
+});
+
 test('execution CPM excludes LOE and WBS durations and retains the source population',()=>{
   const base=chainModel();
   const expected=calculateCpm(base);

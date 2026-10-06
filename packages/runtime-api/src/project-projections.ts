@@ -8057,7 +8057,7 @@ export function managementSurfacesForProject(
   const history:
     ManagementHistoryInput[] = [
       ...(state.auditHistory??[]).map(event=>({eventId:event.eventId,occurredAt:event.occurredAt,entity:'Project version '+event.projectVersion,
-        action:event.operation,actor:event.actor.label,state:event.actor.identityVerified?'attributed_system':'session_identity_unverified',sourceRef:'audit-request:'+event.requestId})),
+        action:event.operation,actor:event.actor.label,state:event.actor.identityVerified?(event.actor.kind==='user'?'attributed_user':'attributed_system'):'session_identity_unverified',sourceRef:'audit-request:'+event.requestId})),
       ...state.evidenceDocuments.map(
         (document) => ({
           eventId:
