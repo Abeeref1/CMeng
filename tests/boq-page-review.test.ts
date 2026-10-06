@@ -18,6 +18,7 @@ import {moduleForProject,invalidateProject} from '../packages/runtime-api/src/pr
 import {buildModuleJsonDownload,buildModuleWorkbook} from '../packages/runtime-api/src/module-report';
 import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
 import {AskStore} from '../packages/runtime-api/src/ask-store';
+import {refreshDeferredPdfBoq} from '../packages/runtime-api/src/boq-pdf-refresh';
 
 function setup(t:any){const dir=mkdtempSync(join(tmpdir(),'cmeng-pages-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));return {dir,store:new RuntimeProjectStore({dataDir:dir,durable:true})};}
 async function fixture(projectId:string){
@@ -77,6 +78,24 @@ test('split/combine preserve ordering and source history, with arithmetic and co
  i=input(store,id,1);i.items=[{...i.items[0]!,id:'combined',origins:[...new Set(i.items.flatMap(x=>x.origins))],values:{quantity:4,rate:2,amount:8}}];store.confirmBoqPage(id,i);
  assert.equal(resolveBoqSource(store.getOrCreate(id),'S').boq!.canonicalItems[0]!.quantity,4);
  assert.equal(store.getOrCreate(id).boqPageReviews!.length,3,'Confirmation, reopen and correction history remain intact');
+});
+
+test('ten fresh reviewed sources survive deferred reader refresh, including partial and reopened pages',async t=>{
+ const {dir,store}=setup(t);
+ for(let n=0;n<10;n++){
+  const id='REFRESH-'+randomUUID(),f=await fixture(id);store.attachBoq(f.boq,f.bytes,'Original.pdf');
+  store.confirmBoqPage(id,correct(input(store,id,2),f.truth[1]!));
+  if(n%2)store.confirmBoqPage(id,{...input(store,id,2),action:'reopen',reviewedSource:false});
+  const restored=new RuntimeProjectStore({dataDir:dir,durable:true}),state=restored.getOrCreate(id),document=state.evidenceDocuments[0]!;
+  const raw=JSON.stringify(state.boqRevisions),view=boqPageReview(state),decisions=JSON.stringify(state.boqPageReviews);
+  assert.equal(await refreshDeferredPdfBoq(document,state,()=>{throw Error('A saved source review must not trigger replacement OCR');}),false);
+  assert.equal(JSON.stringify(state.boqRevisions),raw);assert.equal(JSON.stringify(state.boqPageReviews),decisions);
+  assert.deepEqual(boqPageReview(state),view);assert.equal(view.sources[0]!.pages[0]!.status,'needs_review');
+  assert.equal(view.sources[0]!.pages[1]!.status,n%2?'reopened':'confirmed');
+  // An unrelated or stale decision must not suppress an unreviewed source's refresh.
+  state.boqPageReviews=state.boqPageReviews!.map(d=>({...d,sourceHash:'different-source'}));
+  await assert.rejects(refreshDeferredPdfBoq(document,state,()=>{throw Error('Unreviewed source still refreshes');}),/Unreviewed source still refreshes/);
+ }
 });
 
 test('page confirmation cannot invent completeness through missing origins, foreign items, stale tokens or invalid amounts',async t=>{

@@ -4,6 +4,7 @@ import {ingestBoq} from '../../boq-ingestion/src';
 import type {OcrProvider} from '../../pdf-document-parser/src';
 import type {StoredEvidenceDocument,ProjectRuntimeState} from './project-state-types';
 import {quantityModelFromBoq} from './boq-source';
+import {latestBoqPageDecisions} from './boq-page-projection';
 
 const producerVersion='offline-boq-cells-v2';
 const running=new WeakMap<StoredEvidenceDocument,Promise<boolean>>();
@@ -20,6 +21,11 @@ export function refreshDeferredPdfBoq(document:StoredEvidenceDocument,state:Proj
   if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('BOQ_REFRESH_SOURCE_HASH_MISMATCH');
   const prior=state.boqRevisions.find(b=>b.ingestionId===(receipt?.ingestionId??document.linkedArtifactId)&&b.sourceHashSha256===hash)
     ??(state.boq?.sourceHashSha256===hash?state.boq:null);
+  // A saved page decision (including a reopened draft) owns this reading basis.
+  // Background reader upgrades must not replace its raw rows and silently
+  // invalidate corrections. Other physical pages remain explicitly unresolved;
+  // a different source/revision or an unreviewed source can still be refreshed.
+  if(prior&&state.boqPageReviews?.length&&latestBoqPageDecisions(prior,state).size)return false;
   const provider=createProvider();
   if(!provider)return false;
   const result=await ingestBoq({projectId:state.projectId,bytes,verifiedMediaType:document.mediaType,receivedAt:prior?.receivedAt??document.uploadedAt,sourceFilename:document.sourceFilename,
