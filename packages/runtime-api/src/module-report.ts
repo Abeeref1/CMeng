@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {exportAskAnalysis,type AskExportView} from './ask-export';
 import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell,EvidenceState} from '../../project-ask/src/types';
 import {pageApiKey,publicModuleResult} from './registry';
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import type {
   ModuleRuntimeResult,
 } from "./project-state-types";
@@ -471,6 +471,7 @@ export async function buildModuleWorkbook(
   result: ModuleRuntimeResult,
 ): Promise<Buffer> {
   if((result.data as any)?.projectionKey==="delivery")return buildDeliveryWorkbook(projectId,result);
+  const {default:ExcelJS}=await import('exceljs');
   const workbook =
     new ExcelJS.Workbook();
   workbook.creator = "CMeng";

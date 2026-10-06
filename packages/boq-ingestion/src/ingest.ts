@@ -6,15 +6,9 @@ import {
   evidenceReceiptFromUpload,
 } from "../../governance-model/src";
 import {
-  parseBoqOoxmlWorkbook,
-} from "../../boq-parser/src";
-import {
   parseBoqCsv,
 } from "../../boq-csv-parser/src";
-import {
-  parseBoqPdf,
-  type BoqPdfOptions,
-} from "../../boq-pdf-parser/src";
+import type {BoqPdfOptions} from "../../boq-pdf-parser/src";
 import type {
   BoqIngestionInput,
   BoqIngestionResult,
@@ -366,6 +360,7 @@ export async function ingestBoq(
         diagnostics: [...item.diagnosticCodes],
       }));
   } else if (sourceFormat === "excel_ooxml") {
+    const {parseBoqOoxmlWorkbook} = await import('../../boq-parser/src/ooxml');
     const parsed = await parseBoqOoxmlWorkbook(
       input.bytes,
     );
@@ -403,6 +398,7 @@ export async function ingestBoq(
         })),
     );
   } else {
+    const {parseBoqPdf} = await import('../../boq-pdf-parser/src/parser');
     const parsed = await parseBoqPdf(
       input.bytes,
       options.pdf ?? {},

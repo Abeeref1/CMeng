@@ -1,9 +1,9 @@
 import {readableXlsx} from '../../shared/src/xlsx';
-import ExcelJS from 'exceljs';
 import {analyzeEvidenceTable,canonicalHeader,isRegisterDateHeader,prepareRegisterRows} from '../../truth-kernel/src';
 import type {StoredEvidenceDocument} from './project-state-types';
 
 export async function readRegisterWorkbook(bytes:Uint8Array,sourceHashSha256:string,documentType:string):Promise<NonNullable<StoredEvidenceDocument['tabularRead']>> {
+  const {default:ExcelJS}=await import('exceljs');
   const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readableXlsx(bytes) as any);
   const sheets=workbook.worksheets.map(sheet=>{
     const rows:string[][]=[];

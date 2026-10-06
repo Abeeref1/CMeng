@@ -1,7 +1,4 @@
-import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import PDFDocument from 'pdfkit';
-import {createCanvas,GlobalFonts} from '@napi-rs/canvas';
 import {join} from 'node:path';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
 import {AskError} from '../../project-ask/src/catalogue';
@@ -63,6 +60,8 @@ const metadata=(r:AnalysisResult):Array<[string,string|number]>=>[
 
 /** Charts are a rendering of table cells. No KPI is recalculated here. */
 export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{type?:'bar'|'line';limit?:number}={}){
+  // The synchronous chart API loads native rendering only when a chart is requested.
+  const {createCanvas,GlobalFonts}=require('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
   GlobalFonts.registerFromPath(font,'CMeng');const canvas=createCanvas(1200,560),c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,1200,560);
   c.font='bold 22px CMeng';c.fillStyle='#24384a';c.fillText(chart.title.slice(0,86),28,35);c.font='14px CMeng';c.fillStyle='#53697d';c.fillText(chart.unit+' · Data Date '+(chart.dataDate??'not established'),28,62);
   const chartRows=table.rows.slice(0,options.limit??table.rows.length),chartType=options.type??chart.type;
@@ -82,6 +81,7 @@ export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{typ
   return canvas.toBuffer('image/png');
 }
 async function workbook(result:AnalysisResult,view?:AskExportView){
+  const {default:ExcelJS}=await import('exceljs');
   const book=new ExcelJS.Workbook();book.creator=result.presentation.preparedBy??'CMeng';book.title=result.presentation.title;book.created=new Date(result.createdAt);
   const report=book.addWorksheet('Executive Summary');report.addRows([['CMeng · '+result.presentation.title],...metadata(result),[],['Current position']]);
   for(const n of result.narrative)report.addRows([[n.heading],[n.text]]);
@@ -104,6 +104,7 @@ async function workbook(result:AnalysisResult,view?:AskExportView){
   return Buffer.from(await book.xlsx.writeBuffer());
 }
 async function pdf(result:AnalysisResult,view?:AskExportView){
+  const {default:PDFDocument}=await import('pdfkit');
   const doc=new PDFDocument({size:'A4',margins:{top:48,bottom:48,left:44,right:44},bufferPages:true,info:{Title:result.presentation.title,Author:result.presentation.preparedBy??'CMeng',Subject:result.scope.projectId+' · '+result.scope.dataDate}});
   doc.font(font);const chunks:Buffer[]=[];const done=new Promise<Buffer>((resolve,reject)=>{doc.on('data',c=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
   const heading=(text:string)=>{if(doc.y>690)doc.addPage();doc.moveDown(.8).fontSize(15).fillColor('#24384a').text(text,{width:507}).moveDown(.4);};

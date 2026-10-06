@@ -362,7 +362,9 @@ export function calculateCpm(
   // independent execution task. Keep exclusions explicit for every consumer.
   const population=activityPopulation(sourceModel,'execution_control');
   const excludedIds=new Set(population.excluded.map(a=>a.activityId));
-  const model:CanonicalScheduleModel={...sourceModel,activities:population.activities,
+  // With no exclusions this is the same topology already analysed by other
+  // schedule views. Preserve its identity for the input-validated graph cache.
+  const model:CanonicalScheduleModel=excludedIds.size===0?sourceModel:{...sourceModel,activities:population.activities,
     relationships:sourceModel.relationships.filter(r=>!excludedIds.has(r.predecessorActivityId)&&!excludedIds.has(r.successorActivityId))};
   const config = mergeConfig(input);
   const graph = analyzeScheduleGraph(model);

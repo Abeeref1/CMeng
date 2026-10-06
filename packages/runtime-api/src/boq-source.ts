@@ -5,7 +5,7 @@ import {admissibleBoqQuantity,boqNumericsNeedConfirmation,type CanonicalQuantity
 import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
-import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src';
+import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src/native-text';
 
 const recoveredSources=new WeakMap<BoqIngestionResult,{reading:object;value:BoqIngestionResult}>();
 /** Restored uploads can use their retained, hash-matched complete page reading.

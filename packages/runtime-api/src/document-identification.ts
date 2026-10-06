@@ -6,7 +6,6 @@ import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import ExcelJS from "exceljs";
 import JSZip from "jszip";
 
 import {
@@ -716,6 +715,7 @@ async function extractDocxSample(
 async function extractXlsxSample(
   bytes: Uint8Array,
 ): Promise<string> {
+  const {default:ExcelJS}=await import('exceljs');
   const workbook =
     new ExcelJS.Workbook();
   await workbook.xlsx.load(
