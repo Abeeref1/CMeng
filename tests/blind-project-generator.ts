@@ -187,7 +187,7 @@ function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:strin
   const ids:string[]=[];
   for(let i=0;i<count;i++){
     const id='A'+(1000+i),isFinishMilestone=i===count-1;
-    const code=isFinishMilestone?'MS-'+h.int(10,999):h.pick(['CIV','MEP','PRC','TST','ARC'])+'-'+h.int(10,999);
+    const code=(isFinishMilestone?'MS-'+h.int(10,999):h.pick(['CIV','MEP','PRC','TST','ARC'])+'-'+h.int(10,999))+'-'+(i+1);
     const name=isFinishMilestone
       ? (language==='ar'?'إنجاز المشروع':language==='mixed'?'Project Completion / إنجاز المشروع':'Project Completion')
       : (language==='ar'?'نشاط '+(i+1):language==='mixed'&&i%3===0?'Activity '+(i+1)+' / نشاط':'Activity '+(i+1));
@@ -200,8 +200,8 @@ function makeXer(h:ReturnType<typeof helpers>,projectId:string,projectName:strin
     ids.push(id.slice(1));
   }
   if(count>1){
-    lines.push('%T\tTASKPRED','%F\ttask_pred_id\ttask_id\tpred_task_id\tpred_type\tlag_hr_cnt');
-    for(let i=1;i<count;i++)lines.push('%R\t'+(5000+i)+'\t'+ids[i]+'\t'+ids[i-1]+'\tPR_FS\t0');
+    lines.push('%T\tTASKPRED','%F\ttask_pred_id\tproj_id\ttask_id\tpred_proj_id\tpred_task_id\tpred_type\tlag_hr_cnt');
+    for(let i=1;i<count;i++)lines.push('%R\t'+(5000+i)+'\t1\t'+ids[i]+'\t1\t'+ids[i-1]+'\tPR_FS\t0');
   }
   lines.push('%E');
   return Buffer.from(lines.join('\n'));
@@ -1005,8 +1005,8 @@ function makeForecastResourceXer(h:ReturnType<typeof helpers>,projectId:string,p
     const id=String(1000+i),start=shiftDate(dataDate,-10+i*4),finish=shiftDate(dataDate,25+i*12+revision*2),pct=i===0?40:i===1?20:0;
     lines.push('%R\t'+id+'\t1\t10\tC1\tWP-'+(i+1)+'\t'+(language==='ar'?'حزمة عمل ':'Work Package ')+(i+1)+'\tTT_Task\t'+(pct?'TK_Active':'TK_NotStart')+'\t'+start+' 08:00\t'+finish+' 17:00\t'+start+' 08:00\t'+finish+' 17:00\t320\t'+(320-Math.round(320*pct/100))+'\t'+(i===0?-16:8+i*8)+'\t'+pct);
   }
-  lines.push('%T\tTASKPRED','%F\ttask_pred_id\ttask_id\tpred_task_id\tpred_type\tlag_hr_cnt');
-  for(let i=1;i<6;i++)lines.push('%R\t'+(5000+i)+'\t'+(1000+i)+'\t'+(999+i)+'\tPR_FS\t0');
+  lines.push('%T\tTASKPRED','%F\ttask_pred_id\tproj_id\ttask_id\tpred_proj_id\tpred_task_id\tpred_type\tlag_hr_cnt');
+  for(let i=1;i<6;i++)lines.push('%R\t'+(5000+i)+'\t1\t'+(1000+i)+'\t1\t'+(999+i)+'\tPR_FS\t0');
   lines.push(
     '%T\tUMEASURE','%F\tunit_id\tunit_name\tunit_abbrev\tseq_num','%R\t500\tHour\thr\t1',
     '%T\tRSRC','%F\trsrc_id\tparent_rsrc_id\tclndr_id\trsrc_short_name\trsrc_name\trsrc_type\tunit_id\tcost_qty_type',

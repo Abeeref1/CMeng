@@ -638,7 +638,14 @@ for(const batch of pageBatches){
           assert.equal(viewReport.body?.presentation?.reviewLens,selectedRole,batch.id+' report lost selected review lens '+page.key);
           assert.equal(viewReport.body?.presentation?.audience,audienceForRole(selectedRole),batch.id+' report audience does not match selected lens '+page.key);
           assert.equal(viewReport.body?.presentation?.detail,'detailed',batch.id+' report lost requested detail level '+page.key);
-          const filteredRows=(viewReport.body?.sections??[]).flatMap((section:any)=>section.tables??[]).reduce((sum:number,table:any)=>sum+(Array.isArray(table.rows)?table.rows.length:0),0);
+          // No-match removes the business population. Source/qualification
+          // context remains available and must not be searched away to make
+          // the empty-result assertion pass.
+          const contextPaths=new Set(['sourceRefs','evidenceRefs','diagnostics','dependencies','receipts','reportingContract','metricContracts','traces',
+            'predecessorIds','successorIds','links','relatedActivityIds','relatedClauseIdentifiers']);
+          const filteredRows=(viewReport.body?.sections??[]).flatMap((section:any)=>section.tables??[])
+            .filter((table:any)=>!String(table.title??'').split(/[.\[\]]/).some(part=>contextPaths.has(part)))
+            .reduce((sum:number,table:any)=>sum+(Array.isArray(table.rows)?table.rows.length:0),0);
           const liveObjectRows=(function count(value:any,depth=0):number{
             if(depth>8||value===null||value===undefined)return 0;
             if(Array.isArray(value))return value.filter(row=>row&&typeof row==='object'&&!Array.isArray(row)).length+

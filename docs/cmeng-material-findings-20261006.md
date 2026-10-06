@@ -12,6 +12,9 @@ acceptance remains open. Passing familiar tests alone does not close a finding.
 | Mixed-calendar finish dependency | A zero-lag FF successor could finish before its predecessor when their work calendars differ. | Preserve the chronological FF/SF finish bound, including a held completion in nonworking time, and retain that endpoint in the late pass when permitted. | Two failures in 120 independently enumerated cases; retained and fresh cases pass after correction. Same-calendar reference and negative-float regression remain unchanged. |
 | Mixed-calendar signed lag | The reverse pass measured lag on the predecessor calendar while the forward pass used the successor calendar, creating false float and incorrect critical membership. Calendar-gap rounding also lost negative-lag allowance or moved a start beyond its bound. | Invert the successor calendar consistently; retain gap allowance and separate start bounds. Report the actual method as `successor_calendar_forward_and_backward`. | The retained 120-case independent batch had 49 failures on 7a4c40e; all 120 pass after correction, as do a further fresh 120 lag cases, 120 general-network cases and 120 zero-lag mixed-calendar cases. Frozen inputs are permanent regression material. |
 | Cash-flow population and payment authority | Incomplete receipts could establish certified-unpaid amounts and monthly net cash; an invalid CBS series could disappear while the remaining subtotal became established. The canonical adapter also discarded payment uncertainty and used the certification currency/tax basis for receipts. | Require complete applicable populations for derived balances; track which cost rows actually participated; preserve payment authority through cumulative openings/deltas; partition receipts by their own currency and tax basis. | The frozen 120-case cash batch reproduced 84 failures on d2d5e2a. All 120 retained and 120 freshly generated cases pass after correction, with 360 separate currency/tax partitions per batch. Fifteen adapter authority/money-basis combinations and 720 exact JSON/XLSX value checks pass. |
+| Repeated report rendering | The local Commercial cohort exceeded its 900-second deadline. | Register native fonts once and reuse byte-identical chart images with a bounded exact-input cache. | Original and font-only timeouts retained; corrected original source-byte replay passed in 669.745 seconds, and ten fresh projects passed in 661.181 seconds. |
+| Positive report filters erase evidence | Selecting a record by its name removed source references, diagnostics and schedule links whose text did not also match the query. | Select business records while preserving their source, qualification, population-contract and relationship context. | The retained minimal positive-search regression fails before the fix and passes after; actual HTTP project/filter/export checks retain the selected row and its relationship IDs. |
+| Unknown float classified as zero | Numeric conversion treated null, missing and blank float as zero in report filtering. | Require a known numeric value before applying the zero-float condition. | Retained regression excludes null, absent, blank and invalid values while retaining numeric and textual zero; fresh XER source cases freeze the exact expected zero-float population before upload. |
 
 The independent reference implementations consume frozen input facts, not CMeng
 answers. They are internal engineering evidence, not the user's independent
@@ -54,6 +57,20 @@ deadlines are retained. The required `verify` check succeeds only if every group
 succeeds; skipped, failed or cancelled groups fail the aggregate. A failed group
 does not cancel unrelated checks. New pushes queue behind the active workflow
 instead of cancelling it, preserving its complete evidence.
+
+Positive-filter testing also identified an input-generator defect. Generated
+TASKPRED rows omitted `proj_id` and `pred_proj_id`; CMeng correctly marked those
+relationships unresolved. The generator now writes both project identities and
+unique activity codes. A new general/resource-cohort integrity check requires
+every intended chain link to resolve to distinct imported activity codes. The
+old malformed inputs and their diagnostics remain retained. Product relationship
+inference has not been relaxed. Earlier page-count passes do not certify those
+malformed networks' schedule logic.
+
+The no-match report assertion still requires zero business rows. It now checks
+that population separately from preserved source and qualification context;
+positive-search regressions require that context to remain unchanged. Removing
+evidence is not an acceptable way to obtain an empty business population.
 
 The payment/readiness comparison initially reported eleven differences only in
 percentage rounding: the reference used six decimal places and the public

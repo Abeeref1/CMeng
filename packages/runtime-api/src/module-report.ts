@@ -723,7 +723,9 @@ function matchesModuleFilters(row:Record<string,unknown>,filters:Record<string,s
   }
   const condition=filters.scheduleCondition;
   if(condition){
-    const float=Number(rowFilterValue(row,'totalFloatHours')),status=String(row.status??''),delayed=row.scheduleDelayed===true,missed=row.missedPlannedStart===true,overdue=row.finishOverdue===true;
+    const floatValue=rowFilterValue(row,'totalFloatHours');
+    const float=floatValue!==null&&floatValue.trim()!==''?Number(floatValue):NaN;
+    const status=String(row.status??''),delayed=row.scheduleDelayed===true,missed=row.missedPlannedStart===true,overdue=row.finishOverdue===true;
     if(condition==='negative_float'&&!(Number.isFinite(float)&&float<0))return false;
     if(condition==='zero_float'&&float!==0)return false;
     if(condition==='delayed'&&!delayed)return false;
@@ -736,6 +738,10 @@ function matchesModuleFilters(row:Record<string,unknown>,filters:Record<string,s
   const q=filters.search?.trim().toLowerCase();if(q&&!JSON.stringify(row).toLowerCase().includes(q))return false;
   return true;
 }
+// These fields explain the retained facts. A view selects business records;
+// it must not search away their source identity, uncertainty or population basis.
+const reportEvidenceFields=new Set(['sourcerefs','evidencerefs','diagnostics','dependencies','receipts','reportingcontract','metriccontracts','traces',
+  'predecessorids','successorids','links','relatedactivityids','relatedclauseidentifiers']);
 function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0):unknown{
   if(depth>8||value===null||value===undefined||typeof value!=='object')return value;
   if(Array.isArray(value)){
@@ -749,7 +755,8 @@ function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0)
     }):value;
     return rows.map(v=>applyModuleFilters(v,filters,depth+1));
   }
-  return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,applyModuleFilters(v,filters,depth+1)]));
+  return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,
+    reportEvidenceFields.has(normalizedKey(k))?v:applyModuleFilters(v,filters,depth+1)]));
 }
 export function preparedModuleResult(result:ModuleRuntimeResult,view?:ModuleReportView):ModuleRuntimeResult{
   if(!view?.filters||!Object.values(view.filters).some(Boolean))return result;
