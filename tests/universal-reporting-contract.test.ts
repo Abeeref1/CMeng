@@ -513,6 +513,13 @@ test('ten fresh projects preserve missed-start versus overdue-finish dates in ma
    {...base,activityId:'FUTURE',name:'Future work',currentStartIso:date(1),currentFinishIso:date(futureFinish+1)},
    {...base,activityId:'DONE',name:'Completed work',status:'completed',percentComplete:100,actualStartIso:date(-20),actualFinishIso:date(-10),currentStartIso:date(-20),currentFinishIso:date(-10)},
   ];state.version++;
+  const checkedPages=new Map(['lookahead-schedule','master-dashboard','command-center'].map(key=>[key,moduleForProject(state.projectId,key)]));
+  const look=checkedPages.get('lookahead-schedule')!.data as any;
+  assert.equal(look.overdueCount,2,'finish-only count excludes the missed-start-only row');
+  assert.equal(look.overdueBacklogCount,3,'backlog includes the union of missed starts and finishes');
+  assert.equal(checkPageValues(checkedPages).find(c=>c.metric==='Overdue activity exceptions')?.state,'passed');
+  const corrupted=structuredClone(checkedPages);(corrupted.get('master-dashboard')!.data as any).deliveryExceptions.overdueActivityCount=2;
+  assert.equal(checkPageValues(corrupted).find(c=>c.metric==='Overdue activity exceptions')?.state,'failed','a real missing backlog action must still fail');
   for(const key of ['master-dashboard','command-center']){
    const data=moduleForProject(state.projectId,key).data as any;
    const rows=data.deliveryExceptions.actions.filter((r:any)=>r.type==='Activity');

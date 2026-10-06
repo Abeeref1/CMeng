@@ -43,6 +43,8 @@ export function checkPageValues(pages:Map<string,ModuleRuntimeResult>):PageValue
     return {page,value:{state:invalid.length?'fabricated_comparison':'unresolved',affectedRows:invalid.length}};
   });
   if(baselineValues.length)checks.push({metric:'No comparisons without a confirmed baseline',state:baselineValues.some(v=>v.value.affectedRows>0)?'failed':'passed',values:baselineValues});
-  compare('Overdue activity exceptions',[['lookahead-schedule','overdueCount'],['master-dashboard','deliveryExceptions.overdueActivityCount'],['command-center','deliveryExceptions.overdueActivityCount']]);
+  // Management actions include missed starts as well as overdue finishes.
+  // Compare that same backlog population; overdueCount is finish-only.
+  compare('Overdue activity exceptions',[['lookahead-schedule','overdueBacklogCount'],['master-dashboard','deliveryExceptions.overdueActivityCount'],['command-center','deliveryExceptions.overdueActivityCount']]);
   return checks;
 }
