@@ -57,8 +57,11 @@ function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number
   }
   if(dark>=width*minDensity&&longest>=Math.max(40,width*minStroke)){
    // A dense text baseline can look continuous across a five-pixel band.
-   // Its glyphs extend above/below that band; a thin rule does not.
-   const thin=[-6,6].every(dy=>{let adjacent=0;for(let xx=x;xx<x+width;xx++)if(y+dy>=0&&y+dy<r.height&&r.pixels[((y+dy)*r.width+xx)*4]!<235)adjacent++;return adjacent<width*.15;});
+   // Its glyphs extend above/below that band; a thin rule has a clear
+   // neighboring scanline on each side. Search the immediate margin instead
+   // of sampling only six pixels away, where tightly spaced cell text may
+   // already begin and would incorrectly erase a genuine pale divider.
+   const thin=[-1,1].every(side=>[3,4,5,6].some(offset=>{const dy=side*offset;let adjacent=0;for(let xx=x;xx<x+width;xx++)if(y+dy>=0&&y+dy<r.height&&r.pixels[((y+dy)*r.width+xx)*4]!<235)adjacent++;return adjacent<width*.15;}));
    if(thin)selected.push(y);
   }
  }
@@ -467,7 +470,10 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     desc.confirmation={text:contrast.text.trim(),confidence:contrast.confidence};
     desc.additionalReadings=[{text:isolated.text.trim(),confidence:isolated.confidence}];
     const candidate=[desc,desc.confirmation,...desc.additionalReadings].filter(reading=>(reading.text.match(/[a-z\u0600-\u06ff]/gi)?.length??0)>=2).sort((a,b)=>(b.confidence??0)-(a.confidence??0))[0];
-    if(candidate)descriptionText=candidate.text;
+    // A one-point confidence fluctuation is not evidence that a transformed
+    // crop is better than readable original text. Prefer the original on a
+    // near tie; retain every alternative for source review.
+    if(candidate&&(!desc.text.trim()||(candidate.confidence??0)>=(desc.confidence??0)+.03))descriptionText=candidate.text;
    }
    if(!descriptionText.trim())continue;
    const row=Array(g.columns.length).fill('') as string[],evidence:Record<string,RasterCellEvidence[]>={},issues:string[]=[...(recoveredDescriptionBoxes.has(box)?['BOQ_RASTER_DESCRIPTION_BOUNDARY_REVIEW_REQUIRED']:[]),...(inheritedHeader?['BOQ_RASTER_CONTINUATION_HEADER_REVIEW_REQUIRED']:[])];
@@ -478,7 +484,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     const cells=role==='description'?[desc]:await readBoxes(boxes);evidence[role]=cells;
     if(role==='description'){
      row[index]=simple(descriptionText);
-     if(simple(desc.text)!==row[index])issues.push('BOQ_RASTER_DESCRIPTION_REVIEW_REQUIRED');
+     if(simple(desc.text)!==row[index]||[desc.confirmation,...(desc.additionalReadings??[])].some(reading=>reading&&reading.text.trim()&&simple(reading.text)!==row[index]))issues.push('BOQ_RASTER_DESCRIPTION_REVIEW_REQUIRED');
      continue;
     }
     if(numericRoles.has(role)){

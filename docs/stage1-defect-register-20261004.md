@@ -213,3 +213,57 @@ tree and cannot certify this follow-up. Real-source coverage, fresh external
 cohorts, independent acceptance, hosted replay and exact release acceptance are
 still open. Production remains `828b4ad`; review remains `9831316` at the last
 hosting inspection. No source, threshold or valid expected answer was weakened.
+
+## 6 October follow-up: continuation and external source geometry
+
+These dated findings supersede the running-status statements above, without
+turning earlier receipts into final acceptance. Stage 1 remains open.
+
+- `7056a69` subsequently passed Verify 2247, including 1,144 regressions,
+  the separate 100-project run, and speed/restart gates. Its hosted audit
+  passed 1,986 checks. Those results certify only that earlier source.
+- `74f8b0e` failed its retained 49-row scan test at the unchanged 180-second
+  deadline. The main regressions and raster file competed for runner capacity.
+  The test runner now gives the complete raster file a separate phase before
+  the separate 100-project phase. No assertions, project counts, internal
+  concurrency settings or test deadlines were reduced.
+- `5ac9dc1` added guarded scan continuation and empty-description recovery.
+  Nine focused checks passed. Its fresh external cohort passed six contracts
+  and failed four: pale continuation, rotated continuation, dense description
+  columns and a faint lower section. All four unchanged source pages are now
+  hashed permanent regressions. Cancelled CI jobs are incomplete evidence,
+  not established product failures or passes.
+- The earlier QC-BLDG-00067 source oracle counted a wrapped description twice.
+  Visual reconciliation establishes 15 rows, not 16. Both the original oracle
+  and its dated correction are retained; this is distinct from a reader fix.
+- `6f92468` repaired those four geometry cases and passed all three scale jobs.
+  Full retained-source testing then exposed two pale-divider regressions and
+  one description regression. A single fresh contract completed successfully;
+  the controlled runner stopped before ingesting the other nine contracts.
+  That stopped cohort is not fresh acceptance of the full candidate.
+
+The next correction distinguishes a real thin divider from a text baseline by
+looking for a clear immediate scanline on each side, rather than sampling only
+six pixels away where neighboring text may begin. The exact 15-row and 32-row
+regressions, and the rotated and dense-text external regressions, passed four
+focused checks. A transformed description crop must materially improve the
+confidence before replacing readable original text; near-tie alternatives and
+their disagreement remain available for review. Numeric safeguards are unchanged.
+
+Native PDF continuation was separately reproduced: subsequent headerless tables
+were discarded even after scan continuation had been repaired. Native tables now
+carry only the preceding compatible role mapping, require exact column count
+and quantity/unit compatibility, and retain the first data row and original cell
+locators. Their own header always takes precedence. Incompatible tables and
+intervening pages invalidate inheritance. Every inherited row is explicitly
+diagnosed; native source values do not gain an OCR confirmation requirement.
+The native/AI suite passed 21 checks, including ten new generated continuation
+projects, after the reproduced native failure was fixed.
+
+At this source checkpoint the review service runs `5ac9dc1`; its two saved QA
+decisions passed seven post-deployment workflow checks. Main production remains
+`828b4ad`. Final-source full regression, a passing unused external cohort,
+exact-candidate hosted verification, historical scope reconciliation and the
+independent consultant's acceptance remain required. The next cohort's original
+files and source expectations were frozen before ingestion. No failed or used
+contract is counted as unseen evidence again.

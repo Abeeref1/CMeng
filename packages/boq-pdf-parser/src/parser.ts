@@ -1,6 +1,6 @@
 import { detectBoqHeader } from "../../boq-parser/src/headers";
 import { parseStrictNumeric, resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
-import type { BoqColumnRole } from "../../boq-parser/src/types";
+import type { BoqColumnRole, BoqHeaderMapping } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
 import {parseNativeBoqText,parseAlignedNativeBoqText} from './native-text';
 import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
@@ -140,13 +140,18 @@ function parseTableRows(
   rows: readonly (readonly string[])[],
   inheritedDiagnostics: string[] = [],
   native = false,
+  continuationHeader?: BoqHeaderMapping,
 ): { items: BoqPdfLineItem[]; diagnostics: string[] } {
   const diagnostics = [...inheritedDiagnostics];
-  const header = detectBoqHeader(rows);
+  const ownHeader = detectBoqHeader(rows);
+  const header = ownHeader ?? continuationHeader;
   if (!header) {
     diagnostics.push("BOQ_PDF_TABLE_HEADER_NOT_FOUND");
     return { items: [], diagnostics };
   }
+  const inherited = !ownHeader && !!continuationHeader;
+  const continuationDiagnostic = 'BOQ_PDF_TABLE_HEADER_INHERITED_FROM_CONTINUATION';
+  if(inherited)diagnostics.push(continuationDiagnostic);
 
   const items: BoqPdfLineItem[] = [];
 
@@ -155,7 +160,7 @@ function parseTableRows(
     if (row.every((value) => !String(value).trim())) continue;
     // Repeated headings between tables/sections are structure, never priced rows.
     if (detectBoqHeader([row])) continue;
-    const roles = native ? nativeRowRoles(rows, header.headerRow, header.roles, row) : header.roles;
+    const roles = native && !inherited ? nativeRowRoles(rows, header.headerRow, header.roles, row) : header.roles;
 
     const itemNumber = cell(row, roleColumn(roles, "item_number"));
     const section = cell(row, roleColumn(roles, "section"));
@@ -179,7 +184,7 @@ function parseTableRows(
       continue;
     }
 
-    const rowDiagnostics: string[] = [];
+    const rowDiagnostics: string[] = inherited ? [continuationDiagnostic] : [];
     if (!description) rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
 
     const resolvedNumerics = resolveBoqCommercialNumerics(
@@ -272,6 +277,21 @@ function parseTableRows(
   return { items, diagnostics };
 }
 
+/** A preceding native table can supply roles, never values. Exact width and
+ * compatible quantity/unit cells are required so an unrelated table cannot
+ * acquire a BOQ meaning merely because it follows one in the document. */
+function nativeContinuationHeader(rows: readonly (readonly string[])[],
+  previous: {header:BoqHeaderMapping;width:number}): BoqHeaderMapping | undefined {
+ const data=rows.filter(row=>row.some(value=>value.trim()));
+ if(!data.length||data.some(row=>row.length!==previous.width))return undefined;
+ const roles=previous.header.roles,description=roleColumn(roles,'description'),quantity=roleColumn(roles,'quantity'),unit=roleColumn(roles,'unit');
+ if(description===null||quantity===null||unit===null)return undefined;
+ const isUnit=(value:string)=>/^(?:m|m2|m3|m²|m³|sqm|cum|lm|sqft|cuft|ft|ft2|ft3|in|kg|g|t|ton|tons|tonne|tonnes|l|litre|litres|liter|liters|each|ea|no|nos|nr|piece|pieces|pc|pcs|unit|units|set|sets|lot|lots|ls|sum|lumpsum|month|months|day|days|hour|hours|hr|hrs|week|weeks|roll|rolls|pair|pairs|عدد|م|م٢|م٣|كجم|طن|شهر|يوم|ساعة)$/.test(value.toLowerCase().replace(/[.\s]/g,''));
+ if(data.some(row=>{const value=cell(row,unit);return value!==null&&!isUnit(value);} ))return undefined;
+ if(!data.some(row=>cell(row,description)&&cell(row,unit)&&parseStrictNumeric(cell(row,quantity)??'').status==='valid'))return undefined;
+ return {...previous.header,headerRow:0};
+}
+
 async function parseBoqPdfWithOpenProvider(
   bytes: Uint8Array,
   options: BoqPdfOptions = {},
@@ -307,6 +327,7 @@ async function parseBoqPdfWithOpenProvider(
     }
 
     let precedingRaster:{page:number;table:RasterBoqTable}|undefined;
+    let precedingNative:{page:number;header:BoqHeaderMapping;width:number}|undefined;
     for (const page of pageResult.pages) {
       const nativeTables:string[][][]=tablePageByNumber.get(page.pageNumber)?.tables??[];
       if(page.method==='native'&&nativeTables.length===0){
@@ -389,13 +410,20 @@ async function parseBoqPdfWithOpenProvider(
         nativeTablePages += 1;
         const pageStart=items.length;
         tables.forEach((rows, index) => {
+          const ownHeader=detectBoqHeader(rows);
+          const continuation=!ownHeader&&precedingNative&&page.pageNumber<=precedingNative.page+1
+            ?nativeContinuationHeader(rows,precedingNative):undefined;
           const parsed = parseTableRows(
             page.pageNumber,
             index + 1,
             rows,
             [],
             true,
+            continuation,
           );
+          precedingNative=ownHeader
+            ?{page:page.pageNumber,header:ownHeader,width:rows[ownHeader.headerRow-1]?.length??0}
+            :continuation&&precedingNative?{...precedingNative,page:page.pageNumber}:undefined;
           items.push(...parsed.items);
           diagnostics.push(
             ...parsed.diagnostics.map(
@@ -408,7 +436,7 @@ async function parseBoqPdfWithOpenProvider(
                 code,
             ),
           );
-          if (parsed.items.length === 0) {
+          if (parsed.items.length === 0 || continuation) {
             unresolvedPages.add(page.pageNumber);
           }
         });
