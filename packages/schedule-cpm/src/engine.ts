@@ -637,7 +637,7 @@ export function calculateCpm(
       if (candidate !== null) {
         const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
         candidates.push({relation,start:candidate,finish:finishAnchor===null?null:relation.lagHours===0?finishAnchor:
-          previousWorkingInstant(context.calendar.calendar,shiftByLag(context.calendar,finishAnchor,relation.lagHours))});
+          shiftByLag(context.calendar,finishAnchor,relation.lagHours)});
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
