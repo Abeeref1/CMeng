@@ -11,15 +11,23 @@ permissions:
 
 concurrency:
   group: cmeng-verify-${{ github.ref }}
-  cancel-in-progress: true
+  # Finish the active candidate; a later push must not discard its evidence.
+  cancel-in-progress: false
 
 jobs:
-  verify:
+  gates:
+    name: Verify ${{ matrix.gate }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [regression, raster, acceptance, independent, operations]
     steps:
-      - name: Checkout
+      - name: Checkout exact candidate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,62 +37,56 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Typecheck, regression and fresh feature cohorts
+      - name: Build exact candidate
+        run: npm run build
+
+      - name: Run complete verification group
         shell: bash
+        env:
+          CMENG_GATE: ${{ matrix.gate }}
+          CMENG_BLIND_EVIDENCE_DIR: /tmp/cmeng-verification/blind-inputs
         run: |
           set -euo pipefail
-          npm run typecheck
-          npm run build
-          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs regression 2>&1 | tee /tmp/cmeng-verify.log
-
-      - name: Original-page raster regressions
-        shell: bash
-        run: |
-          set -euo pipefail
-          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs raster 2>&1 | tee -a /tmp/cmeng-verify.log
-
-      - name: Final 100 fresh projects, pages and Ask
-        shell: bash
-        run: |
-          set -euo pipefail
-          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs acceptance 2>&1 | tee -a /tmp/cmeng-verify.log
-
-      - name: Independent fresh calculations and relocated restore
-        shell: bash
-        run: |
-          set -euo pipefail
-          evidence=/tmp/cmeng-verification/independent
-          python3 scripts/independent-cpm-reference.py "$evidence/cpm"
-          node scripts/compare-independent-cpm.cjs "$evidence/cpm"
-          python3 scripts/independent-mixed-calendar-reference.py "$evidence/mixed-calendar"
-          node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar"
-          python3 scripts/independent-mixed-calendar-lag-reference.py "$evidence/mixed-calendar-lag"
-          node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar-lag"
-          python3 scripts/independent-commercial-notice-reference.py "$evidence/commercial-notice"
-          node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
-          python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"
-          node scripts/compare-independent-ledger-delivery.cjs "$evidence/ledger-delivery"
-          python3 scripts/independent-cash-flow-reference.py "$evidence/cash-flow"
-          node scripts/compare-independent-cash-flow.cjs "$evidence/cash-flow"
-          python3 scripts/independent-delivery-lifecycle-reference.py "$evidence/delivery-lifecycle"
-          node scripts/compare-independent-delivery-lifecycle.cjs "$evidence/delivery-lifecycle"
-          node scripts/fresh-restore-verification.cjs "$evidence/restore"
-
-      - name: Cold dashboard release target
-        shell: bash
-        run: |
           mkdir -p /tmp/cmeng-verification
-          CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
-
-      - name: Large project upload durability and restart
-        shell: bash
-        run: |
-          CMENG_DURABILITY_RESULT=/tmp/cmeng-verification/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs
-
-      - name: Large Delivery calculation and evidence display target
-        shell: bash
-        run: |
-          CMENG_DELIVERY_BENCHMARK_OUTPUT=/tmp/cmeng-verification/delivery-latency.json node scripts/delivery-latency.cjs
+          run_gate() {
+            case "$CMENG_GATE" in
+              regression)
+                npm run typecheck
+                node scripts/run-unit-tests.cjs regression
+                ;;
+              raster)
+                node scripts/run-unit-tests.cjs raster
+                ;;
+              acceptance)
+                node scripts/run-unit-tests.cjs acceptance
+                ;;
+              independent)
+                evidence=/tmp/cmeng-verification/independent
+                python3 scripts/independent-cpm-reference.py "$evidence/cpm"
+                node scripts/compare-independent-cpm.cjs "$evidence/cpm"
+                python3 scripts/independent-mixed-calendar-reference.py "$evidence/mixed-calendar"
+                node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar"
+                python3 scripts/independent-mixed-calendar-lag-reference.py "$evidence/mixed-calendar-lag"
+                node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar-lag"
+                python3 scripts/independent-commercial-notice-reference.py "$evidence/commercial-notice"
+                node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
+                python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"
+                node scripts/compare-independent-ledger-delivery.cjs "$evidence/ledger-delivery"
+                python3 scripts/independent-cash-flow-reference.py "$evidence/cash-flow"
+                node scripts/compare-independent-cash-flow.cjs "$evidence/cash-flow"
+                python3 scripts/independent-delivery-lifecycle-reference.py "$evidence/delivery-lifecycle"
+                node scripts/compare-independent-delivery-lifecycle.cjs "$evidence/delivery-lifecycle"
+                node scripts/fresh-restore-verification.cjs "$evidence/restore"
+                ;;
+              operations)
+                CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
+                CMENG_DURABILITY_RESULT=/tmp/cmeng-verification/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs
+                CMENG_DELIVERY_BENCHMARK_OUTPUT=/tmp/cmeng-verification/delivery-latency.json node scripts/delivery-latency.cjs
+                ;;
+              *) echo "Unknown verification group: $CMENG_GATE"; return 1 ;;
+            esac
+          }
+          run_gate 2>&1 | tee /tmp/cmeng-verify.log
 
       - name: Record tested source identity
         if: always()
@@ -102,6 +104,20 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cmeng-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cmeng-verification-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.gate }}
           path: /tmp/cmeng-verification/
           retention-days: 7
+
+  # Preserve the required "verify" check: it cannot pass on a failed, skipped or
+  # cancelled group. Independent groups have separate runners, not fewer tests.
+  verify:
+    name: verify
+    needs: [gates]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every verification group
+        env:
+          GROUP_RESULT: ${{ needs.gates.result }}
+        run: |
+          test "$GROUP_RESULT" = "success"

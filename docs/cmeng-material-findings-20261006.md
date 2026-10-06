@@ -47,6 +47,14 @@ source/view/buffer-isolation and report-parity regressions pass. A 120-render,
 identical total PNG bytes. This probe is not the full Commercial deadline gate;
 retained-cohort and fresh CI results remain required.
 
+Verification now runs five independent groups (regression, original-page OCR,
+100-project blind acceptance, independent references, and operational gates) on
+separate runners. All prior commands, project counts and per-test/per-job
+deadlines are retained. The required `verify` check succeeds only if every group
+succeeds; skipped, failed or cancelled groups fail the aggregate. A failed group
+does not cancel unrelated checks. New pushes queue behind the active workflow
+instead of cancelling it, preserving its complete evidence.
+
 The payment/readiness comparison initially reported eleven differences only in
 percentage rounding: the reference used six decimal places and the public
 result uses four. The original reference and failing comparison remain saved.
