@@ -11,6 +11,7 @@ import {moduleRegistry,type ModuleDescriptor} from '../packages/runtime-api/src/
 import {
   defaultBlindSeed,
   generateMixedWorkbookBlindRound,
+  generateManagementFeatureBlindRound,
   generateLifecycleMixedWorkbookBlindRound,
   generateScheduleLifecycleBlindRound,
   generateDeliveryFeatureBlindRound,
@@ -399,6 +400,7 @@ function assertIndependentCommercialFacts(project:BatchProject,page:ModuleDescri
 }
 
 async function projectsFor(batchId:string,seed:string){
+  if(batchId==='F1-MANAGEMENT')return (await generateManagementFeatureBlindRound(seed,10)).projects;
   if(batchId==='F2-PROGRAMME-PLANNING')return programmeProjects(seed);
   if(batchId==='F4-FORECAST-RECOVERY')return (await generateForecastFeatureBlindRound(seed,10)).projects;
   if(batchId==='F3-PROGRESS-RESOURCES')return (await generateProgressFeatureBlindRound(seed,10)).projects;
@@ -593,6 +595,19 @@ for(const batch of pageBatches){
           }
           activeByPage.set(page.key,(activeByPage.get(page.key)??0)+1);
           assertFeatureSubstance(batch.id,page,result.body,project.projectId);
+          if(batch.id==='F1-MANAGEMENT'&&['cross-domain-accountability','command-center'].includes(page.key)){
+            const truth=(project as any).managementTruth;
+            assert.ok(truth,'Management source expectations must be frozen before testing');
+            const actions=page.key==='command-center'?result.body.data.accountability.actions:result.body.data.actions;
+            for(const expected of truth.actions){
+              const action=actions.find((row:any)=>row.actionId==='accountability:RFI|'+expected.recordId);
+              assert.ok(action,'Dated open RFI missing from management: '+expected.recordId);
+              assert.equal(action.owner,expected.owner);assert.equal(action.dueIso,expected.dueIso);
+              assert.ok(action.sourceRefs.length>0,'Management action lost source evidence');
+            }
+            for(const id of truth.excluded)assert.ok(!actions.some((row:any)=>row.actionId==='accountability:RFI|'+id),
+              'Closed, future or undated RFI entered current accountability: '+id);
+          }
           if(batch.id==='F6-COMMERCIAL')assertIndependentCommercialFacts(project,page,result.body);
           if(result.body&&typeof result.body==='object'&&typeof result.body.projectId==='string')
             assert.equal(result.body.projectId,project.projectId,batch.id+' page project drift '+page.key);

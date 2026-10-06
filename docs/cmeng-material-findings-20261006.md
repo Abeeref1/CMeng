@@ -17,6 +17,25 @@ The independent reference implementations consume frozen input facts, not CMeng
 answers. They are internal engineering evidence, not the user's independent
 consultant challenge. Used cases become regressions permanently.
 
+Verify run 37452881224 completed with 1,140 passing tests and one management
+cohort failure. Replaying its exact original XLSX/XER bytes confirms that the
+project has no schedule pressure and its risk rows have no identified/status
+date. Withholding current accountability is correct; a due date is not a
+status date. The positive feature generator now supplies fresh dated RFI
+records, freezes expected owned/unassigned actions and closed/future/undated
+exclusions before upload, and checks both Accountability and Command Center.
+The original negative case and failure remain retained. Product authority
+rules, required project/page counts and assertions are not relaxed.
+
+A separate local Commercial cohort exceeded its unchanged 15-minute limit.
+Request tracing found ongoing report generation and growing native memory.
+Each chart registered the same native font again; a 1,000-chart isolated
+probe ended at 232.9 MB RSS with repeated registration and 152.2 MB when
+registered once. The renderer now registers once per worker and fails clearly
+if the font is unavailable. Report populations, charts, values and test limits
+are unchanged. The original timeout is retained; the full retained-input
+retest and fresh integrated CI must finish before closing this finding.
+
 The payment/readiness comparison initially reported eleven differences only in
 percentage rounding: the reference used six decimal places and the public
 result uses four. The original reference and failing comparison remain saved.

@@ -9,6 +9,7 @@ const safe=(s:string)=>s.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,70);
 const xml=(s:unknown)=>String(s??'').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const csv=(v:Cell|undefined)=>'"'+display(v).replace(/^[=+@\t\r]/,"'$&").replace(/^-([^\d])/,"'-$1").replace(/"/g,'""')+'"';
 const rows=(r:AnalysisResult)=>r.sections.flatMap(s=>s.tables);
+let chartFontRegistered=false;
 export interface AskExportView {
   title?:string;
   subtitle?:string|null;
@@ -62,7 +63,13 @@ const metadata=(r:AnalysisResult):Array<[string,string|number]>=>[
 export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{type?:'bar'|'line';limit?:number}={}){
   // The synchronous chart API loads native rendering only when a chart is requested.
   const {createCanvas,GlobalFonts}=require('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
-  GlobalFonts.registerFromPath(font,'CMeng');const canvas=createCanvas(1200,560),c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,1200,560);
+  // Native font registrations outlive each canvas. Re-registering the same font
+  // for every chart grows the worker's native memory across repeated exports.
+  if(!chartFontRegistered){
+    if(!GlobalFonts.registerFromPath(font,'CMeng'))throw new Error('CMeng chart font could not be loaded');
+    chartFontRegistered=true;
+  }
+  const canvas=createCanvas(1200,560),c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,1200,560);
   c.font='bold 22px CMeng';c.fillStyle='#24384a';c.fillText(chart.title.slice(0,86),28,35);c.font='14px CMeng';c.fillStyle='#53697d';c.fillText(chart.unit+' · Data Date '+(chart.dataDate??'not established'),28,62);
   const chartRows=table.rows.slice(0,options.limit??table.rows.length),chartType=options.type??chart.type;
   const values=chartRows.flatMap(r=>chart.series.map(s=>r[s])).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));

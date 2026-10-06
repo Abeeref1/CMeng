@@ -409,6 +409,41 @@ export async function generateMixedWorkbookBlindRound(seed:string,count:number){
   return persistBlindRound(seed,projects);
 }
 
+/** Positive management certification needs actionable dated source evidence.
+ * The ordinary mixed cohort deliberately includes undated/empty populations;
+ * those remain negative cases, not an excuse to invent an accountable action. */
+export async function generateManagementFeatureBlindRound(seed:string,count:number){
+  const projects=[];
+  for(let i=0;i<count;i++){
+    const project=await generateMixedWorkbookBlindProject(seed,i),h=helpers(seed+'::management::'+i);
+    const prefix='RFI-'+h.int(10000,99999),date=project.dataDateIso;
+    const raised=shiftDate(date,-h.int(10,40)),due=shiftDate(date,-h.int(1,8));
+    const future=shiftDate(date,h.int(2,30)),closed=shiftDate(date,-1);
+    const owner=project.language==='ar'?'مهندس التصميم '+h.int(10,99):'Design Engineer '+h.int(10,99);
+    const headers=['RFI ID','Subject','Status','Raised Date','Due Date','Response Date','Owner','Linked Activity'];
+    const rows=[
+      [prefix+'-OPEN','Open design response','Open',raised,due,'',owner,'1000'],
+      [prefix+'-UNASSIGNED','Unassigned response','Open',raised,due,'','','1000'],
+      [prefix+'-CLOSED','Completed response','Answered',raised,due,closed,owner,'1000'],
+      [prefix+'-FUTURE','Future issue','Open',future,future,'',owner,'1000'],
+      [prefix+'-UNDATED','Unverified issue date','Open','',due,'',owner,'1000'],
+      [prefix+'-LATER-RESPONSE','Response after cutoff','Answered',raised,due,future,owner,'1000'],
+    ];
+    const order=h.shuffle(headers.map((_,n)=>n));
+    const csv=[headers,...rows].map(row=>order.map(n=>'"'+String(row[n]??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
+    const actions=[
+      {recordId:prefix+'-OPEN',owner,dueIso:due},
+      {recordId:prefix+'-UNASSIGNED',owner:null,dueIso:due},
+      {recordId:prefix+'-LATER-RESPONSE',owner,dueIso:due},
+    ];
+    const excluded=[prefix+'-CLOSED',prefix+'-FUTURE',prefix+'-UNDATED'];
+    project.documents.push({filename:'design_responses_'+h.int(100,999)+'.csv',mediaType:'text/csv',bytes:Buffer.from(csv),kind:'csv',domain:'rfi',
+      truth:{rows:rows.length,scenario:'complete',facts:{actions,excluded,dataDateIso:date}}});
+    projects.push({...project,managementTruth:{actions,excluded}});
+  }
+  return persistBlindRound(seed,projects);
+}
+
 
 export type LifecycleBlindDomain='interfaces'|'submittals'|'assets'|'commissioning'|'hse'|'resources'|'measurements'|'evm';
 export interface LifecycleMixedBlindProject {
