@@ -7418,10 +7418,10 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
     : resolveProjectModuleUncertified(state,key);
   const result:ModuleRuntimeResult={...baseResult,
     data:baseResult.data&&typeof baseResult.data==='object'?{...(baseResult.data as Record<string,unknown>)}:baseResult.data};
-  if(key==='challenge-contract'){
+  if(key==='challenge-contract'||key==='quantity-scurve'){
     const suppliedBoq=suppliedBoqFigures(state.boq,state.quantities);
     result.data={...(result.data&&typeof result.data==='object'?result.data:{}),suppliedBoq};
-    if(suppliedBoq.itemCount&&result.status==='blocked'){
+    if(key==='challenge-contract'&&suppliedBoq.itemCount&&result.status==='blocked'){
       result.status='partial';result.engineState='ready';result.evidenceState='partial';result.professionalState='review_required';
       result.reason='Supplied BOQ figures are available. Manpower and duration calculations need the missing schedule and production inputs.';
     }

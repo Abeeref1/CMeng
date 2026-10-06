@@ -122,13 +122,19 @@ const advancedControlKeys=new Set([
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
     const schemaDiagnostics: string[] = [];
-    const schemaByDocument =
-      new Map(
-        sourceTables(
+    const parsedTables = sourceTables(
           state.evidenceDocuments,
           schemaDiagnostics,
           {includeHistorical: true},
-        ).map((table) => [
+        );
+    const tablesByDocument = new Map<string, typeof parsedTables>();
+    for (const table of parsedTables) {
+      const tables = tablesByDocument.get(table.document.documentId) ?? [];
+      tables.push(table);
+      tablesByDocument.set(table.document.documentId, tables);
+    }
+    const schemaByDocument =
+      new Map(parsedTables.map((table) => [
           table.document.documentId,
             table,
         ]),
@@ -148,7 +154,7 @@ export function projectDocumentRegister(projectId:string){
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
             classificationReview: documentClassificationForReview(document),
-            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
+            readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,

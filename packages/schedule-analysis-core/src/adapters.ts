@@ -103,10 +103,10 @@ function sourceRef(
   return { source, locator };
 }
 
-function metadataValue(
+function metadataValues(
   result: ScheduleTabularResult,
   candidates: readonly string[],
-): string | null {
+): string[] {
   const wanted = new Set(
     candidates.map((value) =>
       value
@@ -117,6 +117,7 @@ function metadataValue(
     ),
   );
 
+  const values: string[] = [];
   for (const sheet of result.metadataSheets) {
     for (const field of sheet.fields) {
       const key = field.key
@@ -124,11 +125,11 @@ function metadataValue(
         .replace(/[_:\-]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      if (wanted.has(key)) return field.value;
+      if (wanted.has(key) && field.value.trim()) values.push(field.value);
     }
   }
 
-  return null;
+  return values;
 }
 
 function zeroFromRaw(
@@ -289,22 +290,28 @@ export function canonicalScheduleFromTabular(
       ],
     }));
 
-  const rawDataDate = metadataValue(result, [
+  const rawDataDates = [...metadataValues(result, [
     "data date",
     "current data date",
     "status date",
-  ]);
+  ]), ...(result.dataDateValues ?? []).map(value => value.raw)];
+  const dateValues = rawDataDates.map(raw => parseScheduleDate(raw));
+  const dateDiagnostics: string[] = [];
+  if (dateValues.some(value => value.status !== "valid" || !value.iso)) dateDiagnostics.push("SCHEDULE_DATA_DATE_INVALID_OR_AMBIGUOUS");
+  const uniqueDates = new Set(dateValues.filter(value => value.status === "valid" && value.iso).map(value => value.iso!.slice(0,10)));
+  if (uniqueDates.size > 1) dateDiagnostics.push("SCHEDULE_DATA_DATE_CONFLICTING");
+  const dataDateIso = dateDiagnostics.length === 0 && uniqueDates.size === 1 ? [...uniqueDates][0]! : null;
 
   return {
     projectId: input.projectId ?? null,
     source,
     sourceRevisionId: input.sourceRevisionId,
-    dataDateIso: tabularDate(rawDataDate),
+    dataDateIso,
     activities,
     relationships,
     wbs,
     calendars,
-    diagnostics: [...result.diagnostics],
+    diagnostics: [...result.diagnostics, ...dateDiagnostics],
   };
 }
 

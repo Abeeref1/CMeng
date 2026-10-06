@@ -3,6 +3,7 @@ import {hasSourceDocumentIdentity} from './evidence-control';
 import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
 import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
 import {restoreSourcePaths} from './restore-source-paths';
+import {refreshTabularScheduleDates,TABULAR_DATE_READER_VERSION} from './schedule-date-refresh';
 import {isDeepStrictEqual} from 'node:util';
 import {phaseProgrammeState} from './phase-programmes';
 import {hasFinancialSecurityContent} from './security-document-content';
@@ -3468,6 +3469,13 @@ export class RuntimeProjectStore {
     let refreshedDocumentCount = 0;
     let changed = false;
 
+    for(const state of this.projects.values()){
+      const dates=await refreshTabularScheduleDates(state);
+      diagnostics.push(...dates.diagnostics);
+      refreshedDocumentCount+=dates.refreshedDocumentCount;
+      if(dates.refreshedDocumentCount){this.touchEvidence(state);changed=true;}
+    }
+
     for (const state of this.projects.values()) {
       let projectChanged = false;
       let projectReadyForV5 = true;
@@ -4853,6 +4861,11 @@ export class RuntimeProjectStore {
           "EVIDENCE_BOQ_REGISTRY_MISSING",
         );
       }
+      const retainedDocument=existingState.evidenceDocuments.find(item=>item.documentId===document.documentId);
+      if(retainedDocument&&tabularRead){
+        retainedDocument.tabularRead=tabularRead;
+        this.touchEvidence(existingState);
+      }
       return {
         documentId:
           document.documentId,
@@ -5672,6 +5685,7 @@ export class RuntimeProjectStore {
       },
       format,
       ...(format==='xer'?{calendarReaderVersion:XER_CALENDAR_READER_VERSION}:{}),
+      ...(['schedule_csv','schedule_xlsx'].includes(format)?{tabularDateReaderVersion:TABULAR_DATE_READER_VERSION}:{}),
       sourceFilename:
         input.sourceFilename?.trim() ||
         null,
