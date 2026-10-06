@@ -1,4 +1,5 @@
 import {completionPosition} from './completion-position';
+import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage} from './delivery-projections';
@@ -7583,6 +7584,14 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
   if(result.data&&typeof result.data==='object'){
     (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
   }
+  if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
+    const review=activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
+    result.data=attachActivityFloatReconciliation(result.data,review);
+    if(review.summary.disputedActivityCount){
+      result.status='partial';result.professionalState='review_required';
+      result.reason=[result.reason,review.summary.disputedActivityCount+' activities have disputed submitted versus independent float. Each affected row identifies both values and classifications.'].filter(Boolean).join(' ');
+    }
+  }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     const interpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
@@ -7704,7 +7713,10 @@ export function directorForProject(
     runtimeProjects.get(projectId);
   if (!state) return null;
   const data=buildBundle(state).director;
-  return data?reportingData(state,'project-director',data):null;
+  if(!data)return null;
+  const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
+  const reviewed=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
+  return reportingData(state,'project-director',reviewed);
 }
 
 export function boardReportForProject(

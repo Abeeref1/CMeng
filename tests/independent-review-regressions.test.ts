@@ -45,5 +45,8 @@ test('Ask resolves explicit named reporting dates while rejecting invalid or con
   }
   for(const text of ['31 June 2031','February 29, 2031','2031-02-31'])assert.throws(()=>intent('Payments as of '+text),/valid historical cut-off/);
   assert.equal(intent('Payments as of 30 June').plan.asOf,'unresolved');
+  for(const question of ['Show the current snag and closeout position at the reporting date','Payments as of the current data date']){
+    assert.equal(intent(question).plan.asOf,null);assert.notEqual(intent(question).plan.kind,'historical');
+  }
   assert.equal(intent('Payments as of 30 June 2031 and as of 1 July 2031').plan.asOf,'unresolved');
 });

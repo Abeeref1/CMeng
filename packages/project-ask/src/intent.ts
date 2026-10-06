@@ -167,7 +167,7 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     if(distinct.length===1)plan.asOf=distinct[0]!;
     else {plan.asOf='unresolved';gaps.push('Multiple historical cut-off dates were supplied. Confirm one reporting date; current values have not been substituted.');}
   }
-  else if(/what (was|did)|historical|time.machine|position at|as of|at \d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)/.test(q)){
+  else if(!/(?:as of|at|on)\s+(?:the\s+)?(?:current\s+)?(?:reporting|data)\s+date\b/.test(q)&&/what (was|did)|historical|time.machine|position at|as of|at \d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)/.test(q)){
     gaps.push('Confirm the historical cut-off as YYYY-MM-DD. A year or reporting date is missing; current values have not been substituted.');plan.kind='historical';plan.asOf='unresolved';
   }
   const groupingPrevious=inherited&&/^(?:group )?by wbs\b/.test(q);
