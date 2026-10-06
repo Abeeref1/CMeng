@@ -27,8 +27,10 @@ Decisions bind to project, ingestion, original SHA-256, revision, source page,
 original item fingerprints and the review version. Stale or foreign-source
 requests are rejected. Confirmation also verifies the retained source bytes.
 Request identifiers make an identical retry safe. Failed durable writes restore
-the previous saved state. Audit identity comes from the authenticated request
-context; the input cannot choose its reviewer identity.
+the previous saved state. Audit identity comes from the server-issued request/session
+context; the input cannot choose its reviewer identity. The existing audit
+trail records whether that session identity is verified; a session identifier
+is not professional sign-off.
 
 Original evidence and reader results remain unchanged. The effective BOQ is an
 overlay reused by the existing source selector, quantity consumers, Ask and
