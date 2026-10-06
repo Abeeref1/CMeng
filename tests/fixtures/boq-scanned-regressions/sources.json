@@ -303,5 +303,250 @@
     "fixtureSha256": "f506960f811390f8ad2ea3de3d1cd7c7b08ae27fda67dfed6b3cfa9520478688",
     "bytes": 392533,
     "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "pale-header-continuation.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/02/5.-OCM-LDRRMF-ENGINEERING-26-FLOOD-00013-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "bc7a3eee42c159f89964f762e0741c5fc59ece1fb56f0c5fc11f9ab6f03d2bd8",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "27759dcbff787be8a33509336f95343c3cda772bd90450882464dbfb738640ed",
+    "bytes": 760661,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 12,
+      "visuallyTranscribedQuantityRows": [
+        238,
+        21,
+        21,
+        1,
+        21,
+        23040,
+        240,
+        240,
+        284,
+        55,
+        49,
+        24
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Pipe Culverts"
+          ],
+          "quantity": 238,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Curb",
+            "Gutter"
+          ],
+          "quantity": 284,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Steel Barricade"
+          ],
+          "quantity": 24,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "rotated-header-continuation.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/05/2.-PDAD-26-PARK-00049B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "dc44cbe95ac70ee7c2fa0aaa40ecb9dbb09021e4682059d4c7973d51bd596448",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "9786118b144c4f15a794abc624a661e254874edbfd98937d6142d1135753086c",
+    "bytes": 761601,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 14,
+      "visuallyTranscribedQuantityRows": [
+        1436.15,
+        1436.15,
+        153.98,
+        665.53,
+        4,
+        1,
+        1.7,
+        153.94,
+        10.58,
+        10.5,
+        49.43,
+        49.43,
+        24.71,
+        24.71
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Site Clearing"
+          ],
+          "quantity": 1436.15,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Formworks"
+          ],
+          "quantity": 10.58,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Hauling"
+          ],
+          "quantity": 49.43,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "dense-text-columns.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/05/1.-OCM-CDFENGINEERING-26-FLOOD-00048B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "3b3e044bb21f3217d17e52b7d200812a2d16d8f64e0421002889c6a4210fc9cd",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "ddb3e55d5b7b1810356acd4325ec04ae6ce0614541dca58c5b9a5cb9d67639df",
+    "bytes": 620710,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 15,
+      "visuallyTranscribedQuantityRows": [
+        1,
+        2,
+        1,
+        1,
+        30,
+        30,
+        5,
+        4,
+        654,
+        4,
+        64,
+        46,
+        357,
+        129,
+        14
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Roadway Excavation"
+          ],
+          "quantity": 4,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Hard Rock"
+          ],
+          "quantity": 654,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Tapping"
+          ],
+          "quantity": 14,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "lower-pale-section.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/06/2.-OCM-CDFENGINEERING-26-BLDG-00057-SECTION-VII.-BILL-OF-QUANTITIES-1.pdf",
+    "originalSourceSha256": "f366cbbf3dc5390eaeb2350e91909f2015f4cab0ad1c5f811f84c3421e6638f4",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "54d1c9be384c2109fa71d0c3993b4cbb4d0b38cde26ebe71f9af3eceac926edd",
+    "bytes": 428952,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 17,
+      "visuallyTranscribedQuantityRows": [
+        1,
+        5,
+        1,
+        1,
+        30,
+        53,
+        47,
+        8,
+        98,
+        529,
+        307,
+        323,
+        33,
+        44,
+        3,
+        2,
+        1
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Temporary Enclosure"
+          ],
+          "quantity": 30,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Removal of Ceiling"
+          ],
+          "quantity": 307,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Gravel Fill"
+          ],
+          "quantity": 1,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
   }
 ]

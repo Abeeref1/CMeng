@@ -295,3 +295,18 @@ for(const kind of ['changed-columns','intervening-page'] as const)test('continua
  assert.equal(result.items.filter(item=>item.page===1&&item.rowKind==='line_item').length,4);
  assert.equal(result.items.filter(item=>item.page===pdf.getPageCount()&&item.rowKind==='line_item').length,0,'Unrelated table cannot inherit earlier roles');
 });
+
+for(const source of [
+ {name:'pale-header-continuation',page:2,count:12,anchors:['Pipe Culverts','Curb','Steel Barricade']},
+ {name:'rotated-header-continuation',page:2,count:14,anchors:['Site Clearing','Formworks','Hauling']},
+ {name:'dense-text-columns',page:1,count:15,anchors:['Roadway Excavation','Hard Rock','Tapping']},
+ {name:'lower-pale-section',page:1,count:17,anchors:['Temporary Enclosure','Removal of Ceiling','Gravel Fill']},
+])test('retained external geometry regression: '+source.name,{timeout:300000},async()=>{
+ const result=await parseBoqPdf(original(source.name+'.pdf'),{ocrProvider:reader()});
+ const items=result.items.filter(item=>item.page===source.page&&item.rowKind==='line_item');
+ assert.equal(items.length,source.count,'Original quantity-row population must remain available for review');
+ for(const anchor of source.anchors)assert.ok(items.some(item=>item.description.toLowerCase().includes(anchor.toLowerCase())),anchor);
+ assert.ok(items.every(item=>item.diagnostics.includes('BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED')));
+ assert.ok(items.every(item=>item.rate===null&&item.amount===null),'Blank source prices remain unknown');
+ assert.equal(result.complete,false);
+});

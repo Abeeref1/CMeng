@@ -55,7 +55,12 @@ function faintHorizontal(r:Raster,x:number,width:number,top:number,bottom:number
    if(ink){dark++;run++;gaps=0;longest=Math.max(longest,run);}
    else if(bridgeGaps&&run&&++gaps<=maxGap)run++;else run=0;
   }
-  if(dark>=width*minDensity&&longest>=Math.max(40,width*minStroke))selected.push(y);
+  if(dark>=width*minDensity&&longest>=Math.max(40,width*minStroke)){
+   // A dense text baseline can look continuous across a five-pixel band.
+   // Its glyphs extend above/below that band; a thin rule does not.
+   const thin=[-6,6].every(dy=>{let adjacent=0;for(let xx=x;xx<x+width;xx++)if(y+dy>=0&&y+dy<r.height&&r.pixels[((y+dy)*r.width+xx)*4]!<235)adjacent++;return adjacent<width*.15;});
+   if(thin)selected.push(y);
+  }
  }
  return groupedPositions(selected);
 }
@@ -75,12 +80,12 @@ function faintVertical(r:Raster,minHeightFraction=.26,inkThreshold=245):number[]
 }
 function grid(r:Raster,enhanced=false,compact=false){
  const vertical:number[]=[];
- for(let x=0;x<r.width;x++){let dark=0;for(let y=0;y<r.height;y++)if(r.pixels[(y*r.width+x)*4]!<170)dark++;
-  if(dark>r.height*.26)vertical.push(x);
+ for(let x=0;x<r.width;x++){let dark=0,run=0,longest=0;for(let y=0;y<r.height;y++){if(r.pixels[(y*r.width+x)*4]!<170){dark++;run++;longest=Math.max(longest,run);}else run=0;}
+  if(dark>r.height*.26&&longest>r.height*.04)vertical.push(x);
  }
  const xs=groupedPositions(vertical).filter((x,i,a)=>!i||x-a[i-1]!>12);
  const paleColumns=xs.length<4;
- if(enhanced&&(paleColumns||compact))for(const x of faintVertical(r,compact?.10:.26,compact?250:245))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
+ if(enhanced)for(const x of faintVertical(r,compact?.10:.26,compact?250:245))if(!xs.some(old=>Math.abs(old-x)<=12))xs.push(x);
  xs.sort((a,b)=>a-b);
  if(xs.length<4||xs.length>80)return null;
  // A section can interrupt the item/description separator for much of the
@@ -115,10 +120,18 @@ function grid(r:Raster,enhanced=false,compact=false){
  });
  const darkTop=ys[0]??0,darkBottom=ys.at(-1)??0;
  const paleExtent=enhanced&&(paleColumns||darkBottom-darkTop<r.height*.25);
- for(const rule of faintRules)if(paleExtent&&faintRules.some(other=>other.column!==rule.column&&Math.abs(other.y-rule.y)<=8)&&!ys.some(y=>Math.abs(y-rule.y)<=8))ys.push(rule.y);
+ for(const rule of faintRules)if((paleExtent||rule.y>darkBottom+8)&&faintRules.some(other=>other.column!==rule.column&&Math.abs(other.y-rule.y)<=8)&&!ys.some(y=>Math.abs(y-rule.y)<=8))ys.push(rule.y);
  ys.sort((a,b)=>a-b);
  if(ys.length<3)return null;
- const top=ys[0]!,bottom=ys.at(-1)!;
+ // Column strokes establish the table's upper edge independently of page
+ // title text and of a continuation's absent top horizontal border.
+ const starts:number[]=[];
+ for(const x of xs){let run=0;for(let y=0;y<r.height;y++){
+  const ink=[-2,-1,0,1,2].some(dx=>x+dx>=0&&x+dx<r.width&&r.pixels[(y*r.width+x+dx)*4]!<235);
+  run=ink?run+1:0;if(run>=r.height*.10){starts.push(y-run+1);break;}
+ }}
+ const supportedStart=starts.sort((a,b)=>a-b).find(y=>starts.filter(other=>Math.abs(other-y)<=8).length>=Math.max(3,Math.ceil(xs.length*.4)));
+ const top=supportedStart!==undefined&&Math.abs(supportedStart-ys[0]!)<r.height*.3?supportedStart:ys[0]!,bottom=ys.at(-1)!;
  const inferredCells=new Set<Box>();
  const columns=xs.slice(0,-1).map((x,i)=>{
   const l=x+4,width=xs[i+1]!-l-4;
@@ -130,7 +143,8 @@ function grid(r:Raster,enhanced=false,compact=false){
   for(const y of faintHorizontal(r,l,width,top,bottom+1,.75,enhanced,compact?250:enhanced?245:235))if(!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   // A damaged rule may consist of several long strokes in this column. It
   // can divide cells only when a separate column corroborates its position.
-  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,compact?250:245,.50):[])if(new Set(faintRules.filter(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8).map(rule=>rule.column)).size>=2&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
+  const thinStroke=(y:number)=>[-6,6].every(dy=>{let ink=0;for(let xx=l;xx<l+width;xx++)if(y+dy>=0&&y+dy<r.height&&r.pixels[((y+dy)*r.width+xx)*4]!<235)ink++;return ink<width*.15;});
+  for(const y of enhanced?faintHorizontal(r,l,width,top,bottom+1,.35,true,compact?250:245,.50):[])if(thinStroke(y)&&new Set(faintRules.filter(rule=>rule.column!==i&&Math.abs(rule.y-y)<=8).map(rule=>rule.column)).size>=2&&!boundaries.some(old=>Math.abs(old-y)<=8))boundaries.push(y);
   // A missing divider in one column can be recovered from three independent
   // ruled columns only through a clear band, never through visible cell text.
   for(const rule of enhanced?faintRules:[]){
@@ -139,6 +153,15 @@ function grid(r:Raster,enhanced=false,compact=false){
    if(ink<=width*.02){boundaries.push(y);recoveredBoundaries.push(y);}
   }
   boundaries.sort((a,b)=>a-b);
+  // A blank band between evaluated/submitted numeric lines is not a new
+  // description row. Inferred dividers need complete ink components on both
+  // sides; borders and cut letter fragments cannot establish a second item.
+  for(const y of recoveredBoundaries){
+   const index=boundaries.indexOf(y),before=boundaries[index-1],after=boundaries[index+1];
+   if(before===undefined||after===undefined)continue;
+   const a={x:l,y:before+2,width,height:y-before-4},b={x:l,y:y+2,width,height:after-y-4};
+   if(a.height<10||b.height<10||!hasNumericInk(r,a)||!hasNumericInk(r,b))boundaries.splice(index,1);
+  }
   return boundaries.slice(0,-1).flatMap((y,j)=>{
    // Keep descenders and comma tails near the rule. A large fixed inset can
    // turn "sq.m." into "sa.m." or a thousands comma into a decimal point.
@@ -195,6 +218,16 @@ function contrastTextPng(r:Raster,b:Box):Buffer{
   ctx.putImageData(data,0,0);return canvas.toBuffer('image/png');
  }finally{canvas.width=1;canvas.height=1;}
 }
+function descriptionEdgeRules(r:Raster,b:Box):number[]{
+ const out:number[]=[];
+ const ink=(x:number,y:number)=>x>=0&&x<r.width&&y>=0&&y<r.height&&r.pixels[(y*r.width+x)*4]!<235;
+ for(let x=0;x<b.width;x++)if(x<12||x>=b.width-12){
+  let n=0;for(let y=0;y<b.height;y++)if(ink(b.x+x,b.y+y))n++;
+  const continues=(y:number)=>[-2,-1,0,1,2].some(dx=>ink(b.x+x+dx,y));
+  if(n>=b.height*.8&&continues(b.y-6)&&continues(b.y+b.height+6))out.push(x);
+ }
+ return out;
+}
 /** Clear connected crop-edge rules for description rereads only. Interior
  * pixels stay intact; numeric reads never use this text transform. */
 function descriptionCellPng(r:Raster,b:Box):Buffer{
@@ -202,8 +235,7 @@ function descriptionCellPng(r:Raster,b:Box):Buffer{
  try{
   ctx.drawImage(r.canvas,b.x,b.y,b.width,b.height,0,0,b.width,b.height);
   const image=ctx.getImageData(0,0,c.width,c.height),p=image.data,w=c.width,h=c.height;
-  const columns:number[]=[],rows:number[]=[];
-  for(let x=0;x<w;x++)if(x<5||x>=w-5){let n=0;for(let y=0;y<h;y++)if(p[(y*w+x)*4]!<235)n++;if(n>=h*.8)columns.push(x);}
+  const columns=descriptionEdgeRules(r,b),rows:number[]=[];
   for(let y=0;y<h;y++)if(y<5||y>=h-5){let n=0;for(let x=0;x<w;x++)if(p[(y*w+x)*4]!<235)n++;if(n>=w*.8)rows.push(y);}
   for(const x of columns)for(let y=0;y<h;y++){const i=(y*w+x)*4;p[i]=p[i+1]=p[i+2]=255;}
   for(const y of rows)for(let x=0;x<w;x++){const i=(y*w+x)*4;p[i]=p[i+1]=p[i+2]=255;}
@@ -299,7 +331,8 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
  // recognized physical header cells still have to establish every role.
  for(const recovery of ['standard','pale','compact'] as const){
  const enhanced=recovery!=='standard';
- const rotations:number[]=tableOrientation===null?[0,90,270,180]:[tableOrientation];
+ const priorOrientation=previous?((Math.round(previous.rotation/90)*90)%360+360)%360:null;
+ const rotations:number[]=tableOrientation===null?(priorOrientation===null?[0,90,270,180]:[priorOrientation,...[0,90,270,180].filter(angle=>angle!==priorOrientation)]):[tableOrientation];
  for(let orientationIndex=0;orientationIndex<rotations.length;orientationIndex++){
   const rotation=rotations[orientationIndex]!;
   const quarter=rotation===90||rotation===270,rigid=rotation%90===0,angle=rotation*Math.PI/180;
@@ -338,7 +371,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     headerBottom=descriptionHeader.bounds.y+descriptionHeader.bounds.height;break;
    }
   }
-  if(enhanced&&!header&&topCells.flat().some(cell=>/description|quantit|amount|unit|rate/i.test(cell.text))){
+  if(enhanced&&(!header||!Object.values(header.roles).includes('quantity')||!Object.values(header.roles).includes('unit'))&&topCells.flat().some(cell=>/description|quantit|amount|unit|rate/i.test(cell.text))){
    // Shading can split one column's header into two apparent cells. Try the
    // enclosing physical spans present in other columns, at the top of the
    // table only. Roles still require recognized headings, never column order.
@@ -349,13 +382,18 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
     const boxes=g.columns.map(col=>{
      const first=col[0];return first?{x:first.x,width:first.width,...span}:null;
     });
-    const values:string[]=[];
+    const values:string[]=[],isolatedValues:string[]=[];
     for(const box of boxes){
      const result=box&&box.width>=12&&box.height>=12&&hasInk(r,box)?await provider.recognize(contrastTextPng(r,box),pageNumber,{segmentation:'line'}):null;
      values.push(result?.text.trim()??'');
+     const isolated=box&&box.width>=12&&box.height>=12&&hasInk(r,box)?await provider.recognize(descriptionCellPng(r,box),pageNumber,{segmentation:'line'}):null;
+     isolatedValues.push(isolated?.text.trim()??'');
     }
-    const mapped=detectBoqHeader([values]);
-    if(mapped){header=mapped;headerValues=values;headerBottom=span.y+span.height;break;}
+    for(const candidate of [values,isolatedValues]){
+     const mapped=detectBoqHeader([candidate]);
+     if(mapped&&(!header||mapped.score>header.score)){header=mapped;headerValues=candidate;headerBottom=span.y+span.height;}
+    }
+    if(header&&Object.values(header.roles).includes('quantity')&&Object.values(header.roles).includes('unit'))break;
    }
   }
   // A continuation may omit the repeated header. Reuse only the immediately
@@ -373,6 +411,11 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   }
   if(!header){queueDeskew();continue;}
   const roles=header.roles,descriptionColumn=Number(Object.keys(roles).find(k=>roles[Number(k)]==='description'))-1;
+  if(!Object.values(roles).includes('quantity')&&headerValues.some(value=>/quantity|\bqty\b/i.test(value))){
+   tableOrientation=rotation;queueDeskew();
+   rotations.splice(orientationIndex+1,rotations.length-orientationIndex-1,...rotations.slice(orientationIndex+1).filter(angle=>angle%90!==0));
+   continue;
+  }
    // Recovery must not erase columns already established by a physical
    // header. A tilted/pale alternative recognizing only price headings is
    // not a replacement for an existing quantity-and-unit table.
@@ -383,8 +426,8 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
   const recoveredDescriptionBoxes=new Set<Box>(g.inferredCells);
   let descriptionStart=descriptionColumn;
   const continuousDividers=descriptionStart>0?faintVertical(r,.26,245):[];
-  while(descriptionStart>0&&!roles[descriptionStart]&&!headerValues[descriptionStart-1]?.trim()&&!continuousDividers.some(x=>Math.abs(x-g.xs[descriptionStart]!)<=8))descriptionStart--;
-  const descriptionLeft=g.columns[descriptionStart]?.[0]?.x;
+  while(descriptionStart>0&&!roles[descriptionStart]&&!/[a-z0-9\u0600-\u06ff]/i.test(headerValues[descriptionStart-1]??'')&&(g.xs[descriptionStart]!-g.xs[descriptionStart-1]!<r.width*.01||!continuousDividers.some(x=>Math.abs(x-g.xs[descriptionStart]!)<=8)))descriptionStart--;
+  const descriptionLeft=g.xs[descriptionStart]===undefined?undefined:g.xs[descriptionStart]!+4;
   const roleColumn=(role:BoqColumnRole)=>g.columns[Number(Object.keys(roles).find(k=>roles[Number(k)]===role))-1]??[];
   const descBoxes=(g.columns[descriptionColumn]??[]).filter(b=>b.y>=headerBottom).map(box=>{
    // A short spurious separator must not clip the first characters of a
@@ -412,13 +455,13 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
    if(!cuts.length)return [box];
    const edges=[box.y-2,...cuts,box.y+box.height+2];
    const pieces=edges.slice(0,-1).map((y,i)=>({...box,y:y+2,height:edges[i+1]!-y-4}));
-   if(pieces.some(piece=>piece.height<10||!hasInk(r,piece)))return [box];
+   if(pieces.some(piece=>piece.height<10||!hasNumericInk(r,piece)))return [box];
    pieces.forEach(piece=>recoveredDescriptionBoxes.add(piece));return pieces;
   });
   for(const box of descBoxes){
    const desc=await read(box);
    let descriptionText=desc.text;
-   if((!desc.text.trim()||(desc.confidence??0)<.90)&&hasInk(r,box)){
+   if((!desc.text.trim()||(desc.confidence??0)<.90||descriptionEdgeRules(r,box).length>0)&&hasInk(r,box)){
     const contrast=await provider.recognize(contrastTextPng(r,box),pageNumber,{segmentation:'block'});
     const isolated=await provider.recognize(descriptionCellPng(r,box),pageNumber,{segmentation:'line'});
     desc.confirmation={text:contrast.text.trim(),confidence:contrast.confidence};
@@ -522,7 +565,7 @@ export async function readRasterBoqTable(image:Uint8Array,provider:OcrProvider,p
    // A recognizable header is not enough when one description cell spans
    // several quantity/unit cells. Let pale/compact geometry try to separate
    // the physical rows; retain the unresolved original if none succeeds.
-   if(diagnostics.some(row=>row.includes('BOQ_RASTER_QUANTITY_MULTIPLE_CELLS')||row.includes('BOQ_RASTER_UNIT_MULTIPLE_CELLS')||row.some(issue=>issue.endsWith('_ROW_SPAN_REVIEW_REQUIRED')))){
+   if((!Object.values(roles).includes('quantity')&&topCells.flat().some(cell=>/quantity|\bqty\b/i.test(cell.text)))||diagnostics.some(row=>row.includes('BOQ_RASTER_QUANTITY_MULTIPLE_CELLS')||row.includes('BOQ_RASTER_UNIT_MULTIPLE_CELLS')||row.some(issue=>issue.endsWith('_ROW_SPAN_REVIEW_REQUIRED')))){
     if(!mergedFallback||rows.length>mergedFallback.rows.length)mergedFallback=result;
     // A recognized table with body rows establishes its orientation. Further
     // geometry recovery should inspect that table and its small skew, rather
