@@ -10,6 +10,7 @@ acceptance remains open. Passing familiar tests alone does not close a finding.
 | Relocated source restore | Restored document records still referenced the old volume, preventing original-file access. | Reconnect only the same project/path/hash within the restored volume. | Ten original source failures pass after correction; ten fresh restore projects pass. Existing schema migration is settled before comparing exact versions. |
 | Application access coverage | External assistant authentication did not protect ordinary application routes. | Separate application viewer/editor/admin policy, project filtering before cache/worker access, Origin enforcement and verified audit identity. | Fresh ten-project local role/identity checks include 125 HTTP assertions. Real deployment identity provisioning remains open. |
 | Mixed-calendar finish dependency | A zero-lag FF successor could finish before its predecessor when their work calendars differ. | Preserve the chronological FF/SF finish bound, including a held completion in nonworking time, and retain that endpoint in the late pass when permitted. | Two failures in 120 independently enumerated cases; retained and fresh cases pass after correction. Same-calendar reference and negative-float regression remain unchanged. |
+| Mixed-calendar signed lag | The reverse pass measured lag on the predecessor calendar while the forward pass used the successor calendar, creating false float and incorrect critical membership. Calendar-gap rounding also lost negative-lag allowance or moved a start beyond its bound. | Invert the successor calendar consistently; retain gap allowance and separate start bounds. Report the actual method as `successor_calendar_forward_and_backward`. | The retained 120-case independent batch had 49 failures on 7a4c40e; all 120 pass after correction, as do a further fresh 120 lag cases, 120 general-network cases and 120 zero-lag mixed-calendar cases. Frozen inputs are permanent regression material. |
 
 The independent reference implementations consume frozen input facts, not CMeng
 answers. They are internal engineering evidence, not the user's independent
@@ -25,12 +26,29 @@ four-decimal tolerance, with money/count tolerances unchanged. Both its retained
 Remaining coverage is explicit: the general CPM reference uses one calendar
 per project, whole working hours and not-started acyclic networks. The additional
 mixed-calendar reference exhaustively enumerates two activities with FS/SS/FF/SF
-and zero lag. Mixed-calendar lag and status/constraint cases require additional
+and zero lag. An additional signed-lag reference now covers two different
+calendars, FS/SS/FF/SF, positive/negative whole-hour lag, split shifts and a
+holiday. Larger mixed-calendar networks and status/constraint cases still require
 reference work. Its first reference incorrectly restricted completion to the end
 of a worked hour, excluding a valid held completion during nonworking time. The
 original expectation remains saved; the corrected reference requires the exact
 working duration and chronological relationship, with no invented work during
 that hold. The two product ordering violations remain failures under both models.
+
+The signed-lag reference initially restricted latest starts to actual working
+hour starts. One retained case omitted a valid closing-boundary start event:
+Saturday 16:00 with its one hour of work on Tuesday 09:00–10:00. The independent
+reference now enumerates closing-boundary events as well, preserving the exact
+working duration and SS lag deadline. All 120 original source inputs are
+identical; only that one expected late-start/finish/float changed. The original
+oracle, its output and a field-level correction record are retained. The old
+product still fails the same 49 cases under the corrected oracle; no product
+failure was dismissed. Four hand checks precede each newly generated cohort.
+
+Lag basis remains the explicitly reported CMeng successor-calendar method.
+This does not claim adoption of a different source project's P6 scheduling
+option: Oracle documents predecessor, successor, 24-hour and project-default
+lag calendar choices in its [Schedule Options documentation](https://docs.oracle.com/cd/G48902_01/client_help/en_US/general_tab_-_schedule_options_dialog_box.htm).
 Certificate arithmetic
 does not by itself certify project cash-flow aggregation; gate readiness does
 not certify every Delivery lifecycle operation. Export container success does

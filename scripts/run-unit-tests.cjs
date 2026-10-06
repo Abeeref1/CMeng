@@ -23,7 +23,17 @@ const regression = tests.filter(path => !acceptance.includes(path) && !raster.in
 // run that complete file in its own phase. The 100-project benchmark already exercises its own four-worker gateway and concurrent
 // requests. Running unrelated heavy suites beside it measures runner contention
 // on the two-CPU CI host rather than that bounded system workload.
-for (const [label, files] of [['regression and feature cohorts', regression], ['isolated original-page raster regressions', raster], ['isolated 100-project blind acceptance', acceptance]]) {
+const phases = [
+  ['regression', 'regression and feature cohorts', regression],
+  ['raster', 'isolated original-page raster regressions', raster],
+  ['acceptance', 'isolated 100-project blind acceptance', acceptance],
+];
+const selectedPhase = process.argv[2];
+if (process.argv.length > 3 || (selectedPhase && !phases.some(([key]) => key === selectedPhase))) {
+  throw new Error('Optional phase must be regression, raster or acceptance; omitting it runs every mandatory phase.');
+}
+for (const [key, label, files] of phases) {
+  if (selectedPhase && key !== selectedPhase) continue;
   process.stdout.write('\nCMENG_UNIT_PHASE=' + label + '; files=' + files.length + '\n');
   const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...files], {stdio: 'inherit'});
   if (result.error) throw result.error;

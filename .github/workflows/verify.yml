@@ -29,11 +29,25 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Typecheck and adversarial tests
+      - name: Typecheck, regression and fresh feature cohorts
         shell: bash
         run: |
-          set -o pipefail
-          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs npm run verify 2>&1 | tee /tmp/cmeng-verify.log
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs regression 2>&1 | tee /tmp/cmeng-verify.log
+
+      - name: Original-page raster regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs raster 2>&1 | tee -a /tmp/cmeng-verify.log
+
+      - name: Final 100 fresh projects, pages and Ask
+        shell: bash
+        run: |
+          set -euo pipefail
+          CMENG_BLIND_EVIDENCE_DIR=/tmp/cmeng-verification/blind-inputs node scripts/run-unit-tests.cjs acceptance 2>&1 | tee -a /tmp/cmeng-verify.log
 
       - name: Independent fresh calculations and relocated restore
         shell: bash
@@ -44,6 +58,8 @@ jobs:
           node scripts/compare-independent-cpm.cjs "$evidence/cpm"
           python3 scripts/independent-mixed-calendar-reference.py "$evidence/mixed-calendar"
           node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar"
+          python3 scripts/independent-mixed-calendar-lag-reference.py "$evidence/mixed-calendar-lag"
+          node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar-lag"
           python3 scripts/independent-commercial-notice-reference.py "$evidence/commercial-notice"
           node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
           python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"
