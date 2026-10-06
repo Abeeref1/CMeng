@@ -160,6 +160,15 @@ test('driving trace keeps parallel ties, omits a non-binding predecessor and pre
   assert.deepEqual(finishLinked.drivingNetwork?.activityIds,['A','B']);assert.equal(finishLinked.drivingNetwork?.relationships[0]?.type,'FF');
 });
 
+test('finish lag landing on a work opening keeps the chronological finish event',()=>{
+  const model=chainModel({activities:[activity('PRE',{remainingDurationHours:18}),activity('POST',{remainingDurationHours:3})],relationships:[{relationshipId:'FF-GAP',predecessorActivityId:'PRE',successorActivityId:'POST',type:'FF',lagHours:-2,external:false,sourceRefs:[],diagnostics:[]}]});
+  const result=calculateCpm(model),pre=result.activities.find(a=>a.activityId==='PRE')!,post=result.activities.find(a=>a.activityId==='POST')!;
+  assert.equal(pre.earlyFinishIso,'2026-01-07T10:00:00.000Z');
+  assert.equal(post.earlyStartIso,'2026-01-06T13:00:00.000Z');
+  assert.equal(post.earlyFinishIso,'2026-01-07T08:00:00.000Z','FF -2h requires the Wednesday opening, not the Tuesday closing that has the same working-time coordinate.');
+  assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),3);
+});
+
 test('every activity remains bounded by project finish even when a start link permits its successor to finish first',()=>{
   for(const type of ['SS','SF'] as const){
     const model=chainModel({activities:[activity('LONG',{remainingDurationHours:40}),activity('SHORT',{remainingDurationHours:8})],
