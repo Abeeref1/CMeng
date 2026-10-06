@@ -134,10 +134,11 @@ test('actual Activity Review renderer withholds incomplete headline counts, incl
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
   const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderActivityAnalyticsVisual')!.getText(source);
+  const floatReview=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='activityFloatReviewHtml')!.getText(source);
   const model=schedule();model.activities[1].calendarId='UNREADABLE';model.activities[1].baselineFinishIso=null;
   const data=buildActivityAnalyticsProjection(model,options);
   const kpis:any[]=[];
-  runInNewContext(fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
+  runInNewContext(floatReview+'\n'+fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
     planningKpis:(rows:any[])=>{kpis.push(...rows);return '';},escapeHtml:String,fmt:(v:any)=>v==null?'Unresolved':String(v),humanizeKey:String,
     planningActivityPressure:()=>'',renderVisualPanel:()=>'',renderDonutChart:()=>'',planningStatusBand:()=>'',planningStateLabel:String,
     distributionSummary:()=>'',planningShortDate:String,planningSignedBars:()=>'',renderMovementConcentration:()=>'',planningProgressTrack:()=>'',renderScheduleBasisReview:()=>'',
