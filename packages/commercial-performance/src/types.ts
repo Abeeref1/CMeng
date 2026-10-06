@@ -58,8 +58,12 @@ export interface PerformancePaymentInput {
   paymentDate: string | null;
   currency: string | null;
   certifiedAmount: number | null;
+  certifiedState?: PerformanceCostMetricInput['state'];
   certifiedAmountBasis: PerformancePaymentSeriesBasis;
   paidAmount: number | null;
+  paidState?: PerformanceCostMetricInput['state'];
+  paidCurrency?: string | null;
+  paidTaxBasis?: "exclusive" | "inclusive" | "unknown";
   paidAmountBasis: PerformancePaymentSeriesBasis;
   sourceRefs: string[];
 }

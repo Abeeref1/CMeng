@@ -64,6 +64,10 @@ jobs:
           node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
           python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"
           node scripts/compare-independent-ledger-delivery.cjs "$evidence/ledger-delivery"
+          python3 scripts/independent-cash-flow-reference.py "$evidence/cash-flow"
+          node scripts/compare-independent-cash-flow.cjs "$evidence/cash-flow"
+          python3 scripts/independent-delivery-lifecycle-reference.py "$evidence/delivery-lifecycle"
+          node scripts/compare-independent-delivery-lifecycle.cjs "$evidence/delivery-lifecycle"
           node scripts/fresh-restore-verification.cjs "$evidence/restore"
 
       - name: Cold dashboard release target

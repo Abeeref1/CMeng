@@ -1608,8 +1608,11 @@ function cashFlow(
   const currencies:
     CashFlowCurrencyPosition[] =
     [];
+  const paidCurrency=(p:CommercialPerformanceInput['payments'][number])=>p.paidCurrency===undefined?p.currency:p.paidCurrency;
+  const paidTax=(p:CommercialPerformanceInput['payments'][number])=>p.paidTaxBasis??p.taxBasis??'unknown';
   const partitions=[...new Set([
     ...input.payments.filter(p=>p.currency).map(p=>p.currency+'|'+(p.taxBasis??'unknown')),
+    ...input.payments.filter(p=>paidCurrency(p)).map(p=>paidCurrency(p)+'|'+paidTax(p)),
     ...input.costMetrics.filter(m=>m.currency).map(m=>m.currency+'|'+m.taxBasis),
   ])].sort();
   const fullInput=input;
@@ -1618,7 +1621,7 @@ function cashFlow(
     const taxBasis=tax;
     const knownTaxBasis=taxBasis!=='unknown';
     const input={...fullInput,
-      payments:fullInput.payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis),
+      payments:fullInput.payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis||paidCurrency(p)===currency&&paidTax(p)===taxBasis),
       costMetrics:fullInput.costMetrics.filter(m=>m.currency===currency&&m.taxBasis===taxBasis),
     };
     const entries:
@@ -1628,9 +1631,10 @@ function cashFlow(
     const payments =
       input.payments.filter(
         (payment) =>
-          payment.currency ===
-          currency && reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
+          reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
       );
+    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis);
+    const paidPayments=payments.filter(p=>paidCurrency(p)===currency&&paidTax(p)===taxBasis);
 
     const addPaymentSeries = (
       kind:
@@ -1641,10 +1645,11 @@ function cashFlow(
         kind ===
         "certified_income";
       const eligible =
-        payments
+        (isCertified?certifiedPayments:paidPayments)
           .map(
             (payment) => ({
               payment,
+              state:(isCertified?payment.certifiedState:payment.paidState)??'official',
               value: isCertified
                 ? payment
                     .certifiedAmount
@@ -1749,10 +1754,8 @@ function cashFlow(
                 sourceRefs:
                   row.payment
                     .sourceRefs,
-                authority:
-                  "source",
-                state:
-                  "established",
+                authority: authorityForSnapshot(row),
+                state: stateForSnapshot(row),
                 consequence:
                   isCertified
                     ? "Certified income remains separate from cash received."
@@ -1773,9 +1776,15 @@ function cashFlow(
       if(eligible[0]!.value!==0){cashDiagnostics.push('CUMULATIVE_OPENING_BASIS_REQUIRED');return;}
       // Convert only after an explicit zero opening observation.
       let prior: number | null = null;
+      let seriesState: PerformanceCostMetricInput['state'] = 'official';
+      const seriesRefs:string[]=[];
       const staged:
         CashFlowEntry[] = [];
       for (const row of eligible) {
+        seriesState=seriesState==='conflicted'||row.state==='conflicted'?'conflicted'
+          :seriesState==='candidate'||row.state==='candidate'?'candidate'
+          :seriesState!=='official'||row.state!=='official'?'partial':'official';
+        seriesRefs.push(...row.payment.sourceRefs);
         if(prior===null){prior=row.value!;cashDiagnostics.push('OPENING_CUMULATIVE_OBSERVATION_IS_NOT_PERIOD_CASH');continue;}
         const delta =
           row.value! - prior;
@@ -1813,26 +1822,18 @@ function cashFlow(
                 isCertified
                   ? "project_cumulative_certification_delta"
                   : "project_cumulative_payment_delta",
-              sourceRefs:
-                row.payment
-                  .sourceRefs,
-              authority:
-                "calculated",
-              state:
-                "established",
+              sourceRefs: uniq(seriesRefs),
+              authority: seriesState==='official'?'calculated':authorityForSnapshot({state:seriesState}),
+              state: stateForSnapshot({state:seriesState}),
               submitted:
                 row.value!,
-              independent:
-                round(delta),
+              independent: seriesState==='official'?round(delta):null,
               consequence:
                 "Project-cumulative source positions are converted to period movement before aggregation.",
               action: null,
             },
           ),
-          sourceRefs: [
-            ...row.payment
-              .sourceRefs,
-          ],
+          sourceRefs: uniq(seriesRefs),
         });
         prior = row.value!;
       }
@@ -1857,7 +1858,7 @@ function cashFlow(
       );
 
     const certifiedAmountRows =
-      payments.filter(
+      certifiedPayments.filter(
         (payment) =>
           payment.certifiedAmount !==
           null,
@@ -1870,7 +1871,7 @@ function cashFlow(
           ),
       );
     const paidAmountRows =
-      payments.filter(
+      paidPayments.filter(
         (payment) =>
           payment.paidAmount !==
           null,
@@ -1956,6 +1957,9 @@ function cashFlow(
         ),
       );
 
+    // An omitted invalid CBS series still belongs to the applicable population.
+    // Track accepted rows, so another valid group cannot certify its subtotal.
+    const representedMetrics=new Set<PerformanceCostMetricInput>();
     const addMetrics = (
       names:
         readonly string[],
@@ -2057,6 +2061,7 @@ function cashFlow(
 
         if (basis === "incremental") {
           for (const metric of ordered) {
+            representedMetrics.add(metric);
             entries.push({
               entryId:
                 kind +
@@ -2166,6 +2171,7 @@ function cashFlow(
         entries.push(
           ...staged,
         );
+        ordered.forEach(metric=>representedMetrics.add(metric));
       }
     };
 
@@ -2198,7 +2204,7 @@ function cashFlow(
     const calculateMovementCompleteness = (kind: CashFlowEntry['kind']): boolean => {
       const rows=entries.filter(entry=>entry.kind===kind);
       if(!knownTaxBasis||!rows.length||rows.some(row=>row.amount.state!=='established'||row.amount.value===null))return false;
-      if(kind==='paid_income'||kind==='certified_income')return payments.every(payment=>{
+      if(kind==='paid_income'||kind==='certified_income')return (kind==='paid_income'?paidPayments:certifiedPayments).every(payment=>{
         const amount=kind==='paid_income'?payment.paidAmount:payment.certifiedAmount,
           date=kind==='paid_income'?payment.paymentDate:payment.certificationDate;
         return amount!==null&&reportingScope(date,input.dataDateIso)!=='undated';
@@ -2207,7 +2213,7 @@ function cashFlow(
         kind==='expenditure_budget'?aliases.expenditureBudget:aliases.expenditureForecast;
       const sourceRows=input.costMetrics.filter(row=>names.map(normalized).includes(normalized(row.metric))&&
         reportingScope(row.asOf,input.dataDateIso)!=='future');
-      return sourceRows.length>0&&sourceRows.every(row=>row.value!==null&&row.state==='official'&&reportingScope(row.asOf,input.dataDateIso)==='as_of');
+      return sourceRows.length>0&&sourceRows.every(row=>representedMetrics.has(row)&&row.value!==null&&row.state==='official'&&reportingScope(row.asOf,input.dataDateIso)==='as_of');
     };
     const completeMovement=(kind:CashFlowEntry['kind'])=>{
       const prior=movementCompleteness.get(kind);if(prior!==undefined)return prior;
@@ -2357,7 +2363,7 @@ function cashFlow(
 
     const certifiedUnpaid =
       calc(
-        certifiedIncome.value !==
+        completeMovement('certified_income')&&completeMovement('paid_income')&&certifiedIncome.value !==
             null &&
           paidIncome.value !==
             null
@@ -2671,7 +2677,7 @@ function cashFlow(
             actualNetCashMovement:
               paid !== null &&
               actual !== null
-                && knownTaxBasis ? paid - actual
+                && completeMovement('paid_income')&&completeMovement('actual_expenditure') ? paid - actual
                 : null,
           };
         },
