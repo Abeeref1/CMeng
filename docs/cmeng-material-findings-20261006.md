@@ -36,6 +36,17 @@ if the font is unavailable. Report populations, charts, values and test limits
 are unchanged. The original timeout is retained; the full retained-input
 retest and fresh integrated CI must finish before closing this finding.
 
+The retained Commercial trace also shows the same chart inputs rendered again
+for each document format. A bounded chart-image cache now keys the full chart,
+table and view content, retains at most 128 PNGs / 8 MiB per worker, and copies
+returned buffers so callers cannot corrupt later exports. Changing values,
+project title, Data Date, chart type or row limit produces the corresponding new
+image. Twelve cached/uncached render comparisons are byte-identical; focused
+source/view/buffer-isolation and report-parity regressions pass. A 120-render,
+12-distinct-chart probe used 6,868 ms without reuse and 433 ms with reuse, with
+identical total PNG bytes. This probe is not the full Commercial deadline gate;
+retained-cohort and fresh CI results remain required.
+
 The payment/readiness comparison initially reported eleven differences only in
 percentage rounding: the reference used six decimal places and the public
 result uses four. The original reference and failing comparison remain saved.

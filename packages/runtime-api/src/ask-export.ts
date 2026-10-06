@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
 import {AskError} from '../../project-ask/src/catalogue';
 const font=join(process.cwd(),'packages/project-ask/assets/DejaVuSans.ttf');
@@ -10,6 +11,22 @@ const xml=(s:unknown)=>String(s??'').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'')
 const csv=(v:Cell|undefined)=>'"'+display(v).replace(/^[=+@\t\r]/,"'$&").replace(/^-([^\d])/,"'-$1").replace(/"/g,'""')+'"';
 const rows=(r:AnalysisResult)=>r.sections.flatMap(s=>s.tables);
 let chartFontRegistered=false;
+// Formats reuse the same chart cells. Cache only exact rendered inputs, bounded
+// by both entry count and PNG bytes; source/scope changes get a different key.
+const chartImages=new Map<string,Buffer>();
+let chartImageBytes=0;
+const chartImageByteLimit=8*1024*1024;
+function retainChartImage(key:string,bytes:Buffer){
+  if(bytes.length<=chartImageByteLimit){
+    while(chartImages.size>=128||chartImageBytes+bytes.length>chartImageByteLimit){
+      const oldest=chartImages.keys().next().value;
+      if(oldest===undefined)break;
+      chartImageBytes-=chartImages.get(oldest)!.length;chartImages.delete(oldest);
+    }
+    chartImages.set(key,Buffer.from(bytes));chartImageBytes+=bytes.length;
+  }
+  return bytes;
+}
 export interface AskExportView {
   title?:string;
   subtitle?:string|null;
@@ -61,6 +78,9 @@ const metadata=(r:AnalysisResult):Array<[string,string|number]>=>[
 
 /** Charts are a rendering of table cells. No KPI is recalculated here. */
 export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{type?:'bar'|'line';limit?:number}={}){
+  const imageKey=createHash('sha256').update(JSON.stringify([chart,table,options])).digest('hex');
+  const retained=chartImages.get(imageKey);
+  if(retained){chartImages.delete(imageKey);chartImages.set(imageKey,retained);return Buffer.from(retained);}
   // The synchronous chart API loads native rendering only when a chart is requested.
   const {createCanvas,GlobalFonts}=require('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
   // Native font registrations outlive each canvas. Re-registering the same font
@@ -73,7 +93,7 @@ export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{typ
   c.font='bold 22px CMeng';c.fillStyle='#24384a';c.fillText(chart.title.slice(0,86),28,35);c.font='14px CMeng';c.fillStyle='#53697d';c.fillText(chart.unit+' · Data Date '+(chart.dataDate??'not established'),28,62);
   const chartRows=table.rows.slice(0,options.limit??table.rows.length),chartType=options.type??chart.type;
   const values=chartRows.flatMap(r=>chart.series.map(s=>r[s])).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
-  if(!values.length)return canvas.toBuffer('image/png');
+  if(!values.length)return retainChartImage(imageKey,canvas.toBuffer('image/png'));
   const lo=Math.min(0,...values),hi=Math.max(0,...values),span=hi-lo||1,left=85,top=96,width=1080,height=330;
   const y=(v:number)=>top+height-(v-lo)/span*height;c.font='13px CMeng';
   for(let i=0;i<=4;i++){const v=lo+span*i/4;c.strokeStyle='#e2e9ee';c.beginPath();c.moveTo(left,y(v));c.lineTo(left+width,y(v));c.stroke();c.fillStyle='#53697d';c.fillText(Number(v.toFixed(2)).toLocaleString('en-US'),8,y(v)+4);}
@@ -85,7 +105,7 @@ export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{typ
     });c.fillRect(32+index*280,510,14,14);c.fillStyle='#24384a';c.fillText(table.columns.find(col=>col.key===key)?.label??key,54+index*280,522);
   });
   chartRows.forEach((r,i)=>{if(i%Math.max(1,Math.ceil(table.rows.length/10)))return;c.save();c.translate(left+step*(i+.5),446);c.rotate(-.22);c.fillStyle='#53697d';c.fillText(display(r[chart.category]).slice(0,24),-24,0);c.restore();});
-  return canvas.toBuffer('image/png');
+  return retainChartImage(imageKey,canvas.toBuffer('image/png'));
 }
 async function workbook(result:AnalysisResult,view?:AskExportView){
   const {default:ExcelJS}=await import('exceljs');
