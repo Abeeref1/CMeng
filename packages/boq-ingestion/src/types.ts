@@ -33,6 +33,9 @@ export interface CanonicalBoqCommercialItem {
 }
 
 export interface BoqIngestionResult {
+  /** Original reader coverage, retained separately from later human review. */
+  sourcePageCoverage?: {totalPages:number;unresolvedPages:number[];automaticCoveragePercent:number|null};
+  sourceReview?: {automaticItemCount:number;addedItemCount:number;reviewedItemCount:number;confirmedPages:number[];pendingPages:number[];coveragePercent:number|null};
   pdfRead?: import('../../pdf-document-parser/src').PdfDocumentResult;
   ingestionId: string;
   projectId: string;

@@ -1,3 +1,4 @@
+import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
 import {askAiHtml,askAiStyles,askAiScript} from './ui-ask-ai';
@@ -228,6 +229,7 @@ ${askAiStyles}
 ${systemReviewStyles}
 ${projectActionsStyles}
 ${boqNumericReviewStyles}
+${boqPageReviewStyles}
 .planning-missing-kpis{margin:10px 0 16px;border:1px solid #e3e9ef;border-radius:9px;background:#fbfcfe}.planning-missing-kpis>summary{padding:10px 12px;font-size:11.5px;color:#5c6e80}.planning-missing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:10px 12px}.planning-missing-grid div{padding:8px 9px;border:1px solid #e7ecf1;border-radius:7px;background:#fff}.planning-missing-grid b{display:block;font-size:11px}.planning-missing-grid span{display:block;margin-top:3px;font-size:10.5px;color:#6b7a8a;line-height:1.4}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
@@ -375,7 +377,7 @@ ${boqNumericReviewStyles}
                   <div class="intent-control"><span>Document action</span><select id="boqIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
                   <input type="file" id="boqFiles" multiple accept=".csv,.xlsx,.xlsm,.pdf">
                   <div id="boqQueue" class="queue"></div>
-                  <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button></div>
+                  <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button><button class="btn small" onclick="openBoqNumericReview()">Review BOQ sources and saved decisions</button></div>
                 </div>
                 <div class="upload-box">
                   <strong>Contract family</strong>
@@ -436,6 +438,7 @@ ${projectDiagnosisScript}
 ${systemReviewScript}
 ${projectActionsScript}
 ${boqNumericReviewScript}
+${boqPageReviewScript}
 ${basisReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
@@ -773,7 +776,7 @@ function updateSuppliedBoq(page,query){
 }
 function renderSuppliedBoq(boq){
   if(!boq?.rows?.length)return '';
-  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
+  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
 }
 function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge||{};

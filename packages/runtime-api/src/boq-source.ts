@@ -67,7 +67,7 @@ export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:Canoni
     sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),sourceNumericReadings:null,
   }));
   const populationKnown = boq ? hasReadableBoqPopulation(boq) : quantities !== null;
-  return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
+  return {sourceReview:boq?.sourceReview??null,sourcePopulationComplete:boq?.complete??false,sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
     itemCount:populationKnown?rows.length:null,readableQuantityCount:populationKnown?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
     basis:'Source-native figures retain their readings. Unconfirmed scan observations are shown separately and excluded from calculations; unknown values are not zero.',rows};
 }
@@ -162,6 +162,7 @@ export function quantityModelFromBoq(
       existing?.installedSnapshots.filter(s=>continuity.has(s.quantityItemId)).map(s=>({...s,quantityItemId:continuity.get(s.quantityItemId)!})) ?? [],
     diagnostics: [
       ...result.diagnostics,
+      ...(result.sourceFormat==='pdf'&&!result.complete?['BOQ_SOURCE_POPULATION_INCOMPLETE']:[]),
       ...(existing&&continuity.size<existing.items.length?['BOQ_ITEM_LINKS_REQUIRE_REVIEW']:[]),
       ...([...continuity].some(([a,b])=>a!==b)?['BOQ_LINKS_CARRIED_BY_UNIQUE_ITEM_IDENTITY']:[]),
     ],

@@ -2,7 +2,9 @@ import {createHash,randomUUID} from 'node:crypto';
 import {quarantineUnconfirmedBoqNumerics,type BoqIngestionResult,type CanonicalBoqCommercialItem} from '../../boq-ingestion/src';
 import {boqNumericFingerprint,numericFields,type BoqNumericConfirmation,type BoqNumericValues} from '../../boq-ingestion/src/numeric-confirmation';
 import type {ProjectRuntimeState} from './project-state-types';
-import {normalizeProjectCode} from './project-identity';
+import {reviewableBoqs} from './boq-review-sources';
+export {reviewableBoqs} from './boq-review-sources';
+import {applyBoqPageReviews} from './boq-page-projection';
 
 export type BoqNumericReviewDecision=BoqNumericConfirmation&{ingestionId:string;batchId:string;note:string};
 export interface BoqNumericReviewInput {
@@ -11,16 +13,9 @@ export interface BoqNumericReviewInput {
 }
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
-export function reviewableBoqs(state:ProjectRuntimeState):BoqIngestionResult[]{
- const sources=[...state.boqRevisions,...state.boq?[state.boq]:[]];
- return [...new Map(sources.filter(b=>normalizeProjectCode(b.projectId)===state.projectId).filter(b=>{
-   const documents=state.evidenceDocuments.filter(d=>d.sourceHashSha256===b.sourceHashSha256&&(d.linkedArtifactId===b.ingestionId||d.boqTableRead?.ingestionId===b.ingestionId));
-   return !documents.length||documents.some(d=>['candidate','active','additive'].includes(d.basisState));
- }).map(b=>[b.ingestionId,b])).values()];
-}
 export function applyBoqNumericReviews(boq:BoqIngestionResult,state:ProjectRuntimeState):BoqIngestionResult {
  const readings=quarantineUnconfirmedBoqNumerics(boq),decisions=state.boqNumericReviews??[];
- if(!decisions.length)return readings;
+ if(!decisions.length)return applyBoqPageReviews(readings,state);
  const byItem=new Map(decisions.filter(d=>d.projectId===state.projectId&&d.sourceHash===boq.sourceHashSha256&&d.revisionId===boq.evidenceReceipt.revisionId&&d.ingestionId===boq.ingestionId).map(d=>[d.itemId,d]));
  let changed=false;
  const canonicalItems=readings.canonicalItems.map(item=>{
@@ -29,7 +24,7 @@ export function applyBoqNumericReviews(boq:BoqIngestionResult,state:ProjectRunti
    changed=true;
    return {...item,numericConfirmation:{...d,projectId:boq.projectId}};
  });
- return changed?quarantineUnconfirmedBoqNumerics({...readings,canonicalItems}):readings;
+ return applyBoqPageReviews(changed?quarantineUnconfirmedBoqNumerics({...readings,canonicalItems}):readings,state);
 }
 function observation(item:CanonicalBoqCommercialItem):BoqNumericValues {
  return item.sourceNumericReadings??{quantity:item.quantity,rate:item.rate,amount:item.amount};
@@ -44,7 +39,7 @@ function reasons(item:CanonicalBoqCommercialItem):string[]{
 export function boqNumericReview(state:ProjectRuntimeState){
  const sources=reviewableBoqs(state).map(raw=>{
    const effective=applyBoqNumericReviews(raw,state),byId=new Map(effective.canonicalItems.map(i=>[i.itemId,i]));
-   const pending=quarantineUnconfirmedBoqNumerics(raw).canonicalItems.filter(i=>i.sourceNumericReadings&&!byId.get(i.itemId)?.numericConfirmation);
+   const pending=effective.canonicalItems.filter(i=>i.sourceNumericReadings&&!i.numericConfirmation);
    const document=state.evidenceDocuments.find(d=>d.sourceHashSha256===raw.sourceHashSha256&&(d.linkedArtifactId===raw.ingestionId||d.boqTableRead?.ingestionId===raw.ingestionId));
    return {ingestionId:raw.ingestionId,sourceHash:raw.sourceHashSha256,revisionId:raw.evidenceReceipt.revisionId,
      filename:raw.sourceFilename??document?.sourceFilename??'BOQ',itemCount:raw.canonicalItems.length,

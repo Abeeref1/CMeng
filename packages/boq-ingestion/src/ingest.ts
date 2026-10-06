@@ -326,6 +326,7 @@ export async function ingestBoq(
   let diagnostics: string[] = [];
   let canonicalItems: CanonicalBoqCommercialItem[] = [];
   let pdfRead: BoqIngestionResult['pdfRead'];
+  let sourcePageCoverage: BoqIngestionResult['sourcePageCoverage'];
 
   if (sourceFormat === "csv") {
     const parsed = parseBoqCsv(input.bytes);
@@ -407,6 +408,7 @@ export async function ingestBoq(
       options.pdf ?? {},
     );
     pdfRead=parsed.pageRead;
+    sourcePageCoverage={totalPages:parsed.totalPages,unresolvedPages:[...parsed.unresolvedPages],automaticCoveragePercent:parsed.coveragePercent};
     candidateRows = parsed.candidateRows;
     verifiedRows = parsed.verifiedRows;
     unresolvedRows = parsed.unresolvedRows;
@@ -480,6 +482,7 @@ export async function ingestBoq(
     complete,
     canonicalItems,
     ...(pdfRead?{pdfRead}:{}),
+    ...(sourcePageCoverage?{sourcePageCoverage}:{}),
     diagnostics,
     receivedAt: input.receivedAt,
   });

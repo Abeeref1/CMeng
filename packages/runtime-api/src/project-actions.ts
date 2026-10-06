@@ -1,3 +1,4 @@
+import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -150,6 +151,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       instruction:'Open one review, check the source and save the reviewed rows together. Each decision is reused in quantities, reports and Ask.',
       completionRule:'Only unresolved readings remain in this action; accepted readings are not requested again.'},
     target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ readings'}});
+  const pendingPageCount=numericReview.pendingCount?0:boqPageReviewPendingCount(state);
+  if(pendingPageCount)actions.push({id:'boq-page-review',category:'review',title:'Check BOQ source pages',
+    reason:pendingPageCount+' source pages still need their complete item list checked.',recordCount:pendingPageCount,
+    resolution:{kind:'choose',requiresUserAction:true,instruction:'Compare each source page with its items, correct missing or combined items and save the page review.',completionRule:'Every required source page has a saved completeness decision.'},
+    target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ source pages'}});
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     if(d.basisState==='candidate'){

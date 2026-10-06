@@ -445,6 +445,7 @@ export interface ProjectRuntimeState {
   >;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
+  boqPageReviews?: import('./boq-page-projection').BoqPageDecision[];
   boqNumericReviews?: import('./boq-numeric-review').BoqNumericReviewDecision[];
   boqNumericReviewBatches?: Array<{batchId:string;payloadHash:string;confirmedAt:string;itemCount:number}>;
   quantities:

@@ -1,3 +1,4 @@
+import {prepareBoqPageReview,boqPageReview,type BoqPageReviewInput} from './boq-page-review';
 import {hasSourceDocumentIdentity} from './evidence-control';
 import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
 import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
@@ -5363,6 +5364,13 @@ export class RuntimeProjectStore {
     if(!base)return;
     const amendments=state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId&&e.basisState==='additive'&&(!e.relationshipDecision?.targetDocumentId||e.relationshipDecision.targetDocumentId===base.documentId))).map(d=>d.result);
     state.contract=base.result;state.contractFamily=linkContractFamily(base.result,amendments);promoteContractTimeBasis(state);
+  }
+
+  confirmBoqPage(projectId:string,input:BoqPageReviewInput){
+    const state=this.get(projectId);if(!state)throw new Error('Project not found.');
+    const prepared=prepareBoqPageReview(state,input,auditContext().actor.id);
+    if(!prepared.duplicate){state.boqPageReviews=[...(state.boqPageReviews??[]),prepared.decision];this.touchEvidence(state);}
+    return {...boqPageReview(this.get(projectId)!),duplicate:prepared.duplicate};
   }
 
   confirmBoqNumericReadings(projectId:string,input:BoqNumericReviewInput){

@@ -1,3 +1,4 @@
+import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
 import {readFileSync} from 'node:fs';
@@ -1908,6 +1909,19 @@ async function route(
       return;
     }
     json(res, 200, overview);
+    return;
+  }
+
+  const boqPageMatch=/^\/api\/projects\/([^/]+)\/boq\/page-review$/.exec(url.pathname);
+  if(boqPageMatch){
+    const projectId=decodeURIComponent(boqPageMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'){json(res,200,boqPageReview(state));return;}
+      if(req.method==='POST'){const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqPage(projectId,input);invalidateProject(projectId);json(res,200,result);return;}
+      json(res,405,{error:'page_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'page_review_not_saved',message:error instanceof Error?error.message:String(error)});}
     return;
   }
 
