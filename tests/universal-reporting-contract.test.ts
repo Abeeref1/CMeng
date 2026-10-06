@@ -499,6 +499,35 @@ test('one overdue activity has the same exception on dashboard, command center a
  }
 });
 
+test('ten fresh projects preserve missed-start versus overdue-finish dates in management actions',t=>{
+ const seed=process.env.CMENG_MANAGEMENT_OVERDUE_SEED?.trim()||randomUUID();process.stdout.write('\nCMENG_MANAGEMENT_OVERDUE_SEED='+seed+'\n');
+ for(let i=0;i<10;i++){
+  const {state,model}=fixture(t),bytes=createHash('sha256').update(seed+':'+i).digest();
+  const lateStart=1+bytes[0]!%60,lateFinish=1+bytes[1]!%20,futureFinish=1+bytes[2]!%240;
+  const date=(days:number)=>new Date(Date.UTC(2031,3,15+days)).toISOString().slice(0,10);
+  const base=model.activities[0]!;
+  model.activities=[
+   {...base,activityId:'START',name:'Start missed; finish is future',currentStartIso:date(-lateStart),currentFinishIso:date(futureFinish)},
+   {...base,activityId:'FINISH',name:'Started; finish missed',status:'in_progress',percentComplete:50,actualStartIso:date(-lateStart-lateFinish),currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'BOTH',name:'Start and finish missed',currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'FUTURE',name:'Future work',currentStartIso:date(1),currentFinishIso:date(futureFinish+1)},
+   {...base,activityId:'DONE',name:'Completed work',status:'completed',percentComplete:100,actualStartIso:date(-20),actualFinishIso:date(-10),currentStartIso:date(-20),currentFinishIso:date(-10)},
+  ];state.version++;
+  for(const key of ['master-dashboard','command-center']){
+   const data=moduleForProject(state.projectId,key).data as any;
+   const rows=data.deliveryExceptions.actions.filter((r:any)=>r.type==='Activity');
+   assert.deepEqual(rows.map((r:any)=>r.recordId).sort(),['BOTH','FINISH','START'],key+' / '+i);
+   const start=rows.find((r:any)=>r.recordId==='START'),finish=rows.find((r:any)=>r.recordId==='FINISH'),both=rows.find((r:any)=>r.recordId==='BOTH');
+   assert.equal(start.dueIso,date(-lateStart),key+' missed start must use its start date');
+   assert.equal(start.overdueDays,lateStart);assert.match(start.action,/missed start/i);
+   assert.equal(finish.dueIso,date(-lateFinish));assert.equal(finish.overdueDays,lateFinish);assert.match(finish.action,/overdue finish/i);
+   assert.equal(both.dueIso,date(-lateFinish));assert.equal(both.overdueDays,lateFinish);assert.match(both.action,/start and finish/i);
+   assert.ok(rows.every((r:any)=>r.overdueDays>=0));
+   assert.equal(data.deliveryExceptions.overdueActivityCount,3);
+  }
+ }
+});
+
 test('date headers and populated dates work across registers; empty and absent columns have different diagnoses',t=>{
  const {state,csv}=fixture(t);
  csv('RFI Ref,Date Raised,Required Response,Status,Activity Code\nR1,01/04/2031,10/04/2031,Open,WORK','rfi_register');

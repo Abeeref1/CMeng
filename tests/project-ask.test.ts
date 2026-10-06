@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash,randomUUID} from 'node:crypto';
 import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -58,6 +59,22 @@ test('CPI is the Commercial authority value, with future snapshots excluded and 
   assert.equal(metric.value,.8);assert.equal(typeof metric.basis,'string');assert.match(metric.basis,/EV.*AC/);assert.ok(r.sections.flatMap(s=>s.traces).some(t=>t.sourceRefs.length>0));assert.equal(metric.value,source.position.performance.costControl.positions[0].cpi.value);assert.equal(r.scope.dataDate,'2036-08-31');assert.match(r.narrative[0]!.text,/0.8/);assert.ok(!r.narrative[0]!.text.includes('9999'));
   const empty=await fixture(t),missing=await empty.ask('What is CPI?');assert.equal(missing.sections.flatMap(s=>s.metrics).find(m=>m.id.endsWith('.cpi'))!.value,null);
   assert.doesNotMatch(JSON.stringify(missing),/Cost snapshots are available/);assert.match(JSON.stringify(missing),/Cost snapshots are not established/);
+  assert.ok(r.unresolved.some(text=>/review/i.test(text)),'retain the genuine review qualifications');
+  assert.ok(!r.improvementNeeds?.some(text=>/Time-phased PV, EV and AC would add/.test(text)),'the letters EV in review must not invent missing EVM inputs');
+});
+test('ten fresh EVM projects retain genuine review qualifications without inventing missing cost inputs',async t=>{
+ const seed=process.env.CMENG_ASK_REVIEW_SEED?.trim()||randomUUID();process.stdout.write('\nCMENG_ASK_REVIEW_SEED='+seed+'\n');
+ for(let i=0;i<10;i++){
+  const f=await fixture(t),bytes=createHash('sha256').update(seed+':'+i).digest();
+  const ev=10000+bytes.readUInt32BE(0)%900000,ac=10000+bytes.readUInt32BE(4)%900000,pv=10000+bytes.readUInt32BE(8)%900000;
+  await f.upload('Fresh-EVM.csv','Metric,Value,Currency,Status,As Of,VAT Basis\nBAC,2000000,AED,Approved,2036-08-31,Exclusive\nEV,'+ev+',AED,Approved,2036-08-31,Exclusive\nAC,'+ac+',AED,Actual,2036-08-31,Exclusive\nPV,'+pv+',AED,Plan,2036-08-31,Exclusive','replace_current_basis');
+  const r=await f.ask('What are CPI and SPI at the current Data Date?'),metrics=r.sections.flatMap(s=>s.metrics);
+  assert.equal(metrics.find(m=>m.id.includes('.cpi-'))!.value,Math.round(ev/ac*1e6)/1e6);
+  assert.equal(metrics.find(m=>m.id.includes('.spi-'))!.value,Math.round(ev/pv*1e6)/1e6);
+  assert.ok(r.unresolved.some(text=>/review/i.test(text)));
+  assert.ok(!r.improvementNeeds?.some(text=>/Time-phased PV, EV and AC would add/.test(text)));
+  assert.equal(r.telemetry?.aiInvoked,false);
+ }
 });
 test('custom materials query calculates 52/64=81.25%, uses linked need dates and exposes the excess four units',async t=>{
   const f=await fixture(t);await materials(f);const before=f.state.version;
