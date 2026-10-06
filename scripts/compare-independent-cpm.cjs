@@ -8,11 +8,11 @@ const hash=createHash('sha256').update(bytes).digest('hex');
 if(hash!==readFileSync(join(dir,'reference.sha256'),'utf8').trim())throw Error('Frozen independent reference changed.');
 const ref=JSON.parse(bytes);const results=[];
 for(const c of ref.cases){
- const activities=c.durations.map((duration,i)=>({projectId:c.id,activityId:'A'+i,nativeId:null,name:'A'+i,wbsId:null,calendarId:'C',activityType:'task',status:'not_started',
+ const activities=c.durations.map((duration,i)=>({projectId:c.id,activityId:'A'+i,nativeId:null,name:'A'+i,wbsId:null,calendarId:c.calendarIds?.[i]??'C',activityType:'task',status:'not_started',
  baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,
  originalDurationHours:duration,remainingDurationHours:duration,totalFloatHours:null,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]}));
  const model={projectId:c.id,source:'xer',sourceRevisionId:c.id,dataDateIso:c.anchor,activities,
- relationships:c.relationships.map(([p,s,type,lag],i)=>({relationshipId:'R'+i,predecessorActivityId:'A'+p,successorActivityId:'A'+s,type,lagHours:lag,external:false,sourceRefs:[],diagnostics:[]})),wbs:[],calendars:[c.calendar],diagnostics:[]};
+ relationships:c.relationships.map(([p,s,type,lag],i)=>({relationshipId:'R'+i,predecessorActivityId:'A'+p,successorActivityId:'A'+s,type,lagHours:lag,external:false,sourceRefs:[],diagnostics:[]})),wbs:[],calendars:c.calendars??[c.calendar],diagnostics:[]};
  const actual=calculateCpm(model,{allowElapsedFallback:false,assumeUnknownRelationshipTypeFs:false,assumeMissingLagZero:false,requiredFinishIso:c.requiredFinishIso});
  const differences=[];
  if(actual.projectFinishIso!==c.projectFinishIso)differences.push({field:'projectFinishIso',expected:c.projectFinishIso,actual:actual.projectFinishIso});

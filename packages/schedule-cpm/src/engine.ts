@@ -642,7 +642,7 @@ export function calculateCpm(
       continue;
     }
 
-    const candidates: Array<{relation:EffectiveRelationship;start:number}> = [];
+    const candidates: Array<{relation:EffectiveRelationship;start:number;finish:number|null}> = [];
 
     for (const relation of incoming.get(
       activityId,
@@ -663,7 +663,9 @@ export function calculateCpm(
         );
 
       if (candidate !== null) {
-        candidates.push({relation,start:candidate});
+        const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
+        candidates.push({relation,start:candidate,finish:finishAnchor===null?null:relation.lagHours===0?finishAnchor:
+          previousWorkingInstant(context.calendar.calendar,shiftByLag(context.calendar,finishAnchor,relation.lagHours))});
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
@@ -680,12 +682,16 @@ export function calculateCpm(
         startCandidate,
         0,
       );
-    const earlyFinish =
+    const workFinish =
       addWorkingHours(
         context.calendar.calendar,
         earlyStart,
         context.durationHours,
       );
+    // Subtracting work and adding it back can land on opposite sides of a
+    // nonworking gap. Retain the actual FF/SF finish bound as well as its
+    // translated start; the successor must never finish before that event.
+    const earlyFinish=candidates.reduce((finish,c)=>Math.max(finish,c.finish??finish),workFinish);
 
     forward.set(activityId, {
       earlyStartMs: earlyStart,
@@ -693,7 +699,7 @@ export function calculateCpm(
     });
     // Calendar normalization may make several links bind at the same start.
     // Retain every tie instead of selecting an arbitrary single predecessor.
-    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1).map(c=>c.relation));
+    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1||c.finish!==null&&Math.abs(c.finish-earlyFinish)<1).map(c=>c.relation));
 
     if (
       context.activity.status ===
@@ -792,20 +798,23 @@ export function calculateCpm(
     // predecessors of SS/SF links whose successors may finish before them.
     // Otherwise a long predecessor can receive positive float even though it
     // determines project completion, and disappear from the critical list.
-    const projectFinishBound = previousWorkingInstant(
-      context.calendar.calendar,
-      latePassFinish,
-    );
+    const projectFinishBound = latePassFinish;
     const lateFinishCandidate = candidates.reduce(
       (latest,candidate)=>Math.min(latest,candidate),
       projectFinishBound,
     );
 
-    const lateFinish =
+    const normalizedLateFinish =
       previousWorkingInstant(
         context.calendar.calendar,
         lateFinishCandidate,
       );
+    // A relationship may hold completion to the next work opening without
+    // adding working duration. Keep that valid endpoint when the late bound
+    // permits it; never push it past an earlier required finish target.
+    const lateFinish=early.earlyFinishMs!==null&&early.earlyFinishMs<=lateFinishCandidate&&
+      early.earlyFinishMs>normalizedLateFinish&&workingHoursBetween(context.calendar.calendar,normalizedLateFinish,early.earlyFinishMs)===0
+      ?early.earlyFinishMs:normalizedLateFinish;
     const lateStart =
       subtractWorkingHours(
         context.calendar.calendar,

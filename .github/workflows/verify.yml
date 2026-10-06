@@ -42,6 +42,8 @@ jobs:
           evidence=/tmp/cmeng-verification/independent
           python3 scripts/independent-cpm-reference.py "$evidence/cpm"
           node scripts/compare-independent-cpm.cjs "$evidence/cpm"
+          python3 scripts/independent-mixed-calendar-reference.py "$evidence/mixed-calendar"
+          node scripts/compare-independent-cpm.cjs "$evidence/mixed-calendar"
           python3 scripts/independent-commercial-notice-reference.py "$evidence/commercial-notice"
           node scripts/compare-independent-commercial-notice.cjs "$evidence/commercial-notice"
           python3 scripts/independent-ledger-delivery-reference.py "$evidence/ledger-delivery"

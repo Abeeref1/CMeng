@@ -175,6 +175,24 @@ test('every activity remains bounded by project finish even when a start link pe
   }
 });
 
+test('finish dependencies preserve chronological bounds across a different-calendar nonworking gap',()=>{
+  const elapsed:CanonicalCalendar={...fiveDayCalendar(),calendarId:'ALL',name:'24 hours',standardDayHours:24,standardWeekHours:168,
+    weeklyWorkMinutes:[1440,1440,1440,1440,1440,1440,1440],weeklyWorkIntervals:Array.from({length:7},(_,i)=>({dayIndex:i+1,intervals:[{start:'00:00',finish:'24:00',minutes:1440}]}))};
+  const model=chainModel({dataDateIso:'2026-01-07T00:00:00.000Z',calendars:[elapsed,fiveDayCalendar()],
+    activities:[activity('A100',{calendarId:'ALL',remainingDurationHours:18}),activity('A200',{remainingDurationHours:2})]});
+  model.relationships[0]!.type='FF';
+  const result=calculateCpm(model),pre=result.activities[0]!,post=result.activities[1]!;
+  assert.equal(pre.earlyFinishIso,'2026-01-07T18:00:00.000Z');
+  assert.equal(post.earlyStartIso,'2026-01-07T14:00:00.000Z');
+  assert.equal(post.earlyFinishIso,pre.earlyFinishIso,'FF completion is held to the predecessor event, even after working time ends.');
+  assert.equal(post.lateFinishIso,post.earlyFinishIso);assert.equal(post.totalFloatHours,0);
+  assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),2);
+  assert.equal(result.projectFinishIso,pre.earlyFinishIso);
+  const deadline=calculateCpm(model,{requiredFinishIso:'2026-01-07T15:00:00.000Z'});
+  assert.ok(deadline.activities.every(a=>Date.parse(a.lateFinishIso!)<=Date.parse('2026-01-07T15:00:00.000Z')));
+  assert.ok(deadline.activities[0]!.totalFloatHours!<0);
+});
+
 test('execution CPM excludes LOE and WBS durations and retains the source population',()=>{
   const base=chainModel();
   const expected=calculateCpm(base);
