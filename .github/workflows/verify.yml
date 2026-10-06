@@ -11,8 +11,10 @@ permissions:
 
 concurrency:
   group: cmeng-verify-${{ github.ref }}
-  # Finish the active candidate; a later push must not discard its evidence.
-  cancel-in-progress: false
+  # During active engineering, verify the newest candidate only. Superseded
+  # commits keep any evidence already produced, but they must not delay the
+  # exact current head. Test scope, assertions and thresholds are unchanged.
+  cancel-in-progress: true
 
 jobs:
   gates:
