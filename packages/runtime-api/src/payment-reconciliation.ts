@@ -34,9 +34,15 @@ export function reconcilePaymentEvidence(
       calculatedNet = subtotal + amounts.taxAmount.value;
     } else diagnostics.push('CERTIFICATE_TAX_BASIS_NOT_RECONCILED');
   } else diagnostics.push('CERTIFICATE_COMPONENTS_OR_MONEY_BASIS_INCOMPLETE');
+  const arithmeticTolerance=(values:Array<number|null>)=>{
+    const known=values.filter((value):value is number=>value!==null&&Number.isFinite(value));
+    return known.length&&known.every(Number.isInteger)?1:0.01;
+  };
+  const reconciliationTolerance=arithmeticTolerance([calculatedNet,net.value]);
   const reconciliation = calculatedNet === null ? 'unresolved' as const :
-    Math.abs(calculatedNet - net.value!) > 0.01 ? 'conflicted' as const : 'matched' as const;
+    Math.abs(calculatedNet - net.value!) > reconciliationTolerance ? 'conflicted' as const : 'matched' as const;
   if (reconciliation === 'conflicted') diagnostics.push('CERTIFICATE_NET_COMPONENTS_CONFLICT');
+  else if(calculatedNet!==null&&net.value!==null&&Math.abs(calculatedNet-net.value)>0.01)diagnostics.push('CERTIFICATE_COMPONENT_ROUNDING_WITHIN_TOLERANCE');
 
   // Check the stated equation even when optional columns are absent. This is
   // not evidence that an omitted deduction is zero, or that cash was received.
@@ -49,8 +55,9 @@ export function reconcilePaymentEvidence(
   const statedNet = statedComparable && optionalComparable && net.value !== null
     ? amounts.grossWork.value! + amounts.variations.value! - amounts.retentionDeduction.value! -
       amounts.advanceRecovery.value! - (amounts.otherDeduction.value ?? 0) : calculatedNet;
+  const componentTolerance=arithmeticTolerance([statedNet,net.value,...stated.map(value=>value.value),amounts.otherDeduction.value]);
   const componentArithmetic = {
-    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= 0.01 ? 'matched' as const : 'conflicted' as const,
+    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= componentTolerance ? 'matched' as const : 'conflicted' as const,
     calculatedNet: statedNet,
     difference: statedNet !== null && net.value !== null ? round(net.value - statedNet, 6) : null,
     omittedComponents: optionalKnown ? [] : ['other deductions'],
