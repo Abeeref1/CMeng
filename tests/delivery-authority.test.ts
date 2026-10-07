@@ -370,3 +370,19 @@ test('explicit Delivery schemas cannot displace existing BOQ or HSE authority; m
  const doc=f.state.evidenceDocuments.find(d=>d.sourceFilename==='Delivery.csv')!;assert.equal(doc.documentType,'delivery_register');
  const p=deliveryPosition(f.state);assert.equal(p.records.length,2);assert.deepEqual(p.documents.map(d=>d.kind).sort(),['hse','package']);assert.equal(p.hsePosition.frequencyRate,null);
 });
+
+
+test('Delivery cannot call a record overdue when its due date is not established',async t=>{
+ const f=await fixture(t);
+ const snag=f.create('snag','NO-DUE',{'raised date':'2031-08-01','status as of':'2031-08-31',status:'Overdue'});
+ f.population('snag');
+ const position=deliveryPosition(f.state),row=position.registerRows.find(r=>r.recordId===snag.recordId)!;
+ assert.equal(row.dueDate,null);
+ assert.equal(row.overdue,null);
+ assert.equal(row.currentStatus,'open');
+ assert.ok(position.findings.some(x=>x.code==='DELIVERY_LATENESS_DUE_DATE_REQUIRED'&&x.recordId===snag.recordId));
+ const page=deliveryModule(f.state,'delivery-closeout').data as any;
+ const rendered=page.rows.find((r:any)=>r.recordId===snag.recordId);
+ assert.equal(rendered.overdue,null);
+ assert.equal(rendered.dueDate,null);
+});
