@@ -767,6 +767,18 @@ function buildCommercialTerms(
       approved: true,
     });
   }
+  // A contract-value extraction already carries an explicit monetary currency.
+  // Reuse that same source assertion for the contract-currency fact instead of
+  // asking the user to confirm a currency that CMeng is already using for the
+  // contract value. Candidate value authority remains candidate; conflicting
+  // currencies remain conflicted.
+  for (const candidate of input.contractValueCandidates) {
+    currencyCandidates.push({
+      value: candidate.currency,
+      ref: candidate.sourceRefs[0] ?? "contract-value-candidate",
+      approved: candidate.authority === "approved",
+    });
+  }
   const contractCurrency =
     candidateFinding(
       currencyCandidates,
@@ -786,6 +798,20 @@ function buildCommercialTerms(
     input.contractTimeBasis
       ?.contractualCompletionIso ??
     null;
+  const completionAuthorityState =
+    input.contractTimeBasis?.contractualCompletionState ?? "missing";
+  const completionFindingState:CommercialFindingState =
+    !completion ? "missing" :
+    completionAuthorityState === "official" ? "established" :
+    completionAuthorityState === "conflicted" ? "conflicted" :
+    completionAuthorityState === "candidate" ? "candidate" :
+    "partial";
+  const completionAuthority:CommercialFindingAuthority =
+    !completion ? "missing" :
+    completionAuthorityState === "official" ? "approved" :
+    completionAuthorityState === "conflicted" ? "mixed" :
+    completionAuthorityState === "candidate" ? "candidate" :
+    "source";
   const contractualCompletionDate =
     finding(
       completion,
@@ -797,26 +823,21 @@ function buildCommercialTerms(
             .contractTimeBasis
             ?.sourceRefs ?? [],
         authority:
-          completion
-            ? input
-                .contractTimeBasis
-                ?.contractualCompletionState ===
-              "official"
-              ? "approved"
-              : "source"
-            : "missing",
+          completionAuthority,
         state:
-          completion
-            ? "established"
-            : "missing",
+          completionFindingState,
         asOfDate:
           input.dataDateIso,
         consequence:
           "The contractual completion basis drives EOT and liquidated-damages exposure.",
         action:
-          completion
+          completionFindingState === "established"
             ? null
-            : "Establish the applicable contract-time basis.",
+            : "Resolve and approve the applicable contract-time basis before treating this date as confirmed.",
+        diagnostics:
+          completion && completionFindingState !== "established"
+            ? ["CONTRACTUAL_COMPLETION_NOT_GOVERNED_OFFICIAL"]
+            : [],
       },
     );
 
@@ -1032,6 +1053,16 @@ function buildCommercialTerms(
       "advance_payment_security_requirement",
       "Advance-payment security must reconcile with outstanding advance exposure.",
     );
+  const advancePaymentPercent =
+    explicitPercent(
+      input,
+      [
+        /(?:amount\s+of\s+(?:the\s+)?advance[- ]payment|advance[- ]payment(?:\s+amount)?)\s*(?:is|shall\s+be|of|:|=)?\s*(\d+(?:\.\d+)?)\s*%/gi,
+        /(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?(?:accepted\s+contract\s+amount|contract\s+amount|contract\s+price)[^\n.]{0,80}?advance[- ]payment/gi,
+      ],
+      "explicit_advance_payment_percentage",
+      "The advance-payment percentage establishes the original advance balance before certified recoveries.",
+    );
 
   const insuranceRequirements =
     clauses.filter(
@@ -1144,6 +1175,7 @@ function buildCommercialTerms(
     noticePeriodDays,
     performanceBondRequirement,
     advancePaymentBondRequirement,
+    advancePaymentPercent,
     insuranceRequirements,
     hierarchyAndPrecedenceClauses,
     clauses,
@@ -1782,9 +1814,13 @@ function buildPaymentRegister(
           ),
       ).length,
   };
+  // Payment SLA starts at certification. Applications that have not been
+  // certified remain visible in the lifecycle register but cannot make the
+  // certified-payment SLA population incomplete.
+  const slaRows=rows.filter(row=>Boolean(row.lifecycle.certificationDate));
   const rawSlaCounts = {
     paidOnTime:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           Boolean(
             row.lifecycle
@@ -1795,7 +1831,7 @@ function buildPaymentRegister(
             "on_time",
       ).length,
     paidLate:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           Boolean(
             row.lifecycle
@@ -1806,7 +1842,7 @@ function buildPaymentRegister(
             "late",
       ).length,
     overdueUnpaid:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           !row.lifecycle
             .paymentDate &&
@@ -1815,7 +1851,7 @@ function buildPaymentRegister(
             "late",
       ).length,
     openUnpaid:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           !row.lifecycle
             .paymentDate &&
@@ -1824,7 +1860,7 @@ function buildPaymentRegister(
             "open",
       ).length,
     notEstablished:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           row.lifecycle
             .slaState ===
@@ -1835,9 +1871,9 @@ function buildPaymentRegister(
     PaymentRegisterProjection[
       "slaAssessmentState"
     ] =
-    rows.length === 0 ||
+    slaRows.length === 0 ||
     rawSlaCounts.notEstablished ===
-      rows.length
+      slaRows.length
       ? "not_assessable"
       : rawSlaCounts.notEstablished >
           0

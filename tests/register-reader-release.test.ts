@@ -4,15 +4,119 @@ import {createHash,randomUUID} from 'node:crypto';import {mkdtempSync,writeFileS
 import ExcelJS from 'exceljs';import JSZip from 'jszip';
 import {runtimeProjects,RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {rebuildEvidenceFamily} from '../packages/runtime-api/src/evidence-control';
+import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
 import {hseReportPosition,refreshHseSummary,parseHseSummary} from '../packages/runtime-api/src/hse-report-evidence';
 import {readRegisterWorkbook} from '../packages/runtime-api/src/register-workbook';
 import {analyzeCsvEvidence,analyzeEvidenceRows} from '../packages/runtime-api/src/evidence';
-import {prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
+import {numberValue,canonicalHeader,prepareRegisterRows,sourceTables} from '../packages/truth-kernel/src';
 import {reviewRegisterDates} from '../packages/runtime-api/src/register-date-review';
 import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForModule} from '../packages/runtime-api/src/registry';
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 const hash=(b:string|Uint8Array)=>createHash('sha256').update(b).digest('hex');
+test('Stage 1 fresh quality cohort retains every reordered noisy workbook row and upgrades prior reader snapshots',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'quality-header-cohort-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ let store=new RuntimeProjectStore({dataDir:dir,durable:false});
+ const seed=randomUUID();process.stdout.write('\nCMENG_STAGE1_QUALITY_HEADER_SEED='+seed+'\n');
+ const expected=new Map<string,{ids:string[];bytes:Buffer;documentId:string;sourceHash:string}>();
+ for(let i=0;i<10;i++){
+  const projectId=('QUALITY-'+seed+'-'+i).toUpperCase(),ids=Array.from({length:3+i%3},(_,j)=>'NCR-'+createHash('sha256').update(seed+':'+i+':'+j).digest('hex').slice(0,12));
+  const headers=['Description','Comment '+(10+i),'NCR ID','Status','Owner','Extra_'+i,'X'+(20+i),'Closed Date'];
+  const sourceRows=[['Project '+projectId,'Control report','','','','','',''],['','Control report','','','','','',''],headers,
+   ...ids.map((id,j)=>[i%2?'Quality observation '+j:'ملاحظة جودة '+j,j%2?'n/a':'-',id,j%2?'Open':'مفتوح',i%2?'QA/QC':'المقاول',j%2?'3':'','note','']),
+   ['TOTAL','','','','','','','']];
+  const rotation=(i*3)%headers.length,columns=Array.from({length:headers.length},(_,j)=>(j+rotation)%headers.length);
+  if(i%2)columns.reverse();
+  const wb=new ExcelJS.Workbook(),sheet=wb.addWorksheet(i%2?'Observations':'بيانات الجودة');
+  for(const row of sourceRows)sheet.addRow(columns.map(c=>row[c]??''));
+  wb.addWorksheet('Notes').addRows([['Unclassified evidence'],['A1','B2'],['opaque','value']]);
+  const bytes=Buffer.from(await wb.xlsx.writeBuffer());
+  await store.ingestEvidenceFile({projectId,sourceFilename:'generic-'+i+'.xlsx',sourceRelativePath:'generic-'+i+'.xlsx',mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',bytes,uploadedAt:'2039-02-10T00:00:00Z',uploadIntent:'add_update'});
+  const state=store.get(projectId)!,doc=state.evidenceDocuments[0]!;
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...ids].sort());
+  const table=sourceTables([doc],[]).find(row=>row.document.documentType==='quality_ncr_register')!;
+  assert.ok(table,'the owning worksheet must reach the shared source table');
+  assert.equal(table.rows.length,ids.length);assert.equal(table.intelligence.headerRowIndex,2);
+  assert.ok(state.controls.ncrs.every(row=>row.sourceRefs.every(ref=>ref.includes(':sheet:'))));
+  assert.ok(state.controls.ncrs.every(row=>row.closedIso===null),'no closure date is invented');
+  expected.set(projectId,{ids,bytes,documentId:doc.documentId,sourceHash:doc.sourceHashSha256});
+  // Recreate the old reader's empty derived population, then require migration
+  // from retained bytes rather than changing the source or authority decision.
+  const basisState=doc.basisState;
+  doc.derivedRegisterRead={producerVersion:'register-derived-v7',sourceHashSha256:doc.sourceHashSha256};
+  state.derivedControlsByDocument[doc.documentId]!.ncrs=[];state.controls.ncrs=[];
+  const refreshed=await store.refreshSpreadsheetRegisters(projectId);
+  assert.equal(refreshed.refreshedDocumentCount,1,JSON.stringify(refreshed));
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...ids].sort());
+  assert.equal(doc.basisState,basisState);assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
+  assert.deepEqual(readFileSync(doc.storedPath),bytes);assert.equal(doc.sourceHashSha256,hash(bytes));
+  assert.equal((await store.refreshSpreadsheetRegisters(projectId)).refreshedDocumentCount,0,'repeated refresh is idempotent');
+ }
+ store=new RuntimeProjectStore({dataDir:dir,durable:false});
+ for(const [projectId,e] of expected){const state=store.get(projectId)!,doc=state.evidenceDocuments.find(row=>row.documentId===e.documentId)!;
+  assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...e.ids].sort());
+  assert.equal(doc.sourceHashSha256,e.sourceHash);assert.deepEqual(readFileSync(doc.storedPath),e.bytes);
+ }
+ process.stdout.write('CMENG_STAGE1_QUALITY_HEADER_RESULT='+JSON.stringify({projects:10,exactPopulations:true,reorderedColumns:true,sourceBytesPreserved:true,readerMigration:true,idempotence:true,restart:true})+'\n');
+});
+test('Stage 1 sparse control schemas and compact headers retain owning roles and identities',async()=>{
+ const {identifyEvidenceDocument}=await import('../packages/runtime-api/src/document-identification');
+ const cases=[
+  ['Instruction ID,Issue Date,Variation ID,Status\nSI-K7,2032-03-09,VO-M8,Issued','site_instruction_register','instruction:si-k7'],
+  ['InstructionID,IssueDate,VariationID,Status\nSI-K7,2032-03-09,VO-M8,Issued','site_instruction_register','instruction:si-k7'],
+  ['Obligation ID,Due Date\nOB-H3,2032-03-12','contract_obligation_register','obligation:ob-h3'],
+  ['ObligationID,DueDate\nOB-H3,2032-03-12','contract_obligation_register','obligation:ob-h3'],
+  ['Retention ID,Held Amount\nRET-B4,12000','retention_register','retention:ret-b4'],
+  ['RetentionID,HeldAmount\nRET-B4,12000','retention_register','retention:ret-b4'],
+  ['Instruction ID,Issue Date\nتعليمات-١,2032-03-09','site_instruction_register','instruction:تعليمات-١'],
+  ['Instruction ID,Issue Date\nتوجيهات-١,2032-03-09','site_instruction_register','instruction:توجيهات-١'],
+ ];
+ for(const [text,type,identity] of cases){
+  const result=await identifyEvidenceDocument({bytes:Buffer.from(text!),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+  assert.equal(result.identification.detectedDocumentType,type,text!.split('\n')[0]);
+  assert.equal(result.identification.sourceDocumentIdentity,identity,'a related identifier cannot replace the owning identity');
+ }
+ const multi=await identifyEvidenceDocument({bytes:Buffer.from('Instruction ID,Issue Date,Variation ID,Status\nSI-K7,2032-03-09,VO-M8,Issued\nSI-K8,2032-03-10,VO-M9,Issued'),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+ assert.equal(multi.identification.detectedDocumentType,'site_instruction_register');
+ assert.equal(multi.identification.sourceDocumentIdentity,null,'a multi-record register has no single document identity from a related VO');
+ assert.equal(canonicalHeader('GrossCertifiedAmount'),'gross certified amount');
+ assert.equal(canonicalHeader('CPI'),'cpi');assert.equal(canonicalHeader('m3'),'m3');
+ assert.equal(canonicalHeader('Activity IDs'),'activity ids');assert.equal(canonicalHeader('ActivityIDs'),'activity ids');
+ assert.equal(canonicalHeader('Resource UIDs'),'resource uids');
+ const ambiguous=await identifyEvidenceDocument({bytes:Buffer.from('Reference,Date,Value\nX-4,2032-03-09,12000'),sourceFilename:'generic.csv',sourceRelativePath:null,declaredMediaType:'text/csv'});
+ assert.equal(ambiguous.identification.needsReview,true,'generic fields do not establish a specialist role');
+});
+test('Stage 1 sparse current control rows remain canonical with unknown lifecycle and financial basis',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'sparse-control-register-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='SPARSE-CONTROL-REGISTER';
+ const files=[
+  ['si.csv','InstructionID,IssueDate\nSI-P1,2032-03-09'],
+  ['ob.csv','ObligationID,DueDate\nOB-P2,2032-03-12'],
+  ['ret.csv','RetentionID,HeldAmount\nRET-P3,12000'],
+ ];
+ for(const [name,text] of files)await store.ingestEvidenceFile({projectId,sourceFilename:name!,mediaType:'text/csv',bytes:Buffer.from(text!),uploadedAt:'2032-03-10T00:00:00Z',uploadIntent:'add_update'});
+ const state=store.get(projectId)!,canonical=commercialCanonical(state);
+ assert.equal(canonical.siteInstructions.length,1);assert.equal(canonical.obligations.length,1);assert.equal(canonical.retentions.length,1);
+ assert.equal(canonical.siteInstructions[0]!.instructionId,'SI-P1');assert.equal(canonical.variations.length,0);
+ assert.equal(canonical.obligations[0]!.responsibleParty,null);
+ assert.equal(canonical.retentions[0]!.amount.value,12000);
+ assert.equal(canonical.retentions[0]!.amount.currency,null);assert.equal(canonical.retentions[0]!.amount.asOf,null);
+ assert.equal(canonical.retentions[0]!.dueDate,null);
+ for(const [name,text] of files){const doc=state.evidenceDocuments.find(row=>row.sourceFilename===name)!;assert.deepEqual(readFileSync(doc.storedPath),Buffer.from(text!));}
+});
+test('Stage 1 preserves gross work and gross certification as distinct payment columns',()=>{
+ const read=prepareRegisterRows([
+  ['Certificate No','Gross Work','Variations','Gross Certified Amount','Employer Certified Amount','Net Certified','Currency'],
+  ['IPC-COMPONENTS','1000','200','1200','1200','1080','AED'],
+ ],'payment_certificates');
+ assert.equal(read.recognized,true);
+ assert.equal(new Set(read.headers).size,read.headers.length,'different financial stages must not collapse into duplicate meanings');
+ assert.equal(read.headers[1],'gross work');assert.equal(read.headers[3],'gross certified amount');
+ assert.equal(read.rows[0]![1],'1000');assert.equal(read.rows[0]![3],'1200');
+ assert.equal(canonicalHeader('Gross Certified / الإجمالي المعتمد'),'gross certified amount');
+ assert.equal(canonicalHeader('Gross Certified Amount (AED)'),'gross certified amount aed');
+ assert.equal(canonicalHeader('Gross'),'gross work','retain the existing generic-gross interpretation without overriding an explicit certification header');
+});
 function setup(t:any){const dir=mkdtempSync(join(tmpdir(),'register-release-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));const state=runtimeProjects.getOrCreate('READ-'+randomUUID());
  const csv=(text:string,type:string)=>{const id='D'+state.evidenceDocuments.length,path=join(dir,id+'.csv');writeFileSync(path,text);const doc={documentId:id,sourceFilename:id+'.csv',sourceHashSha256:hash(text),storedPath:path,mediaType:'text/csv',basisState:'active',documentType:type,diagnostics:[],uploadedAt:'2031-04-30'} as unknown as StoredEvidenceDocument;state.evidenceDocuments.push(doc);state.version++;return doc;};return {state,csv};}
 
@@ -128,6 +232,76 @@ test('comma, semicolon and tab registers share parsing and preserve quoted field
  assert.equal(state.evidenceDocuments.length,3);
 });
 
+test('summary footer rows never become source records while legitimate TOTAL-like identifiers remain',()=>{
+ const risk=prepareRegisterRows([
+  ['Risk ID','Description','Status','Owner'],
+  ['TOTAL','','',''],
+ ],'risk_register');
+ assert.equal(risk.recognized,true);assert.equal(risk.rows.length,0);
+
+ const payment=prepareRegisterRows([
+  ['Certificate No','Net Certified','Currency','Status'],
+  ['IPC-1','100','AED','Certified'],
+  ['Grand Total','100','',''],
+ ],'payment_certificates');
+ assert.equal(payment.recognized,true);assert.equal(payment.rows.length,1);assert.equal(payment.rows[0]![0],'IPC-1');
+
+ const arabic=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['الإجمالي','',''],
+ ],'risk_register');
+ assert.equal(arabic.rows.length,0);
+
+ const legitimate=prepareRegisterRows([
+  ['Risk ID','Description','Status'],
+  ['TOTAL-01','Total station access risk','Open'],
+ ],'risk_register');
+ assert.equal(legitimate.rows.length,1);assert.equal(legitimate.rows[0]![0],'TOTAL-01');
+});
+
+test('accounting-format amounts remain numeric and reach variation controls', async t => {
+ assert.equal(numberValue('(249,816)'),-249816);
+ assert.equal(numberValue('(٢٤٩٬٨١٦)'),-249816);
+ assert.equal(numberValue('(-249,816)'),null,'ambiguous signed accounting notation must fail closed');
+ const dir=mkdtempSync(join(tmpdir(),'variation-accounting-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='VARIATION-ACCOUNTING';
+ await store.ingestEvidenceFile({
+  projectId,sourceFilename:'Variation_Register.csv',mediaType:'text/csv',
+  bytes:Buffer.from('Variation ID,Description,Approved Amount,Status,Currency\nVO-1,Scope credit,"(249,816)",Approved,EUR'),
+  uploadedAt:'2031-04-30T00:00:00Z',uploadIntent:'add_update',
+ });
+ const state=store.get(projectId)!;
+ assert.equal(state.controls.variations.length,1);
+ assert.equal(state.controls.variations[0]!.variationId,'VO-1');
+ assert.equal(state.controls.variations[0]!.amount,-249816);
+ assert.equal(state.controls.variations[0]!.currency,'EUR');
+});
+
+test('Stage 1 supported control registers retain current identity and old reference fallthrough is repaired on refresh',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'control-register-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),projectId='NEW-CONTROL-REGISTER';
+ const files=[
+  ['source-one.csv','Retention ID,Status,Retention Amount,Currency,VAT Basis,As Of,Due Date,Trigger\nRET-1,Held,300,AED,Exclusive,2031-04-30,2031-06-30,TOC','retention_register'],
+  ['source-two.csv','Instruction ID,Description,Issue Date,Status,Variation ID,Quotation Date,Estimated Amount,Currency\nSI-1,Drainage,2031-04-01,Issued,VO-9,2031-04-10,200,AED','site_instruction_register'],
+  ['source-three.csv','Obligation ID,Clause,Description,Responsible Party,Due Date,Status,Evidence Reference\nOBL-1,2,Certification,Engineer,2031-05-01,Open,IPC','contract_obligation_register'],
+ ];
+ for(const [name,text,type] of files){
+  await store.ingestEvidenceFile({projectId,sourceFilename:name!,mediaType:'text/csv',bytes:Buffer.from(text!),uploadedAt:'2031-04-30T00:00:00Z',uploadIntent:'add_update'});
+  const document=store.get(projectId)!.evidenceDocuments.find(doc=>doc.sourceFilename===name)!;
+  assert.equal(document.documentType,type);assert.equal(document.basisState,'active');
+ }
+ const state=store.get(projectId)!,canonical=commercialCanonical(state);
+ assert.equal(canonical.retentions.length,1);assert.equal(canonical.obligations.length,1);assert.equal(canonical.siteInstructions.length,1);
+ assert.equal(canonical.variations.length,0,'a relationship to VO-9 does not create a second variation record');
+ const retention=state.evidenceDocuments[0]!,bytes=readFileSync(retention.storedPath),sourceHash=retention.sourceHashSha256;
+ retention.basisState='historical';delete state.activeEvidenceBasis[retention.familyKey];
+ retention.derivedRegisterRead={producerVersion:'register-derived-v5',sourceHashSha256:sourceHash};
+ const refreshed=await store.refreshSpreadsheetRegisters(projectId);
+ assert.equal(refreshed.refreshedDocumentCount,1);assert.equal(retention.basisState,'active');
+ assert.equal(retention.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(retention.storedPath),bytes);
+ assert.equal((await store.refreshSpreadsheetRegisters(projectId)).refreshedDocumentCount,0,'migration must be idempotent');
+});
+
 test('shared reader upgrade repairs text/plain CSV ingestion without changing another project or source bytes', async t => {
  const dir=mkdtempSync(join(tmpdir(),'delimiter-upgrade-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false});
@@ -141,7 +315,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v4');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

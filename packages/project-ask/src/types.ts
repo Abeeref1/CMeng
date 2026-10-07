@@ -67,6 +67,8 @@ export interface AnalysisPlan {
 }
 export interface Presentation {
   title: string; audience: 'project' | 'planner' | 'commercial' | 'director' | 'executive';
+  /** Exact CMeng review lens selected for a module report. Presentation-only; never changes Project facts. */
+  reviewLens?: 'overall' | 'planning' | 'controls' | 'project-director' | 'program-director' | 'executive' | null;
   language: 'en' | 'ar' | 'bilingual'; detail: 'short' | 'normal' | 'detailed'; charts: boolean;
   preparedBy: string | null; jobTitle: string | null; company: string | null; reportNumber: string | null;
   confidentiality: string; status: 'Draft / Prepared'; format: 'interactive' | 'xlsx' | 'pdf' | 'docx' | 'csv' | 'json' | 'powerbi';

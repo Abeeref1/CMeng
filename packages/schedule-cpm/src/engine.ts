@@ -8,6 +8,7 @@ import {
 import {
   addWorkingHours,
   isoInstant,
+  nextWorkingInstant,
   parseScheduleInstant,
   previousWorkingInstant,
   resolveWorkingCalendar,
@@ -271,59 +272,30 @@ function backwardConstraintFinish(
   successor: BackwardState,
   predecessorDurationHours: number,
   predecessorCalendar: WorkingCalendarResolution,
-): number | null {
-  switch (relation.type) {
-    case "FS":
-      return successor.lateStartMs === null
-        ? null
-        : addWorkingHours(
-            predecessorCalendar.calendar,
-            successor.lateStartMs,
-            -relation.lagHours,
-          );
-    case "FF":
-      return successor.lateFinishMs === null
-        ? null
-        : addWorkingHours(
-            predecessorCalendar.calendar,
-            successor.lateFinishMs,
-            -relation.lagHours,
-          );
-    case "SS": {
-      if (
-        successor.lateStartMs === null
-      ) {
-        return null;
-      }
-      const latestStart = addWorkingHours(
-        predecessorCalendar.calendar,
-        successor.lateStartMs,
-        -relation.lagHours,
-      );
-      return addWorkingHours(
-        predecessorCalendar.calendar,
-        latestStart,
-        predecessorDurationHours,
-      );
-    }
-    case "SF": {
-      if (
-        successor.lateFinishMs === null
-      ) {
-        return null;
-      }
-      const latestStart = addWorkingHours(
-        predecessorCalendar.calendar,
-        successor.lateFinishMs,
-        -relation.lagHours,
-      );
-      return addWorkingHours(
-        predecessorCalendar.calendar,
-        latestStart,
-        predecessorDurationHours,
-      );
-    }
+  successorCalendar: WorkingCalendarResolution,
+): {finish: number; start: number | null} | null {
+  const endpoint = relation.type === 'FS' || relation.type === 'SS'
+    ? successor.lateStartMs : successor.lateFinishMs;
+  if (endpoint === null) return null;
+  // The reverse pass must invert the SAME lag calendar used forward. A
+  // negative lag can admit every instant in a nonworking gap, up to its next
+  // opening. Preserve that bound rather than inventing negative float.
+  const reversed = relation.lagHours === 0 ? endpoint : addWorkingHours(
+    successorCalendar.calendar, endpoint, -relation.lagHours,
+  );
+  const bound = relation.lagHours < 0
+    ? nextWorkingInstant(successorCalendar.calendar, reversed) : reversed;
+  if (relation.type === 'FS' || relation.type === 'FF') {
+    return {finish: bound, start: null};
   }
+  // A start deadline inside a calendar gap must not be rounded forward past
+  // that deadline. The closing work boundary remains the latest permitted
+  // start event; work resumes at the next opening without adding duration.
+  const start = nextWorkingInstant(predecessorCalendar.calendar, bound) > bound
+    ? previousWorkingInstant(predecessorCalendar.calendar, bound) : bound;
+  return {start, finish: addWorkingHours(
+    predecessorCalendar.calendar, start, predecessorDurationHours,
+  )};
 }
 
 function fixedCompletedDates(
@@ -362,7 +334,9 @@ export function calculateCpm(
   // independent execution task. Keep exclusions explicit for every consumer.
   const population=activityPopulation(sourceModel,'execution_control');
   const excludedIds=new Set(population.excluded.map(a=>a.activityId));
-  const model:CanonicalScheduleModel={...sourceModel,activities:population.activities,
+  // With no exclusions this is the same topology already analysed by other
+  // schedule views. Preserve its identity for the input-validated graph cache.
+  const model:CanonicalScheduleModel=excludedIds.size===0?sourceModel:{...sourceModel,activities:population.activities,
     relationships:sourceModel.relationships.filter(r=>!excludedIds.has(r.predecessorActivityId)&&!excludedIds.has(r.successorActivityId))};
   const config = mergeConfig(input);
   const graph = analyzeScheduleGraph(model);
@@ -526,7 +500,7 @@ export function calculateCpm(
       calculationMode:
         "elapsed_time_fallback",
       relationshipLagCalendarMethod:
-        "successor_calendar_forward_predecessor_calendar_backward",
+        "successor_calendar_forward_and_backward",
       projectStartIso:
         isoInstant(anchor),
       projectFinishIso: null,
@@ -640,7 +614,7 @@ export function calculateCpm(
       continue;
     }
 
-    const candidates: Array<{relation:EffectiveRelationship;start:number}> = [];
+    const candidates: Array<{relation:EffectiveRelationship;start:number;finish:number|null}> = [];
 
     for (const relation of incoming.get(
       activityId,
@@ -661,7 +635,9 @@ export function calculateCpm(
         );
 
       if (candidate !== null) {
-        candidates.push({relation,start:candidate});
+        const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
+        candidates.push({relation,start:candidate,finish:finishAnchor===null?null:relation.lagHours===0?finishAnchor:
+          shiftByLag(context.calendar,finishAnchor,relation.lagHours)});
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
@@ -678,12 +654,16 @@ export function calculateCpm(
         startCandidate,
         0,
       );
-    const earlyFinish =
+    const workFinish =
       addWorkingHours(
         context.calendar.calendar,
         earlyStart,
         context.durationHours,
       );
+    // Subtracting work and adding it back can land on opposite sides of a
+    // nonworking gap. Retain the actual FF/SF finish bound as well as its
+    // translated start; the successor must never finish before that event.
+    const earlyFinish=candidates.reduce((finish,c)=>Math.max(finish,c.finish??finish),workFinish);
 
     forward.set(activityId, {
       earlyStartMs: earlyStart,
@@ -691,7 +671,7 @@ export function calculateCpm(
     });
     // Calendar normalization may make several links bind at the same start.
     // Retain every tie instead of selecting an arbitrary single predecessor.
-    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1).map(c=>c.relation));
+    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1||c.finish!==null&&Math.abs(c.finish-earlyFinish)<1).map(c=>c.relation));
 
     if (
       context.activity.status ===
@@ -762,6 +742,7 @@ export function calculateCpm(
     }
 
     const candidates: number[] = [];
+    const startBounds: number[] = [];
 
     for (const relation of outgoing.get(
       activityId,
@@ -771,7 +752,8 @@ export function calculateCpm(
           relation.successorActivityId,
         );
 
-      if (!successor) continue;
+      const successorCalendar=contexts.get(relation.successorActivityId)?.calendar;
+      if (!successor || !successorCalendar) continue;
 
       const candidate =
         backwardConstraintFinish(
@@ -779,32 +761,54 @@ export function calculateCpm(
           successor,
           context.durationHours,
           context.calendar,
+          successorCalendar,
         );
 
       if (candidate !== null) {
-        candidates.push(candidate);
+        let finishBound=candidate.finish;
+        // SS/SF constrain the predecessor start. If forward analysis already
+        // holds that activity's completion at the next chronological event
+        // across a zero-work gap (for example because of an incoming FF/SF
+        // finish constraint), deriving a work-finish from the start bound must
+        // not pull late finish back to the prior closing boundary. Preserve the
+        // held finish unless an explicit project/required finish is earlier.
+        if(candidate.start!==null&&early.earlyFinishMs!==null&&
+          early.earlyFinishMs<=latePassFinish&&finishBound<early.earlyFinishMs&&
+          workingHoursBetween(context.calendar.calendar,finishBound,early.earlyFinishMs)===0){
+          finishBound=early.earlyFinishMs;
+        }
+        candidates.push(finishBound);
+        if (candidate.start !== null) startBounds.push(candidate.start);
       }
     }
 
-    const lateFinishCandidate =
-      candidates.length > 0
-        ? candidates.reduce((a,b)=>Math.min(a,b),Infinity)
-        : previousWorkingInstant(
-            context.calendar.calendar,
-            latePassFinish,
-          );
+    // Every execution task must finish by the project finish target, including
+    // predecessors of SS/SF links whose successors may finish before them.
+    // Otherwise a long predecessor can receive positive float even though it
+    // determines project completion, and disappear from the critical list.
+    const projectFinishBound = latePassFinish;
+    const lateFinishCandidate = candidates.reduce(
+      (latest,candidate)=>Math.min(latest,candidate),
+      projectFinishBound,
+    );
 
-    const lateFinish =
+    const normalizedLateFinish =
       previousWorkingInstant(
         context.calendar.calendar,
         lateFinishCandidate,
       );
-    const lateStart =
-      subtractWorkingHours(
+    // A relationship may hold completion to the next work opening without
+    // adding working duration. Keep that valid endpoint when the late bound
+    // permits it; never push it past an earlier required finish target.
+    const lateFinish=early.earlyFinishMs!==null&&early.earlyFinishMs<=lateFinishCandidate&&
+      early.earlyFinishMs>normalizedLateFinish&&workingHoursBetween(context.calendar.calendar,normalizedLateFinish,early.earlyFinishMs)===0
+      ?early.earlyFinishMs:normalizedLateFinish;
+    const durationStart = subtractWorkingHours(
         context.calendar.calendar,
         lateFinish,
         context.durationHours,
       );
+    const lateStart = startBounds.reduce((latest, bound) => Math.min(latest, bound), durationStart);
 
     backward.set(activityId, {
       lateStartMs: lateStart,
@@ -1021,7 +1025,7 @@ export function calculateCpm(
       config.durationBasis,
     calculationMode,
     relationshipLagCalendarMethod:
-      "successor_calendar_forward_predecessor_calendar_backward",
+      "successor_calendar_forward_and_backward",
     projectStartIso:
       isoInstant(anchor),
     projectFinishIso:

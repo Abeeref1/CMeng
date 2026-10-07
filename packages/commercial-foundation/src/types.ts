@@ -26,6 +26,8 @@ export interface CommercialFindingCoverage {
 }
 
 export interface CommercialFinding<T> {
+  /** A later lifecycle stage has no current value until that stage is reached. */
+  applicability?: 'applicable' | 'stage_not_reached';
   /** Calculation validity does not certify reconciliation to other sources. */
   validationScope?: 'arithmetic_only';
   /** Scope of the underlying event; a retained future value is not missing evidence. */
@@ -251,6 +253,7 @@ export interface CommercialTermsProjection {
   noticePeriodDays: CommercialFinding<number>;
   performanceBondRequirement: CommercialFinding<string>;
   advancePaymentBondRequirement: CommercialFinding<string>;
+  advancePaymentPercent?: CommercialFinding<number>;
   insuranceRequirements: CommercialClauseRecord[];
   hierarchyAndPrecedenceClauses: CommercialClauseRecord[];
   clauses: CommercialClauseRecord[];

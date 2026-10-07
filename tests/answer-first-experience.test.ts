@@ -52,7 +52,7 @@ test('every analytical page renders its available answer before review and sourc
  for(const descriptor of moduleRegistry.filter(m=>m.area!=='delivery'&&m.key!=='source-quality'&&m.key!=='challenge-contract')){
   const nodes=new Map<string,any>();const el=(id:string)=>{if(!nodes.has(id))nodes.set(id,{style:{},classList:{remove(){}},innerHTML:''});return nodes.get(id);};
   const ctx:any={el,names:{[descriptor.key]:descriptor.title},descriptions:{},managementSurfaceKeysForApi:new Set(['master-dashboard','command-center','master-control-programme']),selectedRoleView:'overall',roleViews:{overall:{label:'Overall'}},appView:'project',renderRoleViewSelector(){},renderDelivery:()=>false,renderPositionVerdict:()=>'<p>ADMINISTRATION</p>',renderModuleBasis:()=>'<div class="module-basis">REPORTING-DATE</div>',renderRegisterScope:()=>'<p>POPULATION-DETAIL</p>',renderUniversalChallenge:()=>'',renderSpecializedModule:()=>'<section>PROJECT-ANSWER</section>',scalarPairs:()=>[],renderStructuredSections:()=>'',renderBasisReviews:()=>'<p>SOURCE-REVIEW</p>',findProjectionRoot:(d:any)=>d,renderClaimsReporting:()=>'',renderRoleContent:(_k:any,_d:any,v:string)=>v,experienceDisclosure:(_t:string,b:string)=>'<details>'+b+'</details>',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',userFacingModuleReason:()=>'',escapeHtml:String,formatDocumentTime:String};
-  runInNewContext(functions(['progressBreakdownSystemFailures','renderModuleResultBody']),ctx);ctx.renderModuleResultBody({key:descriptor.key,status:'partial',data:{}});
+  runInNewContext(functions(['progressBreakdownSystemFailures','renderActivityFloatReconciliation','renderModuleResultBody']),ctx);ctx.renderModuleResultBody({key:descriptor.key,status:'partial',data:{}});
   const html=el('moduleContent').innerHTML;assert.ok(html.indexOf('PROJECT-ANSWER')>=0,descriptor.key);if(descriptor.key==='progress-breakdown'){assert.ok(!html.includes('ADMINISTRATION'),descriptor.key);assert.ok(!html.includes('SOURCE-REVIEW'),descriptor.key);}else{assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('ADMINISTRATION'),descriptor.key);assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('SOURCE-REVIEW'),descriptor.key);}
  }
 });
@@ -79,7 +79,7 @@ test('Progress Breakdown renders the answer without generic gap, review or confi
   experienceReviewSummary:()=>'<p>CONFIRM FIGURE TO COMPARE</p>',renderModuleReadiness:()=>'<p>CONFIRM SCHEDULE</p>',
   userFacingModuleReason:()=>'',escapeHtml:String,fmt:String,readerIssue:(i:any)=>({title:i.summary||'',action:i.action||''}),readerText:String
  };
- runInNewContext(functions(['progressBreakdownSystemFailures','renderModuleResultBody']),ctx);
+ runInNewContext(functions(['progressBreakdownSystemFailures','renderActivityFloatReconciliation','renderModuleResultBody']),ctx);
  ctx.renderModuleResultBody({key:'progress-breakdown',status:'partial',data:{projectionKey:'progress_breakdown',issueAssessment:{counts:{system_defect:0},issues:[]},challenge:{reconciliationState:'not_reconciled',items:[{metric:'progress'}]}}});
  const html=nodes.moduleContent.innerHTML;
  assert.match(html,/FILTERED PROGRESS BREAKDOWN/);

@@ -42,6 +42,7 @@ export interface PaymentStageRecord {
   paymentDate: string | null;
   paymentTimestamp: string | null;
   retentionReleaseDate: string | null;
+  retentionReleaseDueDate?: string | null;
   finalReceiptDate: string | null;
   paymentReference: string | null;
 }
@@ -187,6 +188,25 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  for(const t of tables){
+  if((has(t,'as of')||has(t,'period end')||has(t,'date'))&&has(t,'pv','ev','ac'))for(const r of t.rows){
+   const asOf=dateValue(cell(r,'as of','period end','date'));
+   const currency=cell(r,'currency','unit')||inheritedCurrency;
+   for(const metricName of ['pv','ev','ac','bac','eac','etc','sv','cv']){
+    if(!t.headers.includes(canonicalHeader(metricName)))continue;
+    const value=cell(r,metricName);
+    if(numberValue(value)===null)continue;
+    costMetrics.push({
+     metric:metricName,
+     amount:money(r,value,'wide EVM history '+metricName,currency,asOf),
+     sourceStatus:cell(r,'status'),
+     cbsId:cell(r,'cbs','cbs id','cost code')||null,
+     cbsDescription:cell(r,'cbs description','cost code description','description')||null,
+     parentCbsId:cell(r,'parent cbs','parent cbs id','parent cost code')||null,
+     wbsId:cell(r,'wbs','wbs id','wbs code')||null,
+     counterparty:null,boqItemId:null,paymentId:null,
+    });
+   }
+  }
   if(has(t,'metric','value','as of')&&(has(t,'unit')||has(t,'currency')))for(const r of t.rows){
    const currencies=[cell(r,'currency'),cell(r,'unit')].filter(v=>/^[A-Z]{3}$/.test(v));
    if(new Set(currencies).size>1){diagnostics.push('COST_ROW_CURRENCY_CONFLICT:'+r.receipt.documentId+':'+r.receipt.locator);continue;}
@@ -215,11 +235,16 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const amounts=Object.fromEntries(moneyNames.map(k=>[k,money(r,cell(r,...paymentHeaders[k]),k,currency,asOf)])) as PaymentStageRecord['amounts'];
    if(!cell(r,'currency')&&currency) for(const a of Object.values(amounts)) a.receipts.push(...currencyReceipts.filter((v,i,all)=>all.findIndex(x=>x.documentId===v.documentId)===i));
    const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
+   const explicitCertifiedBasis=paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis'));
+   const explicitPaidBasis=paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis'));
+   const rawPaymentHeaders=new Set(t.intelligence.columns.map(column=>norm(column.rawHeader)));
+   const periodCertificateLayout=['gross work done period','gross work period','this period gross work']
+     .some(header=>rawPaymentHeaders.has(norm(header)));
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,
-    certifiedAmountBasis:paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis')),
-    paidAmountBasis:paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis')),
+    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout?'incremental':'unknown',
+    paidAmountBasis:explicitPaidBasis!=='unknown'?explicitPaidBasis:periodCertificateLayout&&has(t,'paid amount')?'incremental':'unknown',
     periodEnd:asOf,
     sourceStatus:cell(r,'status'),
     applicationDate:dateValue(cell(r,'application date','submission date')),
@@ -229,13 +254,19 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     paymentDueDate:dateValue(cell(r,'payment due date','due date')),
     paymentTimestamp:cell(r,'payment timestamp','paid timestamp')||null,
     retentionReleaseDate:dateValue(cell(r,'retention release date')),
+    retentionReleaseDueDate:dateValue(cell(r,'retention release due date','retention due date')),
     finalReceiptDate:dateValue(cell(r,'final receipt date')),
     amounts,
     receipt:r.receipt,
     ...reconciliation
    });
   }
-  if(has(t,'variation id','status'))for(const r of t.rows){
+  // A related variation ID on an instruction is a relationship, not a second
+  // variation record. Require variation-specific monetary/lifecycle columns.
+  const variationShape=['approved amount','claimed amount','submitted amount','assessed amount','agreed amount',
+    'approval date','submitted date','assessment date','agreed date'].some(label=>t.headers.includes(canonicalHeader(label)));
+  const instructionIdentity=['instruction id','site instruction id','si id'].some(label=>t.headers.includes(canonicalHeader(label)));
+  if((variationShape||!instructionIdentity)&&has(t,'variation id','status'))for(const r of t.rows){
    const approvedHeader=amountHeader(t.headers,'approved amount');
    const agreedHeader=amountHeader(t.headers,'agreed amount');
    const assessedHeader=amountHeader(t.headers,'assessed amount');
@@ -269,7 +300,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   }
   const hasInstructionIdentity=t.headers.includes(norm('instruction id'))||t.headers.includes(norm('site instruction id'))||t.headers.includes(norm('si id'));
   const hasInstructionRegisterShape=t.headers.includes(norm('issue date'))||t.headers.includes(norm('quotation due date'))||t.headers.includes(norm('instruction description'));
-  if(hasInstructionIdentity&&hasInstructionRegisterShape&&t.headers.includes(norm('status')))for(const r of t.rows){
+  if(hasInstructionIdentity&&hasInstructionRegisterShape)for(const r of t.rows){
    const estimateHeader=amountHeader(t.headers,'estimated amount','instruction amount','quotation amount');
    const issueDate=dateValue(cell(r,'issue date','instruction date','site instruction date','si date'));
    siteInstructions.push({
@@ -304,7 +335,25 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if(has(t,'obligation id','status'))for(const r of t.rows){
+  if(has(t,'bond id','bond type','status')&&!has(t,'policy id'))for(const r of t.rows){
+   const instrument=cell(r,'bond type');
+   if(!/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+cell(r,'bond id')))continue;
+   const coverageHeader=amountHeader(t.headers,'coverage amount','insured amount','policy limit','bond amount','guarantee amount','amount');
+   const inceptionDate=dateValue(cell(r,'inception date','start date','effective date','valid from'));
+   const expiryDate=dateValue(cell(r,'expiry date','expiration date','valid until'));
+   insurances.push({
+    policyId:cell(r,'bond id'),
+    kind:instrument||'Insurance policy',
+    insurer:cell(r,'insurer','insurance company','issuer')||null,
+    status:cell(r,'status'),
+    inceptionDate,
+    expiryDate,
+    coverageAmount:moneyFromHeader(r,coverageHeader,'insurance coverage from combined security register',cell(r,'currency')||inheritedCurrency,inceptionDate??expiryDate),
+    sourceRequirement:cell(r,'contract requirement','clause','clause reference')||null,
+    receipt:r.receipt
+   });
+  }
+  if(t.headers.includes(canonicalHeader('obligation id')))for(const r of t.rows){
    obligations.push({
     obligationId:cell(r,'obligation id'),
     clauseIdentifier:cell(r,'clause','clause identifier','clause reference')||null,
@@ -317,8 +366,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if(has(t,'retention id','status'))for(const r of t.rows){
-   const amountH=amountHeader(t.headers,'retention amount','amount');
+  if(t.headers.includes(canonicalHeader('retention id')))for(const r of t.rows){
+   const amountH=amountHeader(t.headers,'retention amount','held amount','amount');
    const dueDate=dateValue(cell(r,'due date','release due date'));
    retentions.push({
     retentionId:cell(r,'retention id'),

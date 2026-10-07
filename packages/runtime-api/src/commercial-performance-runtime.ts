@@ -84,10 +84,14 @@ export function performancePaymentFromCanonical(
       paid.currency,
     certifiedAmount:
       employerCertified.value,
+    certifiedState: employerCertified.state,
     certifiedAmountBasis:
       row.certifiedAmountBasis,
     paidAmount:
       paid.value,
+    paidState: paid.state,
+    paidCurrency: paid.currency,
+    paidTaxBasis: paid.taxBasis,
     paidAmountBasis:
       row.paidAmountBasis,
     sourceRefs: [

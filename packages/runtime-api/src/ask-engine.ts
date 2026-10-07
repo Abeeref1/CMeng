@@ -123,7 +123,7 @@ function plainAskNeed(value:string){
   if(/lead time|manufacturing duration|latest order/i.test(text))return 'Confirmed supplier or approved lead-time evidence would replace planning assumptions and allow firm latest-order dates.';
   if(/procurement|ordered|delivered|supplier|manufactur/i.test(text))return 'A current procurement/material register would add actual ordered, manufacturing and delivery status.';
   if(/installed|measured quantities|quantity progress|physical progress/i.test(text))return 'Dated measured or installed quantities would add actual quantity completion and installation progress.';
-  if(/PV|EV|AC|CPI|SPI|earned value/i.test(text))return 'Time-phased PV, EV and AC would add formal EVM performance measures such as SPI and CPI.';
+  if(/\b(?:PV|EV|AC|CPI|SPI)\b|earned value/i.test(text))return 'Time-phased PV, EV and AC would add formal EVM performance measures such as SPI and CPI.';
   if(/resource|manpower|labou?r|capacity/i.test(text))return 'Dated manpower/resource usage and capacity would add independent resource and manpower analysis.';
   if(/risk/i.test(text))return 'A dated risk register would add the Project’s confirmed risk status and ownership.';
   if(/location|zone|floor|tower|building|workfront/i.test(text))return 'A confirmed location/workfront mapping would strengthen location-based analysis where the source wording is ambiguous.';

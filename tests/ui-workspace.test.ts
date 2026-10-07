@@ -1097,3 +1097,33 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "embedded browser script must parse",
   );
 });
+
+
+test("Portfolio attention excludes system checking/updating but keeps real review states", () => {
+  const html = cmengUatHtml();
+  assert.equal(
+    html.includes('function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}'),
+    true,
+    "portfolio attention must retain needs-information, needs-review and real management actions",
+  );
+  assert.equal(
+    html.includes('p.positionState!=="current"||(p.managementActionCount||0)>0'),
+    false,
+    "checking/updating must not be counted as management attention merely because they are not current",
+  );
+});
+
+
+test("Portfolio labels needs-information distinctly and bounds release recheck polling", () => {
+  const html=cmengUatHtml();
+  assert.equal(
+    html.includes('if(p.positionState==="needs_information")return["missing","Needs information"];'),
+    true,
+    "needs_information must not fall through to an unrelated missing-project-records label",
+  );
+  assert.equal(html.includes('return["missing","Needs project records"];'),false);
+  assert.equal(html.includes("const updateDeadline=Date.now()+60000;"),true);
+  assert.equal(html.includes("let loadedEvidenceWhileUpdating=false;"),true);
+  assert.equal(html.includes("setTimeout(resolve,5000)"),true);
+  assert.equal(html.includes("Automatic waiting stopped after one minute so the browser remains usable."),true);
+});

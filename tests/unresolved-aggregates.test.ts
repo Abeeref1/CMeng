@@ -76,7 +76,7 @@ test('unreadable BOQ ingestion never establishes an empty quantity population', 
   const boq=await ingestBoq({projectId:'P',bytes:Buffer.from('Month,Item,Installed Quantity\n2031-01,A,5'),verifiedMediaType:'text/csv',receivedAt:'2031-01-01',sourceFilename:'measurements.csv'});
   assert.equal(boq.canonicalItems.length,0);
   assert.equal(boq.complete,false);
-  assert.ok(boq.diagnostics.includes('BOQ_CSV_DESCRIPTION_COLUMN_MISSING'));
+  assert.ok(boq.diagnostics.includes('BOQ_CSV_HEADER_NOT_FOUND'),'a measurement register must fail before BOQ row semantics when no BOQ header can be established');
   const stale={projectId:'P',boqRevisionId:boq.evidenceReceipt.revisionId,scheduleRevisionId:'S',items:[],allocations:[],installedSnapshots:[],diagnostics:[]};
   const state:any={boq,boqRevisions:[boq],quantities:stale,evidenceDocuments:[{documentId:'D',documentType:'boq',basisState:'active',linkedArtifactId:boq.ingestionId,sourceFilename:'measurements.csv',mediaType:'text/csv',assertions:[]}]};
   const result=resolveBoqSource(state,'S');
@@ -134,10 +134,11 @@ test('actual Activity Review renderer withholds incomplete headline counts, incl
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
   const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderActivityAnalyticsVisual')!.getText(source);
+  const floatReview=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='activityFloatReviewHtml')!.getText(source);
   const model=schedule();model.activities[1].calendarId='UNREADABLE';model.activities[1].baselineFinishIso=null;
   const data=buildActivityAnalyticsProjection(model,options);
   const kpis:any[]=[];
-  runInNewContext(fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
+  runInNewContext(floatReview+'\n'+fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
     planningKpis:(rows:any[])=>{kpis.push(...rows);return '';},escapeHtml:String,fmt:(v:any)=>v==null?'Unresolved':String(v),humanizeKey:String,
     planningActivityPressure:()=>'',renderVisualPanel:()=>'',renderDonutChart:()=>'',planningStatusBand:()=>'',planningStateLabel:String,
     distributionSummary:()=>'',planningShortDate:String,planningSignedBars:()=>'',renderMovementConcentration:()=>'',planningProgressTrack:()=>'',renderScheduleBasisReview:()=>'',

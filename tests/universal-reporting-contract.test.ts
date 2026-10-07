@@ -22,6 +22,7 @@ import {createCmengServer} from '../packages/runtime-api/src/server';
 import type {AddressInfo} from 'node:net';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
+import {deliveryPages} from '../packages/delivery-core/src/registry';
 
 let sequence=0;
 function fixture(t:{after(fn:()=>void):unknown}) {
@@ -76,6 +77,33 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
  state.schedules[0]!.revision.model.dataDateIso='2031-04-16';state.version++;
  assert.equal(directorForProject(state.projectId)!.controls.openCriticalMajorNcrCount,2);
  assert.equal(operationalReporting(state).quality.current.find(r=>r.ncrId==='N1')!.status,'closed');
+});
+
+test('Actions required carries the same shared project truth contract as the other management pages',t=>{
+ const {state}=fixture(t);
+ const dashboard=moduleForProject(state.projectId,'master-dashboard').data as any;
+ const actions=moduleForProject(state.projectId,'source-quality').data as any;
+ assert.ok(actions.reportingContract,'Actions required must expose the shared reporting contract');
+ assert.equal(actions.reportingContract.dataDateIso,dashboard.reportingContract.dataDateIso);
+ assert.equal(actions.reportingContract.projectVersion,dashboard.reportingContract.projectVersion);
+ assert.equal(actions.reportingContract.programmeRevisionId,dashboard.reportingContract.programmeRevisionId);
+ assert.deepEqual(actions.reportingContract.programmeAuthority,dashboard.reportingContract.programmeAuthority);
+ assert.deepEqual(actions.reportingContract.populations.source_records,dashboard.reportingContract.populations.source_records);
+ assert.equal(actions.scheduleAuthorityReview.currentRevisionId,dashboard.scheduleAuthorityReview.currentRevisionId);
+});
+
+test('every registered Delivery page carries the same shared reporting truth',t=>{
+ const {state}=fixture(t);
+ const reference=(moduleForProject(state.projectId,'master-dashboard').data as any).reportingContract;
+ for(const [key] of deliveryPages){
+  const result=moduleForProject(state.projectId,key),data=result.data as any;
+  assert.ok(data?.reportingContract,key+' must carry the shared reporting contract');
+  assert.equal(data.reportingContract.dataDateIso,reference.dataDateIso,key);
+  assert.equal(data.reportingContract.projectVersion,reference.projectVersion,key);
+  assert.equal(data.reportingContract.programmeRevisionId,reference.programmeRevisionId,key);
+  assert.deepEqual(data.reportingContract.programmeAuthority,reference.programmeAuthority,key);
+  assert.deepEqual(data.reportingContract.populations.source_records,reference.populations.source_records,key);
+ }
 });
 
 test('undated or malformed operational records do not create a zero current result',t=>{
@@ -468,6 +496,42 @@ test('one overdue activity has the same exception on dashboard, command center a
  for(const key of ['master-dashboard','command-center']){
   const d=moduleForProject(state.projectId,key).data as any;
   assert.equal(d.deliveryExceptions.overdueActivityCount,1);assert.equal(d.deliveryExceptions.actions.find((r:any)=>r.type==='Activity').recordId,'WORK');
+ }
+});
+
+test('ten fresh projects preserve missed-start versus overdue-finish dates in management actions',t=>{
+ const seed=process.env.CMENG_MANAGEMENT_OVERDUE_SEED?.trim()||randomUUID();process.stdout.write('\nCMENG_MANAGEMENT_OVERDUE_SEED='+seed+'\n');
+ for(let i=0;i<10;i++){
+  const {state,model}=fixture(t),bytes=createHash('sha256').update(seed+':'+i).digest();
+  const lateStart=1+bytes[0]!%60,lateFinish=1+bytes[1]!%20,futureFinish=1+bytes[2]!%240;
+  const date=(days:number)=>new Date(Date.UTC(2031,3,15+days)).toISOString().slice(0,10);
+  const base=model.activities[0]!;
+  model.activities=[
+   {...base,activityId:'START',name:'Start missed; finish is future',currentStartIso:date(-lateStart),currentFinishIso:date(futureFinish)},
+   {...base,activityId:'FINISH',name:'Started; finish missed',status:'in_progress',percentComplete:50,actualStartIso:date(-lateStart-lateFinish),currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'BOTH',name:'Start and finish missed',currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'FUTURE',name:'Future work',currentStartIso:date(1),currentFinishIso:date(futureFinish+1)},
+   {...base,activityId:'DONE',name:'Completed work',status:'completed',percentComplete:100,actualStartIso:date(-20),actualFinishIso:date(-10),currentStartIso:date(-20),currentFinishIso:date(-10)},
+  ];state.version++;
+  const checkedPages=new Map(['lookahead-schedule','master-dashboard','command-center'].map(key=>[key,moduleForProject(state.projectId,key)]));
+  const look=checkedPages.get('lookahead-schedule')!.data as any;
+  assert.equal(look.overdueCount,2,'finish-only count excludes the missed-start-only row');
+  assert.equal(look.overdueBacklogCount,3,'backlog includes the union of missed starts and finishes');
+  assert.equal(checkPageValues(checkedPages).find(c=>c.metric==='Overdue activity exceptions')?.state,'passed');
+  const corrupted=structuredClone(checkedPages);(corrupted.get('master-dashboard')!.data as any).deliveryExceptions.overdueActivityCount=2;
+  assert.equal(checkPageValues(corrupted).find(c=>c.metric==='Overdue activity exceptions')?.state,'failed','a real missing backlog action must still fail');
+  for(const key of ['master-dashboard','command-center']){
+   const data=moduleForProject(state.projectId,key).data as any;
+   const rows=data.deliveryExceptions.actions.filter((r:any)=>r.type==='Activity');
+   assert.deepEqual(rows.map((r:any)=>r.recordId).sort(),['BOTH','FINISH','START'],key+' / '+i);
+   const start=rows.find((r:any)=>r.recordId==='START'),finish=rows.find((r:any)=>r.recordId==='FINISH'),both=rows.find((r:any)=>r.recordId==='BOTH');
+   assert.equal(start.dueIso,date(-lateStart),key+' missed start must use its start date');
+   assert.equal(start.overdueDays,lateStart);assert.match(start.action,/missed start/i);
+   assert.equal(finish.dueIso,date(-lateFinish));assert.equal(finish.overdueDays,lateFinish);assert.match(finish.action,/overdue finish/i);
+   assert.equal(both.dueIso,date(-lateFinish));assert.equal(both.overdueDays,lateFinish);assert.match(both.action,/start and finish/i);
+   assert.ok(rows.every((r:any)=>r.overdueDays>=0));
+   assert.equal(data.deliveryExceptions.overdueActivityCount,3);
+  }
  }
 });
 

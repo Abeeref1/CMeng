@@ -78,6 +78,15 @@ try{
     const beforeDigest=createHash("sha256").update(JSON.stringify((before.documents??[]).map(d=>[d.documentId,d.sourceHashSha256]).sort())).digest("hex");
     const overview=(await json(prefix+"/overview")).body;
     const expectedDate=overview.latestDataDateIso??null;
+    let projectFactsDigest=null;
+    const checkProjectFacts=(body,label)=>{
+      const facts=body?.data?.projectFacts;
+      check(label+": canonical project facts attached",facts&&facts.projectId===id&&facts.projectVersion===overview.version,id);
+      if(!facts)return;
+      const current=digest(facts);
+      if(projectFactsDigest===null)projectFactsDigest=current;
+      else check(label+": canonical project facts equal every other page",current===projectFactsDigest,id);
+    };
 
     const t0=Date.now();
     const dash=await json(prefix+"/management/master-dashboard",[200,409]);
@@ -91,6 +100,7 @@ try{
       projectSummary.pageCount++;
       const body=page.body;
       check(key+": page returns a governed result",body&&typeof body==="object"&&typeof body.status==="string",id,"status="+page.status);
+      checkProjectFacts(body,key);
       check(key+": no non-finite JSON marker",!/NaN|Infinity/.test(JSON.stringify(body)),id);
       const foreign=[...new Set(governedProjectionProjectIds(body))].filter(x=>x!==id);
       check(key+": no structured cross-project contamination",foreign.length===0,id,foreign.join(","));
@@ -115,6 +125,7 @@ try{
       projectSummary.pageCount++;
       managementViews.set(key,page.body);
       check(key+": management page returns a governed result",page.body&&typeof page.body==="object"&&typeof page.body.status==="string",id);
+      checkProjectFacts(page.body,key);
       check(key+": no non-finite JSON marker",!/NaN|Infinity/.test(JSON.stringify(page.body)),id);
       const foreign=[...new Set(governedProjectionProjectIds(page.body))].filter(x=>x!==id);
       check(key+": no structured cross-project contamination",foreign.length===0,id,foreign.join(","));

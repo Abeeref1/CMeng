@@ -1,4 +1,8 @@
+import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
+import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {phaseProgrammePosition} from './phase-programmes';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
@@ -108,6 +112,7 @@ import {
 import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
+import {projectFactsForState} from "./project-facts";
 
 const advancedControlKeys=new Set([
   'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
@@ -118,13 +123,19 @@ const advancedControlKeys=new Set([
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
     const schemaDiagnostics: string[] = [];
-    const schemaByDocument =
-      new Map(
-        sourceTables(
+    const parsedTables = sourceTables(
           state.evidenceDocuments,
           schemaDiagnostics,
           {includeHistorical: true},
-        ).map((table) => [
+        );
+    const tablesByDocument = new Map<string, typeof parsedTables>();
+    for (const table of parsedTables) {
+      const tables = tablesByDocument.get(table.document.documentId) ?? [];
+      tables.push(table);
+      tablesByDocument.set(table.document.documentId, tables);
+    }
+    const schemaByDocument =
+      new Map(parsedTables.map((table) => [
           table.document.documentId,
             table,
         ]),
@@ -144,11 +155,23 @@ export function projectDocumentRegister(projectId:string){
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
             classificationReview: documentClassificationForReview(document),
-            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
+            readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,
               )?.headers ?? [],
+            columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
+              const ignored=new Set(table.recognition?.unknown??[]);
+              const physical=table.intelligence.columns.map(column=>column.rawHeader);
+              return {
+                table:index+1,
+                headerRow:table.recognition?.headerRow??table.intelligence.headerRow,
+                mappedColumns:physical.filter(header=>header&&!ignored.has(header)),
+                ignoredColumns:physical.filter(header=>!header||ignored.has(header)),
+                canonicalColumns:[...table.headers],
+                recognitionState:table.recognition?.recognized===true?'recognized':'review_required',
+              };
+            }),
           })),
     };
 
@@ -429,6 +452,29 @@ function header(
     : null;
 }
 
+function decodedUploadHeader(
+  req: IncomingMessage,
+  encodedName: string,
+  legacyName: string,
+): string | null {
+  const encoded=header(req,encodedName);
+  if(encoded!==null){
+    try{return decodeURIComponent(encoded);}
+    catch{
+      const error=Object.assign(new Error("UPLOAD_HEADER_ENCODING_INVALID:"+encodedName),{statusCode:400});
+      throw error;
+    }
+  }
+  return header(req,legacyName);
+}
+
+function sourceFilenameHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-filename-encoded","x-source-filename");
+}
+function sourceRelativePathHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-relative-path-encoded","x-source-relative-path");
+}
+
 async function readJsonBody<T>(
   req: IncomingMessage,
 ): Promise<T> {
@@ -618,6 +664,12 @@ async function route(
               state,
             );
 
+          const projectFacts=projectFactsForState(state);
+          const commandCenter=moduleForProject(projectId,"command-center").data as any;
+          const canonicalManagementActions=Array.isArray(commandCenter?.actions)
+            ?commandCenter.actions
+            :[];
+
           const minimumEvidenceReady =
             programmeSchedules.length >
               0 &&
@@ -696,19 +748,21 @@ async function route(
             calendarRecalculationIso:
               forecastPosition.calendarRecalculationIso,
             officialCompletionIso:
-              director?.schedule
-                .contractualCompletionIso ??
-              null,
-            contractualCompletionState: commercialPosition.foundation.commercialTerms.contractualCompletionDate.state,
-            furtherAdjustedCompletionIso: director?.schedule.officialAdjustedCompletionIso ?? null,
+              projectFacts.time.contractualCompletionIso.value,
+            contractualCompletionState:
+              projectFacts.time.contractualCompletionIso.value===null
+                ?"missing"
+                :projectFacts.time.contractualCompletionIso.complete
+                  ?"established"
+                  :"candidate",
+            furtherAdjustedCompletionIso:
+              projectFacts.time.extendedContractCompletionIso.value,
             programmeMovementDays:
               windowsData
                 ?.projectCompletionMovementDays ??
               null,
             approvedEotDays:
-              director?.claims
-                .officialApprovedEotDays ??
-              null,
+              projectFacts.time.awardedEotDays.value,
             approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
             claimCount:
               director?.claims
@@ -719,18 +773,13 @@ async function route(
                 .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              director
-                ? director
-                    .managementActions
-                    .length
-                : null,
+              canonicalManagementActions.length,
             managementActions:
-              director
-                ?.managementActions ??
-              [],
+              canonicalManagementActions.map((action:any)=>
+                [action.issue,action.requiredAction].filter(Boolean).join(" — ")
+              ),
             commercialCurrencyCount:
-              commercialPosition
-                .currencies.length,
+              projectFacts.commercial.currencies.length,
             analysisError: null,
           };
         })
@@ -1138,15 +1187,9 @@ async function route(
     const intent =
       uploadIntent(req);
     const filename =
-      header(
-        req,
-        "x-source-filename",
-      ) ?? "evidence";
+      sourceFilenameHeader(req) ?? "evidence";
     const relativePath =
-      header(
-        req,
-        "x-source-relative-path",
-      ) ?? filename;
+      sourceRelativePathHeader(req) ?? filename;
     const uploadId =
       header(
         req,
@@ -1524,6 +1567,7 @@ async function route(
                 intent,
               preidentified:
                 item.identification,
+              allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
             });
         results.push(result);
         processedCount += 1;
@@ -1694,6 +1738,7 @@ async function route(
             new Date().toISOString(),
           uploadIntent:
             intent,
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     await runtimeProjects.refreshDeferredPdfReads(projectId);
     await runtimeProjects.refreshSpreadsheetRegisters(projectId);
@@ -1889,6 +1934,50 @@ async function route(
     return;
   }
 
+  const boqPageMatch=/^\/api\/projects\/([^/]+)\/boq\/page-review$/.exec(url.pathname);
+  if(boqPageMatch){
+    const projectId=decodeURIComponent(boqPageMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'){json(res,200,boqPageReview(state));return;}
+      if(req.method==='POST'){const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqPage(projectId,input);invalidateProject(projectId);json(res,200,result);return;}
+      json(res,405,{error:'page_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'page_review_not_saved',message:error instanceof Error?error.message:String(error)});}
+    return;
+  }
+
+  const boqReviewMatch=/^\/api\/projects\/([^/]+)\/boq\/numeric-review(?:\/source\/([^/]+))?$/.exec(url.pathname);
+  if(boqReviewMatch){
+    const projectId=decodeURIComponent(boqReviewMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'&&boqReviewMatch[2]){
+        const ingestionId=decodeURIComponent(boqReviewMatch[2]),boq=reviewableBoqs(state).find(b=>b.ingestionId===ingestionId);
+        const document=boq&&state.evidenceDocuments.find(d=>d.sourceHashSha256===boq.sourceHashSha256&&(d.linkedArtifactId===ingestionId||d.boqTableRead?.ingestionId===ingestionId));
+        if(!document){json(res,404,{error:'original_source_not_available'});return;}
+        const bytes=readFileSync(document.storedPath);
+        if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('The retained source does not match its recorded identity.');
+        res.writeHead(200,{'Content-Type':document.mediaType,'Content-Length':bytes.length,'Content-Disposition':document.mediaType==='application/pdf'?'inline':'attachment','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});res.end(bytes);return;
+      }
+      if(req.method==='GET'){json(res,200,boqNumericReview(state));return;}
+      if(req.method==='POST'&&!boqReviewMatch[2]){
+        const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqNumericReadings(projectId,input);invalidateProject(projectId);json(res,200,result);return;
+      }
+      json(res,405,{error:'boq_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'boq_review_not_saved',message:error instanceof Error?error.message:String(error)});}
+    return;
+  }
+
+  const tableConfirmationMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/table-confirmations$/.exec(url.pathname);
+  if(req.method==='POST'&&tableConfirmationMatch){try{
+    const projectId=decodeURIComponent(tableConfirmationMatch[1]!),documentId=decodeURIComponent(tableConfirmationMatch[2]!);
+    const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+    const result=await runtimeProjects.confirmTableColumnMeaning(projectId,{...input,documentId});
+    invalidateProject(projectId);json(res,200,result);
+  }catch(error){json(res,409,{error:'table_column_confirmation_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
   const relationshipMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/relationship$/.exec(url.pathname);
   if(req.method==='POST'&&relationshipMatch){try{const projectId=decodeURIComponent(relationshipMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const effect=runtimeProjects.reviewEvidenceRelationship(projectId,{...input,documentId:decodeURIComponent(relationshipMatch[2]!)});invalidateProject(projectId);json(res,200,{projectId,effect});}catch(error){json(res,409,{error:'document_relationship_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
 
@@ -1901,7 +1990,7 @@ async function route(
     try{
       const phaseId=phaseMatch[2]?decodeURIComponent(phaseMatch[2]):null;
       if(req.method==='GET'){json(res,200,phaseId?phaseProgrammePosition(state,phaseId):{projectId,phases:(state.phaseProgrammes??[]).map(p=>phaseProgrammePosition(state,p.phaseId))});return;}
-      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:header(req,'x-source-filename'),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
+      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:sourceFilenameHeader(req),sourceRelativePath:sourceRelativePathHeader(req),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
       if(req.method==='POST'&&phaseId&&phaseMatch[4]){const effect=runtimeProjects.adoptSchedule(projectId,decodeURIComponent(phaseMatch[4]),phaseId);invalidateProject(projectId);json(res,200,{projectId,phaseId,effect,position:phaseProgrammePosition(state,phaseId)});return;}
       json(res,405,{error:'phase_action_not_supported'});return;
     }catch(error){json(res,409,{error:'phase_programme_not_completed',message:error instanceof Error?error.message:String(error)});return;}
@@ -1933,15 +2022,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             header(
               req,
@@ -2320,15 +2403,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             (header(
               req,
@@ -2343,6 +2420,7 @@ async function route(
             "other",
           uploadedAt:
             new Date().toISOString(),
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     invalidateProject(
       projectId,
@@ -2749,7 +2827,7 @@ async function route(
       receivedAt:
         new Date().toISOString(),
       sourceFilename:
-        header(req, "x-source-filename"),
+        sourceFilenameHeader(req),
       documentId:
         header(req, "x-document-id"),
       revisionId:
@@ -2769,10 +2847,7 @@ async function route(
     runtimeProjects.attachBoq(
       result,
       body,
-      header(
-        req,
-        "x-source-filename",
-      ),
+      sourceFilenameHeader(req),
     );
     invalidateProject(
       projectId,
@@ -2866,6 +2941,8 @@ async function route(
         "/api/projects/:projectId/evidence/documents/delete",
       evidenceDelete:
         "/api/projects/:projectId/evidence/documents/:documentId",
+      evidenceTableConfirmation:
+        "/api/projects/:projectId/evidence/documents/:documentId/table-confirmations",
       evidenceRerun:
         "/api/projects/:projectId/evidence/rerun",
       scheduleUpload:

@@ -1,5 +1,6 @@
-import {scenarioName,explicitScheduleDecision} from './schedule-authority';
+import {scenarioName,explicitScheduleDecision,submittedScheduleDecision,isScenarioRevision} from './schedule-authority';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
+import {csv,prepareRegisterRows} from '../../truth-kernel/src';
 import type {
   EvidenceBasisEffect,
   EvidenceBasisRecord,
@@ -24,6 +25,21 @@ function documentIdentifier(
   text: string,
   filename: string,
 ): string | null {
+  const controlIdentities:Record<string,[string,string[]]>={
+    site_instruction_register:['instruction',['instruction id','site instruction id','si id']],
+    contract_obligation_register:['obligation',['obligation id']],
+    retention_register:['retention',['retention id']],
+  };
+  const own=controlIdentities[documentType];
+  if(own){
+    const table=prepareRegisterRows(csv(text),documentType);
+    const column=table.headers.findIndex(header=>own[1].includes(header));
+    const ids=new Set(column<0?[]:table.rows.map(row=>row[column]?.trim()).filter(Boolean));
+    // A related VO/claim is not this register's identity. Several owning IDs
+    // describe a population, with no single document identifier established.
+    return ids.size===1?own[0]+':'+[...ids][0]!.normalize('NFKC').toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,''):null;
+  }
   const corpus =
     text + "\n" + filename;
   const patterns: Array<
@@ -300,6 +316,9 @@ export function evidenceFamily(
       "testing_commissioning_register",
       "cost_evm_report",
       "payment_certificates",
+      "retention_register",
+      "site_instruction_register",
+      "contract_obligation_register",
       "variation_register",
       "delay_eot_claims_register",
       "contractor_manpower_plan",
@@ -314,6 +333,7 @@ export function evidenceFamily(
       "productivity_work_package_register",
       "productivity_forecast_basis",
       "hse_report",
+      "mixed_register_workbook",
     ]);
 
   if (
@@ -686,7 +706,15 @@ export function applyEvidenceBasis(
   if (
     behavior ===
       "schedule_special" &&
-    (document.scheduleRole === "recovery" || document.scheduleRole === "scenario" || !document.scheduleRoleConfirmed&&scenarioName(document.sourceFilename))
+    (
+      document.scheduleRole === "recovery" ||
+      document.scheduleRole === "scenario" ||
+      (
+        !document.scheduleRoleConfirmed &&
+        !["baseline","revised_baseline","recovery"].includes(document.scheduleRole ?? "other") &&
+        scenarioName(document.sourceFilename)
+      )
+    )
   ) {
     document.basisState =
       "scenario";
@@ -827,17 +855,29 @@ export function applyEvidenceBasis(
     intent ===
     "replace_current_basis";
 
-  const missingScheduleDate=behavior==='schedule_special'&&!state.schedules.find(s=>s.revision.revisionId===document.linkedArtifactId)?.revision.model.dataDateIso;
+  const incomingSchedule=behavior==='schedule_special'?state.schedules.find(s=>s.revision.revisionId===document.linkedArtifactId):undefined;
+  const missingScheduleDate=behavior==='schedule_special'&&!incomingSchedule?.revision.model.dataDateIso;
   if(missingScheduleDate){promote=false;reason='Unresolved revision order: the programme has no internal Data Date.';}
   else if(behavior==='schedule_special'){
+    if(incomingSchedule?.role==='other'&&!isScenarioRevision(incomingSchedule)){
+      incomingSchedule.role='update';document.scheduleRole='update';document.documentType='schedule_update';
+    }
+    const formalBaseline=!!incomingSchedule&&['baseline','revised_baseline'].includes(incomingSchedule.role);
     if(replaceIntent)explicitScheduleDecision(document,document.scheduleAdoption?.recordedAt??document.uploadedAt);
-    const decision=document.scheduleAdoption;
+    let decision=document.scheduleAdoption;
     if(decision?.sourceHashSha256===document.sourceHashSha256&&decision.method==='explicit'){
-      promote=true;reason='Programme explicitly adopted as the active basis.';
+      promote=true;reason=formalBaseline?'Approved baseline programme explicitly adopted as the active basis.':'Programme explicitly selected as the current submitted basis.';
     }else if(decision?.sourceHashSha256===document.sourceHashSha256&&decision.method==='legacy_retained'){
       promote=!current||scheduleComparison(state,current,document).promote;
-      reason='Previous non-scenario source selection retained; explicit adoption remains to be confirmed.';
-    }else{promote=false;reason='Programme stored as a candidate. Select Adopt programme to establish the active basis; chronology alone does not grant authority.';}
+      reason='Previous non-scenario source selection retained as a submitted analytical basis; no approval is inferred.';
+    }else if(!formalBaseline&&incomingSchedule&&!isScenarioRevision(incomingSchedule)&&(!current||scheduleComparison(state,current,document).promote)){
+      submittedScheduleDecision(document,document.uploadedAt,current?'Later ordinary programme Data Date accepted as the current submitted analytical position. No contractual approval is inferred.':'First ordinary programme with an established Data Date accepted as the current submitted analytical position. No contractual approval is inferred.');
+      decision=document.scheduleAdoption;promote=true;
+      reason=current?'Later ordinary programme update becomes the current submitted analytical position.':'First ordinary programme becomes the current submitted analytical position.';
+    }else{
+      promote=false;
+      reason=formalBaseline?'Baseline or revised baseline retained as candidate until approval evidence and an explicit adoption decision are provided.':'Programme retained for review because it is not a later ordinary current update.';
+    }
   }
   else if (!current) {
     promote = true;

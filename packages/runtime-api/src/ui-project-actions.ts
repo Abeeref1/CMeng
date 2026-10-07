@@ -34,6 +34,7 @@ function programmePurposeOptions(current='update'){
 function actionResolutionHtml(a){
  const t=a.target||{},r=a.resolution||{};
  if(!r.requiresUserAction)return '';
+ if(t.type==='inline'&&t.kind==='boq-numeric-review')return '<div class="action-resolution"><button class="btn primary" data-boq-numeric-review>Review BOQ readings together</button><p>One saved review updates all affected views. Native values and previously confirmed readings are not requested again.</p></div>';
  if(t.type==='schedule'){
   if(t.needsPurpose)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the programme purpose and use it for reporting.')+'</p><div class="action-resolution-grid"><label>Programme purpose<select class="action-schedule-role">'+programmePurposeOptions(t.scheduleRole||'update')+'</select></label><label>Baseline approval reference<input type="text" class="action-schedule-approval" placeholder="Required only for approved baseline / revised baseline"></label></div><button class="btn primary" data-resolve-schedule="'+escapeHtml(a.id)+'">Confirm and use programme</button><p class="action-inline-message" role="status"></p></div>';
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm this programme for reporting.')+'</p><button class="btn primary" data-resolve-schedule="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Use this programme')+'</button><p class="action-inline-message" role="status"></p></div>';
@@ -141,6 +142,7 @@ async function openProjectActions(){
  await loadProjectActions();drawer.scrollIntoView({block:'start'});
 }
 function bindProjectActions(root){
+ root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
  root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));

@@ -1,7 +1,11 @@
 import type {ProjectRuntimeState,StoredEvidenceDocument,StoredScheduleRevision} from './project-state-types';
 
-export const scenarioName=(name:string)=>/\b(draft|scenario|what if|proposed|recovery)\b/i.test(name.normalize('NFKC').replace(/[_/\\.-]+/g,' '));
-export const isScenarioRevision=(revision:StoredScheduleRevision)=>revision.role==='recovery'||revision.role==='scenario'||!revision.roleConfirmed&&scenarioName(revision.sourceFilename??revision.revision.label??'');
+export const scenarioName=(name:string)=>/\b(draft|scenario|what\s*if|proposed|recovery|mitigation|acceleration)\b/i.test(name.normalize('NFKC').replace(/[_/\\.-]+/g,' '));
+export const isScenarioRevision=(revision:StoredScheduleRevision)=>{
+  if(revision.role==='recovery'||revision.role==='scenario')return true;
+  if(revision.role==='baseline'||revision.role==='revised_baseline')return false;
+  return !revision.roleConfirmed&&scenarioName(revision.sourceFilename??revision.revision.label??'');
+};
 export function isAdoptedProgrammeRevision(state:ProjectRuntimeState,revision:StoredScheduleRevision){
   if(isScenarioRevision(revision))return false;
   const documents=state.evidenceDocuments.filter(d=>d.category==='schedule'&&d.linkedArtifactId===revision.revision.revisionId);
@@ -20,17 +24,20 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
     if(!source)return [];
     const date=s.revision.model.dataDateIso?.slice(0,10)??null;
     const dateRelationship=!date?'date_missing':!dataDateIso?'no_current_programme':date>dataDateIso?'later':date===dataDateIso?'same':'earlier';
-    const adoptionBlocker=s.roleConfirmed&&['baseline','revised_baseline'].includes(s.role)&&!s.approvalReference?.trim()?'Review the programme purpose and enter its approval reference in Documents before adoption.':!date?'The programme Data Date must be established before adoption.':source.sourceHashSha256!==s.sourceHashSha256?'The programme and document source hashes do not agree. Review the source before adoption.':null;
+    const adoptionBlocker=['baseline','revised_baseline'].includes(s.role)&&!s.approvalReference?.trim()?'Confirm the baseline purpose and enter its approval reference in Documents before adoption.':!date?'The programme Data Date must be established before adoption.':source.sourceHashSha256!==s.sourceHashSha256?'The programme and document source hashes do not agree. Review the source before adoption.':null;
     return [{documentId:source.documentId,revisionId:s.revision.revisionId,sourceHashSha256:source.sourceHashSha256,
       filename:source.sourceFilename,dataDateIso:date,uploadedAt:source.uploadedAt,role:s.role,dateRelationship,
       canAdopt:adoptionBlocker===null,adoptionBlocker,
       actionPath:'/api/projects/'+encodeURIComponent(state.projectId)+'/schedule/revisions/'+encodeURIComponent(s.revision.revisionId)+'/adopt'}];
   });
+  const formalBaseline=!!revision&&['baseline','revised_baseline'].includes(revision.role)&&!!revision.approvalReference?.trim();
+  const submittedCurrent=validDecision&&(decision?.method==='submitted_update'||decision?.method==='legacy_retained');
+  const authority=!validDecision?'none':formalBaseline&&decision?.method==='explicit'?'official':'submitted';
   return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,
     documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
-    state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':'pending_review',
-    method:validDecision?decision?.method:null,
-    explanation:!revision?(pendingSchedules.length?'Programme uploaded and awaiting adoption. Review the programme below and select Adopt as current to enable programme-based reporting.':'Upload a programme, then review and adopt it to enable programme-based reporting.'):isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?'Current programme selected by an explicit adoption decision.':'CMeng is using '+(document?.sourceFilename??revision.sourceFilename??'the previously selected schedule')+' for reporting. Confirm in Documents that this is the schedule you want to use.',
+    state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':submittedCurrent?'submitted_current':'pending_review',
+    method:validDecision?decision?.method:null,authority,
+    explanation:!revision?(pendingSchedules.length?'Programme uploaded but no current analytical programme is established. Review the programme below.':'Upload a programme to establish the current analytical position.'):isScenarioRevision(revision)?'A draft or scenario cannot be the current programme.':validDecision&&decision?.method==='explicit'?(formalBaseline?'Approved baseline programme selected by explicit governance.':'Current submitted programme selected by an explicit decision.'):submittedCurrent?'CMeng is using '+(document?.sourceFilename??revision.sourceFilename??'the latest programme')+' as the current submitted analytical programme. This does not create baseline approval or contractual authority.':'The programme is retained for review and is not being used as the current analytical programme.',
   };
 }
 
@@ -59,4 +66,7 @@ export function migrateScheduleAuthority(state:ProjectRuntimeState,rebuild:(stat
 
 export function explicitScheduleDecision(document:StoredEvidenceDocument,recordedAt:string){
   document.scheduleAdoption={method:'explicit',sourceHashSha256:document.sourceHashSha256,recordedAt,note:'User explicitly selected this programme as the active basis.'};
+}
+export function submittedScheduleDecision(document:StoredEvidenceDocument,recordedAt:string,note='Latest ordinary programme update accepted as the current submitted analytical position. No contractual approval is inferred.'){
+  document.scheduleAdoption={method:'submitted_update',sourceHashSha256:document.sourceHashSha256,recordedAt,note};
 }

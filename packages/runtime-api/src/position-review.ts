@@ -26,11 +26,32 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(result.status==='blocked'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
   else if(result.key==='master-dashboard'){
     const metrics=d.metrics??[],get=(k:string)=>metrics.find((m:any)=>m.key===k)?.value;
-    const finish=get('submitted-programme-finish'),contract=get('contract-finish');
-    const days=typeof finish==='string'&&typeof contract==='string'?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
-    if(number(days)){rag=days>0?'red':'green';text=days>0?'Submitted completion is '+Math.round(days)+' calendar days late against the contract date.':'Submitted completion is within the contract date.';
-      nextAction=days>0?'Review the recovery plan. The packages driving the late completion have not yet been established.':'Monitor submitted completion against the contract date.';assignTo='Project Director';}
-    else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
+    const independent=get('independent-forecast-finish'),submitted=get('submitted-programme-finish'),contract=get('contract-finish');
+    const variance=(finish:unknown)=>typeof finish==='string'&&typeof contract==='string'
+      ?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
+    const independentDays=variance(independent),submittedDays=variance(submitted);
+    if(number(independentDays)){
+      rag=independentDays>0?'red':'green';
+      text=independentDays>0
+        ?'CMeng programme calendar recalculation is '+Math.round(independentDays)+' calendar days late against the contract date.'
+        :'CMeng programme calendar recalculation is within the contract date.';
+      nextAction=independentDays>0
+        ?'Review the forecast reconciliation and recovery plan against the packages driving the late completion.'
+        :'Monitor the published CMeng forecast against the contract date.';
+      assignTo='Project Director';
+    }else if(number(submittedDays)){
+      // A contractor-submitted date is useful source evidence, but it cannot
+      // produce a green CMeng management verdict while the independent
+      // management forecast is withheld or unavailable.
+      rag=submittedDays>0?'red':'amber';
+      text=submittedDays>0
+        ?'Submitted completion is '+Math.round(submittedDays)+' calendar days late against the contract date. CMeng management forecast is not yet publishable.'
+        :'Submitted completion is within the contract date, but CMeng management forecast is not yet publishable. This is a submitted position, not a confirmed management forecast.';
+      nextAction=submittedDays>0
+        ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
+        :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';
+      assignTo='Project Director';
+    }else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
   } else if(['notices-claims','commercial-claims-notices'].includes(result.key)) {
     // Use the assessed event population. Correspondence also includes determinations
     // and can contain several letters for one event; it is not an event counter.

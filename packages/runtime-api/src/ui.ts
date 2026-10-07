@@ -1,3 +1,4 @@
+import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
 import {askAiHtml,askAiStyles,askAiScript} from './ui-ask-ai';
@@ -10,6 +11,7 @@ import {moduleRegistry, titleForModule} from './registry';
 import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
+import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-review';
 import {basisReviewScript} from './ui-basis-review';
 import { experienceStyles, experienceScript } from './ui-experience';
 
@@ -226,6 +228,8 @@ ${projectDiagnosisStyles}
 ${askAiStyles}
 ${systemReviewStyles}
 ${projectActionsStyles}
+${boqNumericReviewStyles}
+${boqPageReviewStyles}
 .planning-missing-kpis{margin:10px 0 16px;border:1px solid #e3e9ef;border-radius:9px;background:#fbfcfe}.planning-missing-kpis>summary{padding:10px 12px;font-size:11.5px;color:#5c6e80}.planning-missing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;padding:10px 12px}.planning-missing-grid div{padding:8px 9px;border:1px solid #e7ecf1;border-radius:7px;background:#fff}.planning-missing-grid b{display:block;font-size:11px}.planning-missing-grid span{display:block;margin-top:3px;font-size:10.5px;color:#6b7a8a;line-height:1.4}
 .planning-kpi.unavailable strong{font-size:16px;font-weight:600;line-height:1.45}.planning-kpi.unavailable{background:#f8fafc}
 </style>
@@ -373,7 +377,7 @@ ${projectActionsStyles}
                   <div class="intent-control"><span>Document action</span><select id="boqIntent"><option value="add_update" selected>Add / update</option><option value="replace_current_basis">Replace current document</option></select></div>
                   <input type="file" id="boqFiles" multiple accept=".csv,.xlsx,.xlsm,.pdf">
                   <div id="boqQueue" class="queue"></div>
-                  <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button></div>
+                  <div class="upload-actions"><button class="btn small primary" id="uploadBoqs">Upload BOQ batch</button><button class="btn small" onclick="openBoqNumericReview()">Review BOQ sources and saved decisions</button></div>
                 </div>
                 <div class="upload-box">
                   <strong>Contract family</strong>
@@ -433,6 +437,8 @@ ${answerFirstScript}
 ${projectDiagnosisScript}
 ${systemReviewScript}
 ${projectActionsScript}
+${boqNumericReviewScript}
+${boqPageReviewScript}
 ${basisReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
@@ -555,7 +561,7 @@ async function api(path,opts={}){
   catch(error){if(controller?.signal.aborted)throw new Error("The connection took too long. Your documents remain saved. Try opening the project again.");throw error;}
   finally{if(timeout!==null)clearTimeout(timeout);}
 }
-function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function escapeHtml(s){if(s===null||s===undefined)return"";return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))return"application/zip";if(n.endsWith(".xer"))return"text/plain";if(n.endsWith(".xml"))return"application/xml";if(n.endsWith(".csv"))return"text/csv";if(n.endsWith(".pdf"))return"application/pdf";if(n.endsWith(".docx"))return"application/vnd.openxmlformats-officedocument.wordprocessingml.document";if(n.endsWith(".png"))return"image/png";if(n.endsWith(".jpg")||n.endsWith(".jpeg"))return"image/jpeg";if(n.endsWith(".tif")||n.endsWith(".tiff"))return"image/tiff";if(n.endsWith(".bmp"))return"image/bmp";if(n.endsWith(".webp"))return"image/webp";if(n.endsWith(".xlsm"))return"application/vnd.ms-excel.sheet.macroEnabled.12";return file.type||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
 function inferScheduleRole(name){const n=name.toLowerCase();if(/(?:^|[_ .-])(draft|scenario|proposed)(?:[_ .-]|$)/.test(n))return"scenario";if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
 function inferContractRole(name){const n=name.toLowerCase();if(n.includes("replacement")||n.includes("restated")||n.includes("replaced"))return"replacement";if(n.includes("amendment"))return"amendment";if(n.includes("appendix")||n.includes("technical"))return"appendix";if(n.includes("tender")||n.includes("employer_require"))return"tender";if(n.includes("main")||n.startsWith("c01_"))return"main";return"other"}
@@ -755,7 +761,12 @@ function renderSuppliedBoqRows(boq,page=0,query=''){
   const rows=(boq?.rows||[]).filter(r=>!term||[r.itemNumber,r.itemId,r.section,r.description,r.unit].some(v=>String(v??'').toLowerCase().includes(term)));
   const pageCount=Math.max(1,Math.ceil(rows.length/100)),index=Math.max(0,Math.min(pageCount-1,page)),start=index*100;
   const field=v=>v===null||v===undefined||v===''?'Unresolved: not read from BOQ':typeof v==='number'?fmt(v):String(v);
-  const body=rows.slice(start,start+100).map(r=>'<tr>'+[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map(v=>'<td>'+escapeHtml(field(v))+'</td>').join('')+'</tr>').join('');
+  const body=rows.slice(start,start+100).map(r=>{
+    const observed=r.numericConfirmation?null:r.sourceNumericReadings;
+    const cells=[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map((v,i)=>'<td>'+escapeHtml(observed&&i>=3&&i<=5?'Needs source confirmation':field(v))+'</td>').join('');
+    const note=observed?'<tr><td colspan="7"><b>Unconfirmed source readings — excluded from calculations.</b> '+['quantity','rate','amount'].filter(key=>observed[key]!==null&&observed[key]!==undefined).map(key=>escapeHtml(humanizeKey(key)+': '+field(observed[key]))).join(' · ')+'</td></tr>':r.numericConfirmation?'<tr><td colspan="7">Source readings confirmed on '+escapeHtml(formatDocumentTime(r.numericConfirmation.confirmedAt))+'. Original readings retained.</td></tr>':'';
+    return '<tr>'+cells+'</tr>'+note;
+  }).join('');
   return '<p>'+escapeHtml(rows.length?'Items '+fmt(start+1)+'–'+fmt(Math.min(start+100,rows.length))+' of '+fmt(rows.length)+(term?' matching items':''):'No matching BOQ items')+' · Page '+(index+1)+' of '+pageCount+'. Every item is available through these pages and in the Excel and data downloads.</p>'+
     '<div class="actions"><button type="button" '+(index===0?'disabled ':'')+'onclick="updateSuppliedBoq('+(index-1)+')">Previous BOQ items</button><button type="button" '+(index+1===pageCount?'disabled ':'')+'onclick="updateSuppliedBoq('+(index+1)+')">Next BOQ items</button></div>'+
     '<div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>BOQ item</th><th>Description</th><th>Unit</th><th>Quantity</th><th>Rate</th><th>Amount</th><th>Currency</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">No matching BOQ items.</td></tr>')+'</tbody></table></div>';
@@ -765,7 +776,7 @@ function updateSuppliedBoq(page,query){
 }
 function renderSuppliedBoq(boq){
   if(!boq?.rows?.length)return '';
-  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Quantities, rates and amounts are shown as read. Missing calculation inputs do not block these figures.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
+  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
 }
 function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge||{};
@@ -2115,10 +2126,21 @@ function renderMovementConcentration(m,fallback){
     ["Maximum movement",signed(m.distribution?.maximum),"calendar days vs each activity baseline"],["Activities sharing maximum",m.distribution.maximumCount,m.distribution.maximumPercent==null?"Share of comparable population unresolved":fmt(m.distribution.maximumPercent)+"% of baseline-comparable population"],["Verified date pairs",m.sourcePairVerifiedCount,fmt(all.length)+" maximum rows inspected"],["Causation","Unresolved","movement is not attributable delay or EOT"]
   ])+'<div class="notice warn">'+escapeHtml(m.interpretation)+'</div><p><b>Activity types:</b> '+escapeHtml((m.activityTypes||[]).map(t=>fmt(t.count)+" "+humanizeKey(t.value)).join("; "))+'. <b>Baseline date patterns:</b> '+escapeHtml(fmt((m.baselineDatePatterns||[]).length))+'. <b>Current date patterns:</b> '+escapeHtml(fmt((m.currentDatePatterns||[]).length))+'. <b>WBS groups:</b> '+escapeHtml(fmt((m.wbsPatterns||[]).length))+'. Systematic revision shift: review required.</p>'+planningSignedBars((m.representatives||[]).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.baselineMovementDays})),"calendar days")+'<p>Showing '+escapeHtml(fmt((m.representatives||[]).length))+' representatives of '+escapeHtml(fmt(all.length))+' at the maximum. Previous-revision comparison: '+escapeHtml(c.previousLabel||"Unresolved")+' → '+escapeHtml(c.currentLabel||"Current programme")+'.</p><details class="movement-cohort"><summary>View all '+escapeHtml(fmt(all.length))+' maximum-movement activities and date pairs</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Type</th><th>Controlled baseline finish</th><th>Previous revision finish</th><th>Current finish</th><th>Vs baseline</th><th>Vs previous revision</th><th>Source dates</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
 }
+function activityFloatReviewHtml(row){
+  if(!row.floatReconciliationState)return '';
+  const disputed=row.floatReconciliationState==='material_difference';
+  const independent=row.independentTotalFloatHours==null?'Not established':fmt(row.independentTotalFloatHours)+' h · '+planningStateLabel(row.independentCriticality);
+  return '<br><span class="state-pill '+(disputed?'review':row.floatReconciliationState==='matched'?'ready':'neutral')+'">'+escapeHtml(row.floatReviewLabel)+'</span><br><span class="muted">Submitted: '+escapeHtml(row.submittedTotalFloatHours==null?'Unresolved':fmt(row.submittedTotalFloatHours)+' h · '+planningStateLabel(row.submittedCriticality))+'<br>CMeng CPM: '+escapeHtml(independent)+'</span>';
+}
+function renderActivityFloatReconciliation(review){
+  if(!review||!Array.isArray(review.rows)||!review.rows.length)return '';
+  const rows=review.rows.slice(0,500).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(r.submittedTotalFloatHours==null?'Unresolved':fmt(r.submittedTotalFloatHours)+' h')+'<br>'+escapeHtml(planningStateLabel(r.submittedCriticality))+'</td><td>'+escapeHtml(r.independentTotalFloatHours==null?'Not established':fmt(r.independentTotalFloatHours)+' h')+'<br>'+escapeHtml(planningStateLabel(r.independentCriticality))+'</td><td><span class="state-pill '+(r.floatReconciliationState==='material_difference'?'review':'neutral')+'">'+escapeHtml(r.floatReviewLabel)+'</span></td></tr>').join('');
+  return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Activity float reconciliation</h4><p>Each row identifies the submitted classification and CMeng calculation for that activity. Disputed source classifications remain under review.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted float / classification</th><th>CMeng CPM float / classification</th><th>Review state</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+}
 function activityReviewRowHtml(a){
   return '<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
     '<td>'+escapeHtml(a.zone||"—")+'</td><td>'+escapeHtml(a.floor||a.level||"—")+'</td><td>'+escapeHtml(a.discipline||"—")+'</td><td>'+escapeHtml(a.package||"—")+'</td>'+
-    '<td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td>'+
+    '<td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span>'+activityFloatReviewHtml(a)+'</td>'+
     '<td>'+escapeHtml(planningShortDate(a.currentStartIso))+'</td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td>'+
     '<td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"Unresolved":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.delayStatus||"—")+'</td></tr>';
 }
@@ -2164,7 +2186,7 @@ function filterActivityReview(){
 function renderActivityAnalyticsVisual(data){
   const rowHtml=a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
     '<td>'+escapeHtml(a.zone||"—")+'</td><td>'+escapeHtml(a.floor||a.level||"—")+'</td><td>'+escapeHtml(a.discipline||"—")+'</td><td>'+escapeHtml(a.package||"—")+'</td>'+
-    '<td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span></td>'+
+    '<td>'+escapeHtml(planningStateLabel(a.status))+'</td><td><span class="state-pill '+(a.criticality==="critical"?"blocked":a.criticality==="near_critical"?"review":"ready")+'">'+escapeHtml(planningStateLabel(a.criticality))+'</span>'+activityFloatReviewHtml(a)+'</td>'+
     '<td>'+escapeHtml(planningShortDate(a.currentStartIso))+'</td><td>'+escapeHtml(planningShortDate(a.currentFinishIso))+'</td><td>'+escapeHtml(a.percentComplete===null?"—":fmt(a.percentComplete)+"%")+'</td>'+
     '<td>'+escapeHtml(fmt(a.totalFloatHours))+'</td><td>'+escapeHtml(a.finishVarianceDays===null?"Unresolved":fmt(a.finishVarianceDays))+'</td><td>'+escapeHtml(a.delayStatus||"—")+'</td></tr>';
   const p=projectionFor(data,"activity_analytics");
@@ -2848,7 +2870,7 @@ const movementClusters=new Map();
       '<td><span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span></td>'+
       '<td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
       '<td>'+escapeHtml(planningStateLabel(r.status))+'</td>'+
-      '<td><span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span></td>'+
+      '<td><span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span>'+activityFloatReviewHtml(r)+'</td>'+
       '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
       '<td>'+escapeHtml(planningShortDate(currentOrActual))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
       '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
@@ -2877,7 +2899,7 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(planningShortDate(r.currentDateIso))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
       '<td>'+escapeHtml(r.forecastDateIso?planningShortDate(r.forecastDateIso):"Not established")+'</td>'+
       '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'<br><span class="muted">'+escapeHtml(movementBasis)+'</span></td>'+
-      '<td>'+escapeHtml(float)+'</td>'+
+      '<td>'+escapeHtml(float)+activityFloatReviewHtml(r)+'</td>'+
       '<td>'+escapeHtml(drivers)+'</td>'+
       '<td>'+escapeHtml(r.owner||"Not recorded")+'</td>'+
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td></tr>';
@@ -3164,11 +3186,11 @@ function renderCommercialVisual(key,data){
     ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"money-linked claim population"]
   ]);
   const colsByKey={
-    "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
+    "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
     "cost-forecast":[["Original contract","originalContractValue"],["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"],["Claimed","claimedAmount"],["Assessed claims","assessedClaimAmount"]],
     "variations-change":[["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"]],
-    "payments":[["Source certificate periods","sourceCertificatePeriodCount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
-    "cash-flow":[["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "payments":[["Source certificate periods","sourceCertificatePeriodCount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "cash-flow":[["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
     "commercial-claims-notices":[["Claimed","claimedAmount"],["Assessed","assessedClaimAmount"],["Pending variations","pendingVariationAmount"]],
     "contract-particulars-bonds":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
   };
@@ -3177,8 +3199,8 @@ function renderCommercialVisual(key,data){
     "commercial-overview":[["Original contract","originalContractValue","graphite"],["Current contract","currentContractValue","accent"],["Pending variations","pendingVariationAmount","warning"],["Dated gross certification","grossCertifiedAmount","teal"],["Paid","paidAmount","success"],["Claims","claimedAmount","danger"]],
     "cost-forecast":[["Original contract","originalContractValue","graphite"],["Current contract","currentContractValue","accent"],["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Claimed","claimedAmount","danger"],["Assessed claims","assessedClaimAmount","purple"]],
     "variations-change":[["Approved variations","approvedVariationAmount","success"],["Pending variations","pendingVariationAmount","warning"],["Current contract","currentContractValue","accent"]],
-    "payments":[["Dated gross certification","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
-    "cash-flow":[["Dated gross certification","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Retention held","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "payments":[["Dated gross certification","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Source held balance","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
+    "cash-flow":[["Dated gross certification","grossCertifiedAmount","accent"],["Paid","paidAmount","success"],["Certified unpaid","certifiedUnpaidAmount","danger"],["Source held balance","retentionHeldAmount","warning"],["Advance balance","advanceBalance","purple"]],
     "commercial-claims-notices":[["Claimed","claimedAmount","danger"],["Assessed","assessedClaimAmount","purple"],["Pending variations","pendingVariationAmount","warning"]],
     "contract-particulars-bonds":[["Original contract","originalContractValue","graphite"],["Current contract","currentContractValue","accent"],["Active bonds","activeBondAmount","warning"]]
   };
@@ -3214,7 +3236,7 @@ function renderCommercialVisual(key,data){
   };
   const findingMeta=(finding)=>{
     if(!finding)return"Missing";
-    const bits=finding.validationScope==="arithmetic_only"?["Arithmetic checked", "source reconciliation separate"]:[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
+    const bits=finding.validationScope==="arithmetic_only"?["Arithmetic checked", "source reconciliation separate",...(finding.state&&finding.state!=="established"?[humanizeKey(finding.state)]:[])]:[humanizeKey(finding.state||"missing"),humanizeKey(finding.authority||"missing")];
     if(finding.coverage)bits.push((key==="cost-forecast"?"Snapshot metric evidence: ":"Finding evidence: ")+fmt(finding.coverage.known)+" / "+fmt(finding.coverage.total)+(finding.coverage.percent==null?"":" ("+fmt(finding.coverage.percent)+"%)"));
     if(finding.basis?.asOfDate)bits.push("as of "+planningShortDate(finding.basis.asOfDate));
     return bits.join(" · ");
@@ -4327,10 +4349,11 @@ function renderPmcControlRoom(data){
      pmcDefined(sourceClaims)||pmcDefined(sourceEvents)||claimsSource?.documentCount?3:4,
    risk:pmcDefined(openRisk)&&Number(openRisk)>0?1:pmcDefined(openRisk)?2:riskSource?.documentCount?3:4
  };
+ const bestEacLabel=cost?.bestEacBasis==="source_reported"?"Source EAC":cost?.bestEacBasis==="cmeng_scenario"?"CMeng scenario EAC":"EAC";
  const cards=[
   {domain:"time",priority:dashboardPriority.time,tone:scheduleTone,html:pmcCard({title:"Time",value:scheduleValue,state:scheduleTone==="danger"?"Behind contract":scheduleTone==="good"?"On / ahead":scheduleTone==="unresolved"?"Information gap":"Available position",tone:scheduleTone,sub:"Contract, submitted and programme recalculation positions remain separate.",meta:[["Contract",contract?.value?planningShortDate(contract.value):null],["Submitted",submitted?.value?planningShortDate(submitted.value):null],["Programme recalculation",independent?.value?planningShortDate(independent.value):null],["Recalculation vs contract",pmcDefined(independentVar)?pmcDays(independentVar):null]],module:"independent-forecast"})},
   {domain:"progress",priority:dashboardPriority.progress,tone:progressTone,html:pmcCard({title:"Progress",value:progressValue,state:progressTone==="warning"?"Behind":progressTone==="unresolved"?"Information gap":"Available position",tone:progressTone,sub:"Same-scope progress first; separate progress authorities remain visible.",meta:[["Baseline",pmcDefined(scope.baselinePlannedPercent)?fmt(scope.baselinePlannedPercent)+"%":null],["Schedule snapshot",pmcDefined(scope.snapshotPercent)?fmt(scope.snapshotPercent)+"%":null],["EVM SPI",pmcMetric(data,"schedule-spi")?.value]],module:"progress-report"})},
-  {domain:"cost",priority:dashboardPriority.cost,tone:costTone,html:pmcCard({title:"Cost",value:costValue,state:costTone==="danger"?"Adverse forecast":costTone==="warning"?"Efficiency pressure":costTone==="unresolved"?"Information gap":"Available position",tone:costTone,sub:"No cross-currency aggregation; source forecast stays separate from CMeng scenarios.",meta:[["BAC",pmcDefined(cost?.bac)?pmcMoney(cost.bac,currency):null],["EAC",pmcDefined(bestEac)?pmcMoney(bestEac,currency):null],["CPI",cost?.cpi],["SPI",cost?.spi]],module:"cost-forecast"})},
+  {domain:"cost",priority:dashboardPriority.cost,tone:costTone,html:pmcCard({title:"Cost",value:costValue,state:costTone==="danger"?"Adverse forecast":costTone==="warning"?"Efficiency pressure":costTone==="unresolved"?"Information gap":"Available position",tone:costTone,sub:"No cross-currency aggregation; source forecast stays separate from CMeng scenarios.",meta:[["BAC",pmcDefined(cost?.bac)?pmcMoney(cost.bac,currency):null],[bestEacLabel,pmcDefined(bestEac)?pmcMoney(bestEac,currency):null],["CPI",cost?.cpi],["SPI",cost?.spi]],module:"cost-forecast"})},
   {domain:"change",priority:dashboardPriority.change,tone:changeTone,html:pmcCard({title:"Change / VO",value:changeValue,state:changeTone==="danger"?"Records disagree":changeTone==="unresolved"?"Information gap":"Available position",tone:changeTone,sub:"Reported variation totals and dated approvals stay separate.",meta:[["Reported",pmcDefined(vr?.sourceAggregate)?pmcMoney(vr.sourceAggregate,vr.currency):null],["Approved by DD",pmcDefined(vr?.datedApprovedAmount)?pmcMoney(vr.datedApprovedAmount,vr.currency):null],["Future approvals",vr?.futureCount]],module:"variations-change"})},
   {domain:"procurement",priority:dashboardPriority.procurement,tone:procurementTone,html:pmcCard({title:"Procurement / Long Lead",value:procurementValue,state:procurementTone==="danger"?"Delivery threat":procurementTone==="unresolved"?"Information gap":"Best available scope",tone:procurementTone,sub:"Confirmed lifecycle position when available; otherwise source, BOQ or schedule/WBS candidates are shown without inventing procurement status or lateness.",meta:[["Confirmed packages",packagePopulationEstablished?delivery.confirmedPackageCount:null],["Source-marked long lead",sourceLongLead],["BOQ-screened long lead",boqLongLead],["Schedule / WBS long lead",scheduleLongLead],["Source rows",procSource?.readableRowCount],["Known late",delivery.latePackageKnownCount]],module:"long-lead"})},
   {domain:"design",priority:dashboardPriority.design,tone:designTone,html:pmcCard({title:"Design / RFI",value:designValue,state:designTone==="danger"?"Overdue design response":designTone==="unresolved"?"Information gap":"Available evidence",tone:designTone,sub:"Dated RFI position when governed; design/submittal source evidence remains visible underneath.",meta:[["Open RFIs",openRfi],["Overdue RFIs",overdueRfi],["Design rows",designSource?.readableRowCount],["Submittal rows",submittalSource?.readableRowCount]],module:"delivery-design"})},
@@ -4356,7 +4379,7 @@ function renderPmcControlCharts(data){
    {label:"Current plan",value:scope.currentPlanCurrentWeightsPercent,tone:"purple"}
  ].filter(row=>pmcDefined(row.value));
  const cost=(vc.commercial?.cost||[])[0],costRows=cost?[
-   {label:"BAC",value:cost.bac,tone:"graphite"},{label:"PV",value:cost.pv,tone:"accent"},{label:"EV",value:cost.ev,tone:"success"},{label:"AC",value:cost.ac,tone:"danger"},{label:"EAC",value:cost.bestEac,tone:"warning"}
+   {label:"BAC",value:cost.bac,tone:"graphite"},{label:"PV",value:cost.pv,tone:"accent"},{label:"EV",value:cost.ev,tone:"success"},{label:"AC",value:cost.ac,tone:"danger"},{label:cost.bestEacBasis==="source_reported"?"Source EAC":cost.bestEacBasis==="cmeng_scenario"?"CMeng scenario EAC":"EAC",value:cost.bestEac,tone:"warning"}
  ].filter(row=>pmcDefined(row.value)):[];
  const vr=(data.variationReconciliation||[])[0],changeRows=vr?[
    {label:"Reported variation total",value:vr.sourceAggregate,tone:"warning"},{label:"Dated approvals through DD",value:vr.datedApprovedAmount,tone:"accent"}
@@ -4869,6 +4892,7 @@ function renderModuleResultBody(result){
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
   const primaryView=(specialized||genericView);
+  const floatReview=renderActivityFloatReconciliation(data.activityFloatReconciliation);
 
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
@@ -4878,7 +4902,7 @@ function renderModuleResultBody(result){
   const progressBreakdown=result.key==='progress-breakdown';
   const supporting=progressBreakdown?'':experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications");
   const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
-  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+  el("moduleContent").innerHTML=context+floatReview+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     supporting+review;
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);
@@ -4965,7 +4989,7 @@ function renderDirector(d){
   ]);
   let html='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Available management position</h4><p>Established information is shown first. Measures needing more evidence are grouped separately and are never converted to zero.</p></div></div><div class="planning-panel-body">'+programmeKpis+'</div></section>';
   html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';
-  (d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});
+  (d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Source held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});
   if(!(d.commercialByCurrency||[]).length)html+='<div class="empty">No governed commercial currency position is established.</div>';
   html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+
     '<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+
@@ -4976,7 +5000,7 @@ function renderDirector(d){
     '<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+
     '<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+
     '</div></div></div>';
-  el("director").innerHTML=html;
+  el("director").innerHTML=renderActivityFloatReconciliation(d.activityFloatReconciliation)+html;
 }
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;
@@ -5218,8 +5242,10 @@ function positionText(p){
   if(p.positionState==="checking")return["review","Checking current position"];
   if(p.positionState==="current")return["current","Current position"];
   if(p.positionState==="needs_review")return["review","Review required"];
-  return["missing","Needs project records"];
+  if(p.positionState==="needs_information")return["missing","Needs information"];
+  return["missing","Position not established"];
 }
+function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}
 function projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
   const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Unresolved";
@@ -5238,7 +5264,7 @@ function projectCard(p){
         ?"Update the project position using the latest project records."
         :"No immediate management action identified."
   );
-  const attentionClass=(managementCount||0)>0||p.positionState!=="current"?"project-attention":"project-attention no-action";
+  const attentionClass=portfolioNeedsAttention(p)?"project-attention":"project-attention no-action";
   return '<article class="portfolio-project">'+
     '<div class="portfolio-project-main">'+
       '<div class="portfolio-project-title"><h3>'+escapeHtml(p.projectId)+'</h3>'+
@@ -5265,7 +5291,7 @@ function renderPortfolio(){
   const projects=data.projects||[];
   const current=projects.filter(p=>p.positionState==="current").length;
   const checking=projects.filter(p=>p.positionState==="checking"||p.positionState==="updating").length;
-  const attention=projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
+  const attention=projects.filter(portfolioNeedsAttention).length;
   const docs=projects.some(p=>p.evidenceDocumentCount===null||p.evidenceDocumentCount===undefined)?"Unresolved":projects.reduce((sum,p)=>sum+p.evidenceDocumentCount,0);
 
   el("portfolioStats").innerHTML=[
@@ -5415,7 +5441,7 @@ async function runAnalysis(){
   }finally{if(project()===projectId)setBusy("")}
 }
 function editProgrammePurpose(container,projectId,revisionId,sourceHash,version,role,approval,phaseId){
-  container.innerHTML='<label>Programme purpose<select class="purpose-role">'+[['baseline','Approved baseline'],['update','Progress update'],['revised_baseline','Approved revised baseline'],['recovery','Recovery plan'],['scenario','Draft / scenario']].map(r=>'<option value="'+r[0]+'" '+(r[0]===role?'selected':'')+'>'+r[1]+'</option>').join('')+'</select></label><label>Baseline approval reference<input class="purpose-approval" value="'+escapeHtml(approval||'')+'"></label><button class="btn small purpose-save">Save purpose</button><p class="purpose-message" role="status">Saving the purpose leaves the programme awaiting adoption.</p>';
+  container.innerHTML='<label>Programme purpose<select class="purpose-role">'+[['baseline','Baseline programme'],['update','Progress update'],['revised_baseline','Revised baseline programme'],['recovery','Recovery plan'],['scenario','Draft / scenario']].map(r=>'<option value="'+r[0]+'" '+(r[0]===role?'selected':'')+'>'+r[1]+'</option>').join('')+'</select></label><label>Approval reference <span class="muted">(optional unless adopting an official baseline)</span><input class="purpose-approval" value="'+escapeHtml(approval||'')+'" placeholder="Leave blank if approval is not evidenced"></label><button class="btn small purpose-save">Save purpose</button><p class="purpose-message" role="status">CMeng will process the programme with this purpose. A baseline approval reference is required only if you later adopt it as the official controlled baseline.</p>';
   container.querySelector('.purpose-save').onclick=async()=>{try{await api('/api/projects/'+encodeURIComponent(projectId)+(phaseId?'/phases/'+encodeURIComponent(phaseId):'')+'/schedule/revisions/'+encodeURIComponent(revisionId)+'/purpose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,sourceHash,role:container.querySelector('.purpose-role').value,approvalReference:container.querySelector('.purpose-approval').value})});if(project()===projectId)await refresh(false);}catch(e){container.querySelector('.purpose-message').textContent=e.message;}};
 }
 async function loadPhaseProgrammes(){
@@ -5477,14 +5503,25 @@ async function refresh(bootstrapDemo=true){
   const current=()=>projectRequestIsCurrent(projectId,requestSeq);
   try{
     let loadedOverview;
+    const updateDeadline=Date.now()+60000;
+    let loadedEvidenceWhileUpdating=false;
     do{
       loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview",{headers:{"x-cmeng-async-view":"1"}});
       if(!current())return;
       if(loadedOverview.state!=="updating")break;
       showProjectUpdating(projectId,loadedOverview.documentCount,loadedOverview.message);
-      await loadEvidence();
+      if(!loadedEvidenceWhileUpdating){
+        await loadEvidence();
+        loadedEvidenceWhileUpdating=true;
+      }
       if(!current())return;
-      await new Promise(resolve=>setTimeout(resolve,2000));
+      if(Date.now()>=updateDeadline){
+        el("moduleContent").innerHTML='<div class="notice info" role="status"><b>CMeng is still recalculating this project.</b> Automatic waiting stopped after one minute so the browser remains usable. The last saved portfolio position is unchanged; use Refresh to check again.</div>';
+        el("director").innerHTML='<div class="notice info">Management calculations are still being rechecked. The saved project position remains visible in Portfolio.</div>';
+        setBusy("Project recheck continues in background");
+        return;
+      }
+      await new Promise(resolve=>setTimeout(resolve,5000));
       if(!current())return;
     }while(true);
     if(!current())return;
@@ -5536,8 +5573,10 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
     let pollBusy=false;
     xhr.open("POST",url,true);
     xhr.setRequestHeader("content-type",fileType(file));
-    xhr.setRequestHeader("x-source-filename",file.name);
-    xhr.setRequestHeader("x-source-relative-path",file.webkitRelativePath||file.name);
+    // HTTP header values are ByteString-only in browsers. Send Unicode names in
+    // percent-encoded ASCII headers; the server restores the exact filename/path.
+    xhr.setRequestHeader("x-source-filename-encoded",encodeURIComponent(file.name));
+    xhr.setRequestHeader("x-source-relative-path-encoded",encodeURIComponent(file.webkitRelativePath||file.name));
     xhr.setRequestHeader("x-upload-intent",job.intent);
     xhr.setRequestHeader("x-upload-id",id);
     if(job.kind==="schedule"){xhr.setRequestHeader("x-evidence-category","schedule");xhr.setRequestHeader("x-schedule-role",job.roles[fileIndex]);xhr.setRequestHeader("x-schedule-role-confirmed","1");if(job.approvalReference)xhr.setRequestHeader("x-approval-reference",job.approvalReference);}

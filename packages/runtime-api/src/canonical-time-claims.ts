@@ -1,4 +1,4 @@
-import {isScenarioRevision} from './schedule-authority';
+import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {contractCompletionPosition} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
@@ -255,7 +255,15 @@ function correspondenceNarrativeSegments(
 
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
-  if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
+  if(basis?.activeArtifactId){
+    const selected=state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
+    // An evidence-family selection is not itself programme adoption. A current
+    // analytical programme exists only after the exact schedule revision has a
+    // source-bound adoption decision. Until then every schedule-dependent
+    // calculation must fail closed rather than silently treating the upload as
+    // the Current Programme.
+    return selected&&isAdoptedProgrammeRevision(state,selected)?selected:null;
+  }
 
   const programmeTypes=new Set([
     'schedule_file',
@@ -497,10 +505,19 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       ...explicitWindows,
       ...temporalWindows,
     ]);
+    const responsibilityText=cell(r,'responsibility');
+    const responsibilityValue=/employer|client|owner/i.test(responsibilityText)?'employer'
+      :/contractor/i.test(responsibilityText)?'contractor'
+      :/concurrent|shared/i.test(responsibilityText)?'concurrent'
+      :/neutral|authority|weather|force majeure/i.test(responsibilityText)?'neutral'
+      :'unknown';
+    const eventStart=dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start'));
+    const awarenessIso=dateValue(cell(r,'awareness date'));
     events.push({eventId,title,category:'other',
-      startIso:dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start')),
+      startIso:eventStart,
+      awarenessIso,
       endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date','impact end','analysis end')),
-      responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
+      responsibility:responsibilityValue,responsibilityState:responsibilityText?'candidate':'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
       relatedActivityIds:relatedActivities,
       relatedWindowReferences:relatedWindows,
       relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
@@ -643,9 +660,19 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
 
   const determinations:DeterminationRecord[]=[],determinationById=new Map<string,DeterminationRecord>();
   for(const table of tables.filter(t=>has(t,'determination id','claim id','awarded eot days')))for(const r of table.rows){
-    const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays:n(r,'awarded eot days'),determinationDate:dateValue(cell(r,'determination date')),
-      state:/^engineer$/i.test(cell(r,'authority'))&&/^immutable$/i.test(cell(r,'governance state'))&&/^determined$/i.test(cell(r,'status'))&&['active','additive'].includes(r.receipt.basisState)?'source_immutable':'candidate',
-      authority:cell(r,'authority'),sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
+    const awardedDays=n(r,'awarded eot days');
+    const determinationDate=dateValue(cell(r,'determination date'));
+    const authorityText=cell(r,'authority');
+    const governanceText=cell(r,'governance state');
+    const statusText=cell(r,'status');
+    const explicitAuthorityOk=!authorityText||/engineer|employer representative|contract administrator/i.test(authorityText);
+    const explicitGovernanceOk=!governanceText||/immutable|official|approved|final/i.test(governanceText);
+    const explicitStatusOk=!statusText||/determined|approved|awarded|final/i.test(statusText);
+    const determinationRegister=/determination/i.test(table.document.documentType??'')||has(table,'determination id','claim id','awarded eot days');
+    const sourceDetermination=determinationRegister&&awardedDays!==null&&determinationDate!==null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState);
+    const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays,determinationDate,
+      state:sourceDetermination?'source_immutable':'candidate',
+      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
     if(!record.determinationId)continue;
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
@@ -827,9 +854,28 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const completion=contractCompletionPosition(state,dataDateIso);
   if(completion.hasContractDocuments){
     const previous=contractTimeBasis??state.controls.contractTimeBasis;
+    const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>
+      candidate.role==='amendment'&&candidate.date===completion.value&&candidate.effectiveFrom!==null&&dataDateIso!==null&&candidate.effectiveFrom<=dataDateIso
+    );
+    const determinationOnlyExtension=!amendment&&!completionAlreadyAmended&&completion.state==='official'&&effectiveDeterminationDays!==null;
+    const effectiveDeterminationRefs=effective.map(d=>'evidence-document:'+d.receipt.documentId+':'+d.receipt.locator);
     contractTimeBasis={...previous,contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
-      officialApprovedEotDays:previous?.officialApprovedEotDays??null,officialApprovedEotState:previous?.officialApprovedEotState??'missing',
-      eotDayBasis:previous?.eotDayBasis??'unknown',eotDayBasisState:previous?.eotDayBasisState??'missing',sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs])]};
+      officialApprovedEotDays:determinationOnlyExtension?effectiveDeterminationDays:previous?.officialApprovedEotDays??null,
+      officialApprovedEotState:determinationOnlyExtension?'official':previous?.officialApprovedEotState??'missing',
+      eotDayBasis:determinationOnlyExtension?'calendar_days':previous?.eotDayBasis??'unknown',
+      eotDayBasisState:determinationOnlyExtension?'official':previous?.eotDayBasisState??'missing',
+      ...(determinationOnlyExtension?{
+        incorporatedEotDays:null,
+        additionalApprovedEotDays:effectiveDeterminationDays,
+        overlapResolution:'resolved' as const,
+        registerDeterminationDays,
+        registerDeterminationCount:eligible.length,
+        effectiveDeterminationCount:effective.length,
+        futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,
+        dataDateIso,
+      }:{}),
+      sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs,...(determinationOnlyExtension?effectiveDeterminationRefs:[])])]};
+    if(determinationOnlyExtension)diagnostics.push('OFFICIAL_DETERMINATIONS_APPLIED_TO_UNAMENDED_CONTRACT_COMPLETION');
     if(completion.reason)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
   }
 

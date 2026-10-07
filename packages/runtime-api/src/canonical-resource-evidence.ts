@@ -77,8 +77,13 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       } else {
         usage = measured;
       }
-    } else if (embeddedUsage !== null && embeddedUsage !== 0) {
-      diagnostics.push('UNAPPROVED_EMBEDDED_ACTUAL_USAGE_WITHHELD:' + key(r));
+    } else if (embeddedUsage !== null) {
+      // A clean value carried by the weekly source register is useful evidence
+      // even when a separate approval/status register is not supplied. Preserve
+      // the value and qualify its authority instead of turning known usage into
+      // "missing"; downstream views can label it as source-register evidence.
+      usage = embeddedUsage;
+      diagnostics.push('EMBEDDED_ACTUAL_USAGE_FROM_SOURCE_REGISTER_NOT_SEPARATELY_CONFIRMED:' + key(r));
     }
     const period = dateValue(cell(r,'week start','period start'));
     const cutoffDate = dataDateIso ? dateValue(dataDateIso) : null;

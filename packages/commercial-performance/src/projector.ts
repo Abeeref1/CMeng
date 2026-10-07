@@ -58,7 +58,7 @@ function pct(
 
 function authorityForSnapshot(
   snapshot:
-    PerformanceCostSnapshotInput,
+    Pick<PerformanceCostSnapshotInput, 'state'>,
 ): CommercialFindingAuthority {
   if (
     snapshot.state ===
@@ -89,7 +89,7 @@ function authorityForSnapshot(
 
 function stateForSnapshot(
   snapshot:
-    PerformanceCostSnapshotInput,
+    Pick<PerformanceCostSnapshotInput, 'state'>,
 ): CommercialFindingState {
   if (
     snapshot.state ===
@@ -308,6 +308,26 @@ function calc(
     },
   );
   return {...result, validationScope:'arithmetic_only'};
+}
+
+function calcFromSnapshot(
+  snapshot: PerformanceCostSnapshotInput,
+  value: number | null,
+  options: Parameters<typeof calc>[1],
+): CommercialFinding<number> {
+  const withheld=snapshot.state==='conflicted'||snapshot.state==='missing';
+  const result=calc(withheld?null:value,options);
+  if(snapshot.state==='official')return result;
+  // A successful division does not resolve a candidate, incomplete or
+  // conflicting source. Preserve that state in every derived consumer.
+  return {...result,
+    state:result.value===null&&!withheld?'missing':stateForSnapshot(snapshot),
+    action:snapshot.state==='conflicted'
+      ?'Resolve conflicting cost evidence before using the calculated position.'
+      :snapshot.state==='missing'?'Provide the missing cost evidence.'
+      :'Confirm the source basis before using this provisional calculation.',
+    diagnostics:uniq([...result.diagnostics,'DERIVED_COST_RETAINS_SOURCE_STATE:'+snapshot.state]),
+  };
 }
 
 function safeRatio(
@@ -567,7 +587,7 @@ function eacScenarios(
   values.push({
     method:
       "bac_over_cpi",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       cpiEac,
       {
         asOf:
@@ -596,7 +616,7 @@ function eacScenarios(
   values.push({
     method:
       "ac_plus_remaining_budget",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       simpleEac,
       {
         asOf:
@@ -625,7 +645,7 @@ function eacScenarios(
   values.push({
     method:
       "ac_plus_source_etc",
-    value: calc(
+    value: calcFromSnapshot(snapshot,
       bottomUp,
       {
         asOf:
@@ -932,7 +952,7 @@ function costControl(
         : null;
 
     const spi =
-      calc(spiValue, {
+      calcFromSnapshot(snapshot, spiValue, {
         asOf:
           snapshot.asOf,
         method: "EV / PV",
@@ -947,7 +967,7 @@ function costControl(
           "PV and EV are required for SPI.",
       });
     const cpi =
-      calc(cpiValue, {
+      calcFromSnapshot(snapshot, cpiValue, {
         asOf:
           snapshot.asOf,
         method: "EV / AC",
@@ -962,7 +982,7 @@ function costControl(
           "EV and AC are required for CPI.",
       });
     const sv =
-      calc(svValue, {
+      calcFromSnapshot(snapshot, svValue, {
         asOf:
           snapshot.asOf,
         method: "EV - PV",
@@ -981,7 +1001,7 @@ function costControl(
           "PV and EV are required for schedule variance.",
       });
     const cv =
-      calc(cvValue, {
+      calcFromSnapshot(snapshot, cvValue, {
         asOf:
           snapshot.asOf,
         method: "EV - AC",
@@ -1000,7 +1020,7 @@ function costControl(
           "EV and AC are required for cost variance.",
       });
     const calculatedVac =
-      calc(
+      calcFromSnapshot(snapshot,
         calculatedVacValue,
         {
           asOf:
@@ -1017,7 +1037,7 @@ function costControl(
         },
       );
     const tcpiBudget =
-      calc(
+      calcFromSnapshot(snapshot,
         tcpiBudgetValue,
         {
           asOf:
@@ -1032,7 +1052,7 @@ function costControl(
         },
       );
     const tcpiForecast =
-      calc(
+      calcFromSnapshot(snapshot,
         tcpiForecastValue,
         {
           asOf:
@@ -1153,7 +1173,7 @@ function costControl(
       position.cpi.value < 1
     ) {
       managementSummary.push(
-        position.currency +
+        (position.cpi.state==='established'?'':'Provisional '+position.cpi.state+' evidence: ') + position.currency +
           " CPI " +
           position.cpi.value +
           " indicates adverse cost efficiency.",
@@ -1165,7 +1185,7 @@ function costControl(
       position.spi.value < 1
     ) {
       managementSummary.push(
-        position.currency +
+        (position.spi.state==='established'?'':'Provisional '+position.spi.state+' evidence: ') + position.currency +
           " SPI " +
           position.spi.value +
           " indicates earned value is behind planned value.",
@@ -1179,7 +1199,7 @@ function costControl(
         .calculatedVac.value < 0
     ) {
       managementSummary.push(
-        position.currency +
+        (position.calculatedVac.state==='established'?'':'Provisional '+position.calculatedVac.state+' evidence: ') + position.currency +
           " forecast indicates an overrun against BAC of " +
           Math.abs(
             position
@@ -1318,7 +1338,7 @@ function evmPerformance(
             pv,
             ev,
             ac,
-            spi: calc(
+            spi: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeRatio(
                     ev.value,
@@ -1337,7 +1357,7 @@ function evmPerformance(
                   "PV and EV are required for SPI at this period.",
               },
             ),
-            cpi: calc(
+            cpi: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeRatio(
                     ev.value,
@@ -1356,7 +1376,7 @@ function evmPerformance(
                   "EV and AC are required for CPI at this period.",
               },
             ),
-            sv: calc(
+            sv: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeSubtract(
                     ev.value,
@@ -1375,7 +1395,7 @@ function evmPerformance(
                   "PV and EV are required for SV.",
               },
             ),
-            cv: calc(
+            cv: calcFromSnapshot(snapshot,
               compatibleMoneyBasis
                 ? safeSubtract(
                     ev.value,
@@ -1447,7 +1467,8 @@ function evmPerformance(
         ? "missing" as const
         : series.every(
               (item) =>
-                item.coveragePercent === 100 && item.points.length >= 2 && item.taxBasis !== "unknown",
+                item.coveragePercent === 100 && item.points.length >= 2 && item.taxBasis !== "unknown" &&
+                item.points.every(point=>[point.pv,point.ev,point.ac].every(value=>value.state==='established')),
             )
           ? "established" as const
           : "partial" as const,
@@ -1587,8 +1608,11 @@ function cashFlow(
   const currencies:
     CashFlowCurrencyPosition[] =
     [];
+  const paidCurrency=(p:CommercialPerformanceInput['payments'][number])=>p.paidCurrency===undefined?p.currency:p.paidCurrency;
+  const paidTax=(p:CommercialPerformanceInput['payments'][number])=>p.paidTaxBasis??p.taxBasis??'unknown';
   const partitions=[...new Set([
     ...input.payments.filter(p=>p.currency).map(p=>p.currency+'|'+(p.taxBasis??'unknown')),
+    ...input.payments.filter(p=>paidCurrency(p)).map(p=>paidCurrency(p)+'|'+paidTax(p)),
     ...input.costMetrics.filter(m=>m.currency).map(m=>m.currency+'|'+m.taxBasis),
   ])].sort();
   const fullInput=input;
@@ -1597,7 +1621,7 @@ function cashFlow(
     const taxBasis=tax;
     const knownTaxBasis=taxBasis!=='unknown';
     const input={...fullInput,
-      payments:fullInput.payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis),
+      payments:fullInput.payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis||paidCurrency(p)===currency&&paidTax(p)===taxBasis),
       costMetrics:fullInput.costMetrics.filter(m=>m.currency===currency&&m.taxBasis===taxBasis),
     };
     const entries:
@@ -1607,9 +1631,10 @@ function cashFlow(
     const payments =
       input.payments.filter(
         (payment) =>
-          payment.currency ===
-          currency && reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
+          reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
       );
+    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis);
+    const paidPayments=payments.filter(p=>paidCurrency(p)===currency&&paidTax(p)===taxBasis);
 
     const addPaymentSeries = (
       kind:
@@ -1620,10 +1645,11 @@ function cashFlow(
         kind ===
         "certified_income";
       const eligible =
-        payments
+        (isCertified?certifiedPayments:paidPayments)
           .map(
             (payment) => ({
               payment,
+              state:(isCertified?payment.certifiedState:payment.paidState)??'official',
               value: isCertified
                 ? payment
                     .certifiedAmount
@@ -1728,10 +1754,8 @@ function cashFlow(
                 sourceRefs:
                   row.payment
                     .sourceRefs,
-                authority:
-                  "source",
-                state:
-                  "established",
+                authority: authorityForSnapshot(row),
+                state: stateForSnapshot(row),
                 consequence:
                   isCertified
                     ? "Certified income remains separate from cash received."
@@ -1752,9 +1776,15 @@ function cashFlow(
       if(eligible[0]!.value!==0){cashDiagnostics.push('CUMULATIVE_OPENING_BASIS_REQUIRED');return;}
       // Convert only after an explicit zero opening observation.
       let prior: number | null = null;
+      let seriesState: PerformanceCostMetricInput['state'] = 'official';
+      const seriesRefs:string[]=[];
       const staged:
         CashFlowEntry[] = [];
       for (const row of eligible) {
+        seriesState=seriesState==='conflicted'||row.state==='conflicted'?'conflicted'
+          :seriesState==='candidate'||row.state==='candidate'?'candidate'
+          :seriesState!=='official'||row.state!=='official'?'partial':'official';
+        seriesRefs.push(...row.payment.sourceRefs);
         if(prior===null){prior=row.value!;cashDiagnostics.push('OPENING_CUMULATIVE_OBSERVATION_IS_NOT_PERIOD_CASH');continue;}
         const delta =
           row.value! - prior;
@@ -1792,26 +1822,18 @@ function cashFlow(
                 isCertified
                   ? "project_cumulative_certification_delta"
                   : "project_cumulative_payment_delta",
-              sourceRefs:
-                row.payment
-                  .sourceRefs,
-              authority:
-                "calculated",
-              state:
-                "established",
+              sourceRefs: uniq(seriesRefs),
+              authority: seriesState==='official'?'calculated':authorityForSnapshot({state:seriesState}),
+              state: stateForSnapshot({state:seriesState}),
               submitted:
                 row.value!,
-              independent:
-                round(delta),
+              independent: seriesState==='official'?round(delta):null,
               consequence:
                 "Project-cumulative source positions are converted to period movement before aggregation.",
               action: null,
             },
           ),
-          sourceRefs: [
-            ...row.payment
-              .sourceRefs,
-          ],
+          sourceRefs: uniq(seriesRefs),
         });
         prior = row.value!;
       }
@@ -1836,7 +1858,7 @@ function cashFlow(
       );
 
     const certifiedAmountRows =
-      payments.filter(
+      certifiedPayments.filter(
         (payment) =>
           payment.certifiedAmount !==
           null,
@@ -1849,7 +1871,7 @@ function cashFlow(
           ),
       );
     const paidAmountRows =
-      payments.filter(
+      paidPayments.filter(
         (payment) =>
           payment.paidAmount !==
           null,
@@ -1935,6 +1957,9 @@ function cashFlow(
         ),
       );
 
+    // An omitted invalid CBS series still belongs to the applicable population.
+    // Track accepted rows, so another valid group cannot certify its subtotal.
+    const representedMetrics=new Set<PerformanceCostMetricInput>();
     const addMetrics = (
       names:
         readonly string[],
@@ -2036,6 +2061,7 @@ function cashFlow(
 
         if (basis === "incremental") {
           for (const metric of ordered) {
+            representedMetrics.add(metric);
             entries.push({
               entryId:
                 kind +
@@ -2059,15 +2085,9 @@ function cashFlow(
                       metric
                         .sourceRefs,
                     authority:
-                      metric.state ===
-                      "official"
-                        ? "source"
-                        : "candidate",
+                      authorityForSnapshot(metric),
                     state:
-                      metric.state ===
-                      "official"
-                        ? "established"
-                        : "candidate",
+                      stateForSnapshot(metric),
                     consequence:
                       "Cash-flow expenditure is aggregated only from an explicit incremental series basis.",
                     action: null,
@@ -2087,7 +2107,13 @@ function cashFlow(
         const staged:
           CashFlowEntry[] = [];
         let monotonic = true;
+        let seriesState: PerformanceCostMetricInput['state'] = 'official';
+        const seriesRefs: string[] = [];
         for (const metric of ordered) {
+          seriesState = seriesState === 'conflicted' || metric.state === 'conflicted' ? 'conflicted'
+            : seriesState === 'candidate' || metric.state === 'candidate' ? 'candidate'
+            : seriesState !== 'official' || metric.state !== 'official' ? 'partial' : 'official';
+          seriesRefs.push(...metric.sourceRefs);
           const delta =
             metric.value! -
             prior;
@@ -2114,13 +2140,12 @@ function cashFlow(
                     metric.asOf,
                   method:
                     "project_cumulative_cash_flow_delta",
-                  sourceRefs:
-                    metric
-                      .sourceRefs,
-                  authority:
-                    "calculated",
-                  state:
-                    "established",
+                    sourceRefs:
+                      uniq(seriesRefs),
+                    authority:
+                      seriesState === 'official' ? "calculated" : authorityForSnapshot({state:seriesState}),
+                    state:
+                      stateForSnapshot({state:seriesState}),
                   submitted:
                     metric.value!,
                   independent:
@@ -2130,10 +2155,7 @@ function cashFlow(
                   action: null,
                 },
               ),
-            sourceRefs: [
-              ...metric
-                .sourceRefs,
-            ],
+            sourceRefs: uniq(seriesRefs),
           });
           prior =
             metric.value!;
@@ -2149,6 +2171,7 @@ function cashFlow(
         entries.push(
           ...staged,
         );
+        ordered.forEach(metric=>representedMetrics.add(metric));
       }
     };
 
@@ -2172,6 +2195,30 @@ function cashFlow(
             b.periodDate,
           ),
     );
+
+    // Compatible explicit transaction series establish movement on their own
+    // dates. Certification/forecast-only dates must carry the last cash balance
+    // rather than permanently erase it. An absent or incomplete actual series
+    // never qualifies for zero movement or a complete funding calculation.
+    const movementCompleteness=new Map<CashFlowEntry['kind'],boolean>();
+    const calculateMovementCompleteness = (kind: CashFlowEntry['kind']): boolean => {
+      const rows=entries.filter(entry=>entry.kind===kind);
+      if(!knownTaxBasis||!rows.length||rows.some(row=>row.amount.state!=='established'||row.amount.value===null))return false;
+      if(kind==='paid_income'||kind==='certified_income')return (kind==='paid_income'?paidPayments:certifiedPayments).every(payment=>{
+        const amount=kind==='paid_income'?payment.paidAmount:payment.certifiedAmount,
+          date=kind==='paid_income'?payment.paymentDate:payment.certificationDate;
+        return amount!==null&&reportingScope(date,input.dataDateIso)!=='undated';
+      });
+      const names=kind==='actual_expenditure'?aliases.actualExpenditure:
+        kind==='expenditure_budget'?aliases.expenditureBudget:aliases.expenditureForecast;
+      const sourceRows=input.costMetrics.filter(row=>names.map(normalized).includes(normalized(row.metric))&&
+        reportingScope(row.asOf,input.dataDateIso)!=='future');
+      return sourceRows.length>0&&sourceRows.every(row=>representedMetrics.has(row)&&row.value!==null&&row.state==='official'&&reportingScope(row.asOf,input.dataDateIso)==='as_of');
+    };
+    const completeMovement=(kind:CashFlowEntry['kind'])=>{
+      const prior=movementCompleteness.get(kind);if(prior!==undefined)return prior;
+      const complete=calculateMovementCompleteness(kind);movementCompleteness.set(kind,complete);return complete;
+    };
 
     const totalFor = (
       kind:
@@ -2217,6 +2264,10 @@ function cashFlow(
     ) => {
       const value =
         totalFor(kind);
+      const rows=entries.filter(entry=>entry.kind===kind);
+      const candidate=rows.some(row=>row.amount.state==='candidate');
+      const conflicted=rows.some(row=>row.amount.state==='conflicted');
+      const complete=completeMovement(kind);
       return value === null
         ? missing(
             "cash_flow_total:" +
@@ -2241,14 +2292,17 @@ function cashFlow(
                   kind,
                 ),
               authority:
-                "calculated",
+                conflicted ? "mixed" : candidate ? "candidate" : "calculated",
               state:
-                "established",
+                conflicted ? "conflicted" : candidate ? "candidate" : complete ? "established" : "partial",
               independent:
-                value,
+                complete ? value : null,
               consequence:
-                "The total uses only explicit dated entries of one currency.",
-              action: null,
+                conflicted ? "This retained subtotal includes conflicting evidence and is not an established cash position."
+                  : candidate ? "This retained subtotal includes candidate evidence and is not an established cash position."
+                  : complete ? "The total uses only explicit dated entries of one currency."
+                  : "Known dated entries are retained as a subtotal; incomplete current source evidence prevents an established total.",
+              action: complete ? null : "Review candidate evidence and complete the applicable dated transaction population.",
             },
           );
     };
@@ -2280,7 +2334,7 @@ function cashFlow(
       );
 
     const net =
-      paidIncome.value !==
+        completeMovement('paid_income')&&completeMovement('actual_expenditure')&&paidIncome.value !==
         null &&
       actualExpenditure.value !==
         null
@@ -2309,7 +2363,7 @@ function cashFlow(
 
     const certifiedUnpaid =
       calc(
-        certifiedIncome.value !==
+        completeMovement('certified_income')&&completeMovement('paid_income')&&certifiedIncome.value !==
             null &&
           paidIncome.value !==
             null
@@ -2385,7 +2439,7 @@ function cashFlow(
             entry.kind === kind,
         );
       if (!rows.length) {
-        return null;
+        return completeMovement(kind)?0:null;
       }
       return sumKnown(
         rows.map(
@@ -2397,27 +2451,27 @@ function cashFlow(
 
     let cumulativeCertified:
       number | null =
-      hasCertifiedIncome
+      completeMovement('certified_income')
         ? 0
         : null;
     let cumulativePaid:
       number | null =
-      hasPaidIncome
+      completeMovement('paid_income')
         ? 0
         : null;
     let cumulativeBudget:
       number | null =
-      hasBudget
+      completeMovement('expenditure_budget')
         ? 0
         : null;
     let cumulativeForecast:
       number | null =
-      hasForecast
+      completeMovement('expenditure_forecast')
         ? 0
         : null;
     let cumulativeActual:
       number | null =
-      hasActualExpenditure
+      completeMovement('actual_expenditure')
         ? 0
         : null;
     const cumulativeActualSeries:
@@ -2428,8 +2482,8 @@ function cashFlow(
       [];
     let peakNeed:
       number | null =
-      hasPaidIncome &&
-      hasActualExpenditure
+      completeMovement('paid_income') &&
+      completeMovement('actual_expenditure')
         ? 0
         : null;
 
@@ -2574,7 +2628,7 @@ function cashFlow(
                     ),
               );
             if (!rows.length) {
-              return null;
+              return completeMovement(kind)?0:null;
             }
             return sumKnown(
               rows.map(
@@ -2623,7 +2677,7 @@ function cashFlow(
             actualNetCashMovement:
               paid !== null &&
               actual !== null
-                && knownTaxBasis ? paid - actual
+                && completeMovement('paid_income')&&completeMovement('actual_expenditure') ? paid - actual
                 : null,
           };
         },
@@ -2667,7 +2721,7 @@ function cashFlow(
         : knownTaxBasis && hasCertifiedIncome && isAggregableCashBasis(
               certifiedBasis,
             )
-          ? "ready" as const
+          ? completeMovement('certified_income') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const receiptsState =
       paidAmountRows.length ===
@@ -2678,7 +2732,7 @@ function cashFlow(
         : knownTaxBasis && hasPaidIncome && isAggregableCashBasis(
               paidBasis,
             )
-          ? "ready" as const
+          ? completeMovement('paid_income') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const expenditureState =
       actualExpenditureRows.length ===
@@ -2687,7 +2741,7 @@ function cashFlow(
         : knownTaxBasis && hasActualExpenditure && isAggregableCashBasis(
               actualExpenditureBasis,
             )
-          ? "ready" as const
+          ? completeMovement('actual_expenditure') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const budgetState =
       expenditureBudgetRows.length ===
@@ -2696,7 +2750,7 @@ function cashFlow(
         : knownTaxBasis && hasBudget && isAggregableCashBasis(
               expenditureBudgetBasis,
             )
-          ? "ready" as const
+          ? completeMovement('expenditure_budget') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const forecastState =
       expenditureForecastRows.length ===
@@ -2705,7 +2759,7 @@ function cashFlow(
         : knownTaxBasis && hasForecast && isAggregableCashBasis(
               expenditureForecastBasis,
             )
-          ? "ready" as const
+          ? completeMovement('expenditure_forecast') ? "ready" as const : "partial" as const
           : "not_aggregable" as const;
     const forwardPlanState =
       budgetState === "ready" &&
@@ -2736,6 +2790,8 @@ function cashFlow(
           certificationState ===
           "ready"
             ? "Certified amounts can be aggregated as a controlled project series, but remain separate from cash receipts."
+            : certificationState === "partial"
+              ? "Known certifications are retained, but the applicable amount/date population is incomplete."
             : certificationState ===
                 "not_aggregable"
               ? "Certified amounts exist, but their series basis is not one explicit incremental or project-cumulative basis, so CMeng withholds the project total."
@@ -2771,6 +2827,8 @@ function cashFlow(
           receiptsState ===
           "ready"
             ? "Actual paid cash has an explicit date and aggregable series basis."
+            : receiptsState === "partial"
+              ? "Known receipts are retained, but the applicable amount/date population is incomplete."
             : receiptsState ===
                 "not_aggregable"
               ? "Paid amounts and dates exist, but the cash series basis is not explicitly incremental or project cumulative."
@@ -2800,6 +2858,8 @@ function cashFlow(
           expenditureState ===
           "ready"
             ? "Dated actual cash expenditure has an aggregable series basis."
+            : expenditureState === "partial"
+              ? "Known cash expenditure is retained, but its current population is incomplete or contains unestablished evidence."
             : actualExpenditureRows
                   .length === 0 &&
                 actualCostRows.length >
@@ -2813,6 +2873,8 @@ function cashFlow(
           expenditureState ===
           "ready"
             ? null
+            : expenditureState === "partial"
+              ? "Resolve source authority and complete the applicable expenditure amounts and dates."
             : actualExpenditureRows
                   .length === 0
               ? "Provide dated actual cash expenditure separately from AC/accrual cost."
@@ -2890,7 +2952,13 @@ function cashFlow(
     state:
       currencies.length === 0
         ? "missing" as const
-        : currencies.some(
+        : currencies.every(position=>position.sourceReadiness.certification.state==='ready'&&
+            position.sourceReadiness.receipts.state==='ready'&&position.sourceReadiness.expenditure.state==='ready'&&
+            position.sourceReadiness.forwardPlan.state==='ready'&&position.sourceReadiness.netCashReady&&
+            position.sourceReadiness.fundingCurveReady&&position.peakFundingNeed.state==='established'&&
+            position.entries.every(entry=>entry.amount.state==='established'))
+          ? 'established' as const
+          : currencies.some(
               (position) =>
                 position.paidIncome
                   .value !==

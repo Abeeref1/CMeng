@@ -56,5 +56,13 @@ runtimeProjects.touch(state);
   const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},profileEvents,managementProfileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
   assert.ok(result.passed,'Cold workflow, upload-to-ready or first-dashboard target exceeded');
- }finally{child.kill();}
-})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{rmSync(root,{recursive:true,force:true});});
+ }finally{
+  if(child.exitCode===null&&child.signalCode===null){
+    child.kill();
+    await new Promise(resolve=>{
+      const timer=setTimeout(resolve,2000);
+      child.once('exit',()=>{clearTimeout(timer);resolve();});
+    });
+  }
+ }
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});

@@ -29,14 +29,32 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
-test('Delivery consumes the adopted programme; pending updates and first-upload blockers stay actionable on every page',async t=>{
- const {store,state}=await fixture(t),original=projectControlSchedule(state)!.revision.revisionId;
- await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Pending.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
- for(const [key] of deliveryPages){const r=deliveryModule(state,key);assert.equal((r.data as any).programmeRevisionId,original);assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,1);assert.equal((r.data as any).dataDateIso,'2031-08-31');}
- const fresh=store.getOrCreate('DELIVERY-B');await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
- const blocked=deliveryModule(fresh,'construction-readiness');assert.equal((blocked.data as any).dataDateIso,null);assert.equal(blocked.scheduleAuthorityReview!.pendingSchedules[0]!.canAdopt,true);
+test('Delivery follows the latest submitted programme while undated updates remain pending on every page',async t=>{
+ const {store,state}=await fixture(t);
+ const later=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Monthly_Update.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal(r.scheduleAuthorityReview!.state,'submitted_current');
+  assert.equal(r.scheduleAuthorityReview!.authority,'submitted');
+  assert.equal(r.scheduleAuthorityReview!.pendingSchedules.length,0);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+ }
+ const undated=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('')),mediaType:'text/plain',sourceFilename:'Update_No_DD.xer',uploadedAt:'2031-10-02',uploadIntent:'add_update'});
+ for(const [key] of deliveryPages){
+  const r=deliveryModule(state,key);
+  assert.equal((r.data as any).programmeRevisionId,later.linkedArtifactId);
+  assert.equal((r.data as any).dataDateIso,'2031-09-30');
+  assert.ok(r.scheduleAuthorityReview!.pendingSchedules.some(p=>p.revisionId===undated.linkedArtifactId&&p.dateRelationship==='date_missing'));
+ }
+ const fresh=store.getOrCreate('DELIVERY-B');
+ const first=await store.ingestEvidenceFile({projectId:fresh.projectId,bytes:Buffer.from(deliveryProgramme()),mediaType:'text/plain',sourceFilename:'First.xer',uploadedAt:'2031-09-01'});
+ const ready=deliveryModule(fresh,'construction-readiness');
+ assert.equal((ready.data as any).programmeRevisionId,first.linkedArtifactId);
+ assert.equal((ready.data as any).dataDateIso,'2031-08-31');
+ assert.equal(ready.scheduleAuthorityReview!.state,'submitted_current');
+ assert.equal(ready.scheduleAuthorityReview!.pendingSchedules.length,0);
 });
-
 
 test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
  const f=await fixture(t);
@@ -56,9 +74,9 @@ test('BOQ-only projects expose scope, procurement, long-lead, material and risk 
  assert.ok(risks.some((r:any)=>r.category==='procurement'&&r.probability==='Not established'));
 });
 
-test('register imports remain candidates, retain source receipts and do not improve procurement figures',async t=>{
+test('register imports remain candidates but clean source facts are immediately visible with authority kept separate',async t=>{
  const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description,Unit,Ordered Quantity,Ordered Date,Supplier ID,Lifecycle ID\nPK1,Chiller,No.,1,2031-08-20,S1,L1');
- const before=deliveryPosition(f.state),r=before.records.find(r=>r.reference==='PK1')!;assert.equal(r.kind,'package');assert.equal(r.state,'extracted_candidate');assert.match(r.receipts[0]!.sourceHash,/^[a-f0-9]{64}$/);assert.equal(before.packageRows.length,0);
+ const before=deliveryPosition(f.state),r=before.records.find(r=>r.reference==='PK1')!;assert.equal(r.kind,'package');assert.equal(r.state,'extracted_candidate');assert.match(r.receipts[0]!.sourceHash,/^[a-f0-9]{64}$/);assert.equal(before.packageRows.length,1);assert.equal(before.packageRows[0]!.sourceState,'extracted_candidate');assert.equal(before.populations.package!.state,'not_established');
  assert.throws(()=>f.review(r),/link.*not an established|lifecycle/i);
  f.review(r,{'lifecycle id':null},{links:{}});assert.equal(deliveryPosition(f.state).packageRows.length,1);assert.equal(deliveryPosition(f.state).materialRows[0]!.required,null);
 });
@@ -76,6 +94,20 @@ test('material reconciliation uses the same BOQ and installed authority, preserv
  assert.ok(p.curves.filter(c=>c.series==='actual').every(c=>c.points.every((x:any)=>x.dateIso<='2031-08-31')));
  f.create('package','SPLIT',{}, {boqItemIds:[concrete.quantityItemId]});p=deliveryPosition(f.state);q=p.materialRows.find(x=>x.recordId===r.recordId)!;assert.equal(q.required,null);assert.equal(q.installed,null);
  f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:concrete.quantityItemId,quantity:60,unit:'m3'}]}});assert.equal(deliveryPosition(f.state).materialRows.find(x=>x.recordId===r.recordId)!.required,60);
+});
+
+test('Stage 1 lifecycle governance can bootstrap itself but ordinary records still require an established template',async t=>{
+ const f=await fixture(t);
+ const lifecycle=f.create('lifecycle','LC-BOOT',{'lifecycle id':'LC-BOOT',stages:'po;delivery;installation'});
+ assert.equal(lifecycle.state,'governed');
+ assert.equal(lifecycle.kind,'lifecycle');
+
+ f.change({action:'create',kind:'package',fields:{'record reference':'PK-NO-TEMPLATE',description:'Package awaiting lifecycle','lifecycle id':'LC-MISSING'}});
+ const manual=deliveryStore(f.state).manual.at(-1)!;
+ assert.throws(()=>f.change({
+   action:'review',recordId:manual.recordId,sourceRevision:manual.revision,state:'governed',
+   fields:{},note:'Attempt governance without established lifecycle.'
+ }),/Select a governed lifecycle template in this project/);
 });
 
 test('long-lead backward dates require each duration, day basis and source; missing inputs never become dates',async t=>{
@@ -254,7 +286,7 @@ test('review history persists; partial edits retain prior decisions; collisions 
 test('source mapping retains raw hashes; importing a revision cannot silently govern it',async t=>{
  const f=await fixture(t);const upload=await f.upload('Unusual.csv','Control Number,Equipment Scope,Maker\nEQ1,Elevator,Vendor');const doc=f.state.evidenceDocuments.find(d=>d.documentId===upload.documentId)!;
  f.change({action:'map_document',documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:'package',columns:{'record reference':'Control Number',description:'Equipment Scope'}});
- const candidate=deliveryRecords(f.state).records.find(r=>r.reference==='EQ1')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.sourceHash,doc.sourceHashSha256);assert.equal(deliveryPosition(f.state).packageRows.length,0);
+ const candidate=deliveryRecords(f.state).records.find(r=>r.reference==='EQ1')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.sourceHash,doc.sourceHashSha256);const position=deliveryPosition(f.state);assert.equal(position.packageRows.length,1);assert.equal(position.packageRows[0]!.sourceState,'extracted_candidate');assert.equal(position.populations.package!.state,'not_established');
 });
 
 test('exports include every curve point beyond row 20, all parent keys and project scope',async()=>{
@@ -324,7 +356,7 @@ test('Delivery reuses existing risk identities and scoring; foreign or invented 
 test('retained native and OCR pages create review candidates with physical page receipts; unread pages stay disclosed',async t=>{
  const f=await fixture(t),bytes=Buffer.from('Retained PDF byte identity for source-receipt test'),storedPath=join(f.dir,'receipt.pdf');writeFileSync(storedPath,bytes);const hash=createHash('sha256').update(bytes).digest('hex');
  const doc:any={documentId:'PDF-RECEIPT',sourceFilename:'Delivery evidence.pdf',sourceHashSha256:hash,storedPath,mediaType:'application/pdf',basisState:'historical',documentType:'supporting_document',linkedArtifactId:null,uploadedAt:'2031-09-01',supersededByDocumentId:null,fullTextRead:{sourceHashSha256:hash,producerVersion:'full-page-read-v1',completedAt:'2031-09-01',result:{complete:false,pages:[{pageNumber:1,method:'native',text:'Package ID: PK-NATIVE\nDescription: Chiller\nOrdered Quantity: 2'},{pageNumber:2,method:'ocr',text:'Submittal ID: SUB-OCR\nDescription: Technical approval\nActual Issue: 2031-08-15'},{pageNumber:3,method:'failed',text:''}]}}};
- f.state.evidenceDocuments.push(doc);f.store.touch(f.state);let p=deliveryPosition(f.state);const candidate=p.records.find(r=>r.reference==='SUB-OCR')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.locator,'page:2:line:1');assert.equal(candidate.receipts[0]!.sourceHash,hash);assert.ok(p.diagnostics.some(d=>d.includes('PHYSICAL_PAGE_COVERAGE_INCOMPLETE')));assert.equal(p.packageRows.length,0);
+ f.state.evidenceDocuments.push(doc);f.store.touch(f.state);let p=deliveryPosition(f.state);const candidate=p.records.find(r=>r.reference==='SUB-OCR')!;assert.equal(candidate.state,'extracted_candidate');assert.equal(candidate.receipts[0]!.locator,'page:2:line:1');assert.equal(candidate.receipts[0]!.sourceHash,hash);assert.ok(p.diagnostics.some(d=>d.includes('PHYSICAL_PAGE_COVERAGE_INCOMPLETE')));assert.equal(p.packageRows.length,1);assert.equal(p.packageRows[0]!.sourceState,'extracted_candidate');assert.equal(p.populations.package!.state,'not_established');
  f.review(candidate);assert.equal(deliveryPosition(f.state).registerRows.find(r=>r.reference==='SUB-OCR')!.currentStatus,'performed');
  assert.throws(()=>f.population('submittal'),/physical-page/);
  doc.fullTextRead.result.complete=true;f.store.touch(f.state);f.population('submittal');assert.equal(deliveryPosition(f.state).populations.submittal!.denominator,1);
@@ -337,4 +369,20 @@ test('explicit Delivery schemas cannot displace existing BOQ or HSE authority; m
  const f=await fixture(t);await f.upload('Delivery.csv','Delivery Record Type,Record Reference,Description,Man Hours,Lost Time Injuries\npackage,PK1,Chiller,,\nhse,HSE1,Exposure,1000,0');
  const doc=f.state.evidenceDocuments.find(d=>d.sourceFilename==='Delivery.csv')!;assert.equal(doc.documentType,'delivery_register');
  const p=deliveryPosition(f.state);assert.equal(p.records.length,2);assert.deepEqual(p.documents.map(d=>d.kind).sort(),['hse','package']);assert.equal(p.hsePosition.frequencyRate,null);
+});
+
+
+test('Delivery cannot call a record overdue when its due date is not established',async t=>{
+ const f=await fixture(t);
+ const snag=f.create('snag','NO-DUE',{'raised date':'2031-08-01','status as of':'2031-08-31',status:'Overdue'});
+ f.population('snag');
+ const position=deliveryPosition(f.state),row=position.registerRows.find(r=>r.recordId===snag.recordId)!;
+ assert.equal(row.dueDate,null);
+ assert.equal(row.overdue,null);
+ assert.equal(row.currentStatus,'open');
+ assert.ok(position.findings.some(x=>x.code==='DELIVERY_LATENESS_DUE_DATE_REQUIRED'&&x.recordId===snag.recordId));
+ const page=deliveryModule(f.state,'delivery-closeout').data as any;
+ const rendered=page.rows.find((r:any)=>r.recordId===snag.recordId);
+ assert.equal(rendered.overdue,null);
+ assert.equal(rendered.dueDate,null);
 });

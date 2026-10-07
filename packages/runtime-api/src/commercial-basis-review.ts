@@ -66,9 +66,11 @@ export function costBasisReview(ledger:CanonicalCommercialModel,certificates:Ret
     const pct=(n:number|null)=>n!==null&&bac!==null&&bac>0?n/bac*100:null;
     const group=certificates.groups.find(g=>g.currency===row.currency&&g.taxBasis===row.taxBasis&&row.taxBasis!=='unknown');
     const net=group?.totals?.netCertifiedAmount??null;
+    const certificateDate=group?.latestPeriod?.date??null;
+    const certificateDateMatches=certificateDate!==null&&row.asOf===certificateDate;
     return {currency:row.currency,taxBasis:row.taxBasis,asOf:row.asOf,bac,pv,ev,ac,plannedPercentOfBudget:pct(pv),earnedPercentOfBudget:pct(ev),
-      certificatePeriodNet:net,certificateDate:certificates.dataDateIso,certificateDateMatches:row.asOf===certificates.dataDateIso,
-      actualCostToCertificateRatio:ac!==null&&net!==null&&net!==0&&row.asOf===certificates.dataDateIso?ac/net:null,
+      certificatePeriodNet:net,certificateDate,certificateDateMatches,
+      actualCostToCertificateRatio:ac!==null&&net!==null&&net!==0&&certificateDateMatches?ac/net:null,
       spi:ev!==null&&pv!==null&&pv>0?ev/pv:null,cpi:ev!==null&&ac!==null&&ac>0?ev/ac:null,
       interpretation:'SPI and CPI check arithmetic within the cost source. Cost-weighted EV/PV, duration-weighted schedule progress, accrued cost and certificate-period values are different measures. Their amounts remain unreconciled until a dated CBS/WBS/certificate bridge explains scope, valuation and timing. Multiplying schedule progress by BAC is an illustration, not a calculated PV or EV.'};
   });

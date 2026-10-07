@@ -13,7 +13,7 @@ import {deliveryFields} from '../../delivery-core/src/fields';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
-const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
+const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',permit_register:'permit',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
 // Source-table keys are already canonical. Normalise the finite identity list
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
@@ -142,7 +142,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
     const seen=new Set([r.recordId]);let parent=String(fields['parent location id']??'');
     while(parent){if(seen.has(parent))throw new Error('Location hierarchy cannot contain a cycle.');seen.add(parent);const row=all.find(x=>x.kind==='location'&&x.recordId===parent&&['governed','verified'].includes(x.state));if(!row)throw new Error('Parent location must be a governed location in this project.');parent=String(row.fields['parent location id']??'');}
    }
-   if(fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
+   if(r.kind!=='lifecycle'&&fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
   }
   if(!String(input.note??'').trim())throw new Error('Record the reason for this decision.');
   let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;

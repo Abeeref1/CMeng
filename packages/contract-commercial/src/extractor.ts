@@ -14,6 +14,10 @@ import type {
   LdRateCandidate,
 } from "./types";
 
+const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
+const isCurrencyCode = (value: string): boolean =>
+  currencyCodes.has(value.trim().toUpperCase());
+
 function refs(
   section: ContractSection,
 ): string[] {
@@ -31,6 +35,9 @@ function refs(
 function cleanNumber(
   value: string,
 ): number | null {
+  // A punctuation-only match must never become Number("") === 0.
+  // Preserve explicit zeros, decimals and correctly grouped thousands.
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(value)) return null;
   const number = Number(
     value.replace(/,/g, ""),
   );
@@ -91,7 +98,7 @@ function rateCandidates(
           : match[1]!;
       const unit = match[3]!.toLowerCase();
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       const basis =
         unit.includes("week")
           ? "fixed_amount_per_week" as const
@@ -114,6 +121,9 @@ function rateCandidates(
           match.index,
           match[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -156,6 +166,9 @@ function rateCandidates(
         percentMatch.index,
         percentMatch[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -197,6 +210,9 @@ function capCandidates(
         match.index,
         match[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -218,7 +234,7 @@ function capCandidates(
           ? fixed[2]!
           : fixed[1]!;
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       out.push({
         candidateId:
           "ld-cap-" +
@@ -238,6 +254,9 @@ function capCandidates(
           fixed.index,
           fixed[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -300,10 +319,26 @@ export function extractContractLdTerms(
     eligible.flatMap(capCandidates),
   );
 
+  const overallWorksPattern =
+    /(?:whole|entire)\s+(?:of\s+the\s+)?works|overall\s+(?:works|project|completion)|project\s+completion|completion\s+of\s+(?:the\s+)?works/i;
+  const overallRateCandidates = rates.filter((rate) =>
+    overallWorksPattern.test(
+      [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.textSnippet].join(" "),
+    ),
+  );
+  const sectionalRateSet = rates.length > 1 && new Set(rates.map((rate) =>
+    [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.sectionKey ?? ""].join("|")
+  )).size > 1;
+  const selectedRate =
+    rates.length === 1
+      ? rates[0]!
+      : overallRateCandidates.length === 1
+        ? overallRateCandidates[0]!
+        : null;
   const rateState =
     rates.length === 0
       ? "missing"
-      : rates.length === 1
+      : selectedRate
         ? "candidate"
         : "conflicted";
   const capState =
@@ -318,7 +353,7 @@ export function extractContractLdTerms(
     capState,
     rate:
       rateState === "candidate"
-        ? rates[0]!
+        ? selectedRate
         : null,
     cap:
       capState === "candidate"
@@ -332,6 +367,12 @@ export function extractContractLdTerms(
         : [
             "LD_EXTRACTION_FROM_PARTIAL_CONTRACT_SEMANTICS",
           ]),
+      ...(sectionalRateSet
+        ? ["LD_SECTIONAL_RATES_RETAINED:" + rates.length]
+        : []),
+      ...(selectedRate && rates.length > 1
+        ? ["LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES"]
+        : []),
       ...(rateState === "conflicted"
         ? ["LD_RATE_CONFLICT_REQUIRES_REVIEW"]
         : []),
@@ -431,7 +472,7 @@ function contractValueCandidates(
       if (
         amount === null ||
         amount < 0 ||
-        currencyCode.length !== 3
+        !isCurrencyCode(currencyCode)
       ) {
         continue;
       }

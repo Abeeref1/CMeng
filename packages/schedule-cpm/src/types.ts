@@ -66,7 +66,7 @@ export interface CpmResult {
   durationBasis: CpmDurationBasis;
   calculationMode: CpmCalculationMode;
   relationshipLagCalendarMethod:
-    "successor_calendar_forward_predecessor_calendar_backward";
+    "successor_calendar_forward_and_backward";
   projectStartIso: string | null;
   projectFinishIso: string | null;
   requiredFinishIso: string | null;

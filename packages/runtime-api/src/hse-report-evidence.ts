@@ -23,12 +23,15 @@ export function parseHseSummary(text:string,hash:string,sourceRef:string):HseRep
   return {producerVersion:'hse-summary-v1',sourceHashSha256:hash,periodEndIso,metrics,sourceRefs:[sourceRef],diagnostics};
 }
 export async function refreshHseSummary(document:StoredEvidenceDocument):Promise<boolean>{
-  if(document.documentType!=='hse_report'||!['active','additive','candidate'].includes(document.basisState))return false;
+  if(!['active','additive','candidate'].includes(document.basisState))return false;
+  const tabular=/csv|spreadsheetml/.test(document.mediaType);
+  if(!tabular&&document.documentType!=='hse_report')return false;
   if(document.hseSummary?.producerVersion==='hse-summary-v2'&&document.hseSummary.sourceHashSha256===document.sourceHashSha256)return false;
   const bytes=readFileSync(document.storedPath);
   if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('HSE_SOURCE_HASH_MISMATCH');
-  if(/csv|spreadsheetml/.test(document.mediaType)){
-    const tables=sourceTables([document],[]);
+  if(tabular){
+    const tables=sourceTables([document],[]).filter(table=>table.document.documentType==='hse_report');
+    if(!tables.length)return false;
     const names:Record<string,string>={'man hours':'manHours','lost time injuries':'lostTimeInjuries','medical treatment cases':'medicalTreatmentCases','first aid cases':'firstAidCases','near misses':'nearMisses',ltifr:'ltifr',trir:'trir'};
     const periods=new Map<string,{seen:Map<string,Set<number>>;sourceRefs:string[]}>();
     for(const table of tables)for(const row of table.rows){
@@ -59,7 +62,7 @@ export function hseReportPosition(state:ProjectRuntimeState,dataDateIso:string|n
 }
 function calculateHsePosition(state:ProjectRuntimeState,dataDateIso:string|null){
   const cutoff=dateValue(dataDateIso??'');
-  const reports=state.evidenceDocuments.filter(d=>d.documentType==='hse_report'&&['active','additive'].includes(d.basisState)).flatMap(d=>{const summary=d.hseSummary;if(!summary)return [];const unread=d.fullTextRead?.sourceHashSha256===d.sourceHashSha256&&(!d.fullTextRead.result.complete||d.fullTextRead.result.failedPages>0||d.fullTextRead.result.unresolvedPages>0);return (summary.periods??[summary]).map(r=>({...r,sourceTableRead:unread?false:r.sourceTableRead}));});
+  const reports=state.evidenceDocuments.filter(d=>d.hseSummary&&['active','additive'].includes(d.basisState)).flatMap(d=>{const summary=d.hseSummary;if(!summary)return [];const unread=d.fullTextRead?.sourceHashSha256===d.sourceHashSha256&&(!d.fullTextRead.result.complete||d.fullTextRead.result.failedPages>0||d.fullTextRead.result.unresolvedPages>0);return (summary.periods??[summary]).map(r=>({...r,sourceTableRead:unread?false:r.sourceTableRead}));});
   const eligible=reports.filter(r=>cutoff&&r.periodEndIso&&r.periodEndIso<=cutoff).sort((a,b)=>b.periodEndIso!.localeCompare(a.periodEndIso!));
   const latest=eligible[0]??null;
   const samePeriod=eligible.filter(r=>r.periodEndIso===latest?.periodEndIso);

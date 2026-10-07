@@ -1,5 +1,8 @@
 /** Shared semantic headers for register ingestion. Unknown columns are retained. */
-export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'')
+  .replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/([A-Z]{2,})s\b/g,word=>word.toLowerCase())
+  .replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2')
+  .toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const groups:Record<string,string[]>={
   'claim id':['claim ref','claim reference','claim no','claim number','رقم المطالبة','مرجع المطالبة'],
   'event':['event description','delay event','delay description','وصف الحدث'],
@@ -13,9 +16,21 @@ const groups:Record<string,string[]>={
   'package id':['package no','procurement ref','procurement no','purchase order no','po no','رقم الحزمة'],
   'bond id':['bond no','bond number','guarantee no','guarantee number','رقم الضمان'],
   'determination id':['determination no','determination ref','decision no','award no','رقم القرار'],
+  'permit id':['permit no','permit number','permit ref','permit reference','authority permit no','approval permit no'],
+  'policy id':['policy no','policy number','insurance policy no','insurance policy number'],
   'reference':['ref','reference no','reference number','المرجع'],
   'status':['state','الحالة'], 'description':['details','الوصف'], 'currency':['العملة'],
-  'gross work':['gross','gross certified','gross amount','gross certified amount','gross work done','gross work done (period)','gross work (period)','قيمة الأعمال','اجمالي الاعمال'],
+  'awareness date':['date of awareness','became aware date','date became aware','awareness','تاريخ العلم'],
+  'responsibility':['responsibility claimed','claimed responsibility','responsibility category','المسؤولية المدعاة'],
+  'owner':['responsible','responsible person','assigned to','action owner','مسؤول','المسؤول'],
+  'impact':['impact 1 5','impact score','consequence impact','impact rating'],
+  'score':['risk score','risk score value'],
+  'last reviewed':['last review','last review date','reviewed date'],
+  'bond type':['instrument','instrument type','security type','guarantee type','policy type'],
+  'supplier':['vendor','vendor name','supplier name'],
+  'long lead':['long lead flag','long lead item','long lead yes no'],
+  'gross work':['gross','gross amount','gross work done','gross work done (period)','gross work (period)','قيمة الأعمال','اجمالي الاعمال'],
+  'gross certified amount':['gross certified','gross certified value'],
   'net certified':['net','net certified amount','net amount','net certificate value','صافي المستخلص'],
   'retention':['retention amount','retention deduction','retention deducted','مبلغ الاستقطاع'],
   'advance recovery':['advance payment recovery','advance deduction','استرداد الدفعة المقدمة'],
@@ -25,7 +40,7 @@ const groups:Record<string,string[]>={
   'raised date':['raised','date raised','date opened','opened date','تاريخ الفتح'],
   'identified date':['date identified','risk identified date','risk date','تاريخ تحديد الخطر'],
   'status as of':['status date','status as of date','تاريخ الحالة'],
-  'due date':['date due','target date','required response','response due','reply due date','تاريخ الاستحقاق'],
+  'due date':['date due','target date','required response','response due','reply due date','action due date','target action date','تاريخ الاستحقاق'],
   'expiry date':['date of expiry','expiration date','guarantee expiry','تاريخ الانتهاء'],
   'approval date':['date approved','date of approval','تاريخ الموافقة'],
   'days claimed':['claimed days','claimed delay days','أيام المطالبة'],
@@ -51,6 +66,14 @@ const groups:Record<string,string[]>={
   'measurement date':['measured date','date measured','measurement as of','تاريخ القياس'],
   'item no':['item number','boq item number','boq item no','رقم البند'],
   'cumulative installed qty':['cumulative installed quantity','installed quantity to date','cumulative measured quantity'],
+  'pv':['planned value','bcws'],
+  'ev':['earned value','bcwp'],
+  'ac':['actual cost','acwp'],
+  'bac':['budget at completion'],
+  'eac':['estimate at completion'],
+  'etc':['estimate to complete'],
+  'sv':['schedule variance'],
+  'cv':['cost variance'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -70,9 +93,17 @@ export function canonicalHeader(value:string,documentType=''):string {
   return key;
 }
 const fields=new Set([...Object.keys(groups),
-  'amount','value','unit','metric','as of','probability','impact','rating','owner','title','event','responsibility','notice id',
+  'amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
+  'permit id','policy id','authority','submission date','review date','issue date','valid from','expiry applicable','renewal required','required by','blocker',
+  'pv','ev','ac','bac','eac','etc','sv','cv',
   'approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier',
   'trir','ltifr','reporting month','tax basis','vat basis',
+  'application amount','engineer assessed amount','employer certified amount','variation certified amount','variations',
+  'paid amount','outstanding amount','other deductions','other deduction','tax amount','payment reference','payment source status',
+  'certified amount basis','paid amount basis','paid allocation basis','payment allocation basis',
+  'application date','payment due date','retention release date','retention release due date','certification due date',
+  'instruction id','issue date','quotation due date','quotation date','estimated amount','schedule impact days',
+  'obligation id','clause','responsible party','evidence reference','retention id','trigger',
   'calculated critical impact days','concurrency days','mitigation days','net assessed impact days','assessed days','employer delay days','contractor delay days','analysis status','approved',
   // Project-control register schemas. Recognition means the columns were read;
   // it does not establish lifecycle completeness, mapping or authority.
@@ -90,10 +121,15 @@ const fields=new Set([...Object.keys(groups),
   'work package','work package id','remaining quantity','recent achieved rate day','conservative achievable rate day','independent forecast finish',
   'measured by','filename','file name','file path','relative path','sha256','source hash','document type','purpose','expected role','notes'
 ]);
+export function isRegisterHeader(value:string):boolean {
+  const key=canonicalHeader(value);
+  return fields.has(key)||fields.has(key.replace(/ [a-z]{3}$/, ''));
+}
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
   'release date','expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
-  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date','measurement date',
+  'planned issue','actual issue','planned date','actual date','week start','as of','date','submitted date','submission date','review date','issue date','valid from',
+  'assessment date','closed date','effective date','measurement date','awareness date','last reviewed',
 ]);
 export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));
@@ -109,6 +145,17 @@ export function registerDate(value:string):string|null {
   if(iso){y=+iso[1]!;m=+iso[2]!;d=+iso[3]!;}else if(numeric){y=+numeric[3]!;m=+numeric[2]!;d=+numeric[1]!;}else if(words){y=+words[3]!;m=months.indexOf(words[2]!.slice(0,3).toLowerCase())+1;d=+words[1]!;}else return null;
   const date=new Date(Date.UTC(y,m-1,d));return m>0&&date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?date.toISOString().slice(0,10):null;
 }
+function registerSummaryRow(row:readonly string[]):boolean{
+  const values=row.map(value=>value.normalize('NFKC').trim()).filter(Boolean);
+  if(!values.length)return false;
+  const first=values[0]!.toLowerCase().replace(/[.:：\-]+$/g,'').replace(/\s+/g,' ').trim();
+  // Spreadsheet footers must never become source records merely because their
+  // first physical cell happens to sit under an ID column after column reordering.
+  // Match only standalone summary labels; legitimate identifiers such as
+  // TOTAL-01 or SUBTOTAL-A remain ordinary source values.
+  return /^(?:grand total|sub ?total|total|totals|الإجمالي|الاجمالي|المجموع)$/.test(first);
+}
+
 export function prepareRegisterRows(input:readonly string[][],documentType='') {
   let headerIndex=0,best=0;
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
@@ -118,8 +165,10 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   // Column meaning is constant for the table. Do not normalise and match the
   // same header again for every cell in a large BOQ/resource register.
   const dateColumns=headers.map(isRegisterDateHeader);
-  const rows=input.slice(headerIndex+1).filter(r=>r.some(v=>v.trim())).map(row=>row.map((raw,i)=>
-    dateColumns[i]?registerDate(raw)??raw:raw));
+  const rows=input.slice(headerIndex+1)
+    .filter(r=>r.some(v=>v.trim()))
+    .filter(r=>!registerSummaryRow(r))
+    .map(row=>row.map((raw,i)=>dateColumns[i]?registerDate(raw)??raw:raw));
   const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no','net certified']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
   const recognized=best>=2&&required.every(key=>headers.includes(key));
   return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,recognized,readRowCount:rows.length};
