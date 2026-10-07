@@ -52,7 +52,7 @@ export function reconcilePaymentEvidence(
   const componentArithmetic = {
     state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= 0.01 ? 'matched' as const : 'conflicted' as const,
     calculatedNet: statedNet,
-    difference: statedNet !== null && net.value !== null ? round(statedNet - net.value, 6) : null,
+    difference: statedNet !== null && net.value !== null ? round(net.value - statedNet, 6) : null,
     omittedComponents: optionalKnown ? [] : ['other deductions'],
     basis: optionalKnown ? 'Stated gross work + variations − retention − advance recovery − other deductions.' :
       'Stated gross work + variations − retention − advance recovery. Other deductions are not supplied; equality checks this equation only.',
