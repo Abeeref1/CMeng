@@ -32,6 +32,7 @@ import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
 import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
+import {attachProjectFacts,projectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
 import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
@@ -7718,24 +7719,25 @@ export function moduleForProject(
       ["project"],
     );
   }
-  if (key==='delivery-interfaces') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped))));}
-  if (key==='recovery-acceleration') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped)));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped)));}
-  if (isDeliveryPage(key)) {const scoped=reportingState(state);return attachReportingContract(scoped,deliveryModule(scoped,key));}
-  if (key==='scope-classification') return resolveProjectModuleUncertified(reportingState(state),key);
-  if (key==='monte-carlo-risk') return scheduleRiskMonteCarlo(reportingState(state));
-  if (key==='earned-schedule') return earnedScheduleForState(reportingState(state));
-  if (key==='evm-by-wbs') return evmByWbsForState(reportingState(state));
-  if (key==='risk-register') return riskRegisterForState(reportingState(state));
-  if (key==='contract-risk') return contractRiskForState(reportingState(state));
-  if (key==='final-account') return finalAccountForState(reportingState(state));
-  if (key==='tender-readiness') return tenderReadinessForState(reportingState(state));
+  const finalize=(result:ModuleRuntimeResult)=>attachProjectFacts(state,result);
+  if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
+  if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped))));}
+  if (isDeliveryPage(key)) {const scoped=reportingState(state);return finalize(attachReportingContract(scoped,deliveryModule(scoped,key)));}
+  if (key==='scope-classification') return finalize(resolveProjectModuleUncertified(reportingState(state),key));
+  if (key==='monte-carlo-risk') return finalize(scheduleRiskMonteCarlo(reportingState(state)));
+  if (key==='earned-schedule') return finalize(earnedScheduleForState(reportingState(state)));
+  if (key==='evm-by-wbs') return finalize(evmByWbsForState(reportingState(state)));
+  if (key==='risk-register') return finalize(riskRegisterForState(reportingState(state)));
+  if (key==='contract-risk') return finalize(contractRiskForState(reportingState(state)));
+  if (key==='final-account') return finalize(finalAccountForState(reportingState(state)));
+  if (key==='tender-readiness') return finalize(tenderReadinessForState(reportingState(state)));
   const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
-  if(commercialCapability)return attachReportingContract(reportingState(state),commercialCapability);
+  if(commercialCapability)return finalize(attachReportingContract(reportingState(state),commercialCapability));
   if (managementModuleKeys.includes(key)) {
-    return managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []);
+    return finalize(managementSurfaceForProject(projectId, key) ?? blocked(key, "Management position is not established.", []));
   }
-  return resolveProjectModule(state, key);
+  return finalize(resolveProjectModule(state, key));
 }
 
 const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme", "source-quality"];
