@@ -253,6 +253,7 @@ export interface CommercialTermsProjection {
   noticePeriodDays: CommercialFinding<number>;
   performanceBondRequirement: CommercialFinding<string>;
   advancePaymentBondRequirement: CommercialFinding<string>;
+  advancePaymentPercent?: CommercialFinding<number>;
   insuranceRequirements: CommercialClauseRecord[];
   hierarchyAndPrecedenceClauses: CommercialClauseRecord[];
   clauses: CommercialClauseRecord[];
