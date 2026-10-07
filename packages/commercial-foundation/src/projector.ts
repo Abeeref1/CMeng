@@ -767,6 +767,18 @@ function buildCommercialTerms(
       approved: true,
     });
   }
+  // A contract-value extraction already carries an explicit monetary currency.
+  // Reuse that same source assertion for the contract-currency fact instead of
+  // asking the user to confirm a currency that CMeng is already using for the
+  // contract value. Candidate value authority remains candidate; conflicting
+  // currencies remain conflicted.
+  for (const candidate of input.contractValueCandidates) {
+    currencyCandidates.push({
+      value: candidate.currency,
+      ref: candidate.sourceRefs[0] ?? "contract-value-candidate",
+      approved: candidate.authority === "approved",
+    });
+  }
   const contractCurrency =
     candidateFinding(
       currencyCandidates,
