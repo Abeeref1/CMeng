@@ -665,3 +665,34 @@ test('Payment periods never substitute for certification events, and future peri
  assert.equal(p.rows[0]!.lifecycle.paymentDueDate.value,null);
  assert.equal(p.slaCounts.notEstablished,1);
 });
+
+
+test("contractual completion never becomes Confirmed from a candidate or conflicted time basis", () => {
+  for (const contractualCompletionState of ["candidate","conflicted"] as const) {
+    const value=input();
+    value.contractTimeBasis={
+      contractualCompletionIso:"2043-08-31",
+      contractualCompletionState,
+      sourceRefs:["evidence-document:TIME:row:2"],
+    };
+    const completion=buildCommercialFoundation(value).commercialTerms.contractualCompletionDate;
+    assert.equal(completion.value,"2043-08-31");
+    assert.equal(completion.state,contractualCompletionState);
+    assert.equal(completion.authority,contractualCompletionState==="candidate"?"candidate":"mixed");
+    assert.notEqual(completion.state,"established");
+    assert.ok(completion.action);
+  }
+});
+
+test("official contractual completion remains established and approved", () => {
+  const value=input();
+  value.contractTimeBasis={
+    contractualCompletionIso:"2043-08-31",
+    contractualCompletionState:"official",
+    sourceRefs:["evidence-document:TIME:row:2"],
+  };
+  const completion=buildCommercialFoundation(value).commercialTerms.contractualCompletionDate;
+  assert.equal(completion.state,"established");
+  assert.equal(completion.authority,"approved");
+  assert.equal(completion.action,null);
+});
