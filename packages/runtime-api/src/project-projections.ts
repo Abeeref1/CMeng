@@ -8259,6 +8259,7 @@ export function managementSurfacesForProject(
     projectId,
     generatedAt,
     director,
+    projectFacts:projectFactsForState(state),
     consistency,
     contractualCompletionAuthority: terms.contractualCompletionDate.state === "established" ? "official" : terms.contractualCompletionDate.state === "candidate" ? "provisional" : "source",
     negativeFloatCount: (resolvedModules.get("schedule-analytics")?.data as any)?.result?.float?.negativeFloatCount ?? null,
