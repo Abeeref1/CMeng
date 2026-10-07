@@ -917,6 +917,7 @@ function dashboardMetrics(
 export function buildManagementSurfaces(
   input: ManagementSurfacesInput,
 ): ManagementSurfacesProjection {
+  const facts=input.projectFacts;
   const consistency = input.consistency ?? { state: "pending" as const, checkCount: 0, failedCheckIds: [],
     scope: "Cross-module values, populations, Data Date, authority, configuration and version have not been checked." };
   const modules = input.modules.map(item => {
