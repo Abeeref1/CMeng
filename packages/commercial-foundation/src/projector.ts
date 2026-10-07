@@ -1814,9 +1814,13 @@ function buildPaymentRegister(
           ),
       ).length,
   };
+  // Payment SLA starts at certification. Applications that have not been
+  // certified remain visible in the lifecycle register but cannot make the
+  // certified-payment SLA population incomplete.
+  const slaRows=rows.filter(row=>Boolean(row.lifecycle.certificationDate));
   const rawSlaCounts = {
     paidOnTime:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           Boolean(
             row.lifecycle
@@ -1827,7 +1831,7 @@ function buildPaymentRegister(
             "on_time",
       ).length,
     paidLate:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           Boolean(
             row.lifecycle
@@ -1838,7 +1842,7 @@ function buildPaymentRegister(
             "late",
       ).length,
     overdueUnpaid:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           !row.lifecycle
             .paymentDate &&
@@ -1847,7 +1851,7 @@ function buildPaymentRegister(
             "late",
       ).length,
     openUnpaid:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           !row.lifecycle
             .paymentDate &&
@@ -1856,7 +1860,7 @@ function buildPaymentRegister(
             "open",
       ).length,
     notEstablished:
-      rows.filter(
+      slaRows.filter(
         (row) =>
           row.lifecycle
             .slaState ===
@@ -1867,9 +1871,9 @@ function buildPaymentRegister(
     PaymentRegisterProjection[
       "slaAssessmentState"
     ] =
-    rows.length === 0 ||
+    slaRows.length === 0 ||
     rawSlaCounts.notEstablished ===
-      rows.length
+      slaRows.length
       ? "not_assessable"
       : rawSlaCounts.notEstablished >
           0
