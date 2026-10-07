@@ -69,6 +69,7 @@ function buildAlerts(
 ): ManagementAlert[] {
   const director =
     input.director;
+  const facts=input.projectFacts;
   const alerts:
     ManagementAlert[] = [];
   const add = (
@@ -199,7 +200,7 @@ function buildAlerts(
     }
 
     if (
-      (director.controls.openCriticalMajorNcrCount ?? 0) >
+      (facts.controls.openCriticalMajorNcrCount.value ?? 0) >
       0
     ) {
       add({
@@ -210,8 +211,8 @@ function buildAlerts(
           "Critical or major NCR exposure is open",
         consequence:
           String(
-            director.controls
-              .openCriticalMajorNcrCount,
+            facts.controls
+              .openCriticalMajorNcrCount.value,
           ) +
           " major/critical NCR item(s) remain open.",
         action:
@@ -222,7 +223,7 @@ function buildAlerts(
     }
 
     if (
-      (director.controls.overdueRfiCount ?? 0) >
+      (facts.controls.overdueRfiCount.value ?? 0) >
       0
     ) {
       add({
@@ -233,8 +234,8 @@ function buildAlerts(
           "Overdue RFIs can affect delivery",
         consequence:
           String(
-            director.controls
-              .overdueRfiCount,
+            facts.controls
+              .overdueRfiCount.value,
           ) +
           " RFI(s) are overdue.",
         action:
@@ -268,7 +269,7 @@ function buildAlerts(
     }
 
     if (
-      (director.controls.expiredBondCount ?? 0) >
+      (facts.commercial.expiredBondCount.value ?? 0) >
       0
     ) {
       add({
@@ -279,8 +280,8 @@ function buildAlerts(
           "Expired contract security requires attention",
         consequence:
           String(
-            director.controls
-              .expiredBondCount,
+            facts.commercial
+              .expiredBondCount.value,
           ) +
           " bond/security item(s) are expired.",
         action:
@@ -502,6 +503,7 @@ function dashboardMetrics(
   input: ManagementSurfacesInput,
 ): ManagementMetric[] {
   const d = input.director;
+  const facts=input.projectFacts;
   const comparisonBasis =
     d?.schedule
       .forecastComparisonBasis ??
@@ -583,27 +585,21 @@ function dashboardMetrics(
     finishMetric(
       "contract-finish",
       "Contract completion",
-      d?.schedule
-        .contractualCompletionIso ??
-      null,
+      facts.time.contractualCompletionIso.value,
       "Current contractual completion, including effective amendments; authority follows the confirmed term",
       input.contractualCompletionAuthority ?? "source",
     ),
     finishMetric(
       "official-adjusted-finish",
       "Further adjusted contractual completion",
-      d?.schedule
-        .officialAdjustedCompletionIso ??
-      null,
+      facts.time.extendedContractCompletionIso.value,
       "Additional adjustment after the current confirmed amendment; absence does not invalidate the current contract completion",
       "official",
     ),
     finishMetric(
       "submitted-programme-finish",
       "Submitted programme finish",
-      d?.schedule
-        .submittedProgrammeCompletionIso ??
-      null,
+      facts.schedule.submittedProgrammeCompletionIso.value,
       "Current submitted programme/source forecast",
       "submitted",
     ),
@@ -674,15 +670,15 @@ function dashboardMetrics(
       label:
         "Critical activities",
       value:
-        d?.schedule
-          .criticalCount ??
-        null,
-      state: d
-        ? "source_current"
-        : "unavailable",
-      authority: d
-        ? "source"
-        : "unavailable",
+        facts.schedule.criticalActivityCount.value,
+      state: facts.schedule.criticalActivityCount.value===null
+        ? "unavailable"
+        : facts.schedule.criticalActivityCount.complete
+          ? "calculated"
+          : "partial",
+      authority: facts.schedule.criticalActivityCount.value===null
+        ? "unavailable"
+        : "calculated",
       health: (input.negativeFloatCount ?? 0) > 0 ? "attention" : "unavailable",
       basis:
         "Execution activities with source total float ≤ 0; critical-path presence alone is not adverse health",
@@ -693,8 +689,8 @@ function dashboardMetrics(
     }),
   );
 
-  const submitted = d?.schedule.submittedProgrammeCompletionIso;
-  const contractual = d?.schedule.contractualCompletionIso;
+  const submitted = facts.schedule.submittedProgrammeCompletionIso.value;
+  const contractual = facts.time.contractualCompletionIso.value;
   const submittedVariance = submitted && contractual
     ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
   for (const [key, label, value, basis] of [
@@ -714,15 +710,15 @@ function dashboardMetrics(
       label:
         "Near-critical activities",
       value:
-        d?.schedule
-          .nearCriticalCount ??
-        null,
-      state: d
-        ? "calculated"
-        : "unavailable",
-      authority: d
-        ? "calculated"
-        : "unavailable",
+        facts.schedule.nearCriticalActivityCount.value,
+      state: facts.schedule.nearCriticalActivityCount.value===null
+        ? "unavailable"
+        : facts.schedule.nearCriticalActivityCount.complete
+          ? "calculated"
+          : "partial",
+      authority: facts.schedule.nearCriticalActivityCount.value===null
+        ? "unavailable"
+        : "calculated",
       health: "unavailable",
       basis:
         d?.sourceInterpretation?.nearCriticalScreening?.basis ?? "Source-float screening; project threshold authority unresolved",
@@ -1033,6 +1029,17 @@ export function buildManagementSurfaces(
         ),
     );
 
+  const canonicalControls=input.director?.controls
+    ?{
+        ...input.director.controls,
+        openRiskCount:facts.controls.openRiskCount.value,
+        openCriticalMajorNcrCount:facts.controls.openCriticalMajorNcrCount.value,
+        openRfiCount:facts.controls.openRfiCount.value,
+        overdueRfiCount:facts.controls.overdueRfiCount.value,
+        expiredBondCount:facts.commercial.expiredBondCount.value,
+      }
+    :null;
+
   const commandCenter:
     CommandCenterProjection = {
     schemaVersion: "1.0",
@@ -1056,9 +1063,7 @@ export function buildManagementSurfaces(
         ?.commercialByCurrency ??
       [],
     controls:
-      input.director
-        ?.controls ??
-      null,
+      canonicalControls,
     diagnostics: [
       "COMMAND_CENTER_PRIORITIZES_CONTROL_EXCEPTIONS_WITHOUT_AUTO_APPROVAL",
       "UNAVAILABLE_SOURCE_DOMAINS_CREATE_EVIDENCE_GAPS_NOT_FALSE_HEALTHY_STATUS",
