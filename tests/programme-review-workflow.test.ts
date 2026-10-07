@@ -47,3 +47,38 @@ test('programme review renders action without programme/date values and preserve
  assert.match(active,/Same Data Date/);assert.match(active,/Adopt as current/);assert.match(active,/data-project="A"/);
  const submitted=context.renderProgrammeReview({state:'submitted_current',projectId:'A',explanation:'Current submitted analytical programme.',pendingSchedules:[]});assert.equal(submitted,'');
 });
+
+
+test('baseline purpose can be recorded without approval and approval is required only for official adoption',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'programme-purpose-'));const gateway=await createProjectGateway(root,{maxWorkers:1});
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ await new Promise<void>(r=>gateway.server.listen(0,'127.0.0.1',r));
+ const base='http://127.0.0.1:'+(gateway.server.address() as any).port,id='BASELINE-PURPOSE';
+ let res=await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:id})});
+ assert.equal(res.status,201,await res.text());
+ res=await fetch(base+'/api/projects/'+id+'/schedule/uploads',{method:'POST',headers:{
+   'content-type':'text/plain','x-source-filename':'Baseline.xer','x-upload-intent':'add_update',
+   'x-schedule-role':'baseline','x-schedule-role-confirmed':'1'
+ },body:xer('2031-06-30','Baseline')});
+ assert.equal(res.status,201,await res.text());
+ const uploaded:any=await res.json();
+ let docsRes=await fetch(base+'/api/projects/'+id+'/evidence/documents'),docs:any=await docsRes.json();
+ const document=docs.documents.find((d:any)=>d.linkedArtifactId===uploaded.revisionId);
+ assert.ok(document);
+ res=await fetch(base+'/api/projects/'+id+'/schedule/revisions/'+encodeURIComponent(uploaded.revisionId)+'/purpose',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({expectedVersion:docs.projectVersion,sourceHash:uploaded.sourceHashSha256,role:'baseline',approvalReference:''})
+ });
+ assert.equal(res.status,200,'baseline purpose must save without inventing an approval reference: '+await res.text());
+ res=await fetch(base+'/api/projects/'+id+'/schedule/revisions/'+encodeURIComponent(uploaded.revisionId)+'/adopt',{method:'POST'});
+ assert.equal(res.status,400===res.status?400:409,'adoption without approval must remain blocked');
+ const blocked:any=await res.json();assert.match(blocked.message??blocked.error??'',/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
+ docsRes=await fetch(base+'/api/projects/'+id+'/evidence/documents');docs=await docsRes.json();
+ res=await fetch(base+'/api/projects/'+id+'/schedule/revisions/'+encodeURIComponent(uploaded.revisionId)+'/purpose',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({expectedVersion:docs.projectVersion,sourceHash:uploaded.sourceHashSha256,role:'baseline',approvalReference:'APP-BASE-001'})
+ });
+ assert.equal(res.status,200,await res.text());
+ res=await fetch(base+'/api/projects/'+id+'/schedule/revisions/'+encodeURIComponent(uploaded.revisionId)+'/adopt',{method:'POST'});
+ assert.equal(res.status,200,await res.text());
+});
