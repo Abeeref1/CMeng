@@ -23,6 +23,7 @@ import { inferEvidenceCategory, inferDocumentType } from '../packages/runtime-ap
 import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
 import type { ProjectRuntimeState, StoredEvidenceDocument } from '../packages/runtime-api/src/project-state-types';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 // These fixtures exercise native PDF/text ingestion. OCR providers have separate tests;
@@ -59,6 +60,32 @@ function amendment(state:ProjectRuntimeState) {
   state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030\nEOT Granted 90 calendar days',startPage:1,sectionKey:'preamble',sourceMode:'deterministic'}],pdf:{pages:[{method:'native',pageNumber:2,text:'All contract, BOQ, variation, payment and cost values are stated in AED and are exclusive of VAT unless expressly stated otherwise.'}]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
   state.version++;
 }
+
+test('one project facts snapshot is reused for the whole project version and rebuilds only when the version changes',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.activities=[
+    {projectId:'CANONICAL',activityId:'A1',nativeId:'1',name:'Critical open activity',wbsId:null,calendarId:null,activityType:'task',status:'in_progress',
+      baselineStartIso:'2026-08-01',baselineFinishIso:'2026-08-20',currentStartIso:'2026-08-01',currentFinishIso:'2026-09-10',actualStartIso:'2026-08-01',actualFinishIso:null,
+      forecastStartIso:'2026-08-01',forecastFinishIso:'2026-09-10',originalDurationHours:80,remainingDurationHours:40,totalFloatHours:0,freeFloatHours:null,percentComplete:50,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A2',nativeId:'2',name:'Negative float activity',wbsId:null,calendarId:null,activityType:'task',status:'not_started',
+      baselineStartIso:'2026-08-10',baselineFinishIso:'2026-08-25',currentStartIso:'2026-09-01',currentFinishIso:'2026-09-20',actualStartIso:null,actualFinishIso:null,
+      forecastStartIso:'2026-09-01',forecastFinishIso:'2026-09-20',originalDurationHours:80,remainingDurationHours:80,totalFloatHours:-16,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+  ] as any;
+  csvDoc('RFI ID,Status,Required Response,Raised Date\nR1,Open,2026-08-20,2026-08-01\nR2,Closed,2026-08-10,2026-08-01','rfi_register');
+  csvDoc('NCR ID,Severity,Status,Due Date,Raised Date\nN1,Major,Open,2026-08-25,2026-08-01','quality_ncr_register');
+  const first=projectFactsForState(state),second=projectFactsForState(state);
+  assert.equal(first,second);
+  assert.equal(first.projectVersion,state.version);
+  assert.equal(first.schedule.criticalActivityCount.value,2);
+  assert.equal(first.schedule.negativeFloatActivityCount.value,1);
+  assert.equal(first.controls.openRfiCount.value,1);
+  assert.equal(first.controls.overdueRfiCount.value,1);
+  assert.equal(first.controls.openCriticalMajorNcrCount.value,1);
+  state.version++;
+  const third=projectFactsForState(state);
+  assert.notEqual(third,first);
+  assert.equal(third.projectVersion,state.version);
+});
 
 test('civil programme dates accept XER timestamps without inventing a timezone',()=>{
   for(const s of ['2026-08-31','2026-08-31T08:00:00','2026-08-31T08:00:00.000Z','2026-08-31T08:00:00+03:00','31 August 2026'])assert.equal(dateValue(s),'2026-08-31');
