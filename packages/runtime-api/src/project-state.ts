@@ -5452,7 +5452,10 @@ export class RuntimeProjectStore {
     if(!['baseline','update','revised_baseline','recovery','scenario'].includes(input.role))throw new Error('PROGRAMME_PURPOSE_REQUIRED');
     if(document.scheduleAdoption||['active','superseded'].includes(document.basisState))throw new Error('ADOPTED_PROGRAMME_PURPOSE_IS_IMMUTABLE');
     const role=scheduleRole(input.role),approval=typeof input.approvalReference==='string'?input.approvalReference.trim():'';
-    if(['baseline','revised_baseline'].includes(role)&&!approval)throw new Error('BASELINE_APPROVAL_REFERENCE_REQUIRED');
+    // Programme purpose and approval authority are separate facts. A schedule may
+    // be a baseline/revised-baseline document without evidence that it was formally
+    // approved. Keep it as a candidate and require the reference only if the user
+    // later adopts it as the official controlled baseline.
     revision.role=role;revision.roleConfirmed=true;revision.approvalReference=approval;
     document.scheduleRole=role;document.scheduleRoleConfirmed=true;document.scheduleApprovalReference=approval;document.documentType='schedule_'+role;
     Object.assign(document,evidenceFamily({category:'schedule',documentType:document.documentType,scheduleRole:role,textSample:'',sourceFilename:document.sourceFilename}));
