@@ -29,6 +29,18 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
+test('procurement protects the earlier recorded need and identifies overdue undelivered packages',async t=>{
+ const f=await fixture(t);
+ f.create('package','EARLY-NEED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19',status:'Ordered'},{activityIds:['A1']});
+ const row=deliveryPosition(f.state).packageRows.find(r=>r.reference==='EARLY-NEED')!;
+ assert.equal(row.programmeNeedDate,'2031-09-30');assert.equal(row.needDate,'2031-08-29');
+ assert.equal(row.headroomCalendarDays,-21);assert.equal(row.overdueUndelivered,true);
+ assert.equal(row.needDateBasis,'the required-on-site date from the register');
+ f.create('package','RECEIVED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19','actual delivery date':'2031-08-28',status:'Delivered'},{activityIds:['A1']});
+ const received=deliveryPosition(f.state).packageRows.find(r=>r.reference==='RECEIVED')!;
+ assert.equal(received.deliveredAtDataDate,true);assert.equal(received.overdueUndelivered,false);
+});
+
 test('Delivery follows the latest submitted programme while undated updates remain pending on every page',async t=>{
  const {store,state}=await fixture(t);
  const later=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(deliveryProgramme('2031-09-30')),mediaType:'text/plain',sourceFilename:'Monthly_Update.xer',uploadedAt:'2031-10-01',uploadIntent:'add_update'});

@@ -74,7 +74,12 @@ test('quarantined quantities cannot survive in saved S-curve plans or establish 
  const mapping=assessQuantityMapping(model);assert.equal(mapping.totalKnownContractQuantity,3);assert.equal(mapping.mappedQuantity,3);assert.equal(mapping.complete,false,'one unknown item prevents complete population coverage');
  const schedule:CanonicalScheduleModel={projectId:'QUARANTINE-PLAN',source:'schedule_xlsx',sourceRevisionId:'S',dataDateIso:'2026-10-05',activities:[{projectId:'QUARANTINE-PLAN',activityId:'ACT',nativeId:null,name:'Works',wbsId:null,calendarId:null,activityType:'task',status:'not_started',baselineStartIso:'2026-10-01',baselineFinishIso:'2026-10-05',currentStartIso:'2026-10-01',currentFinishIso:'2026-10-05',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:32,remainingDurationHours:32,totalFloatHours:0,freeFloatHours:0,percentComplete:0,sourceRefs:[],diagnostics:[]}],relationships:[],wbs:[],calendars:[],diagnostics:[]};
  const curve=buildQuantityScurveProjection(model,schedule,{generatedAt:'2026-10-05',producerVersion:'regression'});
- assert.equal(curve.allocationState,'partial');assert.equal(curve.series[0]!.knownContractQuantity,3);
- assert.equal(curve.series[0]!.points.at(-1)!.baselinePlannedQuantity,3);assert.equal(curve.series[0]!.points.at(-1)!.currentForecastQuantity,3);
+ assert.equal(curve.allocationState,'partial');assert.equal(curve.series.length,2);
+ const known=curve.series.find(s=>s.quantityItemId===model.items[1]!.quantityItemId)!;
+ const quarantined=curve.series.find(s=>s.quantityItemId===model.items[0]!.quantityItemId)!;
+ assert.equal(known.knownContractQuantity,3);
+ assert.equal(known.points.at(-1)!.baselinePlannedQuantity,3);assert.equal(known.points.at(-1)!.currentForecastQuantity,3);
+ assert.equal(quarantined.knownContractQuantity,0);
+ assert.ok(quarantined.points.every(p=>p.baselinePlannedQuantity===null&&p.currentForecastQuantity===null),'withheld source quantities never enter any planned curve');
  assert.ok(curve.diagnostics.includes('QUANTITY_ALLOCATION_SOURCE_WITHHELD:A0'));
 });

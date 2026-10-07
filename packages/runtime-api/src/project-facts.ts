@@ -2,12 +2,15 @@ import {aggregateCount} from '../../truth-kernel/src';
 import {buildActivityAnalyticsProjection} from '../../activity-analytics/src';
 import {buildScheduleAnalyticsProjection} from '../../schedule-analytics/src';
 import {commercialPositionForState} from './commercial-runtime';
-import {operationalReporting,reportingState} from './reporting-state';
+import {claimsReporting,operationalReporting,reportingState} from './reporting-state';
 import {projectControlSchedule} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {bindProjectFacts} from './project-fact-consumers';
 import {pmcScheduleRules} from './pmc-schedule-rules';
+import {projectActionRegisterForState} from './project-projections';
+import {projectSourceLabels} from './project-presentation';
+import {projectContractSections} from './project-contract-sections';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -30,6 +33,8 @@ export interface ProjectFactsSnapshot {
   projectVersion:number;
   dataDateIso:string|null;
   programmeQuality?:ReturnType<typeof pmcScheduleRules>;
+  contractSections?:ReturnType<typeof projectContractSections>;
+  actions:{openCount:ProjectFact<number>;recordCount:ProjectFact<number>;reviewCount:ProjectFact<number>};
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
@@ -51,6 +56,7 @@ export interface ProjectFactsSnapshot {
     openRiskCount:ProjectFact<number>;
   };
   claims:{
+    pipeline?:{recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;basis:string};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -203,13 +209,20 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const bondRefs=securities?.bonds.flatMap(row=>row.sourceRefs)??[];
   const insuranceRefs=securities?.insurances.flatMap(row=>row.sourceRefs)??[];
   const noticeGaps=commercial.claimsNotices.dimensionalEvidenceGaps;
+  const reportedClaims=claimsReporting(scoped)?.reported;
+  const pendingClaims=reportedClaims?.rows.filter(row=>['under_review','submitted'].includes(row.state))??[];
+  const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
+  const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
 
+  const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
     projectId:state.projectId,
     projectVersion:state.version,
     dataDateIso,
+    actions:{openCount:fact(actionRegister.actions.length,'Distinct record follow-ups and source-review decisions from the shared project action register.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
+    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       dataDateIso:fact(
         dataDateIso,
@@ -288,6 +301,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     claims:{
+      ...(reportedClaims?{pipeline:{recordCount:reportedClaims.recordCount,claimedDays:reportedClaims.claimedDays.value,assessedDays:reportedClaims.assessedDays.value,
+        pendingCount:pendingClaims.length,pendingAssessedDays,
+        pendingScenarioCompletionIso:extendedCompletion&&pendingAssessedDays!==null?new Date(Date.parse(extendedCompletion.slice(0,10))+pendingAssessedDays*86400000).toISOString().slice(0,10):null,
+        basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
       eventDateMissingCount:sourceCount(
         noticeGaps.eventDateMissing,
         noticeGaps.eventDateMissing,
@@ -404,5 +421,5 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
 
 export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
   const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
-  return {...result,data:bindProjectFacts(result.key,data,projectFactsForState(state))};
+  return {...result,data:{...bindProjectFacts(result.key,data,projectFactsForState(state)),sourceLabels:projectSourceLabels(state)}};
 }

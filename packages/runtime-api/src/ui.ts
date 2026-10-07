@@ -441,6 +441,11 @@ ${boqNumericReviewScript}
 ${boqPageReviewScript}
 ${basisReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
+const moduleWorkspaces=[
+ {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},
+ {key:'revision-trend',title:'Programme changes',views:['revision-trend','variance-trends','schedule-change-report']},
+ {key:'lookahead-schedule',title:'Look-ahead & readiness',views:['lookahead-schedule','construction-readiness']}
+];
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
 const apiKeys=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.apiKey]));
 const names=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.title]));
@@ -634,7 +639,8 @@ function renderNav(){
   let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Project review</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
-    keys.filter(key=>key!=='source-quality').forEach(key=>{
+    keys.filter(key=>key!=='source-quality'&&!(typeof moduleWorkspaces==='undefined'?[]:moduleWorkspaces).some(w=>w.key!==key&&w.views.includes(key))).forEach(key=>{
+      const workspace=(typeof moduleWorkspaces==='undefined'?[]:moduleWorkspaces).find(w=>w.key===key),active=workspace?workspace.views.includes(selected):selected===key;
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
       const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
@@ -642,7 +648,7 @@ function renderNav(){
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
       const count='<span class="nav-counts">'+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
-      html+='<button class="nav-item '+(appView==="project"&&selected===key?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&selected===key?'page':'false')+'"><span class="nav-label">'+names[key]+'</span>'+count+'</button>';
+      html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||names[key])+'</span>'+count+'</button>';
     });
   });
   html+='</div>';
@@ -650,6 +656,12 @@ function renderNav(){
   el("projectAskNav").onclick=()=>setAppView("ai");
   el("projectActionsNav").onclick=()=>openProjectActions();
   nav.querySelectorAll(".nav-item[data-key]").forEach(b=>b.onclick=()=>{selected=b.dataset.key;localStorage.setItem("cmeng-module",selected);setAppView("project");loadModule(selected)});
+}
+function renderModuleWorkspace(key){
+  document.getElementById('moduleWorkspaceTabs')?.remove();
+  const workspace=moduleWorkspaces.find(w=>w.views.includes(key));if(!workspace)return;
+  el('moduleSubtitle').insertAdjacentHTML('afterend','<nav id="moduleWorkspaceTabs" class="action-filters" aria-label="'+escapeHtml(workspace.title)+' views">'+workspace.views.map(view=>'<button class="btn small '+(key===view?'primary':'')+'" data-key="'+view+'" aria-current="'+(key===view?'page':'false')+'">'+escapeHtml(names[view])+'</button>').join('')+'</nav>');
+  el('moduleWorkspaceTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{selected=button.dataset.key;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function humanizeIsoText(value){
@@ -726,7 +738,7 @@ function renderUniversalChallenge(challenge){
       const item=entry.item||{};
       const independent=item.independent||{};
       const independentText=independent.value===null||independent.value===undefined?"Not derivable":withUnit(independent.value,independent.unit);
-      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>CMeng check: '+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(item.action):'')+'</span></div>';
+      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>CMeng check: '+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(readerAuditAction(item.action)):'')+'</span></div>';
     }).join("")+'</div>'
     :"";
   const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
@@ -1397,7 +1409,7 @@ function renderForecastVisual(data){
   ];
   const managementForecast=p.managementForecastCompletionIso||null;
   const kpis=planningKpis([
-    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?"all six reconciliation checks passed":"raw CPM result remains visible below; management publication gate not passed",managementForecast?"success":"warning"],
+    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?(gate.publishable?"reconciled calculation":"calculated with stated assumptions; review the differences below"):"calculation needs the missing inputs identified below",managementForecast?"success":"warning"],
     ["CPM activity coverage",p.activityCoveragePercent===null?"Unresolved":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
     ["Submitted vs CPM",p.forecastVarianceDays===null?"Unresolved":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","model comparison only; not delay"],
     ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]
@@ -1422,20 +1434,20 @@ function renderForecastVisual(data){
     {label:"Required finish",value:planningCalendarDaysBetween(p.dataDateIso,p.requiredFinishIso),tone:"baseline"}
   ].filter(row=>row.value!==null);
   const probabilityDistance=[
-    {label:"P50 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
-    {label:"P80 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
-    {label:"P90 vs CMeng CPM",value:review?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
+    {label:"P50 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
+    {label:"P80 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
+    {label:"P90 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
   ];
   const visualOverview='<details><summary>Alternative forecast-distance charts</summary><div class="visual-chart-grid">'+
     renderVisualPanel("Completion distance from Data Date","Calendar-day distance only; each authority remains separate.",renderVisualBars(positionBars,"d"))+
-    renderVisualPanel("Sensitivity distance from CMeng CPM","Sensitivity is withheld when the independent calculation requires reconciliation.",renderVisualBars(probabilityDistance,"d"))+
+    renderVisualPanel("Sensitivity distance from CMeng CPM","Available duration sensitivity uses the stated calculation assumptions; it does not confer approval.",renderVisualBars(probabilityDistance,"d"))+
     '</div></details>';
-  const sensitivity=review?'<div class="notice info">P50, P80 and P90 are withheld until the independent calculation is reconciled for management use.</div>':probAvailable?'<div class="position-grid">'+[
+  const sensitivity=probAvailable?'<div class="position-grid">'+[
     ["P50 duration sensitivity",planningShortDate(rawProb.p50CompletionIso)],
     ["P80 duration sensitivity",planningShortDate(rawProb.p80CompletionIso)],
     ["P90 duration sensitivity",planningShortDate(rawProb.p90CompletionIso)]
-  ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Non-official duration-factor sensitivity; not one of the six forecast authorities.</div></div>').join("")+'</div>':'<div class="notice info">P50/P80/P90 sensitivity is not available on the current reconciled calculation basis.</div>';
-  const reviewWarning=review?'<div class="notice warn"><b>Independent forecast requires reconciliation before management use.</b><p>'+escapeHtml(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.")+'</p></div>':'';
+  ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Non-official duration-factor sensitivity; not one of the six forecast authorities.</div></div>').join("")+'</div>':'<div class="notice info">P50, P80 and P90 are withheld because the calculation basis is incomplete.</div>';
+  const reviewWarning=review?'<div class="notice warn"><b>Forecast differences require review; available calculations remain visible with their assumptions.</b><p>'+escapeHtml(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.")+'</p></div>':'';
   return '<section class="planning-view independent-forecast-view">'+reviewWarning+kpis+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
     gatePanel+visualOverview+
@@ -2264,7 +2276,7 @@ function renderActivityAnalyticsVisual(data){
     select("activityFilterStatus","Status","status")+select("activityFilterCriticality","Criticality","criticality")+
     select("activityFilterCondition","Schedule condition","",[["delayed","Delayed / schedule pressure"],["missed_start","Missed start"],["overdue_finish","Overdue finish"],["negative_float","Negative float"],["zero_float","Zero float"],["float_risk","Float-risk watchlist"],["open_logic","Open / isolated logic"]])+
     '<button class="btn small" type="button" onclick="clearActivityFilters()">Clear filters</button></div></div></section>';
-  return '<section class="planning-view activity-review"><div class="notice info"><b>Activity Review = detailed investigation.</b><p>Use the filters below to inspect individual activities by WBS, zone, package, discipline, status and schedule condition. Programme-level conclusions remain in Programme Review and Management Brief.</p></div>'+kpis+filterPanel+repeatedMovementWarning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Source progress-field coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Source float-field coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Source baseline-comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest activity finish movements vs controlled baseline</h4><p>Each activity is compared with its own controlled-baseline finish.</p></div></div><div class="planning-panel-body">'+renderMovementConcentration(p.movementAnalysis,topLate)+distributionSummary(p.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity register</h4><p>Full execution population is filterable above. Rows are loaded in pages of 50; project exports retain the complete source population.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity / WBS</th><th>Zone</th><th>Floor / level</th><th>Discipline</th><th>Package</th><th>Status</th><th>Criticality</th><th>Current start</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Delay state</th></tr></thead><tbody id="activityFilterBody">'+rows+'</tbody></table></div><div class="delivery-toolbar"><button class="btn small" id="activityPrevious" disabled onclick="filterActivityReview(activityReviewPage-1)">Previous</button><button class="btn small" id="activityNext" onclick="filterActivityReview(activityReviewPage+1)">Next</button></div></div></section></section>';
+  return '<section class="planning-view activity-review"><div class="notice info"><b>Activity Review = detailed investigation.</b><p>Use the filters below to inspect individual activities by WBS, zone, package, discipline, status and schedule condition. Programme-level conclusions remain in Programme Review and Management Brief.</p></div>'+kpis+filterPanel+repeatedMovementWarning+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement & float matrix</h4><p>Activity counts by controlled-baseline finish movement and submitted programme total float.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>'+escapeHtml(fmt(openLogic))+' activities also have an open or isolated logic condition.</p></div></div><div class="planning-panel-body">'+statusBand+'<div class="coverage-stack"><span>Source progress-field coverage <b>'+escapeHtml(p.percentCompleteCoveragePercent===null?"—":fmt(p.percentCompleteCoveragePercent)+"%")+'</b></span><span>Unfinished execution float coverage <b>'+escapeHtml(p.floatCoveragePercent===null?"—":fmt(p.floatCoveragePercent)+"%")+'</b></span><span>Source baseline-comparison coverage <b>'+escapeHtml(p.finishVarianceCoveragePercent===null?"—":fmt(p.finishVarianceCoveragePercent)+"%")+'</b></span></div></div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest activity finish movements vs controlled baseline</h4><p>Each activity is compared with its own controlled-baseline finish.</p></div></div><div class="planning-panel-body">'+renderMovementConcentration(p.movementAnalysis,topLate)+distributionSummary(p.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity register</h4><p>Full execution population is filterable above. Rows are loaded in pages of 50; project exports retain the complete source population.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity / WBS</th><th>Zone</th><th>Floor / level</th><th>Discipline</th><th>Package</th><th>Status</th><th>Criticality</th><th>Current start</th><th>Current finish</th><th>Progress</th><th>Total float h</th><th>Vs baseline d</th><th>Delay state</th></tr></thead><tbody id="activityFilterBody">'+rows+'</tbody></table></div><div class="delivery-toolbar"><button class="btn small" id="activityPrevious" disabled onclick="filterActivityReview(activityReviewPage-1)">Previous</button><button class="btn small" id="activityNext" onclick="filterActivityReview(activityReviewPage+1)">Next</button></div></div></section></section>';
 }
 
 function moduleBarList(items,tone="accent",unit=""){
@@ -3361,7 +3373,7 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
-      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+fmt(row.occurrenceCount??1)+" source sections</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml((row.sourceRefs||[row.sourceRef]).join("; "))+"</p></details>"+'</td></tr>');
+      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+fmt(row.occurrenceCount??1)+" source sections</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
       const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Unresolved":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are Separate from the current programme.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -3384,7 +3396,7 @@ function renderCommercialVisual(key,data){
   if(key==='contract-particulars-bonds'&&foundation?.commercialTerms?.datedTerms?.length){
     const terms=foundation.commercialTerms.datedTerms;
     const labels={ldRate:'Delay damages rate',ldCap:'Delay damages cap',retentionPercent:'Retention rate',retentionCapPercent:'Retention cap',paymentPeriodDays:'Payment period',noticePeriodDays:'Initial claim notice',performanceSecurity:'Performance security',advanceSecurity:'Advance payment security'};
-    foundationDetail+='<section class="planning-panel"><h4>Dated contract terms</h4><p>Each event uses the version effective on its event date. An end date is the first date of the next version.</p>'+table(['Term','Value','Effective from','Effective until','Clause / article','Page reference'],terms.map(v=>'<tr><td>'+escapeHtml(labels[v.term]||v.term)+'</td><td>'+escapeHtml(v.applicability==='unresolved'?'Unresolved: amendment applicability':fmt(v.value)+' '+v.unit)+'</td><td>'+escapeHtml(v.effectiveFromIso?planningShortDate(v.effectiveFromIso):'Original contract')+'</td><td>'+escapeHtml(v.effectiveToIso?planningShortDate(v.effectiveToIso):'No later change recorded')+'</td><td>'+escapeHtml(v.clauseIdentifier||'Unresolved: no number stated')+'</td><td>'+escapeHtml(v.sourceRefs.join('; '))+'</td></tr>'),'No dated contract terms were recognised.')+'</section>';
+    foundationDetail+='<section class="planning-panel"><h4>Dated contract terms</h4><p>Each event uses the version effective on its event date. An end date is the first date of the next version.</p>'+table(['Term','Value','Effective from','Effective until','Clause / article','Page reference'],terms.map(v=>'<tr><td>'+escapeHtml(labels[v.term]||v.term)+'</td><td>'+escapeHtml(v.applicability==='unresolved'?'Unresolved: amendment applicability':fmt(v.value)+' '+v.unit)+'</td><td>'+escapeHtml(v.effectiveFromIso?planningShortDate(v.effectiveFromIso):'Original contract')+'</td><td>'+escapeHtml(v.effectiveToIso?planningShortDate(v.effectiveToIso):'No later change recorded')+'</td><td>'+escapeHtml(v.clauseIdentifier||'Unresolved: no number stated')+'</td><td>'+escapeHtml(readerReference(v.sourceRefs.join('; ')))+'</td></tr>'),'No dated contract terms were recognised.')+'</section>';
   }
   let performanceDetail="";
   if(performance){
@@ -3518,7 +3530,7 @@ function renderCommercialVisual(key,data){
         }));
         const knownPeriodMovements=periodMovements.filter(point=>point.value!==null&&point.value!==undefined&&Number.isFinite(Number(point.value)));
         const entries=row.entries||[];
-        const entryRows=entries.map(entry=>'<tr><td>'+escapeHtml(planningShortDate(entry.periodDate))+'</td><td>'+escapeHtml(humanizeKey(entry.kind))+'</td><td>'+escapeHtml(findingValue(entry.amount,row.currency))+'</td><td>'+escapeHtml(findingMeta(entry.amount))+'</td><td>'+escapeHtml((entry.sourceRefs||[]).join(", "))+'</td></tr>');
+        const entryRows=entries.map(entry=>'<tr><td>'+escapeHtml(planningShortDate(entry.periodDate))+'</td><td>'+escapeHtml(humanizeKey(entry.kind))+'</td><td>'+escapeHtml(findingValue(entry.amount,row.currency))+'</td><td>'+escapeHtml(findingMeta(entry.amount))+'</td><td>'+escapeHtml(readerReference((entry.sourceRefs||[]).join(", ")))+'</td></tr>');
         const netValue=metricValue(row.netCashPosition);
         const peakValue=metricValue(row.peakFundingNeed);
         const paidValue=metricValue(row.paidIncome);
@@ -3955,7 +3967,7 @@ function renderCommercialVisual(key,data){
       "Only records evidenced by the Data Date enter this distribution. Future and undated records are shown separately in Variations & Change.",
       renderDonutChart([...variationStates.entries()].map(([label,value])=>({label,value,tone:/approved/i.test(label)?"success":/pending|review/i.test(label)?"warning":"neutral"})),"Variations")
     );
-    const rows=(registers.variations||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const rows=(registers.variations||[]).map(row=>'<tr><td><b>'+escapeHtml(row.variationId)+'</b></td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(readerReference((row.sourceRefs||[]).join(", ")))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Variation register</h4><p>Approved and pending change remain separate and retain source lineage.</p></div></div><div class="planning-panel-body">'+table(["Variation","State","Amount","Currency","Source"],rows,"No confirmed variation records are established.")+'</div></section>';
   }
   if(key==="payments"){
@@ -4047,7 +4059,7 @@ function renderCommercialVisual(key,data){
       "Performance, advance-payment and retention securities by status.",
       renderDonutChart([...bondStates.entries()].map(([label,value])=>({label,value,tone:/active|valid/i.test(label)?"success":/expired|called/i.test(label)?"danger":"warning"})),"Securities")
     );
-    const rows=(registers.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml((row.sourceRefs||[]).join(", "))+'</td></tr>');
+    const rows=(registers.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml(readerReference((row.sourceRefs||[]).join(", ")))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Security register</h4><p>Performance, advance-payment and retention securities remain distinct from cash balances.</p></div></div><div class="planning-panel-body">'+table(["Bond / guarantee","Type","Amount","Currency","Status","Expiry","Source"],rows,"No confirmed bond/security register is established.")+'</div></section>';
   }
   const cashEstablished=key==="cash-flow"&&Array.isArray(p.focus?.transactions)&&p.focus.transactions.length>0;
@@ -4467,10 +4479,8 @@ function renderMcpGovernanceMatrix(data){
 }
 function commandActionItems(data){
  const canonical=Array.isArray(data.actions)?data.actions:[];
- if(canonical.length){
-  const rank={critical:0,high:1,medium:2,low:3,information:4};
-  return canonical.map(action=>({...action,module:action.owningModule??null}))
-    .sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||(a.dueIso||"9999").localeCompare(b.dueIso||"9999"));
+ if(Array.isArray(data.actions)){
+  return canonical.map(action=>({...action,module:action.owningModule??null}));
  }
  const rows=[];
  for(const action of data.accountability?.actions||[])rows.push({...action,module:"cross-domain-accountability"});
@@ -4628,8 +4638,8 @@ function renderManagementControlVisual(key,data){
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
     const positionSeverity=p=>{const counts=p.issueAssessment?.counts||{};if((counts.system_defect||0)+(counts.source_conflict||0)+(counts.data_quality||0)>0)return {label:'Material issue',tone:'blocked'};if((counts.missing_information||0)+(counts.comparison_difference||0)>0)return {label:'Qualified',tone:'review'};if((counts.governance_review||0)+(counts.verification_pending||0)>0)return {label:'Routine follow-up',tone:'not_applicable'};return {label:'Current',tone:'ready'};};
     const positionRows=positions.map(p=>{const severity=positionSeverity(p);return '<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td><span class="state-pill '+severity.tone+'">'+severity.label+'</span><br>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(readerModuleSummary(p.reason))+(p.reason?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>';}).join("");
-    const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(item.sourceRef)+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
-    const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(item.entity)+'</b></td><td>'+escapeHtml(item.action)+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(item.sourceRef||"—")+'</td></tr>').join("");
+    const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(item.label)+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(readerReference(item.sourceRef))+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
+    const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(readerReference(item.entity))+'</b></td><td>'+escapeHtml(readerAuditAction(item.action))+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(readerReference(item.sourceRef||"—"))+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+
       renderMcpProgrammeControl(data)+
       managementPanel("Programme basis","Current programme, controlled baseline and project structure supporting the integrated control sequence.",planningKpis([
@@ -4696,12 +4706,12 @@ function renderInterfaceIntelligenceVisual(data){
 function renderAccountabilityVisual(data){
  const p=projectionFor(data,"cross_domain_accountability");if(!p)return "";
  const actions=p.actions||[];
- const actionRows=actions.slice(0,100).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(action.issue)+'</b><br><span class="muted">'+escapeHtml(action.consequence||"")+'</span></td><td>'+escapeHtml((action.affectedScope||[]).join("; ")||"—")+'</td><td>'+escapeHtml(action.owner||action.organisation||"Not assigned")+'</td><td>'+escapeHtml(action.dueIso?planningShortDate(action.dueIso):"Not set")+'</td><td>'+escapeHtml(action.requiredAction)+(action.escalation?'<br><b>'+escapeHtml(action.escalation)+'</b>':'')+'</td></tr>').join("");
+ const actionRows=actions.slice(0,10).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(action.issue)+'</b><br><span class="muted">'+escapeHtml(action.consequence||"")+'</span></td><td>'+escapeHtml((action.affectedScope||[]).join("; ")||"—")+'</td><td>'+escapeHtml(action.owner||action.organisation||"Not assigned")+'</td><td>'+escapeHtml(action.dueIso?planningShortDate(action.dueIso):"Not set")+'</td><td>'+escapeHtml(action.requiredAction)+(action.escalation?'<br><b>'+escapeHtml(action.escalation)+'</b>':'')+'</td></tr>').join("");
  const rows=(p.rows||[]).map(r=>'<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td><b>'+escapeHtml(r.value)+'</b></td><td>'+fmt(r.openIssueCount)+'</td><td>'+fmt(r.domainCount)+'</td><td>'+fmt(r.overdueCount)+'</td><td>'+fmt(r.openNcrCount)+'</td><td>'+fmt(r.overdueRfiCount)+'</td><td>'+fmt(r.latePackageCount)+'</td><td>'+fmt(r.openRiskCount)+'</td><td>'+fmt(r.affectedActivityCount)+'</td></tr>').join('');
  const detail=(p.details||[]).map(r=>'<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td>'+escapeHtml(r.value)+'</td><td>'+escapeHtml(r.domain)+'</td><td><b>'+escapeHtml(r.reference||r.recordId)+'</b></td><td>'+escapeHtml(r.issue)+'</td><td>'+escapeHtml(r.dueDate?planningShortDate(r.dueDate):'—')+'</td><td>'+escapeHtml(r.overdueDays===null?'—':fmt(r.overdueDays)+' d')+'</td><td>'+escapeHtml((r.activityIds||[]).join('; ')||'—')+'</td></tr>').join('');
  const primary=actions.length?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue & consequence</th><th>Affected scope</th><th>Accountable party</th><th>Due</th><th>Required action</th></tr></thead><tbody>'+actionRows+'</tbody></table></div>':'<div class="notice info">No actionable ownership chain is established from the current open records.</div>';
  const concentration=rows?'<div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Open / pressure</th><th>Domains</th><th>Overdue</th><th>Open NCR</th><th>Overdue RFI</th><th>Late package</th><th>Risk</th><th>Affected activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No supporting concentration roll-up is available.</p>';
- return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Accountability action register</h4><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt((p.details||[]).length)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody>'+detail+'</tbody></table></div><p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
+ return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 project actions · '+fmt(actions.length)+' total</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt((p.details||[]).length)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody>'+detail+'</tbody></table></div><p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
 }
 function renderSpecializedModule(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
@@ -4770,7 +4780,7 @@ function renderIssueAssessment(a,management=false){
   const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not confirmed.",verification_pending:"CMeng verification coverage is incomplete."};
   const counts=management?a.affectedModuleCounts:a.counts;
   const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+fmt(counts?.[kind]??0)+'</td><td>'+escapeHtml(description)+'</td></tr>').join('');
-  const rows=(a.issues||[]).map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml([i.summary,i.detail,...(i.evidencePaths||[]),...(i.checkIds||[]),...(i.sourceRefs||[])].join(' · '))+'</details></td></tr>';}).join('');
+  const rows=(a.issues||[]).map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,i.detail,...(i.sourceRefs||[])].join(' · ')))+'</details></td></tr>';}).join('');
   const scope=a.systemCheckState==='failed'?'Calculation failures require correction before reliance.':a.systemCheckState==='unverified'?'Verification coverage is incomplete.':'The listed checks passed. Other calculations may remain outside their scope.';
   return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'A page may have more than one type of follow-up.':'Each item below has its own action and supporting records.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No issues identified by the listed checks.</p>')+experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>')+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
 }
@@ -4858,7 +4868,7 @@ function renderModuleResult(result){
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   const pageKey=result.legacyKey||result.key;
   if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
-  else if(pageKey!=='progress-breakdown'&&review&&(review.state!=='established'||review.pendingSchedules?.length)){
+  else if(pageKey!=='progress-breakdown'&&review&&(!['established','submitted_current'].includes(review.state)||review.pendingSchedules?.length)){
     container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
@@ -4880,6 +4890,7 @@ function renderModuleResultBody(result){
   const roleLabel=managementSurface?"Management Control":(roleViews[selectedRoleView]?.label||roleViews.overall.label);
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
+  renderModuleWorkspace(result.key);
   if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
   el("moduleBadge").textContent=result.issueAssessment?.counts?.system_defect>0?"Calculation error":"";
@@ -4906,7 +4917,7 @@ function renderModuleResultBody(result){
   const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(specialized||genericView);
+  const primaryView=(['master-control-programme','milestones','contract-particulars-bonds'].includes(result.key)?renderContractSections(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
   const floatReview=renderActivityFloatReconciliation(data.activityFloatReconciliation);
 
   el("directorDrawer").open=false;
@@ -5006,7 +5017,7 @@ function renderDirector(d){
   html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';
   (d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Source held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});
   if(!(d.commercialByCurrency||[]).length)html+='<div class="empty">No governed commercial currency position is established.</div>';
-  html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><div style="margin-top:14px" class="scalar-grid">'+
+  html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.slice(0,5).map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><button class="btn small" onclick="openProjectActions()">View all '+fmt(d.managementActionCount??d.managementActions?.length??0)+' project actions</button><div style="margin-top:14px" class="scalar-grid">'+
     '<div class="scalar"><b>Open HSE</b><span>'+escapeHtml(evidenceCount(ctrl.hseEvidenceState,ctrl.openHseIncidentCount))+'</span></div>'+
     '<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Unresolved")+'</span></div>'+
     '<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+
@@ -5330,7 +5341,7 @@ function renderPortfolio(){
 
   const attentionRows=projects.flatMap(p=>(p.managementActions||[]).slice(0,2).map(action=>({projectId:p.projectId,action})));
   el("portfolioAttention").innerHTML=attentionRows.length
-    ?'<section class="portfolio-attention"><div class="portfolio-attention-head"><h3>Portfolio attention</h3><span class="badge partial">'+escapeHtml(attentionRows.length)+' action'+(attentionRows.length===1?"":"s")+'</span></div>'+attentionRows.map(item=>'<div class="attention-row"><b>'+escapeHtml(item.projectId)+'</b><span>'+escapeHtml(item.action)+'</span><button class="btn small open-project" data-project="'+escapeHtml(item.projectId)+'">Open</button></div>').join("")+'</section>'
+    ?'<section class="portfolio-attention"><div class="portfolio-attention-head"><h3>Portfolio attention</h3><span class="badge partial">'+escapeHtml(attentionRows.length)+' action'+(attentionRows.length===1?"":"s")+'</span></div>'+attentionRows.map(item=>'<div class="attention-row"><b>'+escapeHtml(item.projectId)+'</b><span>'+escapeHtml(readerAuditAction(item.action))+'</span><button class="btn small open-project" data-project="'+escapeHtml(item.projectId)+'">Open</button></div>').join("")+'</section>'
     :"";
 
   el("projectRegister").innerHTML='<div class="table-wrap"><table><thead><tr><th>Project</th><th>Data date</th><th>Documents</th><th>Programme revisions</th><th>Current position</th><th>Management actions</th><th></th></tr></thead><tbody>'+projects.map(p=>{const position=positionText(p)[1];return'<tr><td><b>'+escapeHtml(p.projectId)+'</b></td><td>'+escapeHtml(p.latestDataDateIso?planningShortDate(p.latestDataDateIso):"—")+'</td><td>'+escapeHtml(p.evidenceDocumentCount??"Unresolved")+'</td><td>'+escapeHtml(p.revisionCount??"Unresolved")+'</td><td>'+escapeHtml(position)+'</td><td>'+escapeHtml(p.managementActionCount??"Unresolved")+'</td><td><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open</button></td></tr>'}).join("")+'</tbody></table></div>';

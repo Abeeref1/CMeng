@@ -183,6 +183,7 @@ export function buildActivityAnalyticsProjection(
     });
 
   const counts = activityAnalyticsCounts(rows);
+  const unfinishedExecution = rows.filter(row => row.status !== 'completed' && !['wbs_summary','level_of_effort'].includes(row.activityType));
   return {
     schemaVersion: "1.0",
     projectionKey: "activity_analytics",
@@ -221,10 +222,10 @@ export function buildActivityAnalyticsProjection(
       rowPopulation: "all_source_activities",
     },
     floatCoveragePercent: coverage(
-      rows.filter(
+      unfinishedExecution.filter(
         (row) => row.totalFloatHours !== null,
       ).length,
-      rows.length,
+      unfinishedExecution.length,
     ),
     percentCompleteCoveragePercent: coverage(
       rows.filter(

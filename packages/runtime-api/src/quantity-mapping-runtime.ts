@@ -19,7 +19,7 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     return cached.result;
   }
   const result = state.quantities ? buildQuantityScheduleMapping(state.quantities, schedule) : null;
-  if(result&&state.quantities){
+  if(result&&state.quantities&&Array.isArray(state.evidenceDocuments)){
     const source=resolveBoqSource(state,schedule.sourceRevisionId).boq;
     const tables=governedTables(state.evidenceDocuments.filter(d=>d.sourceHashSha256===source?.sourceHashSha256),[]);
     const normalized=(s:string|null|undefined)=>String(s??'').trim().replace(/\s+/g,' ').toLowerCase();

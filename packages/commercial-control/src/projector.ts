@@ -572,7 +572,7 @@ export function buildCommercialControlPosition(
               row.amounts
                 .retentionDeduction
                 .currency ===
-              currency && reportingScope(row.periodEnd,input.sourceLedger?.dataDateIso)==='as_of',
+              currency && reportingScope(row.certificationDate,input.sourceLedger?.dataDateIso)==='as_of',
           ) ?? [];
       const sourceRetentionDeductions =
         sourcePaymentRows.filter(

@@ -1411,9 +1411,9 @@ function liquidatedDamages(
           );
     const exposure =
       dayDiff(
-        adjusted,
+        adjusted?.slice(0,10)??null,
         input.ldTime
-          .programmeCompletionIso,
+          .programmeCompletionIso?.slice(0,10)??null,
       );
     const exposureDays =
       exposure === null

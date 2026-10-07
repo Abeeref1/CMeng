@@ -483,17 +483,17 @@ export function buildMilestonesProjection(
   const open = rows.filter(
     (row) => row.status !== "completed",
   );
-  const knownFloat = rows.filter(
+  const knownFloat = open.filter(
     (row) => row.totalFloatHours !== null,
   ).length;
   const floatCoveragePercent = coverage(
     knownFloat,
-    rows.length,
+    open.length,
   );
   const sourceFloatState =
     knownFloat === 0
       ? "not_established"
-      : knownFloat === rows.length
+      : knownFloat === open.length
         ? "source_float_established"
         : "source_float_partial";
 

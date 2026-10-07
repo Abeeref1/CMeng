@@ -49,8 +49,16 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     bind('controls.'+name,['controls.'+name,'controls.reporting.counts.'+name,'operationalReporting.counts.'+name]);
   }
   bind('commercial.expiredBondCount',['controls.expiredBondCount']);
+  bind('actions.openCount',['actionCount','managementActionCount']);
   bind('time.contractualCompletionIso',['claims.contractualCompletionIso','schedule.contractualCompletionIso']);
   bind('time.extendedContractCompletionIso',['claims.officialAdjustedCompletionIso','schedule.officialAdjustedCompletionIso']);
+  if(key==='independent-forecast')bind(facts.time.extendedContractCompletionIso.value!==null?'time.extendedContractCompletionIso':'time.contractualCompletionIso',['requiredFinishIso','forecastTaxonomy.contractualCompletion.completionIso']);
+  for(const base of ['completionPosition','projectDiagnosis.completion','completion']){
+    if(!at(data,base))continue;
+    data=write(data,(base+'.extendedContractFinishIso').split('.'),facts.time.extendedContractCompletionIso.value);
+    bindings.push({fact:'time.extendedContractCompletionIso',path:base+'.extendedContractFinishIso',value:facts.time.extendedContractCompletionIso.value});
+    bind('time.contractualCompletionIso',[base+'.contractualFinishIso']);
+  }
   for(const base of ['position.contractControls.variations','focus.variationControl']){
     for(const [fact,field] of Object.entries({variationRecordCount:'recordCount',approvedVariationCount:'approvedCount',pendingVariationCount:'pendingCount',rejectedVariationCount:'rejectedCount'}))bind('commercial.'+fact,[base+'.'+field]);
   }

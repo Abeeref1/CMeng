@@ -122,7 +122,10 @@ export function commercialPositionForState(
       invoices:
         state.controls.invoices.filter(row=>sourceFactVisibleWithoutProgramme(row.certificateDateIso)).map(row=>({...row,paidAmount:sourceFactVisibleWithoutProgramme(row.paymentDateIso)?row.paidAmount:null})),
       retentions:
-        state.controls.retentions,
+        state.controls.retentions.filter(retention=>{
+          const certificate=ledger.payments.find(row=>retention.retentionId===row.paymentId+':retention');
+          return !certificate||sourceFactVisibleWithoutProgramme(certificate.certificationDate);
+        }),
       bonds:
         (ledger.bonds??state.controls.bonds),
       claimCommercials:
@@ -218,7 +221,7 @@ export function commercialPositionForState(
     if(!group.signExceptions.length)continue;
     const currency=position.currencies.find(c=>c.currency===group.currency);if(!currency)continue;
     const diagnostics=group.signExceptions.map(r=>'OMISSION_SIGN_REVIEW:'+r.variationId);
-    currency.approvedVariationAmount={...currency.approvedVariationAmount,state:'missing_information',diagnostics:[...currency.approvedVariationAmount.diagnostics,...diagnostics],consequence:'Positive omission amounts need sign confirmation before the approved-change total is relied on.',action:'Review the named omission rows in Variations & Change.'};
+    currency.approvedVariationAmount={...currency.approvedVariationAmount,state:'candidate',diagnostics:[...currency.approvedVariationAmount.diagnostics,...diagnostics],consequence:'Positive omission amounts need sign confirmation before the approved-change total is relied on.',action:'Review the named omission rows in Variations & Change.'};
     currency.currentContractValue={...currency.currentContractValue,state:'candidate',diagnostics:[...currency.currentContractValue.diagnostics,...diagnostics]};
   }
   position.costBasisReview=costBasisReview(ledger,position.certificateProfile,position.currencies);

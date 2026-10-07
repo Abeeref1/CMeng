@@ -301,7 +301,7 @@ function uniqueCaps(
 export function extractContractLdTerms(
   contract: ContractDocumentResult,
 ): ContractLdTerms {
-  const eligible =
+  let eligible =
     contract.sections.filter(
       (section) =>
         /liquidated\s+damages|delay\s+damages|damages\s+for\s+delay/i.test(
@@ -312,15 +312,37 @@ export function extractContractLdTerms(
         ),
     );
 
+  // Contract-data tables can be split into separate parser sections. Read each
+  // explicitly labelled sectional damages row from the retained native page,
+  // keeping its scope and cap together rather than treating different sections
+  // as competing rates for the same works.
+  const pages=contract.pdf?.pages.filter(page=>page.method==='native')??[];
+  const whole=pages.map(page=>page.text).join('\n');
+  const scoped:ContractSection[]=[];
+  for(const page of pages){
+    const starts=[...page.text.matchAll(/\bSection\s+(\d+)\s+(?:Delay|Liquidated)\s+Damages\b/gi)];
+    for(const match of starts){
+      const start=match.index!,next=page.text.slice(start+match[0].length).search(/\bSection\s+\d+\b|\bContract Agreement\b|\bCONDITIONS OF CONTRACT\b/i);
+      const text=page.text.slice(start,next<0?page.text.length:start+match[0].length+next).trim();
+      const id=match[1]!;
+      const headingPattern=new RegExp('\\bSection\\s+'+id+'\\s+(?!Time\\b|Delay\\b|Liquidated\\b)([^\\n]+)','i');
+      const label=headingPattern.exec(whole)?.[1]?.trim()??'Section '+id;
+      const template=contract.sections.find(section=>section.startPage===page.pageNumber)??contract.sections[0];
+      if(template)scoped.push({...template,sectionKey:'contract-section:'+id,identifier:id,heading:label,text,startPage:page.pageNumber,
+        sourceSpans:[{...template.sourceSpans[0]!,sourceKind:'pdf_page',sourceIndex:page.pageNumber,start,end:start+text.length}]});
+    }
+  }
+  if(scoped.length)eligible=scoped;
+
   const rates = uniqueRates(
     eligible.flatMap(rateCandidates),
   );
-  const caps = uniqueCaps(
+  let caps = uniqueCaps(
     eligible.flatMap(capCandidates),
   );
 
   const overallWorksPattern =
-    /(?:whole|entire)\s+(?:of\s+the\s+)?works|overall\s+(?:works|project|completion)|project\s+completion|completion\s+of\s+(?:the\s+)?works/i;
+    /(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project|completion)|project\s+completion|completion\s+of\s+(?:the\s+)?works/i;
   const overallRateCandidates = rates.filter((rate) =>
     overallWorksPattern.test(
       [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.textSnippet].join(" "),
@@ -335,6 +357,15 @@ export function extractContractLdTerms(
       : overallRateCandidates.length === 1
         ? overallRateCandidates[0]!
         : null;
+  if(selectedRate&&scoped.length){
+    const section=scoped.find(row=>row.sectionKey===selectedRate.sectionKey)!;
+    const explicit=/cap(?:ped)?\s+(?:at|to)[^\n]*?\(\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)\s*\)/i.exec(section.text.replace(/\s+/g,' '));
+    const amount=explicit?cleanNumber(explicit[2]!):null;
+    caps=amount!==null&&explicit&&isCurrencyCode(explicit[1]!)?[{
+      candidateId:'ld-cap-'+stableFingerprint({section:section.sectionKey,amount}).slice(0,20),basis:'fixed_amount',amount,currency:explicit[1]!.toUpperCase(),percent:null,
+      sourceRefs:refs(section),textSnippet:section.text,sectionKey:section.sectionKey,sectionIdentifier:section.identifier,sectionHeading:section.heading,
+    }]:caps.filter(cap=>cap.sectionKey===selectedRate.sectionKey);
+  }
   const rateState =
     rates.length === 0
       ? "missing"

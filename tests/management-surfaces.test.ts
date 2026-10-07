@@ -200,6 +200,7 @@ function input():
     director: director(),
     projectFacts: {
       schemaVersion:"1.0",projectId:"MGMT-UAT",projectVersion:1,dataDateIso:"2026-09-21",
+      actions:{openCount:{value:3,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},recordCount:{value:2,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},reviewCount:{value:1,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]}},
       schedule:{
         dataDateIso:{value:"2026-09-21",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         submittedProgrammeCompletionIso:{value:"2030-05-01",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
@@ -457,7 +458,7 @@ test("management surfaces stay evidence-safe and do not invent authority", () =>
 });
 
 
-test("management dashboard uses defensibility wording for claim linkage", () => {
+test("management dashboard describes record linkage without asserting entitlement", () => {
   const result =
     buildManagementSurfaces(
       input(),
@@ -471,11 +472,11 @@ test("management dashboard uses defensibility wording for claim linkage", () => 
       );
   assert.equal(
     linkage?.label,
-    "Fully defensible claim chain",
+    "Claims linked to events and activities",
   );
   assert.equal(
     linkage?.basis,
-    "Full chain: claim → event → activity",
+    "Record linkage only: claim → event → activity. Notice timing, causation, assessed days and entitlement are separate checks.",
   );
   assert.equal(
     linkage?.value,

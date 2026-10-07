@@ -7,6 +7,8 @@ import {prioritizeActions,actionRecordKey} from '../packages/runtime-api/src/act
 import {managementAction} from '../packages/truth-kernel/src';
 import {classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
 import {analyzeSchedule} from '../packages/schedule-analysis-core/src';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
+import {projectActionRegisterForState,moduleForProject,directorForProject} from '../packages/runtime-api/src/project-projections';
 
 test('baseline start and finish come from the matched adopted baseline, never the update target dates',()=>{
  const state=loadCertifiedDemoProject('BASELINE-DATES-'+randomUUID());
@@ -17,6 +19,7 @@ test('baseline start and finish come from the matched adopted baseline, never th
  target.baselineStartIso='2030-12-20';target.baselineFinishIso='2030-01-01';state.version++;
  const actual=reportingState(state).schedules.at(-1)!.revision.model.activities.find(a=>a.activityId===row.activityId)!;
  assert.equal(actual.baselineStartIso,'2025-01-01');assert.equal(actual.baselineFinishIso,'2025-01-10');
+  assert.equal(actual.baselineDateBasis,'controlled_baseline','adopted dates must carry their authority into BEI and other shared rules');
  assert.equal(target.baselineStartIso,'2030-12-20','reporting must not overwrite retained evidence');
 });
 
@@ -38,6 +41,24 @@ test('plot location is parsed from source text without project-specific assumpti
  const state=loadCertifiedDemoProject('PLOT-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
  const row=classifyScheduleActivity(model,{...model.activities[0]!,wbsId:null,name:'Waterproofing Plot 127B roof'});
  assert.equal(row.plot,'Plot 127B');assert.equal(row.location,'Plot 127B');assert.equal(row.classificationBasis.plot,'source_activity_text');
+});
+
+test('all management surfaces, the Director and project review use one complete action register',()=>{
+ const state=loadCertifiedDemoProject('ONE-ACTION-REGISTER-'+randomUUID());
+ const snapshot=projectFactsForState(state),register=projectActionRegisterForState(state);
+ assert.equal(snapshot.actions.openCount.value,register.actions.length);
+ assert.equal(register.workflow.actionCount,register.actions.length);
+ assert.deepEqual(register.workflow.actions.map(a=>a.id),register.actions.map(a=>a.actionId));
+ assert.equal(new Set(register.actions.map(a=>a.recordKey)).size,register.actions.length);
+ for(const key of ['command-center','cross-domain-accountability']){
+   const data=moduleForProject(state.projectId,key).data as any;
+   assert.deepEqual(data.actions.map((a:any)=>a.actionId),register.actions.map(a=>a.actionId));
+   assert.equal(data.projectFacts.actions.openCount.value,register.actions.length);
+ }
+ const director=directorForProject(state.projectId)!;
+ assert.equal(director.managementActionCount,register.actions.length);
+ assert.equal(director.managementActions.length,register.actions.length);
+ assert.equal(projectFactsForState(state),snapshot,'the same version retains the exact fact snapshot');
 });
 
 test('server activity paging searches the entire population and does not mutate or truncate exports',async()=>{

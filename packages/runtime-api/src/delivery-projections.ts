@@ -112,10 +112,14 @@ function buildDelivery(state:ProjectRuntimeState){
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const needDate=programmeNeedDate??sourceRequiredOnSite;
-  const needDateBasis=programmeNeedDate?'Linked programme start':'Required on site from register';
+  const needDate=[programmeNeedDate,sourceRequiredOnSite].filter((d):d is string=>!!d).sort()[0]??null;
+  const needDateBasis=needDate===sourceRequiredOnSite?'the required-on-site date from the register':'the linked programme need date';
   const headroom=days(needDate,forecastDelivery);
-  if(headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+(programmeNeedDate?'the linked programme need date':'the required-on-site date in the register')+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  const deliveredDate=date(r,'actual delivery','actual delivery date','delivered date');
+  const deliveredAtDataDate=isOnDate(deliveredDate,dataDateIso);
+  const overdueUndelivered=!!needDate&&!!dataDateIso&&needDate<dataDateIso&&!deliveredAtDataDate&&!/^(delivered|accepted|installed|closed|complete|completed)$/i.test(field(r,'status'));
+  if(headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  if(overdueUndelivered)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));
   const stages=template?ids(field(template,'stages')):[];
@@ -146,7 +150,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner')||null,supplier:field(r,'supplier')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
    supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,
-   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:sourceLongLead||/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
+   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,overdueUndelivered,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:sourceLongLead||/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readiness.find(q=>q.recordId===r.recordId),receipts:r.receipts};
  });
@@ -445,7 +449,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
  const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition;
  let rows:any[]=riskPage?[...governedRows,...boqScope.risks.map(r=>({recordId:'boq-risk:'+r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact??'Not established',probability:r.probability??'Not established',severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:r.responsibleParty,status:'Candidate',currentStatus:'candidate management risk',state:'extracted_candidate',authority:'candidate',basis:r.basis,relatedPackages:r.relatedPackages}))]:useBoqCandidates?boqCandidateRows:governedRows;
- const programmeFallbackPattern=key==='delivery-commissioning'?/testing|commissioning|\btest\b/i:key==='delivery-snags'?/\bsnag(?:ging)?\b|punch list/i:key==='handover-readiness'?/handover|taking[- ]over|section(?:al)? completion|practical completion/i:null;
+ const programmeFallbackPattern=key==='delivery-commissioning'?/testing|commissioning|\btest\b/i:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?/handover|taking[- ]over|section(?:al)? completion|practical completion/i:null;
  const programmeFallback=!rows.length&&programmeFallbackPattern?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&programmeFallbackPattern.test(a.name??'')).map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'From programme, not yet verified as acceptance',basis:'Programme task and progress only; inspection results, snag closure and acceptance need their own evidence.'})):[];
  if(programmeFallback.length)rows=programmeFallback;
  const rowIds=new Set(records.map(r=>r.recordId));
@@ -467,7 +471,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
     ??(packageRow?.headroomCalendarDays!==null&&packageRow?.headroomCalendarDays!==undefined&&packageRow.headroomCalendarDays<0
       ?'Forecast delivery is '+(-packageRow.headroomCalendarDays)+' calendar days after the controlled programme need date.'
       :'The Delivery exception affects the linked scope or programme until the recorded action is resolved.');
-  const requiredDate=issueInterface?.requiredDate??packageRow?.programmeNeedDate??packageRow?.sourceRequiredOnSite??null;
+  const requiredDate=issueInterface?.requiredDate??packageRow?.needDate??null;
   const owner=issueInterface?.responsibleParty??issueInterface?.givingParty??issueInterface?.receivingParty??packageRow?.owner??(source?field(source,'owner','responsible party')||null:null);
   const packageLabel=issueInterface?.package??packageRow?.reference??(source?.kind==='package'?(source.reference??source.recordId):null);
   return {

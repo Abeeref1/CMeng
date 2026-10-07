@@ -23,9 +23,77 @@
   "currencies": {
     "QAR": {
       "certifiedUnpaidAmount": 9899013,
-      "activeBondAmount": 21000000
+      "activeBondAmount": 21000000,
+      "grossCertifiedAmount": 196034538,
+      "netCertifiedAmount": 166629358,
+      "paidAmount": 156730345,
+      "interimCertificateCount": 23,
+      "retentionDeductedAmount": 9801726,
+      "retentionHeldAmount": 9801726,
+      "advanceBalance": 1396548,
+      "currentContractValue": 221776000,
+      "pendingVariationAmount": 0
     }
   },
-  "delivery": {"package":90,"design":680,"quality":260,"permit":70},
-  "sectionTwoDelayDamages": {"dailyRate":60000,"cap":21000000,"originalDateExposure":1680000,"extendedDateExposure":900000}
+  "delivery": {
+    "package": 90,
+    "design": 680,
+    "quality": 260,
+    "permit": 70
+  },
+  "sectionTwoDelayDamages": {
+    "dailyRate": 60000,
+    "cap": 21000000,
+    "originalDateExposure": 1680000,
+    "extendedDateExposure": 900000
+  },
+  "pageAnswers": {
+    "independent-forecast": {
+      "requiredFinishIso": "2027-09-21",
+      "activityCoveragePercent": 100,
+      "unresolvedActivityCount": 0,
+      "probabilistic.status": "available"
+    },
+    "delivery-hse": {
+      "reportedHse.metrics.manHours": 831000,
+      "reportedHse.metrics.lostTimeInjuries": 1,
+      "reportedHse.metrics.medicalTreatmentCases": 5,
+      "reportedHse.metrics.restrictedWorkCases": 1,
+      "reportedHse.metrics.ltifr": 1.2,
+      "reportedHse.metrics.trir": 1.68,
+      "reportedHse.monthlyMetrics.manHours": 11720
+    },
+    "quantity-scurve": {
+      "boqItemCount": 896,
+      "series.length": 896,
+      "inferredMapping.sourceWbsCoveragePercent": 100
+    },
+    "notices-claims": {
+      "noticeCount": 16,
+      "timelyNoticeCount": 14,
+      "lateNoticeCount": 2,
+      "noticeEventDateMissingCount": 0
+    },
+    "eot-assessment": {
+      "officialApprovedEotDays": 13,
+      "officialAdjustedCompletionIso": "2027-09-21",
+      "projectFacts.claims.pipeline.claimedDays": 75,
+      "projectFacts.claims.pipeline.assessedDays": 34,
+      "projectFacts.claims.pipeline.pendingCount": 8,
+      "projectFacts.claims.pipeline.pendingAssessedDays": 21,
+      "projectFacts.claims.pipeline.pendingScenarioCompletionIso": "2027-10-12"
+    },
+    "procurement-packages": {
+      "rows.length": 90
+    },
+    "delivery-design": {
+      "rows.length": 680
+    },
+    "delivery-quality": {
+      "rows.length": 260
+    },
+    "delivery-permits": {
+      "rows.length": 70
+    }
+  }
 }

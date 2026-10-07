@@ -23,6 +23,26 @@ try{
   if(!facts)facts=data.projectFacts;
   compare(page.key+' snapshot',digest(data.projectFacts),digest(facts));
   const mismatches=projectFactConsumerMismatches(data);compare(page.key+' displayed fact fields',mismatches.length,0);
+  for(const [path,expected] of Object.entries(key.pageAnswers?.[page.key]??{})){
+    let actual=value(data,path);if(typeof expected==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(expected)&&typeof actual==='string')actual=actual.slice(0,10);
+    compare(page.key+' '+path,actual,expected);
+  }
+  if(page.key==='contract-particulars-bonds'){
+    const ld=data.focus.liquidatedDamages;
+    for(const [scenario,expected] of [['no_eot',key.sectionTwoDelayDamages.originalDateExposure],['awarded_eot',key.sectionTwoDelayDamages.extendedDateExposure]]){
+      const row=ld.scenarios.find(row=>row.scenario===scenario&&row.currency==='QAR');
+      compare('Section 2 '+scenario+' exposure',row?.cappedExposure?.value,expected);
+      compare('Section 2 '+scenario+' cap',row?.capAmount?.value,key.sectionTwoDelayDamages.cap);
+    }
+    compare('Sectional rate count',data.projectFacts.contractSections?.length,2);
+  }
+  if(page.key==='schedule-analytics'){
+    const quality=data.projectFacts.programmeQuality;
+    compare('Remaining execution float population',quality.remainingActivityCount,220);
+    compare('BEI is calculated from the adopted baseline',typeof quality.bei.value==='number'&&Number.isFinite(quality.bei.value),true);
+    compare('All baseline dates retain their adopted authority',quality.bei.missingBaselineActivityIds.length,0);
+    compare('Programme update gap is explicit',quality.updateGaps.some(g=>g.calendarDays===427),true);
+  }
   result.pages.push({key:page.key,bindingCount:data.projectFactBindings?.length??0,mismatches});
  }
  compare('Data date',facts.dataDateIso,key.dataDateIso);

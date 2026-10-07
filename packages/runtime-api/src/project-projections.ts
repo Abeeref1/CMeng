@@ -6,6 +6,7 @@ import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage} from './delivery-projections';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
+import {projectActions,type ProjectAction} from './project-actions';
 import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
@@ -34,6 +35,7 @@ import { documentClassificationForReview } from "./document-identification";
 import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
+import {projectSourceLabels} from './project-presentation';
 import {attachProjectFacts,projectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
@@ -7524,6 +7526,7 @@ function resolveProjectModuleCandidate(
           data.requiredFinishIso ??
           null;
         return {
+          originalContractualCompletionIso:control.originalContractualCompletionIso,
           requiredFinishIso:
             required,
           requiredFinishVarianceDays:
@@ -7707,6 +7710,37 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
 
+const projectActionCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildProjectActionRegister>}>();
+function buildProjectActionRegister(state:ProjectRuntimeState){
+  // Resolve raw owning projections before facts are attached. This producer never
+  // calls a page/API wrapper, so the shared-facts consumer cannot recurse.
+  resolveProjectModule(state,'pmo-analysis');
+  const modules=resolvedProjectCache.get(state.projectId)!.modules;
+  const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]));
+  const forecast=modules.get('independent-forecast')?.data as any;
+  const review=projectActions(state,assessment,{completionPosition:forecast?.completionPosition});
+  const recordPosition=crossDomainAccountability(state);
+  const reviewById=new Map(review.actions.map(a=>[a.id,a]));
+  const reviewRows=review.actions.map(a=>managementAction({actionId:a.id,recordKey:'review|'+a.id,issue:a.title,
+    consequence:a.reason,affectedScope:[...new Set(a.findings?.flatMap(f=>f.sourceRefs)??[])],affectedMilestones:[],
+    owner:'Project controls reviewer',organisation:null,requiredAction:a.resolution?.instruction??a.reason,dueIso:null,
+    escalation:null,severity:a.category==='review'?'high':'medium',authority:'calculated',sourceRefs:a.findings?.flatMap(f=>f.sourceRefs)??[],owningModule:a.target.moduleKey??'source-quality'}));
+  const actions=prioritizeActions([...recordPosition.actions,...reviewRows],projectControlSchedule(state)?.revision.model??null,forecast?.drivingNetwork?.activityIds??[]);
+  const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
+    id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
+    owner:a.owner??a.organisation,dueIso:a.dueIso,priorityBasis:a.priorityBasis,
+    resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
+    target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
+  });
+  return {actions,recordActionCount:recordPosition.actions.length,reviewActionCount:review.actions.length,
+    workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One ranked project action register. Record follow-up, source corrections and confirmations share one count; supporting information is separate.'},
+    recordPosition};
+}
+export function projectActionRegisterForState(state:ProjectRuntimeState){
+  const cached=projectActionCache.get(state);if(cached?.version===state.version)return cached.value;
+  const value=buildProjectActionRegister(state);projectActionCache.set(state,{version:state.version,value});return value;
+}
+
 export function moduleForProject(
   projectId: string,
   key: string,
@@ -7724,7 +7758,7 @@ export function moduleForProject(
   const finalize=(result:ModuleRuntimeResult)=>attachProjectFacts(state,result);
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped))));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
   if (isDeliveryPage(key)) {const scoped=reportingState(state);return finalize(attachReportingContract(scoped,deliveryModule(scoped,key)));}
   if (key==='scope-classification') return finalize(resolveProjectModuleUncertified(reportingState(state),key));
   if (key==='monte-carlo-risk') return finalize(scheduleRiskMonteCarlo(reportingState(state)));
@@ -7753,7 +7787,9 @@ export function directorForProject(
   const data=buildBundle(state).director;
   if(!data)return null;
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
-  const reviewed=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
+  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
+  const register=projectActionRegisterForState(state);
+  const reviewed={...reviewedBase,managementActions:register.actions.map(a=>[a.issue,a.requiredAction].filter(Boolean).join(' — ')),managementActionCount:register.actions.length};
   return reportingData(state,'project-director',bindProjectFacts('project-director',reviewed,projectFactsForState(state)) as typeof reviewed);
 }
 
@@ -8398,37 +8434,16 @@ export function managementSurfacesForProject(
   const interfaces=interfaceIntelligence(state);
   const accountability=crossDomainAccountability(state);
   const deliveryPosition=deliveryDashboard(state);
-  const deliveryManagementActions:ManagementAction[]=(deliveryExceptions.actions??[]).map((row:any,index:number)=>managementAction({
-    actionId:'delivery-exception:'+String(row.recordId??row.type??index),
-    ...(row.recordId?{recordKey:actionRecordKey(String(row.type??'record'),String(row.recordId))}:{}),
-    issue:String(row.action??row.type??'Delivery control item requires review'),
-    consequence:typeof row.overdueDays==='number'&&row.overdueDays>0
-      ?'Required date is '+row.overdueDays+' calendar days overdue.'
-      :'Delivery control evidence requires management review.',
-    affectedScope:[String(row.recordId??''),String(row.linkedActivityId??'')].filter(Boolean),
-    affectedMilestones:[],
-    owner:row.owner??null,
-    organisation:null,
-    requiredAction:String(row.action??'Review the delivery control item.'),
-    dueIso:row.dueIso??null,
-    escalation:typeof row.overdueDays==='number'&&row.overdueDays>0?'Escalate the overdue item.':null,
-    severity:row.priority==='critical'?'critical':'high',
-    authority:'source',
-    sourceRefs:Array.isArray(row.sourceRefs)?row.sourceRefs:[],
-    owningModule:'lookahead-schedule',
-  }));
-  const canonicalActionRows:ManagementAction[]=[
-    ...(surfaces.commandCenter.actions??[]),
-    ...(accountability.actions??[]),
-    ...deliveryManagementActions,
-  ];
-  const canonicalActions=prioritizeActions(canonicalActionRows,current?.revision.model??null,(resolvedModules.get('independent-forecast')?.data as any)?.drivingNetwork?.activityIds??[]);
+  const canonicalActions=projectActionRegisterForState(state).actions;
+  accountability.actions=canonicalActions;
+  accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
     masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };
+  for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])Object.assign(surface,{sourceLabels:projectSourceLabels(state)});
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
   allPages.set('command-center',{key:'command-center',status:'partial',reason:null,dependencies:[],data:result.commandCenter});

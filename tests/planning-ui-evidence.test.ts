@@ -127,7 +127,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
  assert.match(html,/Next: Review/);
 });
 
-test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
+test('An incomplete probability calculation suppresses dates in every chart, not only the lower cards',()=>{
  const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
  const html=runInNewContext(script+';renderForecastVisual(data)',{
@@ -138,6 +138,19 @@ test('Forecast review suppresses probability dates in every chart, not only the 
  assert.ok(bars[0]!.every(r=>!/P50|P80|P90/.test(r.label)));
  assert.equal(bars[1]!.find(r=>r.label==='P80 vs CMeng CPM').value,null);
  assert.ok(!/2034|2035|2036/.test(html));assert.match(html,/P50, P80 and P90 are withheld/);
+});
+
+test('An available probability calculation remains visible while forecast reconciliation needs review',()=>{
+ const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
+ const bars:any[][]=[];
+ const html=runInNewContext(script+';renderForecastVisual(data)',{
+  data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,managementReviewState:'review_required',probabilistic:{status:'available',p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
+  projectionFor:(v:any)=>v,renderCompletionPosition:()=>'',experienceDisclosure:(_t:string,b:string)=>b,planningKpis:()=>'',escapeHtml:String,fmt:String,humanizeKey:String,planningDateLadder:()=>'',
+  renderVisualPanel:(_t:any,_s:any,body:any)=>body,renderVisualBars:(rows:any[])=>{bars.push(rows);return '';},renderWaterfallChart:(rows:any[])=>{bars.push(rows);return '';},
+ });
+ assert.ok(bars[0]!.every(r=>!/P50|P80|P90/.test(r.label)));
+ assert.equal(typeof bars[1]!.find(r=>r.label==='P80 vs CMeng CPM').value,'number');
+ assert.match(html,/2034/);assert.match(html,/2035/);assert.match(html,/2036/);assert.ok(!html.includes('P50, P80 and P90 are withheld'));assert.match(html,/assumptions/);
 });
 
 test('Milestone chart retains priority exceptions and represents repeated watch movement once',()=>{

@@ -8,7 +8,7 @@ import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
 function functions(names:string[]) {
-  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","uniqueReportingPopulations"]:[])])];
+  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","readerReference","uniqueReportingPopulations"]:[])])];
   const selected=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text));
   assert.equal(selected.length,names.length);
   return selected.map(n=>n.getText(source)).join('\n');
@@ -399,7 +399,7 @@ test('primary findings hide internal codes and the banner action needs no click'
  const code=functions(['readerIssue','renderIssueAssessment','renderPositionVerdict','experienceDisclosure']);
  const issue={kind:'data_quality',summary:'CALENDAR_CYCLE:ACTIVITY_1',detail:'CLAUSE_PARSE_FAILURE:ARTICLE_1',code:'SOURCE_QUALITY',action:'Resolve CALENDAR_CYCLE:ACTIVITY_1',owner:'Project evidence owner',moduleKeys:[]};
  const html=runInNewContext(code+';renderIssueAssessment({issues:[issue],counts:{}})',{...common,issue,issueBadge:()=>'',names:{},issueLabel:String});
- const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.match(html,/CLAUSE_PARSE_FAILURE/,'technical original retained in details');
+ const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.doesNotMatch(html,/CLAUSE_PARSE_FAILURE/,'screen details use the same plain vocabulary');assert.match(html,/clause parse failure/);
  const banner=runInNewContext(code+';renderPositionVerdict(data)',{...common,data:{positionVerdict:{specific:true,rag:'red',label:'Action required',text:'Completion is 53 days late.',nextAction:'Review the recovery plan.',assignTo:'Project Director',owner:'Not assigned',basis:'Completion dates'}}});
  const first=banner.split('<details')[0];assert.match(first,/Assign to:.*Project Director/);assert.match(first,/Next:.*recovery plan/);assert.doesNotMatch(banner,/assign a person/);
 });
@@ -430,4 +430,13 @@ test('management context has a single owner per topic and calendar naming reache
  }
  const command=runInNewContext(basis+';renderBasisReviews(data,"command-center")',basisContext);
  assert.match(command,/Not assigned/);assert.match(command,/Not set/);assert.doesNotMatch(command,/Assign owner|Set due date|HSE figures reported/);
+});
+
+
+test('reader references name source documents and rows while retaining the underlying identities',()=>{
+ const currentModuleResult={data:{sourceLabels:{'evidence-document:evidence_123456abcdef':'Claims.csv','schedrev_123456abcdef':'Update02.xer'}}};
+ const run=functions(['readerReference','readerText','readerAuditAction']);
+ assert.equal(runInNewContext(run+";readerReference('evidence-document:evidence_123456abcdef:row:12')",{currentModuleResult}),'Claims.csv · row 12');
+ assert.equal(runInNewContext(run+";readerAuditAction('POST /api/projects/P/schedule/revisions/schedrev_123456abcdef/adopt')",{currentModuleResult}),'Updated programme records');
+ assert.equal(currentModuleResult.data.sourceLabels['schedrev_123456abcdef'],'Update02.xer');
 });

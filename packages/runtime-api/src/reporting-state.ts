@@ -53,10 +53,11 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
       const basis=baselineMatches.get(row.activityId);
       const baselineStartIso=basis?.baselineStartIso??basis?.currentStartIso??null;
       const baselineFinishIso=basis?.baselineFinishIso??basis?.currentFinishIso??null;
-      const baselineChanged=row.baselineStartIso!==baselineStartIso||row.baselineFinishIso!==baselineFinishIso;
+      const baselineDateBasis=basis?'controlled_baseline' as const:undefined;
+      const baselineChanged=row.baselineStartIso!==baselineStartIso||row.baselineFinishIso!==baselineFinishIso||row.baselineDateBasis!==baselineDateBasis;
       if(!invalidStart&&!invalidFinish&&!baselineChanged)return row;
       changed=true;
-      return {...row,baselineStartIso,baselineFinishIso,
+      return {...row,baselineStartIso,baselineFinishIso,...(baselineDateBasis?{baselineDateBasis}:{}),
         ...(invalidStart||invalidFinish?{actualStartIso:invalidStart?null:row.actualStartIso,actualFinishIso:invalidFinish?null:row.actualFinishIso,
         status:'unknown' as const,percentComplete:null,diagnostics:[...row.diagnostics,'ACTUAL_EVENT_OUTSIDE_SNAPSHOT_DATA_DATE_STATUS_AND_PROGRESS_WITHHELD']}:{} )};
     });

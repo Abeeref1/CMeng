@@ -743,7 +743,7 @@ function dashboardMetrics(
       key:
         "claims-linkage",
       label:
-        "Fully defensible claim chain",
+        "Claims linked to events and activities",
       value:
         d?.claims
           .claimCount ==
@@ -782,7 +782,7 @@ function dashboardMetrics(
             ? "good"
             : "unavailable",
       basis:
-        "Full chain: claim → event → activity",
+        "Record linkage only: claim → event → activity. Notice timing, causation, assessed days and entitlement are separate checks.",
       owningModule:
         "delay-claims",
     }),

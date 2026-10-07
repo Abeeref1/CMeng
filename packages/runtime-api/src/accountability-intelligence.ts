@@ -29,7 +29,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   };
   const add=(dimension:Dimension,value:string|null|undefined,detail:Item)=>{retain(detail);const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
   const addDelivery=(recordId:string,domain:string,issue:string,dueDate:string|null,activityIds:string[],sourceRefs:string[])=>{
-    const r=recordById.get(recordId);if(!r)return;const base={domain,recordId,reference:r.reference,issue,dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds,sourceRefs,authority:'confirmed_record' as const};
+    const r=recordById.get(recordId);if(!r)return;const base={domain,recordId,reference:r.reference,issue:[r.description,issue].filter(Boolean).join(' · '),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds,sourceRefs,authority:'confirmed_record' as const};
     add('organisation',field(r,'owner','responsible party'),base);
     const explicitRole=field(r,'party role','responsible party role','party type','organisation type','organization type');
     if(explicitRole)add('party_role',explicitRole,base);
@@ -41,12 +41,12 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     if(row.scope!=='current'||(!row.overdue&&!['failed','rejected','retest required','blocked'].includes(row.currentStatus)))continue;
     const sourceRow=recordById.get(row.recordId)!;addDelivery(row.recordId,row.kind,row.overdue?'Overdue '+row.kind+' record':row.currentStatus+' '+row.kind+' outcome',row.dueDate??null,sourceRow.links.activityIds,sourceRow.receipts.map(x=>x.documentId+':'+x.locator));
   }
-  for(const p of delivery.packageRows)if(typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0){
-    const r=recordById.get(p.recordId)!;const issue='Package forecast delivery is '+(-p.headroomCalendarDays)+' calendar days after '+p.needDateBasis.toLowerCase();
+  for(const p of delivery.packageRows)if(!p.deliveredAtDataDate&&((typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0)||p.overdueUndelivered)){
+    const r=recordById.get(p.recordId)!;const issue=p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
-    for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.programmeNeedDate,overdueDays:-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
+    for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:p.headroomCalendarDays===null?daysOver(p.needDate,dataDateIso):-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
   }
-  const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue,dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('organisation',row.owner,base);};
+  const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue:[row.subject,issue].filter(Boolean).join(' · '),dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('organisation',row.owner,base);};
   for(const r of operations.quality.current)if(r.status==='open')op('NCR',r,r.ncrId,(r.severity??'unknown')+' NCR remains open');
   for(const r of operations.rfi.current)if(r.status==='open')op('RFI',r,r.rfiId,r.dueIso&&dataDateIso&&r.dueIso<dataDateIso?'RFI response is overdue':'RFI remains open');
   for(const r of operations.risk.current)if(r.status==='open')op('risk',r,r.riskId,'Open Project risk');
@@ -84,10 +84,13 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   if(programme){
     const classification=scheduleScopeClassification(programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
     for(const a of programme.activities){
-      if(['completed','wbs_summary','level_of_effort'].includes(String((a as any).status??a.activityType)))continue;
-      const pressure=(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0)||(a.currentFinishIso&&dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso&&!(a.actualFinishIso));
+      if(a.status==='completed'||['wbs_summary','level_of_effort'].includes(a.activityType))continue;
+      const missedStart=!!a.currentStartIso&&!!dataDateIso&&a.currentStartIso.slice(0,10)<dataDateIso&&a.status==='not_started';
+      const pressure=(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0)||(a.currentFinishIso&&dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso&&!(a.actualFinishIso))||missedStart;
       if(!pressure)continue;const c=byId.get(a.activityId);
-      const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+a.totalFloatHours+' hours total float':'Unfinished activity is past its current finish',dueDate:a.currentFinishIso?.slice(0,10)??null,overdueDays:daysOver(a.currentFinishIso?.slice(0,10)??null,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
+      const missedFinish=!!a.currentFinishIso&&!!dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso;
+      const dueDate=(missedStart&&!missedFinish?a.currentStartIso:a.currentFinishIso)?.slice(0,10)??null;
+      const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:(a.name?a.name+' · ':'')+(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+a.totalFloatHours+' hours total float':missedStart&&!missedFinish?'Activity has not started after its planned start':'Unfinished activity is past its current finish'),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
       retain(base);if(!c)continue;
       add('contractor',c.contractor,base);add('subcontractor',c.subcontractor,base);add('discipline',c.discipline,base);add('package',c.package,base);add('workfront',c.workFront,base);
     }
@@ -109,7 +112,10 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
+    const linked=first.activityIds.map(id=>programme?.activities.find(a=>a.activityId===id));
+    const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&linked.length>0&&linked.every(a=>a?.status==='completed');
     const consequence=
+      completedRegisterFollowUp?'All linked activities are complete. Close or reconcile this open register record and check any remaining acceptance obligation.':
       domain==='procurement'?'Programme need dates may be affected by the late package.':
       domain==='rfi'?'The unresolved design response may constrain linked programme work.':
       domain==='ncr'?'The open quality issue may prevent acceptance or downstream work.':
@@ -126,10 +132,11 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       domain==='schedule'?'Confirm the remaining work, driving logic, accountable delivery party and recovery date.':
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
-      actionId:'accountability:'+first.domain+'|'+first.recordId,recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
+      actionId:'accountability:'+(['rfi','ncr'].includes(domain)?domain.toUpperCase():domain)+'|'+(first.reference??first.recordId),recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
       owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
-      severity:overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
+      severity:completedRegisterFollowUp?'low':overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
+      owningModule:({rfi:'delivery-design',ncr:'delivery-quality',procurement:'procurement-packages',schedule:'activity-analytics',risk:'delivery-risks',claim:'delay-claims',notice:'notices-claims'} as Record<string,string>)[domain]??'delivery-control',
     });
   });
   for(const bond of commercialCanonical(state).bonds??state.controls.bonds){
@@ -137,7 +144,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     actionRows.push(managementAction({actionId:'security:'+bond.bondId,recordKey:actionRecordKey('security',bond.bondId),issue:bond.bondId+' · security expired',
       consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:null,organisation:null,
       requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
-      severity:'high',authority:'source',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
+      severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }
   const actions=prioritizeActions(actionRows,programme);
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;

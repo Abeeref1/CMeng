@@ -20,6 +20,11 @@ const comparable=v=>Array.isArray(v)?v.map(comparable):v&&typeof v==="object"?Ob
 const digest=v=>createHash("sha256").update(JSON.stringify(comparable(v))).digest("hex");
 const check=(name,ok,projectId=null,detail=null)=>{summary.checks.push({name,status:ok?"pass":"fail",projectFingerprint:projectId?createHash("sha256").update(projectId).digest("hex").slice(0,16):null,detail:ok?null:detail});return ok;};
 
+async function pool(items,run){
+  let next=0;
+  await Promise.all(Array.from({length:Math.min(4,items.length)},async()=>{while(next<items.length){const item=items[next++];await run(item);}}));
+}
+
 async function response(path,allowed=[200]){
   const res=await fetch(base+path,{signal:AbortSignal.timeout(90000)});
   if(!allowed.includes(res.status)){
@@ -91,7 +96,7 @@ try{
     check("Dashboard response stays within release target",dashboardMs<=coldTargetMs,id,"dashboardMs="+dashboardMs);
     check("Dashboard returns a governed state rather than a transport error",dash.status===200,id,"status="+dash.status);
 
-    for(const key of specialist){
+    await pool(specialist,async key=>{
       const path=modulePath(id,key);
       const page=await json(path,[200,409]);
       projectSummary.pageCount++;
@@ -114,10 +119,10 @@ try{
         check(key+": empty or blocked response is a normal result",page.status===200&&report.status===200&&report.body?.result?.status==="blocked",id,"page="+page.status+" report="+report.status);
         check(key+": blocked page explains why",typeof body.reason==="string"&&body.reason.trim().length>0,id);
       }
-    }
+    });
 
     const managementViews=new Map();
-    for(const key of management){
+    await pool(management,async key=>{
       const page=await json(prefix+"/management/"+key,[200,409]);
       projectSummary.pageCount++;
       managementViews.set(key,page.body);
@@ -135,7 +140,7 @@ try{
         projectSummary.blockedPages.push(key);
         check(key+": blocked management page explains why",typeof page.body.reason==="string"&&page.body.reason.trim().length>0,id);
       }
-    }
+    });
 
     const bundle=(await json(prefix+"/management-surfaces")).body;
     for(const [key,field] of [["master-dashboard","masterDashboard"],["command-center","commandCenter"],["master-control-programme","masterControlProgramme"]]){
@@ -150,8 +155,12 @@ try{
     const after=(await json(prefix+"/evidence/documents")).body;
     const afterDigest=createHash("sha256").update(JSON.stringify((after.documents??[]).map(d=>[d.documentId,d.sourceHashSha256]).sort())).digest("hex");
     check("Read-only acceptance preserves source document identities and hashes",beforeDigest===afterDigest,id);
+    console.log(JSON.stringify({completedProjects:summary.projects.length,totalProjects:projects.length,pageCount:projectSummary.pageCount,failedChecks:summary.checks.filter(c=>c.status==="fail").length}));
+    writeFileSync(process.env.CMENG_ACCEPTANCE_OUTPUT??"system-acceptance.json",JSON.stringify(summary,null,2));
   }
 
+  const finalHealth=(await json("/health")).body;
+  check("Release remains unchanged through every project check",finalHealth.release===expected);
   const failed=summary.checks.filter(x=>x.status==="fail");
   summary.failedCheckCount=failed.length;
   summary.status=failed.length?"fail":"pass";
@@ -161,6 +170,6 @@ try{
   summary.error=error instanceof Error?error.message:String(error);
   process.exitCode=1;
 }finally{
-  writeFileSync("system-acceptance.json",JSON.stringify(summary,null,2));
+  writeFileSync(process.env.CMENG_ACCEPTANCE_OUTPUT??"system-acceptance.json",JSON.stringify(summary,null,2));
   console.log(JSON.stringify(summary,null,2));
 }

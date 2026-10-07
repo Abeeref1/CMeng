@@ -141,7 +141,13 @@ test('confirmed quantities drive mappings and S-curves without changing measured
  model.installedSnapshots=[{snapshotId:'I',quantityItemId:model.items[0]!.quantityItemId,installedQuantity:1,asOfIso:'2026-10-05',sourceRefs:[]}];
  const schedule:CanonicalScheduleModel={projectId,source:'schedule_xlsx',sourceRevisionId:'S',dataDateIso:'2026-10-05',activities:[{projectId,activityId:'ACT',nativeId:null,name:'Works',wbsId:null,calendarId:null,activityType:'task',status:'not_started',baselineStartIso:'2026-10-01',baselineFinishIso:'2026-10-05',currentStartIso:'2026-10-01',currentFinishIso:'2026-10-05',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:32,remainingDurationHours:32,totalFloatHours:0,freeFloatHours:0,percentComplete:0,sourceRefs:[],diagnostics:[]}],relationships:[],wbs:[],calendars:[],diagnostics:[]};
  const expected=source.truth.reduce((a,b)=>a+b,0),mapping=assessQuantityMapping(model),curve=buildQuantityScurveProjection(model,schedule,{generatedAt:'2026-10-05',producerVersion:'review-test'});
- assert.equal(mapping.totalKnownContractQuantity,expected);assert.equal(curve.series[0]!.points.at(-1)!.baselinePlannedQuantity,expected);assert.equal(curve.series[0]!.points.at(-1)!.actualInstalledQuantity,1);
+ assert.equal(mapping.totalKnownContractQuantity,expected);
+ assert.equal(curve.series.length,model.items.length,'each BOQ item retains its own quantity curve');
+ for(const [index,item] of model.items.entries()){
+   const series=curve.series.find(s=>s.quantityItemId===item.quantityItemId)!;
+   assert.ok(series);assert.equal(series.points.at(-1)!.baselinePlannedQuantity,source.truth[index]);
+   assert.equal(series.points.at(-1)!.actualInstalledQuantity,index===0?1:null,'installations cannot leak between items sharing a unit');
+ }
 });
 
 test('HTTP batch review updates Ask, JSON and Excel consistently and serves the exact source',{timeout:180000},async t=>{

@@ -14,7 +14,8 @@ import {titleForModule} from './registry';
 import {deliveryPages} from '../../delivery-core/src/registry';
 
 export interface ProjectAction {
-  id:string;category:'confirmation'|'review'|'information';title:string;reason:string;recordCount:number;
+  id:string;category:'confirmation'|'review'|'follow_up'|'information';title:string;reason:string;recordCount:number;
+  owner?:string|null;dueIso?:string|null;priorityBasis?:unknown;
   resolution?:{
     kind:'confirm'|'choose'|'upload'|'information';
     requiresUserAction:boolean;

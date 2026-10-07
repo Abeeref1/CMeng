@@ -4,6 +4,7 @@ import type {ProjectRuntimeState} from "./project-state-types";
 import {canonicalTimeClaims} from "./canonical-time-claims";
 import {isScenarioRevision} from "./schedule-authority";
 import {sourceProductivityForecastEvidence} from "./source-productivity-forecast";
+import {commercialPositionForState} from './commercial-runtime';
 
 export const FORECAST_TAXONOMY_LABELS = [
   "Contractual completion",
@@ -180,7 +181,9 @@ export function forecastControlForState(
   forecast: IndependentForecastProjection,
 ) {
   const time = canonicalTimeClaims(state);
-  const requiredFinishIso = time.contractTimeBasis?.contractualCompletionIso ?? null;
+  const contractTime=commercialPositionForState(state).timeExposure;
+  const originalContractualCompletionIso=time.contractTimeBasis?.contractualCompletionIso??null;
+  const requiredFinishIso=contractTime.officialAdjustedCompletion.value??originalContractualCompletionIso;
   const productivity = sourceProductivityForecastEvidence(state);
   const scenario = state.schedules
     .filter(item => isScenarioRevision(item))
@@ -191,9 +194,10 @@ export function forecastControlForState(
 
   return {
     gate,
+    originalContractualCompletionIso,
     taxonomy: {
       contractualCompletion: {
-        label: FORECAST_TAXONOMY_LABELS[0],
+        label: requiredFinishIso!==originalContractualCompletionIso?'Contract completion with awarded EOT':FORECAST_TAXONOMY_LABELS[0],
         completionIso: requiredFinishIso,
         authority: "contract_time_basis",
         state: requiredFinishIso ? "established" : "not_established",

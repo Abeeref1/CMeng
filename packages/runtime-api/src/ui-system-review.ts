@@ -14,7 +14,38 @@ function renderPositionVerdict(data,includeGeneral=false){
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
-  return String(value||'').replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+  return readerReference(value).replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+}
+function readerReference(value){
+  let text=String(value??'');
+  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
+  for(const [id,label] of Object.entries(labels).sort((a,b)=>b[0].length-a[0].length))text=text.split(id).join(label);
+  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document')
+    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision')
+    .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
+    .replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
+    .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
+}
+function readerAuditAction(value){
+  const text=String(value??'');
+  if(/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(text)){
+    const verb=text.startsWith('GET ')?'Viewed':text.startsWith('DELETE ')?'Removed':'Updated';
+    const subject=/evidence|upload/.test(text)?'project documents':/schedule|programme/.test(text)?'programme records':/review|confirm|adopt/.test(text)?'review decision':'project records';
+    return verb+' '+subject;
+  }
+  return readerText(text);
+}
+function renderContractSections(data){
+  const sections=data?.projectFacts?.contractSections||[];if(!sections.length)return '';
+  return '<section class="planning-panel"><h4>Sectional completion and delay damages</h4><div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone / finish</th><th>Contract / extended date</th><th>Damages rate</th><th>Cap</th></tr></thead><tbody>'+sections.map(section=>'<tr><td><b>'+escapeHtml('Section '+section.sectionId+' · '+section.label)+'</b></td><td>'+escapeHtml(section.milestoneId||'Milestone link needs review')+'<br>'+escapeHtml(section.programmeCompletionIso?planningShortDate(section.programmeCompletionIso):'Finish not linked')+'</td><td>'+escapeHtml(section.contractCompletionIso?planningShortDate(section.contractCompletionIso):'Section date not supplied')+(section.extendedCompletionIso?'<br>'+escapeHtml(planningShortDate(section.extendedCompletionIso))+' with awarded EOT':'')+'</td><td>'+escapeHtml(fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis.endsWith('_week')?'week':'day'))+'</td><td>'+escapeHtml(section.capAmount!==null?fmt(section.capAmount)+' '+section.currency:section.capPercent!==null?fmt(section.capPercent)+'%':'Not supplied')+'<br><small>'+escapeHtml(section.capBasis)+'</small></td></tr>').join('')+'</tbody></table></div><small>Source contract terms are usable with their stated section. Programme completion does not itself establish taking-over or a right to deduct damages.</small></section>';
+}
+function renderClaimPipeline(data){
+  const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
+  return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
+    ['Claims',p.recordCount,'Identities evidenced by the Data Date'],['Claimed days',p.claimedDays,'From register'],
+    ['Assessed days',p.assessedDays,'Register assessments; includes unconfirmed decisions'],['Awarded EOT',facts.time.awardedEotDays.value,'Dated awards'],
+    ['Pending claims',p.pendingCount,'Submitted or under review'],['Pending assessed days',p.pendingAssessedDays,'Scenario input; not awarded']
+  ])+(p.pendingScenarioCompletionIso?'<p>If all pending assessed days are awarded without overlap, completion moves to <b>'+escapeHtml(planningShortDate(p.pendingScenarioCompletionIso))+'</b>.</p>':'')+'<small>'+escapeHtml(p.basis)+'</small></section>';
 }
 function uniqueReportingPopulations(populations){
   const groups=new Map();
