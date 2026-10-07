@@ -106,7 +106,13 @@ test('certificate source sums and observed rate are separate from certification 
   assert.ok(commercialIntegrityChecks('payments',position).some(c=>!c.passed&&c.metric==='certificate_current_cutoff:AED:exclusive'));
   const snapshots=[{currency:'AED',taxBasis:'exclusive',asOf:'2028-04-30',state:'official' as const,values:{bac:10000,pv:3000,ev:2700,ac:2500},receipts:[receipt],diagnostics:[]}];
   const review=costBasisReview(ledger({payments:l.payments,costPosition:snapshots}),certificateProfile(l))[0]!;
-  assert.equal(review.earnedPercentOfBudget,27);assert.equal(review.spi,.9);assert.equal(review.actualCostToCertificateRatio,2500/830);
+  assert.equal(review.earnedPercentOfBudget,27);assert.equal(review.spi,.9);
+  assert.equal(review.certificateDate,'2028-04-15');
+  assert.equal(review.certificateDateMatches,false);
+  assert.equal(review.actualCostToCertificateRatio,null,'Project Data Date must not be substituted for the latest certificate-period cutoff');
+  const aligned=costBasisReview(ledger({payments:l.payments,costPosition:[{...snapshots[0]!,asOf:'2028-04-15'}]}),certificateProfile(l))[0]!;
+  assert.equal(aligned.certificateDateMatches,true);
+  assert.equal(aligned.actualCostToCertificateRatio,2500/830);
   assert.equal(costBasisReview(ledger({costPosition:[{...snapshots[0]!,asOf:'2028-03-31'}]}),certificateProfile(l))[0]!.actualCostToCertificateRatio,null);
 });
 
