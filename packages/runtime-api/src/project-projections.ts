@@ -7409,8 +7409,15 @@ function resolveProjectModuleUncertified(
   );
 }
 
-function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, precomputed?: ModuleRuntimeResult): ModuleRuntimeResult {
-  state = reportingState(state);
+function resolveProjectModuleCandidate(
+  state: ProjectRuntimeState,
+  key: string,
+  precomputed?: ModuleRuntimeResult,
+  sharedFloatReview?: ReturnType<typeof activityFloatReconciliation>,
+  sharedInterpretation?: ReturnType<typeof sourceInterpretation>,
+  alreadyScoped = false,
+): ModuleRuntimeResult {
+  state = alreadyScoped ? state : reportingState(state);
   const readIssues=registerReadIssuesForModule(state,key);
   // A rejected register withholds its count, not the independently established
   // contract date, current claim cohort or shared commercial position.
@@ -7593,7 +7600,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
     (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
   }
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
-    const review=activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
+    const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
     result.data=attachActivityFloatReconciliation(result.data,review);
     if(review.summary.disputedActivityCount){
       result.status='partial';result.professionalState='review_required';
@@ -7601,7 +7608,7 @@ function resolveProjectModuleCandidate(state: ProjectRuntimeState, key: string, 
     }
   }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
-    const interpretation=buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
+    const interpretation=sharedInterpretation??buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
@@ -7621,6 +7628,11 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   const bundle = buildBundle(scoped);
   const p2=profiling?performance.now():0;
   const candidateProfile:Array<{key:string;ms:number}>=[];
+  const sharedModel=projectControlSchedule(scoped)?.revision.model;
+  const sharedControlBasis=sharedModel?projectScheduleControlBasis(scoped):null;
+  let sharedFloatReview:ReturnType<typeof activityFloatReconciliation>|undefined;
+  const sharedInterpretation=bundle.director?.sourceInterpretation;
+  const floatReviewKeys=new Set(['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical']);
   const candidates = new Map(certifiedAnalyticalModules.map(descriptor => {
     const t=profiling?performance.now():0;
     // Reuse the full-bundle result only where the normal uncertified resolver
@@ -7637,7 +7649,21 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
       descriptor.key==='resource-utilization'||
       descriptor.key==='manhour-scurve'||
       descriptor.key==='quantity-scurve';
-    const result=resolveProjectModuleCandidate(scoped, descriptor.key, bundleReusable?bundle.modules.get(descriptor.key):undefined);
+    if(floatReviewKeys.has(descriptor.key)&&sharedModel&&sharedControlBasis&&!sharedFloatReview){
+      sharedFloatReview=activityFloatReconciliation(
+        sharedModel,
+        cachedIndependentForecast(sharedModel,bundle.generatedAt),
+        sharedControlBasis.analysisConfig,
+      );
+    }
+    const result=resolveProjectModuleCandidate(
+      scoped,
+      descriptor.key,
+      bundleReusable?bundle.modules.get(descriptor.key):undefined,
+      floatReviewKeys.has(descriptor.key)?sharedFloatReview:undefined,
+      sharedInterpretation,
+      true,
+    );
     if(profiling)candidateProfile.push({key:descriptor.key,ms:performance.now()-t});
     return [descriptor.key,result] as const;
   }));
