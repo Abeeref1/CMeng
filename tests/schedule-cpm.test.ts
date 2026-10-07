@@ -169,6 +169,43 @@ test('finish lag landing on a work opening keeps the chronological finish event'
   assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),3);
 });
 
+
+test('SF start bound cannot collapse a held FF finish to the prior closing boundary',()=>{
+  const split:CanonicalCalendar={
+    calendarId:'CAL-SPLIT',name:'Split shift',semanticComplete:true,
+    weeklyWorkMinutes:[0,480,480,480,480,480,0],
+    weeklyWorkIntervals:[
+      {dayIndex:1,intervals:[]},
+      ...Array.from({length:5},(_,i)=>({dayIndex:i+2,intervals:[
+        {start:'08:00',finish:'12:00',minutes:240},{start:'13:00',finish:'17:00',minutes:240}
+      ]})),
+      {dayIndex:7,intervals:[]},
+    ],
+    exceptions:[{isoDate:'2026-01-07',nonWorking:true,workIntervals:[]}],
+    standardDayHours:8,standardWeekHours:40,sourceRefs:[]
+  };
+  const a=(id:string,d:number)=>activity(id,{calendarId:'CAL-SPLIT',remainingDurationHours:d,originalDurationHours:d});
+  const rel=(id:string,pre:string,post:string,type:'FS'|'SS'|'FF'|'SF',lagHours:number)=>({
+    relationshipId:id,predecessorActivityId:pre,successorActivityId:post,type,lagHours,external:false,sourceRefs:[],diagnostics:[]
+  });
+  const model=chainModel({dataDateIso:'2026-01-05T08:00:00.000Z',calendars:[split],
+    activities:[a('A0',23),a('A1',12),a('A2',24),a('A3',18),a('A4',19),a('A5',7),a('A6',18),a('A7',22),a('A8',12),a('A9',16)],
+    relationships:[
+      rel('R0','A0','A2','SS',11),rel('R1','A2','A3','FF',14),rel('R2','A3','A4','FF',-1),
+      rel('R3','A1','A5','FF',-2),rel('R4','A1','A6','SF',-3),rel('R5','A2','A6','SF',5),
+      rel('R6','A5','A6','FF',5),rel('R7','A4','A7','FF',-2),rel('R8','A4','A8','SF',16),
+      rel('R9','A5','A8','FS',4),rel('R10','A6','A8','FF',2),rel('R11','A0','A9','FS',9),
+      rel('R12','A6','A9','SF',5),rel('R13','A8','A9','SS',13)
+    ]});
+  const result=calculateCpm(model,{allowElapsedFallback:false,assumeMissingLagZero:false,assumeUnknownRelationshipTypeFs:false});
+  const row=result.activities.find(x=>x.activityId==='A4')!;
+  assert.equal(row.earlyStartIso,'2026-01-09T14:00:00.000Z');
+  assert.equal(row.lateStartIso,row.earlyStartIso);
+  assert.equal(row.earlyFinishIso,'2026-01-14T08:00:00.000Z');
+  assert.equal(row.lateFinishIso,row.earlyFinishIso,'SF start bound must not collapse the held FF finish to Tuesday 17:00.');
+  assert.equal(row.totalFloatHours,0);
+});
+
 test('every activity remains bounded by project finish even when a start link permits its successor to finish first',()=>{
   for(const type of ['SS','SF'] as const){
     const model=chainModel({activities:[activity('LONG',{remainingDurationHours:40}),activity('SHORT',{remainingDurationHours:8})],
