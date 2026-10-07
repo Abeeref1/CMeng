@@ -1850,7 +1850,7 @@ function bondsInsurance(
         };
       },
     );
-  const insuranceScope=partitionAsOf(input.insurances,{name:'Insurance effective by Data Date',entity:'insurance_policy',dataDateIso:input.dataDateIso,dateBasis:'policy inception date; expiration does not prove inception',id:r=>r.policyId,date:r=>r.inceptionDate});
+  const insuranceScope=partitionAsOf(input.insurances,{name:'Insurance effective by Data Date',entity:'insurance_policy',dataDateIso:input.dataDateIso,dateBasis:'policy inception date; a past expiry date can establish an already-expired policy even when inception is absent',id:r=>r.policyId,date:r=>r.inceptionDate??(r.expiryDate&&input.dataDateIso&&r.expiryDate<=input.dataDateIso?r.expiryDate:null)});
   const insurances:
     InsurancePosition[] =
     insuranceScope.asOf.map(
