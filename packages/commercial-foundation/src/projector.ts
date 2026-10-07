@@ -786,6 +786,20 @@ function buildCommercialTerms(
     input.contractTimeBasis
       ?.contractualCompletionIso ??
     null;
+  const completionAuthorityState =
+    input.contractTimeBasis?.contractualCompletionState ?? "missing";
+  const completionFindingState:CommercialFindingState =
+    !completion ? "missing" :
+    completionAuthorityState === "official" ? "established" :
+    completionAuthorityState === "conflicted" ? "conflicted" :
+    completionAuthorityState === "candidate" ? "candidate" :
+    "partial";
+  const completionAuthority:CommercialFindingAuthority =
+    !completion ? "missing" :
+    completionAuthorityState === "official" ? "approved" :
+    completionAuthorityState === "conflicted" ? "mixed" :
+    completionAuthorityState === "candidate" ? "candidate" :
+    "source";
   const contractualCompletionDate =
     finding(
       completion,
@@ -797,26 +811,21 @@ function buildCommercialTerms(
             .contractTimeBasis
             ?.sourceRefs ?? [],
         authority:
-          completion
-            ? input
-                .contractTimeBasis
-                ?.contractualCompletionState ===
-              "official"
-              ? "approved"
-              : "source"
-            : "missing",
+          completionAuthority,
         state:
-          completion
-            ? "established"
-            : "missing",
+          completionFindingState,
         asOfDate:
           input.dataDateIso,
         consequence:
           "The contractual completion basis drives EOT and liquidated-damages exposure.",
         action:
-          completion
+          completionFindingState === "established"
             ? null
-            : "Establish the applicable contract-time basis.",
+            : "Resolve and approve the applicable contract-time basis before treating this date as confirmed.",
+        diagnostics:
+          completion && completionFindingState !== "established"
+            ? ["CONTRACTUAL_COMPLETION_NOT_GOVERNED_OFFICIAL"]
+            : [],
       },
     );
 
