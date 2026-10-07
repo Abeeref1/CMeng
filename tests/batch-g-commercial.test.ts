@@ -186,7 +186,58 @@ test("Batch G C1 commercial-control performance path never substitutes net certi
   assert.notEqual(cash.certifiedIncome.value,900,'Net Certified must never substitute for Employer Certified');
   const controlCurrency=position.currencies.find(value=>value.currency==='AED')!;
   assert.equal(controlCurrency.paidAmount.value,800,'Commercial Control must reuse the canonical dated cash position');
-  assert.equal(controlCurrency.certifiedUnpaidAmount.value,null,'certified-unpaid stays unresolved when Employer Certified is unresolved');
+  assert.equal(controlCurrency.certifiedUnpaidAmount.value,100,'explicit Net Certified less actual Paid establishes the unpaid cash exposure without substituting Net Certified into the Employer Certified stage');
+  assert.ok(controlCurrency.certifiedUnpaidAmount.diagnostics.includes("CERTIFIED_UNPAID_FROM_NET_CERTIFIED_LESS_PAID_CASH"));
+});
+
+test("Certified unpaid uses net certified less actual paid cash when gross and net stages differ", () => {
+  const values=[
+    {id:"IPC-1",employer:1330207,net:1231673,paid:1133139,date:"2026-06-21"},
+    {id:"IPC-2",employer:2394372,net:2217011,paid:2039650,date:"2026-07-21"},
+    {id:"IPC-3",employer:3458536,net:3202349,paid:2946161,date:"2026-08-15"},
+  ];
+  const rows:PaymentStageRecord[]=values.map(v=>({
+    paymentId:v.id,periodEnd:v.date,sourceStatus:"approved",certifiedAmountBasis:"incremental",paidAmountBasis:"incremental",
+    amounts:{
+      applicationAmount:money(v.employer,"application-"+v.id),
+      engineerAssessedAmount:money(v.employer,"assessment-"+v.id),
+      employerCertifiedAmount:money(v.employer,"employer-"+v.id),
+      grossWork:money(v.employer,"gross-work-"+v.id),
+      grossCertifiedAmount:money(v.employer,"gross-certified-"+v.id),
+      variations:money(0,"variations-"+v.id),
+      variationCertifiedAmount:money(0,"variation-certified-"+v.id),
+      retentionDeduction:money(v.employer-v.net,"retention-"+v.id),
+      advanceRecovery:money(0,"advance-"+v.id),
+      otherDeduction:money(0,"other-"+v.id),
+      taxAmount:money(0,"tax-"+v.id),
+      netCertifiedAmount:money(v.net,"net-"+v.id),
+      paidAmount:money(v.paid,"paid-"+v.id),
+      outstandingAmount:money(v.net-v.paid,"outstanding-"+v.id),
+    },
+    receipt:receipt("ipc-"+v.id),reconciliation:"matched",diagnostics:[],
+    calculatedOutstandingAmount:money(v.net-v.paid,"calculated-outstanding-"+v.id),
+    paymentType:"interim",applicationDate:v.date,assessmentDate:v.date,certificationDate:v.date,
+    certificationDueDate:v.date,paymentDueDate:v.date,paymentDate:v.date,paymentTimestamp:null,
+    retentionReleaseDate:null,finalReceiptDate:null,paymentReference:"PAY-"+v.id,
+  }));
+  const sourceLedger:any={
+    schemaVersion:"1.0",producerVersion:"commercial-canonical-v1",dataDateIso:"2026-08-31",
+    costMetrics:[],payments:rows,variations:[],siteInstructions:[],insurances:[],obligations:[],retentions:[],
+    costPosition:[],populations:{payments:{},variations:{},retentionDeductions:{}},diagnostics:[],
+  };
+  const position=buildCommercialControlPosition({
+    projectId:"CERTIFIED-UNPAID-NET-BASIS",generatedAt:"2026-09-01T00:00:00.000Z",sourceLedger,
+    contractValue:null,variations:[],invoices:[],retentions:[],bonds:[],claimCommercials:[],
+    delayClaims:null,sourceDelayClaims:null,contractTimeBasis:null,commercialEvidenceSubmitted:true,
+    paymentEvidenceSubmitted:true,variationEvidenceSubmitted:false,bondEvidenceSubmitted:false,claimEvidenceSubmitted:false,
+  });
+  const cash=position.performance.cashFlow.currencies.find((row:any)=>row.currency==="AED")!;
+  assert.equal(cash.certifiedUnpaid.value,1064165,"gross Employer Certified less paid remains a distinct cash-performance comparison");
+  const currency=position.currencies.find(row=>row.currency==="AED")!;
+  assert.equal(currency.netCertifiedAmount?.value,6651033);
+  assert.equal(currency.paidAmount.value,6118950);
+  assert.equal(currency.certifiedUnpaidAmount.value,532083,"management unpaid exposure must use Net Certified less actual Paid");
+  assert.ok(currency.certifiedUnpaidAmount.diagnostics.includes("GROSS_CERTIFIED_LESS_PAID_IS_NOT_NET_PAYMENT_EXPOSURE"));
 });
 
 test("Batch G C2 distinguishes unresolved applicability from real conflicts", () => {
