@@ -734,6 +734,14 @@ export function buildCommercialControlPosition(
               ),
             )
           : null;
+      const retentionDeductedTotal =
+        sourceRetentionDeductions.length > 0
+          ? sum(sourceRetentionDeductions.map(row=>row.amounts.retentionDeduction.value!))
+          : null;
+      const retentionHeldTotal =
+        retained.length > 0
+          ? sum(retained.map(row=>row.amount))
+          : null;
 
       return {
         currency,
@@ -862,16 +870,7 @@ export function buildCommercialControlPosition(
           ),
         retentionDeductedAmount:
           moneyMetric(
-            sourceRetentionDeductions.length > 0
-              ? sum(
-                  sourceRetentionDeductions.map(
-                    (row) =>
-                      row.amounts
-                        .retentionDeduction
-                        .value!,
-                  ),
-                )
-              : null,
+            retentionDeductedTotal,
             sourceRetentionDeductions.length > 0 &&
             sourceRetentionDeductions.length ===
               sourcePaymentRows.length
@@ -890,19 +889,21 @@ export function buildCommercialControlPosition(
           ),
         retentionHeldAmount:
           moneyMetric(
-            retained.length > 0
-              ? sum(
-                  retained.map(
-                    (row) =>
-                      row.amount,
-                  ),
-                )
-              : null,
+            retentionHeldTotal,
             stateFor(
               retained.length > 0,
               sources.payments,
             ),
             retentionRefs,
+            retentionHeldTotal !== null
+              ? [
+                  "RETENTION_HELD_BALANCE_FROM_EXPLICIT_SOURCE_REGISTER",
+                  ...(retentionDeductedTotal !== null &&
+                     Math.abs(retentionHeldTotal-retentionDeductedTotal) > 0.01
+                    ? ["RETENTION_HELD_BALANCE_DIFFERS_FROM_CERTIFICATE_DEDUCTIONS_RECONCILE"]
+                    : []),
+                ]
+              : [],
           ),
         advanceBalance:
           moneyMetric(
