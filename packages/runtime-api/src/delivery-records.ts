@@ -13,7 +13,7 @@ import {deliveryFields} from '../../delivery-core/src/fields';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
-const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
+const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',permit_register:'permit',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
 // Source-table keys are already canonical. Normalise the finite identity list
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;

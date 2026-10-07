@@ -188,6 +188,25 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  for(const t of tables){
+  if((has(t,'as of')||has(t,'period end')||has(t,'date'))&&has(t,'pv','ev','ac'))for(const r of t.rows){
+   const asOf=dateValue(cell(r,'as of','period end','date'));
+   const currency=cell(r,'currency','unit')||inheritedCurrency;
+   for(const metricName of ['pv','ev','ac','bac','eac','etc','sv','cv']){
+    if(!t.headers.includes(canonicalHeader(metricName)))continue;
+    const value=cell(r,metricName);
+    if(numberValue(value)===null)continue;
+    costMetrics.push({
+     metric:metricName,
+     amount:money(r,value,'wide EVM history '+metricName,currency,asOf),
+     sourceStatus:cell(r,'status'),
+     cbsId:cell(r,'cbs','cbs id','cost code')||null,
+     cbsDescription:cell(r,'cbs description','cost code description','description')||null,
+     parentCbsId:cell(r,'parent cbs','parent cbs id','parent cost code')||null,
+     wbsId:cell(r,'wbs','wbs id','wbs code')||null,
+     counterparty:null,boqItemId:null,paymentId:null,
+    });
+   }
+  }
   if(has(t,'metric','value','as of')&&(has(t,'unit')||has(t,'currency')))for(const r of t.rows){
    const currencies=[cell(r,'currency'),cell(r,'unit')].filter(v=>/^[A-Z]{3}$/.test(v));
    if(new Set(currencies).size>1){diagnostics.push('COST_ROW_CURRENCY_CONFLICT:'+r.receipt.documentId+':'+r.receipt.locator);continue;}

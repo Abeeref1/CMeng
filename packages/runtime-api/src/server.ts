@@ -160,6 +160,18 @@ export function projectDocumentRegister(projectId:string){
               schemaByDocument.get(
                 document.documentId,
               )?.headers ?? [],
+            columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
+              const ignored=new Set(table.recognition?.unknown??[]);
+              const physical=table.intelligence.columns.map(column=>column.rawHeader);
+              return {
+                table:index+1,
+                headerRow:table.recognition?.headerRow??table.intelligence.headerRow,
+                mappedColumns:physical.filter(header=>header&&!ignored.has(header)),
+                ignoredColumns:physical.filter(header=>!header||ignored.has(header)),
+                canonicalColumns:[...table.headers],
+                recognitionState:table.recognition?.recognized===true?'recognized':'review_required',
+              };
+            }),
           })),
     };
 

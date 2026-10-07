@@ -16,6 +16,8 @@ const groups:Record<string,string[]>={
   'package id':['package no','procurement ref','procurement no','purchase order no','po no','رقم الحزمة'],
   'bond id':['bond no','bond number','guarantee no','guarantee number','رقم الضمان'],
   'determination id':['determination no','determination ref','decision no','award no','رقم القرار'],
+  'permit id':['permit no','permit number','permit ref','permit reference','authority permit no','approval permit no'],
+  'policy id':['policy no','policy number','insurance policy no','insurance policy number'],
   'reference':['ref','reference no','reference number','المرجع'],
   'status':['state','الحالة'], 'description':['details','الوصف'], 'currency':['العملة'],
   'awareness date':['date of awareness','became aware date','date became aware','awareness','تاريخ العلم'],
@@ -64,6 +66,14 @@ const groups:Record<string,string[]>={
   'measurement date':['measured date','date measured','measurement as of','تاريخ القياس'],
   'item no':['item number','boq item number','boq item no','رقم البند'],
   'cumulative installed qty':['cumulative installed quantity','installed quantity to date','cumulative measured quantity'],
+  'pv':['planned value','bcws'],
+  'ev':['earned value','bcwp'],
+  'ac':['actual cost','acwp'],
+  'bac':['budget at completion'],
+  'eac':['estimate at completion'],
+  'etc':['estimate to complete'],
+  'sv':['schedule variance'],
+  'cv':['cost variance'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
@@ -83,7 +93,9 @@ export function canonicalHeader(value:string,documentType=''):string {
   return key;
 }
 const fields=new Set([...Object.keys(groups),
-  'amount','value','unit','metric','as of','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
+  'amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
+  'permit id','policy id','authority','submission date','review date','issue date','valid from','expiry applicable','renewal required','required by','blocker',
+  'pv','ev','ac','bac','eac','etc','sv','cv',
   'approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier',
   'trir','ltifr','reporting month','tax basis','vat basis',
   'application amount','engineer assessed amount','employer certified amount','variation certified amount','variations',
@@ -116,7 +128,8 @@ export function isRegisterHeader(value:string):boolean {
 const registerDateHeaders=new Set([
   'notice date','event start','period end','certificate date','payment date','raised date','identified date','status as of','due date',
   'release date','expiry date','approval date','determination date','incident date','report date','required on site','forecast delivery','actual delivery',
-  'planned issue','actual issue','planned date','actual date','week start','as of','submitted date','assessment date','closed date','effective date','measurement date',
+  'planned issue','actual issue','planned date','actual date','week start','as of','date','submitted date','submission date','review date','issue date','valid from',
+  'assessment date','closed date','effective date','measurement date','awareness date','last reviewed',
 ]);
 export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));
