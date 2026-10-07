@@ -1053,6 +1053,16 @@ function buildCommercialTerms(
       "advance_payment_security_requirement",
       "Advance-payment security must reconcile with outstanding advance exposure.",
     );
+  const advancePaymentPercent =
+    explicitPercent(
+      input,
+      [
+        /(?:amount\s+of\s+(?:the\s+)?advance[- ]payment|advance[- ]payment(?:\s+amount)?)\s*(?:is|shall\s+be|of|:|=)?\s*(\d+(?:\.\d+)?)\s*%/gi,
+        /(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?(?:accepted\s+contract\s+amount|contract\s+amount|contract\s+price)[^\n.]{0,80}?advance[- ]payment/gi,
+      ],
+      "explicit_advance_payment_percentage",
+      "The advance-payment percentage establishes the original advance balance before certified recoveries.",
+    );
 
   const insuranceRequirements =
     clauses.filter(
@@ -1165,6 +1175,7 @@ function buildCommercialTerms(
     noticePeriodDays,
     performanceBondRequirement,
     advancePaymentBondRequirement,
+    advancePaymentPercent,
     insuranceRequirements,
     hierarchyAndPrecedenceClauses,
     clauses,
