@@ -786,6 +786,21 @@ test('Stage 1 pending variations preserve unreached agreement and approval witho
  assert.ok(missing.issues.some(issue=>issue.evidencePaths.some(path=>path.endsWith('cost.approved'))&&issue.code==='MISSING_SOURCE_VALUE'));
 });
 
+test('Rejected variation status cannot be rebuilt as approved from a decision date',()=>{
+ const data=input(),row=data.variations[0]!;
+ row.status='Rejected';
+ row.approvedAmount=money(null);
+ // Some source registers store the Engineer decision date in the approval-date
+ // column for both approvals and rejections. Status remains authoritative.
+ row.approvalDate='2026-07-31';
+ const position=buildContractControls(data).variations;
+ const projected=position.rows[0]!;
+ assert.equal(projected.sourceLifecycleStage,'rejected');
+ assert.equal(projected.lifecycleStage,'rejected');
+ assert.equal(position.approvedCount,0);
+ assert.equal(position.rejectedCount,1);
+});
+
 test('Stage 1 retention due dates remain separate from actual release and exact balance duplicates retain both sources',()=>{
  const data=input();data.existingRetentions=[];data.retentions=[];
  data.paymentRetentions[0]!.retentionReleaseDueDate='2026-09-15';
