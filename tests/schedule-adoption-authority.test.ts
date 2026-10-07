@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projectControlSchedule,projectDataDate} from '../packages/runtime-api/src/canonical-time-claims';
 import {scheduleAuthorityReview} from '../packages/runtime-api/src/schedule-authority';
+import {programmeActions} from '../packages/runtime-api/src/project-actions';
 
 function state(){
   const schedule={
@@ -29,6 +30,11 @@ test('active evidence basis does not make an unadopted programme current',()=>{
   assert.equal(review.method,null);
   assert.equal(projectControlSchedule(project),null);
   assert.equal(projectDataDate(project),null);
+  const actions=programmeActions(project);
+  assert.equal(actions.length,1);
+  assert.equal(actions[0]?.category,'confirmation');
+  assert.equal(actions[0]?.target.type,'schedule');
+  assert.match(actions[0]?.title??'',/Confirm the schedule used for reporting/);
 });
 
 test('the exact source-bound adoption decision enables the current analytical programme',()=>{
