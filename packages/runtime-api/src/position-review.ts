@@ -48,7 +48,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
         ?'Submitted completion is '+Math.round(submittedDays)+' calendar days late against the contract date. CMeng management forecast is not yet publishable.'
         :'Submitted completion is within the contract date, but CMeng management forecast is not yet publishable. This is a submitted position, not a confirmed management forecast.';
       nextAction=submittedDays>0
-        ?'Review the recovery plan and complete the CMeng forecast reconciliation.'
+        ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
         :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';
       assignTo='Project Director';
     }else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
