@@ -765,7 +765,19 @@ export function calculateCpm(
         );
 
       if (candidate !== null) {
-        candidates.push(candidate.finish);
+        let finishBound=candidate.finish;
+        // SS/SF constrain the predecessor start. If forward analysis already
+        // holds that activity's completion at the next chronological event
+        // across a zero-work gap (for example because of an incoming FF/SF
+        // finish constraint), deriving a work-finish from the start bound must
+        // not pull late finish back to the prior closing boundary. Preserve the
+        // held finish unless an explicit project/required finish is earlier.
+        if(candidate.start!==null&&early.earlyFinishMs!==null&&
+          early.earlyFinishMs<=latePassFinish&&finishBound<early.earlyFinishMs&&
+          workingHoursBetween(context.calendar.calendar,finishBound,early.earlyFinishMs)===0){
+          finishBound=early.earlyFinishMs;
+        }
+        candidates.push(finishBound);
         if (candidate.start !== null) startBounds.push(candidate.start);
       }
     }
