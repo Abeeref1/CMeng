@@ -1,4 +1,4 @@
-import {isScenarioRevision} from './schedule-authority';
+import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {contractCompletionPosition} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
@@ -255,7 +255,15 @@ function correspondenceNarrativeSegments(
 
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
-  if(basis?.activeArtifactId) return state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
+  if(basis?.activeArtifactId){
+    const selected=state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
+    // An evidence-family selection is not itself programme adoption. A current
+    // analytical programme exists only after the exact schedule revision has a
+    // source-bound adoption decision. Until then every schedule-dependent
+    // calculation must fail closed rather than silently treating the upload as
+    // the Current Programme.
+    return selected&&isAdoptedProgrammeRevision(state,selected)?selected:null;
+  }
 
   const programmeTypes=new Set([
     'schedule_file',
