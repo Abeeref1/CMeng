@@ -216,11 +216,14 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const amounts=Object.fromEntries(moneyNames.map(k=>[k,money(r,cell(r,...paymentHeaders[k]),k,currency,asOf)])) as PaymentStageRecord['amounts'];
    if(!cell(r,'currency')&&currency) for(const a of Object.values(amounts)) a.receipts.push(...currencyReceipts.filter((v,i,all)=>all.findIndex(x=>x.documentId===v.documentId)===i));
    const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
+   const explicitCertifiedBasis=paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis'));
+   const explicitPaidBasis=paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis'));
+   const periodCertificateLayout=has(t,'gross work done period')||has(t,'gross work period')||has(t,'this period gross work');
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,
-    certifiedAmountBasis:paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis')),
-    paidAmountBasis:paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis')),
+    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout?'incremental':'unknown',
+    paidAmountBasis:explicitPaidBasis!=='unknown'?explicitPaidBasis:periodCertificateLayout&&has(t,'paid amount')?'incremental':'unknown',
     periodEnd:asOf,
     sourceStatus:cell(r,'status'),
     applicationDate:dateValue(cell(r,'application date','submission date')),
