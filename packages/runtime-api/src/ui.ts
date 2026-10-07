@@ -5244,7 +5244,7 @@ function positionText(p){
   if(p.positionState==="needs_review")return["review","Review required"];
   return["missing","Needs project records"];
 }
-function projectCard(p){
+function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}\nfunction projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
   const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Unresolved";
   const official=p.officialCompletionIso?planningShortDate(p.officialCompletionIso):"Unresolved";
@@ -5262,7 +5262,7 @@ function projectCard(p){
         ?"Update the project position using the latest project records."
         :"No immediate management action identified."
   );
-  const attentionClass=(managementCount||0)>0||p.positionState!=="current"?"project-attention":"project-attention no-action";
+  const attentionClass=portfolioNeedsAttention(p)?"project-attention":"project-attention no-action";
   return '<article class="portfolio-project">'+
     '<div class="portfolio-project-main">'+
       '<div class="portfolio-project-title"><h3>'+escapeHtml(p.projectId)+'</h3>'+
@@ -5289,7 +5289,7 @@ function renderPortfolio(){
   const projects=data.projects||[];
   const current=projects.filter(p=>p.positionState==="current").length;
   const checking=projects.filter(p=>p.positionState==="checking"||p.positionState==="updating").length;
-  const attention=projects.filter(p=>p.positionState!=="current"||(p.managementActionCount||0)>0).length;
+  const attention=projects.filter(portfolioNeedsAttention).length;
   const docs=projects.some(p=>p.evidenceDocumentCount===null||p.evidenceDocumentCount===undefined)?"Unresolved":projects.reduce((sum,p)=>sum+p.evidenceDocumentCount,0);
 
   el("portfolioStats").innerHTML=[
