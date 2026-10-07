@@ -9,7 +9,7 @@ import type {RecoveryScenario} from './recovery-acceleration';
 export function plotCrewScenarios(model:CanonicalScheduleModel):RecoveryScenario[]{
  if(!model.dataDateIso)return [];
  const activities=new Map(model.activities.map(a=>[a.activityId,a]));
- const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:classifyScheduleActivity(model,a).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').trim().toLowerCase()}]));
+ const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:classifyScheduleActivity(model,a).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\s*\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').trim().toLowerCase()}]));
  const links=model.relationships.filter(r=>{const p=members.get(r.predecessorActivityId),s=members.get(r.successorActivityId);return !r.external&&r.type==='FS'&&r.lagHours===0&&p?.plot&&s?.plot&&p.plot!==s.plot&&p.work&&p.work===s.work;});
  const incoming=new Map<string,typeof links>(),outgoing=new Map<string,typeof links>();
  for(const r of links){incoming.set(r.successorActivityId,[...(incoming.get(r.successorActivityId)??[]),r]);outgoing.set(r.predecessorActivityId,[...(outgoing.get(r.predecessorActivityId)??[]),r]);}

@@ -2579,23 +2579,24 @@ async function route(
     // different governed position from the individual page endpoints.
     const canonicalManagementPages = {
       masterDashboard:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-dashboard",
         )?.data ??
         surfaces.masterDashboard,
       commandCenter:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "command-center",
         )?.data ??
         surfaces.commandCenter,
       masterControlProgramme:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-control-programme",
         )?.data ??
         surfaces.masterControlProgramme,
+      sourceQuality: moduleForProject(projectId, "source-quality")?.data ?? surfaces.sourceQuality,
     };
     json(
       res,

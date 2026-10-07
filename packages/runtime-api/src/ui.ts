@@ -3216,7 +3216,7 @@ function renderCommercialVisual(key,data){
     "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
     "cost-forecast":[["Original contract","originalContractValue"],["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"],["Claimed","claimedAmount"],["Assessed claims","assessedClaimAmount"]],
     "variations-change":[["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"]],
-    "payments":[["Source certificate periods","sourceCertificatePeriodCount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
+    "payments":[["Dated certificates","interimCertificateCount"],["Gross certified","grossCertifiedAmount"],["Net certified","netCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted","retentionDeductedAmount"],["Retention held","retentionHeldAmount"],["Advance balance","advanceBalance"]],
     "cash-flow":[["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Advance balance","advanceBalance"]],
     "commercial-claims-notices":[["Claimed","claimedAmount"],["Assessed","assessedClaimAmount"],["Pending variations","pendingVariationAmount"]],
     "contract-particulars-bonds":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Active bonds","activeBondAmount"]]
@@ -3675,7 +3675,7 @@ function renderCommercialVisual(key,data){
       }).join("");
       const certificatePanels=experienceCertificatePanels(position);
       const anyCashCurve=(performance.cashFlow?.currencies||[]).some(r=>r.sourceReadiness?.fundingCurveReady===true);
-      performanceDetail=(cashSections+certificatePanels)||'<section class="planning-panel primary cash-flow-position"><div class="planning-panel-body"><div class="cash-flow-hero withheld"><div><span>Cash Flow</span><strong>Unresolved</strong><p>No confirmed cash-flow currency position can be produced from the current evidence. CMeng will not manufacture a cash curve from payment or cost values without a defensible dated cash basis.</p></div></div><div class="cash-flow-related-actions">'+managementModuleLink("payments","Open Payments")+managementModuleLink("cost-forecast","Open Cost & Forecast")+'</div></div></section>';
+      performanceDetail=(cashSections+renderProgrammeCashScenario(position.programmeCashScenario))||'<p class="empty">No dated cash records are available. '+managementModuleLink("payments","Open Payments")+'</p>';
     }
 
   }
@@ -4118,8 +4118,9 @@ function renderCommercialVisual(key,data){
       '</section>';
   }
   if(key==="payments"){
-    return '<section class="planning-view commercial-view payments-enterprise">'+experienceCertificatePanels(position)+temporalWarning+temporalScope+
+    return '<section class="planning-view commercial-view payments-enterprise">'+temporalWarning+
       commercialSummaryPanel('Payment Value Position by Currency','Certified, paid, unpaid, retention and advance positions come from the confirmed Commercial position.')+
+      experienceDisclosure('Source periods and applications',experienceCertificatePanels(position)+temporalScope,'Includes applications awaiting certification; excluded from certified totals')+
       experienceDisclosure('Payment dates and lifecycle',foundationDetail,'Application, assessment, certification and receipt evidence')+
       experienceDisclosure('Certificate and payment source records',detail+ledgerDetail,'Components, balances and excluded periods')+
       time+

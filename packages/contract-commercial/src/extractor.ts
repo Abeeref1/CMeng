@@ -270,6 +270,7 @@ function uniqueRates(
   const seen = new Set<string>();
   return values.filter((value) => {
     const key = [
+      value.sectionKey?.startsWith('contract-section:') ? value.sectionKey : '',
       value.basis,
       value.amount,
       value.currency,
@@ -287,6 +288,7 @@ function uniqueCaps(
   const seen = new Set<string>();
   return values.filter((value) => {
     const key = [
+      value.sectionKey?.startsWith('contract-section:') ? value.sectionKey : '',
       value.basis,
       value.amount,
       value.currency,
@@ -322,11 +324,12 @@ export function extractContractLdTerms(
   for(const page of pages){
     const starts=[...page.text.matchAll(/\bSection\s+(\d+)\s+(?:Delay|Liquidated)\s+Damages\b/gi)];
     for(const match of starts){
-      const start=match.index!,next=page.text.slice(start+match[0].length).search(/\bSection\s+\d+\b|\bContract Agreement\b|\bCONDITIONS OF CONTRACT\b/i);
+      const start=match.index!,next=page.text.slice(start+match[0].length).search(/\n[ \t]*Section\s+\d+\b|\bContract Agreement\b|\bCONDITIONS OF CONTRACT\b/i);
       const text=page.text.slice(start,next<0?page.text.length:start+match[0].length+next).trim();
       const id=match[1]!;
-      const headingPattern=new RegExp('\\bSection\\s+'+id+'\\s+(?!Time\\b|Delay\\b|Liquidated\\b)([^\\n]+)','i');
-      const label=headingPattern.exec(whole)?.[1]?.trim()??'Section '+id;
+      const parenthetical=new RegExp('\\bSection\\s+'+id+'\\s*\\(([^)]+)\\)','i').exec(whole)?.[1];
+      const headingPattern=new RegExp('(?:^|\\n)[ \\t]*Section\\s+'+id+'[ \\t]+(?!Time\\b|Delay\\b|Liquidated\\b)([^\\n]+)','i');
+      const label=(parenthetical??headingPattern.exec(whole)?.[1]??'Section '+id).replace(/\s+/g,' ').trim();
       const template=contract.sections.find(section=>section.startPage===page.pageNumber)??contract.sections[0];
       if(template)scoped.push({...template,sectionKey:'contract-section:'+id,identifier:id,heading:label,text,startPage:page.pageNumber,
         sourceSpans:[{...template.sourceSpans[0]!,sourceKind:'pdf_page',sourceIndex:page.pageNumber,start,end:start+text.length}]});

@@ -9,11 +9,11 @@ function deliveryValue(v){
  if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return 'Not established';
  if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):'Not established';
  if(typeof v==='boolean')return v?'Yes':'No';
- if(Array.isArray(v))return v.length?v.map(x=>typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):deliveryValue(x)).join('; '):'None in this set';
+ if(Array.isArray(v))return v.length?v.map(x=>deliveryValue(typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):x)).join('; '):'None in this set';
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
  const s=String(v),match=s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/);
  if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return deliveryDateFormat.format(at)+(match[2]?' '+match[2]+(match[3]==='Z'?' UTC':match[3]?' '+match[3]:''):'');}
- return s;
+ return typeof readerText==='function'&&/(?:schedrev_|evidence(?:-document)?[:_]|pdf_page:|\bdata\.|\b[A-Z]+_[A-Z_]+\b)/.test(s)?readerText(s):s;
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
 const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:'Not established',conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());

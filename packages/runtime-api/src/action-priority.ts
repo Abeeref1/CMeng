@@ -7,6 +7,42 @@ export function actionRecordKey(domain:string,reference:string){
  return kind+'|'+reference.trim().toLowerCase();
 }
 
+/** Connected programme findings with the same owner form one recovery task.
+ * Source RFIs, NCRs and procurement records always retain their own action. */
+export function consolidateScheduleChains(rows:ManagementAction[],model:CanonicalScheduleModel|null){
+ if(!model)return rows;
+ const activityIds=new Set(model.activities.map(activity=>activity.activityId));
+ const byActivity=new Map(rows.flatMap(row=>{
+  if(!row.recordKey?.startsWith('schedule|'))return [];
+  const ids=row.affectedScope.filter(id=>activityIds.has(id));
+  return ids.length===1?[[ids[0]!,row] as const]:[];
+ }));
+ const parents=new Map([...byActivity.keys()].map(id=>[id,id]));
+ const root=(id:string):string=>{const parent=parents.get(id)!;if(parent===id)return id;const value=root(parent);parents.set(id,value);return value;};
+ for(const link of model.relationships){
+  const a=byActivity.get(link.predecessorActivityId),b=byActivity.get(link.successorActivityId);
+  if(link.external||!a||!b||a.owner!==b.owner||a.organisation!==b.organisation)continue;
+  parents.set(root(link.successorActivityId),root(link.predecessorActivityId));
+ }
+ const groups=new Map<string,ManagementAction[]>();
+ for(const [id,row] of byActivity){const key=root(id),group=groups.get(key)??[];group.push(row);groups.set(key,group);}
+ const replacements=new Map<string,ManagementAction>();const removed=new Set<string>();
+ for(const group of groups.values()){
+  if(group.length<2)continue;
+  const scope=[...new Set(group.flatMap(row=>row.affectedScope))],ids=scope.filter(id=>activityIds.has(id)).sort(),first=group[0]!,key='schedule-chain|'+ids[0];
+  group.forEach(row=>removed.add(row.actionId));
+  replacements.set(first.actionId,{...first,actionId:key,recordKey:key,
+   issue:'Recover linked programme work · '+ids.length+' activities',affectedScope:scope,
+   affectedMilestones:[...new Set(group.flatMap(row=>row.affectedMilestones))],
+   requiredAction:'Agree one recovery plan for the linked activities: '+ids.join(', ')+'.',
+   consequence:'Connected programme exceptions are one recovery task. Every affected activity remains available in Activity Review.',
+   dueIso:group.flatMap(row=>row.dueIso?[row.dueIso]:[]).sort()[0]??null,
+   sourceRefs:[...new Set(group.flatMap(row=>row.sourceRefs))],
+   severity:group.some(row=>row.severity==='critical')?'critical':group.some(row=>row.severity==='high')?'high':first.severity});
+ }
+ return rows.flatMap(row=>replacements.has(row.actionId)?[replacements.get(row.actionId)!]:removed.has(row.actionId)?[]:[row]);
+}
+
 /** One source record can create several findings. Merge its findings and retain
  * every source receipt, then rank the result by linked programme consequence. */
 export function prioritizeActions(rows:ManagementAction[],model:CanonicalScheduleModel|null,drivingIds:readonly string[]=[]){

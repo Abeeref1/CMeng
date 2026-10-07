@@ -29,6 +29,19 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
+test('programme scope and look-ahead remain usable without a workfront register',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.name='Electrical installation - Plot C 81';model.activities[1]!.name='Concrete foundations - Plot C 82';f.store.touch(f.state);
+ const locations=deliveryModule(f.state,'construction-locations').data as any;
+ assert.deepEqual(locations.rows.map((row:any)=>row.label).sort(),['Plot C 81','Plot C 82']);
+ assert.equal(locations.rows.reduce((n:number,row:any)=>n+row.activityCount,0),2);
+ const disciplines=deliveryModule(f.state,'construction-discipline').data as any;
+ assert.deepEqual(disciplines.rows.map((row:any)=>row.label).sort(),['Electrical','Structural']);
+ const readiness=deliveryModule(f.state,'construction-readiness').data as any;
+ assert.equal(readiness.programmeReadiness,true);assert.equal(readiness.rows.length,2);
+ assert.ok(readiness.rows.every((row:any)=>row.state==='unknown'),'missing external prerequisites cannot become a ready workfront');
+});
+
 test('procurement protects the earlier recorded need and identifies overdue undelivered packages',async t=>{
  const f=await fixture(t);
  f.create('package','EARLY-NEED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19',status:'Ordered'},{activityIds:['A1']});

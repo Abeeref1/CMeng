@@ -192,7 +192,7 @@ test('future approvals are separated and never contaminate pending aging or curr
 
 test('certificate, retention, report payload and capability populations use the same cutoff',t=>{
  const {state,csv}=fixture(t);
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified\nP3,,4000,200,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified\nP3,,,4000,200,USD,exclusive,Certified');
  const ledger=commercialCanonical(state),payment=commercialFoundationForState(state).paymentRegister,retention=commercialContractControlsForState(state).retentionCalendar;
  assert.equal(payment.recordCount,1);assert.equal(payment.sourceRecordCount,3);assert.equal(payment.futureRows.length,1);assert.equal(payment.undatedRows.length,1);
  assert.equal(retention.recordCount,1);assert.equal(retention.futureRows.length,1);assert.equal(retention.undatedRows.length,1);
@@ -235,13 +235,14 @@ test('portfolio retains the shared current contract, separate further adjustment
  const director=directorForProject(state.projectId)!;
  assert.equal(director.schedule.contractualCompletionIso,'2031-12-31');
  assert.equal(director.schedule.officialAdjustedCompletionIso,null);
+
  const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  try {
   const port=(server.address() as AddressInfo).port;
-  const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200);
+  const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200,response.status===200?'':await response.clone().text());
   const body=await response.json() as any, item=body.projects.find((p:any)=>p.projectId===state.projectId);
   assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
-  assert.equal(item.forecastAuthority,'missing');assert.equal(item.forecastCompletionIso,null);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
+  assert.equal(item.forecastAuthority,director.schedule.independentForecastCompletionIso?'calculated_with_assumptions':'source');assert.equal(item.forecastCompletionIso,director.schedule.independentForecastCompletionIso??director.schedule.submittedProgrammeCompletionIso);assert.match(item.forecastLabel,/programme finish/);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
   assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
  } finally {await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
@@ -270,7 +271,7 @@ test('movement cohort verifies every pair, retains future planned work, and dist
 
 test('changing dated evidence propagates automatically to all management surfaces and commercial consumers', t => {
  const {state,csv}=fixture(t);
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified');
  csv('Claim ID,Event,Notice Date,Days Claimed,Status\nC1,Access,2031-04-15,8,Submitted\nC2,Later,2031-04-16,10,Submitted','delay_eot_claims_register');
  for (const [date, expectedClaims, expectedRetention] of [['2031-04-15',1,100],['2031-04-16',2,250]] as const) {
    state.schedules[0]!.revision.model.dataDateIso=date; state.version++;
@@ -322,7 +323,7 @@ test('all specialist and management status surfaces use the same fail-closed rea
 test('AI commercial questions answer the dated ledger and preserve future exclusions and missing balances',t=>{
  const {state,csv}=fixture(t);
  csv('Variation ID,Description,Status,Submitted Date,Approval Date,Approved Amount,Claimed Amount,Currency,Tax Basis\nV1,Current approval,Approved,2031-04-01,2031-04-15,900,950,USD,exclusive\nV2,Future approval,Approved,2031-04-16,2031-04-20,1200,1250,USD,exclusive');
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified');
  const answer=answerProjectQuestion(state.projectId,'What are approved variations and retention deductions at the Data Date?')!;
  assert.deepEqual(answer.relevantModules.map(m=>m.key),['variations-change','payments']);
  assert.match(answer.answer,/Dated approved variations on\/before Data Date: 1/);

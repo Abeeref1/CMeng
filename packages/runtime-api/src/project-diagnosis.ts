@@ -12,14 +12,22 @@ const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{const d:an
 const shortWbs=(value:string)=>value.split(' / ').slice(-3).join(' / ');
 const unfinished=(r:{status:string})=>['not_started','in_progress'].includes(r.status);
 const details=new WeakMap<object,any>();
+const detailKey=Symbol('cmeng.projectDiagnosisDetails');
 /** Keep the first dashboard response bounded; paging/export and Ask use the same
  * retained full projection, not a second calculation or a truncated population. */
 export function presentProjectDiagnosis(d:any){if(!d)return null;const {activities,pressureActivityIds,...summary}=d;const shown={...summary,
  network:{...d.network,rows:d.network.rows.slice(0,25),relationships:d.network.relationships.slice(0,50),finishActivityIds:d.network.finishActivityIds.slice(0,25),startReasons:d.network.startReasons.slice(0,25)},
  wbsRows:d.wbsRows.slice(0,25),milestoneRows:d.milestoneRows.slice(0,25),evidenceChecks:d.evidenceChecks.slice(0,25),
  tableTotals:{network:d.network.rows.length,relationships:d.network.relationships.length,wbs:d.wbsRows.length,milestones:d.milestoneRows.length,evidence:d.evidenceChecks.length,actions:d.actions.length}};
+ // Object spread in the fact-binding layer preserves symbol properties, while
+ // JSON still omits them. Ask and exports must retain the complete population.
+ Object.defineProperty(shown,detailKey,{value:d,enumerable:true});
  details.set(shown,d);return shown;}
-export function projectDiagnosisDetails(value:any){return value?details.get(value)??value:null;}
+export function projectDiagnosisDetails(value:any){
+ if(!value)return null;
+ const full=details.get(value)??value[detailKey];
+ return full?{...full,completion:{...full.completion,...value.completion}}:value;
+}
 const count=(rows:ActivityAnalyticsRow[],test:(r:ActivityAnalyticsRow)=>boolean|null)=>{let known=0,unresolved=0;for(const row of rows){const yes=test(row);if(yes===null)unresolved++;else if(yes)known++;}return {knownCount:rows.length&&unresolved<rows.length?known:null,value:rows.length&&!unresolved?known:null,unresolvedCount:unresolved,population:rows.length};};
 
 /** One project-management answer over the existing, as-of, governed producers.

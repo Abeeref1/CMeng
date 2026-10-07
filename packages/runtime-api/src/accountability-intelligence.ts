@@ -1,6 +1,5 @@
 import {canonicalHeader,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
-import {deliveryRecords} from './delivery-records';
 import {operationalReporting,claimsReporting} from './reporting-state';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
@@ -17,7 +16,7 @@ export interface AccountabilityDetail {
   activityIds:string[];sourceRefs:string[];authority:'confirmed_record'|'programme_scope';
 }
 export function crossDomainAccountability(state:ProjectRuntimeState){
-  const dataDateIso=projectDataDate(state),delivery=deliveryPosition(state),source=deliveryRecords(state),recordById=new Map(source.records.map(r=>[r.recordId,r]));
+  const dataDateIso=projectDataDate(state),delivery=deliveryPosition(state),recordById=new Map(delivery.records.map(r=>[r.recordId,r]));
   const operations=operationalReporting(state),details:AccountabilityDetail[]=[];
   // Action eligibility is independent of whether ownership/scope is assigned.
   // Keep concentration groups without using them to erase eligible records.
@@ -112,6 +111,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
+    const procurement=domain==='procurement'?delivery.packageRows.find(row=>row.recordId===first.recordId):null;
     const linked=first.activityIds.map(id=>programme?.activities.find(a=>a.activityId===id));
     const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&linked.length>0&&linked.every(a=>a?.status==='completed');
     const consequence=
@@ -136,6 +136,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
       severity:completedRegisterFollowUp?'low':overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
+      moneyAtRisk:procurement?.packageValue!==null&&procurement?.packageValue!==undefined&&procurement.currency?[{amount:procurement.packageValue,currency:procurement.currency}]:[],
       owningModule:({rfi:'delivery-design',ncr:'delivery-quality',procurement:'procurement-packages',schedule:'activity-analytics',risk:'delivery-risks',claim:'delay-claims',notice:'notices-claims'} as Record<string,string>)[domain]??'delivery-control',
     });
   });

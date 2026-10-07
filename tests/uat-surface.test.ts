@@ -345,6 +345,11 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
           null,
         );
 
+        const field=({'master-dashboard':'masterDashboard','command-center':'commandCenter','master-control-programme':'masterControlProgramme'} as Record<string,string>)[key]!;
+        const stable=(value:any):any=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([name])=>name!=='generatedAt').map(([name,child])=>[name,stable(child)])):value;
+        assert.ok((result.data as any).projectFacts,'Each first-class page must have its shared facts');
+        assert.deepEqual(stable((management as any)[field]),stable(result.data),key+' bundle must contain the complete fact-bound page, not an older producer result');
+
         const jsonReport =
           await fetch(
             base +

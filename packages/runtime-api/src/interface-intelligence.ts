@@ -2,6 +2,7 @@ import {canonicalHeader,registerDate} from '../../truth-kernel/src';
 import {deliveryRecords} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleAuthorityReview} from './schedule-authority';
+import {contractCompletionDependencies} from './project-contract-sections';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 
@@ -25,6 +26,16 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
   const activities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
   const packages=governed.filter(r=>r.kind==='package'),workfronts=governed.filter(r=>r.kind==='workfront');
   const rows:InterfaceIntelligenceRow[]=[];
+  for(const dependency of contractCompletionDependencies(state))rows.push({
+    interfaceId:'Section '+dependency.fromSection+' → Section '+dependency.toSection,authority:'candidate',state:'candidate',
+    givingParty:null,receivingParty:null,package:null,discipline:null,system:null,location:null,
+    requiredDeliverable:'Completion of Section '+dependency.fromSection+' before Section '+dependency.toSection+' completion can be certified',
+    requiredDate:null,currentStatus:'Contract-stated dependency; completion evidence needs review',responsibleParty:null,affectedWorkfront:'Section '+dependency.toSection,
+    linkedActivity:null,linkedRfi:null,linkedSubmittal:null,linkedRisk:null,
+    consequence:'The contract explicitly makes completion of the receiving section dependent on completion of the preceding section.',
+    escalation:'Link the section milestones and dated completion certificates; confirm the responsible owner.',
+    packageIds:[],workfrontIds:[],sourceRecordIds:[],sourceRefs:dependency.sourceRefs,
+  });
   for(const r of governed.filter(r=>r.kind==='interface')){
     const raw=field(r,'current status','status'),requiredDate=registerDate(field(r,'required date','due date'));
     const overdue=!!dataDateIso&&!!requiredDate&&requiredDate<dataDateIso&&!closed(raw);
@@ -68,9 +79,9 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
   return {schemaVersion:'1.0',projectionKey:'interface_intelligence',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,
     managementPosition:blockers.length?blockers.length+' confirmed interface'+(blockers.length===1?'':'s')+' require management action now. '+candidates.length+' additional interface candidate'+(candidates.length===1?' is':'s are')+' retained for review.':
       confirmed.length?open.length+' confirmed interfaces remain open; no confirmed overdue/blocked interface is established from the current records. '+candidates.length+' candidates require review.':
-      candidates.length?candidates.length+' candidate interfaces were identified from confirmed package-to-activity relationships. No formal Interface Register is yet confirmed.':'No confirmed or derivable interface population is available from the current Project information.',
+      candidates.length?candidates.length+' interfaces were identified from contract completion dependencies or package-to-activity relationships. Confirm ownership and completion evidence.':'No confirmed or derivable interface population is available from the current Project information.',
     rows,confirmedCount:confirmed.length,candidateCount:candidates.length,openCount:open.length,blockerCount:blockers.length,overdueCount:overdue.length,linkedActivityCount,
-    blockers,candidates,basis:'Confirmed interfaces come from governed Interface records. Candidate interfaces are created only where two confirmed packages converge on the same programme activity; candidates do not establish responsibility, causation or delay.'};
+    blockers,candidates,basis:'Confirmed interfaces come from Interface records. Other interfaces retain explicit contract completion dependencies or identify packages converging on the same programme activity. These links do not establish responsibility, causation or delay.'};
 }
 export function interfaceModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=interfaceIntelligence(state),has=data.rows.length>0;

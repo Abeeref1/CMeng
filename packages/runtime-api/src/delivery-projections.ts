@@ -10,11 +10,13 @@ import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type 
 import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
+import {scheduleScopeClassification} from './schedule-scope-classification';
+import {buildLookAheadProjection} from '../../lookahead-schedule/src';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {interfaceIntelligence,interfaceModule} from './interface-intelligence';
 import {withInstalledMeasurements} from './installed-measurements';
-import {operationalReporting,reportingState} from './reporting-state';
+import {operationalReporting,reportingState,claimsReporting} from './reporting-state';
 import {managementSourceInventory,type ManagementSourceDomain} from './management-source-inventory';
 import {scheduleAuthorityReview,isAdoptedProgrammeRevision} from './schedule-authority';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
@@ -283,6 +285,16 @@ function buildDelivery(state:ProjectRuntimeState){
  const hsePosition=deliveryHsePosition(byKind('hse'),dataDateIso,populations.hse!.state==='established');
  const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>}>();
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
+ // A specialist workfront register enriches the programme; its absence must
+ // not hide programme progress that is already classified in Activity Review.
+ if(model)for(const dimension of ['discipline','location'] as const){
+  if([...scopeGroups.values()].some(group=>group.dimension===dimension))continue;
+  for(const row of scheduleScopeClassification(model).rows){
+   const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
+   const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
+   group.activityIds.add(row.activityId);scopeGroups.set(key,group);
+  }
+ }
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   const baseline=state.schedules.filter(r=>['baseline','revised_baseline'].includes(r.role)&&isAdoptedProgrammeRevision(state,r)&&isOnDate(r.revision.model.dataDateIso?.slice(0,10)??null,dataDateIso)).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1)?.revision.model??null;
@@ -294,7 +306,9 @@ function buildDelivery(state:ProjectRuntimeState){
    plannedPercent:total?.currentPlanCoveragePercent===100?total.currentPlanPercent??null:null,baselinePlannedPercent:total?.baselinePlanCoveragePercent===100?total.baselinePlannedPercent??null:null,scheduleProgressPercent:total?.durationWeightedCoveragePercent===100?total.durationWeightedProgressPercent??null:null,
    variancePercentagePoints:total?.currentPlanCoveragePercent===100&&total?.durationWeightedCoveragePercent===100?total.scheduleMinusCurrentPlanPercentagePoints??null:null,
    readinessState:ready,mainBlockers:gates.flatMap(g=>g.rows.filter(r=>r.applicable&&r.outcome==='blocked').map(r=>r.requirement)),
-   progressAuthority:'Existing WBS Progress producer; submitted schedule progress is separate from installed physical quantities.',wbsRows:rows,readiness:gates};
+   activityCount:selected.length,completedActivityCount:selected.filter(a=>a.status==='completed').length,
+   authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',
+   progressAuthority:'Shared Progress Breakdown calculation; programme progress is separate from installed physical quantities and workfront acceptance.',wbsRows:rows,readiness:gates};
  });
  const supplierRows=byKind('supplier').map(r=>{const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
   return {recordId:r.recordId,reference:r.reference,description:r.description,packages,packageCount:packages.length,
@@ -452,6 +466,20 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const programmeFallbackPattern=key==='delivery-commissioning'?/testing|commissioning|\btest\b/i:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?/handover|taking[- ]over|section(?:al)? completion|practical completion/i:null;
  const programmeFallback=!rows.length&&programmeFallbackPattern?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&programmeFallbackPattern.test(a.name??'')).map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'From programme, not yet verified as acceptance',basis:'Programme task and progress only; inspection results, snag closure and acceptance need their own evidence.'})):[];
  if(programmeFallback.length)rows=programmeFallback;
+ const disruptionEvents=key==='delivery-weather'&&!rows.length?(claimsReporting(state)?.current.events??[]).filter(event=>/weather|climat|rain|wind|heat|disrupt/i.test(event.category+' '+event.title)).map(event=>({
+  reference:event.eventId,description:event.title,eventStart:event.startIso,eventEnd:event.endIso,
+  durationHours:null,recordedWorkingImpactHours:null,claimIds:claimsReporting(state)?.current.claims.filter(claim=>claim.eventIds.includes(event.eventId)).map(claim=>claim.claimId)??[],
+  activityIds:event.relatedActivityIds,authority:'From claim register; causation not established',sourceRefs:event.evidenceRefs.map(ref=>ref.sourceId+':'+ref.locator),
+ })) : [];
+ if(disruptionEvents.length)rows=disruptionEvents;
+ const scopedProgramme=key==='construction-readiness'&&!rows.length?reportingState(state):null;
+ const readinessModel=scopedProgramme?projectControlSchedule(scopedProgramme)?.revision.model:null;
+ const programmeReadiness=readinessModel?buildLookAheadProjection(readinessModel,{generatedAt:new Date().toISOString(),producerVersion:'shared-lookahead-readiness',readinessEvidence:scopedProgramme!.controls.readinessEvidence}):null;
+ if(programmeReadiness)rows=programmeReadiness.rows.map(row=>({...row,reference:row.activityId,description:row.name,
+  state:row.readiness.state==='conditional'?'unknown':row.readiness.state,unknownCount:row.readiness.unknownCount,
+  applicableCount:row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length,
+  notApplicableCount:row.readiness.dimensions.filter(d=>d.state==='not_applicable').length,
+  rows:row.readiness.dimensions,authority:'Calculated from programme and linked register evidence'}));
  const rowIds=new Set(records.map(r=>r.recordId));
  const interfaceFindingRows=(key==='construction-readiness'||key==='procurement-readiness')
   ?confirmedInterfaceIssues.filter(issue=>governedRows.some(row=>readinessInterfaceIssues(row).some(linked=>linked.interfaceId===issue.interfaceId)))
@@ -535,6 +563,12 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(riskPage&&!useBoqCandidates)managementPosition=risk.state==='missing'?'No confirmed Project Risk Register is available. Other scope intelligence remains available where supported by the BOQ/programme.':!p.dataDateIso?'Risk records are available; a reporting programme would add the dated risk position.':risk.sourceRecordCount+' risk records are supplied: '+risk.currentRecordCount+' current, '+risk.futureRecordCount+' after the Data Date and '+risk.undatedRecordCount+' without a reporting date. '+(risk.unknownStatusCount?risk.unknownStatusCount+' current risk statuses need dated evidence. ':'')+(risk.validation.state==='conflicted'?'Supplied risk ratings conflict. ':'')+(pending.length?pending.length+' linked Delivery records still need confirmation.':'');
  const ready=useBoqCandidates?false:!hasRows&&sourceEvidenceAvailable?false:riskPage?risk.complete&&risk.validation.state!=='conflicted'&&!!p.dataDateIso:hasRows&&!unread&&!!p.dataDateIso&&pending.length===0&&findings.length===0&&population.state==='established'&&metrics.every(m=>m.value!==null);
  const extras:Record<string,unknown>={};
+ if(disruptionEvents.length){metrics=[metric('Reported disruption events',disruptionEvents.length,'events','Claim-register events through the Data Date')];managementPosition='Reported weather and disruption events are available from the claim register. Event dates and activity links are shown; working-hour loss and delay causation need separate evidence.';}
+ if(programmeReadiness){extras.programmeReadiness=true;managementPosition=rows.length+' activities from the shared 42-day look-ahead and overdue backlog: '+rows.filter(r=>r.state==='blocked').length+' blocked, '+rows.filter(r=>r.state==='unknown').length+' with missing readiness evidence. Open each activity for its linked prerequisites.';}
+ if(['construction-discipline','construction-locations'].includes(key)&&governedRows.length){
+  metrics=[metric('Programme activities',governedRows.reduce((sum,row)=>sum+(row.activityCount??0),0),'activities'),metric('Progress groups',governedRows.length,'groups'),metric('Unclassified activities',governedRows.filter(row=>row.label==='Unclassified').reduce((sum,row)=>sum+(row.activityCount??0),0),'activities')];
+  managementPosition='Programme progress by '+(key==='construction-discipline'?'discipline':'location')+' uses the same classifications as Activity Review. Workfront release and installed quantities retain their separate evidence.';
+ }
  if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities','Current programme fallback'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition='The programme provides '+programmeFallback.length+' relevant tasks and their current dates. Verification and formal acceptance are not established by programme progress.';}
  if(reportedHse?.periodEndIso){extras.reportedHse=reportedHse;managementPosition='Reported HSE position through '+reportedHse.periodEndIso+'. '+reportedHse.scope+(reportedHse.diagnostics.length?' Review the stated source reconciliation findings.':' The reported rates reconcile with the incident and exposure table.');}
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;

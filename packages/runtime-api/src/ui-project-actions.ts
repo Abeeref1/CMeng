@@ -25,7 +25,9 @@ async function loadProjectActions(){
  updateActionIndicator();for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
 }
 function renderActionFindings(a){
- const rows=(a.findings||[]).map(i=>{const r=readerIssue(i);return '<details><summary>'+escapeHtml(r.title||i.summary)+'</summary><p>'+escapeHtml(i.detail)+'</p><p><b>Why this matters:</b> '+escapeHtml(r.action||i.action)+'</p><p>Affects: '+escapeHtml(i.moduleKeys.map(k=>names[k]||k).join(', '))+'</p>'+(i.sourceRefs.length?'<p>Supporting records: '+escapeHtml(i.sourceRefs.join('; '))+'</p>':'')+'</details>';}).join('');
+ const readable=value=>typeof readerText==='function'?readerText(value):String(value??'');
+ const reference=value=>typeof readerReference==='function'?readerReference(value):readable(value);
+ const rows=(a.findings||[]).map(i=>{const r=readerIssue(i);return '<details><summary>'+escapeHtml(r.title||i.summary)+'</summary><p>'+escapeHtml(readable(i.detail))+'</p><p><b>Why this matters:</b> '+escapeHtml(readable(r.action||i.action))+'</p><p>Affects: '+escapeHtml(i.moduleKeys.map(k=>names[k]||k).join(', '))+'</p>'+(i.sourceRefs.length?'<p>Supporting records: '+escapeHtml(i.sourceRefs.map(reference).join('; '))+'</p>':'')+'</details>';}).join('');
  return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+rows;
 }
 function programmePurposeOptions(current='update'){

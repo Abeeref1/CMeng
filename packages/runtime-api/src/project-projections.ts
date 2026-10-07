@@ -1,4 +1,4 @@
-import {actionRecordKey,prioritizeActions} from './action-priority';
+import {actionRecordKey,prioritizeActions,consolidateScheduleChains} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -7725,14 +7725,16 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
     consequence:a.reason,affectedScope:[...new Set(a.findings?.flatMap(f=>f.sourceRefs)??[])],affectedMilestones:[],
     owner:'Project controls reviewer',organisation:null,requiredAction:a.resolution?.instruction??a.reason,dueIso:null,
     escalation:null,severity:a.category==='review'?'high':'medium',authority:'calculated',sourceRefs:a.findings?.flatMap(f=>f.sourceRefs)??[],owningModule:a.target.moduleKey??'source-quality'}));
-  const actions=prioritizeActions([...recordPosition.actions,...reviewRows],projectControlSchedule(state)?.revision.model??null,forecast?.drivingNetwork?.activityIds??[]);
+  const model=projectControlSchedule(state)?.revision.model??null;
+  const recordActions=consolidateScheduleChains(recordPosition.actions,model);
+  const actions=prioritizeActions([...recordActions,...reviewRows],model,forecast?.drivingNetwork?.activityIds??[]);
   const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
     id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
     owner:a.owner??a.organisation,dueIso:a.dueIso,priorityBasis:a.priorityBasis,
     resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
     target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
   });
-  return {actions,recordActionCount:recordPosition.actions.length,reviewActionCount:review.actions.length,
+  return {actions,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
     workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One ranked project action register. Record follow-up, source corrections and confirmations share one count; supporting information is separate.'},
     recordPosition};
 }
@@ -7789,7 +7791,11 @@ export function directorForProject(
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
   const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
   const register=projectActionRegisterForState(state);
-  const reviewed={...reviewedBase,managementActions:register.actions.map(a=>[a.issue,a.requiredAction].filter(Boolean).join(' — ')),managementActionCount:register.actions.length};
+  const reviewed={...reviewedBase,managementActions:register.actions.map(a=>{
+    const kind=a.recordKey?.split('|')[0],label=kind==='ncr'?'NCR':kind==='rfi'?'RFI':null;
+    const issue=label&&!a.issue.startsWith(label)?label+' '+a.issue:a.issue;
+    return [issue,a.requiredAction,a.dueIso?'Due '+a.dueIso:null].filter(Boolean).join(' — ');
+  }),managementActionCount:register.actions.length};
   return reportingData(state,'project-director',bindProjectFacts('project-director',reviewed,projectFactsForState(state)) as typeof reviewed);
 }
 

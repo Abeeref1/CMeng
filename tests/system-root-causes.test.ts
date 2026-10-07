@@ -3,12 +3,36 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
 import {reportingState} from '../packages/runtime-api/src/reporting-state';
-import {prioritizeActions,actionRecordKey} from '../packages/runtime-api/src/action-priority';
+import {prioritizeActions,actionRecordKey,consolidateScheduleChains} from '../packages/runtime-api/src/action-priority';
 import {managementAction} from '../packages/truth-kernel/src';
 import {classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
 import {analyzeSchedule} from '../packages/schedule-analysis-core/src';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import {projectActionRegisterForState,moduleForProject,directorForProject} from '../packages/runtime-api/src/project-projections';
+import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-scenario';
+import {contractCompletionDependencies} from '../packages/runtime-api/src/project-contract-sections';
+import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+
+test('forward receipt assumptions conserve each currency and missing deductions withhold only the net figure',()=>{
+ const position:any={foundation:{commercialTerms:{retentionPercent:{value:5},paymentPeriodDays:{value:45}}},contractControls:{liquidatedDamages:{scenarios:[{forecastCompletion:{value:'2036-10-15'}}]}},currencies:[{currency:'USD',currentContractValue:{value:1000},grossCertifiedAmount:{value:400},advanceBalance:{value:30}}]};
+ const before=JSON.stringify(position),scenario=programmeCashScenario(position,'2036-08-31'),group=scenario.groups[0]!;
+ assert.equal(group.remainingGross,600);assert.equal(group.retention,30);assert.equal(group.advanceRecovery,30);assert.equal(group.netReceipts,540);
+ assert.equal(group.rows.reduce((sum,row)=>sum+row.grossValuation,0),600);assert.equal(group.rows.reduce((sum,row)=>sum+row.netReceipt!,0),540);
+ assert.equal(group.rows[0]!.assumedReceiptIso,'2036-11-14');assert.equal(JSON.stringify(position),before);
+ position.foundation.commercialTerms.retentionPercent.value=null;
+ const partial=programmeCashScenario(position,'2036-08-31').groups[0]!;assert.equal(partial.remainingGross,600);assert.equal(partial.netReceipts,null);
+});
+
+test('contract section dependencies and detailed-claim trigger use their own explicit wording',()=>{
+ const state=loadCertifiedDemoProject('SECTION-DEPENDENCY-'+randomUUID());
+ const text='Section 2 (the whole of the Works) shall not be certified as complete until Section 1 (Infrastructure) has achieved Completion.\n20.2.4 Fully detailed claim\nWithin 42 days after the Contractor became aware of the event, submit supporting particulars.';
+ state.contractDocuments=[{documentId:'CONTRACT-X',role:'main',result:{pdf:{pages:[{pageNumber:4,method:'native',text}]},sections:[{sourceMode:'deterministic',text,sectionKey:'20.2.4'}]}} as any];
+ state.evidenceDocuments=[{documentId:'CONTRACT-X',sourceFilename:'Agreement.pdf',basisState:'active'} as any];
+ const dependencies=contractCompletionDependencies(state);assert.equal(dependencies.length,1);assert.equal(dependencies[0]!.fromSection,'1');assert.equal(dependencies[0]!.toSection,'2');
+ const detailed=contractNoticeRules(state,'detailed_claim');assert.equal(detailed[0]!.noticePeriodDays,42);assert.equal(detailed[0]!.triggerBasis,'awareness');
+ state.contractDocuments[0]!.result.pdf!.pages[0]!.text='20.2.4 Fully detailed claim\nWithin 42 days submit supporting particulars.';
+ assert.equal(contractNoticeRules(state,'detailed_claim')[0]!.triggerBasis,'not_stated','the initial notice trigger must not be borrowed for a detailed claim');
+});
 
 test('baseline start and finish come from the matched adopted baseline, never the update target dates',()=>{
  const state=loadCertifiedDemoProject('BASELINE-DATES-'+randomUUID());
@@ -41,6 +65,18 @@ test('plot location is parsed from source text without project-specific assumpti
  const state=loadCertifiedDemoProject('PLOT-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
  const row=classifyScheduleActivity(model,{...model.activities[0]!,wbsId:null,name:'Waterproofing Plot 127B roof'});
  assert.equal(row.plot,'Plot 127B');assert.equal(row.location,'Plot 127B');assert.equal(row.classificationBasis.plot,'source_activity_text');
+ assert.equal(classifyScheduleActivity(model,{...model.activities[0]!,wbsId:null,name:'Internal plaster - Plot B 42'}).plot,'Plot B 42');
+});
+
+test('connected schedule exceptions form one recovery action while linked NCRs retain their identity',()=>{
+ const model=loadCertifiedDemoProject('CHAIN-'+randomUUID()).schedules.at(-1)!.revision.model;
+ const template=model.activities[0]!;model.activities=[{...template,activityId:'A'},{...template,activityId:'B'}];
+ model.relationships=[{relationshipId:'AB',predecessorActivityId:'A',successorActivityId:'B',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]}];
+ const row=(id:string,kind:string)=>managementAction({actionId:kind+id,recordKey:actionRecordKey(kind,id),issue:id,affectedScope:[id],affectedMilestones:[],owner:'Site manager',organisation:null,requiredAction:'Recover',dueIso:'2030-01-01',escalation:null,severity:'high',authority:'source',consequence:null,sourceRefs:[id]});
+ const ncr={...row('B','NCR'),actionId:'NCR-1',recordKey:'ncr|NCR-1'};
+ const result=consolidateScheduleChains([{...row('A','activity'),affectedScope:['Civil','A']},{...row('B','activity'),affectedScope:['Civil','B']},ncr],model);
+ assert.equal(result.length,2);assert.deepEqual(result[0]!.affectedScope,['Civil','A','B']);assert.equal(result[1]!.actionId,'NCR-1');
+ assert.deepEqual(result[0]!.sourceRefs,['A','B']);
 });
 
 test('all management surfaces, the Director and project review use one complete action register',()=>{

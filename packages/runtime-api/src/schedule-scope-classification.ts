@@ -86,7 +86,7 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
     const fromActivity=first(activityText,patterns);if(fromActivity)return {value:normalizedToken(label,fromActivity),basis:'source_activity_text' as const};
     return {value:null,basis:'unavailable' as const};
   };
-  const plot=pick('Plot',[/\bplot\s*[-:#]?\s*([a-z]?\d+[a-z]?)\b/i]);
+  const plot=pick('Plot',[/\bplot\s*[-:#]?\s*([a-z]?\s*\d+[a-z]?)\b/i]);
   const zone=pick('Zone',[/\bzone\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمنطق(?:ة|ه)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
   const floor=pick('Floor',[/\b(?:floor|flr|storey|story)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\b(?:طابق|دور)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
   const level=pick('Level',[/\b(?:level|lvl)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\bمستوى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
@@ -103,7 +103,9 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const cbs=pick('CBS',[/\bcbs\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bcost\s*code\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
   const subcontractor=pick('Subcontractor',[/\bsubcontractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
   const contractor=pick('Contractor',[/\b(?<!sub)contractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
-  const discipline=derivedDiscipline(sourceText);
+  // The specific task or nearest WBS wins over a broad multi-discipline parent.
+  // A parent containing both civil and MEP work must not erase a clear task label.
+  const discipline=derivedDiscipline(activityText)??wbsText.split(' > ').reverse().map(derivedDiscipline).find(Boolean)??null;
   const spatial=[plot.value,tower.value,building.value,area.value,zone.value,floor.value,level.value,section.value,chainage.value,workFront.value].filter(Boolean) as string[];
   const basis:Record<string,ScopeClassificationBasis>={
     wbsId:activity.wbsId?'source_wbs':'unavailable',wbsPath:hierarchy.path?'source_wbs':'unavailable',wbsLevel:hierarchy.level?'source_wbs':'unavailable',
