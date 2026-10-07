@@ -1585,25 +1585,28 @@ export function buildCommercialControlPosition(
           ],
         );
     }
+    const netCertified=position.netCertifiedAmount;
     if (
-      cash.certifiedUnpaid.value !==
-      null
+      netCertified?.value !== null &&
+      netCertified?.value !== undefined &&
+      netCertified.state === "established" &&
+      position.paidAmount.value !== null &&
+      position.paidAmount.state === "established"
     ) {
+      const netUnpaid=Math.max(0,Number((netCertified.value-position.paidAmount.value).toFixed(8)));
       position.certifiedUnpaidAmount =
         moneyMetric(
-          cash.certifiedUnpaid.value,
-          performanceState(
-            cash.certifiedUnpaid
-              .state,
-          ),
+          netUnpaid,
+          "established",
+          uniq([
+            ...netCertified.sourceRefs,
+            ...position.paidAmount.sourceRefs,
+          ]),
           [
-            ...cash.certifiedUnpaid
-              .basis.sourceRefs,
-          ],
-          [
-            ...cash.certifiedUnpaid
-              .diagnostics,
-            "CERTIFIED_UNPAID_FROM_CANONICAL_CASH_RECONCILIATION",
+            "CERTIFIED_UNPAID_FROM_NET_CERTIFIED_LESS_PAID_CASH",
+            ...(cash.certifiedUnpaid.value!==null&&Math.abs(cash.certifiedUnpaid.value-netUnpaid)>1e-8
+              ? ["GROSS_CERTIFIED_LESS_PAID_IS_NOT_NET_PAYMENT_EXPOSURE"]
+              : []),
           ],
         );
     }
