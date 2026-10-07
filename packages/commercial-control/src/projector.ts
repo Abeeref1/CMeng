@@ -1074,8 +1074,9 @@ export function buildCommercialControlPosition(
         position.sourceCertificatePeriodCount={...moneyMetric(periods.length,"established",refs,["SOURCE_CERTIFICATE_PERIOD_COUNT_NOT_DATED_CERTIFICATION_COUNT"]),consequence:"Source certificate periods through Data Date; certification dates checked separately."};
         const unestablished=(reason:string)=>moneyMetric(null,"missing_information",refs,[reason]);
         const certified=payments.filter(p=>reportingScope(p.certificationDate,ledger.dataDateIso)==='as_of');
-        const undated=payments.some(p=>!p.certificationDate&&reportingScope(p.periodEnd,ledger.dataDateIso)!=='future');
-        const compatible=certified.length>0&&!undated&&new Set(certified.map(p=>p.paymentId)).size===certified.length&&certified.every(p=>p.certifiedAmountBasis==='incremental');
+        const explicitlyNotCertified=(p:typeof payments[number])=>/appl(?:ied|ication)?|submitted|draft|pending|under review/i.test(p.sourceStatus??'');
+        const undatedCertification=payments.some(p=>!p.certificationDate&&reportingScope(p.periodEnd,ledger.dataDateIso)!=='future'&&!explicitlyNotCertified(p));
+        const compatible=certified.length>0&&!undatedCertification&&new Set(certified.map(p=>p.paymentId)).size===certified.length&&certified.every(p=>p.certifiedAmountBasis==='incremental');
         const total=(fields:Array<'grossWork'|'variations'|'netCertifiedAmount'>)=>{
           const amounts=certified.flatMap(p=>fields.map(f=>p.amounts[f]));
           const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
@@ -1087,13 +1088,21 @@ export function buildCommercialControlPosition(
         // Source registers can supplement a governed control position, but a
         // weaker/missing source interpretation must never erase a value that was
         // explicitly governed through the control layer.
-        if(position.grossCertifiedAmount.value===null)position.grossCertifiedAmount=sourceGrossCertified;
-        else if(sourceGrossCertified.value!==null&&Math.abs(position.grossCertifiedAmount.value-sourceGrossCertified.value)>1e-8)
-          position.grossCertifiedAmount.diagnostics.push("GOVERNED_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
-        if(!position.netCertifiedAmount||position.netCertifiedAmount.value===null)position.netCertifiedAmount=sourceNetCertified;
-        else if(sourceNetCertified.value!==null&&Math.abs(position.netCertifiedAmount.value-sourceNetCertified.value)>1e-8)
-          position.netCertifiedAmount.diagnostics.push("GOVERNED_NET_CERTIFIED_AMOUNT_DIFFERS_FROM_SOURCE_CERTIFICATE_TOTAL");
-        if(position.interimCertificateCount.value===null)position.interimCertificateCount=sourceCertificateCount;
+        if(sourceGrossCertified.value!==null){
+          const legacy=position.grossCertifiedAmount.value;
+          position.grossCertifiedAmount={...sourceGrossCertified,diagnostics:[
+            ...sourceGrossCertified.diagnostics,
+            ...(legacy!==null&&Math.abs(legacy-sourceGrossCertified.value)>1e-8?["LEGACY_CERTIFIED_FIELD_WAS_NET_OR_DIFFERENT_FROM_CANONICAL_GROSS"]:[])
+          ]};
+        }
+        if(sourceNetCertified.value!==null){
+          const legacy=position.netCertifiedAmount?.value??null;
+          position.netCertifiedAmount={...sourceNetCertified,diagnostics:[
+            ...sourceNetCertified.diagnostics,
+            ...(legacy!==null&&Math.abs(legacy-sourceNetCertified.value)>1e-8?["LEGACY_NET_CERTIFIED_DIFFERS_FROM_CANONICAL_NET"]:[])
+          ]};
+        }
+        if(sourceCertificateCount.value!==null)position.interimCertificateCount=sourceCertificateCount;
         if(position.paidAmount.value===null)position.paidAmount=unestablished("DATED_PAYMENT_RECEIPT_AND_ALLOCATION_REQUIRED");
         if(position.certifiedUnpaidAmount.value===null)position.certifiedUnpaidAmount=unestablished("UNKNOWN_PAID_AMOUNT_IS_NOT_ZERO");
         if(position.retentionHeldAmount.value===null){
