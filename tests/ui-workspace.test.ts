@@ -1112,3 +1112,18 @@ test("Portfolio attention excludes system checking/updating but keeps real revie
     "checking/updating must not be counted as management attention merely because they are not current",
   );
 });
+
+
+test("Portfolio labels needs-information distinctly and bounds release recheck polling", () => {
+  const html=cmengUatHtml();
+  assert.equal(
+    html.includes('if(p.positionState==="needs_information")return["missing","Needs information"];'),
+    true,
+    "needs_information must not fall through to an unrelated missing-project-records label",
+  );
+  assert.equal(html.includes('return["missing","Needs project records"];'),false);
+  assert.equal(html.includes("const updateDeadline=Date.now()+60000;"),true);
+  assert.equal(html.includes("let loadedEvidenceWhileUpdating=false;"),true);
+  assert.equal(html.includes("setTimeout(resolve,5000)"),true);
+  assert.equal(html.includes("Automatic waiting stopped after one minute so the browser remains usable."),true);
+});
