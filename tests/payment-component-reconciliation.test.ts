@@ -39,3 +39,14 @@ test('IPC cannot say matched when a stated net omits a component',()=>{
   assert.equal(result.componentArithmetic.state,'conflicted');
   assert.equal(result.componentArithmetic.difference,-20_000);
 });
+
+
+test('whole-unit certificate rounding of one currency unit is not a source conflict',()=>{
+  const rounded=amounts(0,1_250_001);
+  const result=reconcilePaymentEvidence(row('0'),rounded,'2042-08-20');
+  assert.ok(result.componentArithmetic);
+  assert.equal(result.componentArithmetic.calculatedNet,1_250_000);
+  assert.equal(result.componentArithmetic.difference,1);
+  assert.equal(result.componentArithmetic.state,'matched');
+  assert.ok(!result.diagnostics.includes('CERTIFICATE_NET_COMPONENTS_CONFLICT'));
+});
