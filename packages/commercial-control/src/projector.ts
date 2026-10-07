@@ -717,6 +717,23 @@ export function buildCommercialControlPosition(
           ? committedValue +
             approvedAmount
           : null;
+      const advancePercent=input.foundation?.commercialTerms.advancePaymentPercent;
+      const certifiedAdvanceRows=(input.sourceLedger?.payments??[]).filter(row=>
+        row.amounts.advanceRecovery.currency===currency &&
+        reportingScope(row.certificationDate,input.sourceLedger?.dataDateIso)==='as_of'
+      );
+      const advanceRecoveryKnown=certifiedAdvanceRows.length>0&&certifiedAdvanceRows.every(row=>row.amounts.advanceRecovery.value!==null);
+      const advanceRecoveredTotal=advanceRecoveryKnown
+        ?sum(certifiedAdvanceRows.map(row=>row.amounts.advanceRecovery.value!))
+        :null;
+      const derivedAdvanceBalance=
+        committedValue!==null&&advancePercent?.value!==null&&advancePercent?.value!==undefined&&advanceRecoveredTotal!==null
+          ?Math.max(0,Number((committedValue*advancePercent.value/100-advanceRecoveredTotal).toFixed(8)))
+          :null;
+      const derivedAdvanceRefs=uniq([
+        ...(advancePercent?.basis.sourceRefs??[]),
+        ...certifiedAdvanceRows.flatMap(row=>row.amounts.advanceRecovery.receipts.map(receipt=>"evidence-document:"+receipt.documentId+":"+receipt.locator)),
+      ]);
       const completePaidCoverage =
         invoices.length > 0 &&
         paid.length ===
@@ -912,22 +929,25 @@ export function buildCommercialControlPosition(
           ),
         advanceBalance:
           moneyMetric(
-            latestAdvanceBalance
-              ?.advanceBalance ??
-              null,
+            latestAdvanceBalance?.advanceBalance ?? derivedAdvanceBalance,
             latestAdvanceBalance
               ? "established"
-              : stateFor(false, sources.payments),
-            latestAdvanceBalance
-              ?.sourceRefs ??
-              [],
+              : derivedAdvanceBalance!==null
+                ? advancePercent?.state==="established" ? "established" : "candidate"
+                : stateFor(false, sources.payments),
+            latestAdvanceBalance?.sourceRefs ?? derivedAdvanceRefs,
             latestAdvanceBalance
               ? [
                   "ADVANCE_BALANCE_FROM_EXPLICIT_PAYMENT_CERTIFICATE_EVIDENCE",
                 ]
-              : [
-                  "ADVANCE_BALANCE_IS_NOT_DERIVED_FROM_ADVANCE_PAYMENT_BOND_VALUE",
-                ],
+              : derivedAdvanceBalance!==null
+                ? [
+                    "ADVANCE_BALANCE_FROM_CONTRACT_ADVANCE_PERCENT_LESS_CERTIFIED_RECOVERIES",
+                  ]
+                : [
+                    "ADVANCE_BALANCE_REQUIRES_CONTRACT_ADVANCE_AND_CERTIFIED_RECOVERIES",
+                    "ADVANCE_BALANCE_IS_NOT_DERIVED_FROM_ADVANCE_PAYMENT_BOND_VALUE",
+                  ],
           ),
         activeBondAmount:
           moneyMetric(
