@@ -8690,23 +8690,18 @@ export function overviewForProject(
         null,
     }),
   );
+  const projectFacts=projectFactsForState(state);
   const roleLensContext = {
     dataDateIso:
       latest?.revision.model
         .dataDateIso ?? null,
     planning: {
       criticalCount:
-        roleDiagnosis?.counts
-          ?.critical
-          ?.knownCount ?? null,
+        projectFacts.schedule.criticalActivityCount.value,
       nearCriticalCount:
-        roleDiagnosis?.counts
-          ?.nearCritical
-          ?.knownCount ?? null,
+        projectFacts.schedule.nearCriticalActivityCount.value,
       negativeFloatCount:
-        roleDiagnosis?.counts
-          ?.negativeFloat
-          ?.knownCount ?? null,
+        projectFacts.schedule.negativeFloatActivityCount.value,
       drivingNetworkState:
         roleDiagnosis?.network
           ?.state ?? null,
@@ -8784,9 +8779,7 @@ export function overviewForProject(
           ?.independentFinishIso ??
         null,
       submittedCompletionIso:
-        roleCompletion
-          ?.submittedFinishIso ??
-        null,
+        projectFacts.schedule.submittedProgrammeCompletionIso.value,
       scheduleVarianceDays:
         roleCompletion
           ?.differenceElapsedDays ??
@@ -8853,13 +8846,9 @@ export function overviewForProject(
     },
     executive: {
       contractualCompletionIso:
-        roleCompletion
-          ?.contractualFinishIso ??
-        null,
+        projectFacts.time.contractualCompletionIso.value,
       submittedCompletionIso:
-        roleCompletion
-          ?.submittedFinishIso ??
-        null,
+        projectFacts.schedule.submittedProgrammeCompletionIso.value,
       forecastCompletionIso:
         roleCompletion
           ?.independentFinishIso ??
