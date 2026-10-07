@@ -28,6 +28,7 @@ type ReleaseBlindProject={
 };
 
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
+const factsDigest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 async function listen(gateway:Awaited<ReturnType<typeof createProjectGateway>>){
   await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
   return 'http://127.0.0.1:'+(gateway.server.address() as AddressInfo).port;
@@ -127,6 +128,7 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
 
       const otherIds=allIds.filter(id=>id!==project.projectId);
       let usefulPages=0;
+      let canonicalProjectFactsDigest:string|null=null;
       for(const page of moduleRegistry){
         const result=await request(pagePath(project.projectId,page));
         assert.ok(result.status===200||result.status===409,
@@ -144,6 +146,11 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
           'J8 cross-project disclosure: '+project.projectId+' / '+page.key+' contains '+otherId);
         if(result.body&&typeof result.body==='object'&&typeof result.body.projectId==='string')
           assert.equal(result.body.projectId,project.projectId,'J8 page project identity drift: '+page.key);
+        const facts=result.body?.data?.projectFacts;
+        assert.ok(facts&&facts.projectId===project.projectId,'J8 canonical project facts missing or cross-project: '+project.projectId+' / '+page.key);
+        const currentFactsDigest=factsDigest(facts);
+        if(canonicalProjectFactsDigest===null)canonicalProjectFactsDigest=currentFactsDigest;
+        else assert.equal(currentFactsDigest,canonicalProjectFactsDigest,'J8 canonical project facts differ across pages: '+project.projectId+' / '+page.key);
         pageChecks++;
       }
       assert.ok(usefulPages>0,'J8 project became blocked/unresolved everywhere: '+project.projectId);
