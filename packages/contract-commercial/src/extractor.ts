@@ -121,6 +121,12 @@ function rateCandidates(
           match.index,
           match[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -163,6 +169,9 @@ function rateCandidates(
         percentMatch.index,
         percentMatch[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -204,6 +213,9 @@ function capCandidates(
         match.index,
         match[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -245,6 +257,9 @@ function capCandidates(
           fixed.index,
           fixed[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -307,10 +322,24 @@ export function extractContractLdTerms(
     eligible.flatMap(capCandidates),
   );
 
+  const overallRateCandidates = rates.filter((rate) =>
+    /whole\s+of\s+(?:the\s+)?works|entire\s+works|overall\s+completion/i.test(
+      [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.textSnippet].join(" "),
+    ),
+  );
+  const sectionalRateSet = rates.length > 1 && new Set(rates.map((rate) =>
+    [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.sectionKey ?? ""].join("|")
+  )).size > 1;
+  const selectedRate =
+    rates.length === 1
+      ? rates[0]!
+      : overallRateCandidates.length === 1
+        ? overallRateCandidates[0]!
+        : null;
   const rateState =
     rates.length === 0
       ? "missing"
-      : rates.length === 1
+      : selectedRate
         ? "candidate"
         : "conflicted";
   const capState =
@@ -325,7 +354,7 @@ export function extractContractLdTerms(
     capState,
     rate:
       rateState === "candidate"
-        ? rates[0]!
+        ? selectedRate
         : null,
     cap:
       capState === "candidate"
@@ -339,6 +368,12 @@ export function extractContractLdTerms(
         : [
             "LD_EXTRACTION_FROM_PARTIAL_CONTRACT_SEMANTICS",
           ]),
+      ...(sectionalRateSet
+        ? ["LD_SECTIONAL_RATES_RETAINED:" + rates.length]
+        : []),
+      ...(selectedRate && rates.length > 1
+        ? ["LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES"]
+        : []),
       ...(rateState === "conflicted"
         ? ["LD_RATE_CONFLICT_REQUIRES_REVIEW"]
         : []),
