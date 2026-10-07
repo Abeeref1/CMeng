@@ -78,19 +78,32 @@ def calendar(index):
     for sunday_index in range(7):
         monday_index=(sunday_index-1)%7
         weekly.append({'dayIndex':sunday_index+1,'intervals':[{'start':f'{a:02}:00','finish':f'{b:02}:00','minutes':(b-a)*60} for a,b in intervals] if monday_index in weekdays else []})
+    def next_working(value):
+        inside=[t for t in slots if t<=value<t+dt.timedelta(hours=1)]
+        if inside:return value
+        return next(t for t in slots if t>=value)
+    def previous_working(value):
+        inside=[t for t in slots if t<value<t+dt.timedelta(hours=1)]
+        if inside:return value
+        candidates=[t+dt.timedelta(hours=1) for t in slots if t+dt.timedelta(hours=1)<=value]
+        return candidates[-1]
     return {'calendarId':'C','name':name,'semanticComplete':True,'weeklyWorkMinutes':[sum(x['minutes'] for x in d['intervals']) for d in weekly],
       'weeklyWorkIntervals':weekly,'exceptions':[{'isoDate':d,'nonWorking':True,'workIntervals':[]} for d in holidays],
-      'standardDayHours':sum(b-a for a,b in intervals),'standardWeekHours':sum(b-a for a,b in intervals)*len(weekdays),'sourceRefs':[]},iso,event,shift,working_between
+      'standardDayHours':sum(b-a for a,b in intervals),'standardWeekHours':sum(b-a for a,b in intervals)*len(weekdays),'sourceRefs':[]},iso,event,shift,working_between,next_working,previous_working
 
 def chronological_gap_self_check():
-    _,_,event,shift,working_between=calendar(2)
+    _,_,event,shift,working_between,next_working,previous_working=calendar(2)
     for index in range(1,200):
         start=event(index);finish=event(index,True)
-        if start.date()==finish.date() and start-finish==dt.timedelta(hours=1):
-            assert working_between(finish,start)==0
-            assert max(finish,shift(start,0))==start
+        if start>finish and working_between(finish,start)==0:
+            assert next_working(finish)==start
+            assert previous_working(start)==finish
+            # SF zero-lag is chronological: when a working-time coordinate lies
+            # across a zero-work gap, the predecessor's latest start cannot be
+            # mapped to the next opening after the successor has already finished.
+            assert previous_working(finish)==finish
             return
-    raise AssertionError('No split-shift closing/opening boundary found')
+    raise AssertionError('No zero-work calendar gap found')
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('destination');p.add_argument('--seed');a=p.parse_args()
@@ -101,7 +114,7 @@ def main():
         n=rng.randint(2,10);dur=[rng.randint(1,24) for _ in range(n)]
         edges=[(pre,post,rng.choice(['FS','SS','FF','SF']),rng.randint(-4,16)) for post in range(1,n) for pre in range(post) if rng.random()<0.3]
         first=solve(dur,edges);deadline=first['projectFinish']+rng.choice([-8,0,8]) if i%5==1 else None
-        result=solve(dur,edges,deadline);cal,iso,event,shift,working_between=calendar(i)
+        result=solve(dur,edges,deadline);cal,iso,event,shift,working_between,next_working,previous_working=calendar(i)
         early_starts=[event(value) for value in result['start']]
         early_finishes=[event(value,True) for value in result['finish']]
         # Working-time coordinates collapse the closing boundary of one shift and
@@ -121,9 +134,22 @@ def main():
             # gap, a permissible late bound cannot move completion before it.
             if early_finishes[j]>late_finishes[j] and early_finishes[j]<=late_target and working_between(late_finishes[j],early_finishes[j])==0:
                 late_finishes[j]=early_finishes[j]
+        late_starts=[event(value) for value in result['lateStart']]
+        # Start/finish coordinates on the two sides of a nonworking gap are not
+        # the same chronological instant. In particular an SF relationship binds
+        # predecessor start to successor finish. Keep the coordinate solution,
+        # then enforce that chronological event bound independently.
+        for pre in range(len(dur)-1,-1,-1):
+            for predecessor,successor,kind,lag in edges:
+                if predecessor!=pre or kind!='SF':continue
+                endpoint=late_finishes[successor]
+                reversed_bound=endpoint if lag==0 else shift(endpoint,-lag)
+                bound=next_working(reversed_bound) if lag<0 else reversed_bound
+                latest_start=previous_working(bound) if next_working(bound)>bound else bound
+                late_starts[pre]=min(late_starts[pre],latest_start)
         fmt=lambda value:value.isoformat(timespec='milliseconds').replace('+00:00','Z')
         expected=[{'activityId':f'A{j}','earlyStartIso':fmt(early_starts[j]),'earlyFinishIso':fmt(early_finishes[j]),
-          'lateStartIso':iso(result['lateStart'][j]),'lateFinishIso':fmt(late_finishes[j]),'totalFloatHours':result['float'][j],
+          'lateStartIso':fmt(late_starts[j]),'lateFinishIso':fmt(late_finishes[j]),'totalFloatHours':result['float'][j],
           'critical':result['float'][j]<=0} for j in range(len(dur))]
         cases.append({'id':f'CPM-{seed[:10]}-{i:03}','calendar':cal,'anchor':iso(0),'durations':dur,'relationships':edges,
           'requiredFinishIso':iso(deadline,True) if deadline is not None else None,'expected':expected,'projectFinishIso':fmt(project_finish)})
