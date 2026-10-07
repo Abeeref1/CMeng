@@ -198,6 +198,44 @@ function input():
     generatedAt:
       "2026-09-21T19:00:00.000Z",
     director: director(),
+    projectFacts: {
+      schemaVersion:"1.0",projectId:"MGMT-UAT",projectVersion:1,dataDateIso:"2026-09-21",
+      schedule:{
+        dataDateIso:{value:"2026-09-21",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedProgrammeCompletionIso:{value:"2027-03-31",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        criticalActivityCount:{value:12,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        nearCriticalActivityCount:{value:8,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        negativeFloatActivityCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        delayedOpenActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      time:{
+        contractualCompletionIso:{value:"2027-03-01",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        awardedEotDays:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        extendedContractCompletionIso:{value:"2027-03-01",state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      controls:{
+        openRfiCount:{value:4,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        overdueRfiCount:{value:2,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openCriticalMajorNcrCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openRiskCount:{value:null,state:"missing",complete:false,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      claims:{
+        eventDateMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        noticeDateMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        noticeRequirementMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      commercial:{
+        variationRecordCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        approvedVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        pendingVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        rejectedVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        activeBondCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        expiredBondCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        activeInsuranceCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        expiredInsuranceCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        currencies:[],
+      },
+    },
     consistency: {state: "pass", checkCount: 3, failedCheckIds: [], scope: "Test checked metrics"},
     modules: [
       {
