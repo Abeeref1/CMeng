@@ -889,6 +889,12 @@ export function deriveControlsFromCsv(
         !bondId ||
         amount === null
       ) continue;
+      const rawKind=value(row,kindIndex);
+      // Insurance policies are not financial securities even when the source
+      // stores bonds, guarantees and policies in one register. Leave them out
+      // of the legacy bond collection; the commercial canonical layer reads
+      // them as insurance from the same retained source row.
+      if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(rawKind+' '+bondId))continue;
       bonds.push({
         bondId,
         amount,
@@ -896,10 +902,7 @@ export function deriveControlsFromCsv(
           sourceCurrency,
         kind:
           bondKind(
-            value(
-              row,
-              kindIndex,
-            ),
+            rawKind,
           ),
         status:
           bondStatus(
