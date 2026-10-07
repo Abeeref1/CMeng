@@ -854,9 +854,28 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const completion=contractCompletionPosition(state,dataDateIso);
   if(completion.hasContractDocuments){
     const previous=contractTimeBasis??state.controls.contractTimeBasis;
+    const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>
+      candidate.role==='amendment'&&candidate.date===completion.value&&candidate.effectiveFrom!==null&&dataDateIso!==null&&candidate.effectiveFrom<=dataDateIso
+    );
+    const determinationOnlyExtension=!amendment&&!completionAlreadyAmended&&completion.state==='official'&&effectiveDeterminationDays!==null;
+    const effectiveDeterminationRefs=effective.map(d=>'evidence-document:'+d.receipt.documentId+':'+d.receipt.locator);
     contractTimeBasis={...previous,contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
-      officialApprovedEotDays:previous?.officialApprovedEotDays??null,officialApprovedEotState:previous?.officialApprovedEotState??'missing',
-      eotDayBasis:previous?.eotDayBasis??'unknown',eotDayBasisState:previous?.eotDayBasisState??'missing',sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs])]};
+      officialApprovedEotDays:determinationOnlyExtension?effectiveDeterminationDays:previous?.officialApprovedEotDays??null,
+      officialApprovedEotState:determinationOnlyExtension?'official':previous?.officialApprovedEotState??'missing',
+      eotDayBasis:determinationOnlyExtension?'calendar_days':previous?.eotDayBasis??'unknown',
+      eotDayBasisState:determinationOnlyExtension?'official':previous?.eotDayBasisState??'missing',
+      ...(determinationOnlyExtension?{
+        incorporatedEotDays:null,
+        additionalApprovedEotDays:effectiveDeterminationDays,
+        overlapResolution:'resolved' as const,
+        registerDeterminationDays,
+        registerDeterminationCount:eligible.length,
+        effectiveDeterminationCount:effective.length,
+        futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,
+        dataDateIso,
+      }:{}),
+      sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs,...(determinationOnlyExtension?effectiveDeterminationRefs:[])])]};
+    if(determinationOnlyExtension)diagnostics.push('OFFICIAL_DETERMINATIONS_APPLIED_TO_UNAMENDED_CONTRACT_COMPLETION');
     if(completion.reason)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
   }
 

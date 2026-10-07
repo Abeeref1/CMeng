@@ -866,6 +866,29 @@ test('determination register total, as-of total and future population remain sep
   assert.equal(m.registerDeterminationDays,138);assert.equal(m.effectiveDeterminationDays,26);assert.equal(m.futureDeterminationCount,1);
   assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2030-03-31');assert.equal(m.contractTimeBasis?.incorporatedEotDays,90);assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,null);assert.equal(m.contractTimeBasis?.overlapResolution,'unresolved');
 });
+test('official dated determinations extend an unamended official contract completion without a false overlap gate',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc([
+    'Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority',
+    'D1,C1,5,2026-05-01,Determined,Engineer',
+    'D2,C1,4,2026-06-01,Awarded,Engineer',
+    'D3,C1,4,2026-07-01,Approved,Contract Administrator',
+  ].join('\n'),'delay_eot_claims_register');
+  const doc={documentId:'MAIN-CONTRACT',category:'contract',documentType:'main_contract',sourceFilename:'contract.pdf',sourceHashSha256:'main-contract-hash',basisState:'active',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
+  state.evidenceDocuments.push(doc);
+  state.contractDocuments.push({documentId:doc.documentId,role:'main',result:{sections:[{text:'Contractual Completion 08 September 2027',heading:'Time for Completion',startPage:12,sectionKey:'completion',sourceMode:'deterministic'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+  state.version++;
+  const m=canonicalTimeClaims(state);
+  assert.equal(m.effectiveDeterminationDays,13);
+  assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2027-09-08');
+  assert.equal(m.contractTimeBasis?.officialApprovedEotDays,13);
+  assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,13);
+  assert.equal(m.contractTimeBasis?.overlapResolution,'resolved');
+  const windows={windows:[],diagnostics:[],positiveProgrammeMovementDays:0} as unknown as Parameters<typeof buildEotAssessmentProjection>[0];
+  const delay={projectId:state.projectId,events:[],claims:[],diagnostics:[]} as unknown as Parameters<typeof buildEotAssessmentProjection>[1];
+  const eot=buildEotAssessmentProjection(windows,delay,m.contractTimeBasis!,{generatedAt:stamp,producerVersion:'test'});
+  assert.equal(eot.officialAdjustedCompletionIso,'2027-09-21');
+});
 test('conflicting immutable determination IDs fail closed instead of summing or overwriting',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(determinations+'\nD1,C1,99,2026-07-24,Determined,Engineer,L1,Immutable','delay_eot_claims_register');const m=canonicalTimeClaims(state);
   assert.equal(m.registerDeterminationDays,null);assert.equal(m.effectiveDeterminationDays,null);assert.ok(m.diagnostics.some(s=>s.startsWith('IMMUTABLE_DETERMINATION_CONFLICT')));

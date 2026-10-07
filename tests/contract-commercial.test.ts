@@ -158,6 +158,23 @@ test("LD percentage-per-day rate is supported without inventing a currency", () 
   );
 });
 
+test("sectional LD rates remain separate and an explicitly overall works rate governs project-completion exposure", () => {
+  const contract=contractWith("placeholder");
+  const section1={...contract.sections[0]!,sectionKey:"section-1",identifier:"Section 1",heading:"Section 1 — Delay Damages",text:"Delay damages are QAR 35,000 per calendar day."};
+  const section2={...contract.sections[0]!,sectionKey:"section-2",identifier:"Section 2",heading:"Section 2 — Whole of the Works — Delay Damages",text:"Delay damages are QAR 60,000 per calendar day."};
+  contract.sections=[section1,section2];
+  contract.clauses=[section1,section2];
+  const result=extractContractLdTerms(contract);
+  assert.equal(result.rateCandidates.length,2);
+  assert.equal(result.rateState,"candidate");
+  assert.equal(result.rate?.amount,60000);
+  assert.equal(result.rate?.currency,"QAR");
+  assert.equal(result.rate?.sectionIdentifier,"Section 2");
+  assert.ok(result.diagnostics.includes("LD_SECTIONAL_RATES_RETAINED:2"));
+  assert.ok(result.diagnostics.includes("LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES"));
+  assert.ok(!result.diagnostics.includes("LD_RATE_CONFLICT_REQUIRES_REVIEW"));
+});
+
 test("conflicting LD rates fail closed instead of selecting one", () => {
   const result = extractContractLdTerms(
     contractWith(

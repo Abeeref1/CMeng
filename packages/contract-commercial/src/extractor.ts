@@ -319,8 +319,10 @@ export function extractContractLdTerms(
     eligible.flatMap(capCandidates),
   );
 
+  const overallWorksPattern =
+    /(?:whole|entire)\s+(?:of\s+the\s+)?works|overall\s+(?:works|project|completion)|project\s+completion|completion\s+of\s+(?:the\s+)?works/i;
   const overallRateCandidates = rates.filter((rate) =>
-    /whole\s+of\s+(?:the\s+)?works|entire\s+works|overall\s+completion/i.test(
+    overallWorksPattern.test(
       [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.textSnippet].join(" "),
     ),
   );
