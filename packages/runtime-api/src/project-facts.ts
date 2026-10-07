@@ -7,6 +7,7 @@ import {projectControlSchedule} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {bindProjectFacts} from './project-fact-consumers';
+import {pmcScheduleRules} from './pmc-schedule-rules';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -28,6 +29,7 @@ export interface ProjectFactsSnapshot {
   projectId:string;
   projectVersion:number;
   dataDateIso:string|null;
+  programmeQuality?:ReturnType<typeof pmcScheduleRules>;
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
@@ -35,6 +37,7 @@ export interface ProjectFactsSnapshot {
     nearCriticalActivityCount:ProjectFact<number>;
     negativeFloatActivityCount:ProjectFact<number>;
     delayedOpenActivityCount:ProjectFact<number>;
+    delayedExecutionActivityCount:ProjectFact<number>;
   };
   time:{
     contractualCompletionIso:ProjectFact<string>;
@@ -66,6 +69,15 @@ export interface ProjectFactsSnapshot {
       originalContractValue:ProjectFact<number>;
       currentContractValue:ProjectFact<number>;
       approvedVariationAmount:ProjectFact<number>;
+      pendingVariationAmount:ProjectFact<number>;
+      grossCertifiedAmount:ProjectFact<number>;
+      netCertifiedAmount:ProjectFact<number>;
+      paidAmount:ProjectFact<number>;
+      interimCertificateCount:ProjectFact<number>;
+      retentionDeductedAmount:ProjectFact<number>;
+      retentionHeldAmount:ProjectFact<number>;
+      claimedAmount:ProjectFact<number>;
+      assessedClaimAmount:ProjectFact<number>;
       certifiedUnpaidAmount:ProjectFact<number>;
       advanceBalance:ProjectFact<number>;
       activeBondAmount:ProjectFact<number>;
@@ -160,7 +172,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
 
   const executionRows=activity?.rows.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
   const openRows=executionRows?.filter(row=>row.status!=='completed')??null;
-  const delayedOpen=aggregateCount(openRows,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
+  const delayedOpen=aggregateCount(activity?.rows.filter(row=>row.status!=='completed')??null,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
+  const delayedExecution=aggregateCount(openRows,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
   const negativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
   const float=schedule?.result.float??null;
   const critical=float
@@ -196,6 +209,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     projectId:state.projectId,
     projectVersion:state.version,
     dataDateIso,
+    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
     schedule:{
       dataDateIso:fact(
         dataDateIso,
@@ -225,7 +239,11 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       delayedOpenActivityCount:aggregateFact(
         delayedOpen,
-        'Unfinished execution activities whose effective finish is later than the confirmed baseline finish.',
+        'All unfinished programme records, including level-of-effort records, whose effective finish is later than the adopted baseline finish.',
+      ),
+      delayedExecutionActivityCount:aggregateFact(
+        delayedExecution,
+        'Unfinished execution activities, excluding level-of-effort and WBS summaries, later than the adopted baseline finish.',
       ),
     },
     time:{
@@ -340,6 +358,15 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       currencies:commercial.currencies.map(row=>({
         currency:row.currency,
+        pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
+        grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
+        netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),
+        paidAmount:commercialFact(row.paidAmount,'Evidenced cash receipts through the Data Date.'),
+        interimCertificateCount:commercialFact(row.interimCertificateCount,'Certificates issued through the Data Date; applications excluded.'),
+        retentionDeductedAmount:commercialFact(row.retentionDeductedAmount,'Dated retention deductions through the Data Date.'),
+        retentionHeldAmount:commercialFact(row.retentionHeldAmount,'Reported retention balance in this currency.'),
+        claimedAmount:commercialFact(row.claimedAmount,'Current submitted claims in this currency.'),
+        assessedClaimAmount:commercialFact(row.assessedClaimAmount,'Assessed claim amount with the stated authority.'),
         originalContractValue:commercialFact(
           row.originalContractValue,
           'Canonical Commercial currency position.',

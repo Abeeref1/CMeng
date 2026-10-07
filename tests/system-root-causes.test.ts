@@ -41,11 +41,25 @@ test('plot location is parsed from source text without project-specific assumpti
 });
 
 test('server activity paging searches the entire population and does not mutate or truncate exports',async()=>{
- const {activityRegisterPage}=await import('../packages/runtime-api/src/activity-register-page');
+ const {activityRegisterPage,activityRegisterView}=await import('../packages/runtime-api/src/activity-register-page');
  const rows=Array.from({length:2057},(_,i)=>({activityId:'A'+String(i).padStart(4,'0'),activityType:'task',name:i===2056?'Fire pumps':'Civil work',status:'not_started',criticality:'noncritical',totalFloatHours:40,discipline:i===2056?'Mechanical':'Civil'}));
  const first=activityRegisterPage(rows,new URLSearchParams('page=0&pageSize=50'));
  assert.equal(first.rows.length,50);assert.equal(first.totalCount,2057);assert.equal(first.pageCount,42);
  const tail=activityRegisterPage(rows,new URLSearchParams('page=41&pageSize=50'));assert.equal(tail.rows.length,7);
  const found=activityRegisterPage(rows,new URLSearchParams('q=Fire+pumps&discipline=Mechanical'));
  assert.equal(found.rows[0]!.activityId,'A2056');assert.equal(found.matchingCount,1);assert.equal(rows.length,2057);
+ const view=activityRegisterView({rows,scopeClassification:{rows},counts:{critical:{value:0}}});
+ assert.equal(view.rows.length,50);assert.equal(view.analysisRows.length,2057);assert.equal(view.scopeClassification.rows,undefined);
+ assert.deepEqual(view.activitySummary.filterOptions.discipline,['Civil','Mechanical']);assert.equal(view.activitySummary.executionCount,2057);
+ assert.equal(rows.length,2057,'browser projection does not alter the export population');
+});
+
+test('two equivalent crews recover local time on a cross-plot chain and never alter its source logic',async()=>{
+ const {plotCrewScenarios}=await import('../packages/runtime-api/src/plot-crew-scenarios');
+ const model=loadCertifiedDemoProject('CREW-'+randomUUID()).schedules.at(-1)!.revision.model,template=model.activities[0]!;
+ model.dataDateIso='2034-01-01';model.calendars=[{calendarId:'C',name:'Daily shift',semanticComplete:true,standardDayHours:8,weeklyWorkMinutes:[480,480,480,480,480,480,480],weeklyWorkIntervals:[0,1,2,3,4,5,6].map(dayIndex=>({dayIndex,intervals:[{start:'08:00',finish:'16:00',minutes:480}]})),sourceRefs:[]}];
+ model.activities=Array.from({length:4},(_,i)=>({...template,activityId:'A'+i,name:'Excavation Plot '+(i+1),wbsId:null,activityType:'task' as const,status:'not_started' as const,calendarId:'C',remainingDurationHours:8,sourceConstraints:[],actualStartIso:null,actualFinishIso:null}));
+ model.relationships=Array.from({length:3},(_,i)=>({relationshipId:'LINK'+i,predecessorActivityId:'A'+i,successorActivityId:'A'+(i+1),type:'FS' as const,lagHours:0,external:false,sourceRefs:[],diagnostics:[]}));
+ const before=JSON.stringify(model),scenarios=plotCrewScenarios(model);assert.equal(scenarios.length,1);assert.equal(scenarios[0]!.possibleDaysRecovered,2);assert.match(scenarios[0]!.assumption,/LINK0, LINK1, LINK2/);assert.match(scenarios[0]!.effectBasis,/local chain/);assert.equal(JSON.stringify(model),before);
+ model.activities[1]!.sourceConstraints=[{type:'CS_MSO',dateIso:'2034-02-01'}];assert.equal(plotCrewScenarios(model)[0]!.possibleDaysRecovered,null,'unresolved constraint effect is not bypassed for a scenario');
 });

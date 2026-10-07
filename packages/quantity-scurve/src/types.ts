@@ -12,6 +12,9 @@ export interface QuantityScurvePoint {
 
 export interface QuantityScurveSeries {
   seriesKey: string;
+  quantityItemId?:string;
+  itemNumber?:string|null;
+  description?:string;
   unit: string | null;
   unitKey: string;
   authority:

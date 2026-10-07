@@ -206,6 +206,7 @@ function input():
         criticalActivityCount:{value:12,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         nearCriticalActivityCount:{value:8,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         negativeFloatActivityCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        delayedExecutionActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         delayedOpenActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
       },
       time:{

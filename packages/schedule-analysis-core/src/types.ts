@@ -33,6 +33,7 @@ export interface ScheduleSourceRef {
 
 export interface CanonicalWbsNode {
   wbsId: string;
+  code?:string|null;
   parentWbsId: string | null;
   name: string | null;
   sourceRefs: ScheduleSourceRef[];

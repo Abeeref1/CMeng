@@ -493,7 +493,8 @@ function seriesForUnit(
   return {
     seriesKey:
       "quantity:" +
-      normalizedUnitKey,
+      items[0]!.quantityItemId+':'+normalizedUnitKey,
+    quantityItemId:items[0]!.quantityItemId,itemNumber:items[0]!.itemNumber,description:items[0]!.description,
     unit,
     unitKey:
       normalizedUnitKey,
@@ -607,7 +608,7 @@ export function buildQuantityScurveProjection(
   >();
 
   for (const item of quantities.items) {
-    const key = unitKey(item.unit);
+    const key = item.quantityItemId+'|'+unitKey(item.unit);
     const list =
       byUnit.get(key) ?? [];
     list.push(item);
@@ -646,6 +647,7 @@ export function buildQuantityScurveProjection(
   const diagnostics = [
     ...quantities.diagnostics,
     ...mapping.diagnostics,
+    ...quantities.items.filter(item=>/^(ls|l\.?s\.?|lump\s*sum)$/i.test(item.unit?.trim()??'')&&item.contractQuantity!==null&&item.contractQuantity!==1).map(item=>'LUMP_SUM_QUANTITY_REQUIRES_REVIEW:'+item.quantityItemId+':'+item.contractQuantity),
   ];
   const withheldItemIds=new Set(quantities.items.filter(item=>boqNumericsNeedConfirmation(item.diagnostics)).map(item=>item.quantityItemId));
 

@@ -20,6 +20,7 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
    affectedScope:[...new Set([...previous.affectedScope,...row.affectedScope])],
    affectedMilestones:[...new Set([...previous.affectedMilestones,...row.affectedMilestones])],
    sourceRefs:[...new Set([...previous.sourceRefs,...row.sourceRefs])],
+   moneyAtRisk:[...new Map([...(previous.moneyAtRisk??[]),...(row.moneyAtRisk??[])].map(m=>[m.currency+'|'+m.amount,m])).values()],
    dueIso:[previous.dueIso,row.dueIso].filter((x):x is string=>!!x).sort()[0]??null,
    requiredAction:[...new Set([previous.requiredAction,row.requiredAction])].join(' '),
    consequence:[...new Set([previous.consequence,row.consequence].filter(Boolean))].join(' ')||null,
@@ -29,11 +30,13 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
  return [...unique.values()].map(row=>{
   const linked=row.affectedScope.flatMap(id=>{const a=activities.get(id);return a&&a.status!=='completed'?[a]:[];});
   const floats=linked.flatMap(a=>a.totalFloatHours===null?[]:[a.totalFloatHours]);
-  return {...row,priorityBasis:{linkedFloatHours:floats.length?Math.min(...floats):null,drivingPath:linked.some(a=>driving.has(a.activityId)),milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length}};
+  return {...row,priorityBasis:{linkedFloatHours:floats.length?Math.min(...floats):null,drivingPath:linked.some(a=>driving.has(a.activityId)),milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
  }).sort((a,b)=>
   (a.priorityBasis.linkedFloatHours??Infinity)-(b.priorityBasis.linkedFloatHours??Infinity)||
   Number(b.priorityBasis.drivingPath)-Number(a.priorityBasis.drivingPath)||
   b.priorityBasis.milestoneCount-a.priorityBasis.milestoneCount||
+  Number(b.priorityBasis.moneyAtRisk.some(m=>m.amount>0))-Number(a.priorityBasis.moneyAtRisk.some(m=>m.amount>0))||
+  (a.priorityBasis.moneyAtRisk.length===1&&b.priorityBasis.moneyAtRisk.length===1&&a.priorityBasis.moneyAtRisk[0]!.currency===b.priorityBasis.moneyAtRisk[0]!.currency?b.priorityBasis.moneyAtRisk[0]!.amount-a.priorityBasis.moneyAtRisk[0]!.amount:0)||
   severity[a.severity]-severity[b.severity]||
   (a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.actionId.localeCompare(b.actionId));
 }

@@ -6,7 +6,8 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
-import {actionRecordKey} from './action-priority';
+import {actionRecordKey,prioritizeActions} from './action-priority';
+import {commercialCanonical} from './commercial-canonical';
 
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
 const daysOver=(due:string|null,date:string|null)=>due&&date&&due<date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(due.slice(0,10)))/86400000)):null;
@@ -23,7 +24,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   type Item=Omit<AccountabilityDetail,'dimension'|'value'>;
   const eligible=new Map<string,Item>();
   const retain=(item:Item)=>{
-    const key=item.domain+'|'+item.recordId,previous=eligible.get(key);
+    const key=actionRecordKey(item.domain,item.reference??item.recordId),previous=eligible.get(key);
     eligible.set(key,previous?{...previous,activityIds:[...new Set([...previous.activityIds,...item.activityIds])],sourceRefs:[...new Set([...previous.sourceRefs,...item.sourceRefs])]}:item);
   };
   const add=(dimension:Dimension,value:string|null|undefined,detail:Item)=>{retain(detail);const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
@@ -41,8 +42,8 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const sourceRow=recordById.get(row.recordId)!;addDelivery(row.recordId,row.kind,row.overdue?'Overdue '+row.kind+' record':row.currentStatus+' '+row.kind+' outcome',row.dueDate??null,sourceRow.links.activityIds,sourceRow.receipts.map(x=>x.documentId+':'+x.locator));
   }
   for(const p of delivery.packageRows)if(typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0){
-    const r=recordById.get(p.recordId)!;const issue='Package forecast delivery is '+(-p.headroomCalendarDays)+' calendar days after programme need';
-    addDelivery(p.recordId,'procurement',issue,p.programmeNeedDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
+    const r=recordById.get(p.recordId)!;const issue='Package forecast delivery is '+(-p.headroomCalendarDays)+' calendar days after '+p.needDateBasis.toLowerCase();
+    addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
     for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.programmeNeedDate,overdueDays:-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
   }
   const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue,dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('organisation',row.owner,base);};
@@ -93,21 +94,21 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   }
   const grouped=new Map<string,{dimension:Dimension;value:string;detailIds:Set<string>;domains:Set<string>;overdueCount:number;openNcrCount:number;overdueRfiCount:number;latePackageCount:number;openSnagCount:number;permitIssueCount:number;openRiskCount:number;affectedActivityIds:Set<string>;worstOverdueDays:number|null}>();
   for(const d of details){const key=d.dimension+'|'+d.value.toLowerCase(),g=grouped.get(key)??{dimension:d.dimension,value:d.value,detailIds:new Set(),domains:new Set(),overdueCount:0,openNcrCount:0,overdueRfiCount:0,latePackageCount:0,openSnagCount:0,permitIssueCount:0,openRiskCount:0,affectedActivityIds:new Set(),worstOverdueDays:null};
-    const detailKey=d.domain+'|'+d.recordId,isNew=!g.detailIds.has(detailKey);g.detailIds.add(detailKey);g.domains.add(d.domain);
-    if(isNew){if((d.overdueDays??0)>0)g.overdueCount++;if(d.domain==='NCR')g.openNcrCount++;if(d.domain==='RFI'&&(d.overdueDays??0)>0)g.overdueRfiCount++;if(d.domain==='procurement')g.latePackageCount++;if(d.domain==='snag')g.openSnagCount++;if(d.domain==='permit')g.permitIssueCount++;if(d.domain==='risk')g.openRiskCount++;}
+    const detailKey=actionRecordKey(d.domain,d.reference??d.recordId),isNew=!g.detailIds.has(detailKey);g.detailIds.add(detailKey);g.domains.add(d.domain);
+    if(isNew){const kind=detailKey.split('|')[0];if((d.overdueDays??0)>0)g.overdueCount++;if(kind==='ncr')g.openNcrCount++;if(kind==='rfi'&&(d.overdueDays??0)>0)g.overdueRfiCount++;if(d.domain==='procurement')g.latePackageCount++;if(d.domain==='snag')g.openSnagCount++;if(d.domain==='permit')g.permitIssueCount++;if(d.domain==='risk')g.openRiskCount++;}
     d.activityIds.forEach(id=>g.affectedActivityIds.add(id));if(d.overdueDays!==null)g.worstOverdueDays=g.worstOverdueDays===null?d.overdueDays:Math.max(g.worstOverdueDays,d.overdueDays);grouped.set(key,g);}
   const rows=[...grouped.values()].map(g=>({dimension:g.dimension,value:g.value,openIssueCount:g.detailIds.size,domainCount:g.domains.size,overdueCount:g.overdueCount,openNcrCount:g.openNcrCount,overdueRfiCount:g.overdueRfiCount,latePackageCount:g.latePackageCount,openSnagCount:g.openSnagCount,permitIssueCount:g.permitIssueCount,openRiskCount:g.openRiskCount,affectedActivityCount:g.affectedActivityIds.size,worstOverdueDays:g.worstOverdueDays,
     domains:[...g.domains].sort(),detailRecordIds:[...g.detailIds]})).sort((a,b)=>b.openIssueCount-a.openIssueCount||b.overdueCount-a.overdueCount||(b.worstOverdueDays??-1)-(a.worstOverdueDays??-1)||a.value.localeCompare(b.value));
 
   const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));
-  for(const detail of details){const key=detail.domain+'|'+detail.recordId,items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
-  const actions:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
+  for(const detail of details){const key=actionRecordKey(detail.domain,detail.reference??detail.recordId),items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
+  const actionRows:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
     const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
     const organisation=dimension('organisation')??dimension('contractor')??dimension('subcontractor');
     const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor');
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
-    const domain=first.domain.toLowerCase();
+    const domain=actionRecordKey(first.domain,'').split('|')[0]!;
     const consequence=
       domain==='procurement'?'Programme need dates may be affected by the late package.':
       domain==='rfi'?'The unresolved design response may constrain linked programme work.':
@@ -125,15 +126,20 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       domain==='schedule'?'Confirm the remaining work, driving logic, accountable delivery party and recovery date.':
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
-      actionId:'accountability:'+key,recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
+      actionId:'accountability:'+first.domain+'|'+first.recordId,recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
       owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
       severity:overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
     });
-  }).sort((a,b)=>{
-    const rank={critical:0,high:1,medium:2,low:3,information:4};
-    return rank[a.severity]-rank[b.severity]||(a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.actionId.localeCompare(b.actionId);
   });
+  for(const bond of commercialCanonical(state).bonds??state.controls.bonds){
+    if(bond.status!=='expired')continue;
+    actionRows.push(managementAction({actionId:'security:'+bond.bondId,recordKey:actionRecordKey('security',bond.bondId),issue:bond.bondId+' · security expired',
+      consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:null,organisation:null,
+      requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
+      severity:'high',authority:'source',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
+  }
+  const actions=prioritizeActions(actionRows,programme);
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
   return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,
     managementPosition:actions.length

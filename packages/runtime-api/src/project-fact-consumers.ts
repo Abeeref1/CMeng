@@ -12,7 +12,8 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   const write=(object:any,parts:string[],value:unknown):any=>{
     const [head,...tail]=parts;
     if(!head)return value;
-    return {...object,[head]:tail.length?write(object[head],tail,value):value};
+    const next=Array.isArray(object)?[...object]:{...object};
+    next[head as any]=tail.length?write(object[head],tail,value):value;return next;
   };
   const bind=(factPath:string,paths:string[])=>{
     const fact=at(facts,factPath);
@@ -28,7 +29,7 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
       criticalActivityCount:['schedule.criticalCount'],nearCriticalActivityCount:['schedule.nearCriticalCount'],
       negativeFloatActivityCount:['schedule.negativeFloatCount'],submittedProgrammeCompletionIso:['forecast.sourceCompletionIso'],
     },
-    'activity-analytics':{criticalActivityCount:['counts.critical.value'],nearCriticalActivityCount:['counts.nearCritical.value'],delayedOpenActivityCount:['counts.late.value']},
+    'activity-analytics':{criticalActivityCount:['counts.critical.value'],nearCriticalActivityCount:['counts.nearCritical.value'],delayedExecutionActivityCount:['counts.late.value']},
     'schedule-analytics':{
       criticalActivityCount:['result.float.criticalCount'],nearCriticalActivityCount:['result.float.nearCriticalCount'],
       negativeFloatActivityCount:['result.float.negativeFloatCount'],
@@ -40,7 +41,7 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   for(const [fact,paths] of Object.entries(schedulePaths[key]??{}))bind('schedule.'+fact,paths);
   bind('schedule.criticalActivityCount',['scheduleExceptions.counts.critical.value']);
   bind('schedule.nearCriticalActivityCount',['scheduleExceptions.counts.nearCritical.value']);
-  bind('schedule.delayedOpenActivityCount',['scheduleExceptions.counts.late.value']);
+  bind('schedule.delayedExecutionActivityCount',['scheduleExceptions.counts.late.value']);
   for(const [fact,field] of Object.entries({criticalActivityCount:'criticalCount',nearCriticalActivityCount:'nearCriticalCount',negativeFloatActivityCount:'negativeFloatCount',delayedOpenActivityCount:'delayedActivityCount'})){
     bind('schedule.'+fact,['visualControl.schedule.'+field,'managementContext.crossModule.programme.'+field]);
   }
@@ -58,6 +59,19 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   }
   for(const base of ['position.claimsNotices.dimensionalEvidenceGaps','focus.dimensionalEvidenceGaps']){
     for(const [fact,field] of Object.entries({eventDateMissingCount:'eventDateMissing',noticeDateMissingCount:'noticeDateMissing',noticeRequirementMissingCount:'requirementMissing'}))bind('claims.'+fact,[base+'.'+field]);
+  }
+  for(const base of ['position.timeExposure','focus.timeExposure','timeExposure']){
+    bind('time.contractualCompletionIso',[base+'.contractualCompletion.value']);
+    bind('time.extendedContractCompletionIso',[base+'.officialAdjustedCompletion.value']);
+    bind('time.awardedEotDays',[base+'.officialEotDays.value']);
+  }
+  for(const base of ['position.currencies','focus.currencies','currencies','commercialByCurrency']){
+    const rows=at(data,base);if(!Array.isArray(rows))continue;
+    rows.forEach((row:any,index:number)=>{
+      const factIndex=facts.commercial.currencies.findIndex(f=>f.currency===row.currency);if(factIndex<0)return;
+      const group=facts.commercial.currencies[factIndex]!;
+      for(const field of Object.keys(group).filter(k=>k!=='currency'))bind('commercial.currencies.'+factIndex+'.'+field,[base+'.'+index+'.'+field+'.value']);
+    });
   }
   return {...data,projectFacts:facts,projectFactBindings:bindings} as T & {projectFacts:ProjectFactsSnapshot;projectFactBindings:ProjectFactBinding[]};
 }

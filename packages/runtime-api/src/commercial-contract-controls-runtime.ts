@@ -401,7 +401,7 @@ export function commercialContractControlsForState(
             }),
           ),
       bonds:
-        state.controls.bonds
+        (ledger.bonds??state.controls.bonds)
           .map((row) => ({
             bondId:
               row.bondId,

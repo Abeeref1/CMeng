@@ -12,7 +12,7 @@ import {sendHttpBody} from './http-response';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
-import {activityRegisterPage} from './activity-register-page';
+import {activityRegisterPage,activityRegisterView} from './activity-register-page';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
@@ -2186,10 +2186,7 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      200,
       result,
     );
     return;
@@ -2224,7 +2221,7 @@ async function route(
     }
     if (
       result.status ===
-      "blocked"
+      "blocked" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2250,7 +2247,7 @@ async function route(
     const projectId=decodeURIComponent(advancedReportMatch[1]!),key=decodeURIComponent(advancedReportMatch[2]!),format=advancedReportMatch[3] as 'xlsx'|'json';
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    if(result.status==='blocked'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
+    if(result.status==='blocked'&&format!=='json'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
     const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
@@ -2261,7 +2258,7 @@ async function route(
     const projectId=decodeURIComponent(advancedMatch[1]!),key=decodeURIComponent(advancedMatch[2]!);
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    json(res,result.status==='blocked'?409:200,result);
+    json(res,200,result);
     return;
   }
 
@@ -2311,7 +2308,7 @@ async function route(
 
     if (
       result.status ===
-      "blocked" && moduleArea!=="delivery"
+      "blocked" && moduleArea!=="delivery" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2373,9 +2370,11 @@ async function route(
       );
     json(
       res,
-      result.status === "blocked" && !(result.data as any)?.empty ? 409 : 200,
+      200,
       resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='register'
         ?{...activityRegisterPage((result.data as any)?.rows??[],url.searchParams),projectId,projectVersion:runtimeProjects.get(projectId)?.version??null}
+        :resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='page'
+        ?publicModuleResult({...result,data:activityRegisterView(result.data)},key)
         :publicModuleResult(result,key),
     );
     return;
@@ -2544,7 +2543,7 @@ async function route(
     }
     json(
       res,
-      result.status === "blocked" && !(result.data as any)?.empty ? 409 : 200,
+      200,
       publicModuleResult(result,key),
     );
     return;

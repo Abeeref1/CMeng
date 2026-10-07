@@ -534,6 +534,8 @@ export function buildCommercialControlPosition(
             row.state ===
             "pending",
         );
+      const variationPopulation=input.contractControls?.variations;
+      const noPendingInRegister=!!variationPopulation&&variationPopulation.sourceRecordCount>0&&variationPopulation.pendingCount===0&&variationPopulation.undatedRecordCount===0&&variationPopulation.unknownAsOfStageCount===0;
       const invoices =
         input.invoices.filter(
           (row) =>
@@ -802,10 +804,10 @@ export function buildCommercialControlPosition(
                       row.amount,
                   ),
                 )
-              : null,
+              : noPendingInRegister?0:null,
             stateFor(
               pendingVariations
-                .length > 0,
+                .length > 0||noPendingInRegister,
               sources.variations,
             ),
             variationRefs,
@@ -951,16 +953,16 @@ export function buildCommercialControlPosition(
           ),
         activeBondAmount:
           moneyMetric(
-            activeBonds.length > 0
+            activeBonds.length > 0 && activeBonds.every(row=>row.amount!==null)
               ? sum(
                   activeBonds.map(
                     (row) =>
-                      row.amount,
+                      row.amount!,
                   ),
                 )
               : null,
             stateFor(
-              activeBonds.length > 0,
+              activeBonds.length > 0 && activeBonds.every(row=>row.amount!==null),
               sources.bonds,
             ),
             bondRefs,

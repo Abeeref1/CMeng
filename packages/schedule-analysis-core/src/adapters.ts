@@ -555,6 +555,7 @@ export function canonicalScheduleFromXer(
       return [
         {
           wbsId,
+          code:xerField(row,'wbs_short_name'),
           parentWbsId:
             xerField(row, "parent_wbs_id"),
           name: firstXerField(row, [

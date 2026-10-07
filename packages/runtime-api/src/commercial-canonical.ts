@@ -4,6 +4,7 @@ import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, rati
 import { reconcilePaymentEvidence } from './payment-reconciliation';
 import { canonicalTimeClaims, projectDataDate } from './canonical-time-claims';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
+import type {BondRecord} from '../../project-director/src';
 export interface CommercialMoney {
   value: number | null; currency: string | null; taxBasis: 'exclusive' | 'inclusive' | 'unknown';
   amountBasis: string; state: FactState; asOf: string | null; receipts: SourceReceipt[];
@@ -125,6 +126,7 @@ export interface CanonicalCommercialModel {
   variations:CommercialVariation[];
   siteInstructions:CommercialSiteInstruction[];
   insurances:CommercialInsuranceRecord[];
+  bonds?:BondRecord[];
   obligations:CommercialObligationRecord[];
   retentions:CommercialRetentionRecord[];
   costPosition:Array<{ currency:string;taxBasis:string;asOf:string;state:FactState;values:Record<string,number|null>;receipts:SourceReceipt[];diagnostics:string[] }>;
@@ -187,6 +189,19 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push({documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'}); }}
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
+ const bondTables=tables.filter(t=>has(t,'bond id','bond type'));
+ const refreshedBondDocuments=new Set(bondTables.map(t=>t.document.documentId));
+ const bonds:BondRecord[]=state.controls.bonds.filter(row=>!row.sourceRefs.some(ref=>[...refreshedBondDocuments].some(id=>ref.startsWith('evidence-document:'+id+':'))));
+ for(const t of bondTables)for(const r of t.rows){
+  const instrument=cell(r,'bond type'),bondId=cell(r,'bond id');
+  if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+bondId))continue;
+  const expiryIso=dateValue(cell(r,'expiry date','expiration date','valid until'));
+  const rawStatus=cell(r,'status');
+  const status:BondRecord['status']=/released|returned|cancelled|canceled/i.test(rawStatus)?'released':expiryIso&&dataDateIso?expiryIso<dataDateIso?'expired':'active':/expired/i.test(rawStatus)?'expired':'active';
+  const kind:BondRecord['kind']=/performance/i.test(instrument)?'performance':/advance/i.test(instrument)?'advance_payment':/retention/i.test(instrument)?'retention':'other';
+  const value=moneyFromHeader(r,amountHeader(t.headers,'bond amount','guarantee amount','amount'),'security face value',inheritedCurrency,dataDateIso);
+  bonds.push({bondId,kind,status,expiryIso,amount:value.value,currency:value.currency??'',sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator]});
+ }
  for(const t of tables){
   if((has(t,'as of')||has(t,'period end')||has(t,'date'))&&has(t,'pv','ev','ac'))for(const r of t.rows){
    const asOf=dateValue(cell(r,'as of','period end','date'));
@@ -421,6 +436,6 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const variationPopulation=partitionAsOf(variations.filter(r=>/approved/i.test(r.status)),{...populationOptions,name:'Variation approvals by Data Date',entity:'variation',dateBasis:'approvalDate',id:r=>r.variationId,date:r=>r.approvalDate}).population;
  const retentionPopulation=partitionAsOf(payments,{...populationOptions,name:'Retention deductions by certificate period',entity:'retention_deduction',dateBasis:'periodEnd, not cash release',id:r=>r.paymentId,date:r=>r.periodEnd}).population;
  const populations={payments:paymentPopulation,variations:variationPopulation,retentionDeductions:retentionPopulation};
- const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,obligations,retentions,costPosition,temporalPosition,diagnostics};
+ const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,bonds,obligations,retentions,costPosition,temporalPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }

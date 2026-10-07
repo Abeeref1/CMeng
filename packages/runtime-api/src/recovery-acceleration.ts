@@ -3,6 +3,7 @@ import {deliveryPosition} from './delivery-projections';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {resolveWorkingCalendar,addWorkingHours} from '../../schedule-cpm/src/calendar';
 import {commercialCanonical} from './commercial-canonical';
+import {plotCrewScenarios} from './plot-crew-scenarios';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 
 const dayDiff=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Number(((Date.parse(later)-Date.parse(earlier))/86400000).toFixed(2)):null;
@@ -36,7 +37,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const unresolvedChecks=feasibilityChecks.filter(r=>r.scheduleState==='unresolved');
   const crewEligibleChecks=feasibilityChecks.filter(check=>check.scheduleState==='exceeds'&&typeof check.requiredAveragePeople==='number'&&typeof check.submittedPeople==='number'&&check.requiredAveragePeople>check.submittedPeople&&!!check.submittedFinishIso);
   const governedResequencingWorkfronts=delivery.records.filter(r=>r.kind==='workfront'&&['governed','verified'].includes(r.state)&&['yes','true','permitted','allowed'].includes(String(r.fields['resequencing permitted']??r.fields['parallel execution permitted']??'').trim().toLowerCase()));
-  const scenarios:RecoveryScenario[]=[];
+  const scenarios:RecoveryScenario[]=programme?plotCrewScenarios(programme):[];
   for(const check of feasibilityChecks){
     if(check.scheduleState!=='exceeds'||typeof check.requiredAveragePeople!=='number'||typeof check.submittedPeople!=='number'||check.requiredAveragePeople<=check.submittedPeople||!check.submittedFinishIso)continue;
     const additional=Math.max(1,Math.ceil(check.requiredAveragePeople-check.submittedPeople)),recoverable=dayDiff(check.productionFinishIso,check.submittedFinishIso);
@@ -54,8 +55,8 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   for(const p of latePackages){
     scenarios.push({scenarioId:'expedite:'+p.recordId,type:'procurement_expedite',state:'calculated',subject:p.reference??p.recordId,affectedActivities:[...p.activityIds],affectedPackages:[p.recordId],
       assumption:'Bring forecast delivery forward to the controlled programme need date without changing downstream logic.',
-      currentPosition:'Forecast delivery '+(p.forecastDelivery??'unresolved')+' is '+(-p.headroomCalendarDays!)+' calendar days after programme need '+(p.programmeNeedDate??'unresolved')+'.',
-      targetPosition:'Delivery no later than '+(p.programmeNeedDate??'the controlled programme need date')+'.',possibleDaysRecovered:-p.headroomCalendarDays!,
+      currentPosition:'Forecast delivery '+(p.forecastDelivery??'unresolved')+' is '+(-p.headroomCalendarDays!)+' calendar days after programme need '+(p.needDate??'unresolved')+'.',
+      targetPosition:'Delivery no later than '+(p.needDate??'the required delivery date')+'.',possibleDaysRecovered:-p.headroomCalendarDays!,
       effectBasis:'Package delivery headroom recovered locally. This is the maximum procurement lateness removed; Project completion recovery is only established if the linked activity is on a finish-driving path.',
       additionalResources:'Supplier expediting / logistics / approval acceleration to be defined by the package owner.',estimatedCost:null,currency:p.currency,
       costBasis:'Expediting cost is not established in the supplied Project records.',implementationDate:dataDateIso,constraints:['Supplier/manufacturing capability and approval lead times must support the earlier delivery.','A package arriving on time does not prove the linked construction activity will finish earlier.'],

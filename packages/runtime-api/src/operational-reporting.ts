@@ -8,7 +8,7 @@ const refs=(row:SourceRow)=>['evidence-document:'+row.receipt.documentId+':'+row
 const responsibility=(row:SourceRow)=>({owner:cell(row,'owner','responsible person','assigned to')||null,linkedActivityId:cell(row,'linked activity','activity id')||null,subject:cell(row,'subject','description')||null});
 const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opened date','issue date','identified date')),
   closedIso:dateValue(cell(row,'close date','closed date','response date','answered date')),
-  statusAsOfIso:dateValue(cell(row,'status as of','status date','snapshot date','as of date'))});
+  statusAsOfIso:dateValue(cell(row,'status as of','status date','snapshot date','as of date','last reviewed'))});
 const ncrStatus=(raw:string):NcrRecord['status']=>/^(closed|complete|completed|resolved)$/.test(norm(raw))?'closed':/^(open|active|in progress|overdue)$/.test(norm(raw))?'open':'unknown';
 const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
 
@@ -23,7 +23,7 @@ function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(r
     let status=row.status;
     if(closed&&raised&&closed<raised){status='unknown';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE:'+id(row));}
     else if(closed&&cutoff)status=closed<=cutoff?(row.status==='answered'?'answered':'closed'):'open';
-    else if(row.status!=='open'&&(!row.statusAsOfIso||row.statusAsOfIso!==cutoff))status='unknown';
+    else if(row.status!=='open'&&(!row.statusAsOfIso||!cutoff||row.statusAsOfIso>cutoff))status='unknown';
     return {...row,status};
   });
   const unknownStatusCount=current.filter(r=>r.status==='unknown').length;

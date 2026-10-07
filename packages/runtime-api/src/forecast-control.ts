@@ -76,6 +76,8 @@ export function buildForecastReconciliationGate(input: {
   const sourceConstraintActivities = model.activities.filter(activity =>
     (activity.sourceConstraints?.length ?? 0) > 0,
   );
+  const constraintsApplied=forecast.diagnostics.some(code=>code.startsWith('SOURCE_CONSTRAINTS_APPLIED'));
+  const unappliedConstraints=sourceConstraintActivities.length>0&&!constraintsApplied;
   const materialDivergences = forecast.activities.filter(row =>
     typeof row.finishVarianceDays === "number" &&
     Number.isFinite(row.finishVarianceDays) &&
@@ -108,11 +110,13 @@ export function buildForecastReconciliationGate(input: {
     {
       key: "source_constraints",
       label: "Source constraints",
-      state: sourceConstraintActivities.length === 0 ? "passed" : "review_required",
+      state: unappliedConstraints ? "review_required" : "passed",
       detail: sourceConstraintActivities.length === 0
-        ? "No retained source constraint is excluded from the current unconstrained network calculation."
-        : String(sourceConstraintActivities.length) + " activity(ies) contain retained source constraints that this CPM calculation does not apply.",
-      count: sourceConstraintActivities.length,
+        ? "No source constraints are present."
+        : constraintsApplied
+          ? String(sourceConstraintActivities.length) + " activity(ies) have source constraints applied in the calendar calculation."
+          : String(sourceConstraintActivities.length) + " activity(ies) have source constraints that have not been applied; their effect needs calculation.",
+      count: unappliedConstraints?sourceConstraintActivities.length:0,
     },
     {
       key: "activity_calculation_coverage",
@@ -146,18 +150,23 @@ export function buildForecastReconciliationGate(input: {
   const publishable =
     forecast.independentForecastCompletionIso !== null &&
     checks.every(check => check.state === "passed");
+  const usable=forecast.independentForecastCompletionIso!==null&&checks
+    .filter(check=>!['material_activity_divergence','required_finish_authority'].includes(check.key))
+    .every(check=>check.state==='passed');
   const failed = checks.filter(check => check.state !== "passed");
   return {
     state: publishable ? "publishable" as const : "review_required" as const,
     publishable,
-    managementForecastCompletionIso: publishable ? forecast.independentForecastCompletionIso : null,
+    usable,
+    valueState:usable?'calculated_with_stated_assumption' as const:'missing' as const,
+    managementForecastCompletionIso: usable ? forecast.independentForecastCompletionIso : null,
     materialActivityScreeningDays,
     materialityAuthority: "cmeng_screening_not_contractual" as const,
     materialActivityIds: materialDivergences.map(row => row.activityId),
     checks,
     reason: publishable
       ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation may be published as a management analytical forecast, separate from contractual and contractor forecasts."
-      : failed.map(check => check.label + ": " + check.detail).join(" "),
+      : (usable?'Calculated using the current programme logic, remaining durations and source calendars; reconciliation remains open. ':'')+failed.map(check => check.label + ": " + check.detail).join(" "),
     basis:
       "A matching Project finish does not override failed calendar, graph, source-constraint, activity-coverage, activity-divergence or required-finish-authority checks. The " +
       materialActivityScreeningDays +

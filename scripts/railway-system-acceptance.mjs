@@ -7,18 +7,14 @@ const minProjects=Number(process.env.CMENG_MIN_PROJECTS??"6");
 const coldTargetMs=Number(process.env.CMENG_COLD_DASHBOARD_TARGET_MS??"5000");
 if(!/^[a-f0-9]{40}$/.test(expected)) throw new Error("CMENG_EXPECTED_RELEASE must be an exact commit SHA");
 
-const specialist=[
-  "pmo-analysis","schedule-analytics","activity-analytics","lookahead-schedule",
-  "schedule-change-report","revision-trend","milestones","near-critical",
-  "resource-utilization","progress-report","variance-trends","progress-scurve",
-  "quantity-scurve","progress-breakdown","manhour-scurve","forecast-history",
-  "independent-forecast","delay-claims","notices-claims","windows-analysis",
-  "eot-assessment","challenge-contract","commercial-overview","cost-forecast",
-  "variations-change","payments","cash-flow","commercial-claims-notices",
-  "contract-particulars-bonds"
-];
-const management=["master-dashboard","command-center","master-control-programme","source-quality"];
-const commercial=new Set(["commercial-overview","cost-forecast","variations-change","payments","cash-flow","commercial-claims-notices","contract-particulars-bonds"]);
+const {createRequire}=await import('node:module');
+const require=createRequire(import.meta.url);
+const {moduleRegistry}=require('../dist/packages/runtime-api/src/registry.js');
+const {projectFactConsumerMismatches}=require('../dist/packages/runtime-api/src/project-fact-consumers.js');
+const specialist=moduleRegistry.filter(p=>p.area!=='management').map(p=>p.key);
+const management=moduleRegistry.filter(p=>p.area==='management').map(p=>p.key);
+const areaByKey=new Map(moduleRegistry.map(p=>[p.key,p.area]));
+if(specialist.length+management.length<58)throw Error('The complete 58-module acceptance population must be retained.');
 const summary={mode:"ALL_PROJECTS_GENERIC_INVARIANTS",expectedRelease:expected,projects:[],checks:[],status:"running"};
 const comparable=v=>Array.isArray(v)?v.map(comparable):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).filter(([k])=>k!=="generatedAt").map(([k,x])=>[k,comparable(x)])):v;
 const digest=v=>createHash("sha256").update(JSON.stringify(comparable(v))).digest("hex");
@@ -52,7 +48,7 @@ function inventedMissing(value,path="",out=[]){
 }
 function projectPath(id,suffix){return "/api/projects/"+encodeURIComponent(id)+suffix;}
 function modulePath(id,key){
-  return projectPath(id,"/"+(commercial.has(key)?"commercial":"schedule")+"/modules/"+key);
+  return projectPath(id,"/"+areaByKey.get(key)+"/modules/"+key);
 }
 
 try{
@@ -83,6 +79,7 @@ try{
       const facts=body?.data?.projectFacts;
       check(label+": canonical project facts attached",facts&&facts.projectId===id&&facts.projectVersion===overview.version,id);
       if(!facts)return;
+      check(label+": displayed values match shared facts",projectFactConsumerMismatches(body.data).length===0,id);
       const current=digest(facts);
       if(projectFactsDigest===null)projectFactsDigest=current;
       else check(label+": canonical project facts equal every other page",current===projectFactsDigest,id);
@@ -92,7 +89,7 @@ try{
     const dash=await json(prefix+"/management/master-dashboard",[200,409]);
     const dashboardMs=Date.now()-t0;
     check("Dashboard response stays within release target",dashboardMs<=coldTargetMs,id,"dashboardMs="+dashboardMs);
-    check("Dashboard returns a governed state rather than a transport error",[200,409].includes(dash.status),id,"status="+dash.status);
+    check("Dashboard returns a governed state rather than a transport error",dash.status===200,id,"status="+dash.status);
 
     for(const key of specialist){
       const path=modulePath(id,key);
@@ -109,12 +106,12 @@ try{
       const pageDate=body?.data?.reportingContract?.dataDateIso??body?.data?.dataDateIso??body?.data?.result?.dataDateIso??null;
       if(pageDate&&expectedDate)check(key+": Data Date matches current project programme",String(pageDate).slice(0,10)===String(expectedDate).slice(0,10),id,pageDate+" vs "+expectedDate);
       const report=await json(path+"/report.json",[200,409]);
-      if(page.status===200){
+      if(page.body?.status!=="blocked"){
         check(key+": report is available when page is available",report.status===200,id,"report status="+report.status);
         check(key+": page and report share the exact governed data",report.status===200&&digest(report.body?.result?.data)===digest(body?.data),id);
       }else{
         projectSummary.blockedPages.push(key);
-        check(key+": blocked page report also fails closed",report.status===409,id,"report status="+report.status);
+        check(key+": empty or blocked response is a normal result",page.status===200&&report.status===200&&report.body?.result?.status==="blocked",id,"page="+page.status+" report="+report.status);
         check(key+": blocked page explains why",typeof body.reason==="string"&&body.reason.trim().length>0,id);
       }
     }
@@ -132,7 +129,7 @@ try{
       const invented=inventedMissing(page.body);
       check(key+": missing/unavailable values are not populated",invented.length===0,id,invented.slice(0,5).join(","));
       const report=await json(prefix+"/management/"+key+"/report.json",[200,409]);
-      if(page.status===200){
+      if(page.body?.status!=="blocked"){
         check(key+": page and report share the exact governed data",report.status===200&&digest(report.body?.result?.data)===digest(page.body?.data),id);
       }else{
         projectSummary.blockedPages.push(key);

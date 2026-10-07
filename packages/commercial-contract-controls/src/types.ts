@@ -96,7 +96,7 @@ export interface BondControlInput {
     | "expired"
     | "released";
   expiryIso: string | null;
-  amount: number;
+  amount: number | null;
   currency: string;
   sourceRefs: string[];
 }

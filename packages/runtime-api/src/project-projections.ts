@@ -3248,13 +3248,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           state.projectId,
         scheduleAnalytics,
         progressReport,
-        independentForecast: forecastControl.gate.publishable
+        independentForecast: forecastControl.gate.usable
           ? independentForecast
           : {
               ...independentForecast,
-              // Keep the independent CPM calculation and its evidence inside
-              // the Forecast page, but do not publish its finish into Director
-              // or executive surfaces until the reconciliation gate permits it.
+              // Only an uncalculable network result is withheld. A complete
+              // calculation remains visible with its reconciliation state.
               independentForecastCompletionIso: null,
             },
         delayClaims,
@@ -7565,7 +7564,7 @@ function resolveProjectModuleCandidate(
             finalReview,
           probabilistic: {
             ...data.probabilistic,
-            ...(forecastReview
+            ...(!forecast?.complete||forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))
               ? {
                   status:
                     "unavailable",
@@ -7577,8 +7576,8 @@ function resolveProjectModuleCandidate(
                     null,
                 }
               : {}),
-            suppressionReason:
-              forecastReview,
+            suppressionReason:!forecast?.complete?forecastReview:null,
+            reviewReason:forecastReview,
           },
         };
       })() : {}),
@@ -8406,7 +8405,7 @@ export function managementSurfacesForProject(
     consequence:typeof row.overdueDays==='number'&&row.overdueDays>0
       ?'Required date is '+row.overdueDays+' calendar days overdue.'
       :'Delivery control evidence requires management review.',
-    affectedScope:[String(row.recordId??'')].filter(Boolean),
+    affectedScope:[String(row.recordId??''),String(row.linkedActivityId??'')].filter(Boolean),
     affectedMilestones:[],
     owner:row.owner??null,
     organisation:null,

@@ -12,6 +12,7 @@ function renderCommercialExceptions(position,key,data){
   const groups=position.variationBasisReview?.groups||[];
   if(['commercial-overview','variations-change'].includes(key))for(const g of groups){
     const a=g.aggregates||[],exceptions=g.exceptions||[];
+    if(g.signExceptions?.length)html+=basisPanel('Omission sign needs confirmation','Positive values are retained with a review label.',basisTable(['Variation','Description','Source amount','Suggested signed amount','Action'],g.signExceptions.map(r=>[r.variationId,r.description,money(r.sourceAmount,g.currency),money(r.suggestedAmount,g.currency),r.action])));
     const summary='<p>Approved source rows through Data Date: <b>'+escapeHtml(money(g.current.amount,g.currency))+'</b> from '+fmt(g.current.count)+' records. '+fmt(g.future.count)+' future approvals total '+escapeHtml(money(g.future.amount,g.currency))+'. Full register: '+escapeHtml(money(g.fullAmount,g.currency))+'. '+fmt(g.undatedCount)+' undated approvals; '+fmt(g.unknownAmountCount)+' amounts missing.</p>'+
       a.map(r=>'<p>Reported change total at '+escapeHtml(planningShortDate(r.asOf))+': '+escapeHtml(money(r.amount,g.currency))+'. Difference from approvals dated by that date: <b>'+escapeHtml(money(r.difference,g.currency))+'</b>.</p>').join('');
     const detail=(g.amendments||[]).map(r=>'<p>Amendment '+escapeHtml(r.sourceFilename||r.documentId)+' effective '+escapeHtml(planningShortDate(r.effectiveDate))+' states '+escapeHtml(money(r.amount,g.currency))+'. At that date, '+fmt(r.atEffectiveDate.count)+' approvals total '+escapeHtml(money(r.atEffectiveDate.amount,g.currency))+'. A further '+fmt(r.afterEffectiveThroughDataDate.count)+' approvals total '+escapeHtml(money(r.afterEffectiveThroughDataDate.amount,g.currency))+' through Data Date.</p>').join('')+
@@ -27,7 +28,10 @@ function renderCommercialExceptions(position,key,data){
         ['PV / BAC',fmt(r.plannedPercentOfBudget)+'%',money(r.pv,r.currency)+' / '+money(r.bac,r.currency)],
         ['EV / BAC',fmt(r.earnedPercentOfBudget)+'%',money(r.ev,r.currency)+' / '+money(r.bac,r.currency)],
         ...(m?[['Baseline schedule plan',fmt(m.baselinePlannedPercent)+'%','Baseline activities, weighted by duration'],['Current schedule snapshot',fmt(m.scheduleSnapshotPercent)+'%','Current activities, weighted by duration'],['Matched schedule snapshot',fmt(s?.snapshotCurrentWeightsPercent)+'%','Matched tasks using current weights; indicative ratio '+fmt(s?.currentWeightRatio)]]:[]),
-        ['Actual cost / source certificate-period net',r.actualCostToCertificateRatio==null?'Comparison not assessable':fmt(r.actualCostToCertificateRatio)+' times',money(r.ac,r.currency)+' / '+money(r.certificatePeriodNet,r.currency)+(r.certificateDateMatches?' · same reporting cutoff':' · reporting dates differ')],
+        ['Actual cost',money(r.ac,r.currency),r.actualCostComparisonBasis],
+        ['Current contract value',money(r.currentContractValue,r.currency),'Approved commercial position; compare scope with the EVM budget'],
+        ['BAC less current contract',money(r.budgetVsContractDifference,r.currency),'Budget and sales value can differ; reconcile the scope and basis'],
+        ['EV / current contract',r.earnedPercentOfCurrentContract==null?'Missing':fmt(r.earnedPercentOfCurrentContract)+'%','Contract-value comparator; BAC remains the EVM denominator'],
         ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Compare the activities included')+managementModuleLink('payments','Review certificate components'));
   }
   if(key==='commercial-overview')for(const g of position.certificateProfile?.groups||[]){
