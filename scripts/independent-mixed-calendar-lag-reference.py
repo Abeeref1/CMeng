@@ -73,6 +73,12 @@ def main():
     boundary = 9*24+16
     assert shift(sample, boundary, 15) == 12*24+15
     assert shift(split, boundary, 1) == 12*24+10
+    # Signed FF/SF lag is a chronological event constraint. When the shifted
+    # event is the opening after a zero-work gap, it must stay at that opening;
+    # the previous closing has the same working-time coordinate but is earlier
+    # in real time and would weaken the relationship.
+    monday_nonwork = 11*24+10
+    assert shift(split, monday_nonwork, -3) == 9*24+13
     cases = []
     for i in range(120):
         calendars, slots = zip(*(calendar(k) for k in rng.sample(range(4), 2)))
@@ -95,8 +101,9 @@ def main():
             target = shift(slots[1], a[1 if kind[0] == 'F' else 0], lag)
             if kind[1] == 'S':
                 return (a, b) if b[0] >= target else None
-            if lag != 0:
-                target = min(target, slots[1][bisect.bisect_left(slots[1], target)-1]+1)
+            # Preserve the exact shifted chronological finish event. Do not
+            # collapse an opening to the previous closing merely because no work
+            # occurs in the gap between them.
             finish = max(b[1], target)
             worked = bisect.bisect_left(slots[1], finish) - b[2]
             return (a, (b[0], finish, b[2])) if worked == durations[1] else None
