@@ -24,13 +24,13 @@ async function main(){
    return store.ingestEvidenceFile({projectId:c.id,sourceFilename:name,mediaType:name.endsWith('.xer')?'text/plain':'text/csv',bytes:content,uploadedAt:'2035-04-01',...(name.endsWith('.xer')?{uploadIntent:'replace_current_basis'}:{})});};
   await upload('Programme.xer');await upload('Submittal-R1.csv');
   const r1=deliveryRecords(state).records.find(r=>r.reference===c.reference);
-  check('sourceCandidate',r1?.state,'extracted_candidate');check('candidateGovernedRows',deliveryPosition(state).registerRows.length,0);
+  check('sourceCandidate',r1?.state,'extracted_candidate');check('candidateVisibleSourceRows',deliveryPosition(state).registerRows.length,1);check('candidatePopulationStillUnconfirmed',deliveryPosition(state).populations.submittal.state,'not_established');
   review(r1);population('submittal');
   let summary=deliveryPosition(state).summaries.submittal;
   check('r1ReviewDays',summary.reviewPeriodCalendarDays,c.expected.revisions[0].reviewDays);check('r1ReviewCount',summary.reviewPeriodKnownCount,c.expected.revisions[0].reviewCount);
   await upload('Submittal-R2.csv');
   const r2=deliveryRecords(state).records.find(r=>r.reference===c.reference&&r.recordId!==r1.recordId);
-  check('newRevisionCandidate',r2?.state,'extracted_candidate');check('newRevisionNotPromoted',deliveryPosition(state).registerRows.some(r=>r.recordId===r2.recordId),false);
+  check('newRevisionCandidate',r2?.state,'extracted_candidate');check('newRevisionVisibleButNotPromoted',deliveryPosition(state).registerRows.some(r=>r.recordId===r2.recordId),true);check('newRevisionPopulationStillUnconfirmed',deliveryPosition(state).populations.submittal.state,'not_established');
   rejects('staleSourceRejected',()=>review({...r2,revision:r1.revision}));
   const oldVersion=state.version;review(r2,{supersedesId:r1.recordId});population('submittal');
   rejects('staleWriterRejected',()=>change({action:'review',recordId:r2.recordId,sourceRevision:r2.revision,state:'governed',fields:{},note:'stale writer',expectedVersion:oldVersion}));

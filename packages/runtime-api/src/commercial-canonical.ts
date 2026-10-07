@@ -218,7 +218,9 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
    const explicitCertifiedBasis=paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis'));
    const explicitPaidBasis=paymentSeriesBasis(cell(r,'paid amount basis','payment amount basis'));
-   const periodCertificateLayout=has(t,'gross work done period')||has(t,'gross work period')||has(t,'this period gross work');
+   const rawPaymentHeaders=new Set(t.intelligence.columns.map(column=>norm(column.rawHeader)));
+   const periodCertificateLayout=['gross work done period','gross work period','this period gross work']
+     .some(header=>rawPaymentHeaders.has(norm(header)));
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,

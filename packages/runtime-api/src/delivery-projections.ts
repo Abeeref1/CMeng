@@ -406,7 +406,11 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   });
  };
  const governedRows:any[]=baseGovernedRows.map(row=>{
-  if(key==='long-lead')return {...row,authority:'confirmed',basis:row.leadTimeBasis};
+  if(key==='long-lead')return {...row,
+    authority:row.sourceState==='extracted_candidate'?'From register, not yet confirmed':'Confirmed',
+    basis:row.sourceState==='extracted_candidate'
+      ?'Source-register fact used immediately; population confirmation remains separate. '+row.leadTimeBasis
+      :row.leadTimeBasis};
   if(key!=='construction-readiness'&&key!=='procurement-readiness')return row;
   const linked=readinessInterfaceIssues(row);if(!linked.length)return row;
   const interfaceState=linked.some(issue=>issue.state==='blocked'||issue.state==='overdue')?'blocked':'at_risk';

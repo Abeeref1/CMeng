@@ -43,7 +43,7 @@ test('planted stale float is attributed to each affected activity across all fiv
  assert.equal(incomplete.summary.disputedActivityCount,0);assert.equal(incomplete.summary.unresolvedActivityCount,5);
  assert.ok(incomplete.summary.rows.every(row=>row.independentTotalFloatHours===null&&row.independentCriticality==='unknown'));
  const scenario=activityFloatReconciliation(model,{...forecast,origin:'scenario_with_assumptions'},DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
- assert.equal(scenario.summary.independentCpmState,'not_established');assert.equal(scenario.summary.matchedActivityCount,0);
+ assert.equal(scenario.summary.independentCpmState,'qualified_scenario');assert.equal(scenario.summary.matchedActivityCount,2);assert.equal(scenario.summary.disputedActivityCount,3);assert.equal(scenario.summary.unresolvedActivityCount,0);
  const otherRevision=activityFloatReconciliation(model,{...forecast,sourceRevisionId:'OTHER'},DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(otherRevision.summary.matchedActivityCount,0);
 });

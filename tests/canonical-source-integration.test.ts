@@ -1101,11 +1101,11 @@ test('C2B2 canonical Commercial ingestion distinguishes VO references from stand
 });
 
 
-test('embedded usage cannot become approved actuals without its approved source register',t=>{
+test('embedded usage stays visible as source-register evidence without being promoted to separate approval',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);const summary=canonicalResources(state);
-  assert.equal(summary.actualAverageToDataDate,null);
-  assert.ok(summary.points.every(row=>row.actualApprovedUsage===null));
-  assert.ok(summary.diagnostics.some(d=>d.startsWith('UNAPPROVED_EMBEDDED_ACTUAL_USAGE_WITHHELD')));
+  assert.equal(summary.actualAverageToDataDate,70);
+  assert.deepEqual(summary.points.map(row=>row.actualApprovedUsage),[80,30]);
+  assert.ok(summary.diagnostics.some(d=>d.startsWith('EMBEDDED_ACTUAL_USAGE_FROM_SOURCE_REGISTER_NOT_SEPARATELY_CONFIRMED')));
 });
 test('weekly actuals stop at Data Date in both resource and manhour views, with same-period plan variance',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);
