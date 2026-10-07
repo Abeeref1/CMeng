@@ -388,6 +388,19 @@ test('Delivery cannot call a record overdue when its due date is not established
 });
 
 
+test('source RFI answers and future closures use the shared dated lifecycle before confirmation',async t=>{
+ const f=await fixture(t);
+ await f.upload('RFI.csv','RFI ID,Description,Raised Date,Response Date,Required Response,Status\nR1,Answered query,2031-08-01,2031-08-10,2031-08-05,Answered\nR2,Future answer,2031-08-01,2031-09-01,2031-08-15,Closed\nR3,Pending query,2031-08-01,,2031-09-05,Open');
+ const p=deliveryPosition(f.state),summary=p.summaries.design!;
+ assert.equal(p.registerRows.find(r=>r.reference==='R1')!.currentStatus,'closed');
+ assert.equal(p.registerRows.find(r=>r.reference==='R1')!.overdue,false);
+ assert.equal(p.registerRows.find(r=>r.reference==='R2')!.currentStatus,'open');
+ assert.equal(summary.knownOpenCount,p.existingAuthorities.rfi.current.filter(r=>r.status==='open').length);
+ assert.equal(summary.knownOpenCount,2);
+ assert.equal(summary.knownOverdueCount,1);
+ assert.ok(!p.findings.some(r=>r.code==='RECORD_OVERDUE'&&r.recordId===p.registerRows.find(r=>r.reference==='R1')!.recordId));
+});
+
 test('clean source register establishes package counts and lateness before approval; one completeness decision unlocks percentages',async t=>{
  const f=await fixture(t);
  await f.upload('Procurement.csv','Package ID,Description,Required On Site,Forecast Delivery,Owner\nPK1,Fire pumps,2031-08-01,2031-08-15,MEP Lead\nPK2,Cables,2031-09-01,2031-08-15,Electrical Lead');
