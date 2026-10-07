@@ -124,9 +124,6 @@ function rateCandidates(
         sectionKey: section.sectionKey,
         sectionIdentifier: section.identifier,
         sectionHeading: section.heading,
-        sectionKey: section.sectionKey,
-        sectionIdentifier: section.identifier,
-        sectionHeading: section.heading,
       });
     }
   }
