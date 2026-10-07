@@ -36,3 +36,25 @@ test('matching progress does not request recovery for a difference that is absen
  const v=positionVerdict(result('progress-report',{scopeComparison:{gapPercentagePoints:0}}));
  assert.match(v.text,/matches baseline plan/);assert.match(v.nextAction,/Monitor schedule progress/);assert.doesNotMatch(v.nextAction,/difference|recovery/);
 });
+
+
+test('Master Dashboard lets a publishable CMeng forecast lead over an ahead submitted date',()=>{
+ const verdict=positionVerdict(result('master-dashboard',{metrics:[
+  {key:'contract-finish',value:'2043-08-20'},
+  {key:'submitted-programme-finish',value:'2043-04-17'},
+  {key:'independent-forecast-finish',value:'2043-09-11'},
+ ]}));
+ assert.equal(verdict.rag,'red');
+ assert.match(verdict.text,/CMeng programme calendar recalculation is 22 calendar days late/);
+ assert.doesNotMatch(verdict.text,/125 days ahead|within the contract date/);
+});
+
+test('an ahead submitted date cannot create a green management verdict while the CMeng forecast is withheld',()=>{
+ const verdict=positionVerdict(result('master-dashboard',{metrics:[
+  {key:'contract-finish',value:'2043-08-20'},
+  {key:'submitted-programme-finish',value:'2043-04-17'},
+  {key:'independent-forecast-finish',value:null},
+ ]}));
+ assert.equal(verdict.rag,'amber');
+ assert.match(verdict.text,/submitted position, not a confirmed management forecast/i);
+});
