@@ -42,10 +42,19 @@ const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typ
 
 function build(state:ProjectRuntimeState){
   const documents=state.evidenceDocuments.filter(document=>document.basisState!=='superseded');
+  const normalizeSourceText=(values:Array<string|null|undefined>)=>values.filter(Boolean).join(' ').normalize('NFKC').replace(/[_/\\.-]+/g,' ').replace(/\s+/g,' ').trim();
+  const specificDomains=(document:ProjectRuntimeState['evidenceDocuments'][number])=>{
+    const specific=normalizeSourceText([document.documentType,document.sourceFilename,document.familyKey]);
+    const matches=definitions.filter(definition=>definition.pattern.test(specific)).map(definition=>definition.domain);
+    if(matches.length)return matches;
+    // Broad storage categories such as risk_claims_procurement and hse_quality_fm
+    // are routing buckets, not proof that one document belongs to every domain.
+    // Use the category only when the specific document identity gives no signal.
+    const fallback=normalizeSourceText([document.category]);
+    return definitions.filter(definition=>definition.pattern.test(fallback)).map(definition=>definition.domain);
+  };
   const domains=definitions.map(definition=>{
-    const matched=documents.filter(document=>definition.pattern.test(
-      [document.documentType,document.category,document.sourceFilename,document.familyKey].filter(Boolean).join(' ')
-    ));
+    const matched=documents.filter(document=>specificDomains(document).includes(definition.domain));
     let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false,longLeadMarkedCount=0,longLeadObserved=false;
     const longLeadSamples:ManagementSourceDomainSummary['signals']['longLeadSamples']=[];
     for(const document of matched){
