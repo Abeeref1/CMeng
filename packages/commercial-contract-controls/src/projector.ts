@@ -313,8 +313,19 @@ function variations(
         };
         for (const [amountKey,dateKey] of [['claimedAmount','submittedDate'],['assessedAmount','assessedDate'],['agreedAmount','agreedDate'],['approvedAmount','approvalDate']] as const) if(reportingScope(row[dateKey],input.dataDateIso)!=='as_of') row[amountKey]={...row[amountKey],value:null,state:'missing'};
         for(const key of ['instructionDate','submittedDate','quotationDate','assessedDate','agreedDate','approvalDate'] as const)if(reportingScope(row[key],input.dataDateIso)!=='as_of')row[key]=null;
-        // Amounts and final status alone cannot reconstruct a historical lifecycle stage.
-        const stage: VariationLifecycleRecord["lifecycleStage"] = row.approvalDate?'approved':row.agreedDate?'agreed':row.assessedDate?'assessed':row.quotationDate?'quoted':row.submittedDate?'submitted':row.instructionDate?'instruction':'unknown';
+        // Preserve an explicit source rejection when the variation itself is
+        // current at the reporting date. A rejection cannot be rebuilt as an
+        // approval merely because the register carries a decision/approval date.
+        const sourceStage=variationStage(sourceRow);
+        const stage: VariationLifecycleRecord["lifecycleStage"] =
+          sourceStage==='rejected'&&scope==='as_of'?'rejected'
+          :row.approvalDate?'approved'
+          :row.agreedDate?'agreed'
+          :row.assessedDate?'assessed'
+          :row.quotationDate?'quoted'
+          :row.submittedDate?'submitted'
+          :row.instructionDate?'instruction'
+          :'unknown';
         const lastOpenDate =
           row.agreedDate ??
           row.assessedDate ??
@@ -325,7 +336,8 @@ function variations(
           Boolean(
             row.approvalDate,
           ) ||
-          (stage === 'approved');
+          stage === 'approved' ||
+          stage === 'rejected';
         const linkageCount =
           [
             row.instructionId,
