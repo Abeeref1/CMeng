@@ -627,9 +627,9 @@ export function buildCommercialControlPosition(
               currency &&
             row.status === "active" &&
             (
-              !input.dataDateIso ||
+              !(input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso) ||
               !row.expiryIso ||
-              row.expiryIso.slice(0,10) >= input.dataDateIso.slice(0,10)
+              row.expiryIso.slice(0,10) >= (input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso)!.slice(0,10)
             ),
         );
       const claims =
