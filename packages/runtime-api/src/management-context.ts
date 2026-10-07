@@ -100,8 +100,8 @@ const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp
   {stage:'design',label:'Design & approvals',pattern:/\bdesign\b|\bdrawing\b|\bshop drawing\b|\brfi\b|\bsubmittal\b|\bapproval\b|\bengineering\b/i},
   {stage:'procurement',label:'Procurement & long lead',pattern:/\blong[\s-]?lead\b|\bprocurement\b|\bmaterial\b|\bvendor\b|\bmanufactur(?:e|ing)\b|\bfabrication\b|\bdelivery\b/i},
   {stage:'testing_commissioning',label:'Testing & commissioning',pattern:/\btest(?:ing)?\b|\bcommission(?:ing)?\b|\benerg(?:ise|ize|isation|ization)\b|\bstart[\s-]?up\b/i},
-  {stage:'handover',label:'Handover & closeout',pattern:/\bhandover\b|\bclose[\s-]?out\b|\bsnag\b|\bas[\s-]?built\b|\bo\s*&\s*m\b|\btaking over\b/i},
-  {stage:'construction',label:'Construction',pattern:/\bconstruct(?:ion)?\b|\binstall(?:ation|ing)?\b|\bcivil\b|\bstructur(?:al|e)\b|\bexcavat(?:e|ion)\b|\bconcrete\b|\bmep\b|\bmechanical\b|\belectrical\b|\bpipe(?:work)?\b/i},
+  {stage:'handover',label:'Handover & closeout',pattern:/\bhandover\b|\bclose[\s-]?out\b|\b(?:de[ -]?)?snagg?(?:ing)?\b|\bas[\s-]?built\b|\bo\s*&\s*m\b|\btaking over\b/i},
+  {stage:'construction',label:'Construction',pattern:/\bconstruct(?:ion)?\b|\binstall(?:ation|ing)?\b|\bcivil\b|\bstructur(?:al|e)\b|\bexcavat(?:e|ion)\b|\bconcrete\b|\bmep\b|\bmechanical\b|\belectrical\b|\bpipe(?:work)?\b|\bblockwork\b|\bplaster(?:ing)?\b|\bpaint(?:ing)?\b|\btil(?:e|ing)\b|\bwaterproof(?:ing)?\b|\broof(?:ing)?\b|\bbackfill(?:ing)?\b|\bformwork\b|\brebar\b|\bfa[cç]ade\b|\bcladding\b|\bdoors?\b|\bwindows?\b|\bceilings?\b|\bscreed\b|\bjoinery\b/i},
 ];
 
 export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {

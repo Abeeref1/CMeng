@@ -528,3 +528,34 @@ test("cyclic network is never force-calculated", () => {
     ),
   );
 });
+
+test('source constraint bounds use the working calendar in both CPM passes',()=>{
+ const run=(type:string,dateIso:string)=>calculateCpm(chainModel({activities:[activity('A',{sourceConstraints:[{type,dateIso}]})],relationships:[]}),{applySourceConstraints:true});
+ for(const type of ['CS_MSO','CS_MSOA','CS_MANDSTART']){
+  const r=run(type,'2026-01-07T08:00:00');assert.equal(r.complete,true,type);
+  assert.equal(r.activities[0]!.earlyStartIso,'2026-01-07T08:00:00.000Z',type);
+  assert.equal(r.projectFinishIso,'2026-01-07T16:00:00.000Z',type);
+ }
+ for(const type of ['CS_MEO','CS_MEOA','CS_MANDFIN']){
+  const r=run(type,'2026-01-07T16:00:00');assert.equal(r.complete,true,type);
+  assert.equal(r.activities[0]!.earlyFinishIso,'2026-01-07T16:00:00.000Z',type);
+ }
+ for(const type of ['CS_MSOB','CS_MEOB']){
+  const date=type==='CS_MSOB'?'2026-01-02T08:00:00':'2026-01-02T16:00:00';
+  const r=run(type,date),row=r.activities[0]!;assert.equal(row.earlyStartIso,'2026-01-05T08:00:00.000Z');
+  assert.equal(row.lateFinishIso,'2026-01-02T16:00:00.000Z');assert.equal(row.totalFloatHours,-8);
+ }
+ const missing=run('CS_MEOA','bad-date');assert.equal(missing.complete,false);assert.equal(missing.activities[0]!.status,'unresolved');
+ const unknown=run('UNSUPPORTED','2026-01-07');assert.equal(unknown.complete,false);
+});
+
+test('ALAP consumes free float without delaying its successor or project finish',()=>{
+ const model=chainModel({activities:[activity('SHORT',{remainingDurationHours:8,sourceConstraints:[{type:'CS_ALAP',dateIso:null}]}),activity('LONG',{remainingDurationHours:24}),activity('END')],relationships:[
+  {relationshipId:'S-E',predecessorActivityId:'SHORT',successorActivityId:'END',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]},
+  {relationshipId:'L-E',predecessorActivityId:'LONG',successorActivityId:'END',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]},
+ ]});
+ const plain=calculateCpm(model),constrained=calculateCpm(model,{applySourceConstraints:true});
+ assert.equal(constrained.complete,true);assert.equal(constrained.projectFinishIso,plain.projectFinishIso);
+ assert.equal(constrained.activities.find(a=>a.activityId==='SHORT')!.earlyStartIso,'2026-01-07T08:00:00.000Z');
+ assert.deepEqual(new Set(constrained.drivingNetwork!.relationships.map(r=>r.relationshipId)),new Set(['S-E','L-E']));
+});

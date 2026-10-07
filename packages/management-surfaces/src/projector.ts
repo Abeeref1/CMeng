@@ -679,11 +679,11 @@ function dashboardMetrics(
       authority: facts.schedule.criticalActivityCount.value===null
         ? "unavailable"
         : "calculated",
-      health: (input.negativeFloatCount ?? 0) > 0 ? "attention" : "unavailable",
+      health: (facts.schedule.negativeFloatActivityCount.value ?? 0) > 0 ? "attention" : "unavailable",
       basis:
         "Execution activities with source total float ≤ 0; critical-path presence alone is not adverse health",
-      consequence: input.negativeFloatCount == null ? "Negative-float exposure is not established; the critical count is inventory only."
-        : String(input.negativeFloatCount) + " activities have negative float. Zero-float critical activities are not automatically adverse.",
+      consequence: facts.schedule.negativeFloatActivityCount.value == null ? "Negative-float exposure is not established; the critical count is inventory only."
+        : String(facts.schedule.negativeFloatActivityCount.value) + " activities have negative float. Zero-float critical activities are not automatically adverse.",
       owningModule:
         "near-critical",
     }),

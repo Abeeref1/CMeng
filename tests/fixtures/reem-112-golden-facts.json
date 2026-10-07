@@ -1,0 +1,31 @@
+{
+  "projectId": "REEM 112",
+  "dataDateIso": "2026-08-31",
+  "source": "Consultant review of release 47cd8029856ab6447497a9f922a2705460406a56; source records must be independently checked during the live walk",
+  "expected": {
+    "time.contractualCompletionIso": "2027-09-08",
+    "time.awardedEotDays": 13,
+    "time.extendedContractCompletionIso": "2027-09-21",
+    "schedule.submittedProgrammeCompletionIso": "2027-10-06",
+    "schedule.criticalActivityCount": 41,
+    "schedule.delayedOpenActivityCount": 192,
+    "controls.openRfiCount": 53,
+    "controls.overdueRfiCount": 44,
+    "controls.openCriticalMajorNcrCount": 29,
+    "commercial.variationRecordCount": 26,
+    "commercial.approvedVariationCount": 25,
+    "commercial.pendingVariationCount": 0,
+    "commercial.rejectedVariationCount": 1,
+    "commercial.activeBondCount": 1,
+    "commercial.expiredBondCount": 1,
+    "commercial.expiredInsuranceCount": 1
+  },
+  "currencies": {
+    "QAR": {
+      "certifiedUnpaidAmount": 9899013,
+      "activeBondAmount": 21000000
+    }
+  },
+  "delivery": {"package":90,"design":680,"quality":260,"permit":70},
+  "sectionTwoDelayDamages": {"dailyRate":60000,"cap":21000000,"originalDateExposure":1680000,"extendedDateExposure":900000}
+}

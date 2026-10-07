@@ -7,6 +7,7 @@ import {join} from 'node:path';
 import type {AddressInfo} from 'node:net';
 
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
+import {projectFactConsumerMismatches} from '../packages/runtime-api/src/project-fact-consumers';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import {
   defaultBlindSeed,
@@ -151,6 +152,7 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
         const currentFactsDigest=factsDigest(facts);
         if(canonicalProjectFactsDigest===null)canonicalProjectFactsDigest=currentFactsDigest;
         else assert.equal(currentFactsDigest,canonicalProjectFactsDigest,'J8 canonical project facts differ across pages: '+project.projectId+' / '+page.key);
+        assert.deepEqual(projectFactConsumerMismatches(result.body?.data),[], 'J8 displayed consumer values differ from canonical facts: '+project.projectId+' / '+page.key);
         pageChecks++;
       }
       assert.ok(usefulPages>0,'J8 project became blocked/unresolved everywhere: '+project.projectId);

@@ -202,16 +202,16 @@ function input():
       schemaVersion:"1.0",projectId:"MGMT-UAT",projectVersion:1,dataDateIso:"2026-09-21",
       schedule:{
         dataDateIso:{value:"2026-09-21",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
-        submittedProgrammeCompletionIso:{value:"2027-03-31",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedProgrammeCompletionIso:{value:"2030-05-01",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         criticalActivityCount:{value:12,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         nearCriticalActivityCount:{value:8,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         negativeFloatActivityCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         delayedOpenActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
       },
       time:{
-        contractualCompletionIso:{value:"2027-03-01",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        contractualCompletionIso:{value:"2030-03-31",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         awardedEotDays:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
-        extendedContractCompletionIso:{value:"2027-03-01",state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        extendedContractCompletionIso:{value:"2030-03-31",state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
       },
       controls:{
         openRfiCount:{value:4,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
@@ -529,6 +529,7 @@ test("management date ladder and gap categories propagate from shared evidence w
   source.director!.schedule.criticalCount = 9; source.director!.schedule.nearCriticalCount = 13;
   source.director!.controls.riskEvidenceState = "established"; source.director!.controls.openRiskCount = 17;
   source.negativeFloatCount = 0;
+  source.projectFacts.schedule.negativeFloatActivityCount.value = 0;
   source.evidenceGaps.push({key: "current-programme", label: "Current programme", state: "established", action: "Upload programme", owningModule: "schedule-analytics"},
     {key: "board-publication", label: "Board publication", state: "missing", action: "Review before publishing", owningModule: "pmo-analysis"});
   const result = buildManagementSurfaces(source);
@@ -540,6 +541,7 @@ test("management date ladder and gap categories propagate from shared evidence w
   assert.equal(result.commandCenter.programmePosition.find(m => m.key === "submitted-vs-contract")?.value, 31);
   for (const key of ["critical-activities", "near-critical", "open-risk"]) assert.equal(result.masterDashboard.metrics.find(m => m.key === key)?.health, "unavailable");
   source.negativeFloatCount = 2;
+  source.projectFacts.schedule.negativeFloatActivityCount.value = 2;
   assert.equal(buildManagementSurfaces(source).masterDashboard.metrics.find(m => m.key === "critical-activities")?.health, "attention");
   assert.match(result.commandCenter.alerts.find(a => a.alertId === "evidence-gap:board-publication")!.consequence, /cannot be finalized until/);
   assert.equal(result.commandCenter.alerts.find(a => a.alertId === "overdue-rfi")?.owningModule, "documents");

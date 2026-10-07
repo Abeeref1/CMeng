@@ -1903,8 +1903,10 @@ function buildPaymentRegister(
         "established"
         ? rawSlaCounts.openUnpaid
         : null,
+    // Keep uncertified applications visible as unassessed records, while
+    // they stay outside the certified-payment SLA denominator above.
     notEstablished:
-      rawSlaCounts.notEstablished,
+      rows.filter(row=>!row.lifecycle.certificationDate||row.lifecycle.slaState==="not_established").length,
   };
   return {
     capabilityKey:

@@ -62,7 +62,7 @@ test('delivery dashboard shows source evidence when no governed Delivery review 
   assert.equal(dashboard.mode,'source_available');
   assert.equal(dashboard.sourceAvailability.procurement.readableRowCount,2);
   assert.equal(dashboard.sourceAvailability.procurement.signals.longLeadMarkedCount,1);
-  assert.equal(dashboard.latePackageKnownCount,null,'source presence must not fabricate lateness');
+  assert.equal(dashboard.latePackageKnownCount,null,'an unreadable source must not fabricate lateness');
   assert.equal(dashboard.confirmedPackageCount,null,'source presence must not fabricate a confirmed package population');
 });
 

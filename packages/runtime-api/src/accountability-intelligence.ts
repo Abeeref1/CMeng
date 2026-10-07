@@ -6,6 +6,7 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
+import {actionRecordKey} from './action-priority';
 
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
 const daysOver=(due:string|null,date:string|null)=>due&&date&&due<date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(due.slice(0,10)))/86400000)):null;
@@ -124,7 +125,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       domain==='schedule'?'Confirm the remaining work, driving logic, accountable delivery party and recovery date.':
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
-      actionId:'accountability:'+key,issue:first.issue,consequence,affectedScope:scope,affectedMilestones:[],
+      actionId:'accountability:'+key,recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
       owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
       severity:overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,

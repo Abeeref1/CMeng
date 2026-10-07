@@ -6,7 +6,7 @@ import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-ana
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildProgressBreakdownProjection} from '../../progress-breakdown/src/projector';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
@@ -25,7 +25,7 @@ const numeric=(r:DeliveryRecord,...names:string[])=>numberValue(field(r,...names
 const date=(r:DeliveryRecord,...names:string[])=>registerDate(field(r,...names));
 const ids=(v:string)=>v.split(/[;|]/).map(s=>s.trim()).filter(Boolean);
 const sourceCandidateUsable=(r:DeliveryRecord)=>r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&deliveryNumericIssues(r.kind,r.fields).length===0;
-const currentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||sourceCandidateUsable(r);
+const currentRecord=deliveryCurrentRecord;
 const round=(v:number)=>Math.round(v*10000)/10000;
 const pct=(n:number|null,d:number|null)=>n===null||d===null||d<=0?null:round(n/d*100);
 const difference=(a:number|null,b:number|null)=>a===null||b===null?null:round(a-b);
@@ -58,7 +58,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const population=(kind:DeliveryKind,scopeId:string|null=null)=>{
   const scope=recordsByScope.get(kind+'|'+(scopeId??''))??[],rows=scope.filter(currentRecord);
   const decision=latestPopulation.get(kind+'|'+(scopeId??''));
-  const pending=scope.filter(r=>!['governed','verified','superseded','scenario'].includes(r.state));
+  const pending=scope.filter(r=>!currentRecord(r)&&!['superseded','scenario'].includes(r.state));
   const unread=source.documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
   const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
   return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
@@ -111,8 +111,10 @@ function buildDelivery(state:ProjectRuntimeState){
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const headroom=days(programmeNeedDate,forecastDelivery);
-  if(headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after the linked programme need date.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  const needDate=programmeNeedDate??sourceRequiredOnSite;
+  const needDateBasis=programmeNeedDate?'Linked programme start':'Required on site from register';
+  const headroom=days(needDate,forecastDelivery);
+  if(headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+(programmeNeedDate?'the linked programme need date':'the required-on-site date in the register')+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));
   const stages=template?ids(field(template,'stages')):[];
@@ -143,7 +145,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner')||null,supplier:field(r,'supplier')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
    supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,
-   programmeNeedDate,sourceRequiredOnSite,forecastDelivery,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:sourceLongLead||/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
+   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:sourceLongLead||/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readiness.find(q=>q.recordId===r.recordId),receipts:r.receipts};
  });
@@ -232,7 +234,7 @@ function buildDelivery(state:ProjectRuntimeState){
  };
  const mappings=[['programme','programmeActivityIds'],['procurement','procurementPackageIds'],['workfront','workfrontIds'],['location','locationIds']] as const;
  const mappingCoverage=[...mappings.map(([dimension,key])=>{const count=boqRows.filter(r=>r[key].length>0).length;return {dimension,mappedCount:controlledBoq?count:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(count,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r[key].length).map(r=>r.itemId)};}),{dimension:'quantity tracking',mappedCount:controlledBoq?boqRows.filter(r=>r.quantityTrackingEstablished).length:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(boqRows.filter(r=>r.quantityTrackingEstablished).length,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r.quantityTrackingEstablished).map(r=>r.itemId)}];
- const quantityPopulations=[...new Set(boqRows.map(r=>r.unit).filter(Boolean))].map(unit=>{const rows=boqRows.filter(r=>r.unit===unit);return {unit,requiredQuantity:sumKnown(rows.map(r=>r.quantity)),itemCount:rows.length,itemIds:rows.map(r=>r.itemId)};});
+ const quantityPopulations=boqRows.map(row=>({unit:row.unit,requiredQuantity:row.quantity,itemCount:1,itemIds:[row.itemId],description:row.description,basis:'Individual BOQ item; shared units alone do not establish compatible scope.',quantityReview:/^(ls|l\.?s\.?|lump\s*sum)$/i.test(row.unit??'')&&row.quantity!==null&&row.quantity!==1?'Lump-sum quantity differs from one; check the item basis.':null}));
  const boqIntelligence={valueByDiscipline:dimensionValues('disciplines'),valueByLocation:dimensionValues('locationIds'),valueByWorkfront:dimensionValues('workfrontIds'),topPackages:dimensionValues('procurementPackageIds').sort((a,b)=>a.currency.localeCompare(b.currency)||(b.value??-Infinity)-(a.value??-Infinity)),quantityPopulations,mappingCoverage,source:boq.selection,itemCount:controlledBoq?boqRows.length:null,mappedItemCount:controlledBoq?boqRows.filter(r=>mapped.has(r.itemId)).length:null,
   procurementMappingPercent:controlledBoq?pct(boqRows.filter(r=>mapped.has(r.itemId)).length,boqRows.length):null,currencies:currencyGroups,
   topCostDrivers:currencyGroups.map(g=>({currency:g.currency,items:boqRows.filter(r=>r.currency===g.currency&&r.amount!==null).sort((a,b)=>b.amount!-a.amount!).slice(0,20)})),rows:boqRows};
@@ -530,14 +532,15 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
-  data:{projectionKey:'delivery',deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
+  data:{projectionKey:'delivery',empty:!usable,deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
    reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}});
 }
 export function deliveryDashboard(state:ProjectRuntimeState){
  const inventory=managementSourceInventory(state);
  const domain=(key:ManagementSourceDomain)=>inventory.domains.find(row=>row.domain===key)??null;
  const boq=boqScopeIntelligence(state);
- if(!state.delivery?.decisions.length){
+ const p=deliveryPosition(state),packagePopulation=p.populations.package;
+ if(!p.records.some(currentRecord)){
   return {projectId:state.projectId,dataDateIso:projectDataDate(state),programmeRevisionId:projectControlSchedule(state)?.revision.revisionId??null,
    mode:'source_available',boqMappingPercent:null,handoverReadinessPercent:null,latePackageKnownCount:null,unresolvedPackageCount:null,
    packagePopulationState:'not_established',
@@ -546,10 +549,9 @@ export function deliveryDashboard(state:ProjectRuntimeState){
    exceptions:[],exceptionCount:0,
    basis:'Available source evidence and BOQ-derived candidates are shown without asserting governed Delivery lifecycle status, lateness or schedule impact.'};
  }
- const p=deliveryPosition(state),packagePopulation=p.populations.package;
  const packageSourceCount=p.records.filter(r=>r.kind==='package'&&!['superseded','scenario'].includes(r.state)).length;
  const packageAuthority=deliveryPopulationAuthority(packagePopulation,packageSourceCount,packagePopulation?.denominator??null);
- return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
+ return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:state.delivery?.decisions.length?'governed_or_reviewed':'source_available',
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
@@ -558,7 +560,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
   sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
   exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length,
-  basis:'Governed/reviewed Delivery records remain primary. Source evidence and BOQ candidates remain visible when a dependent control population is incomplete.'};
+  basis:packageAuthority.state==='established'?'Confirmed applicable register population.':'From supplied register, not yet confirmed as the complete applicable population. Clean dated rows are used now; unresolved rows qualify only the affected figures.'};
 }
 export function deliveryExportResult(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
  const data=result.data as any;if(data?.projectionKey!=='delivery')return result;

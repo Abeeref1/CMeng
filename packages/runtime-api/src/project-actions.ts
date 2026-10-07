@@ -1,3 +1,4 @@
+import {deliveryCurrentRecord} from './delivery-records';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
@@ -173,9 +174,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const delivery=deliveryPosition(state);
   for(const kind of deliveryKinds){const records=delivery.records.filter(r=>r.kind===kind&&!['superseded','scenario'].includes(r.state));if(!records.length)continue;
-    const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale','source_evidence','not_established'].includes(r.state)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
+    const pending=records.filter(r=>!deliveryCurrentRecord(r)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
     if(pending.length){/* Candidate/stale Delivery rows remain supporting information; no page-loop action is created. */}
-    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm complete '+deliveryLabels[kind].toLowerCase()+' population',reason:records.length+' governed record(s) are available. Confirm only if this is the complete applicable population for reporting percentages.',recordCount:records.length,
+    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm complete '+deliveryLabels[kind].toLowerCase()+' population',reason:records.length+' usable source record(s) are available. Confirm only if this is the complete applicable population for reporting percentages.',recordCount:records.length,
       resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm complete population here. If it is not complete, do nothing; CMeng will keep percentages unconfirmed.',completionRule:'The action closes immediately after population completeness is confirmed.'},
       target:{type:'delivery',kind,moduleKey,population:true,label:'Confirm complete population'}});
   }

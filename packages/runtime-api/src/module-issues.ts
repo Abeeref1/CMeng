@@ -112,6 +112,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
+    // An explicitly supplied outstanding advance does not depend on deriving
+    // the original advance from a contract percentage.
+    if(path.endsWith('.advancePaymentPercent')&&d?.position?.currencies?.some((row:any)=>typeof row.advanceBalance?.value==='number'))return;
     visited.add(value);
     if(Array.isArray(value)){
       for(const item of value)if(arrayItemCanContainIssue(item))

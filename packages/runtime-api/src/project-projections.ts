@@ -1,3 +1,4 @@
+import {actionRecordKey,prioritizeActions} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -32,6 +33,7 @@ import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
 import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
+import {bindProjectFacts} from './project-fact-consumers';
 import {attachProjectFacts,projectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
@@ -5062,6 +5064,7 @@ function cachedIndependentForecast(
         generatedAt,
         producerVersion:
           "independent-forecast-fast-v1",
+        cpmConfig:{applySourceConstraints:true},
       },
     );
   const calendarReview=reviewScheduleCalendarBasis(model);
@@ -7752,7 +7755,7 @@ export function directorForProject(
   if(!data)return null;
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
   const reviewed=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
-  return reportingData(state,'project-director',reviewed);
+  return reportingData(state,'project-director',bindProjectFacts('project-director',reviewed,projectFactsForState(state)) as typeof reviewed);
 }
 
 export function boardReportForProject(
@@ -8398,6 +8401,7 @@ export function managementSurfacesForProject(
   const deliveryPosition=deliveryDashboard(state);
   const deliveryManagementActions:ManagementAction[]=(deliveryExceptions.actions??[]).map((row:any,index:number)=>managementAction({
     actionId:'delivery-exception:'+String(row.recordId??row.type??index),
+    ...(row.recordId?{recordKey:actionRecordKey(String(row.type??'record'),String(row.recordId))}:{}),
     issue:String(row.action??row.type??'Delivery control item requires review'),
     consequence:typeof row.overdueDays==='number'&&row.overdueDays>0
       ?'Required date is '+row.overdueDays+' calendar days overdue.'
@@ -8419,12 +8423,7 @@ export function managementSurfacesForProject(
     ...(accountability.actions??[]),
     ...deliveryManagementActions,
   ];
-  const canonicalActionMap=new Map<string,ManagementAction>();
-  for(const row of canonicalActionRows){
-    const identity=(row.issue+'|'+row.requiredAction+'|'+row.affectedScope.join('|')).toLowerCase().replace(/\s+/g,' ').trim();
-    if(identity&&!canonicalActionMap.has(identity))canonicalActionMap.set(identity,row);
-  }
-  const canonicalActions=[...canonicalActionMap.values()];
+  const canonicalActions=prioritizeActions(canonicalActionRows,current?.revision.model??null,(resolvedModules.get('independent-forecast')?.data as any)?.drivingNetwork?.activityIds??[]);
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),

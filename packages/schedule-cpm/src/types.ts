@@ -20,6 +20,8 @@ export interface CpmConfig {
   criticalThresholdHours: number;
   projectStartIso?: string | null;
   requiredFinishIso?: string | null;
+  /** Keep the unconstrained diagnostic comparison available explicitly. */
+  applySourceConstraints?: boolean;
 }
 
 export const DEFAULT_CPM_CONFIG: CpmConfig = {

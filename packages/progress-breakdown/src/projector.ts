@@ -53,7 +53,8 @@ function buildRow(
       activity.percentComplete <= 100,
   );
 
-  const floatKnown = activities.filter(
+  const unfinished=activities.filter(activity=>activity.status!=='completed');
+  const floatKnown = unfinished.filter(
     (activity) =>
       activity.totalFloatHours !== null,
   );
@@ -100,23 +101,23 @@ function buildRow(
           (activity.remainingDurationHours ?? 0),
         0,
       ),
-    criticalCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    criticalCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.length!==activities.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
+    nearCriticalCount: floatKnown.length!==unfinished.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",
     ).length,
-    negativeFloatCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    negativeFloatCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,
     floatCoveragePercent: coverage(
       floatKnown.length,
-      activities.length,
+      unfinished.length,
     ),
   };
 }

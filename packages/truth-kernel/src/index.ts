@@ -188,6 +188,8 @@ export function establishedPopulationCount(
 }
 
 export interface ManagementAction {
+  recordKey?: string;
+  priorityBasis?: {linkedFloatHours:number|null;drivingPath:boolean;milestoneCount:number};
   actionId: string;
   issue: string;
   consequence: string | null;

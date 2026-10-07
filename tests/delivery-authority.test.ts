@@ -9,7 +9,7 @@ import {Script,runInNewContext} from 'node:vm';
 import ExcelJS from 'exceljs';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {changeDelivery,classifyDeliveryRowKind,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
-import {deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
+import {deliveryDashboard,deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
@@ -307,7 +307,7 @@ test('Delivery display preserves exact record references and quantities while fo
  const rows=[{riskId:'R1',status:'open'},{riskId:'R2',status:'closed'}];
  assert.deepEqual(Array.from(context.deliveryFiltered({rows,query:'',filter:'open',sort:null}), (r:any)=>r.riskId),['R1']);
  const markup=context.deliveryTable('risk','Risk register',rows,[['riskId','Risk']]);assert.match(markup,/<option value="open">Open<\/option>/);
- const review=context.deliveryTable('review','Record review',[{state:'extracted_candidate'}],[['state','Review state']]);assert.match(review,/<option value="extracted_candidate">Awaiting review<\/option>/);
+ const review=context.deliveryTable('review','Record review',[{state:'extracted_candidate'}],[['state','Review state']]);assert.match(review,/<option value="extracted_candidate">From register, not yet confirmed<\/option>/);
 });
 
 test('Delivery Risks uses the existing risk population, not unrelated procurement candidates or population decisions',async t=>{
@@ -385,4 +385,13 @@ test('Delivery cannot call a record overdue when its due date is not established
  const rendered=page.rows.find((r:any)=>r.recordId===snag.recordId);
  assert.equal(rendered.overdue,null);
  assert.equal(rendered.dueDate,null);
+});
+
+
+test('clean source register establishes package counts and lateness before approval; one completeness decision unlocks percentages',async t=>{
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Required On Site,Forecast Delivery,Owner\nPK1,Fire pumps,2031-08-01,2031-08-15,MEP Lead\nPK2,Cables,2031-09-01,2031-08-15,Electrical Lead');
+ const dashboard=deliveryDashboard(f.state);assert.equal(dashboard.knownPackageRecordCount,2);assert.equal(dashboard.latePackageKnownCount,1);assert.equal(dashboard.confirmedPackageCount,null);
+ f.population('package');assert.equal(deliveryPosition(f.state).populations.package!.denominator,2);
+ assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='PK1')!.state,'extracted_candidate','confirming completeness does not pretend each row has been certified');
 });

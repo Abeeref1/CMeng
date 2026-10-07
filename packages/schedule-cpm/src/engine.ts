@@ -19,6 +19,7 @@ import {
 import {
   resolveActivityDuration,
 } from "./duration";
+import {activityConstraints} from './constraints';
 import {
   DEFAULT_CPM_CONFIG,
   type CpmActivityResult,
@@ -342,11 +343,12 @@ export function calculateCpm(
   const graph = analyzeScheduleGraph(model);
   const assumptions: string[] = [];
   const constrainedActivities=model.activities.filter(a=>a.sourceConstraints?.length);
-  if(constrainedActivities.length)assumptions.push('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:'+constrainedActivities.length);
+  if(constrainedActivities.length&&!config.applySourceConstraints)assumptions.push('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:'+constrainedActivities.length);
   if(model.diagnostics.includes('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED'))assumptions.push('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED');
   const diagnostics = [
     ...model.diagnostics,
     ...graph.diagnostics,
+    ...(constrainedActivities.length&&config.applySourceConstraints?['SOURCE_CONSTRAINTS_APPLIED:'+constrainedActivities.length]:[]),
   ];
 
   const anchor =
@@ -646,9 +648,20 @@ export function calculateCpm(
       }
     }
 
-    const startCandidate = candidates.reduce((latest,c)=>Math.max(latest,c.start),anchor);
+    const sourceBounds=config.applySourceConstraints?activityConstraints(context.activity):{constraints:[],diagnostics:[]};
+    context.diagnostics.push(...sourceBounds.diagnostics);
+    let startCandidate = candidates.reduce((latest,c)=>Math.max(latest,c.start),anchor);
+    let finishMinimum:number|null=null;
+    for(const bound of sourceBounds.constraints){
+      if(bound.date===null)continue;
+      if(['start_on','start_after'].includes(bound.kind))startCandidate=Math.max(startCandidate,bound.date);
+      if(['finish_on','finish_after'].includes(bound.kind)){
+        startCandidate=Math.max(startCandidate,subtractWorkingHours(context.calendar.calendar,bound.date,context.durationHours));
+        finishMinimum=Math.max(finishMinimum??bound.date,bound.date);
+      }
+    }
 
-    const earlyStart =
+    let earlyStart =
       addWorkingHours(
         context.calendar.calendar,
         startCandidate,
@@ -663,7 +676,16 @@ export function calculateCpm(
     // Subtracting work and adding it back can land on opposite sides of a
     // nonworking gap. Retain the actual FF/SF finish bound as well as its
     // translated start; the successor must never finish before that event.
-    const earlyFinish=candidates.reduce((finish,c)=>Math.max(finish,c.finish??finish),workFinish);
+    let earlyFinish=candidates.reduce((finish,c)=>Math.max(finish,c.finish??finish),Math.max(workFinish,finishMinimum??workFinish));
+    for(const bound of sourceBounds.constraints){
+      if(bound.date===null)continue;
+      if(bound.kind==='mandatory_start'){
+        earlyStart=bound.date;earlyFinish=addWorkingHours(context.calendar.calendar,earlyStart,context.durationHours);
+      }else if(bound.kind==='mandatory_finish'){
+        earlyFinish=bound.date;earlyStart=subtractWorkingHours(context.calendar.calendar,earlyFinish,context.durationHours);
+      }
+    }
+    if(earlyStart<startCandidate||candidates.some(c=>c.finish!==null&&earlyFinish<c.finish))context.diagnostics.push('CPM_MANDATORY_CONSTRAINT_OVERRIDES_LOGIC');
 
     forward.set(activityId, {
       earlyStartMs: earlyStart,
@@ -683,6 +705,38 @@ export function calculateCpm(
       assumptions.push(
         "UNKNOWN_ACTIVITY_STATUS_TREATED_AS_INCOMPLETE",
       );
+    }
+  }
+
+  // ALAP consumes free float, not total float: move only as far as the
+  // successors' early dates allow, so the project finish does not move.
+  if(config.applySourceConstraints){
+    const networkFinish=maxDefined([...forward.values()].map(row=>row.earlyFinishMs));
+    for(const activityId of [...graph.topologicalOrder].reverse()){
+      const context=contexts.get(activityId),early=forward.get(activityId);
+      if(!context?.calendar||context.durationHours===null||context.activity.status==='completed'||early?.earlyStartMs==null||early.earlyFinishMs===null||networkFinish===null||!activityConstraints(context.activity).constraints.some(c=>c.kind==='alap'))continue;
+      let finishBound=networkFinish;const startBounds:number[]=[];
+      for(const relation of outgoing.get(activityId)??[]){
+        const successor=forward.get(relation.successorActivityId),calendar=contexts.get(relation.successorActivityId)?.calendar;
+        if(!successor||!calendar)continue;
+        const bound=backwardConstraintFinish(relation,{lateStartMs:successor.earlyStartMs,lateFinishMs:successor.earlyFinishMs},context.durationHours,context.calendar,calendar);
+        if(bound){finishBound=Math.min(finishBound,bound.finish);if(bound.start!==null)startBounds.push(bound.start);}
+      }
+      const start=Math.min(subtractWorkingHours(context.calendar.calendar,finishBound,context.durationHours),...startBounds);
+      if(start>early.earlyStartMs)forward.set(activityId,{earlyStartMs:start,earlyFinishMs:addWorkingHours(context.calendar.calendar,start,context.durationHours)});
+    }
+    // ALAP can turn a previously nonbinding branch into a tied driving branch.
+    // Trace the final dates, not the pre-constraint forward-pass candidates.
+    for(const activityId of graph.topologicalOrder){
+      const context=contexts.get(activityId),early=forward.get(activityId);
+      if(!context?.calendar||context.durationHours===null||early?.earlyStartMs==null||early.earlyFinishMs===null)continue;
+      bindingPredecessors.set(activityId,(incoming.get(activityId)??[]).filter(relation=>{
+        const predecessor=forward.get(relation.predecessorActivityId);if(!predecessor)return false;
+        const start=forwardConstraintStart(relation,predecessor,context.durationHours!,context.calendar!);
+        const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
+        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(context.calendar!,finishAnchor,relation.lagHours);
+        return start!==null&&Math.abs(addWorkingHours(context.calendar!.calendar,start,0)-early.earlyStartMs!)<1||finish!==null&&Math.abs(finish-early.earlyFinishMs!)<1;
+      }));
     }
   }
 
@@ -743,6 +797,14 @@ export function calculateCpm(
 
     const candidates: number[] = [];
     const startBounds: number[] = [];
+    const sourceBounds=config.applySourceConstraints?activityConstraints(context.activity).constraints:[];
+    for(const bound of sourceBounds){
+      if(bound.date===null)continue;
+      if(['start_on','start_before'].includes(bound.kind)){
+        startBounds.push(bound.date);candidates.push(addWorkingHours(context.calendar.calendar,bound.date,context.durationHours));
+      }
+      if(['finish_on','finish_before'].includes(bound.kind))candidates.push(bound.date);
+    }
 
     for (const relation of outgoing.get(
       activityId,
@@ -800,7 +862,7 @@ export function calculateCpm(
     // A relationship may hold completion to the next work opening without
     // adding working duration. Keep that valid endpoint when the late bound
     // permits it; never push it past an earlier required finish target.
-    const lateFinish=early.earlyFinishMs!==null&&early.earlyFinishMs<=lateFinishCandidate&&
+    let lateFinish=early.earlyFinishMs!==null&&early.earlyFinishMs<=lateFinishCandidate&&
       early.earlyFinishMs>normalizedLateFinish&&workingHoursBetween(context.calendar.calendar,normalizedLateFinish,early.earlyFinishMs)===0
       ?early.earlyFinishMs:normalizedLateFinish;
     const durationStart = subtractWorkingHours(
@@ -808,7 +870,15 @@ export function calculateCpm(
         lateFinish,
         context.durationHours,
       );
-    const lateStart = startBounds.reduce((latest, bound) => Math.min(latest, bound), durationStart);
+    let lateStart = startBounds.reduce((latest, bound) => Math.min(latest, bound), durationStart);
+    for(const bound of sourceBounds){
+      if(bound.date===null)continue;
+      if(bound.kind==='mandatory_start'){
+        lateStart=bound.date;lateFinish=addWorkingHours(context.calendar.calendar,lateStart,context.durationHours);
+      }else if(bound.kind==='mandatory_finish'){
+        lateFinish=bound.date;lateStart=subtractWorkingHours(context.calendar.calendar,lateFinish,context.durationHours);
+      }
+    }
 
     backward.set(activityId, {
       lateStartMs: lateStart,
@@ -831,7 +901,8 @@ export function calculateCpm(
         context.durationHours === null ||
         !early ||
         early.earlyStartMs === null ||
-        early.earlyFinishMs === null
+        early.earlyFinishMs === null ||
+        context.diagnostics.some(d=>/^CPM_CONSTRAINT_(TYPE_UNSUPPORTED|DATE_MISSING)/.test(d))
       ) {
         return {
           activityId: activity.activityId,

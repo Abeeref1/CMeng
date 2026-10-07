@@ -6,6 +6,7 @@ import {operationalReporting,reportingState} from './reporting-state';
 import {projectControlSchedule} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
+import {bindProjectFacts} from './project-fact-consumers';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -90,6 +91,7 @@ function aggregateFact(
   basis:string,
 ):ProjectFact<number>{
   if(aggregate.value!==null)return fact(aggregate.value,basis,'calculated_with_stated_basis',true);
+  if(aggregate.populationCount!==null&&aggregate.populationCount>0&&aggregate.unresolvedCount===aggregate.populationCount)return fact<number>(null,basis,'missing',false);
   if(aggregate.knownCount!==null){
     return fact(
       aggregate.knownCount,
@@ -122,7 +124,9 @@ function sourceCount(
   basis:string,
 ):ProjectFact<number>{
   if(official!==null)return fact(official,basis,'confirmed',true);
-  if(known!==null)return fact(known,basis+' The register is readable but the total remains qualified.','from_register_not_confirmed',complete);
+  // A zero known subset cannot establish that nothing is open when dates,
+  // severity or status are unresolved. Positive known records remain usable.
+  if(known!==null&&known>0)return fact(known,basis+' The register is readable but the total remains qualified.','from_register_not_confirmed',complete);
   return fact<number>(null,basis,'missing',false);
 }
 
@@ -157,7 +161,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const executionRows=activity?.rows.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
   const openRows=executionRows?.filter(row=>row.status!=='completed')??null;
   const delayedOpen=aggregateCount(openRows,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
-  const negativeFloat=aggregateCount(executionRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
+  const negativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
   const float=schedule?.result.float??null;
   const critical=float
     ?{value:float.criticalCount,knownCount:float.knownClassifications.critical,unresolvedCount:float.unknownFloatCount,populationCount:float.totalActivities}
@@ -170,11 +174,11 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ??null;
 
   const operations=operationalReporting(scoped);
-  const openRfiKnown=operations.rfi.current.filter((row:any)=>row.status==='open').length;
-  const overdueRfiKnown=operations.rfi.current.filter((row:any)=>
+  const openRfiKnown=operations.rfi.state==='missing'?null:operations.rfi.current.filter((row:any)=>row.status==='open').length;
+  const overdueRfiKnown=operations.rfi.state==='missing'?null:operations.rfi.current.filter((row:any)=>
     row.status==='open'&&row.dueIso&&operations.dataDateIso&&row.dueIso<operations.dataDateIso
   ).length;
-  const openRiskKnown=operations.risk.current.filter((row:any)=>row.status==='open').length;
+  const openRiskKnown=operations.risk.state==='missing'?null:operations.risk.current.filter((row:any)=>row.status==='open').length;
 
   const commercial=commercialPositionForState(
     scoped,
@@ -373,5 +377,5 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
 
 export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
   const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
-  return {...result,data:{...data,projectFacts:projectFactsForState(state)}};
+  return {...result,data:bindProjectFacts(result.key,data,projectFactsForState(state))};
 }

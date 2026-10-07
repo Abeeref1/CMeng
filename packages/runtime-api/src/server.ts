@@ -12,6 +12,7 @@ import {sendHttpBody} from './http-response';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
+import {activityRegisterPage} from './activity-register-page';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
@@ -2372,11 +2373,10 @@ async function route(
       );
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
-      publicModuleResult(result,key),
+      result.status === "blocked" && !(result.data as any)?.empty ? 409 : 200,
+      resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='register'
+        ?{...activityRegisterPage((result.data as any)?.rows??[],url.searchParams),projectId,projectVersion:runtimeProjects.get(projectId)?.version??null}
+        :publicModuleResult(result,key),
     );
     return;
   }
@@ -2544,10 +2544,7 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      result.status === "blocked" && !(result.data as any)?.empty ? 409 : 200,
       publicModuleResult(result,key),
     );
     return;
