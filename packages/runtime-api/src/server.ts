@@ -112,6 +112,7 @@ import {
 import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
+import {projectFactsForState} from "./project-facts";
 
 const advancedControlKeys=new Set([
   'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
@@ -651,6 +652,12 @@ async function route(
               state,
             );
 
+          const projectFacts=projectFactsForState(state);
+          const commandCenter=moduleForProject(projectId,"command-center").data as any;
+          const canonicalManagementActions=Array.isArray(commandCenter?.actions)
+            ?commandCenter.actions
+            :[];
+
           const minimumEvidenceReady =
             programmeSchedules.length >
               0 &&
@@ -729,19 +736,21 @@ async function route(
             calendarRecalculationIso:
               forecastPosition.calendarRecalculationIso,
             officialCompletionIso:
-              director?.schedule
-                .contractualCompletionIso ??
-              null,
-            contractualCompletionState: commercialPosition.foundation.commercialTerms.contractualCompletionDate.state,
-            furtherAdjustedCompletionIso: director?.schedule.officialAdjustedCompletionIso ?? null,
+              projectFacts.time.contractualCompletionIso.value,
+            contractualCompletionState:
+              projectFacts.time.contractualCompletionIso.value===null
+                ?"missing"
+                :projectFacts.time.contractualCompletionIso.complete
+                  ?"established"
+                  :"candidate",
+            furtherAdjustedCompletionIso:
+              projectFacts.time.extendedContractCompletionIso.value,
             programmeMovementDays:
               windowsData
                 ?.projectCompletionMovementDays ??
               null,
             approvedEotDays:
-              director?.claims
-                .officialApprovedEotDays ??
-              null,
+              projectFacts.time.awardedEotDays.value,
             approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
             claimCount:
               director?.claims
@@ -752,18 +761,13 @@ async function route(
                 .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              director
-                ? director
-                    .managementActions
-                    .length
-                : null,
+              canonicalManagementActions.length,
             managementActions:
-              director
-                ?.managementActions ??
-              [],
+              canonicalManagementActions.map((action:any)=>
+                [action.issue,action.requiredAction].filter(Boolean).join(" — ")
+              ),
             commercialCurrencyCount:
-              commercialPosition
-                .currencies.length,
+              projectFacts.commercial.currencies.length,
             analysisError: null,
           };
         })
