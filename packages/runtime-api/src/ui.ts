@@ -5244,7 +5244,8 @@ function positionText(p){
   if(p.positionState==="needs_review")return["review","Review required"];
   return["missing","Needs project records"];
 }
-function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}\nfunction projectCard(p){
+function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}
+function projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
   const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Unresolved";
   const official=p.officialCompletionIso?planningShortDate(p.officialCompletionIso):"Unresolved";
