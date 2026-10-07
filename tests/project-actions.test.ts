@@ -109,3 +109,30 @@ test('unrelated missing commercial inputs remain visible together without creati
   assert.equal(result.information.flatMap(a=>a.findings??[]).length,3);
   assert.ok(!result.actions.some(a=>a.target.type==='module'));
 });
+
+
+test('review grouping does not confuse data-quality metadata with Quality or contractor with Contract',async()=>{
+  const {projectReviewGroup}=await import('../packages/runtime-api/src/project-review-groups');
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const state=runtimeProjects.getOrCreate('DOMAIN-GROUPING');
+  const contractDuplicate:any={code:'SOURCE_QUALITY',kind:'data_quality',summary:'data · data quality',detail:'CONTRACT_DUPLICATE_SECTION_INSTANCE:clause:1',action:'Review source',owner:'Project evidence owner',moduleKeys:['pmo-analysis'],sourceRefs:[],checkIds:[],evidencePaths:['data']};
+  const contractorProgress:any={code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'progress Bases · contractor Reported · information missing',detail:'The required source value is not established.',action:'Provide contractor reported progress',owner:'Project evidence owner',moduleKeys:['progress-report'],sourceRefs:[],checkIds:[],evidencePaths:['data.progressBases.contractorReported']};
+  assert.notEqual(projectReviewGroup(contractDuplicate,state).key,'quality','generic data-quality diagnostics are not construction Quality records');
+  assert.notEqual(projectReviewGroup(contractorProgress,state).key,'commercial','contractor-reported progress is not a Contract/Commercial matter');
+});
+
+test('one payment conflict does not turn unrelated missing fields into one corrected-file demand',async()=>{
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const state=runtimeProjects.getOrCreate('PAYMENT-ACTION-SPLIT');
+  const issues:any[]=[
+    {code:'SOURCE_CONFLICT',kind:'source_conflict',summary:'rows · component Arithmetic · source conflict',detail:'One certificate arithmetic does not reconcile.',action:'Reconcile the retained source record.',owner:'Project evidence owner',moduleKeys:['payments'],sourceRefs:['evidence-document:IPC:row:3'],checkIds:[],evidencePaths:['data.focus.paymentRegister.rows[*].componentArithmetic']},
+    {code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'amounts · application Amount · information missing',detail:'Application amount is not supplied.',action:'Supply only if required.',owner:'Project evidence owner',moduleKeys:['payments'],sourceRefs:['evidence-document:IPC:row:3'],checkIds:[],evidencePaths:['data.focus.paymentRegister.rows[*].amounts.applicationAmount']}
+  ];
+  const result=projectActions(state,summarizeControlIssues(issues));
+  const correction=result.actions.find((a:any)=>a.id==='matter:payments:correction');
+  const information=result.information.find((a:any)=>a.id==='matter:payments:information');
+  assert.ok(correction);assert.equal(correction!.requestCount,1);assert.equal(correction!.findings?.[0]?.kind,'source_conflict');
+  assert.ok(information);assert.equal(information!.requestCount,1);assert.equal(information!.findings?.[0]?.kind,'missing_information');
+});
