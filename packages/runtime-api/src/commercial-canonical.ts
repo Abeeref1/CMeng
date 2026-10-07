@@ -314,6 +314,24 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
+  if(has(t,'bond id','bond type','status')&&!has(t,'policy id'))for(const r of t.rows){
+   const instrument=cell(r,'bond type');
+   if(!/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+cell(r,'bond id')))continue;
+   const coverageHeader=amountHeader(t.headers,'coverage amount','insured amount','policy limit','bond amount','guarantee amount','amount');
+   const inceptionDate=dateValue(cell(r,'inception date','start date','effective date','valid from'));
+   const expiryDate=dateValue(cell(r,'expiry date','expiration date','valid until'));
+   insurances.push({
+    policyId:cell(r,'bond id'),
+    kind:instrument||'Insurance policy',
+    insurer:cell(r,'insurer','insurance company','issuer')||null,
+    status:cell(r,'status'),
+    inceptionDate,
+    expiryDate,
+    coverageAmount:moneyFromHeader(r,coverageHeader,'insurance coverage from combined security register',cell(r,'currency')||inheritedCurrency,inceptionDate??expiryDate),
+    sourceRequirement:cell(r,'contract requirement','clause','clause reference')||null,
+    receipt:r.receipt
+   });
+  }
   if(t.headers.includes(canonicalHeader('obligation id')))for(const r of t.rows){
    obligations.push({
     obligationId:cell(r,'obligation id'),
