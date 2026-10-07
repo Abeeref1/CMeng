@@ -1097,3 +1097,18 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "embedded browser script must parse",
   );
 });
+
+
+test("Portfolio attention excludes system checking/updating but keeps real review states", () => {
+  const html = cmengUatHtml();
+  assert.equal(
+    html.includes('function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}'),
+    true,
+    "portfolio attention must retain needs-information, needs-review and real management actions",
+  );
+  assert.equal(
+    html.includes('p.positionState!=="current"||(p.managementActionCount||0)>0'),
+    false,
+    "checking/updating must not be counted as management attention merely because they are not current",
+  );
+});
