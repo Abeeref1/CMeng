@@ -3245,7 +3245,15 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           state.projectId,
         scheduleAnalytics,
         progressReport,
-        independentForecast,
+        independentForecast: forecastControl.gate.publishable
+          ? independentForecast
+          : {
+              ...independentForecast,
+              // Keep the independent CPM calculation and its evidence inside
+              // the Forecast page, but do not publish its finish into Director
+              // or executive surfaces until the reconciliation gate permits it.
+              independentForecastCompletionIso: null,
+            },
         delayClaims,
         noticesClaims,
         eotAssessment,
