@@ -176,7 +176,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   ).length;
   const openRiskKnown=operations.risk.current.filter((row:any)=>row.status==='open').length;
 
-  const commercial=commercialPositionForState(scoped,'project-version:'+state.version);
+  const commercial=commercialPositionForState(
+    scoped,
+    dataDateIso?dataDateIso+'T00:00:00.000Z':'1970-01-01T00:00:00.000Z',
+  );
   const variations=commercial.contractControls?.variations??null;
   const securities=commercial.contractControls?.bondsInsurance??null;
   const variationRefs=variations?.rows.flatMap(row=>row.sourceRefs)??[];
