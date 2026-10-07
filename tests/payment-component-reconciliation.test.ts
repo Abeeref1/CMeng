@@ -25,6 +25,7 @@ function amounts(other:number,net:number){
 
 test('IPC match includes variations, retention, advance recovery and other deductions',()=>{
   const result=reconcilePaymentEvidence(row('20000'),amounts(20_000,1_230_000),'2042-08-20');
+  assert.ok(result.componentArithmetic);
   assert.equal(result.componentArithmetic.state,'matched');
   assert.equal(result.componentArithmetic.calculatedNet,1_230_000);
   assert.equal(result.componentArithmetic.difference,0);
@@ -33,6 +34,7 @@ test('IPC match includes variations, retention, advance recovery and other deduc
 
 test('IPC cannot say matched when a stated net omits a component',()=>{
   const result=reconcilePaymentEvidence(row('0'),amounts(0,1_230_000),'2042-08-20');
+  assert.ok(result.componentArithmetic);
   assert.equal(result.componentArithmetic.calculatedNet,1_250_000);
   assert.equal(result.componentArithmetic.state,'conflicted');
   assert.equal(result.componentArithmetic.difference,-20_000);
