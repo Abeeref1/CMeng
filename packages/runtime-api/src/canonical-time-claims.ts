@@ -505,10 +505,19 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       ...explicitWindows,
       ...temporalWindows,
     ]);
+    const responsibilityText=cell(r,'responsibility');
+    const responsibilityValue=/employer|client|owner/i.test(responsibilityText)?'employer'
+      :/contractor/i.test(responsibilityText)?'contractor'
+      :/concurrent|shared/i.test(responsibilityText)?'concurrent'
+      :/neutral|authority|weather|force majeure/i.test(responsibilityText)?'neutral'
+      :'unknown';
+    const eventStart=dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start'));
+    const awarenessIso=dateValue(cell(r,'awareness date'));
     events.push({eventId,title,category:'other',
-      startIso:dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start')),
+      startIso:eventStart,
+      awarenessIso,
       endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date','impact end','analysis end')),
-      responsibility:'unknown',responsibilityState:'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
+      responsibility:responsibilityValue,responsibilityState:responsibilityText?'candidate':'missing',describedImpactDays:n(r,'days claimed','claimed days'),describedImpactState:'candidate',
       relatedActivityIds:relatedActivities,
       relatedWindowReferences:relatedWindows,
       relatedClauseIdentifiers:clauseIdentifiers,evidenceRefs,
@@ -651,9 +660,19 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
 
   const determinations:DeterminationRecord[]=[],determinationById=new Map<string,DeterminationRecord>();
   for(const table of tables.filter(t=>has(t,'determination id','claim id','awarded eot days')))for(const r of table.rows){
-    const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays:n(r,'awarded eot days'),determinationDate:dateValue(cell(r,'determination date')),
-      state:/^engineer$/i.test(cell(r,'authority'))&&/^immutable$/i.test(cell(r,'governance state'))&&/^determined$/i.test(cell(r,'status'))&&['active','additive'].includes(r.receipt.basisState)?'source_immutable':'candidate',
-      authority:cell(r,'authority'),sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
+    const awardedDays=n(r,'awarded eot days');
+    const determinationDate=dateValue(cell(r,'determination date'));
+    const authorityText=cell(r,'authority');
+    const governanceText=cell(r,'governance state');
+    const statusText=cell(r,'status');
+    const explicitAuthorityOk=!authorityText||/engineer|employer representative|contract administrator/i.test(authorityText);
+    const explicitGovernanceOk=!governanceText||/immutable|official|approved|final/i.test(governanceText);
+    const explicitStatusOk=!statusText||/determined|approved|awarded|final/i.test(statusText);
+    const determinationRegister=/determination/i.test(table.document.documentType??'')||has(table,'determination id','claim id','awarded eot days');
+    const sourceDetermination=determinationRegister&&awardedDays!==null&&determinationDate!==null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState);
+    const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays,determinationDate,
+      state:sourceDetermination?'source_immutable':'candidate',
+      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
     if(!record.determinationId)continue;
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
