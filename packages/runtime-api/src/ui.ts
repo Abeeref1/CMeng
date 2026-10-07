@@ -5242,7 +5242,8 @@ function positionText(p){
   if(p.positionState==="checking")return["review","Checking current position"];
   if(p.positionState==="current")return["current","Current position"];
   if(p.positionState==="needs_review")return["review","Review required"];
-  return["missing","Needs project records"];
+  if(p.positionState==="needs_information")return["missing","Needs information"];
+  return["missing","Position not established"];
 }
 function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}
 function projectCard(p){
@@ -5502,14 +5503,25 @@ async function refresh(bootstrapDemo=true){
   const current=()=>projectRequestIsCurrent(projectId,requestSeq);
   try{
     let loadedOverview;
+    const updateDeadline=Date.now()+60000;
+    let loadedEvidenceWhileUpdating=false;
     do{
       loadedOverview=await api("/api/projects/"+encodeURIComponent(projectId)+"/overview",{headers:{"x-cmeng-async-view":"1"}});
       if(!current())return;
       if(loadedOverview.state!=="updating")break;
       showProjectUpdating(projectId,loadedOverview.documentCount,loadedOverview.message);
-      await loadEvidence();
+      if(!loadedEvidenceWhileUpdating){
+        await loadEvidence();
+        loadedEvidenceWhileUpdating=true;
+      }
       if(!current())return;
-      await new Promise(resolve=>setTimeout(resolve,2000));
+      if(Date.now()>=updateDeadline){
+        el("moduleContent").innerHTML='<div class="notice info" role="status"><b>CMeng is still recalculating this project.</b> Automatic waiting stopped after one minute so the browser remains usable. The last saved portfolio position is unchanged; use Refresh to check again.</div>';
+        el("director").innerHTML='<div class="notice info">Management calculations are still being rechecked. The saved project position remains visible in Portfolio.</div>';
+        setBusy("Project recheck continues in background");
+        return;
+      }
+      await new Promise(resolve=>setTimeout(resolve,5000));
       if(!current())return;
     }while(true);
     if(!current())return;
