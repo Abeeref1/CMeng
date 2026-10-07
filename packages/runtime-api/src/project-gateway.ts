@@ -127,10 +127,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const sameVersion=entry.summary?.version===entry.metadata?.version;
     if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
     if(!busy&&sameVersion&&entry.summary){
-      // Keep the last same-project-version facts visible while this release rechecks
-      // the expensive summary. A release cache miss is not project processing and
-      // must never erase the known Data Date or management counts.
-      return {...entry.summary,positionState:'checking',analysisState:'stale',
+      // Keep the last same-project-version position visible while this software
+      // release rechecks it. A release cache miss is a verification state, not a
+      // change in the project's management position.
+      return {...entry.summary,analysisState:'stale',
         analysisError:'Showing the saved project position while CMeng rechecks this release. Project records are not being changed.'};
     }
     return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,
