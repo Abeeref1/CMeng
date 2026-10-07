@@ -194,12 +194,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // A later genuine source conflict/review remains visible and actionable.
     const confirmedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso&&state.controls.contractTimeBasis.contractualCompletionState==='official';
     if(group.key==='contract-completion'&&confirmedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
-    const refs=[...new Set(issues.flatMap(i=>i.sourceRefs))],pages=[...new Set(issues.flatMap(i=>i.moduleKeys))];
-    const resolution=actionResolution(group,issues,context);
-    const item:ProjectAction={id:'matter:'+group.key,...resolution,title:group.title,reason:group.note,
-      recordCount:refs.length,requestCount:issues.length,findings:issues,findingIds:issues.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
-      ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
-    (item.category==='information'?information:actions).push(item);
+    const pushMatter=(subset:ControlIssue[],suffix='')=>{
+      if(!subset.length)return;
+      const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
+      const resolution=actionResolution(group,subset,context);
+      const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
+        recordCount:refs.length,requestCount:subset.length,findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
+        ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
+      (item.category==='information'?information:actions).push(item);
+    };
+    const correctionIssues=issues.filter(issue=>['source_conflict','data_quality'].includes(issue.kind));
+    const supportingIssues=issues.filter(issue=>!correctionIssues.includes(issue));
+    if(correctionIssues.length&&supportingIssues.length){
+      pushMatter(correctionIssues,':correction');
+      pushMatter(supportingIssues,':information');
+    }else pushMatter(issues);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
