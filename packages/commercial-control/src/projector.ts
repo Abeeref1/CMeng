@@ -625,7 +625,12 @@ export function buildCommercialControlPosition(
               .trim()
               .toUpperCase() ===
               currency &&
-            row.status === "active",
+            row.status === "active" &&
+            (
+              !input.dataDateIso ||
+              !row.expiryIso ||
+              row.expiryIso.slice(0,10) >= input.dataDateIso.slice(0,10)
+            ),
         );
       const claims =
         input.claimCommercials.filter(
