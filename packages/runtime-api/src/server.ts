@@ -2286,6 +2286,14 @@ async function route(
       result=publicModuleResult(moduleForProject(projectId,key),key);
     }else if(advanced&&advancedControlKeys.has(decodeURIComponent(advanced[1]!))){
       result=moduleForProject(projectId,decodeURIComponent(advanced[1]!));
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents'){
+      result=projectDocumentRegister(projectId);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/actions'){
+      result=projectActionRegisterForState(state).workflow;
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/page-review'){
+      result=boqPageReview(state);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/numeric-review'){
+      result=boqNumericReview(state);
     }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/overview'){
       result=overviewForProject(projectId);
     }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/director-position'){
