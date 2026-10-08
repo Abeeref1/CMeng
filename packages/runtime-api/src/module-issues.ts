@@ -213,9 +213,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(explicitBasisReview)add('governance_review','CALCULATION_BASIS_REVIEW','Calculated basis requires review',d.managementReviewReason??'Submitted float and independently recalculated criticality are both available on their stated bases.',
     'Review the calendar, constraints and comparison basis before adopting a management conclusion.','calculationBasis','Project controls reviewer');
   const floatReview=d?.activityFloatReconciliation;
-  if(floatReview?.disputedActivityCount>0&&['established','qualified_scenario'].includes(floatReview.independentCpmState))add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and calculated activity float differ',
-    floatReview.disputedActivityCount+' open activities have different submitted and calculated float; both values and the calculation assumptions are available.',
-    'Review the identified activities and calculation basis before adopting a programme conclusion.','activityFloatReconciliation','Project controls reviewer');
+  if((floatReview?.differenceActivityCount??floatReview?.disputedActivityCount??0)>0&&['established','qualified_scenario'].includes(floatReview.independentCpmState))add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and calculated activity float differ',
+    (floatReview.differenceActivityCount??floatReview.disputedActivityCount)+' open activities differ in submitted versus calculated float; '+
+    (floatReview.criticalityDifferenceCount??floatReview.disputedActivityCount)+' change criticality classification and '+(floatReview.numericDifferenceActivityCount??0)+' keep the same classification.'+
+    (floatReview.commonOffsetHours!==null&&floatReview.commonOffsetHours!==undefined?' A common '+floatReview.commonOffsetHours+'-hour offset is present across comparable activities; its calendar/definition cause is unverified.':''),
+    'Reconcile the exact working-calendar and float conventions and retain both answers. A numerical difference is not a contractual dispute or automatic approval.','activityFloatReconciliation','CMeng');
   if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review','comparison_difference'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');

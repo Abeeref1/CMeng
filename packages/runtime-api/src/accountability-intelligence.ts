@@ -41,7 +41,10 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     if(row.scope!=='current'||(!row.overdue&&!['failed','rejected','retest required','blocked'].includes(row.currentStatus)))continue;
     const sourceRow=recordById.get(row.recordId)!;addDelivery(row.recordId,row.kind,row.overdue?'Overdue '+row.kind+' record':row.currentStatus+' '+row.kind+' outcome',row.dueDate??null,sourceRow.links.activityIds,sourceRow.receipts.map(x=>x.documentId+':'+x.locator));
   }
-  for(const p of delivery.packageRows)if(!p.deliveredAtDataDate&&((typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0)||p.overdueUndelivered)){
+  // Reuse the same as-of procurement flags used by the specialist Delivery page.
+  // Reported delivered is not an actual delivery date, but it is not evidence
+  // of an outstanding late shipment merely because the old forecast was late.
+  for(const p of delivery.packageRows)if(p.forecastLate||p.overdueUndelivered){
     const r=recordById.get(p.recordId)!;const issue=p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
     for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:p.headroomCalendarDays===null?daysOver(p.needDate,dataDateIso):-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}

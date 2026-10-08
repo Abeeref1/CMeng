@@ -2175,7 +2175,7 @@ function renderMovementConcentration(m,fallback){
 }
 function activityFloatReviewHtml(row){
   if(!row.floatReconciliationState)return '';
-  const disputed=row.floatReconciliationState==='material_difference';
+  const disputed=row.floatReconciliationState==='material_difference'||row.floatReconciliationState==='numeric_difference';
   const independent=row.independentTotalFloatHours==null?'Not established':fmt(row.independentTotalFloatHours)+' h · '+planningStateLabel(row.independentCriticality);
   return '<br><span class="state-pill '+(disputed?'review':row.floatReconciliationState==='matched'?'ready':'neutral')+'">'+escapeHtml(row.floatReviewLabel)+'</span><br><span class="muted">Submitted: '+escapeHtml(row.submittedTotalFloatHours==null?'Unresolved':fmt(row.submittedTotalFloatHours)+' h · '+planningStateLabel(row.submittedCriticality))+'<br>CMeng CPM: '+escapeHtml(independent)+'</span>';
 }
@@ -2190,7 +2190,7 @@ function renderActivityFloatReconciliation(review){
   if(!review||!Array.isArray(review.rows)||!review.rows.length)return '';
   const id='floatReview'+(++floatReviewSequence);floatReviewStore.set(id,review);
   if(floatReviewStore.size>20)floatReviewStore.delete(floatReviewStore.keys().next().value);
-  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Float comparison · '+fmt(review.disputedActivityCount||0)+' differ · '+fmt(review.unresolvedActivityCount||0)+' need calculation inputs</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
+  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Float comparison · '+fmt(review.differenceActivityCount??review.disputedActivityCount??0)+' differ · '+fmt(review.unresolvedActivityCount||0)+' need calculation inputs</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
 }
 function activityReviewRowHtml(a){
   return '<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+

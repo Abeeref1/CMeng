@@ -7608,9 +7608,13 @@ function resolveProjectModuleCandidate(
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
     const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
     result.data=attachActivityFloatReconciliation(result.data,review);
-    if(review.summary.disputedActivityCount){
+    if(review.summary.differenceActivityCount){
       result.status='partial';result.professionalState='review_required';
-      result.reason=[result.reason,review.summary.disputedActivityCount+' activities have disputed submitted versus independent float. Each affected row identifies both values and classifications.'].filter(Boolean).join(' ');
+      const offset=review.summary.commonOffsetHours;
+      result.reason=[result.reason,review.summary.differenceActivityCount+' open activities have submitted versus independently calculated float differences ('+
+        review.summary.criticalityDifferenceCount+' change criticality classification; '+review.summary.numericDifferenceActivityCount+' retain the same classification).'+
+        (offset!==null?' A common '+offset+'-hour difference requires calendar/definition reconciliation; it is not evidence of a contractual dispute.':'')+
+        ' Both hourly values and classifications remain available; no difference is silently approved.'].filter(Boolean).join(' ');
     }
   }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
