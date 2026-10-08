@@ -220,6 +220,16 @@ export function projectManagementContext(
       }:null,
     };
   });
+  // Management pages are answer-first summaries. The specialist modules still
+  // retain every source row, activity and per-item series for drill-down/export.
+  // Do not duplicate full registers across three management page payloads.
+  const compactStages=managedProgrammeStages.map(({activityIds,wbsIds,wbsPaths,controlMilestoneIds,...stage})=>({
+    ...stage,activityIdSample:activityIds.slice(0,12),wbsIds:wbsIds.slice(0,8),
+    wbsPaths:wbsPaths.slice(0,5),wbsPathCount:wbsPaths.length,
+    controlMilestoneIds:controlMilestoneIds.slice(0,6),controlMilestoneCount:controlMilestoneIds.length,
+  }));
+  const breakdownRows=Array.isArray(progressBreakdown.rows)?progressBreakdown.rows:Array.isArray(progressBreakdown.breakdown)?progressBreakdown.breakdown:[];
+  const utilizationRows=Array.isArray(resources.rows)?resources.rows:[];
   return {
     projectId: state.projectId,
     dataDateIso: schedule?.dataDateIso ?? null,
@@ -228,7 +238,7 @@ export function projectManagementContext(
       activityCount: schedule.activities.length,
       relationshipCount: schedule.relationships.length,
       longLeadEvidence: scheduleLongLead,
-      programmeStages: managedProgrammeStages,
+      programmeStages: compactStages,
     } : null,
     boq: {
       itemCount: boq.itemCount,
@@ -242,10 +252,11 @@ export function projectManagementContext(
         revisionId:schedule?.sourceRevisionId??null,
         dataDateIso:schedule?.dataDateIso??null,
         drivingNetwork:independent.drivingNetwork??null,
-        delayedActivities,
+        delayedActivityCount:delayedActivities.length,
+        delayedActivitySamples:delayedActivities.slice(0,20),detailModule:'activity-analytics',
         criticalCount:activity.counts?.critical?.value??null,
         nearCriticalCount:activity.counts?.nearCritical?.value??null,
-        negativeFloatCount:activityRows.filter((row:any)=>typeof row.totalFloatHours==='number'&&row.totalFloatHours<0).length,
+        negativeFloatCount:activityRows.filter((row:any)=>row.status!=='completed'&&!['level_of_effort','wbs_summary'].includes(row.activityType)&&typeof row.totalFloatHours==='number'&&row.totalFloatHours<0).length,
       },
       milestones:{
         rows:milestoneRows.map((row:any)=>({
@@ -267,19 +278,19 @@ export function projectManagementContext(
       procurement:{
         sourceEvidence:source('procurement'),
         scheduleLongLeadEvidence:scheduleLongLead,
-        boqLongLeadCandidates:boq.longLead,
+        boqLongLeadCandidateCount:boq.longLead.length,boqLongLeadCandidateSamples:boq.longLead.slice(0,12),
       },
       design:{sourceEvidence:source('design'),rfiSourceEvidence:source('design'),submittalSourceEvidence:source('submittal')},
       interfaces:{sourceEvidence:source('interfaces')},
       progress:{
         progressBases:progress.progressBases??null,
         scopeComparison:progress.scopeComparison??null,
-        breakdown:progressBreakdown.rows??progressBreakdown.breakdown??null,
+        breakdownCount:breakdownRows.length,breakdownSamples:breakdownRows.slice(0,15),detailModule:'progress-breakdown',
       },
       resources:{
         resourceCount:resources.resourceCount??resources.p6ResourceMasterCount??null,
         assignedResourceCount:resources.assignedResourceCount??null,
-        utilization:resources.rows??null,
+        utilizationCount:utilizationRows.length,utilizationSamples:utilizationRows.slice(0,15),detailModule:'resource-utilization',
         plannedHours:manhours.plannedHours??manhours.plannedHoursKnown??null,
         actualHours:manhours.actualHours??manhours.actualHoursKnown??null,
         sourceEvidence:source('resources'),
