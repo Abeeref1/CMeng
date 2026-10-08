@@ -90,7 +90,7 @@ test('one project facts snapshot is reused for the whole project version and reb
 test('ORBIT source: 26 awarded days are not erased by an amendment repeating original 31 March 2030',t=>{
  const {state,csvDoc}=fixture(t);
  amendment(state);
- csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
+ csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
  const basis=canonicalTimeClaims(state).contractTimeBasis;
  assert.equal(basis?.overlapResolution,'unresolved','amendment and determination overlap must remain qualified');
  const facts=projectFactsForState(state);
