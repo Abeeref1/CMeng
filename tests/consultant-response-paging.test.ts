@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {pageProjectResponse,recordDetailPage,jsonPointer,PROJECT_SCREEN_MAX_BYTES,isProjectScreenRequest} from '../packages/runtime-api/src/response-paging';
+
+test('large screens stay under 2 MB and retain every original row via bounded server paging',()=>{
+ const source={key:'delay-claims',status:'ready',projectVersion:10,data:{
+   projectFacts:{time:{extendedContractCompletionIso:{value:'2027-09-21',basis:'source EOT',state:'confirmed'}}},
+   rows:Array.from({length:5665},(_,i)=>({
+     recordId:'raw-record-'+i,claimId:'CLM-'+i,sourceAmount:i+0.26,sourceDate:'2026-08-31',
+     originalNarrative:'Reported source evidence '.repeat(70),sourceRefs:['source:document:'+i,'schedule:activity:'+i]
+   })),
+   financial:{certifiedUnpaid:12789,negativeFloat:12},
+ }};
+ const before=source.data.rows.length;
+ const result=pageProjectResponse(source,'/api/projects/TEST/schedule/modules/delay-claims') as any;
+ assert.ok(Buffer.byteLength(JSON.stringify(result))<PROJECT_SCREEN_MAX_BYTES);
+ assert.equal(source.data.rows.length,before,'original source must never be truncated or mutated');
+ assert.equal(result.data.projectFacts.time.extendedContractCompletionIso.value,'2027-09-21');
+ assert.ok(result.responsePaging.tables.some((row:any)=>row.pointer==='/data/rows'&&row.total===5665));
+ for(const page of [0,25,200,5650]){
+   const detail=recordDetailPage(source,'/data/rows',page);
+   assert.equal(detail.total,5665);
+   assert.ok(detail.rows.length<=25);
+   assert.equal(detail.rows[0].claimId,'CLM-'+page);
+ }
+});
+test('small source responses are unchanged, and technical detail paths are not a hidden deletion',()=>{
+ const source={data:{amount:125.37,days:26,records:[{id:'A',amount:12}]}};
+ assert.equal(pageProjectResponse(source,'/api/projects/P/overview'),source);
+ assert.equal(jsonPointer(source,'/data/records/0/amount'),12);
+ assert.equal(jsonPointer(source,'/__proto__/polluted'),undefined);
+ assert.equal(isProjectScreenRequest('GET','/api/projects/P/management/command-center'),true);
+ assert.equal(isProjectScreenRequest('POST','/api/projects/P/management/command-center'),false);
+});
