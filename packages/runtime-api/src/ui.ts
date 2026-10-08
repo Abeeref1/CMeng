@@ -5015,6 +5015,11 @@ function renderModuleResult(result){
       });
     }
   }
+  const timeFact=result.data?.projectFacts?.time?.extendedContractCompletionIso??result.projectFacts?.time?.extendedContractCompletionIso;
+  if(timeFact?.diagnostics?.includes('AMENDMENT_OVERLAP_TO_CONFIRM')&&timeFact.value){
+    const award=result.data?.projectFacts?.time?.awardedEotDays?.value??null;
+    container.insertAdjacentHTML('afterbegin','<div class="notice info"><b>Extended completion comparison · '+escapeHtml(planningShortDate(timeFact.value))+'</b><p>Amendment overlap to confirm'+(award!==null?' · '+fmt(award)+' awarded EOT days':'')+'. The source figures are retained; this is not an additional certified EOT or a basis for liquidated damages.</p></div>');
+  }
   applyPmcDisplayOwners(container,result.key);
   const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
   if(missing.length){
@@ -5158,7 +5163,7 @@ function renderDirector(d){
   const programmeKpis=planningKpis([
     ["Data Date",s.dataDateIso,"current reporting programme"],
     ["Original contract completion",s.contractualCompletionIso?planningShortDate(s.contractualCompletionIso):"Missing","Contract agreement"],
-    ["Contract completion including awarded EOT",s.officialAdjustedCompletionIso?planningShortDate(s.officialAdjustedCompletionIso):"Missing","Original contract date plus dated EOT awards"],
+    ["Contract completion including awarded EOT"+(d.projectFacts?.time?.extendedContractCompletionIso?.diagnostics?.includes("AMENDMENT_OVERLAP_TO_CONFIRM")?" · amendment overlap to confirm":""),d.projectFacts?.time?.extendedContractCompletionIso?.value?planningShortDate(d.projectFacts.time.extendedContractCompletionIso.value):s.officialAdjustedCompletionIso?planningShortDate(s.officialAdjustedCompletionIso):"Not established","Source-qualified when amendment overlap is unresolved"],
     ["Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Unresolved","current programme"],
     ["Programme calendar recalculation",s.independentForecastCompletionIso||"Unresolved","submitted logic on its own calendars; not attributable delay"],
     ["Positive submitted window movement",c.observedProgrammeMovementDays===null||c.observedProgrammeMovementDays===undefined?"Unresolved":c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT"],
