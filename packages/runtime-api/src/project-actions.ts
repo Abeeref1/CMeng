@@ -217,7 +217,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         field:issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file,owner
       })):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
-        recordCount:refs.length,requestCount:subset.length,owner,missingFields,findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
+        recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
       if(resolution.resolution?.kind==='upload'){
         item.correctionRecords=refs.map(ref=>{
