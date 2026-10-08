@@ -24,6 +24,7 @@ import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-
 import {contractCompletionDependencies,sectionCompletionMilestone} from '../packages/runtime-api/src/project-contract-sections';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
 import {projectManagementContext} from '../packages/runtime-api/src/management-context';
+import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
 
 test('management source inventory reads retained CSV rows and follows header identity before the filename',()=>{
  const folder=mkdtempSync(join(tmpdir(),'cmeng-source-inventory-'));
@@ -197,6 +198,19 @@ test('two equivalent crews recover local time on a cross-plot chain and never al
  model.activities[1]!.sourceConstraints=[{type:'CS_MSO',dateIso:'2034-02-01'}];assert.equal(plotCrewScenarios(model)[0]!.possibleDaysRecovered,null,'unresolved constraint effect is not bypassed for a scenario');
 });
 
+
+test('source-backed contract candidates are visible without fabricated approvals',()=>{
+ const consistency={state:'pass',failedCheckIds:[],checkCount:0} as any;
+ const base={key:'contract-particulars-bonds',status:'partial',reason:null,dependencies:[],evidenceState:'established'} as any;
+ const cap={value:21000000,state:'candidate',authority:'candidate',basis:{method:'governed_ld_cap_basis',sourceRefs:['contract:LD-cap']},diagnostics:[],action:'Promote the governing LD cap.'};
+ const assess=(row:any)=>assessModuleIssues({...base,data:{systemEvidenceContract:{state:'verified_for_checked_metrics'},focus:{liquidatedDamages:{capAmount:row}}}},consistency);
+ const source=assess(cap);
+ assert.equal(source.issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,0,'clean source term is reported, not a new approval request');
+ assert.equal(cap.state,'candidate','source candidate remains explicitly unapproved');
+ assert.equal(assess({...cap,state:'pending_review'}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'actual pending decision must stay actionable');
+ assert.equal(assess({...cap,approvalRequired:true}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'explicit approval requests survive');
+ assert.equal(assess({...cap,basis:{method:'governed_ld_cap_basis',sourceRefs:[]}}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'unsupported candidates still require review');
+});
 
 test('management pages receive quantity summaries, not duplicated full item curves',()=>{
  const state=loadCertifiedDemoProject('QUANTITY-CONTEXT-'+randomUUID());
