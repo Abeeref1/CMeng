@@ -55,3 +55,22 @@ test('fact wiring leaves historical and filtered counts intact and updates only 
   assert.equal(page.points[0]!.criticalCount,71);assert.equal(page.groups[0]!.criticalCount,3);
   assert.equal(source.result.float.criticalCount,999,'cached producer results remain unmodified');
 });
+
+
+test('deterministic independent CPM governs management criticality while submitted float remains separately visible',()=>{
+  const state=loadCertifiedDemoProject('INDEPENDENT-FLOAT-FACTS-'+randomUUID());
+  const model=state.schedules.at(-1)!.revision.model;
+  for(const activity of model.activities)if(activity.status!=='completed')activity.totalFloatHours=800;
+  state.version++;
+  const facts=projectFactsForState(state);
+  assert.equal(facts.schedule.floatBasis,'independent_cpm');
+  assert.equal(facts.schedule.submittedCriticalActivityCount.value,0);
+  assert.notEqual(facts.schedule.independentCriticalActivityCount.value,null);
+  assert.ok((facts.schedule.independentCriticalActivityCount.value??0)>0);
+  assert.equal(facts.schedule.criticalActivityCount.value,facts.schedule.independentCriticalActivityCount.value);
+  assert.notEqual(facts.schedule.criticalActivityCount.value,facts.schedule.submittedCriticalActivityCount.value);
+  const pmo=bindProjectFacts('pmo-analysis',{schedule:{criticalCount:0,nearCriticalCount:0,negativeFloatCount:0,criticalityBasis:'source_total_float'},forecast:{}},facts);
+  assert.equal(pmo.schedule.criticalCount,facts.schedule.independentCriticalActivityCount.value);
+  assert.equal(pmo.schedule.criticalityBasis,'independent_cpm');
+  assert.equal(projectFactConsumerMismatches(pmo).length,0);
+});
