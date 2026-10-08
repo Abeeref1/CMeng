@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { runInNewContext, createContext, runInContext } from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration, isCallExpression, isIdentifier, forEachChild, Node } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
+import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
@@ -310,9 +312,14 @@ test('an obsolete view request cannot replace the current page with an error',as
 });
 
 test('rendered management and delivery status vocabulary uses one central source',()=>{
- const labels=runInNewContext(functions(['humanizeKey','planningStateLabel','deliveryLabel','deliveryValue'])+
-   ';[humanizeKey("not_established"),planningStateLabel(null),deliveryLabel("not_established"),deliveryValue(null),humanizeKey("governance_review")]',{...common});
- assert.deepEqual(Array.from(labels),['Unresolved','Unresolved','Unresolved','Unresolved','Review required']);
+ const management=runInNewContext(functions(['humanizeKey','planningStateLabel'])+
+   ';[humanizeKey("not_established"),planningStateLabel(null),humanizeKey("governance_review")]',{...common});
+ assert.deepEqual(Array.from(management),[STATUS_LABELS.not_established,STATUS_LABELS.not_established,STATUS_LABELS.governance_review]);
+ // The delivery UI lives in its own embedded source, not among the main
+ // page's top-level function declarations. Test what that script renders.
+ const delivery=runInNewContext(deliveryScript()+
+   ';[deliveryLabel("not_established"),deliveryValue(null),deliveryValue(0)]',{escapeHtml:String});
+ assert.deepEqual(Array.from(delivery),[STATUS_LABELS.not_established,STATUS_LABELS.not_established,'0']);
  const html=runInNewContext(functions(['renderPositionVerdict'])+
    ';renderPositionVerdict({positionVerdict:{rag:"amber",specific:true,label:"Review needed",text:"Source finding",nextAction:"Check contract",owner:"Contracts Manager",assignTo:"Contracts Manager",basis:"Current source"}})',{...common});
  assert.match(html,/Contracts Manager/);
