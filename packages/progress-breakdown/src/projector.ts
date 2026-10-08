@@ -333,6 +333,7 @@ export function buildProgressBreakdownProjection(
   }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   const executionActivities = model.activities.filter(isExecutionActivity);
+  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config),executionActivities);
   const progressPosition = scheduleProgress(executionActivities);
   const overallKnownWeightHours = progressPosition.knownWeightHours;
   const scopeByActivity = new Map((input.scopeClassification?.rows ?? []).map(row => [row.activityId, row]));
@@ -506,6 +507,7 @@ export function buildProgressBreakdownProjection(
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
+    overallSummary,
     totalActivityCount: rows.reduce(
       (sum, row) => sum + row.activityCount,
       0,
