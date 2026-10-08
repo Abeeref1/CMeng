@@ -44,7 +44,15 @@ export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:D
  return null;
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
+type DeliveryDocumentReceipt={documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]};
+const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;value:{
+ records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[];
+}}>();
 export function deliveryRecords(state:ProjectRuntimeState){
+ // Avoid repeatedly parsing and hashing identical source registers inside
+ // one version. The persisted project version invalidates the cache.
+ const prior=deliveryRecordsCache.get(state);
+ if(prior?.version===state.version)return prior.value;
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
  const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
@@ -90,7 +98,8 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const governed=records.filter(deliveryCurrentRecord),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
  for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple current source records share this reference; select the current revision explicitly.');}
- return {records,documents,diagnostics};
+ const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,value});
+ return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
 export function validateDeliveryLinks(state:ProjectRuntimeState,records:DeliveryRecord[],links:DeliveryLinks){

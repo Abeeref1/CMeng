@@ -87,6 +87,8 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
       risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
   const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
+  const ncrDueKnown=quality.current.every(r=>r.status!=='open'||r.dueIso!==null);
+  const dueBefore=(date:string|null,due:string|null|undefined)=>!!date&&!!due&&due<date;
   const actionRows=[
     ...quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).map(r=>({recordId:r.ncrId,type:'NCR',priority:r.severity,owner:r.owner??null,dueIso:r.dueIso??null,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Resolve the NCR and record closure evidence; confirm the responsible owner and due date where absent.'})),
     ...rfi.current.filter(r=>r.status==='open'&&r.dueIso&&dateValue(date??'')&&r.dueIso<dateValue(date??'')!).map(r=>({recordId:r.rfiId,type:'RFI',priority:'overdue',owner:r.owner??null,dueIso:r.dueIso,raisedIso:r.raisedIso??null,subject:r.subject??null,linkedActivityId:r.linkedActivityId??null,sourceRefs:r.sourceRefs,action:'Obtain the overdue response; record the decision and linked activity impact.'}))
@@ -95,9 +97,14 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     missingActionFields:[...(!row.owner?['Owner']:[]),...(!row.dueIso?['Due date']:[])]}))
     .sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(b.overdueDays??-1)-(a.overdueDays??-1)||(b.ageDays??-1)-(a.ageDays??-1)||a.recordId.localeCompare(b.recordId));
   return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
+    openNcrCount:quality.current.filter(r=>r.status==='open').length,
+    overdueNcrCount:quality.current.filter(r=>r.status==='open'&&dueBefore(dateValue(date??''),r.dueIso)).length,
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
     uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,
   },counts:{
+    openNcrCount:quality.complete?quality.current.filter(r=>r.status==='open').length:null,
+    overdueNcrCount:quality.complete&&ncrDueKnown&&!!dateValue(date??'')?
+      quality.current.filter(r=>r.status==='open'&&dueBefore(dateValue(date??''),r.dueIso)).length:null,
     openCriticalMajorNcrCount:quality.complete&&severityKnown?quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length:null,
     openRfiCount:rfi.complete?rfi.current.filter(r=>r.status==='open').length:null,
     overdueRfiCount:rfi.complete&&dueKnown?rfi.current.filter(r=>r.status==='open'&&r.dueIso!<dateValue(date??'')!).length:null,

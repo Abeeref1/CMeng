@@ -447,6 +447,14 @@ export interface LdScenario {
 }
 
 export interface LiquidatedDamagesProjection {
+  /** Clean extracted clause values are presented as reported source evidence.
+   * Legal applicability, EOT entitlement and LD deduction remain separate. */
+  reportedSourceTerms:{
+    rate:RawLdTermInput['rate'];
+    cap:RawLdTermInput['cap'];
+    rateEvidence:'reported_source_value'|'missing'|'conflicted';
+    capEvidence:'reported_source_value'|'missing'|'conflicted';
+  };
   capabilityKey:
     "liquidated-damages";
   state: CommercialFindingState;

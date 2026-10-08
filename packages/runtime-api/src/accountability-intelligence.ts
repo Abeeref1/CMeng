@@ -109,13 +109,26 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
 
   const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));
   for(const detail of details){const key=actionRecordKey(detail.domain,detail.reference??detail.recordId),items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
+  // An unassigned person is never an unassigned responsibility. Keep the
+  // original missing-person evidence and show the accountable PMC role.
+  const accountablePmcRole=(domain:string)=>{
+    const d=domain.toLowerCase();
+    return d==='procurement'?'Procurement Manager':
+      d==='rfi'||d==='design'?'Design Manager':
+      d==='ncr'||d==='quality'?'QA/QC Manager':
+      d==='schedule'||d==='activity'||d==='programme'?'Planning Manager':
+      d==='claim'||d==='notice'?'Contracts Manager':
+      d==='risk'?'Risk Manager':
+      d==='security'||d==='bond'||d==='insurance'?'Commercial Manager':
+      'Project Controls Manager';
+  };
   const actionRows:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
     const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
     const organisation=dimension('organisation')??dimension('contractor')??dimension('subcontractor');
-    const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor');
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
+    const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor')??accountablePmcRole(domain);
     const procurement=domain==='procurement'?delivery.packageRows.find(row=>row.recordId===first.recordId):null;
     const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work';
     const consequence=
@@ -148,7 +161,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   for(const bond of commercialCanonical(state).bonds??state.controls.bonds){
     if(bond.status!=='expired')continue;
     actionRows.push(managementAction({actionId:'security:'+bond.bondId,recordKey:actionRecordKey('security',bond.bondId),issue:bond.bondId+' · security expired',
-      consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:null,organisation:null,
+      consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:'Commercial Manager',organisation:null,
       requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
       severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }

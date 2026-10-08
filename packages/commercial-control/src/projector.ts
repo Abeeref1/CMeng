@@ -1099,14 +1099,18 @@ export function buildCommercialControlPosition(
         const explicitlyNotCertified=(p:typeof payments[number])=>/appl(?:ied|ication)?|submitted|draft|pending|under review/i.test(p.sourceStatus??'');
         const undatedCertification=payments.some(p=>!p.certificationDate&&reportingScope(p.periodEnd,ledger.dataDateIso)!=='future'&&!explicitlyNotCertified(p));
         const compatible=certified.length>0&&!undatedCertification&&new Set(certified.map(p=>p.paymentId)).size===certified.length&&certified.every(p=>p.certifiedAmountBasis==='incremental');
+        // Period End is an explicitly sourced reporting period, NOT a claimed
+        // certification event. Inferred per-certificate values remain qualified.
+        const sourceBasisQualified=certified.some(p=>p.certificationDateBasis==='period_end_proxy'||p.certifiedAmountBasisEvidence==='inferred_per_certificate');
+        const sourceBasisDiagnostics=sourceBasisQualified?["CERTIFICATION_DATED_BY_SOURCE_PERIOD_END_OR_PER_CERTIFICATE_BASIS_INFERRED"]:[];
         const total=(fields:Array<'grossWork'|'variations'|'netCertifiedAmount'>)=>{
           const amounts=certified.flatMap(p=>fields.map(f=>p.amounts[f]));
           const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
-          return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),"established",refs):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
+          return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),sourceBasisQualified?"candidate":"established",refs,sourceBasisDiagnostics):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
         };
         const sourceGrossCertified=total(['grossWork','variations']);
         const sourceNetCertified=total(['netCertifiedAmount']);
-        const sourceCertificateCount=compatible?moneyMetric(certified.length,"established",refs):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
+        const sourceCertificateCount=compatible?moneyMetric(certified.length,sourceBasisQualified?"candidate":"established",refs,sourceBasisDiagnostics):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
         // Source registers can supplement a governed control position, but a
         // weaker/missing source interpretation must never erase a value that was
         // explicitly governed through the control layer.
@@ -1143,7 +1147,10 @@ export function buildCommercialControlPosition(
     explainMissingInformation(position.assessedClaimAmount,"Assessed money is missing or incomplete for this currency; assessed days remain separate.","Supply the monetary assessment by claim ID, currency and reporting date.");
     explainMissingInformation(position.interimCertificateCount,"Dated certification count is not supported by the source periods.","Supply the certification dates and retain the source-period count separately.");
     explainMissingInformation(position.grossCertifiedAmount,"Dated gross certification is not supported by the supplied event dates.","Confirm the certification date and gross certified amount for each certificate; gross work remains available in the source profile.");
-    explainMissingInformation(position.paidAmount,"Actual payment amounts and receipt dates are not confirmed.","Supply dated payments or receipts, references and certificate allocations.");
+    const certificateHasNoPaidColumn=!!input.sourceLedger?.payments.length&&input.sourceLedger.payments.every(p=>p.amounts.paidAmount.value===null);
+    explainMissingInformation(position.paidAmount,
+      certificateHasNoPaidColumn?"Paid: not supplied in this certificate register.":"Actual payment amounts and receipt dates are not confirmed.",
+      certificateHasNoPaidColumn?"No cash receipt is inferred. Attach actual payment evidence when available.":"Supply dated payments or receipts, references and certificate allocations.");
     explainMissingInformation(position.certifiedUnpaidAmount,"Unpaid balance needs confirmed certification and payment records.","Reconcile dated certificates with their allocated payments; missing payments are not zero.");
     explainMissingInformation(position.retentionHeldAmount,"Held balance needs opening retention and release records.","Reconcile the retention deductions with opening balances and dated releases.");
     explainMissingInformation(position.advanceBalance,"Advance balance is not supported by the current records.","Supply the original advance payment, receipt date and recovery allocation.");
@@ -1706,7 +1713,8 @@ export function buildCommercialControlPosition(
             "official" &&
           contractTime
             ?.overlapResolution !==
-            "unresolved"
+            "unresolved" &&
+          contractTime?.eotDayBasisState === "official"
             ? "established"
             : adjusted
               ? "candidate"
@@ -1717,7 +1725,9 @@ export function buildCommercialControlPosition(
                 : "not_submitted",
           timeRefs,
           adjusted
-            ? []
+            ? (contractTime?.eotDayBasisState === "candidate"
+               ? ["EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT"]
+               : [])
             : contractTime?.overlapResolution === "unresolved"
               ? ["AMENDMENT_DETERMINATION_OVERLAP_NOT_CONFIRMED"]
             : contractTime?.eotDayBasis !== "calendar_days" ? ["OFFICIAL_ADJUSTED_COMPLETION_REQUIRES_SUPPORTED_EOT_DAY_BASIS"] : [

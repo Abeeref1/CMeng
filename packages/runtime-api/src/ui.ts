@@ -513,6 +513,24 @@ let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>v===null||v===undefined?"Unresolved":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(6))):humanizeIsoText(String(v));
+const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
+function fmtForField(key,value){
+  if(value===null||value===undefined)return"Not established";
+  if(typeof value==="string"){
+    if(SCREEN_STATUS_LABELS[value])return SCREEN_STATUS_LABELS[value];
+    if(/^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9:.]+Z?)?$/.test(value))return planningShortDate(value);
+    if(/^[A-Z][A-Z0-9_]*_[A-Z0-9_]+$/.test(value))return humanizeKey(value.toLowerCase());
+    return fmt(value);
+  }
+  if(typeof value!=="number"||!Number.isFinite(value))return fmt(value);
+  const k=String(key).toLowerCase();
+  const fraction=/^(cpi|spi|costperformanceindex|scheduleperformanceindex)$/.test(k)?2:
+    /(?:percent|percentage|pct|utilization|utilisation)/.test(k)?1:
+    /(?:amount|money|price|cost|paid|unpaid|certified|currencyvalue|retention|budget|contractvalue|balance)/.test(k)?0:
+    /(?:daycount|days|age|durationdays|remainingdays|latedays|earlydays)/.test(k)?0:2;
+  return new Intl.NumberFormat(undefined,{minimumFractionDigits:/^(cpi|spi)$/.test(k)?2:0,maximumFractionDigits:fraction}).format(value);
+}
+
 const fmtExecutive=v=>{
   if(v===null||v===undefined)return"Unresolved";
   if(typeof v!=="number"||!Number.isFinite(v))return String(v);
@@ -924,8 +942,8 @@ function documentReadNote(state){
 function isScalarValue(value){
   return value===null||["string","number","boolean"].includes(typeof value);
 }
-function renderComplexCell(value){
-  if(isScalarValue(value))return escapeHtml(fmt(value));
+function renderComplexCell(value,key=""){
+  if(isScalarValue(value))return escapeHtml(fmtForField(key,value));
   if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
   return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
@@ -934,7 +952,7 @@ function renderRecordTable(records){
   if(!rows.length)return"";
   const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))];
   return '<div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
-    rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key])+'</td>').join("")+'</tr>').join("")+
+    rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
 function renderStructuredValue(value,depth=0){
@@ -950,7 +968,7 @@ function renderStructuredValue(value,depth=0){
   const entries=Object.entries(value);
   const scalars=entries.filter(([,v])=>isScalarValue(v));
   const complex=entries.filter(([,v])=>!isScalarValue(v));
-  let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>':"";
+  let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmtForField(key,v))+'</span></div>').join("")+'</div>':"";
   if(depth>=2&&complex.length){
     html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
     return html;

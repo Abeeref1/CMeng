@@ -8,6 +8,7 @@ import {
 import type { PrimaveraXmlResult } from "../../primavera-xml-parser/src";
 import type { ScheduleTabularResult } from "../../schedule-tabular-parser/src";
 import { parseScheduleDate } from "../../schedule-values/src";
+import {reconcileCalendarWithP6Dates} from "../../xer-parser/src/calendar-date-reconciliation";
 import {
   normalizeActivityStatus,
   normalizeActivityType,
@@ -574,6 +575,13 @@ export function canonicalScheduleFromXer(
 
   const calendarIntegrity =
     verifyXerCalendars(result);
+  // Source calendar intervals remain the first authority. Only where they
+  // are genuinely absent, a unique P6-dated duration reconciliation can
+  // supply an explicitly qualified working pattern.
+  const reconciledP6Calendars=new Map(calendarIntegrity.calendars.flatMap(calendar=>{
+    const data=reconcileCalendarWithP6Dates(calendar,taskRows);
+    return data?[[calendar.calendarId,data] as const]:[];
+  }));
   const calendarById =
     new Map(
       calendarIntegrity.calendars.map(
@@ -624,6 +632,12 @@ export function canonicalScheduleFromXer(
       calendarById.get(
         calendarId,
       );
+    const recovered=reconciledP6Calendars.get(calendarId);
+    if(recovered){
+      const qualified={data:recovered,inheritedFrom:[] as string[]};
+      resolvedCalendarData.set(calendarId,qualified);
+      return qualified;
+    }
     if (
       !calendar ||
       calendar.status ===
@@ -764,6 +778,9 @@ export function canonicalScheduleFromXer(
             resolveCalendarData(
               calendar.calendarId,
             );
+          if(reconciledP6Calendars.has(calendar.calendarId)){
+            return ["CALENDAR_P6_DATE_RECONCILIATION_QUALIFIED:"+calendar.calendarId];
+          }
           if (
             calendar.status ===
             "unresolved"
@@ -844,11 +861,12 @@ export function canonicalScheduleFromXer(
           name: calendar.name,
           sourceConversionDayHours:calendar.conversionDayHours,
           sourceConversionWeekHours:calendar.conversionWeekHours,
+          reconciledFromP6Dates:reconciledP6Calendars.has(calendar.calendarId),
           semanticComplete:
-            calendar.status === "verified" &&
+            (calendar.status === "verified" || reconciledP6Calendars.has(calendar.calendarId)) &&
             resolved !== null &&
             resolved.data.status === "valid" &&
-            days.length > 0,
+            days.length === 7,
           weeklyWorkMinutes,
           weeklyWorkIntervals:
             days.map((day) => ({

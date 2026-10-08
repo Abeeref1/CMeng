@@ -1905,7 +1905,28 @@ async function route(
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
-    if(req.method==='GET'&&!actionsMatch[2]){json(res,200,projectActionRegisterForState(state).workflow);return;}
+    if(req.method==='GET'&&!actionsMatch[2]){
+      const workflow=projectActionRegisterForState(state).workflow;
+      if(url.searchParams.has('page')){
+        // Server-side selection ensures the browser receives only the
+        // current action page, not the entire register or its source receipts.
+        const page=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('page')??'0',10)||0));
+        const pageSize=Math.min(25,Math.max(1,Number.parseInt(url.searchParams.get('pageSize')??'25',10)||25));
+        const term=(url.searchParams.get('query')??'').trim().toLowerCase().slice(0,200);
+        const category=url.searchParams.get('category')??'all';
+        const relevant=workflow.actions.filter(action=>
+          (category==='all'||action.category===category)&&
+          (!term||(action.title+' '+action.reason).toLowerCase().includes(term)));
+        const gaps=workflow.information??[];
+        const gapsPage=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('dataGapsPage')??'0',10)||0));
+        json(res,200,{...workflow,actions:relevant.slice(page*pageSize,(page+1)*pageSize),
+          information:gaps.slice(gapsPage*pageSize,(gapsPage+1)*pageSize),
+          page,pageSize,matchedActionCount:relevant.length,hasMoreActions:(page+1)*pageSize<relevant.length,
+          dataGapsTotalCount:gaps.length,dataGapsPage:gapsPage,hasMoreDataGaps:(gapsPage+1)*pageSize<gaps.length});
+        return;
+      }
+      json(res,200,workflow);return;
+    }
     if(req.method==='POST'&&actionsMatch[2]==='confirm-schedule'){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
     if(req.method==='POST'&&actionsMatch[2]==='confirm-contract-completion'){try{
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));

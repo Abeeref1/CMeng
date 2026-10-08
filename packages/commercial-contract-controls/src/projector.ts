@@ -1702,6 +1702,12 @@ function liquidatedDamages(
   }
 
   return {
+    reportedSourceTerms:{
+      rate:terms?.rate??null,
+      cap:terms?.cap??null,
+      rateEvidence:terms?.rate?'reported_source_value':rateState==='conflicted'?'conflicted':'missing',
+      capEvidence:terms?.cap?'reported_source_value':capState==='conflicted'?'conflicted':'missing',
+    },
     capabilityKey:
       "liquidated-damages",
     state:

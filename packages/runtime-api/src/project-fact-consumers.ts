@@ -55,7 +55,7 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   for(const [fact,field] of Object.entries({criticalActivityCount:'criticalCount',nearCriticalActivityCount:'nearCriticalCount',negativeFloatActivityCount:'negativeFloatCount',delayedOpenActivityCount:'delayedActivityCount'})){
     bind('schedule.'+fact,['visualControl.schedule.'+field,'managementContext.crossModule.programme.'+field]);
   }
-  for(const name of ['openRfiCount','overdueRfiCount','openCriticalMajorNcrCount','openRiskCount']){
+  for(const name of ['openRfiCount','overdueRfiCount','openNcrCount','overdueNcrCount','openCriticalMajorNcrCount','openRiskCount']){
     bind('controls.'+name,['controls.'+name,'controls.reporting.counts.'+name,'operationalReporting.counts.'+name]);
   }
   bind('commercial.expiredBondCount',['controls.expiredBondCount']);

@@ -56,7 +56,7 @@ import { contractCompletionPosition } from "./contract-completion";
 import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
-import { forecastControlForState } from "./forecast-control";
+import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
@@ -7775,7 +7775,13 @@ export function moduleForProject(
       ["project"],
     );
   }
-  const finalize=(result:ModuleRuntimeResult)=>attachProjectFacts(state,result);
+  const finalize=(result:ModuleRuntimeResult)=>{
+    const attached=attachProjectFacts(state,result);
+    // A position verdict that predates canonical facts can compare against
+    // the unextended contract. Re-evaluate only existing verdict surfaces
+    // after shared fact attachment, without a second calculation producer.
+    return (result.data as any)?.positionVerdict?withPositionVerdict(attached):attached;
+  };
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
@@ -8502,7 +8508,12 @@ export function managementSurfacesForProject(
       action:'Review '+basis+' for activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]};
   })],totalActionCount:operations.actions.length+overdueRows.length,detailModule:'lookahead-schedule',
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
-  const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
+  const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
+  const rawCompletion=currentForecast?.completionPosition??null;
+  const completion=rawCompletion&&hasUnreconciledScheduleCalendar(currentForecast)
+    ?{...rawCompletion,independentFinishIso:null,calculationState:'unresolved',
+      reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
+    :rawCompletion;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
   const issueStage2=profiling?performance.now():0;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
@@ -8704,7 +8715,9 @@ export function overviewForProject(
   const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
   const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
   const roleDiagnosis=pmoData?.projectDiagnosis??null;
-  const roleCompletion=forecastData?.completionPosition??null;
+  const roleCompletion=forecastData?.completionPosition&&hasUnreconciledScheduleCalendar(forecastData)
+    ?{...forecastData.completionPosition,independentFinishIso:null,calculationState:'unresolved'}
+    :forecastData?.completionPosition??null;
   const bundle=overviewResolvedModules?buildBundle(state):null;
   const overviewCommercial=bundle?commercialPositionForState(state,bundle.generatedAt):null;
   const roleContext=overviewResolvedModules?projectManagementContext(state,overviewResolvedModules,overviewCommercial):null;
@@ -8729,7 +8742,8 @@ export function overviewForProject(
     {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
-    {label:'Programme calendar recalculation',value:forecastData?.independentForecastCompletionIso??null,unit:'date',basis:'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Programme calendar recalculation',value:hasUnreconciledScheduleCalendar(forecastData)?null:forecastData?.independentForecastCompletionIso??null,unit:'date',
+      basis:hasUnreconciledScheduleCalendar(forecastData)?'Withheld from management until source calendar hours, work periods and duration conversion reconcile.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
     {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
     {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
   ];

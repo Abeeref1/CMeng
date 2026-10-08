@@ -29,6 +29,8 @@ export type PaymentSeriesBasis =
 export interface PaymentStageRecord {
   paymentId: string; periodEnd: string | null; sourceStatus: string;
   certifiedAmountBasis: PaymentSeriesBasis;
+  certifiedAmountBasisEvidence?: 'explicit'|'period_columns'|'inferred_per_certificate'|'unresolved';
+  certificationDateBasis?: 'source_event_date'|'period_end_proxy'|'not_supplied';
   paidAmountBasis: PaymentSeriesBasis;
   amounts: Record<'applicationAmount'|'engineerAssessedAmount'|'employerCertifiedAmount'|'grossWork'|'grossCertifiedAmount'|'variations'|'variationCertifiedAmount'|'retentionDeduction'|'advanceRecovery'|'otherDeduction'|'taxAmount'|'netCertifiedAmount'|'paidAmount'|'outstandingAmount',CommercialMoney>;
   receipt: SourceReceipt; reconciliation: 'matched'|'conflicted'|'unresolved';
@@ -255,16 +257,23 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    const rawPaymentHeaders=new Set(t.intelligence.columns.map(column=>norm(column.rawHeader)));
    const periodCertificateLayout=['gross work done period','gross work period','this period gross work']
      .some(header=>rawPaymentHeaders.has(norm(header)));
+   const sourceCertificateLayout=has(t,'certificate no','period end','net certified')&&
+     ![...rawPaymentHeaders].some(header=>/cumulative|running total|to date|project to date/.test(header));
+   const sourceCertificationDate=dateValue(cell(r,'certificate date','certification date'));
+   const periodAsCertification=sourceCertificationDate===null&&
+     /^(certified|paid|approved|issued|posted)$/i.test(cell(r,'status'))?asOf:null;
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,
-    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout?'incremental':'unknown',
+    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout||sourceCertificateLayout?'incremental':'unknown',
+    certifiedAmountBasisEvidence:explicitCertifiedBasis!=='unknown'?'explicit':periodCertificateLayout?'period_columns':sourceCertificateLayout?'inferred_per_certificate':'unresolved',
+    certificationDateBasis:sourceCertificationDate?'source_event_date':periodAsCertification?'period_end_proxy':'not_supplied',
     paidAmountBasis:explicitPaidBasis!=='unknown'?explicitPaidBasis:periodCertificateLayout&&has(t,'paid amount')?'incremental':'unknown',
     periodEnd:asOf,
     sourceStatus:cell(r,'status'),
     applicationDate:dateValue(cell(r,'application date','submission date')),
     assessmentDate:dateValue(cell(r,'assessment date','engineer assessment date')),
-    certificationDate:dateValue(cell(r,'certificate date','certification date')),
+    certificationDate:sourceCertificationDate??periodAsCertification,
     certificationDueDate:dateValue(cell(r,'certification due date','certificate due date')),
     paymentDueDate:dateValue(cell(r,'payment due date','due date')),
     paymentTimestamp:cell(r,'payment timestamp','paid timestamp')||null,
