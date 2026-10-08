@@ -215,6 +215,17 @@ const bundleCache =
     string,
     ProjectionBundle
   >();
+/** Read a completed identical-version schedule analysis. This never starts a
+ * calculation or changes authority, and is safe to use when building shared
+ * facts after the specialist bundle has already been calculated. */
+export function peekCachedScheduleAnalytics(state:ProjectRuntimeState):
+  ReturnType<typeof buildScheduleAnalyticsProjection>|null {
+  const bundle=bundleCache.get(state.projectId);
+  if(bundle?.version!==state.version)return null;
+  const existing=bundle.modules.get('schedule-analytics')?.data as ReturnType<typeof buildScheduleAnalyticsProjection>|undefined;
+  return existing?.result?existing:null;
+}
+
 
 function blocked(
   key: string,

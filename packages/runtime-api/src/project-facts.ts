@@ -7,7 +7,7 @@ import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {bindProjectFacts} from './project-fact-consumers';
 import {pmcScheduleRules} from './pmc-schedule-rules';
-import {projectActionRegisterForState} from './project-projections';
+import {projectActionRegisterForState,peekCachedScheduleAnalytics} from './project-projections';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {deliveryPosition} from './delivery-projections';
@@ -195,7 +195,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // is already built by the project bundle; rebuilding its thousands of rows here
   // made first management views recalculate the same project a second time.
   const schedule=model
-    ?buildScheduleAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config})
+    ?peekCachedScheduleAnalytics(state)??buildScheduleAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config})
     :null;
   const executionRows=model?.activities.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
   const openRows=executionRows?.filter(row=>row.status!=='completed')??null;
