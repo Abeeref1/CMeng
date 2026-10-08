@@ -8823,6 +8823,7 @@ export function overviewForProject(
     releaseCommitSha: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null,
     version: state.version,
     demo: state.demo,
+    testProject:state.testProject===true,
     revisionCount:
       programmeSchedules.length,
     baselineRevisionCount:

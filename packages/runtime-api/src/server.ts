@@ -820,6 +820,7 @@ async function route(
     const body =
       await readJsonBody<{
         projectId?: string;
+        testProject?: boolean;
       }>(req);
     const projectId =
       normalizeProjectCode(
@@ -855,10 +856,14 @@ async function route(
       return;
     }
 
+    if(body.testProject!==undefined&&typeof body.testProject!=='boolean'){
+      json(res,400,{error:'test_project_boolean_required'});return;
+    }
     const state =
       runtimeProjects.getOrCreate(
         projectId,
       );
+    if(body.testProject===true){state.testProject=true;runtimeProjects.touch(state);}
     json(
       res,
       201,
@@ -866,6 +871,7 @@ async function route(
         projectId:
           state.projectId,
         created: true,
+        testProject:state.testProject===true,
         version:
           state.version,
       },
@@ -1812,6 +1818,19 @@ async function route(
     return;
   }
 
+
+  // Explicit project type is a durable user decision, not inferred from names.
+  const purposeMatch=/^\/api\/projects\/([^/]+)\/purpose$/.exec(url.pathname);
+  if(req.method==='POST'&&purposeMatch){
+    const id=decodeURIComponent(purposeMatch[1]!);
+    const target=runtimeProjects.get(id);
+    if(!target){json(res,404,{error:'project_not_found'});return;}
+    const body=await readJsonBody<{testProject?:boolean}>(req);
+    if(typeof body.testProject!=='boolean'){json(res,400,{error:'test_project_boolean_required'});return;}
+    if(target.testProject!==body.testProject){target.testProject=body.testProject;runtimeProjects.touch(target);}
+    json(res,200,{projectId:target.projectId,testProject:target.testProject===true,version:target.version});
+    return;
+  }
 
   const demoMatch =
     /^\/api\/projects\/([^/]+)\/demo$/.exec(

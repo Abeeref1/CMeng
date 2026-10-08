@@ -21,7 +21,7 @@ export function projectMetadata(state:ProjectRuntimeState){
   const latestDate=dated.map(s=>s.revision.model.dataDateIso!.slice(0,10)).sort().at(-1)??null;
   const latestMatches=latestDate?dated.filter(s=>s.revision.model.dataDateIso!.slice(0,10)===latestDate):[];
   const latestDataDateIso=(active?.revision.model.dataDateIso??(latestMatches.length===1?latestMatches[0]!.revision.model.dataDateIso:null))?.slice(0,10)??null;
-  return {projectId:state.projectId,demo:state.demo===true,version:state.version,
+  return {projectId:state.projectId,demo:state.demo===true,testProject:state.testProject===true,version:state.version,
     evidenceDocumentCount:state.evidenceDocuments.length,revisionCount:schedules.length,
     latestDataDateIso};
 }

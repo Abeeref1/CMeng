@@ -439,6 +439,8 @@ export interface ProjectRuntimeState {
   projectId: string;
   version: number;
   demo: boolean;
+  /** Explicitly classified as non-client test data; absent means live for legacy projects. */
+  testProject?: boolean;
   schedules: StoredScheduleRevision[];
   evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<
@@ -534,6 +536,7 @@ export interface ProjectRuntimeOverview {
   releaseCommitSha?: string | null;
   version: number;
   demo: boolean;
+  testProject?: boolean;
   revisionCount: number;
   baselineRevisionCount: number;
   updateRevisionCount: number;
