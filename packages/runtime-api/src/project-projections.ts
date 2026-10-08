@@ -1095,6 +1095,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('lookahead_projection');
   const progressScurve =
     buildProgressScurveProjection(
       model,
@@ -1118,6 +1119,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('progress_scurve_projection');
   const milestonesRaw =
     buildMilestonesProjection(
       model,
@@ -1189,6 +1191,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('milestones_projection');
   const nearCriticalRaw =
     buildNearCriticalProjection(
       model,
@@ -1302,6 +1305,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('nearcritical_projection');
   const progressBreakdown =
     buildProgressBreakdownProjection(
       model,
@@ -1324,7 +1328,7 @@ function buildBundle(
     ),
   );
 
-  measureBundle('lookahead_and_progress');
+  measureBundle('progress_breakdown_projection');
   const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);

@@ -88,6 +88,25 @@ export function managementVisualControl(
     lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
   }>();
   const milestoneSource=(Array.isArray(milestones.rows)?milestones.rows:[]).filter((row:any)=>row.status!=='completed');
+  // Index once. The full driving set can contain 20k activities and must not
+  // re-scan all milestones, delivery packages and BOQ packages for every row.
+  const milestoneByActivity=new Map<string,Array<{id:string;ordinal:number}>>();
+  const networkMilestoneRows:Array<{id:string;ordinal:number}>=[];
+  milestoneSource.forEach((m:any,ordinal:number)=>{
+    const entry={id:String(m.activityId),ordinal}, rows=milestoneByActivity.get(entry.id)??[];
+    rows.push(entry);milestoneByActivity.set(entry.id,rows);
+    if(networkMilestones.has(m.activityId))networkMilestoneRows.push(entry);
+  });
+  const packageCandidatesByActivity=new Map<string,string[]>();
+  for(const p of delivery.packageRows)for(const id of p.activityIds){
+    const rows=packageCandidatesByActivity.get(id)??[];
+    rows.push(p.reference??p.recordId);packageCandidatesByActivity.set(id,rows);
+  }
+  const boqCandidatesByWbs=new Map<string,string[]>();
+  for(const p of boqScope.packages){
+    const label=String(p.packageCandidate??p.label??p.package??''),rows=boqCandidatesByWbs.get(label)??[];
+    rows.push(label);boqCandidatesByWbs.set(label,rows);
+  }
   for(const row of drivingActivities){
     const wbs=String(row.wbs??'Unclassified driving scope');
     const group=driverGroupsMap.get(wbs)??{
@@ -97,10 +116,19 @@ export function managementVisualControl(
     if(row.name)group.activityNames.push(String(row.name));
     if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
     if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
-    group.milestoneIds.push(...milestoneSource.filter((m:any)=>m.activityId===row.activityId||networkMilestones.has(m.activityId)).map((m:any)=>String(m.activityId)));
-    group.packageCandidates.push(...delivery.packageRows.filter(p=>p.activityIds.includes(row.activityId)).map(p=>p.reference??p.recordId));
-    group.packageCandidates.push(...boqScope.packages.filter((p:any)=>String(p.packageCandidate??p.label??p.package??'')===wbs)
-      .map((p:any)=>String(p.packageCandidate??p.label??p.package??'')));
+    const localMilestones=milestoneByActivity.get(row.activityId)??[];
+    if(!driverGroupsMap.has(wbs)){
+      // Preserve source-order precedence when the first activity establishes a
+      // group. Network finish milestones are shared by all rows in that group.
+      const first=[...networkMilestoneRows,...localMilestones].sort((a,b)=>a.ordinal-b.ordinal);
+      group.milestoneIds.push(...first.map(m=>m.id));
+    }else{
+      // The global entries were already attached. Only local milestones can
+      // add to the group's unique display population.
+      group.milestoneIds.push(...localMilestones.filter(m=>!networkMilestones.has(m.id)).map(m=>m.id));
+    }
+    group.packageCandidates.push(...(packageCandidatesByActivity.get(row.activityId)??[]));
+    group.packageCandidates.push(...(boqCandidatesByWbs.get(wbs)??[]));
     driverGroupsMap.set(wbs,group);
   }
   const priorityGroups=[...driverGroupsMap.values()].map(group=>({
