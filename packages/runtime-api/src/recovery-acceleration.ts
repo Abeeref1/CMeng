@@ -40,7 +40,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       basis:'Activity-linked labour assignment remaining cost ÷ remaining labour-hours, applied to the additional average people over the established remaining working hours. The single explicit Project cost currency is '+resourceCurrency+'.'};
   };
   const feasibilityChecks=feasibility?.activityChecks??[];
-  const latePackages=delivery.packageRows.filter(p=>!p.deliveredAtDataDate&&(p.overdueUndelivered||typeof p.headroomCalendarDays==='number'&&p.headroomCalendarDays<0));
+  const latePackages=delivery.packageRows.filter(p=>p.overdueUndelivered||p.forecastLate);
   const unresolvedChecks=feasibilityChecks.filter(r=>r.scheduleState==='unresolved');
   const crewEligibleChecks=feasibilityChecks.filter(check=>check.scheduleState==='exceeds'&&typeof check.requiredAveragePeople==='number'&&typeof check.submittedPeople==='number'&&check.requiredAveragePeople>check.submittedPeople&&!!check.submittedFinishIso);
   const governedResequencingWorkfronts=delivery.records.filter(r=>r.kind==='workfront'&&['governed','verified'].includes(r.state)&&['yes','true','permitted','allowed'].includes(String(r.fields['resequencing permitted']??r.fields['parallel execution permitted']??'').trim().toLowerCase()));
