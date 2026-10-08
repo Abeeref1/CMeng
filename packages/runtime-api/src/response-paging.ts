@@ -155,11 +155,33 @@ export function pageProjectResponse(
  final.responsePaging.responseBytes=bytes(final);
  return final;
 }
-export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25){
+export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25,filter?:{
+ query?:string;status?:string;sort?:string;direction?:'asc'|'desc';
+}){
+
   const value=jsonPointer(root,pointer);
   const at=Math.max(0,Math.min(1_000_000,Math.floor(Number.isFinite(offset)?offset:0)));
   const size=Math.max(1,Math.min(25,Math.floor(Number.isFinite(limit)?limit:25)));
-  if(Array.isArray(value))return {pointer,kind:'array',offset:at,total:value.length,rows:value.slice(at,at+size),hasMore:at+size<value.length};
+  if(Array.isArray(value)){
+    const query=String(filter?.query??'').trim().toLowerCase().slice(0,100);
+    const status=String(filter?.status??'').trim().toLowerCase().slice(0,80);
+    const sort=String(filter?.sort??'').trim().slice(0,80);
+    const safeSort=sort&&!sort.split('.').some(part=>['__proto__','constructor','prototype'].includes(part))?sort:'';
+    let matched=query||status?value.filter(row=>{
+      if(status&&String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase()!==status)return false;
+      return !query||JSON.stringify(row).toLowerCase().includes(query);
+    }):value;
+    if(safeSort){
+      const atField=(row:any)=>safeSort.split('.').reduce((o,k)=>o?.[k],row);
+      matched=[...matched].sort((a,b)=>{
+        const av=atField(a),bv=atField(b);
+        const order=typeof av==='number'&&typeof bv==='number'?av-bv:String(av??'').localeCompare(String(bv??''),undefined,{numeric:true});
+        return filter?.direction==='desc'?-order:order;
+      });
+    }
+    return {pointer,kind:'array',offset:at,total:matched.length,sourceTotal:value.length,
+      rows:matched.slice(at,at+size),hasMore:at+size<matched.length};
+  }
   if(typeof value==='string')return {pointer,kind:'text',offset:at,total:value.length,text:value.slice(at,at+8192),hasMore:at+8192<value.length};
   if(value&&typeof value==='object'){
     const keys=Object.keys(value),selected=keys.slice(at,at+size);
