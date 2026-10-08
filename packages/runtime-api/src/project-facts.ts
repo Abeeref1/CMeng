@@ -1,5 +1,4 @@
 import {aggregateCount} from '../../truth-kernel/src';
-import {buildActivityAnalyticsProjection} from '../../activity-analytics/src';
 import {buildScheduleAnalyticsProjection} from '../../schedule-analytics/src';
 import {commercialPositionForState} from './commercial-runtime';
 import {claimsReporting,operationalReporting,reportingState} from './reporting-state';
@@ -14,6 +13,7 @@ import {projectContractSections} from './project-contract-sections';
 import {deliveryPosition} from './delivery-projections';
 import {cachedIndependentForecast} from './forecast-cache';
 import {securityValidityReview} from './security-validity';
+import {activityFloatReconciliation} from './activity-float-reconciliation';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -41,9 +41,18 @@ export interface ProjectFactsSnapshot {
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
+    /** Canonical management criticality. Deterministic independent CPM governs
+     * when established; submitted/source float remains separately visible. */
+    floatBasis:'independent_cpm'|'source_total_float'|'qualified_scenario'|'missing';
     criticalActivityCount:ProjectFact<number>;
     nearCriticalActivityCount:ProjectFact<number>;
     negativeFloatActivityCount:ProjectFact<number>;
+    submittedCriticalActivityCount:ProjectFact<number>;
+    submittedNearCriticalActivityCount:ProjectFact<number>;
+    submittedNegativeFloatActivityCount:ProjectFact<number>;
+    independentCriticalActivityCount:ProjectFact<number>;
+    independentNearCriticalActivityCount:ProjectFact<number>;
+    independentNegativeFloatActivityCount:ProjectFact<number>;
     delayedOpenActivityCount:ProjectFact<number>;
     delayedExecutionActivityCount:ProjectFact<number>;
   };
@@ -178,25 +187,54 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const dataDateIso=model?.dataDateIso?.slice(0,10)??null;
   const config=projectScheduleControlBasis(scoped).analysisConfig;
 
-  const activity=model
-    ?buildActivityAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config})
-    :null;
+  // Keep the shared facts producer light. The full Activity Analytics projection
+  // is already built by the project bundle; rebuilding its thousands of rows here
+  // made first management views recalculate the same project a second time.
   const schedule=model
     ?buildScheduleAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config})
     :null;
-
-  const executionRows=activity?.rows.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
+  const executionRows=model?.activities.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
   const openRows=executionRows?.filter(row=>row.status!=='completed')??null;
-  const delayedOpen=aggregateCount(activity?.rows.filter(row=>row.status!=='completed')??null,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
-  const delayedExecution=aggregateCount(openRows,row=>row.finishVarianceDays===null?null:row.finishVarianceDays>0);
-  const negativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
+  const effectiveFinish=(row:NonNullable<typeof executionRows>[number])=>
+    row.status==='completed'&&row.actualFinishIso?row.actualFinishIso:(row.forecastFinishIso??row.currentFinishIso??row.actualFinishIso);
+  const finishVarianceDays=(row:NonNullable<typeof executionRows>[number])=>{
+    const currentFinish=effectiveFinish(row);
+    if(!row.baselineFinishIso||!currentFinish)return null;
+    const baseline=Date.parse(row.baselineFinishIso),currentMs=Date.parse(currentFinish);
+    return Number.isFinite(baseline)&&Number.isFinite(currentMs)?Number(((currentMs-baseline)/86400000).toFixed(6)):null;
+  };
+  const delayedOpen=aggregateCount(model?.activities.filter(row=>row.status!=='completed')??null,row=>{
+    if(['wbs_summary'].includes(row.activityType))return false;
+    const variance=finishVarianceDays(row);return variance===null?null:variance>0;
+  });
+  const delayedExecution=aggregateCount(openRows,row=>{const variance=finishVarianceDays(row);return variance===null?null:variance>0;});
+  const submittedNegativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
   const float=schedule?.result.float??null;
-  const critical=float
+  const submittedCritical=float
     ?{value:float.criticalCount,knownCount:float.knownClassifications.critical,unresolvedCount:float.unknownFloatCount,populationCount:float.totalActivities}
     :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
-  const nearCritical=float
+  const submittedNearCritical=float
     ?{value:float.nearCriticalCount,knownCount:float.knownClassifications.nearCritical,unresolvedCount:float.unknownFloatCount+float.nearCriticalThresholdUnresolvedCount,populationCount:float.totalActivities}
     :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
+  const independentForecast=model?cachedIndependentForecast(model,'project-version:'+state.version):null;
+  const floatReview=model&&independentForecast?activityFloatReconciliation(model,independentForecast,config):null;
+  const comparableFloatRows=floatReview?[...floatReview.byActivityId.values()].filter(row=>row.floatReconciliationState!=='not_applicable_completed'):[];
+  const independentEstablished=!!floatReview&&floatReview.summary.independentCpmState==='established'&&floatReview.summary.unresolvedActivityCount===0&&
+    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
+  const independentQualified=!!floatReview&&floatReview.summary.independentCpmState==='qualified_scenario'&&floatReview.summary.unresolvedActivityCount===0&&
+    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
+  const independentAggregate=(predicate:(row:(typeof comparableFloatRows)[number])=>boolean)=>{
+    const known=comparableFloatRows.filter(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
+    const unresolved=comparableFloatRows.length-known.length;
+    return {value:unresolved===0?known.filter(predicate).length:null,knownCount:known.filter(predicate).length,unresolvedCount:unresolved,populationCount:comparableFloatRows.length};
+  };
+  const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
+  const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
+  const independentNegativeFloat=independentAggregate(row=>(row.independentTotalFloatHours??0)<0);
+  const canonicalCritical=independentEstablished||independentQualified?independentCritical:submittedCritical;
+  const canonicalNearCritical=independentEstablished||independentQualified?independentNearCritical:submittedNearCritical;
+  const canonicalNegativeFloat=independentEstablished||independentQualified?independentNegativeFloat:submittedNegativeFloat;
+  const floatBasis:ProjectFactsSnapshot['schedule']['floatBasis']=independentEstablished?'independent_cpm':independentQualified?'qualified_scenario':model?'source_total_float':'missing';
   const submittedFinish=schedule?.result.completionBases.find(row=>row.basis==='forecast')
     ??schedule?.result.completionBases.find(row=>row.basis==='programme')
     ??null;
@@ -224,7 +262,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const currentContractCompletion=extendedCompletion??commercial.timeExposure.contractualCompletion.value;
-  const independentFinish=model?cachedIndependentForecast(model,'project-version:'+state.version).independentForecastCompletionIso:null;
+  const independentFinish=independentForecast?.independentForecastCompletionIso??null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
   const actionRegister=projectActionRegisterForState(state);
@@ -237,6 +275,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
+      floatBasis,
       dataDateIso:fact(
         dataDateIso,
         'Adopted current programme Data Date.',
@@ -252,17 +291,35 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         submittedFinish?.sourceRefs??[],
       ),
       criticalActivityCount:aggregateFact(
-        critical,
-        'Execution activities classified critical by the shared schedule-analysis configuration.',
+        canonicalCritical,
+        independentEstablished
+          ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
+          :independentQualified
+            ?'Unfinished execution activities classified critical by the qualified independent CPM scenario with its stated assumptions.'
+            :'Unfinished execution activities classified critical from submitted/source total float because independent CPM is not established.',
       ),
       nearCriticalActivityCount:aggregateFact(
-        nearCritical,
-        'Execution activities classified near-critical by the shared schedule-analysis configuration.',
+        canonicalNearCritical,
+        independentEstablished
+          ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
+          :independentQualified
+            ?'Unfinished execution activities classified near-critical by the qualified independent CPM scenario using the shared threshold.'
+            :'Unfinished execution activities classified near-critical from submitted/source total float because independent CPM is not established.',
       ),
       negativeFloatActivityCount:aggregateFact(
-        negativeFloat,
-        'Execution activities with source total float below zero.',
+        canonicalNegativeFloat,
+        independentEstablished
+          ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
+          :independentQualified
+            ?'Unfinished execution activities with qualified independent CPM total float below zero.'
+            :'Unfinished execution activities with submitted/source total float below zero because independent CPM is not established.',
       ),
+      submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
+      submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical population retained for reconciliation.'),
+      submittedNegativeFloatActivityCount:aggregateFact(submittedNegativeFloat,'Submitted/source negative-float population retained for reconciliation.'),
+      independentCriticalActivityCount:aggregateFact(independentCritical,'Independent CPM critical population; unavailable until the independent calculation covers the open execution population.'),
+      independentNearCriticalActivityCount:aggregateFact(independentNearCritical,'Independent CPM near-critical population; unavailable until the independent calculation covers the open execution population.'),
+      independentNegativeFloatActivityCount:aggregateFact(independentNegativeFloat,'Independent CPM negative-float population; unavailable until the independent calculation covers the open execution population.'),
       delayedOpenActivityCount:aggregateFact(
         delayedOpen,
         'All unfinished programme records, including level-of-effort records, whose effective finish is later than the adopted baseline finish.',
