@@ -30,104 +30,130 @@ export function jsonPointer(root:unknown,pointer:string):unknown {
   return value;
 }
 const bytes=(value:unknown)=>Buffer.byteLength(JSON.stringify(value),'utf8');
-/** Idempotent for small bodies. A large result is never silently replaced with
- * null or zero: every collapsed array/text/object has a retrievable pointer. */
+const TABLE_NAME=/(?:rows|records|register|entries|activities|actions|findings|documents|claims|notices|rfis|ncrs|issues|payments|variations|evidence|sources|lineItems|assets|quantities|bonds|insurances|links|details)$/i;
+const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination']);
+type PageBudget={rows:number;keys:number;text:number;depth:number};
+const FACT_BUDGET:PageBudget={rows:10,keys:85,text:800,depth:9};
+const PAGE_BUDGETS:PageBudget[]=[
+  {rows:25,keys:150,text:4096,depth:12},
+  {rows:25,keys:100,text:2048,depth:10},
+  {rows:12,keys:90,text:1600,depth:10},
+  {rows:4,keys:72,text:1200,depth:9},
+  {rows:0,keys:55,text:700,depth:8},
+];
+
+function chosenKeys(value:Record<string,unknown>,max:number):string[]{
+ const keys=Object.keys(value);
+ if(keys.length<=max)return keys;
+ return [...keys.filter(key=>PRIORITY_FIELDS.has(key)),...keys.filter(key=>!PRIORITY_FIELDS.has(key))].slice(0,max);
+}
+/** A canonical fact snapshot is projected by the SAME fixed rule on every
+ * screen, independent of how large the surrounding specialist module is.
+ * Original registers, receipts and full source facts remain in producers and
+ * downloadable reports, and are retrievable on demand. */
+function compactFactSnapshot(value:unknown):unknown {
+ const seen=new Set<object>();
+ const walk=(v:any,key:string,depth:number):any=>{
+  if(v===null||typeof v!=='object'){
+   return typeof v==='string'&&v.length>FACT_BUDGET.text?v.slice(0,FACT_BUDGET.text):v;
+  }
+  if(seen.has(v))return null;
+  if(depth>FACT_BUDGET.depth)return Array.isArray(v)?[]:{detailAvailable:true};
+  seen.add(v);
+  if(Array.isArray(v)){
+   const result=v.slice(0,FACT_BUDGET.rows).map((item:any)=>walk(item,'',depth+1));
+   seen.delete(v);return result;
+  }
+  const keys=chosenKeys(v,FACT_BUDGET.keys).filter(k=>!['programmeQuality','contractSections','securityValidity'].includes(k));
+  const result:Record<string,unknown>={};
+  for(const field of keys)result[field]=walk(v[field],field,depth+1);
+  seen.delete(v);return result;
+ };
+ return walk(value,'projectFacts',0);
+}
+
+function projectFactsOf(body:unknown):unknown {
+ const item=body as any;
+ return item?.data?.projectFacts??item?.projectFacts??null;
+}
+
+/** No stringify of the 65-MB original data, no six full-payload
+ * serialization passes, and no page-specific truncation of canonical facts.
+ * Counts are always taken BEFORE paging from each exact source population. */
 export function pageProjectResponse(
-  body:unknown,source:string,maxBytes=PROJECT_SCREEN_MAX_BYTES,
+ body:unknown,source:string,maxBytes=PROJECT_SCREEN_MAX_BYTES,
 ):unknown {
-  if(!body||typeof body!=='object')return body;
-  // Row populations must be server-paged even when the response happens to
-  // fit below 2 MB. Charts and short scalar arrays remain untouched when
-  // there is no table requiring a page.
-  const fullBytes=bytes(body);
-  let tableFound=false;
-  if(fullBytes<=maxBytes){
-    const work:Array<{value:unknown;key:string;depth:number}>=[{value:body,key:'',depth:0}];
-    const seen=new Set<object>();
-    while(work.length&&!tableFound){
-      const next=work.pop()!;
-      if(!next.value||typeof next.value!=='object'||seen.has(next.value as object)||next.depth>7)continue;
-      seen.add(next.value as object);
-      if(Array.isArray(next.value)){
-        if(next.value.length>25&&/(?:rows|records|items|actions|findings|claims|notices|rfis|ncrs|entries|documents|activities|source|register|securities|evidence)/i.test(next.key)){
-          tableFound=true;break;
-        }
-        for(const item of next.value.slice(0,3))work.push({value:item,key:'',depth:next.depth+1});
-      }else{
-        for(const [key,value] of Object.entries(next.value))work.push({value,key,depth:next.depth+1});
-      }
-    }
-  }
-  if(fullBytes<=maxBytes&&!tableFound)return body;
-  const projectVersion=Number.isInteger((body as any).projectVersion)
-    ?Number((body as any).projectVersion):Number.isInteger((body as any).data?.projectFacts?.projectVersion)
-    ?Number((body as any).data.projectFacts.projectVersion):null;
-  const limits=[
-    {array:25,depth:10,text:4096,map:50},
-    {array:15,depth:8,text:2048,map:35},
-    {array:8,depth:7,text:1200,map:25},
-    {array:3,depth:6,text:700,map:15},
-    {array:1,depth:5,text:350,map:10},
-    {array:0,depth:3,text:160,map:7},
-  ];
-  for(const limit of limits){
-    const tables:PageTable[]=[];
-    let additionalTables=0;
-    const record=(entry:PageTable)=>{
-      if(tables.length<90)tables.push(entry);else additionalTables++;
-    };
-    const visit=(value:any,pointer:string,depth:number,stack:Set<unknown>):any=>{
-      if(value===null||value===undefined||typeof value==='number'||typeof value==='boolean')return value;
-      if(typeof value==='string'){
-        if(value.length<=limit.text||depth<=1)return value;
-        record({pointer,total:value.length,shown:limit.text,kind:'text'});
-        return value.slice(0,limit.text)+'…';
-      }
-      if(typeof value!=='object')return String(value);
-      if(stack.has(value))return {detailAvailable:true};
-      if(depth>limit.depth){
-        record({pointer,total:Array.isArray(value)?value.length:Object.keys(value).length,shown:0,kind:Array.isArray(value)?'array':'object'});
-        return Array.isArray(value)?[]:{detailAvailable:true};
-      }
-      stack.add(value);
-      if(Array.isArray(value)){
-        if(value.length>limit.array)record({pointer,total:value.length,shown:limit.array,kind:'array'});
-        const v=value.slice(0,limit.array).map((row:any,i:number)=>visit(row,pointer+'/'+i,depth+1,stack));
-        stack.delete(value);return v;
-      }
-      const names=Object.keys(value),namesShown=names.slice(0,limit.map);
-      if(names.length>namesShown.length)record({pointer,total:names.length,shown:namesShown.length,kind:'object'});
-      const data:Record<string,unknown>={};
-      for(const key of namesShown)data[key]=visit(value[key],pointer+'/'+token(key),depth+1,stack);
-      stack.delete(value);return data;
-    };
-    const projection=visit(body,'',0,new Set());
-    const paging:ResponsePaging={source,pageSize:25,projectVersion,
-      tables,additionalTables,responseBytes:0,sourcePreserved:true};
-    if(!projection||typeof projection!=='object'||Array.isArray(projection))continue;
-    projection.responsePaging=paging;
-    const size=bytes(projection);
-    if(size<=maxBytes){
-      paging.responseBytes=size;return projection;
-    }
-  }
-  // A rare very large scalar/flat dictionary still cannot break the browser.
-  // Its original producer remains untouched and available by pointer or export.
-  const sourceValues=body as Record<string,any>;
-  const final={
-    key:sourceValues.key??null,
-    status:sourceValues.status??'partial',
-    reason:'Large source details are available by page. The original records have been retained.',
-    projectFacts:sourceValues.projectFacts??sourceValues.data?.projectFacts??null,
-    data:{projectFacts:sourceValues.data?.projectFacts??null},
-    responsePaging:{source,pageSize:25 as const,projectVersion,
-      tables:[{pointer:'',total:Object.keys(sourceValues).length,shown:0,kind:'object' as const}],
-      additionalTables:0,responseBytes:0,sourcePreserved:true as const},
+ if(!body||typeof body!=='object')return body;
+ const facts=projectFactsOf(body);
+ const normalizedFacts=facts?compactFactSnapshot(facts):null;
+ const projectVersion=Number.isInteger((body as any).projectVersion)
+   ?Number((body as any).projectVersion)
+   :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
+ for(const budget of PAGE_BUDGETS){
+  const tables:PageTable[]=[];
+  let additionalTables=0,changed=false;
+  const seen=new Set<object>();
+  const record=(entry:PageTable)=>{
+   changed=true;
+   if(tables.length<180)tables.push(entry);
+   else additionalTables++;
   };
-  // Headline facts themselves may be exceptionally large in a damaged input.
-  if(bytes(final)>maxBytes){final.projectFacts=null;final.data.projectFacts=null;}
-  final.responsePaging.responseBytes=bytes(final);
-  return final;
+  const visit=(value:any,pointer:string,key:string,depth:number):any=>{
+   if(value===null||value===undefined||typeof value==='number'||typeof value==='boolean')return value;
+   if(typeof value==='string'){
+     if(value.length>budget.text&&depth>1){
+       record({pointer,total:value.length,shown:budget.text,kind:'text'});
+       return value.slice(0,budget.text)+'…';
+     }
+     return value;
+   }
+   if(typeof value!=='object')return String(value);
+   if(key==='projectFacts')return normalizedFacts;
+   if(seen.has(value))return {detailAvailable:true};
+   if(depth>budget.depth){
+     record({pointer,total:Array.isArray(value)?value.length:Object.keys(value).length,shown:0,
+       kind:Array.isArray(value)?'array':'object'});
+     return Array.isArray(value)?[]:{detailAvailable:true};
+   }
+   seen.add(value);
+   if(Array.isArray(value)){
+     const table=TABLE_NAME.test(key)||value.length>100;
+     const shown=table?Math.min(budget.rows,value.length):value.length;
+     if(shown<value.length)record({pointer,total:value.length,shown,kind:'array'});
+     const rows=value.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
+     seen.delete(value);return rows;
+   }
+   const names=Object.keys(value),ordered=chosenKeys(value,budget.keys);
+   if(ordered.length<names.length)record({pointer,total:names.length,shown:ordered.length,kind:'object'});
+   const result:Record<string,unknown>={};
+   for(const field of ordered)result[field]=visit(value[field],pointer+'/'+token(field),field,depth+1);
+   seen.delete(value);return result;
+  };
+  const projection=visit(body,'','',0);
+  if(!projection||Array.isArray(projection)||typeof projection!=='object')return projection;
+  // If there are no paged tables and no canonical facts to normalize, the
+  // original small payload must retain exact source identity.
+  if(!changed&&!facts)return body;
+  const paging:ResponsePaging={
+   source,pageSize:25,projectVersion,tables,additionalTables,responseBytes:0,sourcePreserved:true,
+  };
+  (projection as Record<string,unknown>).responsePaging=paging;
+  const size=bytes(projection);
+  if(size<=maxBytes){paging.responseBytes=size;return projection;}
+ }
+ const input=body as Record<string,any>;
+ const final={
+   key:input.key??null,status:input.status??'partial',
+   reason:'Source details are paged. No original register or computation has been deleted.',
+   data:{projectFacts:normalizedFacts},
+   responsePaging:{source,pageSize:25 as const,projectVersion,
+     tables:[{pointer:'',total:Object.keys(input).length,shown:0,kind:'object' as const}],
+     additionalTables:0,responseBytes:0,sourcePreserved:true as const},
+ };
+ // Fail with an explicit warning rather than inventing shortened numbers.
+ if(bytes(final)>maxBytes)final.data.projectFacts=null;
+ final.responsePaging.responseBytes=bytes(final);
+ return final;
 }
 export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25){
   const value=jsonPointer(root,pointer);
