@@ -521,12 +521,19 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const findings=useBoqCandidates?interfaceFindings:[...p.findings.filter(f=>key==='delivery-control'||f.recordId&&rowIds.has(f.recordId)),...(['delivery-control','construction-readiness','procurement-readiness','delivery-risks'].includes(key)?interfaceFindings:[])];
  const programmeModel=projectControlSchedule(state)?.revision.model??null;
  const programmeActivities=new Map(programmeModel?.activities.map(a=>[a.activityId,a])??[]);
+ const controlRecordById=key==='delivery-control'?new Map(p.records.map(r=>[r.recordId,r] as const)):null;
+ const controlPackageById=key==='delivery-control'?new Map(p.packageRows.map(r=>[r.recordId,r] as const)):null;
+ const workfrontsByActivity=new Map<string,typeof p.records>();
+ if(key==='delivery-control')for(const record of p.records){
+  if(!['governed','verified'].includes(record.state)||record.kind!=='workfront')continue;
+  for(const activityId of record.links.activityIds){const list=workfrontsByActivity.get(activityId)??[];list.push(record);workfrontsByActivity.set(activityId,list);}
+ }
  const deliveryControlActions=key==='delivery-control'?findings.map((finding,index)=>{
-  const source=finding.recordId?p.records.find(r=>r.recordId===finding.recordId)??null:null;
-  const packageRow=finding.recordId?p.packageRows.find(r=>r.recordId===finding.recordId)??null:null;
+  const source=finding.recordId?controlRecordById?.get(finding.recordId)??null:null;
+  const packageRow=finding.recordId?controlPackageById?.get(finding.recordId)??null:null;
   const issueInterface=interfaceFindingRows.find(row=>finding.message.startsWith(row.interfaceId+' ·'))??null;
   const activityIds=[...new Set([...(source?.links.activityIds??[]),...(issueInterface?.linkedActivity?issueInterface.linkedActivity.split(';').map(v=>v.trim()).filter(Boolean):[])])];
-  const workfronts=p.records.filter(r=>['governed','verified'].includes(r.state)&&r.kind==='workfront'&&r.links.activityIds.some(id=>activityIds.includes(id)));
+  const workfronts=[...new Map(activityIds.flatMap(id=>workfrontsByActivity.get(id)??[]).map(r=>[r.recordId,r] as const)).values()];
   const affectedSchedule=activityIds.map(id=>{const activity=programmeActivities.get(id);return activity?(activity.name?activity.activityId+' · '+activity.name:activity.activityId):id;});
   const consequence=issueInterface?.consequence
     ??(packageRow?.forecastLate===true&&packageRow.headroomCalendarDays!==null
