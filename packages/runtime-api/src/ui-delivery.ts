@@ -6,8 +6,8 @@ let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deli
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:6});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
- if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return 'Not established';
- if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):'Not established';
+ if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return humanizeKey('not_established');
+ if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):humanizeKey('not_established');
  if(typeof v==='boolean')return v?'Yes':'No';
  if(Array.isArray(v))return v.length?v.map(x=>deliveryValue(typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):x)).join('; '):'None in this set';
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
@@ -16,7 +16,7 @@ function deliveryValue(v){
  return typeof readerText==='function'&&/(?:schedrev_|evidence(?:-document)?[:_]|pdf_page:|\bdata\.|\b[A-Z]+_[A-Z_]+\b)/.test(s)?readerText(s):s;
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
-const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:'Not established',conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
+const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:humanizeKey('not_established'),conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
 const deliveryRowState=r=>r.state||r.currentStatus||r.permitStatus||r.readinessState||r.status||r.scope;
 function deliveryTable(id,title,rows,columns){
  rows=Array.isArray(rows)?rows:[];
