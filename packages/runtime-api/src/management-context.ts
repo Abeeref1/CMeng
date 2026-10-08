@@ -258,7 +258,11 @@ export function projectManagementContext(
       quantities:{
         boqItemCount:quantities.boqItemCount??boq.itemCount??null,
         installedQuantityStatus:quantities.installedQuantityStatus??null,
-        series:quantities.series??null,
+        sourceSeriesCount:Array.isArray(quantities.series)?quantities.series.length:null,
+        curvesWithPoints:Array.isArray(quantities.series)?quantities.series.filter((row:any)=>Array.isArray(row.points)&&row.points.length>0).length:null,
+        detailModule:'quantity-scurve',
+        // Full per-item curves remain on their own quantity page and export.
+        // Management views share counts, not a repeated megabyte-scale curve payload.
       },
       procurement:{
         sourceEvidence:source('procurement'),
