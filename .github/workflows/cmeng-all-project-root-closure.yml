@@ -1,0 +1,71 @@
+name: CMeng All-Project Root Closure (R1-R9)
+on:
+  workflow_dispatch:
+    inputs:
+      review_url:
+        description: "Isolated review service containing the exact candidate SHA and complete retained project snapshot"
+        required: true
+        type: string
+      release_sha:
+        description: "Exact full 40-character candidate SHA"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: cmeng-all-project-root-${{ inputs.release_sha }}
+  cancel-in-progress: false
+jobs:
+  all_projects:
+    name: All stored projects, 62 screens, R1-R9
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install source dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Build same source SHA
+        run: npm run build
+      - name: Install browser for all rendered project pages
+        run: |
+          npm install --no-save --ignore-scripts playwright
+          npx playwright install chromium
+      - name: Walk all 62 surfaces of every stored project
+        id: rendered
+        continue-on-error: true
+        env:
+          CMENG_RAILWAY_URL: ${{ inputs.review_url }}
+          CMENG_EXPECTED_RELEASE: ${{ inputs.release_sha }}
+          CMENG_SCREEN_ACCEPTANCE_OUTPUT: /tmp/cmeng-all-project-screens.json
+        run: node scripts/cmeng-all-project-screen-acceptance.mjs
+      - name: Check every root on every project and deny incomplete evidence
+        id: roots
+        continue-on-error: true
+        env:
+          CMENG_RAILWAY_URL: ${{ inputs.review_url }}
+          CMENG_EXPECTED_RELEASE: ${{ inputs.release_sha }}
+          CMENG_SCREEN_ACCEPTANCE_OUTPUT: /tmp/cmeng-all-project-screens.json
+          CMENG_ROOT_ACCEPTANCE_OUTPUT: /tmp/cmeng-all-project-root-results.json
+        run: node scripts/cmeng-all-project-root-gate.mjs
+      - name: Retain every project and root outcome even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-project-root-acceptance-${{ inputs.release_sha }}
+          path: |
+            /tmp/cmeng-all-project-screens.json
+            /tmp/cmeng-all-project-root-results.json
+          retention-days: 30
+      - name: Strict single-SHA release decision
+        shell: bash
+        run: |
+          if [ "${{ steps.rendered.outcome }}" != "success" ] || [ "${{ steps.roots.outcome }}" != "success" ]; then
+            echo "::error::CMeng R1-R9 cannot be accepted; at least one project or screen failed."
+            exit 1
+          fi
