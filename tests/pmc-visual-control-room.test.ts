@@ -26,6 +26,24 @@ function procurementDocument(){
   } as any;
 }
 
+test('a 30,000-activity driving network keeps every result without quadratic summary work',()=>{
+  const state=runtimeProjects.getOrCreate('PMC-WIDE-DRIVING-NETWORK');
+  const count=30000,ids=Array.from({length:count},(_,i)=>'A'+i);
+  const modules=new Map<string,any>([
+    ['activity-analytics',{data:{rows:ids.map(activityId=>({activityId,name:activityId,wbsPath:'One workfront',status:'not_started',currentFinishIso:'2031-06-01',totalFloatHours:0}))}}],
+    ['independent-forecast',{data:{drivingNetwork:{activityIds:ids,finishActivityIds:ids},activities:ids.map((activityId,i)=>({activityId,independentEarlyFinishIso:'2031-04-01',finishVarianceDays:i}))}}],
+    ['milestones',{data:{rows:[{activityId:ids[0],status:'not_started'},{activityId:ids.at(-1),status:'not_started'}]}}],
+  ]);
+  const commercial:any={currencies:[],performance:{costControl:{positions:[]}},claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}}};
+  const started=performance.now(),visual=managementVisualControl(state,modules,commercial);
+  assert.equal(visual.schedule.drivingActivityCount,count);
+  assert.equal(visual.schedule.drivingActivities.length,count);
+  assert.equal(visual.schedule.drivingActivities.at(-1)!.movementDays,count-1);
+  assert.equal(visual.schedule.priorityGroups[0]!.activityCount,count);
+  assert.deepEqual(visual.schedule.priorityGroups[0]!.milestoneIds,[ids[0],ids.at(-1)]);
+  assert.ok(performance.now()-started<5000,'the full driving network must not rebuild its indexes for every activity');
+});
+
 test('management source inventory exposes Interface evidence to cross-module control',()=>{
   const doc:any={
     ...procurementDocument(),documentId:'IF-1',documentType:'interface_register',sourceFilename:'Interface Register.csv',

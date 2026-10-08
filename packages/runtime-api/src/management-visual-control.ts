@@ -62,9 +62,15 @@ export function managementVisualControl(
   const delivery=deliveryPosition(state);
   const activityById=new Map(activityRows.map((row:any)=>[row.activityId,row]));
   const drivingIds=Array.isArray(independent.drivingNetwork?.activityIds)?independent.drivingNetwork.activityIds:[];
+  // A wide driving network can contain every activity. Build reusable indexes
+  // once, rather than scanning/rebuilding the entire network for every row.
+  const cpmById=new Map<string,any>();
+  for(const row of independent.activities??[])if(!cpmById.has(row.activityId))cpmById.set(row.activityId,row);
+  const drivingSet=new Set(drivingIds);
+  const networkMilestones=new Set(independent.drivingNetwork?.finishActivityIds??[]);
   const drivingActivities=drivingIds.map((activityId:string)=>{
     const scheduleRow=activityById.get(activityId) as any;
-    const cpmRow=(independent.activities??[]).find((row:any)=>row.activityId===activityId);
+    const cpmRow=cpmById.get(activityId);
     return {
       activityId,
       name:scheduleRow?.name??activityId,
@@ -91,7 +97,6 @@ export function managementVisualControl(
     if(row.name)group.activityNames.push(String(row.name));
     if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
     if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
-    const networkMilestones=new Set(independent.drivingNetwork?.finishActivityIds??[]);
     group.milestoneIds.push(...milestoneSource.filter((m:any)=>m.activityId===row.activityId||networkMilestones.has(m.activityId)).map((m:any)=>String(m.activityId)));
     group.packageCandidates.push(...delivery.packageRows.filter(p=>p.activityIds.includes(row.activityId)).map(p=>p.reference??p.recordId));
     group.packageCandidates.push(...boqScope.packages.filter((p:any)=>String(p.packageCandidate??p.label??p.package??'')===wbs)
@@ -362,7 +367,7 @@ export function managementVisualControl(
       coverage:boqScope.coverage,
       topLongLead:
         delivery.packageRows.some(row=>row.longLeadCandidate)
-          ?delivery.packageRows.filter(row=>row.longLeadCandidate).sort((a,b)=>Number(b.activityIds.some(id=>drivingIds.includes(id)))-Number(a.activityIds.some(id=>drivingIds.includes(id)))||(a.headroomCalendarDays??Infinity)-(b.headroomCalendarDays??Infinity)).map(row=>({itemId:row.recordId,itemNumber:row.reference,description:row.description,discipline:row.discipline,system:null,package:row.reference,priority:row.activityIds.some(id=>drivingIds.includes(id))?'Critical':row.overdueUndelivered||(row.headroomCalendarDays??0)<0?'High':'From register',amount:row.packageValue,currency:row.currency,status:row.sourceStatus,requiredOnSite:row.needDate,forecastDelivery:row.forecastDelivery,basis:'source_register'}))
+          ?delivery.packageRows.filter(row=>row.longLeadCandidate).sort((a,b)=>Number(b.activityIds.some(id=>drivingSet.has(id)))-Number(a.activityIds.some(id=>drivingSet.has(id)))||(a.headroomCalendarDays??Infinity)-(b.headroomCalendarDays??Infinity)).map(row=>({itemId:row.recordId,itemNumber:row.reference,description:row.description,discipline:row.discipline,system:null,package:row.reference,priority:row.activityIds.some(id=>drivingSet.has(id))?'Critical':row.overdueUndelivered||(row.headroomCalendarDays??0)<0?'High':'From register',amount:row.packageValue,currency:row.currency,status:row.sourceStatus,requiredOnSite:row.needDate,forecastDelivery:row.forecastDelivery,basis:'source_register'}))
           :bestLongLead?.key==='source-long-lead'
           ?(procurementSource?.signals.longLeadSamples??[]).map((row,index)=>({
             itemId:'source-long-lead-'+index,itemNumber:row.reference,description:row.description,discipline:null,system:null,
