@@ -69,7 +69,7 @@ export function pageProjectResponse(
       stack.add(value);
       if(Array.isArray(value)){
         if(value.length>limit.array)record({pointer,total:value.length,shown:limit.array,kind:'array'});
-        const v=value.slice(0,limit.array).map((row,i)=>visit(row,pointer+'/'+i,depth+1,stack));
+        const v=value.slice(0,limit.array).map((row:any,i:number)=>visit(row,pointer+'/'+i,depth+1,stack));
         stack.delete(value);return v;
       }
       const names=Object.keys(value),namesShown=names.slice(0,limit.map);
