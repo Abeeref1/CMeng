@@ -232,7 +232,10 @@ try{
       const content=String(surface.text??'');
       const banned=[/\bnot established\b/i,/\bnot assigned\b/i,/\b(?:evidence-document|schedrev_|boqingest_|data\.position|data\.reportingContract)\b/i,
         /\b-?\d+\.\d{5,}\b/];
-      record(p,'R7',banned.every(pattern=>!pattern.test(content)),surface.key+': banned presentation tokens');
+      const bannedHits=Array.isArray(surface.bannedTokens)?surface.bannedTokens:
+        banned.filter(pattern=>pattern.test(content)).map(pattern=>({code:String(pattern)}));
+      record(p,'R7',bannedHits.length===0&&Number(surface.renderedLength)>10&&!surface.error,
+        surface.key+': banned text, missing rendered content or failed browser navigation');
       record(p,'R8',Number(surface.bytes)>0&&Number(surface.bytes)<=maxBytes,
         surface.key+': browser-page response over 2 MB or unmeasured');
       record(p,'R8',!surface.error,surface.key+': browser error '+surface.error);
