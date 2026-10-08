@@ -94,7 +94,15 @@ function buildDelivery(state:ProjectRuntimeState){
  const gatesByScope=new Map<string,DeliveryRecord[]>();for(const g of byKind('gate'))for(const id of new Set([...g.links.packageIds,...g.links.recordIds])){const rows=gatesByScope.get(id)??[];rows.push(g);gatesByScope.set(id,rows);}
  const gatesFor=(r:DeliveryRecord)=>{
   const gates=gatesByScope.get(r.recordId)??[];
-  const p=population('gate',r.recordId);
+  // A record without gate links or a scope decision has no gate denominator.
+  // Avoid re-scanning document/pending authority for each of 12k+ assets.
+  // Explicitly confirmed empty gate populations still use the full authority rule.
+  const p=gates.length||latestPopulation.has('gate|'+r.recordId)
+    ?population('gate',r.recordId)
+    :{kind:'gate' as const,scopeId:r.recordId,state:'not_established' as const,denominator:null,
+      knownRecordCount:0,pendingRecordCount:0,recordIds:[] as string[],
+      basis:'Confirm that all applicable records have been captured before relying on a percentage.',
+      confirmedAt:null};
   const rows=gates.map(g=>{
    const applicable=field(g,'applicable').toLowerCase(),raw=field(g,'outcome','status').toLowerCase();
    const when=date(g,'outcome date','status as of'),satisfied=date(g,'satisfied date');
