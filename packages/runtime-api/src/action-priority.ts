@@ -45,7 +45,7 @@ export function consolidateScheduleChains(rows:ManagementAction[],model:Canonica
 
 /** One source record can create several findings. Merge its findings and retain
  * every source receipt, then rank the result by linked programme consequence. */
-export function prioritizeActions(rows:ManagementAction[],model:CanonicalScheduleModel|null,drivingIds:readonly string[]=[],floatAuthority:'independent_cpm'|'source_total_float'='source_total_float'){
+export function prioritizeActions(rows:ManagementAction[],model:CanonicalScheduleModel|null,drivingIds:readonly string[]=[],floatAuthority:'independent_cpm'|'source_total_float'='source_total_float',rankingFloatByActivityId?:ReadonlyMap<string,number|null>){
  const activities=new Map(model?.activities.map(a=>[a.activityId,a])??[]),driving=new Set(drivingIds);
  const unique=new Map<string,ManagementAction>();
  for(const row of rows){
@@ -65,7 +65,7 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
  const severity={critical:0,high:1,medium:2,low:3,information:4};
  return [...unique.values()].map(row=>{
   const linked=row.affectedScope.flatMap(id=>{const a=activities.get(id);return a&&a.status!=='completed'?[a]:[];});
-  const floats=linked.flatMap(a=>a.totalFloatHours===null?[]:[a.totalFloatHours]);
+  const floats=linked.flatMap(a=>{const value=rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours;return value===null?[]:[value];});
   return {...row,priorityBasis:{linkedFloatHours:floats.length?Math.min(...floats):null,floatAuthority,drivingPath:linked.some(a=>driving.has(a.activityId)),milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
  }).sort((a,b)=>
   (a.priorityBasis.linkedFloatHours??Infinity)-(b.priorityBasis.linkedFloatHours??Infinity)||
