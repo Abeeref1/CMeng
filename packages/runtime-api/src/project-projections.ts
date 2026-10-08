@@ -7859,6 +7859,33 @@ function gapState(
       : "missing";
 }
 
+/** Presentation-only, exact-count operational scope for management pages.
+ * Keep all original rows in specialist authorities and their exports. */ 
+export function compactManagementOperationalReporting(operations: ReturnType<typeof operationalReporting>){
+ const register=(row:any)=>({
+   state:row.state,
+   sourceRecordCount:row.sourceRecordCount,
+   currentRecordCount:row.currentRecordCount,
+   futureRecordCount:row.futureRecordCount,
+   undatedRecordCount:row.undatedRecordCount,
+   unknownStatusCount:row.unknownStatusCount,
+ });
+ return {
+   dataDateIso:operations.dataDateIso,
+   counts:operations.counts,
+   knownCounts:operations.knownCounts,
+   quality:register(operations.quality),
+   rfi:register(operations.rfi),
+   risk:{...register(operations.risk),
+     // Only displayed status breakdown is needed for undated-risk coverage;
+     // source references, identities, dates and evidence stay in Risk Review.
+     sourceRows:(operations.risk.sourceRows??[]).map((row:any)=>({
+       sourceStatus:row.sourceStatus??null,status:row.status??null,
+     })),
+   },
+ };
+}
+
 const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
 
 export function managementSurfacesForProject(
@@ -8492,12 +8519,16 @@ export function managementSurfacesForProject(
   const issueStage8=profiling?performance.now():0;
   accountability.actions=canonicalActions;
   accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
+  // Management pages need evaluated as-of totals, not the same full NCR,
+  // RFI and Risk source population a second time. Specialist pages retain the
+  // exact dated records and full provenance for drill-down/export.
+  const managementOperations=compactManagementOperationalReporting(operations);
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
-    masterDashboard: {actions:canonicalActions,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
-    masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };
+    masterDashboard: {actions:canonicalActions,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,controls:{...surfaces.commandCenter.controls,reporting:managementOperations as any},operationalReporting:managementOperations,interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
+    masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation} };
   for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])Object.assign(surface,{sourceLabels:projectSourceLabels(state)});
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
