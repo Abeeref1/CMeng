@@ -48,7 +48,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const applicationAccess=new ApplicationAccess(applicationPolicy,req=>externalController().access.identity(req),()=>externalPolicy()?.publicOrigin??null);
   const accessMode=()=>{try{return applicationPolicy()?'protected':'public_review';}catch{return 'unavailable';}};
   const actorHeaders=new WeakMap<IncomingMessage,Record<string,string>>();
-  const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
+  const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??6);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
   let closing=false,catalogWrites=Promise.resolve();
@@ -119,6 +119,31 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
+      // Persist the finished page results on the attached volume while the
+      // full project bundle is already hot in THIS worker. Browser requests
+      // for six concurrent projects can read these without reviving an
+      // evicted worker or rerunning project controls calculations.
+      const routes=[
+        '/api/projects/'+encodeURIComponent(id)+'/overview',
+        '/api/projects/'+encodeURIComponent(id)+'/management/master-dashboard',
+        '/api/projects/'+encodeURIComponent(id)+'/management/command-center',
+        '/api/projects/'+encodeURIComponent(id)+'/management/master-control-programme',
+        '/api/projects/'+encodeURIComponent(id)+'/management/source-quality',
+        '/api/projects/'+encodeURIComponent(id)+'/director-position',
+      ];
+      for(const route of routes){
+        if(closing||updating.get(id))break;
+        const retained=await reads(id).get(release(),summary.version,route);
+        if(retained)continue;
+        try{
+          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
+          if(!page.ok)continue;
+          const bytes=Buffer.from(await page.arrayBuffer());
+          const version=Number(page.headers.get('x-cmeng-project-version'));
+          if(version===summary.version&&bytes.length<=MAX_PROJECT_READ_BYTES)
+            await reads(id).put(release(),version,route,bytes);
+        }catch{/* A warmup failure never changes the retained project position. */}
+      }
     }).catch(error=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}
       console.error('[refreshSummary] project='+id+' version='+entry?.metadata?.version+' failed:',error instanceof Error?error.stack??error.message:String(error));
     }).finally(()=>summaryJobs.delete(id));
