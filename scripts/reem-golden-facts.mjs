@@ -52,6 +52,10 @@ try{
     compare('Open risk records',data.rows.filter(row=>row.status==='open').length,73);
     compare('Risk Impact column used',data.rows.filter(row=>typeof row.impact==='number').length,110);
   }
+  if(page.key==='resource-utilization'){
+    compare('Critical work retains its resource-hour assignments',data.criticalResourceHours?.some(row=>row.remainingHours>0&&row.assignmentCount>0),true);
+    compare('Critical resource hours have complete assignment coverage',data.criticalResourceHours?.every(row=>row.knownAssignmentCount===row.assignmentCount),true);
+  }
   if(page.key==='material-tracking')compare('Dated installed quantities remain available',data.rows.filter(row=>typeof row.installed==='number').length,896);
   if(page.key==='variance-trends')compare('Human-readable revision labels',Object.values(data.revisionLabels).every(label=>typeof label==='string'&&!/^schedrev_/.test(label)),true);
   if(page.key==='schedule-analytics'){

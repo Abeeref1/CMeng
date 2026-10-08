@@ -20,3 +20,12 @@ test('critical resource hours use remaining hourly labour assignments and exclud
  const rows=criticalResourceHours(model,resources);assert.equal(rows.length,1);assert.equal(rows[0]!.remainingHours,160);assert.deepEqual(rows[0]!.activityIds,['A']);
  resources.assignments[0].remainingUnits=null;assert.equal(criticalResourceHours(model,resources)[0]!.remainingHours,null);
 });
+
+test('retained XER labour quantities remain hours without a material unit or hourly price',()=>{
+ const model:any={activities:[{activityId:'A',activityType:'task',status:'in_progress',totalFloatHours:-8}]};
+ const resources:any={resources:[{resourceId:'L',name:'Mason',resourceType:'labor',unitName:null,unitAbbreviation:null,priceTimeUnit:null,sourceRefs:[{source:'xer',locator:'RSRC:1'}]}],assignments:[{resourceId:'L',activityId:'A',remainingUnits:240}]};
+ assert.equal(criticalResourceHours(model,resources)[0]!.remainingHours,240);
+ resources.resources[0].priceTimeUnit='QT_Day';assert.equal(criticalResourceHours(model,resources)[0]!.remainingHours,240);
+ resources.resources[0].unitName='m2';assert.deepEqual(criticalResourceHours(model,resources),[],'an explicit unlike quantity unit cannot become hours');
+ resources.resources[0].unitName=null;resources.resources[0].sourceRefs=[];assert.deepEqual(criticalResourceHours(model,resources),[],'unidentified quantities stay unassessed');
+});

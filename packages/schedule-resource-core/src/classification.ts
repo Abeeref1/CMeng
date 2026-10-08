@@ -9,7 +9,7 @@ export type ResourceBusinessClass =
   | 'weight_progress'
   | 'other';
 
-type ResourceSemanticInput = Pick<CanonicalResource,'resourceType'|'name'|'shortName'|'unitName'|'unitAbbreviation'|'priceTimeUnit'>;
+type ResourceSemanticInput = Pick<CanonicalResource,'resourceType'|'name'|'shortName'|'unitName'|'unitAbbreviation'|'priceTimeUnit'> & Partial<Pick<CanonicalResource,'sourceRefs'>>;
 
 function normalized(values:(string|null|undefined)[]):string {
   return values.filter(Boolean).join(' ').toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
@@ -45,6 +45,13 @@ export function resourceLaborEligible(resource:ResourceSemanticInput):boolean {
 
 export function resourceLaborHourEligible(resource:ResourceSemanticInput):boolean {
   if(resourceBusinessClass(resource)!=='labor')return false;
-  const unitText=normalized([resource.unitName,resource.unitAbbreviation,resource.priceTimeUnit]);
-  return /(?:^|\b)(?:h|hr|hrs|hour|hours|mh|manhours?|man hours?)(?:\b|$)|qt\s*hour/.test(unitText);
+  const hourly=/(?:^|\b)(?:h|hr|hrs|hour|hours|mh|manhours?|man hours?)(?:\b|$)|qt\s*hour/;
+  const quantityUnit=normalized([resource.unitName,resource.unitAbbreviation]);
+  if(quantityUnit)return hourly.test(quantityUnit);
+  // P6 stores time-unit quantities in hours. UMEASURE is a material-resource
+  // field; a missing entry must not discard genuine XER labour assignments.
+  // The price time unit is a rate basis, not the stored assignment quantity unit.
+  // Oracle: https://docs.oracle.com/cd/E68199_01/p6help/en/17935.htm
+  if(resource.resourceType==='labor'&&resource.sourceRefs?.some(ref=>ref.source==='xer'))return true;
+  return hourly.test(normalized([resource.priceTimeUnit]));
 }

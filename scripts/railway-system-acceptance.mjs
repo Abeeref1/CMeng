@@ -86,7 +86,7 @@ try{
     const beforeDigest=createHash("sha256").update(JSON.stringify((before.documents??[]).map(d=>[d.documentId,d.sourceHashSha256]).sort())).digest("hex");
     const overview=(await json(prefix+"/overview")).body;
     const expectedDate=overview.latestDataDateIso??null;
-    let projectFactsDigest=null;
+    let projectFactsDigest=null,canonicalFacts=null;
     const checkProjectFacts=(body,label)=>{
       const facts=body?.data?.projectFacts;
       check(label+": canonical project facts attached",facts&&facts.projectId===id&&facts.projectVersion===overview.version,id);
@@ -95,11 +95,7 @@ try{
       const current=digest(facts);
       if(projectFactsDigest===null){
         projectFactsDigest=current;
-        check('Portfolio current-contract comparison matches project facts',p.submittedDaysAfterCurrentContract===(facts.time.submittedDaysAfterCurrentContract?.value??null),id);
-        for(const money of facts.commercial.currencies){
-          const card=p.commercialSummary?.find(row=>row.currency===money.currency);
-          check('Portfolio '+money.currency+' money matches project facts',card?.currentContractValue===money.currentContractValue.value&&card?.forecastEac===(money.forecastEac?.value??null)&&card?.certifiedUnpaidAmount===money.certifiedUnpaidAmount.value,id);
-        }
+        canonicalFacts=facts;
       }
       else check(label+": canonical project facts equal every other page",current===projectFactsDigest,id);
     };
@@ -165,6 +161,20 @@ try{
     check("Cross-page value checks contain no mismatches",mismatches.length===0,id,mismatches.map(x=>x.metric).join(","));
     const crossFailures=(sourceQuality?.systemFailures??[]).filter(x=>x.code==="CROSS_PAGE_VALUE_MISMATCH");
     check("Information & Actions has no cross-page system failure",crossFailures.length===0,id,"count="+crossFailures.length);
+
+    // The inventory was fetched before these project reads. A deployment can
+    // legitimately return a labelled saved position while it recalculates.
+    // Compare the current card, and require recalculation to have completed.
+    const currentPortfolio=(await json('/api/portfolio')).body;
+    const currentCard=currentPortfolio.projects?.find(row=>row.projectId===id);
+    check('Portfolio is current after project calculation',currentCard&&currentCard.version===overview.version&&!['stale','unresolved','processing'].includes(currentCard.analysisState),id,currentCard?.analysisState??null);
+    if(canonicalFacts){
+      check('Portfolio current-contract comparison matches project facts',currentCard?.submittedDaysAfterCurrentContract===(canonicalFacts.time.submittedDaysAfterCurrentContract?.value??null),id);
+      for(const money of canonicalFacts.commercial.currencies){
+        const card=currentCard?.commercialSummary?.find(row=>row.currency===money.currency);
+        check('Portfolio '+money.currency+' money matches project facts',card?.currentContractValue===money.currentContractValue.value&&card?.forecastEac===(money.forecastEac?.value??null)&&card?.certifiedUnpaidAmount===money.certifiedUnpaidAmount.value,id);
+      }
+    }
 
     const after=(await json(prefix+"/evidence/documents")).body;
     const afterDigest=createHash("sha256").update(JSON.stringify((after.documents??[]).map(d=>[d.documentId,d.sourceHashSha256]).sort())).digest("hex");
