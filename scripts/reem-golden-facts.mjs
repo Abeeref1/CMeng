@@ -32,6 +32,13 @@ try{
     let actual=value(data,path);if(typeof expected==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(expected)&&typeof actual==='string')actual=actual.slice(0,10);
     compare(page.key+' '+path,actual,expected);
   }
+  if(page.key==='procurement-packages'){
+    compare('Procurement source-reported delivered without an actual date',data.rows.filter(row=>row.deliveredStatusOnly===true&&row.deliveredAtDataDate===false).length,key.procurementReconciliation.sourceDeliveredMissingActual);
+    compare('Procurement late known subset excludes delivered-status packages',data.rows.filter(row=>row.overdueUndelivered===true||row.forecastLate===true).length,key.procurementReconciliation.expectedKnownLate);
+    compare('Undated delivered statuses are never marked late',data.rows.filter(row=>row.deliveredStatusOnly===true&&(row.overdueUndelivered===true||row.forecastLate===true)).length,0);
+  }
+  if(['master-dashboard','command-center','master-control-programme'].includes(page.key))
+    compare(page.key+' uses the same late procurement count',data.delivery?.latePackageKnownCount,key.procurementReconciliation.expectedKnownLate);
   if(page.key==='contract-particulars-bonds'){
     const ld=data.focus.liquidatedDamages;
     for(const [scenario,expected] of [['no_eot',key.sectionTwoDelayDamages.originalDateExposure],['awarded_eot',key.sectionTwoDelayDamages.extendedDateExposure]]){
