@@ -7681,6 +7681,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     if(profiling)readinessProfile.push({key,ms:performance.now()-t});
     return [key,ready] as const;
   }));
+  const postReadiness=profiling?performance.now():0;
   const forecast=modules.get('independent-forecast')?.data as any;
   const near=modules.get('near-critical')?.data as any;
   const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
@@ -7695,12 +7696,14 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     const currentModule=modules.get(moduleKey),moduleData=currentModule?.data;
     if(currentModule&&moduleData&&typeof moduleData==='object')modules.set(moduleKey,{...currentModule,data:{...(moduleData as Record<string,unknown>),interfacePosition}});
   }
+  const beforeDiagnosis=profiling?performance.now():0;
   const diagnosis=buildProjectDiagnosis(scoped,modules);
+  const afterDiagnosis=profiling?performance.now():0;
   const management=modules.get('pmo-analysis')?.data as any;
   if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
-    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0,
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,readinessOnlyMs:postReadiness-p4,diagnosisMs:afterDiagnosis-beforeDiagnosis,otherPostReadinessMs:(p5-postReadiness)-(afterDiagnosis-beforeDiagnosis),totalMs:p5-p0,
     slowCandidates:candidateProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms),
     slowReadiness:readinessProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms)})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
@@ -8418,6 +8421,7 @@ export function managementSurfacesForProject(
     boardPublicationState,
   });
   const mp5=profiling?performance.now():0;
+  const issueStage0=profiling?performance.now():0;
   const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
   const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
     summary:g.label+' needs approval',detail:'Review and approve the current report before publication.',
@@ -8433,6 +8437,7 @@ export function managementSurfacesForProject(
       challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
+  const issueStage1=profiling?performance.now():0;
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
   const activities=resolvedModules.get('activity-analytics')?.data as any;
@@ -8464,12 +8469,19 @@ export function managementSurfacesForProject(
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const issueStage2=profiling?performance.now():0;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
+  const issueStage3=profiling?performance.now():0;
   const visualControl=managementVisualControl(state,resolvedModules,commercial,managementContext);
+  const issueStage4=profiling?performance.now():0;
   const interfaces=interfaceIntelligence(state);
+  const issueStage5=profiling?performance.now():0;
   const accountability=crossDomainAccountability(state);
+  const issueStage6=profiling?performance.now():0;
   const deliveryPosition=deliveryDashboard(state);
+  const issueStage7=profiling?performance.now():0;
   const canonicalActions=projectActionRegisterForState(state).actions;
+  const issueStage8=profiling?performance.now():0;
   accountability.actions=canonicalActions;
   accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
   const mp6=profiling?performance.now():0;
@@ -8494,7 +8506,7 @@ export function managementSurfacesForProject(
   const mp7=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
-    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
+    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }

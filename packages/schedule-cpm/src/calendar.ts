@@ -14,6 +14,24 @@ export interface WorkingCalendarResolution {
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
+// Exact shortcut for a *proved* exception-free, continuous source calendar.
+// Every UTC instant is workable. Re-evaluate its source definition on every
+// call so a later calendar edit never reuses stale working-time assumptions.
+function continuousElapsedCalendar(calendar: CanonicalCalendar): boolean {
+  return calendar.semanticComplete === true &&
+    (calendar.exceptions?.length ?? 0) === 0 &&
+    calendar.weeklyWorkMinutes?.length === 7 &&
+    calendar.weeklyWorkMinutes.every(minutes => minutes === 1440) &&
+    calendar.weeklyWorkIntervals?.length === 7 &&
+    calendar.weeklyWorkIntervals.every((day, index) =>
+      day.dayIndex === index + 1 &&
+      day.intervals.length === 1 &&
+      day.intervals[0]?.start === "00:00" &&
+      day.intervals[0]?.finish === "24:00" &&
+      day.intervals[0]?.minutes === 1440
+    );
+}
+
 type WorkSegment = {
   startMs: number;
   finishMs: number;
@@ -305,6 +323,7 @@ export function nextWorkingInstant(
   calendar: CanonicalCalendar,
   instantMs: number,
 ): number {
+  if (continuousElapsedCalendar(calendar)) return instantMs;
   let cursor = instantMs;
 
   for (let guard = 0; guard < 36525; guard += 1) {
@@ -336,6 +355,7 @@ export function previousWorkingInstant(
   calendar: CanonicalCalendar,
   instantMs: number,
 ): number {
+  if (continuousElapsedCalendar(calendar)) return instantMs;
   let searchDay = utcDayStart(instantMs);
   let probe = instantMs;
 
@@ -380,6 +400,7 @@ export function addWorkingHours(
   if (!Number.isFinite(hours)) {
     throw new Error("Working hours must be finite");
   }
+  if (continuousElapsedCalendar(calendar)) return startMs + hours * HOUR_MS;
   if (hours < 0) {
     return subtractWorkingHours(
       calendar,
@@ -440,6 +461,7 @@ export function subtractWorkingHours(
   if (!Number.isFinite(hours)) {
     throw new Error("Working hours must be finite");
   }
+  if (continuousElapsedCalendar(calendar)) return finishMs - hours * HOUR_MS;
   if (hours < 0) {
     return addWorkingHours(
       calendar,
@@ -536,6 +558,7 @@ export function workingHoursBetween(
   toMs: number,
 ): number {
   if (fromMs === toMs) return 0;
+  if (continuousElapsedCalendar(calendar)) return (toMs - fromMs) / HOUR_MS;
 
   if (toMs < fromMs) {
     return -workingHoursBetween(

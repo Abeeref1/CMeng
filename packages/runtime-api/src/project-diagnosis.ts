@@ -84,8 +84,16 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const events=new Map<string,any[]>();for(const e of state.controls.delayClaims?.events??[])for(const id of e.relatedActivityIds){const list=events.get(id)??[];list.push(e);events.set(id,list);}
  const checks:any[]=[];
  // Assess all schedule pressure activities, including those outside the look-ahead window.
- for(const r of pressureRows){const activity=sourceById.get(r.activityId)!;const readiness=readinessForActivity(model,activity,incoming.get(r.activityId)??[],sourceById,state.controls.readinessEvidence[r.activityId]);
-   for(const d of readiness.dimensions)if(d.state==='blocked'&&d.sourceRefs.length)checks.push({activityId:r.activityId,domain:d.key,state:'linked_pressure',recordId:(d.records??[]).map(x=>x.recordId).filter(Boolean).join('; ')||null,explanation:d.note??'A linked record reports a blocker.',sourceRefs:d.sourceRefs});
+ for(const r of pressureRows){const activity=sourceById.get(r.activityId)!;
+   const predecessorLinks=incoming.get(r.activityId)??[],readinessEvidence=state.controls.readinessEvidence[r.activityId];
+   // Without predecessor links or supplied readiness assertions every readiness
+   // dimension is unknown/not applicable, never a sourced blocker. Avoid creating
+   // nine empty dimension objects for each of tens of thousands of such activities.
+   // Linked procurement, quality, event and productivity evidence below is still checked.
+   if(predecessorLinks.length>0||(readinessEvidence&&Object.keys(readinessEvidence).length>0)){
+     const readiness=readinessForActivity(model,activity,predecessorLinks,sourceById,readinessEvidence);
+     for(const d of readiness.dimensions)if(d.state==='blocked'&&d.sourceRefs.length)checks.push({activityId:r.activityId,domain:d.key,state:'linked_pressure',recordId:(d.records??[]).map(x=>x.recordId).filter(Boolean).join('; ')||null,explanation:d.note??'A linked record reports a blocker.',sourceRefs:d.sourceRefs});
+   }
    for(const p of packageIndex.get(r.activityId)??[])if(numeric(p.headroomCalendarDays)&&p.headroomCalendarDays<0)checks.push({activityId:r.activityId,domain:'procurement_material',state:'linked_pressure',recordId:p.recordId,explanation:p.reference+': delivery forecast '+p.forecastDelivery+' is '+(-p.headroomCalendarDays)+' calendar days after programme need '+p.programmeNeedDate+'.',sourceRefs:p.receipts});
    for(const x of registerIndex.get(r.activityId)??[])if(x.scope==='current'&&(x.overdue===true||['rejected','failed'].includes(x.currentStatus)))checks.push({activityId:r.activityId,domain:x.kind,state:'linked_pressure',recordId:x.recordId,explanation:x.reference+': '+(x.overdue?'overdue':'')+' '+x.currentStatus+'; due '+(x.dueDate??'not supplied')+'.',sourceRefs:x.receipts});
    for(const p of products.get(r.activityId)??[])if(p.state==='official'&&p.completionIso){const move=difference(p.completionIso,r.forecastFinishIso??r.currentFinishIso);if(move!==null&&move>0)checks.push({activityId:r.activityId,domain:'productivity',state:'linked_pressure',recordId:p.workPackageId,explanation:p.workPackageId+': the evidenced productivity finish is '+move+' elapsed days after the activity finish.',sourceRefs:p.sourceRefs});}
