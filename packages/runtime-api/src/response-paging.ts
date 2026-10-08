@@ -35,7 +35,30 @@ const bytes=(value:unknown)=>Buffer.byteLength(JSON.stringify(value),'utf8');
 export function pageProjectResponse(
   body:unknown,source:string,maxBytes=PROJECT_SCREEN_MAX_BYTES,
 ):unknown {
-  if(!body||typeof body!=='object'||bytes(body)<=maxBytes)return body;
+  if(!body||typeof body!=='object')return body;
+  // Row populations must be server-paged even when the response happens to
+  // fit below 2 MB. Charts and short scalar arrays remain untouched when
+  // there is no table requiring a page.
+  const fullBytes=bytes(body);
+  let tableFound=false;
+  if(fullBytes<=maxBytes){
+    const work:Array<{value:unknown;key:string;depth:number}>=[{value:body,key:'',depth:0}];
+    const seen=new Set<object>();
+    while(work.length&&!tableFound){
+      const next=work.pop()!;
+      if(!next.value||typeof next.value!=='object'||seen.has(next.value as object)||next.depth>7)continue;
+      seen.add(next.value as object);
+      if(Array.isArray(next.value)){
+        if(next.value.length>25&&/(?:rows|records|items|actions|findings|claims|notices|rfis|ncrs|entries|documents|activities|source|register|securities|evidence)/i.test(next.key)){
+          tableFound=true;break;
+        }
+        for(const item of next.value.slice(0,3))work.push({value:item,key:'',depth:next.depth+1});
+      }else{
+        for(const [key,value] of Object.entries(next.value))work.push({value,key,depth:next.depth+1});
+      }
+    }
+  }
+  if(fullBytes<=maxBytes&&!tableFound)return body;
   const projectVersion=Number.isInteger((body as any).projectVersion)
     ?Number((body as any).projectVersion):Number.isInteger((body as any).data?.projectFacts?.projectVersion)
     ?Number((body as any).data.projectFacts.projectVersion):null;
