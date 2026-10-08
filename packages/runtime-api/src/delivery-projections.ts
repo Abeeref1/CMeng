@@ -117,8 +117,8 @@ function buildDelivery(state:ProjectRuntimeState){
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const {needDate,needDateBasis,deliveredAtDataDate,overdueUndelivered,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
-  if(!deliveredAtDataDate&&headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
+  if(forecastLate)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
   if(overdueUndelivered)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));
@@ -150,14 +150,14 @@ function buildDelivery(state:ProjectRuntimeState){
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible','responsible party')||null,supplier:field(r,'supplier','vendor','manufacturer')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
    supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,
-   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,overdueUndelivered,drivingPath:r.links.activityIds.some(id=>drivingIds.has(id)),linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
+   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,drivingPath:r.links.activityIds.some(id=>drivingIds.has(id)),linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readiness.find(q=>q.recordId===r.recordId),receipts:r.receipts};
- }).sort((a,b)=>Number(a.deliveredAtDataDate)-Number(b.deliveredAtDataDate)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||Number(b.drivingPath)-Number(a.drivingPath)||(a.needDate??'9999').localeCompare(b.needDate??'9999'));
+ }).sort((a,b)=>Number(a.deliveredAtDataDate||a.deliveredStatusOnly)-Number(b.deliveredAtDataDate||b.deliveredStatusOnly)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||Number(b.drivingPath)-Number(a.drivingPath)||(a.needDate??'9999').localeCompare(b.needDate??'9999'));
  for(const packageRow of packageRows){
-  const gate=readiness.find(r=>r.recordId===packageRow.recordId);if(!gate||packageRow.deliveredAtDataDate)continue;
+  const gate=readiness.find(r=>r.recordId===packageRow.recordId);if(!gate||packageRow.deliveredAtDataDate||packageRow.deliveredStatusOnly)continue;
   if(packageRow.overdueUndelivered)gate.state='blocked';
-  else if(packageRow.headroomCalendarDays!==null&&packageRow.headroomCalendarDays<0&&gate.state!=='blocked')gate.state='at_risk';
+  else if(packageRow.forecastLate&&gate.state!=='blocked')gate.state='at_risk';
  }
  const scheduleWbs=model?.wbs??[];
  const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));
@@ -322,7 +322,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const supplierKey=(value:string|null|undefined)=>String(value??'').trim().toLocaleLowerCase();
  const registeredSuppliers=byKind('supplier').map(r=>{const names=[r.reference,r.description,field(r,'company')].map(supplierKey).filter(Boolean);const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)||p.supplier&&names.includes(supplierKey(p.supplier))),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
   return {recordId:r.recordId,reference:r.reference,description:r.description,packages,packageCount:packages.length,
-   lateKnownPackageCount:packages.some(p=>p.headroomCalendarDays!==null)?packages.filter(p=>!p.deliveredAtDataDate&&(p.overdueUndelivered||(p.headroomCalendarDays!==null&&p.headroomCalendarDays<0))).length:null,
+   lateKnownPackageCount:packages.some(p=>p.overdueUndelivered||p.headroomCalendarDays!==null)?packages.filter(p=>p.overdueUndelivered||p.forecastLate).length:null,
    unresolvedPackageCount:packages.length?packages.filter(p=>p.headroomCalendarDays===null).length:null,
    materials:materialRows.filter(p=>packageIds.has(p.recordId)),quality:related.filter(q=>q.kind==='quality'),hse:related.filter(q=>q.kind==='hse'),workfronts:related.filter(q=>q.kind==='workfront'),
    existingRiskIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.riskIds))],existingVariationIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.variationIds))],
@@ -330,7 +330,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const supplierNames=new Map<string,string>();for(const row of packageRows)if(row.supplier&&!supplierNames.has(supplierKey(row.supplier)))supplierNames.set(supplierKey(row.supplier),row.supplier.trim());
  const sourceSuppliers=[...supplierNames.values()].filter(name=>!registeredSuppliers.some(r=>[r.reference,r.description,field(r.source,'company')].some(v=>v?.trim().toLowerCase()===name.trim().toLowerCase()))).map(name=>{
   const packages=packageRows.filter(r=>supplierKey(r.supplier)===supplierKey(name));
-  return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&(r.overdueUndelivered||(r.headroomCalendarDays!==null&&r.headroomCalendarDays<0))).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
+  return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
@@ -562,7 +562,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('BOQ mapped to procurement',p.boqIntelligence.procurementMappingPercent,'%','Controlled BOQ item denominator; mapped item IDs counted once.'),
    metric(population.state==='established'?'Confirmed packages':'Packages from register',p.packageRows.length,'records',sourceCountBasis),
    metric('Source-marked long lead',sourceAvailability?.signals.longLeadMarkedCount??null,'items','Explicit Long Lead marks from a supplied procurement register; schedule impact remains separate.'),
-   metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.deliveredAtDataDate&&(r.overdueUndelivered||(r.headroomCalendarDays!==null&&r.headroomCalendarDays<0))).length:null),
+   metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null),
    metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
   ];
  if(key==='material-tracking'&&rows.some(r=>r.authority==='From BOQ and dated measurement register')){
@@ -647,7 +647,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
   candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,scheduleLongLeadCandidateCount:p.scheduleLongLeadCandidates.length||null,
-  latePackageKnownCount:p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.deliveredAtDataDate&&(r.overdueUndelivered||(r.headroomCalendarDays!==null&&r.headroomCalendarDays<0))).length:null,
+  latePackageKnownCount:p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null,
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
   sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
   exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length,
