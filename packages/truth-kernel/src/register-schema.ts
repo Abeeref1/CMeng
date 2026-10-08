@@ -1,8 +1,24 @@
 /** Shared semantic headers for register ingestion. Unknown columns are retained. */
-export const normalizeHeader=(v:string)=>v.normalize('NFKC').replace(/^\uFEFF/,'')
-  .replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/([A-Z]{2,})s\b/g,word=>word.toLowerCase())
-  .replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2')
-  .toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+// A CPU profile over 51,700 source rows showed that the same 40–200 column
+// names are normalised millions of times across lookups. Cache their exact
+// semantic result, but bound memory for user-supplied arbitrary column names.
+const HEADER_MEMO_LIMIT=4096;
+const normalizedHeaderMemo=new Map<string,string>();
+const canonicalHeaderMemo=new Map<string,string>();
+const memo=(map:Map<string,string>,key:string,value:string)=>{
+  if(map.size>=HEADER_MEMO_LIMIT)map.clear();
+  map.set(key,value);
+  return value;
+};
+export const normalizeHeader=(v:string)=>{
+  const hit=normalizedHeaderMemo.get(v);
+  if(hit!==undefined)return hit;
+  const value=v.normalize('NFKC').replace(/^\uFEFF/,'')
+    .replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/([A-Z]{2,})s\b/g,word=>word.toLowerCase())
+    .replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2')
+    .toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+  return memo(normalizedHeaderMemo,v,value);
+};
 const groups:Record<string,string[]>={
   'claim id':['claim ref','claim reference','claim no','claim number','رقم المطالبة','مرجع المطالبة'],
   'event':['event description','delay event','delay description','وصف الحدث'],
@@ -77,6 +93,11 @@ const groups:Record<string,string[]>={
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
 export function canonicalHeader(value:string,documentType=''):string {
+  // Document-type identity is part of the cache key (a generic "Reference"
+  // legitimately means different things in an RFI versus a payment register).
+  const memoKey=documentType+'\u0000'+value;
+  const hit=canonicalHeaderMemo.get(memoKey);
+  if(hit!==undefined)return hit;
   const normalized=normalizeHeader(value);
   let key=aliases.get(normalized);
   if(!key){const parts=value.split(/[|/\n]+/).map(normalizeHeader).filter(Boolean);const matches=[...new Set(parts.map(p=>aliases.get(p)).filter(Boolean))];if(matches.length===1)key=matches[0];
@@ -88,9 +109,9 @@ export function canonicalHeader(value:string,documentType=''):string {
   key=key??normalized;
   if(key==='reference'){
     const identity=/claim/.test(documentType)?'claim id':/variation/.test(documentType)?'variation id':/payment/.test(documentType)?'certificate no':/rfi/.test(documentType)?'rfi id':/ncr/.test(documentType)?'ncr id':/risk/.test(documentType)?'risk id':/procurement/.test(documentType)?'package id':/bond/.test(documentType)?'bond id':/determination/.test(documentType)?'determination id':null;
-    if(identity)return identity;
+    if(identity)return memo(canonicalHeaderMemo,memoKey,identity);
   }
-  return key;
+  return memo(canonicalHeaderMemo,memoKey,key);
 }
 const fields=new Set([...Object.keys(groups),
   'section','quantity','rate','category','instruction date','claimed amount','amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',

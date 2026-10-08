@@ -338,3 +338,22 @@ test('historical inventory reading does not make old rows part of the current ca
  assert.equal(inventory.length,2);assert.ok(inventory.every(table=>table.recognition?.recognized));
  assert.deepEqual(sourceTables(state.evidenceDocuments,[]).map(table=>table.document.documentId),[current.documentId]);
 });
+
+test('cached Arabic/English header normalization retains document-dependent semantics after cache turnover',()=>{
+ for(let i=0;i<5500;i++){
+   const original='Unmapped source column '+i;
+   assert.equal(canonicalHeader(original), 'unmapped source column '+i);
+ }
+ for(let i=0;i<40;i++){
+   assert.equal(canonicalHeader('Reference','rfi_register'),'rfi id');
+   assert.equal(canonicalHeader('Reference','payment_register'),'certificate no');
+   assert.equal(canonicalHeader('Reference','risk_register'),'risk id');
+   assert.equal(canonicalHeader('Reference','variation_register'),'variation id');
+   assert.equal(canonicalHeader('Owner'),'owner');
+   assert.equal(canonicalHeader('مسؤول'),'owner');
+   assert.equal(canonicalHeader('Vendor'),'supplier');
+   assert.equal(canonicalHeader('رقم المطالبة'),'claim id');
+   assert.equal(canonicalHeader('ForecastDelivery'),'forecast delivery');
+   assert.equal(canonicalHeader('Unknown 3D Metadata'),'unknown 3 d metadata');
+ }
+});
