@@ -10,7 +10,7 @@ import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
 function functions(names:string[]) {
-  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","readerReference","uniqueReportingPopulations"]:[])])];
+  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","readerReference","uniqueReportingPopulations"]:[]),...(names.includes("projectCard")?["fmtManagementDayCount"]:[])])];
   const selected=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text));
   assert.equal(selected.length,names.length);
   return selected.map(n=>n.getText(source)).join('\n');

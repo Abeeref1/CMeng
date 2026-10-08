@@ -293,10 +293,13 @@ function backwardConstraintFinish(
   // A shift closing instant has NO available work to start. Select the last
   // workable start slot on the predecessor calendar instead of treating the
   // closing instant as a start and carrying its duration into the next week.
-  // Use at most one source working hour (or the shorter task duration).
+  // A deadline already inside a nonworking gap may use the last closing
+  // boundary: the boundary remains a feasible instant before that deadline.
+  // Only move one working hour earlier when the deadline is exactly a
+  // closing boundary, where no work can begin at the instant itself.
   const closing=nextWorkingInstant(predecessorCalendar.calendar,bound)>bound;
   const last=closing?previousWorkingInstant(predecessorCalendar.calendar,bound):bound;
-  const start=closing&&predecessorDurationHours>0
+  const start=closing&&last===bound&&predecessorDurationHours>0
     ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
     :last;
   return {start, finish: addWorkingHours(

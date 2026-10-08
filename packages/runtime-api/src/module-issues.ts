@@ -156,7 +156,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       // its authority to governed or establish a contractual determination.
       const explicitDecision=value.approvalRequired===true||
         value.requiresUserApproval===true||value.decisionRequired===true||
-        diagnostics.some(s=>/(?:APPROVAL_REQUIRED|ADOPTION_REQUIRED|OVERRIDE_PENDING|UNTIL_MAPPED|REQUIRES_MAPPING|UNRESOLVED_AUTHORITY)/.test(s));
+        diagnostics.some(s=>/(?:APPROVAL_REQUIRED|ADOPTION_REQUIRED|OVERRIDE_PENDING|UNTIL_MAPPED|REQUIRES_MAPPING|UNRESOLVED_AUTHORITY)/.test(s))||
+        (path.includes('.liquidatedDamages')&&typeof value.action==='string'&&
+          /^(?:Promote the governing LD (?:term|cap)|Govern LD terms before)/.test(value.action));
       // A source candidate, a missing provenance field, or generic "pending"
       // state is not an approval request. Only a concrete selection, override
       // or required determination can enter the decision queue.

@@ -568,6 +568,15 @@ function buildBundle(
     return cached;
   }
 
+  const bundleProfile=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const bundleTimings:Array<{part:string;ms:number}>=[];
+  let bundleMark=bundleProfile?performance.now():0;
+  const measureBundle=(part:string)=>{
+    if(!bundleProfile)return;
+    const now=performance.now();
+    bundleTimings.push({part,ms:now-bundleMark});
+    bundleMark=now;
+  };
   const generatedAt =
     new Date().toISOString();
   const modules =
@@ -785,6 +794,7 @@ function buildBundle(
       "uat-pmo-v1",
   };
 
+  measureBundle('reporting_and_baseline_basis');
   const scheduleAnalyticsRaw =
     buildScheduleAnalyticsProjection(
       model,
@@ -986,6 +996,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('schedule_analytics');
   const activityAnalyticsRaw =
     buildActivityAnalyticsProjection(
       model,
@@ -1062,6 +1073,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('activity_analytics');
   const lookAhead =
     buildLookAheadProjection(
       model,
@@ -1312,6 +1324,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('lookahead_and_progress');
   const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
@@ -1603,6 +1616,7 @@ function buildBundle(
     );
   }
 
+  measureBundle('independent_forecast_and_change');
   const forecastSnapshots =
     ordered.map((stored) =>
       forecastSnapshotFromProjection(
@@ -1635,6 +1649,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     ),
   );
 
+  measureBundle('revision_forecasts');
   const resources =
     state.resourcesByRevision.get(
       current.revision
@@ -1821,6 +1836,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       if (resourceKey === "manhour-scurve") manhourScurve = sourceResource.data as ReturnType<typeof buildManhourScurveProjection>;
     }
   }
+  measureBundle('resources_and_quantities');
   const delayModel =
     state.controls.delayClaims;
   const claimPopulationQuarantined=claimsQuarantined(delayModel);
@@ -2330,6 +2346,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         state.submittedManpowerPlan,
     });
 
+  measureBundle('delay_and_claims');
   const contractValueExtraction =
     state.contract
       ? extractContractValue(
@@ -3144,6 +3161,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     pmo.progress = { ...pmo.progress, lookAheadMissedStartCount: lookAhead.missedStartCount ?? null };
   }
 
+  measureBundle('commercial_and_pmo');
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -3155,6 +3173,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
 
   for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel));
 
+  measureBundle('universal_challenges_and_integrity');
   const latestBoardPublicationRecord =
     state.boardPublicationHistory
       .filter(
@@ -3510,6 +3529,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     boardReport,
   };
 
+  measureBundle('board_and_finalization');
+  if(bundleProfile)process.stdout.write(JSON.stringify({event:'project_bundle_profile',projectId:state.projectId,timings:bundleTimings,totalMs:bundleTimings.reduce((sum,part)=>sum+part.ms,0)})+'\n');
   bundleCache.set(
     state.projectId,
     bundle,
