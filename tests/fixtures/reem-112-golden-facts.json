@@ -100,10 +100,16 @@
       "rows.length": 90
     },
     "delivery-design": {
-      "rows.length": 680
+      "rows.length": 680,
+      "programmeFollowUp.openOnUnfinishedWork": 9,
+      "programmeFollowUp.closeoutCount": 44,
+      "programmeFollowUp.linksNeedReview": 0
     },
     "delivery-quality": {
-      "rows.length": 260
+      "rows.length": 260,
+      "programmeFollowUp.openOnUnfinishedWork": 1,
+      "programmeFollowUp.closeoutCount": 67,
+      "programmeFollowUp.linksNeedReview": 0
     },
     "delivery-permits": {
       "rows.length": 70

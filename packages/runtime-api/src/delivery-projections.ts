@@ -12,6 +12,7 @@ import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurr
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import {scheduleScopeClassification} from './schedule-scope-classification';
+import {registerProgrammeContext} from './register-programme-context';
 import {buildLookAheadProjection} from '../../lookahead-schedule/src';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
@@ -283,7 +284,8 @@ function buildDelivery(state:ProjectRuntimeState){
   const firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
   const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
-  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
+  const programmeContext=registerProgrammeContext(r.links.activityIds,activities);
+  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
  });
  const rates=(rows:typeof registerRows,complete:boolean)=>{const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,passRatePercent:complete?pct(pass,rows.length):null,basis:complete?'Rate uses the confirmed current applicable population at the Data Date; future and undated rows are excluded.':'Known current outcomes remain visible, but the rate is withheld until the applicable population and outcome coverage are complete.'};};
  const allHandover=registerRows.filter(r=>r.kind==='handover'),handoverRows=allHandover.filter(r=>r.scope==='current'),handoverKnown=allHandover.every(r=>r.scope==='future'||r.currentStatus!=='not_established'&&r.scope!=='undated'&&!r.verificationRequired);
@@ -586,6 +588,15 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(riskPage&&!useBoqCandidates)managementPosition=risk.state==='missing'?'No confirmed Project Risk Register is available. Other scope intelligence remains available where supported by the BOQ/programme.':!p.dataDateIso?'Risk records are available; a reporting programme would add the dated risk position.':risk.sourceRecordCount+' risk records are supplied: '+risk.currentRecordCount+' current, '+risk.futureRecordCount+' after the Data Date and '+risk.undatedRecordCount+' without a reporting date. '+(risk.unknownStatusCount?risk.unknownStatusCount+' current risk statuses need dated evidence. ':'')+(risk.validation.state==='conflicted'?'Supplied risk ratings conflict. ':'')+(pending.length?pending.length+' linked Delivery records still need confirmation.':'');
  const ready=useBoqCandidates?false:!hasRows&&sourceEvidenceAvailable?false:riskPage?risk.complete&&risk.validation.state!=='conflicted'&&!!p.dataDateIso:hasRows&&!unread&&!!p.dataDateIso&&pending.length===0&&findings.length===0&&population.state==='established'&&metrics.every(m=>m.value!==null);
  const extras:Record<string,unknown>={};
+ if(['delivery-design','delivery-quality'].includes(key)){
+  const open=p.registerRows.filter(row=>row.kind===kind&&row.scope==='current'&&row.currentStatus==='open');
+  const closeout=open.filter(row=>row.programmeContext.state==='completed_work');
+  extras.programmeFollowUp={openOnUnfinishedWork:open.filter(row=>row.programmeContext.state==='unfinished_work').length,closeoutCount:closeout.length,
+   linksNeedReview:open.filter(row=>['unlinked','links_incomplete'].includes(row.programmeContext.state)).length,closeoutRows:closeout,
+   basis:'Open records on completed programme work require register close-out and any outstanding acceptance checks. They are not blockers to starting that completed work.'};
+  const order=(row:any)=>row.scope==='current'&&row.currentStatus==='open'?(row.programmeContext?.state==='unfinished_work'?0:row.programmeContext?.state==='completed_work'?2:1):3;
+  rows=[...rows].sort((a,b)=>order(a)-order(b)||(a.programmeContext?.linkedFloatHours??Infinity)-(b.programmeContext?.linkedFloatHours??Infinity)||String(a.dueDate??'9999').localeCompare(String(b.dueDate??'9999'))||String(a.reference??'').localeCompare(String(b.reference??'')));
+ }
  if(riskPage&&!useBoqCandidates)extras.derivedRiskCandidates=[...boqCandidateRows,...interfaceRiskRows];
  if(disruptionEvents.length){metrics=[metric('Reported disruption events',disruptionEvents.length,'events','Claim-register events through the Data Date')];managementPosition='Reported weather and disruption events are available from the claim register. Event dates and activity links are shown; working-hour loss and delay causation need separate evidence.';}
  if(programmeReadiness){metrics=metrics.filter(m=>m.label!=='Confirmed scope population');extras.programmeReadiness=true;managementPosition=rows.length+' activities from the shared 42-day look-ahead and overdue backlog: '+rows.filter(r=>r.state==='blocked').length+' blocked, '+rows.filter(r=>r.state==='unknown').length+' with missing readiness evidence. Open each activity for its linked prerequisites.';}

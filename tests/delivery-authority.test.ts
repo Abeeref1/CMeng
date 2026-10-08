@@ -16,6 +16,8 @@ import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time
 import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
+import {crossDomainAccountability} from '../packages/runtime-api/src/accountability-intelligence';
+import {registerProgrammeContext} from '../packages/runtime-api/src/register-programme-context';
 
 const calendar='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
 export function deliveryProgramme(date='2031-08-31',count=2){return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tDELIVERY\t'+date,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tWorking calendar\t'+calendar,'%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt',...Array.from({length:count},(_,i)=>'%R\t'+(i+1)+'\t1\t1\tA'+(i+1)+'\tEquipment installation '+(i+1)+'\tTK_NotStart\t2031-09-30 08:00\t2031-10-10 16:00\t80\t80\t16'),'%E'].join('\n');}
@@ -47,6 +49,29 @@ test('register owners come from responsibility columns and never from a discipli
  assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].owner,null);
  assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].discipline,'ARCH');
  assert.equal((deliveryModule(f.state,'delivery-quality').data as any).rows[0].owner,'QA Manager');
+});
+
+test('RFI and NCR close-out follows every linked activity without hiding the open record',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.status='completed';model.activities[0]!.actualFinishIso='2031-08-01';model.activities[0]!.totalFloatHours=null;
+ model.activities[1]!.totalFloatHours=-24;f.store.touch(f.state);
+ await f.upload('RFI.csv','RFI ID,Subject,Status,Raised Date,Due Date,Linked Activity,Owner\nR-DONE,As built drawing,Open,2031-07-01,2031-07-10,A1,Design lead\nR-LIVE,Open work detail,Open,2031-08-01,2031-09-01,A2,Design lead\nR-UNKNOWN,Link needed,Open,2031-08-01,2031-09-01,,Design lead');
+ await f.upload('NCR.csv','NCR ID,Description,Responsible,Status,Date Raised,Due Date,Linked Activity\nN-DONE,Completed inspection,QA Manager,Open,2031-07-01,2031-07-10,A1\nN-LIVE,Weld,QA Manager,Open,2031-08-01,2031-09-01,A2');
+ const before=JSON.stringify(f.state.controls);
+ const design=deliveryModule(f.state,'delivery-design').data as any,quality=deliveryModule(f.state,'delivery-quality').data as any;
+ assert.equal(design.programmeFollowUp.openOnUnfinishedWork,1);assert.equal(design.programmeFollowUp.closeoutCount,1);assert.equal(design.programmeFollowUp.linksNeedReview,1);
+ assert.deepEqual(design.programmeFollowUp.closeoutRows.map((r:any)=>r.reference),['R-DONE']);assert.equal(design.rows[0].reference,'R-LIVE');
+ assert.equal(design.rows[0].programmeContext.linkedFloatHours,-24);assert.equal(quality.programmeFollowUp.closeoutCount,1);assert.equal(quality.rows[0].reference,'N-LIVE');
+ assert.equal(design.rows.find((r:any)=>r.reference==='R-DONE').currentStatus,'open','completed programme work does not close the source RFI');
+ const actions=crossDomainAccountability(f.state).actions;
+ for(const ref of ['r-done','n-done']){const action=actions.find(a=>a.recordKey?.endsWith('|'+ref))!;assert.equal(action.severity,'low');assert.match(action.requiredAction,/close-out decision/);assert.doesNotMatch(action.requiredAction,/downstream release|recovery date/);}
+ assert.equal(JSON.stringify(f.state.controls),before,'the classification is read-only');
+ const map=new Map(model.activities.map(a=>[a.activityId,a]));
+ assert.equal(registerProgrammeContext(['A1','A2'],map).state,'unfinished_work');
+ assert.equal(registerProgrammeContext(['A1','MISSING'],map).state,'links_incomplete');
+ assert.equal(registerProgrammeContext([],map).state,'unlinked');
+ const ui=runInNewContext(deliveryScript()+';({columns:deliveryColumns("delivery-design"),completedFloat:deliveryCell({programmeContext:{state:"completed_work",linkedFloatHours:null}},"programmeContext.linkedFloatHours")})',{Intl});
+ assert.ok(ui.columns.some(([key]:string[])=>key==='programmeContext.label'));assert.equal(ui.completedFloat,'Not applicable');
 });
 
 test('programme scope and look-ahead remain usable without a workfront register',async t=>{

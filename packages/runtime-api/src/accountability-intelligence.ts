@@ -7,6 +7,7 @@ import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-type
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 import {actionRecordKey,prioritizeActions} from './action-priority';
 import {commercialCanonical} from './commercial-canonical';
+import {registerProgrammeContext} from './register-programme-context';
 
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
 const daysOver=(due:string|null,date:string|null)=>due&&date&&due<date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(due.slice(0,10)))/86400000)):null;
@@ -80,6 +81,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     }
   }
   const programme=projectControlSchedule(state)?.revision.model??null;
+  const programmeActivities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
   if(programme){
     const classification=scheduleScopeClassification(programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
     for(const a of programme.activities){
@@ -112,8 +114,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
     const procurement=domain==='procurement'?delivery.packageRows.find(row=>row.recordId===first.recordId):null;
-    const linked=first.activityIds.map(id=>programme?.activities.find(a=>a.activityId===id));
-    const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&linked.length>0&&linked.every(a=>a?.status==='completed');
+    const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work';
     const consequence=
       completedRegisterFollowUp?'All linked activities are complete. Close or reconcile this open register record and check any remaining acceptance obligation.':
       domain==='procurement'?'Programme need dates may be affected by the late package.':
@@ -124,6 +125,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       domain==='schedule'?'The activity is under current schedule pressure and may affect dependent work or milestones.':
       'The open control item requires resolution before its affected scope can be treated as clear.';
     const requiredAction=
+      completedRegisterFollowUp?'Reconcile the open record with the completed programme work, confirm any outstanding acceptance obligation and record the close-out decision.':
       domain==='procurement'?'Confirm vendor status, recovery delivery date and affected programme need dates; expedite where required.':
       domain==='rfi'?'Obtain the response, confirm the affected activities and update the required date.':
       domain==='ncr'?'Close the NCR with corrective evidence and confirm downstream release.':
