@@ -272,8 +272,15 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
   const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
-  const overlapPending=extendedCompletion===null&&officialAward!==null&&officialAward>0&&
-    contractTime?.overlapResolution==='unresolved';
+  // An adjustment identical to the original completion is not an extension.
+  // Some source amendments echo the original date while a separate dated EOT
+  // award exists. Retain both facts and present the calendared comparison
+  // without claiming that amendment/EOT overlap has been legally reconciled.
+  const baseCompletion=commercial.timeExposure.contractualCompletion.value;
+  const adjustmentUnapplied=(extendedCompletion===null||(
+    baseCompletion!==null&&extendedCompletion.slice(0,10)===baseCompletion.slice(0,10)));
+  const overlapPending=adjustmentUnapplied&&officialAward!==null&&officialAward>0&&
+    contractTime?.overlapResolution!=='resolved';
   const completionCandidates=overlapPending?contractCompletionPosition(scoped,dataDateIso).candidates:[];
   const originalDates=[...new Set(completionCandidates.filter(item=>item.role==='main'||item.role==='replacement').map(item=>item.date))];
   const amendedDates=[...new Set(completionCandidates.filter(item=>item.role==='amendment'&&
@@ -281,17 +288,18 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // This is a visible SOURCE-QUALIFIED comparison, never a second official
   // EOT award or a new governing contract date. No extra days are silently
   // added to an amendment, because that could double-count awarded EOT.
-  const provisionalExtendedDate=overlapPending?(
-    originalDates.length===1&&contractTime?.eotDayBasis!=='working_days'
-      ?new Date(Date.parse(originalDates[0]!+'T00:00:00Z')+officialAward!*86400000).toISOString().slice(0,10)
-      :amendedDates.length===1?amendedDates[0]!:null
-  ):null;
+  const originalDate=originalDates.length===1?originalDates[0]!:originalDates.length===0?baseCompletion:null;
+  const calendared=originalDate&&/^\\d{4}-\\d{2}-\\d{2}$/.test(originalDate)
+    ?Date.parse(originalDate+'T00:00:00Z'):NaN;
+  const provisionalExtendedDate=overlapPending&&Number.isFinite(calendared)
+    ?new Date(calendared+officialAward!*86400000).toISOString().slice(0,10)
+    :null;
   const overlapSourceRefs=overlapPending?[...new Set([
     ...completionCandidates.map(item=>item.sourceRef),
     ...(contractTime?.sourceRefs??[]),
   ])]:[];
   const presentedExtension=provisionalExtendedDate!==null
-    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: source-reported awarded EOT and the original completion date give a comparison date. This is not a certified extension and must not be used for LD or late-day determinations.','from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
+    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.','from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
     :commercialFact(commercial.timeExposure.officialAdjustedCompletion,
         commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
           ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
