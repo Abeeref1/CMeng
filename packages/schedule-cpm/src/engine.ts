@@ -295,11 +295,14 @@ function backwardConstraintFinish(
   // closing instant as a start and carrying its duration into the next week.
   // A deadline already inside a nonworking gap may use the last closing
   // boundary: the boundary remains a feasible instant before that deadline.
-  // Only move one working hour earlier when the deadline is exactly a
-  // closing boundary, where no work can begin at the instant itself.
+  // A deadline *after* shift closing can rewind to the earlier closing
+  // boundary. That boundary itself is not a feasible activity start, whether
+  // or not it equals the original deadline. Rewind into real working time
+  // rather than adding duration across a non-working gap.
   const closing=nextWorkingInstant(predecessorCalendar.calendar,bound)>bound;
   const last=closing?previousWorkingInstant(predecessorCalendar.calendar,bound):bound;
-  const start=closing&&last===bound&&predecessorDurationHours>0
+  const lastClosesShift=nextWorkingInstant(predecessorCalendar.calendar,last)>last;
+  const start=closing&&lastClosesShift&&predecessorDurationHours>0
     ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
     :last;
   return {start, finish: addWorkingHours(
