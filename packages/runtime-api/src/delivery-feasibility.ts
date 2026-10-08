@@ -1,3 +1,4 @@
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {withInstalledMeasurements} from './installed-measurements';
 import {resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import {plotCrewScenarios} from './plot-crew-scenarios';
@@ -36,8 +37,8 @@ function computeDeliveryFeasibility(state:ProjectRuntimeState) {
   const from=programmePcMilestone(baseline?.revision.model??null),to=programmePcMilestone(model);
   const comparable=!!baseline&&baseline.revision.revisionId!==current.revision.revisionId&&from.dateIso!==null&&to.dateIso!==null&&from.activityIds[0]===to.activityIds[0];
   const resourceModel=state.resourcesByRevision.get(current.revision.revisionId),resourceById=new Map(resourceModel?.resources.map(row=>[row.resourceId,row])??[]);
-  const laborAssignments=(resourceModel?.assignments??[]).filter(row=>{const resource=row.resourceId?resourceById.get(row.resourceId):null;return row.resourceType==='labor'&&/^(h|hr|hrs|hour|hours|labor hour|labour hour)$/i.test(resource?.unitAbbreviation??resource?.unitName??'');});
-  const programmeChecks={remainingLaborHours:laborAssignments.length&&laborAssignments.every(row=>row.remainingUnits!==null)?laborAssignments.reduce((sum,row)=>sum+row.remainingUnits!,0):null,calendarActivityCount:model.activities.filter(row=>row.status!=='completed'&&resolveWorkingCalendar(row.calendarId,model.calendars,false)).length,crewScenarios:plotCrewScenarios(model),basis:'Submitted remaining labour-hour budget and source-calendar crew sensitivities. They do not establish a quantity-driven productivity forecast.'};
+  const laborAssignments=(resourceModel?.assignments??[]).filter(row=>{const resource=row.resourceId?resourceById.get(row.resourceId):null;return Boolean(resource&&resourceLaborHourEligible(resource));});
+  const programmeChecks={remainingLaborHours:laborAssignments.length&&laborAssignments.every(row=>typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits))?laborAssignments.reduce((sum,row)=>sum+row.remainingUnits!,0):null,calendarActivityCount:model.activities.filter(row=>row.status!=='completed'&&resolveWorkingCalendar(row.calendarId,model.calendars,false)).length,crewScenarios:plotCrewScenarios(model),basis:'Submitted remaining labour-hour budget and source-calendar crew sensitivities. They do not establish a quantity-driven productivity forecast.'};
   return {...analysis,programmeChecks,programmePc:{baseline:from,current:to,baselineRevisionId:baseline?.revision.revisionId??null,currentRevisionId:current.revision.revisionId,movementDays:comparable?Number(((Date.parse(to.dateIso!)-Date.parse(from.dateIso!))/86400000).toFixed(6)):null,state:comparable?'established':'unresolved',reason:comparable?'Same explicit Programme PC activity in the adopted baseline and current programme; movement does not establish causation or EOT.':!baseline?'An adopted baseline is not established.':!from.dateIso?from.reason:!to.dateIso?to.reason:'Confirm that baseline and current Programme PC refer to the same milestone.'}};
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof computeDeliveryFeasibility>}>();

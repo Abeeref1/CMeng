@@ -1,5 +1,5 @@
 import {contractTermSelectionFactState,termAtEvent} from '../../runtime-api/src/contract-term-versions';
-import { partitionAsOf } from "../../truth-kernel/src";
+import { partitionAsOf, selectCostMetricRows } from "../../truth-kernel/src";
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CbsBreakdownProjection,
@@ -1299,8 +1299,9 @@ function buildCostRegister(
         candidates,
       ] of byMetric
     ) {
+      const selection=selectCostMetricRows(candidates);
       const valuesKnown =
-        candidates.filter(
+        selection.selected.filter(
           (candidate) =>
             candidate.amount
               .value !== null,
@@ -1354,9 +1355,13 @@ function buildCostRegister(
       } else {
         metrics[metric] =
           moneyFinding(
-            candidates.at(-1)!
+            selection.selected.at(-1)!
               .amount,
           );
+        if(selection.historyDiffers){
+          metrics[metric]!.diagnostics.push('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY');
+          metrics[metric]!.consequence='The current confirmed source is used; differing unconfirmed history is retained for reconciliation.';
+        }
       }
     }
     const state:

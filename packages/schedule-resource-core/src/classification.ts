@@ -46,5 +46,5 @@ export function resourceLaborEligible(resource:ResourceSemanticInput):boolean {
 export function resourceLaborHourEligible(resource:ResourceSemanticInput):boolean {
   if(resourceBusinessClass(resource)!=='labor')return false;
   const unitText=normalized([resource.unitName,resource.unitAbbreviation,resource.priceTimeUnit]);
-  return /(?:^|\b)(?:h|hr|hrs|hour|hours)(?:\b|$)|qt\s*hour/.test(unitText);
+  return /(?:^|\b)(?:h|hr|hrs|hour|hours|mh|manhours?|man hours?)(?:\b|$)|qt\s*hour/.test(unitText);
 }

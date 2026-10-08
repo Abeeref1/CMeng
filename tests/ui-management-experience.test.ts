@@ -15,6 +15,14 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('documents label a submitted-current programme as usable without demanding adoption',()=>{
+ const label=runInNewContext(functions(['documentUseLabel'])+';documentUseLabel',{humanizeKey:String});
+ for(const method of ['submitted_update','legacy_retained']){
+  assert.equal(label('active',{category:'schedule',scheduleAdoption:{method}}),'Current submitted programme · not an approval');
+ }
+ assert.equal(label('active',{category:'schedule',scheduleAdoption:{method:'explicit'}}),'Current / used now');
+ assert.equal(label('superseded',{category:'schedule',scheduleAdoption:{method:'submitted_update'}}),'Previous version');
+});
 test('Ask tables translate retained revision references and internal states without changing stored identities',()=>{
  const labels={schedrev_abcdef123456:'August update',evidence_abcdef123456:'Risk register.csv'};
  const ctx={askAnalysis:{sourceLabels:labels},currentModuleResult:null};

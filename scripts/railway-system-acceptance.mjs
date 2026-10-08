@@ -15,7 +15,7 @@ const specialist=moduleRegistry.filter(p=>p.area!=='management').map(p=>p.key);
 const management=moduleRegistry.filter(p=>p.area==='management').map(p=>p.key);
 const areaByKey=new Map(moduleRegistry.map(p=>[p.key,p.area]));
 if(specialist.length+management.length<58)throw Error('The complete 58-module acceptance population must be retained.');
-const summary={mode:"ALL_PROJECTS_GENERIC_INVARIANTS",expectedRelease:expected,projects:[],checks:[],status:"running"};
+const summary={mode:"ALL_PROJECTS_GENERIC_INVARIANTS",expectedRelease:expected,projects:[],checks:[],transportRetries:[],status:"running"};
 const comparable=v=>Array.isArray(v)?v.map(comparable):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).filter(([k])=>k!=="generatedAt").map(([k,x])=>[k,comparable(x)])):v;
 const digest=v=>createHash("sha256").update(JSON.stringify(comparable(v))).digest("hex");
 const check=(name,ok,projectId=null,detail=null)=>{summary.checks.push({name,status:ok?"pass":"fail",projectFingerprint:projectId?createHash("sha256").update(projectId).digest("hex").slice(0,16):null,detail:ok?null:detail});return ok;};
@@ -25,10 +25,17 @@ async function pool(items,run){
   await Promise.all(Array.from({length:Math.min(4,items.length)},async()=>{while(next<items.length){const item=items[next++];await run(item);}}));
 }
 
-async function response(path,allowed=[200]){
+async function response(path,allowed=[200],proxyRetry=false){
   const res=await fetch(base+path,{signal:AbortSignal.timeout(90000)});
   if(!allowed.includes(res.status)){
     const text=await res.text();
+    // The execution proxy can refuse a connection before Railway receives it.
+    // Retry that exact proxy response once, retaining it in the evidence. Real
+    // application/proxy failures from Railway are not retried or reclassified.
+    if(!proxyRetry&&res.status===502&&text.includes('[Errno 111] Connection refused')){
+      summary.transportRetries.push({path:path.replace(/projects\/[^/]+/,"projects/[redacted]"),status:502,reason:'Execution proxy refused the connection',at:new Date().toISOString()});
+      return response(path,allowed,true);
+    }
     throw new Error(path.replace(/projects\/[^/]+/,"projects/[redacted]")+" HTTP "+res.status+" "+text.slice(0,300));
   }
   return res;

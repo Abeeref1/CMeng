@@ -134,5 +134,7 @@ test('one payment conflict does not turn unrelated missing fields into one corre
   const correction=result.actions.find((a:any)=>a.id==='matter:payments:correction');
   const information=result.information.find((a:any)=>a.id==='matter:payments:information');
   assert.ok(correction);assert.equal(correction!.requestCount,1);assert.equal(correction!.findings?.[0]?.kind,'source_conflict');
+  assert.equal(correction!.correctionRecords?.[0]?.locator,'Row 3');
+  assert.match(correction!.reason,/only the listed fields need correction/);
   assert.ok(information);assert.equal(information!.requestCount,1);assert.equal(information!.findings?.[0]?.kind,'missing_information');
 });

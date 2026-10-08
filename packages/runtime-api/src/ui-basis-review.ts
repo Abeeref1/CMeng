@@ -45,7 +45,7 @@ function renderCommercialExceptions(position,key,data){
     const rules=position.contractNoticeRules||[];
     if(rules.length)html+=basisPanel('Contract notice periods by version','The original and amended rules are separate. Notice dates alone cannot establish the applicable trigger date.',
       basisTable(['Requirement','Days','Effective from','Replaced from','Trigger','Source'],rules.map(r=>[r.noticeKind==='detailed_claim'?'Fully detailed claim':'Initial claim notice',r.noticePeriodDays,r.effectiveFromIso?planningShortDate(r.effectiveFromIso):'Original / date not stated',r.effectiveToIso?planningShortDate(r.effectiveToIso):'No later version supplied',humanizeKey(r.triggerBasis||'not_stated'),(r.sourceFilename||'Contract source')+' · '+(r.evidenceRefs||[]).map(e=>e.locator).slice(0,2).join('; ')]))+
-      '<p>Obtain event/awareness dates and confirm amendment applicability before a compliance decision. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>');
+      '<p>The notice assessment uses each recorded event or awareness date and the rule applicable on that date. Missing inputs are identified against the affected claim. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>');
   }
   return html;
 }

@@ -12,6 +12,7 @@ import {buildNoticesClaimsProjection} from "../packages/notices-claims/src";
 import {runtimeProjects} from "../packages/runtime-api/src/project-state";
 import {changeDelivery,deliveryRecords,deliveryStore} from "../packages/runtime-api/src/delivery-records";
 import {recoveryAccelerationIntelligence} from "../packages/runtime-api/src/recovery-acceleration";
+import {loadCertifiedDemoProject} from "../packages/runtime-api/src/demo-project";
 
 const ref=(sourceType:any,sourceId:string)=>({sourceType,sourceId,locator:"row:1"});
 const event=(overrides:Partial<CanonicalDelayEvent>={}):CanonicalDelayEvent=>({
@@ -145,4 +146,21 @@ test("Stage 1 Recovery distinguishes absent supporting evidence from checked evi
   assert.ok(checked.eligibility.deliveryPackagePopulationCount>0);
   assert.equal(checked.eligibilityAssessmentState,"checked_no_eligible_basis");
   assert.match(checked.managementPosition,/no eligible scenario basis was found/i);
+});
+
+test('an undelivered package with a past forecast requires a new recovery date, not a zero-day calculated option',()=>{
+ const state=loadCertifiedDemoProject('STALE-RECOVERY');
+ state.schedules.at(-1)!.revision.model.dataDateIso='2036-08-31';
+ for(const [reference,forecast] of [['STALE','2036-08-24'],['FUTURE','2036-09-05']]){
+  changeDelivery(state,{expectedVersion:state.version,action:'create',kind:'package',fields:{'record reference':reference,description:reference,status:'Ordered','required on site date':'2036-08-29','forecast delivery date':forecast}} as any);
+  state.version++;
+  const record=deliveryRecords(state).records.find(r=>r.reference===reference)!;
+  changeDelivery(state,{expectedVersion:state.version,action:'review',recordId:record.recordId,sourceRevision:record.revision,state:'governed',fields:{},note:'Controlled fixture'} as any);
+  state.version++;
+ }
+ const result=recoveryAccelerationIntelligence(state);
+ const stale=result.scenarios.find(r=>r.subject==='STALE')!,future=result.scenarios.find(r=>r.subject==='FUTURE')!;
+ assert.equal(stale.state,'option_requires_assumption');assert.equal(stale.possibleDaysRecovered,null);
+ assert.match(stale.currentPosition,/remains undelivered/);assert.match(stale.targetPosition,/current achievable delivery/);
+ assert.equal(future.state,'calculated');assert.equal(future.possibleDaysRecovered,7);
 });

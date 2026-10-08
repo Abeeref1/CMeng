@@ -29,6 +29,26 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  return {dir,store,state,upload,change,create,review,population};
 }
 
+test('supplier headlines use the same vendor population as their table and preserve links after formal registration',async t=>{
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Vendor,Status,Required On Site,Forecast Delivery\nP1,Pump,Acme,Ordered,2031-08-29,2031-09-05\nP2,Cable,ACME,Ordered,2031-09-10,2031-09-09\nP3,Steel,Beta,Ordered,2031-09-10,2031-09-09');
+ const check=()=>{const data=deliveryModule(f.state,'delivery-suppliers').data as any;
+  assert.equal(data.rows.length,2);assert.equal(data.metrics.find((m:any)=>m.label==='Suppliers in available records').value,2);
+  assert.equal(data.metrics.find((m:any)=>m.label==='Linked procurement packages').value,3);
+  assert.equal(data.metrics.find((m:any)=>m.label==='Suppliers with known late packages').value,1);
+  assert.equal(data.rows.reduce((n:number,r:any)=>n+r.packageCount,0),3);
+ };check();f.create('supplier','S1',{company:'Acme'});check();
+});
+
+test('register owners come from responsibility columns and never from a discipline code',async t=>{
+ const f=await fixture(t);
+ await f.upload('RFI.csv','RFI ID,Subject,Discipline,Status,Raised Date,Due Date\nR1,Drawing,ARCH,Open,2031-08-01,2031-09-01');
+ await f.upload('NCR.csv','NCR ID,Description,Responsible,Status,Date Raised,Due Date\nN1,Weld,QA Manager,Open,2031-08-01,2031-09-01');
+ assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].owner,null);
+ assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].discipline,'ARCH');
+ assert.equal((deliveryModule(f.state,'delivery-quality').data as any).rows[0].owner,'QA Manager');
+});
+
 test('programme scope and look-ahead remain usable without a workfront register',async t=>{
  const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
  model.activities[0]!.name='Electrical installation - Plot C 81';model.activities[1]!.name='Concrete foundations - Plot C 82';f.store.touch(f.state);

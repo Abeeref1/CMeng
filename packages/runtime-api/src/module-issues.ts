@@ -190,7 +190,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const explicitBasisReview=integrity?.state==='verified_for_checked_metrics'&&((d?.classificationBasis==='source_total_float'&&d?.independentCpmState==='established')||d?.managementReviewState==='review_required');
   if(explicitBasisReview)add('governance_review','CALCULATION_BASIS_REVIEW','Calculated basis requires review',d.managementReviewReason??'Submitted float and independently recalculated criticality are both available on their stated bases.',
     'Review the calendar, constraints and comparison basis before adopting a management conclusion.','calculationBasis','Project controls reviewer');
-  if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review'].includes(i.kind)))
+  const floatReview=d?.activityFloatReconciliation;
+  if(floatReview?.disputedActivityCount>0&&['established','qualified_scenario'].includes(floatReview.independentCpmState))add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and calculated activity float differ',
+    floatReview.disputedActivityCount+' open activities have different submitted and calculated float; both values and the calculation assumptions are available.',
+    'Review the identified activities and calculation basis before adopting a programme conclusion.','activityFloatReconciliation','Project controls reviewer');
+  if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review','comparison_difference'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');
   return summarizeControlIssues(issues);

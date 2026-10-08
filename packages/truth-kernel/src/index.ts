@@ -9,6 +9,7 @@ export * from './reporting';
 export * from './issues';
 export * from './aggregates';
 export * from './procurement-timing';
+export * from './cost-selection';
 
 export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted';
 export type ManagementFactState = FactState | 'not_applicable' | 'quarantined';

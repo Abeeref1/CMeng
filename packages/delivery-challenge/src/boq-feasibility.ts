@@ -1,3 +1,4 @@
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
@@ -36,7 +37,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
   for(const a of quantities?.allocations??[]){const list=allocations.get(a.quantityItemId)??[];list.push(a);allocations.set(a.quantityItemId,list);const ids=activityItems.get(a.activityId)??new Set<string>();ids.add(a.quantityItemId);activityItems.set(a.activityId,ids);}
   const assignments=new Map<string,NonNullable<typeof resources>['assignments']>();
   for(const a of resources?.assignments??[]){const resource=a.resourceId?resourceById.get(a.resourceId):null;
-    if((a.resourceType==='labor'||resource?.resourceType==='labor')&&/^(h|hr|hrs|hour|hours|labor hour|labour hour)$/i.test(resource?.unitAbbreviation??resource?.unitName??'')){const list=assignments.get(a.activityId)??[];list.push(a);assignments.set(a.activityId,list);}}
+    if(resource&&resourceLaborHourEligible(resource)){const list=assignments.get(a.activityId)??[];list.push(a);assignments.set(a.activityId,list);}}
   const snapshots=new Map<string,NonNullable<typeof quantities>['installedSnapshots']>();
   for(const s of quantities?.installedSnapshots??[]){const date=instant(s.asOfIso);if(dataDate===null||date===null||date>dataDate)continue;const list=snapshots.get(s.quantityItemId)??[];list.push(s);snapshots.set(s.quantityItemId,list);}
   const rates=new Map<string,LaborProductivityBasis[]>();

@@ -1,3 +1,5 @@
+import {refreshResourceSourceFields} from './resource-source-refresh';
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {commercialPositionForState} from './commercial-runtime';
 import {cachedIndependentForecast} from './forecast-cache';
 import {deliveryFeasibilityForState,programmePcMilestone} from './delivery-feasibility';
@@ -19,7 +21,8 @@ export interface RecoveryScenario {
 }
 export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const control=projectControlSchedule(state),feasibility=deliveryFeasibilityForState(state),delivery=deliveryPosition(state),programme=control?.revision.model??null,dataDateIso=projectDataDate(state);
-  const resources=control?state.resourcesByRevision.get(control.revision.revisionId)??null:null,commercial=commercialCanonical(state);
+  const storedResources=control?state.resourcesByRevision.get(control.revision.revisionId)??null:null;
+  const resources=storedResources?refreshResourceSourceFields(state,storedResources):null,commercial=commercialCanonical(state);
   const explicitCurrencies=[...new Set(commercial.costPosition.map(row=>row.currency).filter(Boolean))],resourceCurrency=explicitCurrencies.length===1?explicitCurrencies[0]!:null;
   const resourceById=new Map((resources?.resources??[]).map(r=>[r.resourceId,r]));
   const labourCost=(activityId:string,additionalPeople:number,availableWorkingHours:number|null)=>{
@@ -27,7 +30,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     const rows=resources.assignments.filter(a=>{
       if(a.activityId!==activityId||a.resourceType!=='labor'||a.remainingUnits===null||a.remainingUnits<=0||a.remainingCost===null||a.remainingCost===undefined||a.remainingCost<0)return false;
       const resource=a.resourceId?resourceById.get(a.resourceId):null;
-      return /^(h|hr|hrs|hour|hours|labor hour|labour hour)$/i.test(resource?.unitAbbreviation??resource?.unitName??'');
+      return Boolean(resource&&resourceLaborHourEligible(resource));
     });
     const expected=resources.assignments.filter(a=>a.activityId===activityId&&a.resourceType==='labor'&&(a.remainingUnits??0)>0);
     if(!rows.length||rows.length!==expected.length||!resourceCurrency)return null;
@@ -57,10 +60,12 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       risks:['Additional labour may have diminishing productivity where workspace, supervision, plant or access is constrained.'],diminishingReturn:'Do not assume linear recovery beyond the calculated average requirement; productivity should be rechecked after each resource step.',authority:'scenario'});
   }
   for(const p of latePackages){
-    scenarios.push({scenarioId:'expedite:'+p.recordId,type:'procurement_expedite',state:p.headroomCalendarDays===null?'option_requires_assumption':'calculated',subject:p.reference??p.recordId,affectedActivities:[...p.activityIds],affectedPackages:[p.recordId],
+    const staleForecast=Boolean(p.overdueUndelivered&&(!p.forecastDelivery||dataDateIso&&p.forecastDelivery.slice(0,10)<=dataDateIso.slice(0,10)));
+    const knownRecovery=!staleForecast&&p.headroomCalendarDays!==null;
+    scenarios.push({scenarioId:'expedite:'+p.recordId,type:'procurement_expedite',state:knownRecovery?'calculated':'option_requires_assumption',subject:p.reference??p.recordId,affectedActivities:[...p.activityIds],affectedPackages:[p.recordId],
       assumption:'Bring forecast delivery forward to the controlled programme need date without changing downstream logic.',
-      currentPosition:p.headroomCalendarDays===null?'Required-on-site date '+p.needDate+' has passed; the package remains undelivered and its forecast delivery needs updating.':'Forecast delivery '+p.forecastDelivery+' is '+(-p.headroomCalendarDays)+' calendar days after need '+p.needDate+'.',
-      targetPosition:'Delivery no later than '+(p.needDate??'the required delivery date')+'.',possibleDaysRecovered:p.headroomCalendarDays===null?null:Math.max(0,-p.headroomCalendarDays),
+      currentPosition:!knownRecovery?'Required-on-site date '+p.needDate+' has passed; the package remains undelivered and its forecast delivery needs updating.':'Forecast delivery '+p.forecastDelivery+' is '+(-p.headroomCalendarDays!)+' calendar days after need '+p.needDate+'.',
+      targetPosition:staleForecast?'Obtain a current achievable delivery date and test the downstream recovery.':'Delivery no later than '+(p.needDate??'the required delivery date')+'.',possibleDaysRecovered:knownRecovery?Math.max(0,-p.headroomCalendarDays!):null,
       effectBasis:'Package delivery headroom recovered locally. This is the maximum procurement lateness removed; Project completion recovery is only established if the linked activity is on a finish-driving path.',
       additionalResources:'Supplier expediting / logistics / approval acceleration to be defined by the package owner.',estimatedCost:null,currency:p.currency,
       costBasis:'Expediting cost is not established in the supplied Project records.',implementationDate:dataDateIso,constraints:['Supplier/manufacturing capability and approval lead times must support the earlier delivery.','A package arriving on time does not prove the linked construction activity will finish earlier.'],

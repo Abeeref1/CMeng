@@ -282,7 +282,7 @@ function buildDelivery(state:ProjectRuntimeState){
   // Every completion/outcome above must independently satisfy its event date.
   const firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
-  const owner=field(r,'owner','responsible party')||(r.kind==='design'?field(r,'discipline')||null:null);
+  const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
   return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
  });
  const rates=(rows:typeof registerRows,complete:boolean)=>{const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,passRatePercent:complete?pct(pass,rows.length):null,basis:complete?'Rate uses the confirmed current applicable population at the Data Date; future and undated rows are excluded.':'Known current outcomes remain visible, but the rate is withheld until the applicable population and outcome coverage are complete.'};};
@@ -317,15 +317,17 @@ function buildDelivery(state:ProjectRuntimeState){
    authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',
    progressAuthority:'Shared Progress Breakdown calculation; programme progress is separate from installed physical quantities and workfront acceptance.',wbsRows:rows,readiness:gates};
  });
- const registeredSuppliers=byKind('supplier').map(r=>{const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
+ const supplierKey=(value:string|null|undefined)=>String(value??'').trim().toLocaleLowerCase();
+ const registeredSuppliers=byKind('supplier').map(r=>{const names=[r.reference,r.description,field(r,'company')].map(supplierKey).filter(Boolean);const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)||p.supplier&&names.includes(supplierKey(p.supplier))),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
   return {recordId:r.recordId,reference:r.reference,description:r.description,packages,packageCount:packages.length,
    lateKnownPackageCount:packages.some(p=>p.headroomCalendarDays!==null)?packages.filter(p=>!p.deliveredAtDataDate&&(p.overdueUndelivered||(p.headroomCalendarDays!==null&&p.headroomCalendarDays<0))).length:null,
    unresolvedPackageCount:packages.length?packages.filter(p=>p.headroomCalendarDays===null).length:null,
    materials:materialRows.filter(p=>packageIds.has(p.recordId)),quality:related.filter(q=>q.kind==='quality'),hse:related.filter(q=>q.kind==='hse'),workfronts:related.filter(q=>q.kind==='workfront'),
    existingRiskIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.riskIds))],existingVariationIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.variationIds))],
    commercialAuthority:'/commercial/modules/commercial-overview',source:r};});
- const sourceSuppliers=[...new Set(packageRows.map(r=>r.supplier).filter((name):name is string=>!!name))].filter(name=>!registeredSuppliers.some(r=>[r.reference,r.description,field(r.source,'company')].some(v=>v?.trim().toLowerCase()===name.trim().toLowerCase()))).map(name=>{
-  const packages=packageRows.filter(r=>r.supplier===name);
+ const supplierNames=new Map<string,string>();for(const row of packageRows)if(row.supplier&&!supplierNames.has(supplierKey(row.supplier)))supplierNames.set(supplierKey(row.supplier),row.supplier.trim());
+ const sourceSuppliers=[...supplierNames.values()].filter(name=>!registeredSuppliers.some(r=>[r.reference,r.description,field(r.source,'company')].some(v=>v?.trim().toLowerCase()===name.trim().toLowerCase()))).map(name=>{
+  const packages=packageRows.filter(r=>supplierKey(r.supplier)===supplierKey(name));
   return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&(r.overdueUndelivered||(r.headroomCalendarDays!==null&&r.headroomCalendarDays<0))).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
@@ -590,6 +592,11 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(['construction-discipline','construction-locations'].includes(key)&&governedRows.length){
   metrics=[metric('Programme activities',governedRows.reduce((sum,row)=>sum+(row.activityCount??0),0),'activities'),metric('Progress groups',governedRows.length,'groups'),metric('Unclassified activities',governedRows.filter(row=>row.label==='Unclassified').reduce((sum,row)=>sum+(row.activityCount??0),0),'activities')];
   managementPosition='Programme progress by '+(key==='construction-discipline'?'discipline':'location')+' uses the same classifications as Activity Review. Workfront release and installed quantities retain their separate evidence.';
+ }
+ if(key==='delivery-suppliers'&&p.supplierRows.length){
+  const linked=new Set(p.supplierRows.flatMap(row=>row.packages.map(pkg=>pkg.recordId)));
+  metrics=[metric('Suppliers in available records',p.supplierRows.length,'suppliers','Distinct supplier identities from supplier and procurement registers.'),metric('Linked procurement packages',linked.size,'packages','Each linked package counted once.'),metric('Suppliers with known late packages',p.supplierRows.filter(row=>(row.lateKnownPackageCount??0)>0).length,'suppliers','Known late delivery against the programme or register need date.')];
+  managementPosition=p.supplierRows.length+' suppliers are identified in the available supplier and procurement registers, linked to '+linked.size+' packages. Formal supplier approval and population completeness remain separate.';
  }
  if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities','Current programme fallback'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition='The programme provides '+programmeFallback.length+' relevant tasks and their current dates. Verification and formal acceptance are not established by programme progress.';}
  if(reportedHse?.periodEndIso){extras.reportedHse=reportedHse;managementPosition='Reported HSE position through '+reportedHse.periodEndIso+'. '+reportedHse.scope+(reportedHse.diagnostics.length?' Review the stated source reconciliation findings.':' The reported rates reconcile with the incident and exposure table.');}

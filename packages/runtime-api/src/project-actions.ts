@@ -24,6 +24,7 @@ export interface ProjectAction {
   };
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
+  correctionRecords?:Array<{source:string;locator:string}>;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -203,6 +204,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
+      if(resolution.resolution?.kind==='upload'){
+        item.correctionRecords=refs.map(ref=>{
+          const document=state.evidenceDocuments.find(d=>ref.startsWith('evidence-document:'+d.documentId+':'));
+          const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
+          return {source:document?.sourceFilename??'Retained source record',locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section'};
+        }).filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator)===index);
+        item.reason=subset.length+' source finding'+(subset.length===1?'':'s')+' affect '+pages.map(titleForModule).join(', ')+'. Available values remain usable; only the listed fields need correction.';
+      }
       (item.category==='information'?information:actions).push(item);
     };
     const correctionIssues=issues.filter(issue=>['source_conflict','data_quality'].includes(issue.kind));

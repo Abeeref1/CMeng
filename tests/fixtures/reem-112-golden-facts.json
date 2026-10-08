@@ -118,7 +118,9 @@
       "position.costBasisReview.0.ev": 187206039,
       "position.costBasisReview.0.ac": 194697087,
       "position.performance.costControl.positions.0.ev.value": 187206039,
-      "position.performance.costControl.positions.0.ac.value": 194697087
+      "position.performance.costControl.positions.0.ac.value": 194697087,
+      "focus.costRegister.rows.0.metrics.ev.value": 187206039,
+      "focus.costRegister.rows.0.metrics.ac.value": 194697087
     },
     "payments": {
       "focus.paymentRegister.slaCounts.paidLate": 11,

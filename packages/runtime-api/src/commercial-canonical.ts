@@ -1,4 +1,4 @@
-import {canonicalHeader} from '../../truth-kernel/src';
+import {canonicalHeader,selectCostMetricRows} from '../../truth-kernel/src';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
@@ -405,13 +405,13 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   const values:Record<string,number|null>={},issues:string[]=[];
   const selected:CostMetricRecord[]=[];
   for(const k of new Set(rows.map(r=>canonicalHeader(r.metric)))){
-   const matching=rows.filter(r=>canonicalHeader(r.metric)===k),official=matching.filter(r=>r.amount.state==='official');
-   const current=official.length?official:matching;
+   const matching=rows.filter(r=>canonicalHeader(r.metric)===k),selection=selectCostMetricRows(matching);
+   const current=selection.selected;
    selected.push(...current);
    const distinct=new Set(current.map(r=>r.amount.value));
    values[k]=distinct.size===1?current[0]!.amount.value:null;
    if(distinct.size>1)issues.push('CONFLICTING_COST_METRIC:'+k);
-   if(official.length&&matching.some(r=>!official.includes(r)&&r.amount.value!==values[k]))issues.push('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY:'+k);
+   if(selection.historyDiffers)issues.push('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY:'+k);
   }
   const get=(k:string)=>values[k]??null;
   const compatible=rows[0]!.amount.taxBasis!=='unknown';

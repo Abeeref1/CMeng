@@ -1333,9 +1333,9 @@ function metricsFor(
 
     case "near-critical": {
       const config = projectScheduleControlBasis(state).analysisConfig;
-      const sourceById = new Map(model.activities.filter(isExecutionActivity).map(a=>[a.activityId,a]));
+      const sourceById = new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed').map(a=>[a.activityId,a]));
       const independentRows = forecast.activities.filter(row=>sourceById.has(row.activityId));
-      const independentCount = !forecast.complete || !independentRows.length || independentRows.some(row=>row.independentTotalFloatHours===null||activityNearCriticalThresholdHours(model,sourceById.get(row.activityId)!,config)===null) ? null : independentRows.filter(row=>{
+      const independentCount = !forecast.complete || independentRows.length!==sourceById.size || independentRows.some(row=>row.independentTotalFloatHours===null||activityNearCriticalThresholdHours(model,sourceById.get(row.activityId)!,config)===null) ? null : independentRows.filter(row=>{
         const activity = sourceById.get(row.activityId)!;
         const threshold = activityNearCriticalThresholdHours(model, activity, config);
         return threshold !== null && row.independentTotalFloatHours !== null && row.independentTotalFloatHours > config.criticalFloatThresholdHours && row.independentTotalFloatHours <= threshold;

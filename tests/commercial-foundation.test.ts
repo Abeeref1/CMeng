@@ -656,6 +656,19 @@ test("C2A missing CBS mappings stay explicit rather than disappearing or becomin
   );
 });
 
+test('current cost register uses confirmed current values while retaining unconfirmed history differences',()=>{
+ const value=input();
+ const row=(amount:FoundationMoneyInput)=>({metric:'EV',amount,sourceStatus:'Reported',cbsId:null,cbsDescription:null,parentCbsId:null,wbsId:null,counterparty:null,boqItemId:null,paymentId:null});
+ value.costMetrics=[row({...money(12345),sourceRefs:['current:row:7']}),row({...money(9999),state:'candidate',sourceRefs:['history:row:25']})];
+ let result=buildCommercialFoundation(value).costRegister;
+ assert.equal(result.rows[0]!.metrics.ev!.value,12345);
+ assert.equal(result.rows[0]!.metrics.ev!.state,'established');
+ assert.match(result.rows[0]!.metrics.ev!.diagnostics.join(' '),/UNCONFIRMED_HISTORY/);
+ assert.ok(result.rows[0]!.sourceRefs.includes('history:row:25'));
+ value.costMetrics[1]!.amount.state='official';result=buildCommercialFoundation(value).costRegister;
+ assert.equal(result.rows[0]!.metrics.ev!.value,null);assert.equal(result.rows[0]!.metrics.ev!.state,'conflicted');
+});
+
 
 test('Payment periods never substitute for certification events, and future periods stay outside current coverage',()=>{
  const value=input(); const base=value.payments[0]!;

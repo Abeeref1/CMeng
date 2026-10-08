@@ -156,10 +156,13 @@ test('An available probability calculation remains visible while forecast reconc
 test('Milestone chart retains priority exceptions and represents repeated watch movement once',()=>{
  const script=functions(['planningMilestoneTimeline','planningDateMs','planningShortDate']);
  const rows=[{activityId:'critical',managementPriority:'critical',totalFloatHours:-10},...Array.from({length:8},(_,i)=>({activityId:'watch'+i,managementPriority:'watch',totalFloatHours:300}))].map(r=>({...r,status:'not_started',name:r.activityId,varianceDays:181,baselineDateIso:'2030-01-01',currentDateIso:'2030-07-01'}));
- const html=runInNewContext(script+';planningMilestoneTimeline(p)',{p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
+ const html=runInNewContext(script+';planningMilestoneTimeline(p,"2030-08-01")',{p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
  assert.match(html,/Representative of 8 watch milestones/);assert.match(html,/2 priority representatives from 9 open milestones/);assert.match(html,/critical/);
  assert.equal((html.match(/class="milestone-date-row"/g)||[]).length,2);
  assert.equal(rows.length,9,'source population is untouched');
+ assert.match(html,/Contract including awarded EOT/);
+ const lines=[...html.matchAll(/class="date-contract"[^>]*left:([\d.]+)%/g)];assert.equal(lines.length,2);
+ assert.ok(lines.every(line=>Number(line[1])>0&&Number(line[1])<100),'contract dates beyond the last forecast remain on the chart axis');
 });
 
 

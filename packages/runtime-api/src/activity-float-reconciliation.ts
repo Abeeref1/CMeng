@@ -37,7 +37,7 @@ export function activityFloatReconciliation(model:CanonicalScheduleModel,forecas
   basis:deterministic
     ?'Submitted total float and CMeng independent source-calendar CPM are compared for the same open activity and revision using the same critical and near-critical thresholds. Completed activities are outside the live float-comparison denominator.'
     :scenarioComparable
-      ?'Open-activity submitted float is compared with CMeng source-calendar CPM as a qualified scenario because retained source constraints are not fully applied by this calculation. The comparison remains visible but is not promoted to official CPM authority. Completed activities are not counted as unresolved float comparisons.'
+      ?'Open-activity submitted float is compared with CMeng source-calendar CPM using the assumptions stated in the calculation. The comparison remains visible as a qualified scenario and is not promoted to official CPM authority. Completed activities are not counted as unresolved float comparisons.'
       :'Independent source-calendar CPM is not established for the comparable open-activity population. Completed activities are outside the live float-comparison denominator.',
   toleranceHours:0.000001,rows:comparableRows.filter(row=>row.floatReconciliationState!=='matched')}};
 }
