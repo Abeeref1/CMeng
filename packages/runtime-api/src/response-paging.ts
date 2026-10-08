@@ -51,7 +51,7 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
  * screen, independent of how large the surrounding specialist module is.
  * Original registers, receipts and full source facts remain in producers and
  * downloadable reports, and are retrievable on demand. */
-function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void):unknown {
+function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPointer:string):unknown {
  const seen=new Set<object>();
  const walk=(v:any,key:string,pointer:string,depth:number):any=>{
   if(v===null||typeof v!=='object'){
@@ -87,7 +87,7 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void):unkno
   for(const field of shown)result[field]=walk(v[field],field,pointer+'/'+token(field),depth+1);
   seen.delete(v);return result;
  };
- return walk(value,'projectFacts','/data/projectFacts',0);
+ return walk(value,'projectFacts',rootPointer,0);
 }
 
 function projectFactsOf(body:unknown):unknown {
@@ -104,7 +104,8 @@ export function pageProjectResponse(
  if(!body||typeof body!=='object')return body;
  const facts=projectFactsOf(body);
  const sharedFactPages:PageTable[]=[];
- const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry)):null;
+ const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),
+   (body as any)?.data?.projectFacts?'/data/projectFacts':'/projectFacts'):null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
