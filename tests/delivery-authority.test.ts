@@ -11,6 +11,7 @@ import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {changeDelivery,classifyDeliveryRowKind,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
 import {deliveryDashboard,deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
+import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
@@ -292,7 +293,8 @@ test('Batch H Delivery Control publishes action-first linked management constrai
  f.create('package','PK-H',{'forecast delivery date':'2031-10-10'},{activityIds:[activity.activityId]});
  const data=deliveryModule(f.state,'delivery-control').data as any,action=data.managementActions.find((r:any)=>/after the linked programme need date/i.test(r.issue));
  assert.ok(action);assert.equal(action.package,'PK-H');assert.equal(action.requiredDate,'2031-09-30');assert.equal(action.owner,null);
- assert.ok(action.affectedSchedule.some((v:string)=>v.includes(activity.activityId)));assert.match(action.consequence,/after the controlled programme need date/i);assert.ok(action.action);
+ assert.ok(action.affectedSchedule.some((v:string)=>v.includes(activity.activityId)));assert.match(action.consequence,/after the linked programme need date/i);assert.ok(action.action);
+  assert.equal(action.requiredDate,'2031-09-30','source linked programme date is the action deadline, not a fabricated register date');
  assert.match(deliveryScript(),/Top Delivery constraints & required actions/);
 });
 
@@ -367,7 +369,7 @@ test('exports include every curve point beyond row 20, all parent keys and proje
 });
 
 test('UI pagination, filtering, sorting and chart labels preserve zero and unavailable distinctions',()=>{
- new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),'Not established');assert.equal(context.deliveryValue(0),'0');
+ new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),STATUS_LABELS.not_established);assert.equal(context.deliveryValue(0),'0');assert.notEqual(context.deliveryValue(null),context.deliveryValue(0));
  const table={rows:Array.from({length:63},(_,i)=>({reference:'R'+i,state:i%2?'working':'governed',quantity:63-i})),query:'',filter:'governed',sort:'quantity',direction:1};const filtered=context.deliveryFiltered(table);assert.equal(filtered.length,32);assert.equal(filtered[0].quantity,1);table.filter='';table.query='R62';assert.equal(context.deliveryFiltered(table).length,1);
 });
 
