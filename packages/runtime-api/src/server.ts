@@ -2316,7 +2316,12 @@ async function route(
     }
     const pointer=url.searchParams.get('pointer')??'';
     const offset=Number(url.searchParams.get('offset')??0);
-    const page=recordDetailPage(result,pointer,offset,25);
+    const page=recordDetailPage(result,pointer,offset,25,{
+      query:url.searchParams.get('q')??'',
+      status:url.searchParams.get('filter')??'',
+      sort:url.searchParams.get('sort')??'',
+      direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
+    });
     json(res,200,pageProjectResponse({...page,projectVersion:state.version},rawSource));
     return;
   }
