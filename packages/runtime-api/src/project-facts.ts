@@ -14,6 +14,7 @@ import {deliveryPosition} from './delivery-projections';
 import {cachedIndependentForecast} from './forecast-cache';
 import {securityValidityReview} from './security-validity';
 import {activityFloatReconciliation} from './activity-float-reconciliation';
+import {hasUnreconciledScheduleCalendar} from './forecast-control';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -265,8 +266,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const pendingClaims=reportedClaims?.rows.filter(row=>['under_review','submitted'].includes(row.state))??[];
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
-  const currentContractCompletion=extendedCompletion??commercial.timeExposure.contractualCompletion.value;
-  const independentFinish=independentForecast?.independentForecastCompletionIso??null;
+  const officialAward=commercial.timeExposure.approvedEotDays.value;
+  // Never call a project late against the original date when an award exists
+  // but the extended date cannot yet be calculated.
+  const currentContractCompletion=extendedCompletion??(
+    officialAward!==null&&officialAward>0?null:commercial.timeExposure.contractualCompletion.value);
+  const independentFinish=hasUnreconciledScheduleCalendar(independentForecast)
+    ?null:independentForecast?.independentForecastCompletionIso??null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
   const actionRegister=projectActionRegisterForState(state);
@@ -347,7 +353,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       extendedContractCompletionIso:commercialFact(
         commercial.timeExposure.officialAdjustedCompletion,
-        'Contract completion plus reconciled official awarded EOT.',
+        commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
+          ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
+          :'Contract completion plus reconciled official awarded EOT.',
         true,
       ),
     },
