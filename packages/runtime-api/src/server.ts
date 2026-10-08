@@ -1820,9 +1820,9 @@ async function route(
 
 
   // Explicit project type is a durable user decision, not inferred from names.
-  const purposeMatch=/^\/api\/projects\/([^/]+)\/purpose$/.exec(url.pathname);
-  if(req.method==='POST'&&purposeMatch){
-    const id=decodeURIComponent(purposeMatch[1]!);
+  const projectTypeMatch=/^\/api\/projects\/([^/]+)\/purpose$/.exec(url.pathname);
+  if(req.method==='POST'&&projectTypeMatch){
+    const id=decodeURIComponent(projectTypeMatch[1]!);
     const target=runtimeProjects.get(id);
     if(!target){json(res,404,{error:'project_not_found'});return;}
     const body=await readJsonBody<{testProject?:boolean}>(req);
