@@ -129,7 +129,15 @@ function readerIssue(i){
   if(!action&&i.action==='Correct or govern the specific source record, then rerun the same validation.')action='Check the records listed below, correct the inconsistent details and repeat the check.';
   if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
-  return {title:readerText(title),action:readerText(action),owner:'Not assigned',assignTo:String(i.owner==='Project evidence owner'?'Document Owner':i.owner||'Project Controls').replace(/\s*\(assign a person\)/gi,'')};
+  const moduleKeys=(i.moduleKeys??[]).map(value=>String(value).toLowerCase()).join(' ');
+  const accountableRole=/procure|long-lead|material/.test(moduleKeys)?'Procurement Manager':
+    /design|rfi|interface/.test(moduleKeys)?'Design Manager':
+    /quality|ncr|hse/.test(moduleKeys)?'QA/QC Manager':
+    /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
+    /commercial|payment|contract|claim|bond/.test(moduleKeys)?'Commercial Manager':
+    'Project Controls Manager';
+  const owner=String(i.owner&&i.owner!=='Project evidence owner'?i.owner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
+  return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
 }
 function renderSourceQuality(data){
   const rows=items=>items.length?'<div class="source-request-list">'+items.map(i=>{const r=readerIssue(i);return '<details class="source-request"><summary><b>'+escapeHtml(r.title)+'</b><span class="request-meta">'+fmt((i.sourceRefs||[]).length)+' references · '+fmt(i.moduleKeys.length)+' affected pages</span></summary><p><b>Next step:</b> '+escapeHtml(r.action)+'</p><p><b>Owner:</b> '+escapeHtml(r.owner)+'</p><p><b>Assign to:</b> '+escapeHtml(r.assignTo)+'</p><p>'+i.moduleKeys.map(k=>managementModuleLink(k,names[k]||k)).join(' ')+'</p><details><summary>Original finding and document references</summary><p>'+escapeHtml(i.summary)+'</p><p>'+escapeHtml(i.detail)+'</p><p>'+escapeHtml(i.action)+'</p>'+((i.sourceRefs||[]).length?'<ul>'+i.sourceRefs.map(r=>'<li>'+escapeHtml(r)+'</li>').join('')+'</ul>':'')+'</details></details>';}).join('')+'</div>':'<p>None identified in the listed checks.</p>';
