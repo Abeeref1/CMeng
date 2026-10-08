@@ -954,11 +954,11 @@ function renderComplexCell(value,key=""){
   return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
 function readerTechnicalField(key){
-  return /^(?:id|recordId|documentId|sourceRefs?|sourceHash(?:Sha256)?|fingerprint|evidenceRefs?|diagnostics|sourcePath|storedPath|cacheKey|debug|nativeId|recordIds|filePath)$/i.test(String(key));
+  return /^(?:id|recordId|documentId|sourceRefs?|sourceReferenceIds?|sourceHash(?:Sha256)?|fingerprint|evidenceRefs?|evidenceReceiptIds?|diagnostics|dependencyReceipts|sourceManifestId|sourcePath|storedPath|cacheKey|debug|nativeId|recordIds|filePath|internalCode|internalId|sourceLocator|receiptId|parserDiagnostics)$/i.test(String(key));
 }
 function readerSourceValue(metric){
  if(!metric||typeof metric!=="object"||Array.isArray(metric))return null;
- const alternatives=[metric.submitted,metric.reported,metric.reportedValue,metric.sourceValue,metric.rawValue,metric.source?.value,metric.sourceRegister?.value];
+ const alternatives=[metric.submitted,metric.reported,metric.reportedValue,metric.sourceValue,metric.rawValue,metric.source?.value,metric.sourceRegister?.value,metric.registerValue,metric.sourceAmount,metric.reportedAmount,metric.extractedValue,metric.sourceDate];
  for(const value of alternatives)if((typeof value==="number"&&Number.isFinite(value))||(typeof value==="string"&&value.trim().length))return value;
  return null;
 }
@@ -987,8 +987,8 @@ function renderStructuredValue(value,depth=0,key=''){
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
-  const scalars=entries.filter(([,v])=>isScalarValue(v));
-  const complex=entries.filter(([,v])=>!isScalarValue(v));
+  const scalars=entries.filter(([k,v])=>!readerTechnicalField(k)&&isScalarValue(v));
+  const complex=entries.filter(([k,v])=>!readerTechnicalField(k)&&!isScalarValue(v));
   let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmtForField(key,v))+'</span></div>').join("")+'</div>':"";
   if(depth>=2&&complex.length){
     html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
@@ -4977,7 +4977,7 @@ function pmcDisplayOwner(domain){
 }
 function applyPmcDisplayOwners(root,defaultDomain){
  if(!root)return;
- root.querySelectorAll('td,span,small,p,.value-chip').forEach(node=>{
+ root.querySelectorAll('td,th,dt,dd,span,small,p,b,strong,.value-chip,.action-owner,.currency-code').forEach(node=>{
    if(node.children.length||!/^\\s*(Not assigned|Unassigned|Not recorded|Owner not assigned)\\s*$/i.test(node.textContent||''))return;
    const heading=node.closest('.planning-panel,.card,.data-section,.action,.project-action')?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
    node.textContent=pmcDisplayOwner(heading);
