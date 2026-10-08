@@ -5,6 +5,7 @@ import type {
   PdfPageResult,
   PdfParseCheckpoint,
 } from "./types";
+import {fragmentedPdfText} from './text-quality';
 
 export interface PdfDocumentParserOptions {
   nativeTextCharacterThreshold?: number;
@@ -61,10 +62,11 @@ export async function parsePdfDocument(
               "PDF_CHECKPOINT_RESULT_MISSING",
             ],
           });
-        } else {
+        } else if (persisted.method !== 'native' || !fragmentedPdfText(persisted.text)) {
           append(persisted);
+          continue;
         }
-        continue;
+        if (!persisted) continue;
       }
 
       const nativePage = textResult.pages.find(
@@ -72,8 +74,10 @@ export async function parsePdfDocument(
       );
       const nativeText = nativePage?.text ?? "";
       const nativeCharacterCount = meaningfulCharacterCount(nativeText);
+      const fragmented = fragmentedPdfText(nativeText);
+      const qualityDiagnostics = fragmented ? ['PDF_NATIVE_TEXT_FRAGMENTED_REQUIRES_OCR'] : [];
 
-      if (nativeCharacterCount >= threshold) {
+      if (nativeCharacterCount >= threshold && !fragmented) {
         const aiReview = options.aiVerifier
           ? await options.aiVerifier.review({
               pageNumber,
@@ -106,7 +110,7 @@ export async function parsePdfDocument(
           nativeCharacterCount,
           ocrConfidence: null,
           aiReview: null,
-          diagnostics: ["PDF_PAGE_REQUIRES_OCR_PROVIDER"],
+          diagnostics: [...qualityDiagnostics, "PDF_PAGE_REQUIRES_OCR_PROVIDER"],
         });
         continue;
       }
@@ -140,7 +144,7 @@ export async function parsePdfDocument(
         const ocrText = ocr.text ?? "";
         const ocrCharacters = meaningfulCharacterCount(ocrText);
 
-        if (ocrCharacters === 0) {
+        if (ocrCharacters === 0 && !fragmented) {
           append({
             pageNumber,
             method: "blank",
@@ -150,6 +154,13 @@ export async function parsePdfDocument(
             aiReview: null,
             diagnostics: [...ocr.diagnostics],
           });
+          continue;
+        }
+
+        if (ocrCharacters === 0 || fragmentedPdfText(ocrText)) {
+          append({pageNumber, method:'failed', text:ocrText || nativeText,
+            nativeCharacterCount, ocrConfidence:ocr.confidence, aiReview:null,
+            diagnostics:[...qualityDiagnostics,...ocr.diagnostics,'PDF_OCR_TEXT_UNREADABLE']});
           continue;
         }
 
@@ -170,6 +181,7 @@ export async function parsePdfDocument(
           ocrConfidence: ocr.confidence,
           aiReview,
           diagnostics: [
+            ...qualityDiagnostics,
             ...ocr.diagnostics,
             ...(aiReview?.status === "review_required"
               ? ["PDF_AI_REVIEW_REQUIRED"]
@@ -185,6 +197,7 @@ export async function parsePdfDocument(
           ocrConfidence: null,
           aiReview: null,
           diagnostics: [
+            ...qualityDiagnostics,
             "PDF_OCR_FAILURE:" +
               (error instanceof Error ? error.message : String(error)),
           ],

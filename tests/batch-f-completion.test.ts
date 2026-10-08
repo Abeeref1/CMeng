@@ -46,7 +46,7 @@ test("Task 39 one comparable programme state is not rendered as zero windows",()
 });
 test("Task 40 management UI exposes known facts first and the six entitlement requirements",()=>{
  const html=cmengUatHtml();
- for(const label of ["Contractual completion","Current submitted finish","Approved EOT","Amended contractual completion","Observed programme movement","Event evidence","Activity linkage","Causation","Notice compliance","Concurrency","Determination"])assert.match(html,new RegExp(label,"i"),label);
+ for(const label of ["Contractual completion","Current submitted finish","Approved EOT","Contract completion including awarded EOT","Observed programme movement","Event evidence","Activity linkage","Causation","Notice compliance","Concurrency","Determination"])assert.match(html,new RegExp(label,"i"),label);
  assert.match(html,/Event → Notice → Activity → Window → Impact → Responsibility → EOT → Determination/);
  assert.match(html,/Schedule pressure is contextual programme intelligence, not a contractual delay event/i);
  assert.match(html,/Window analysis not yet available — another comparable programme revision is required/i);

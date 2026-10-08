@@ -9,6 +9,8 @@ import {
 import type {
   CommercialFinding,
 } from "../packages/commercial-foundation/src";
+import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
+import type {ModuleRuntimeResult} from '../packages/runtime-api/src/project-state-types';
 
 function finding<T>(
   value: T | null,
@@ -761,4 +763,62 @@ test("C2B2 Retention Calendar never invents release dates from percentages or de
       "RETENTION_OVERDUE_NOT_ASSESSABLE_WITHOUT_RELEASE_DUE_DATES",
     ),
   );
+});
+
+test('Stage 1 pending variations preserve unreached agreement and approval without inventing approved money',()=>{
+ const data=input(),row=data.variations[0]!;
+ row.status='Pending';row.agreedDate=null;row.approvalDate=null;row.agreedAmount=money(null);row.approvedAmount=money(null);
+ const position=buildContractControls(data).variations,projected=position.rows[0]!;
+ assert.equal(position.state,'established');assert.equal(projected.lifecycleStage,'assessed');
+ for(const stage of ['agreed','approved'] as const){
+  assert.equal(projected.cost[stage].value,null);assert.equal(projected.cost[stage].applicability,'stage_not_reached');
+ }
+ const assessed=assessModuleIssues({key:'variations-change',status:'ready',data:{focus:{variationControl:position},
+  systemEvidenceContract:{state:'verified_for_checked_metrics'},challenge:{reconciliationState:'within_tolerance'}}} as ModuleRuntimeResult,
+  {state:'pass',failedCheckIds:[],checkCount:1});
+ assert.ok(!assessed.issues.some(issue=>issue.code==='MISSING_SOURCE_VALUE'));
+ row.status='Approved';row.approvalDate='2026-07-31';
+ const broken=buildContractControls(data).variations.rows[0]!;
+ assert.equal(broken.cost.approved.value,null);assert.notEqual(broken.cost.approved.applicability,'stage_not_reached');
+ const missing=assessModuleIssues({key:'variations-change',status:'partial',data:{focus:{row:broken},
+  systemEvidenceContract:{state:'verified_for_checked_metrics'},challenge:{reconciliationState:'within_tolerance'}}} as ModuleRuntimeResult,
+  {state:'pass',failedCheckIds:[],checkCount:1});
+ assert.ok(missing.issues.some(issue=>issue.evidencePaths.some(path=>path.endsWith('cost.approved'))&&issue.code==='MISSING_SOURCE_VALUE'));
+});
+
+test('Rejected variation status cannot be rebuilt as approved from a decision date',()=>{
+ const data=input(),row=data.variations[0]!;
+ row.status='Rejected';
+ row.approvedAmount=money(null);
+ // Some source registers store the Engineer decision date in the approval-date
+ // column for both approvals and rejections. Status remains authoritative.
+ row.approvalDate='2026-07-31';
+ const position=buildContractControls(data).variations;
+ const projected=position.rows[0]!;
+ assert.equal(projected.sourceLifecycleStage,'rejected');
+ assert.equal(projected.lifecycleStage,'rejected');
+ assert.equal(position.approvedCount,0);
+ assert.equal(position.rejectedCount,1);
+});
+
+test('Stage 1 retention due dates remain separate from actual release and exact balance duplicates retain both sources',()=>{
+ const data=input();data.existingRetentions=[];data.retentions=[];
+ data.paymentRetentions[0]!.retentionReleaseDueDate='2026-09-15';
+ let row=buildContractControls(data).retentionCalendar.rows[0]!;
+ assert.equal(row.dueDate.value,'2026-09-15');assert.equal(row.daysToDue.value,15);
+ assert.equal(row.releaseDate,null);assert.equal(row.state,'deduction_unreconciled');
+ data.paymentRetentions[0]!.retentionReleaseDate='2026-08-25';
+ row=buildContractControls(data).retentionCalendar.rows[0]!;
+ assert.equal(row.releaseDate,'2026-08-25');assert.equal(row.dueDate.value,'2026-09-15');
+ data.paymentRetentions[0]!.retentionReleaseDate='2026-09-01';
+ row=buildContractControls(data).retentionCalendar.rows[0]!;
+ assert.equal(row.releaseDate,null,'a future actual release must not become current cash');
+ const duplicate=input();const original=duplicate.retentions[0]!;
+ duplicate.existingRetentions=[{retentionId:original.retentionId,state:'held',amount:original.amount.value!,currency:original.amount.currency!,sourceRefs:['separate-governed-balance']}];
+ let calendar=buildContractControls(duplicate).retentionCalendar;
+ assert.equal([...calendar.rows,...calendar.futureRows,...calendar.undatedRows].filter(item=>item.retentionId===original.retentionId).length,1);
+ assert.ok(calendar.rows.find(item=>item.retentionId===original.retentionId)!.sourceRefs.includes('separate-governed-balance'));
+ duplicate.existingRetentions[0]!.amount+=1;
+ calendar=buildContractControls(duplicate).retentionCalendar;
+ assert.equal([...calendar.rows,...calendar.futureRows,...calendar.undatedRows].filter(item=>item.retentionId===original.retentionId).length,2,'different balances must not be silently joined');
 });

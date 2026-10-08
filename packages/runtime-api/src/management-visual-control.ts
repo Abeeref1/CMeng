@@ -3,6 +3,7 @@ import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-type
 import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
+import {deliveryPosition} from './delivery-projections';
 import {bestAvailableFact,managementFactView,type ManagementFactView,type PopulationAuthority} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
@@ -58,11 +59,18 @@ export function managementVisualControl(
   const challenge=data(modules,'challenge-contract');
 
   const activityRows=Array.isArray(activity.rows)?activity.rows:[];
+  const delivery=deliveryPosition(state);
   const activityById=new Map(activityRows.map((row:any)=>[row.activityId,row]));
   const drivingIds=Array.isArray(independent.drivingNetwork?.activityIds)?independent.drivingNetwork.activityIds:[];
-  const drivingActivities=drivingIds.slice(0,20).map((activityId:string)=>{
+  // A wide driving network can contain every activity. Build reusable indexes
+  // once, rather than scanning/rebuilding the entire network for every row.
+  const cpmById=new Map<string,any>();
+  for(const row of independent.activities??[])if(!cpmById.has(row.activityId))cpmById.set(row.activityId,row);
+  const drivingSet=new Set(drivingIds);
+  const networkMilestones=new Set(independent.drivingNetwork?.finishActivityIds??[]);
+  const drivingActivities=drivingIds.map((activityId:string)=>{
     const scheduleRow=activityById.get(activityId) as any;
-    const cpmRow=(independent.activities??[]).find((row:any)=>row.activityId===activityId);
+    const cpmRow=cpmById.get(activityId);
     return {
       activityId,
       name:scheduleRow?.name??activityId,
@@ -80,6 +88,25 @@ export function managementVisualControl(
     lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
   }>();
   const milestoneSource=(Array.isArray(milestones.rows)?milestones.rows:[]).filter((row:any)=>row.status!=='completed');
+  // Index once. The full driving set can contain 20k activities and must not
+  // re-scan all milestones, delivery packages and BOQ packages for every row.
+  const milestoneByActivity=new Map<string,Array<{id:string;ordinal:number}>>();
+  const networkMilestoneRows:Array<{id:string;ordinal:number}>=[];
+  milestoneSource.forEach((m:any,ordinal:number)=>{
+    const entry={id:String(m.activityId),ordinal}, rows=milestoneByActivity.get(entry.id)??[];
+    rows.push(entry);milestoneByActivity.set(entry.id,rows);
+    if(networkMilestones.has(m.activityId))networkMilestoneRows.push(entry);
+  });
+  const packageCandidatesByActivity=new Map<string,string[]>();
+  for(const p of delivery.packageRows)for(const id of p.activityIds){
+    const rows=packageCandidatesByActivity.get(id)??[];
+    rows.push(p.reference??p.recordId);packageCandidatesByActivity.set(id,rows);
+  }
+  const boqCandidatesByWbs=new Map<string,string[]>();
+  for(const p of boqScope.packages){
+    const label=String(p.package??''),rows=boqCandidatesByWbs.get(label)??[];
+    rows.push(label);boqCandidatesByWbs.set(label,rows);
+  }
   for(const row of drivingActivities){
     const wbs=String(row.wbs??'Unclassified driving scope');
     const group=driverGroupsMap.get(wbs)??{
@@ -89,9 +116,19 @@ export function managementVisualControl(
     if(row.name)group.activityNames.push(String(row.name));
     if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
     if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
-    group.milestoneIds.push(...milestoneSource.filter((m:any)=>String(m.wbsName??m.wbsId??'')===wbs).map((m:any)=>String(m.activityId)));
-    group.packageCandidates.push(...boqScope.packages.filter((p:any)=>String(p.packageCandidate??p.label??p.package??'')===wbs)
-      .map((p:any)=>String(p.packageCandidate??p.label??p.package??'')));
+    const localMilestones=milestoneByActivity.get(row.activityId)??[];
+    if(!driverGroupsMap.has(wbs)){
+      // Preserve source-order precedence when the first activity establishes a
+      // group. Network finish milestones are shared by all rows in that group.
+      const first=[...networkMilestoneRows,...localMilestones].sort((a,b)=>a.ordinal-b.ordinal);
+      group.milestoneIds.push(...first.map(m=>m.id));
+    }else{
+      // The global entries were already attached. Only local milestones can
+      // add to the group's unique display population.
+      group.milestoneIds.push(...localMilestones.filter(m=>!networkMilestones.has(m.id)).map(m=>m.id));
+    }
+    group.packageCandidates.push(...(packageCandidatesByActivity.get(row.activityId)??[]));
+    group.packageCandidates.push(...(boqCandidatesByWbs.get(wbs)??[]));
     driverGroupsMap.set(wbs,group);
   }
   const priorityGroups=[...driverGroupsMap.values()].map(group=>({
@@ -108,7 +145,7 @@ export function managementVisualControl(
       :'Completion-driving scope is established; a downstream milestone link is not established from the available programme evidence.',
   })).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||a.wbs.localeCompare(b.wbs));
 
-  const delayed=activityRows.filter((row:any)=>!['level_of_effort','wbs_summary'].includes(row.activityType)&&(
+  const delayed=activityRows.filter((row:any)=>row.status!=='completed'&&!['level_of_effort','wbs_summary'].includes(row.activityType)&&(
     row.scheduleDelayed===true||(typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)
   ));
   const wbsMap=new Map<string,{label:string;count:number;critical:number;negativeFloat:number;maxMovementDays:number|null}>();
@@ -121,7 +158,7 @@ export function managementVisualControl(
     if(typeof row.finishVarianceDays==='number')current.maxMovementDays=current.maxMovementDays===null?row.finishVarianceDays:Math.max(current.maxMovementDays,row.finishVarianceDays);
     wbsMap.set(label,current);
   }
-  const delayedWbs=[...wbsMap.values()].sort((a,b)=>b.critical-a.critical||b.negativeFloat-a.negativeFloat||b.count-a.count).slice(0,10);
+  const delayedWbs=[...wbsMap.values()].sort((a,b)=>b.critical-a.critical||b.negativeFloat-a.negativeFloat||b.count-a.count);
 
   const milestoneRows=(Array.isArray(milestones.rows)?milestones.rows:[])
     .filter((row:any)=>row.status!=='completed')
@@ -149,6 +186,8 @@ export function managementVisualControl(
     const scenarios=(row.eacScenarios??[]).filter(s=>findingValue(s.value)!==null);
     const source=scenarios.find(s=>s.method==='source_reported')??null;
     const calculated=scenarios.find(s=>s.method!=='source_reported')??null;
+    const contractValue=commercial.currencies.find(c=>c.currency===row.currency)?.currentContractValue.value??null;
+    const selectedEac=source?findingValue(source.value):calculated?findingValue(calculated.value):null;
     return {
       currency:row.currency,taxBasis:row.taxBasis,
       bac:findingValue(row.bac),pv:findingValue(row.pv),ev:findingValue(row.ev),ac:findingValue(row.ac),
@@ -157,6 +196,9 @@ export function managementVisualControl(
       bestEac:source?findingValue(source.value):calculated?findingValue(calculated.value):null,
       bestEacBasis:source?'source_reported':calculated?'cmeng_scenario':null,
       forecastMethodState:row.forecastMethodState,
+      currentContractValue:contractValue,
+      eacAboveCurrentContract:selectedEac===null||contractValue===null?null:selectedEac-contractValue,
+      currentContractComparisonBasis:'Arithmetic comparison only. Confirm that the EAC covers the approved variation scope and uses the same tax basis before treating the difference as headroom or overrun.',
     };
   });
 
@@ -352,7 +394,9 @@ export function managementVisualControl(
       complexity:boqScope.complexity,
       coverage:boqScope.coverage,
       topLongLead:
-        bestLongLead?.key==='source-long-lead'
+        delivery.packageRows.some(row=>row.longLeadCandidate)
+          ?delivery.packageRows.filter(row=>row.longLeadCandidate).sort((a,b)=>Number(b.activityIds.some(id=>drivingSet.has(id)))-Number(a.activityIds.some(id=>drivingSet.has(id)))||(a.headroomCalendarDays??Infinity)-(b.headroomCalendarDays??Infinity)).map(row=>({itemId:row.recordId,itemNumber:row.reference,description:row.description,discipline:row.discipline,system:null,package:row.reference,priority:row.deliveredAtDataDate?'Delivered':row.deliveredStatusOnly?'Reported delivered · date not evidenced':row.activityIds.some(id=>drivingSet.has(id))?'Critical':row.forecastLate||row.overdueUndelivered?'High':'From register',amount:row.packageValue,currency:row.currency,status:row.sourceStatus,requiredOnSite:row.needDate,forecastDelivery:row.forecastDelivery,basis:'source_register'}))
+          :bestLongLead?.key==='source-long-lead'
           ?(procurementSource?.signals.longLeadSamples??[]).map((row,index)=>({
             itemId:'source-long-lead-'+index,itemNumber:row.reference,description:row.description,discipline:null,system:null,
             package:row.reference,priority:'Source marked',amount:null,currency:null,status:row.status,

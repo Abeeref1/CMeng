@@ -12,22 +12,28 @@ function renderCommercialExceptions(position,key,data){
   const groups=position.variationBasisReview?.groups||[];
   if(['commercial-overview','variations-change'].includes(key))for(const g of groups){
     const a=g.aggregates||[],exceptions=g.exceptions||[];
+    if(g.signExceptions?.length)html+=basisPanel('Omission sign needs confirmation','Positive values are retained with a review label.',basisTable(['Variation','Description','Source amount','Suggested signed amount','Action'],g.signExceptions.map(r=>[r.variationId,r.description,money(r.sourceAmount,g.currency),money(r.suggestedAmount,g.currency),r.action])));
     const summary='<p>Approved source rows through Data Date: <b>'+escapeHtml(money(g.current.amount,g.currency))+'</b> from '+fmt(g.current.count)+' records. '+fmt(g.future.count)+' future approvals total '+escapeHtml(money(g.future.amount,g.currency))+'. Full register: '+escapeHtml(money(g.fullAmount,g.currency))+'. '+fmt(g.undatedCount)+' undated approvals; '+fmt(g.unknownAmountCount)+' amounts missing.</p>'+
       a.map(r=>'<p>Reported change total at '+escapeHtml(planningShortDate(r.asOf))+': '+escapeHtml(money(r.amount,g.currency))+'. Difference from approvals dated by that date: <b>'+escapeHtml(money(r.difference,g.currency))+'</b>.</p>').join('');
     const detail=(g.amendments||[]).map(r=>'<p>Amendment '+escapeHtml(r.sourceFilename||r.documentId)+' effective '+escapeHtml(planningShortDate(r.effectiveDate))+' states '+escapeHtml(money(r.amount,g.currency))+'. At that date, '+fmt(r.atEffectiveDate.count)+' approvals total '+escapeHtml(money(r.atEffectiveDate.amount,g.currency))+'. A further '+fmt(r.afterEffectiveThroughDataDate.count)+' approvals total '+escapeHtml(money(r.afterEffectiveThroughDataDate.amount,g.currency))+' through Data Date.</p>').join('')+
       basisTable(['Amount exception','Approval date','Source amount','Other approved rows total','Other amounts range','Reporting scope'],exceptions.map(r=>[r.id,planningShortDate(r.approvalDate),money(r.amount,g.currency),money(r.otherRecordsAmount,g.currency),money(r.otherMin,g.currency)+' to '+money(r.otherMax,g.currency),humanizeKey(r.scope)]))+
-      '<p>'+escapeHtml(g.interpretation)+'</p><p><b>Next step:</b> provide the amendment-to-variation reconciliation and supporting approval for the listed amount exceptions.</p>';
+      '<p>'+escapeHtml(g.interpretation)+'</p>'+(exceptions.length||a.some(r=>r.difference!==0)?'<p><b>Next step:</b> reconcile the listed amount exceptions with the supporting approvals.</p>':'');
     html+=basisPanel('Compare variation approvals and reported totals · '+(g.currency||'?'),humanizeKey(g.taxBasis)+' tax basis',summary+(key==='variations-change'?detail:managementModuleLink('variations-change','Review amendment dates and amount exceptions')),'variationBasisReview');
   }
   if(['commercial-overview','cost-forecast'].includes(key))for(const r of position.costBasisReview||[]){
     if(position.sourceLedger?.dataDateIso&&r.asOf>position.sourceLedger.dataDateIso)continue;
     const m=data.sourceInterpretation?.progressMeasures,s=m?.scopeComparison;
-    html+=basisPanel('Cost ratios are available; confirm the amounts behind them',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
+    html+=basisPanel('Current cost and progress comparison',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
       basisTable(['Measure','Value','Comparison basis'],[
         ['PV / BAC',fmt(r.plannedPercentOfBudget)+'%',money(r.pv,r.currency)+' / '+money(r.bac,r.currency)],
         ['EV / BAC',fmt(r.earnedPercentOfBudget)+'%',money(r.ev,r.currency)+' / '+money(r.bac,r.currency)],
         ...(m?[['Baseline schedule plan',fmt(m.baselinePlannedPercent)+'%','Baseline activities, weighted by duration'],['Current schedule snapshot',fmt(m.scheduleSnapshotPercent)+'%','Current activities, weighted by duration'],['Matched schedule snapshot',fmt(s?.snapshotCurrentWeightsPercent)+'%','Matched tasks using current weights; indicative ratio '+fmt(s?.currentWeightRatio)]]:[]),
-        ['Actual cost / source certificate-period net',r.actualCostToCertificateRatio==null?'Comparison not assessable':fmt(r.actualCostToCertificateRatio)+' times',money(r.ac,r.currency)+' / '+money(r.certificatePeriodNet,r.currency)+(r.certificateDateMatches?' · same reporting cutoff':' · reporting dates differ')],
+        ['Actual cost',money(r.ac,r.currency),r.actualCostComparisonBasis],
+        ['Current contract value',money(r.currentContractValue,r.currency),'Approved commercial position; compare scope with the EVM budget'],
+        ['Source EAC',money(r.sourceEac,r.currency),'Reported estimate at completion'],
+        ['EAC less current contract',money(r.eacVsCurrentContract,r.currency),'Negative is below current contract value; compare the cost and sales scope'],
+        ['BAC less current contract',money(r.budgetVsContractDifference,r.currency),'Budget and sales value can differ; reconcile the scope and basis'],
+        ['EV / current contract',r.earnedPercentOfCurrentContract==null?'Missing':fmt(r.earnedPercentOfCurrentContract)+'%','Contract-value comparator; BAC remains the EVM denominator'],
         ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Compare the activities included')+managementModuleLink('payments','Review certificate components'));
   }
   if(key==='commercial-overview')for(const g of position.certificateProfile?.groups||[]){
@@ -39,7 +45,7 @@ function renderCommercialExceptions(position,key,data){
     const rules=position.contractNoticeRules||[];
     if(rules.length)html+=basisPanel('Contract notice periods by version','The original and amended rules are separate. Notice dates alone cannot establish the applicable trigger date.',
       basisTable(['Requirement','Days','Effective from','Replaced from','Trigger','Source'],rules.map(r=>[r.noticeKind==='detailed_claim'?'Fully detailed claim':'Initial claim notice',r.noticePeriodDays,r.effectiveFromIso?planningShortDate(r.effectiveFromIso):'Original / date not stated',r.effectiveToIso?planningShortDate(r.effectiveToIso):'No later version supplied',humanizeKey(r.triggerBasis||'not_stated'),(r.sourceFilename||'Contract source')+' · '+(r.evidenceRefs||[]).map(e=>e.locator).slice(0,2).join('; ')]))+
-      '<p>Obtain event/awareness dates and confirm amendment applicability before a compliance decision. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>');
+      '<p>The notice assessment uses each recorded event or awareness date and the rule applicable on that date. Missing inputs are identified against the affected claim. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>');
   }
   return html;
 }
@@ -54,7 +60,7 @@ function renderBasisReviews(data,key){
       basisTable(['Assigned calendar','Work days / week','Packages','Calendar movement range (days)','Earliest recalculated finish','Latest recalculated finish'],s.groups.map(g=>[g.calendarName,g.workingDaysPerWeek,g.packageCount,fmt(g.movementDays.min)+' to '+fmt(g.movementDays.max),planningShortDate(g.earliestCalendarFinishIso),planningShortDate(g.latestCalendarFinishIso)]))+
       (s.sensitivity?'<div class="notice info"><b>Alternative calendar test: '+escapeHtml(planningShortDate(s.sensitivity.completionIso))+'</b><p>Replacing the assigned five-day calendars with '+escapeHtml(s.sensitivity.toCalendarName||s.sensitivity.toCalendarId)+' changes the calculated finish by '+fmt(s.sensitivity.movementDays)+' calendar days. '+escapeHtml(s.sensitivity.assumptions.join(' '))+'</p></div>':'')+
       '<details><summary>Review package finishes from every calendar group</summary>'+basisTable(['Package','Calendar','Finish milestone','Submitted finish','Programme calendar recalculation','After contract (days)','Submitted float (hours)'],s.rows.map(r=>[r.name,r.calendarName||'Mixed / unresolved',r.activityId,planningShortDate(r.submittedFinishIso),planningShortDate(r.calendarFinishIso),fmt(r.contractLatenessDays),fmt(r.submittedFloatHours)]))+'</details>'+
-      '<details><summary>'+fmt(s.constraints.length)+' source date constraints</summary><p>The unconstrained calendar calculation does not apply these source constraints. A mandatory finish can explain the submitted float reference date; it does not amend the contract.</p>'+basisTable(['Constraint','Records','WBS nodes'],s.constraintGroups.map(r=>[({CS_MSO:'Must start on',CS_MFO:'Must finish on',CS_MEO:'Mandatory finish'})[r.type]||r.type,r.count,r.wbsCount]))+basisTable(['Activity','Constraint','Date'],s.constraints.map(r=>[r.activityId,({CS_MSO:'Must start on',CS_MFO:'Must finish on',CS_MEO:'Mandatory finish'})[r.type]||r.type,planningShortDate(r.dateIso)]))+'</details>'+(key==='independent-forecast'?'':'</details>'),'calendarBasisReview');
+      '<details><summary>'+fmt(s.constraints.length)+' source date constraints</summary><p>The programme calculation applies these source constraints. A mandatory finish can explain the submitted float reference date; it does not amend the contract.</p>'+basisTable(['Constraint','Records','WBS nodes'],s.constraintGroups.map(r=>[({CS_MSO:'Must start on',CS_MFO:'Must finish on',CS_MEO:'Mandatory finish'})[r.type]||r.type,r.count,r.wbsCount]))+basisTable(['Activity','Constraint','Date'],s.constraints.map(r=>[r.activityId,({CS_MSO:'Must start on',CS_MFO:'Must finish on',CS_MEO:'Mandatory finish'})[r.type]||r.type,planningShortDate(r.dateIso)]))+'</details>'+(key==='independent-forecast'?'':'</details>'),'calendarBasisReview');
   }
   if(d){html+=basisPanel('Where original-duration changes occur',d.interpretation,
     '<p>Compared programme data dates: '+escapeHtml(planningShortDate(d.fromDataDateIso))+' to '+escapeHtml(planningShortDate(d.toDataDateIso))+'. This duration review retains its own comparison period.</p>'+
@@ -64,11 +70,11 @@ function renderBasisReviews(data,key){
   if(q){
     const f=q.forecast;
     html+=basisPanel('Link quantities and productivity work packages to programme activities',q.interpretation,
-      (key==='quantity-scurve'?basisTable(['BOQ unit','Items','Known quantities','Quantity in this unit'],q.unitTotals.map(r=>[r.unit,r.itemCount,r.knownQuantityCount,fmt(r.quantity)])):'')+
+      (key==='quantity-scurve'?basisTable(['BOQ unit','Items','Items with quantities'],q.unitTotals.map(r=>[r.unit,r.itemCount,r.knownQuantityCount])):'')+
       '<p>'+fmt(q.uniqueSectionSuggestionCount)+' of '+fmt(q.sections.length)+' BOQ sections have one WBS-parent name match. These suggestions do not allocate any item.</p>'+
       '<details><summary>Review section-to-WBS suggestions</summary>'+basisTable(['BOQ section','Items','WBS suggestions'],q.sections.map(r=>[r.section,r.itemCount,r.suggestions.map(w=>w.wbsId+' · '+w.name).join('; ')||'No name match']))+'</details>'+
       '<p>Productivity source finish: '+escapeHtml(planningShortDate(f.completionIso))+'. '+fmt(f.explicitActivityLinkCount)+' of '+fmt(f.workPackageCount)+' rows explicitly link to a schedule activity. Same-number review: '+fmt(f.sameNumberDisciplineMatches)+' of '+fmt(f.sameNumberReviewedCount)+' have a matching discipline name. Number resemblance is not a link.</p>'+
-      basisTable(['Productivity source unit','Rows','Remaining quantity in that unit'],f.units.map(r=>[r.unit,r.rowCount,fmt(r.remainingQuantity)]))+
+      basisTable(['Productivity source unit','Work packages'],f.units.map(r=>[r.unit,r.rowCount]))+
       basisTable(['Latest-finish input','Discipline','Start','Remaining quantity','Unit','Multiple of same-unit median'],f.drivers.map(r=>[r.workPackageId,r.discipline,planningShortDate(r.startIso),fmt(r.remainingQuantity),r.unit,percent2(r.remainingToUnitMedian)]))+
       '<details><summary>Inspect same-number package differences</summary>'+basisTable(['Source package','Source discipline','Schedule package with same number','Name match'],f.numberReview.map(r=>[r.workPackageId,r.sourceDiscipline,r.schedulePackages.map(w=>w.name).join('; ')||'No unique match',r.disciplineMatches?'Yes — review still required':'No']))+'</details>','quantityBasisReview');
   }

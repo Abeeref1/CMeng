@@ -1,19 +1,24 @@
-import {canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
+import {cachedIndependentForecast} from './forecast-cache';
+import {procurementTiming,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
+import {hseReportPosition} from './hse-report-evidence';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
 import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildProgressBreakdownProjection} from '../../progress-breakdown/src/projector';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
+import {scheduleScopeClassification} from './schedule-scope-classification';
+import {registerProgrammeContext} from './register-programme-context';
+import {buildLookAheadProjection} from '../../lookahead-schedule/src';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {interfaceIntelligence,interfaceModule} from './interface-intelligence';
 import {withInstalledMeasurements} from './installed-measurements';
-import {operationalReporting,reportingState} from './reporting-state';
+import {operationalReporting,reportingState,claimsReporting} from './reporting-state';
 import {managementSourceInventory,type ManagementSourceDomain} from './management-source-inventory';
 import {scheduleAuthorityReview,isAdoptedProgrammeRevision} from './schedule-authority';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
@@ -24,7 +29,8 @@ export const field=(r:DeliveryRecord,...names:string[])=>{for(const n of names){
 const numeric=(r:DeliveryRecord,...names:string[])=>numberValue(field(r,...names));
 const date=(r:DeliveryRecord,...names:string[])=>registerDate(field(r,...names));
 const ids=(v:string)=>v.split(/[;|]/).map(s=>s.trim()).filter(Boolean);
-const currentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified';
+const sourceCandidateUsable=(r:DeliveryRecord)=>r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&deliveryNumericIssues(r.kind,r.fields).length===0;
+const currentRecord=deliveryCurrentRecord;
 const round=(v:number)=>Math.round(v*10000)/10000;
 const pct=(n:number|null,d:number|null)=>n===null||d===null||d<=0?null:round(n/d*100);
 const difference=(a:number|null,b:number|null)=>a===null||b===null?null:round(a-b);
@@ -57,7 +63,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const population=(kind:DeliveryKind,scopeId:string|null=null)=>{
   const scope=recordsByScope.get(kind+'|'+(scopeId??''))??[],rows=scope.filter(currentRecord);
   const decision=latestPopulation.get(kind+'|'+(scopeId??''));
-  const pending=scope.filter(r=>!['governed','verified','superseded','scenario'].includes(r.state));
+  const pending=scope.filter(r=>!currentRecord(r)&&!['superseded','scenario'].includes(r.state));
   const unread=source.documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
   const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
   return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
@@ -65,7 +71,7 @@ function buildDelivery(state:ProjectRuntimeState){
  };
  const populations=Object.fromEntries(deliveryKinds.map(k=>[k,population(k)]));
  const boq=resolveBoqSource(state,current?.revision.revisionId??''),controlledBoq=boq.selection.adoptedSource&&boq.selection.state==='source';
- const quantities=controlledBoq?withInstalledMeasurements(state,boq.quantities,dataDateIso):null;
+ const quantities=withInstalledMeasurements(state,boq.quantities,dataDateIso);
  const supplied=suppliedBoqFigures(boq.boq,boq.quantities),items=new Map(quantities?.items.map(i=>[i.quantityItemId,i])??[]);
  const snapshotsByItem=new Map<string,NonNullable<typeof quantities>['installedSnapshots']>();
  for(const snapshot of quantities?.installedSnapshots??[]){if(!isOnDate(snapshot.asOfIso.slice(0,10),dataDateIso))continue;const rows=snapshotsByItem.get(snapshot.quantityItemId)??[];rows.push(snapshot);snapshotsByItem.set(snapshot.quantityItemId,rows);}
@@ -80,15 +86,23 @@ function buildDelivery(state:ProjectRuntimeState){
    if(linked.some(id=>!available.has(id)))add('STALE_RELATIONSHIP',r,label+' relationship no longer resolves to the current authority.','Review this relationship against the current project records.');
  }
  const milestone=(r:DeliveryRecord,stage:string)=>({stage,
-  planned:date(r,stage+' planned date','planned '+stage+' date',stage+' planned'),
-  forecast:date(r,stage+' forecast date','forecast '+stage+' date',stage+' forecast'),
-  actual:date(r,stage+' actual date','actual '+stage+' date',stage+' date',stage+' actual'),
+  planned:date(r,stage+' planned date','planned '+stage+' date',stage+' planned','planned '+stage,...(stage==='delivery'?['required on site','required on site date']:[])),
+  forecast:date(r,stage+' forecast date','forecast '+stage+' date',stage+' forecast','forecast '+stage),
+  actual:date(r,stage+' actual date','actual '+stage+' date',stage+' date',stage+' actual','actual '+stage),
  });
  const actualOn=(r:DeliveryRecord,stage:string)=>{const m=milestone(r,stage);return isOnDate(m.actual,dataDateIso)?m.actual:null;};
  const gatesByScope=new Map<string,DeliveryRecord[]>();for(const g of byKind('gate'))for(const id of new Set([...g.links.packageIds,...g.links.recordIds])){const rows=gatesByScope.get(id)??[];rows.push(g);gatesByScope.set(id,rows);}
  const gatesFor=(r:DeliveryRecord)=>{
   const gates=gatesByScope.get(r.recordId)??[];
-  const p=population('gate',r.recordId);
+  // A record without gate links or a scope decision has no gate denominator.
+  // Avoid re-scanning document/pending authority for each of 12k+ assets.
+  // Explicitly confirmed empty gate populations still use the full authority rule.
+  const p=gates.length||latestPopulation.has('gate|'+r.recordId)
+    ?population('gate',r.recordId)
+    :{kind:'gate' as const,scopeId:r.recordId,state:'not_established' as const,denominator:null,
+      knownRecordCount:0,pendingRecordCount:0,recordIds:[] as string[],
+      basis:'Confirm that all applicable records have been captured before relying on a percentage.',
+      confirmedAt:null};
   const rows=gates.map(g=>{
    const applicable=field(g,'applicable').toLowerCase(),raw=field(g,'outcome','status').toLowerCase();
    const when=date(g,'outcome date','status as of'),satisfied=date(g,'satisfied date');
@@ -106,17 +120,21 @@ function buildDelivery(state:ProjectRuntimeState){
    population:p,rows};
  };
  const readiness=byKind('package').concat(byKind('workfront'),byKind('commissioning'),byKind('asset')).map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,discipline:field(r,'discipline')||null,...gatesFor(r)}));
+ const drivingIds=new Set(model?cachedIndependentForecast(model,new Date().toISOString()).drivingNetwork?.activityIds??[]:[]);
+ const readinessByRecord=new Map(readiness.map(r=>[r.recordId,r]));
+ const lifecycleById=new Map(byKind('lifecycle').map(r=>[r.recordId,r]));
  const packageRows=byKind('package').map(r=>{
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const headroom=days(programmeNeedDate,forecastDelivery);
-  if(headroom!==null&&headroom<0)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after the linked programme need date.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
+  if(forecastLate&&headroom!==null)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  if(overdueUndelivered)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
-  const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));
+  const template=lifecycleById.get(field(r,'lifecycle id'));
   const stages=template?ids(field(template,'stages')):[];
   const lifecycle=stages.map(stage=>({...milestone(r,stage),actualAtDataDate:actualOn(r,stage)}));
-  const currentStage=[...lifecycle].reverse().find(s=>s.actualAtDataDate)?.stage??null;
+  const currentStage=[...lifecycle].reverse().find(s=>s.actualAtDataDate)?.stage??(deliveredAtDataDate?'Delivered':field(r,'current stage','stage','status')||null);
   const latestActionDates:Array<{stage:string;dateIso:string|null;duration:number|null;basis:string;calendarId:string|null;source:string}>=[];
   let next=programmeNeedDate?Math.min(...linkedActivities.map(a=>Date.parse(a!.currentStartIso!))):null;
   const install=stages.indexOf('installation');const beforeNeed=install>=0?stages.slice(0,install):stages;
@@ -139,12 +157,18 @@ function buildDelivery(state:ProjectRuntimeState){
    latestActionDates.unshift({stage,dateIso:next===null?null:new Date(next).toISOString(),duration,basis: basis||'not established',calendarId,source:provenance||'not established'});
   }
   const latestOrder=latestActionDates.length&&latestActionDates.every(s=>s.dateIso)?latestActionDates.find(s=>s.stage==='po')?.dateIso??null:null;
-  return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner')||null,
+  const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
+  return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible','responsible party')||null,supplier:field(r,'supplier','vendor','manufacturer')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
    supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,
-   programmeNeedDate,sourceRequiredOnSite,forecastDelivery,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
+   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,deliveryTimingBasis:deliveredAtDataDate?'Dated actual delivery':deliveredStatusOnly?'Source reports delivered; actual date not provided':forecastLate||overdueUndelivered?'Open package with date exposure':'Open package; timing does not establish lateness',drivingPath:r.links.activityIds.some(id=>drivingIds.has(id)),linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
-   packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readiness.find(q=>q.recordId===r.recordId),receipts:r.receipts};
- });
+   packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readinessByRecord.get(r.recordId),receipts:r.receipts};
+ }).sort((a,b)=>Number(a.deliveredAtDataDate||a.deliveredStatusOnly)-Number(b.deliveredAtDataDate||b.deliveredStatusOnly)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||Number(b.drivingPath)-Number(a.drivingPath)||(a.needDate??'9999').localeCompare(b.needDate??'9999'));
+ for(const packageRow of packageRows){
+  const gate=readinessByRecord.get(packageRow.recordId);if(!gate||packageRow.deliveredAtDataDate||packageRow.deliveredStatusOnly)continue;
+  if(packageRow.overdueUndelivered)gate.state='blocked';
+  else if(packageRow.forecastLate&&gate.state!=='blocked')gate.state='at_risk';
+ }
  const scheduleWbs=model?.wbs??[];
  const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));
  const descendantWbs=(rootId:string)=>{
@@ -193,9 +217,9 @@ function buildDelivery(state:ProjectRuntimeState){
   const splitScope=linked.some(i=>i&&(packagesByItem.get(i.quantityItemId)?.length??0)>1);
   const allocations=r.links.boqAllocations;
   const partialAllocation=linked.some(i=>{const a=allocations.find(a=>a.boqItemId===i?.quantityItemId);return !!a&&(!i||a.unit!==i.unit||a.quantity!==i.contractQuantity);});
-  let required=unit&&linked.length&&linked.every(Boolean)?sumKnown(linked.map(i=>allocations.length?allocations.find(a=>a.boqItemId===i!.quantityItemId)?.quantity??null:splitScope?null:i!.contractQuantity)):null;
+  let required=unit&&linked.length===1&&linked.every(Boolean)?sumKnown(linked.map(i=>allocations.length?allocations.find(a=>a.boqItemId===i!.quantityItemId)?.quantity??null:splitScope?null:i!.contractQuantity)):null;
   const enteredUnit=field(r,'unit');if(enteredUnit&&enteredUnit!==unit)required=null;
-  const installedScopeEstablished=!!unit&&linked.length>0&&linked.every(Boolean)&&!splitScope&&!partialAllocation&&(!enteredUnit||enteredUnit===unit);
+  const installedScopeEstablished=!!unit&&linked.length===1&&linked.every(Boolean)&&!splitScope&&!partialAllocation&&(!enteredUnit||enteredUnit===unit);
   const installedValues=linked.map(i=>{if(!i||!installedScopeEstablished)return null;const snapshots=snapshotsByItem.get(i.quantityItemId);return snapshots?.at(-1)?.installedQuantity??null;});
   const quantity=(stage:string)=>{const n=numeric(r,stage+' quantity',stage+' qty');const when=date(r,stage+' date',stage+' as of','status as of');return !invalidFields.get(r.recordId)?.has(stage+' quantity')&&!invalidFields.get(r.recordId)?.has(stage+' qty')&&n!==null&&n>=0&&isOnDate(when,dataDateIso)&&(!enteredUnit||enteredUnit===unit)?n:null;};
   const ordered=quantity('ordered'),manufactured=quantity('manufactured'),shipped=quantity('shipped'),delivered=quantity('delivered'),accepted=quantity('accepted'),released=quantity('released'),installed=installedScopeEstablished?sumKnown(installedValues):null;
@@ -206,6 +230,10 @@ function buildDelivery(state:ProjectRuntimeState){
    remainingToOrder:difference(required,ordered),remainingToDeliver:difference(required,delivered),remainingToInstall:difference(required,installed),
    procurementCoveragePercent:pct(ordered,required),manufacturingCoveragePercent:pct(manufactured,required),deliveryCoveragePercent:pct(delivered,required),acceptanceCoveragePercent:pct(accepted,required),installationCompletionPercent:pct(installed,required),
    installedScopeEstablished,basis:!unit?'Compatible BOQ units are not established; quantities with different units cannot be combined.':splitScope||partialAllocation?'Split scope: explicit BOQ allocations required. Item-level installed quantities cannot be assigned to one package without a governed measured split.':'Required quantities from controlled BOQ; installed quantities from existing Installed Quantities.',receipts:r.receipts};
+ });
+ const itemMaterialRows=[...items.values()].map(item=>{
+  const installed=snapshotsByItem.get(item.quantityItemId)?.at(-1)?.installedQuantity??null;
+  return {recordId:'boq-item:'+item.quantityItemId,reference:item.itemNumber??item.quantityItemId,description:item.description,unit:item.unit,required:item.contractQuantity,ordered:null,delivered:null,accepted:null,installed,remainingToInstall:difference(item.contractQuantity,installed),authority:'From BOQ and dated measurement register',basis:'Item quantities are usable independently of procurement allocation. Ordered, delivered and accepted quantities need dated package evidence.'};
  });
  for(const [itemId,packages] of packagesByItem){const item=items.get(itemId);const allocated=sumKnown(packages.map(p=>p.links.boqAllocations.find(a=>a.boqItemId===itemId)?.quantity??null));if(item?.contractQuantity!==null&&item?.contractQuantity!==undefined&&allocated!==null&&allocated>item.contractQuantity)add('SCOPE_ALLOCATIONS_ABOVE_BOQ',null,'Package allocations exceed BOQ item '+itemId+'.','Review the governed split quantities.');}
  const mapped=new Set(byKind('package').flatMap(p=>p.links.boqItemIds));
@@ -230,7 +258,7 @@ function buildDelivery(state:ProjectRuntimeState){
  };
  const mappings=[['programme','programmeActivityIds'],['procurement','procurementPackageIds'],['workfront','workfrontIds'],['location','locationIds']] as const;
  const mappingCoverage=[...mappings.map(([dimension,key])=>{const count=boqRows.filter(r=>r[key].length>0).length;return {dimension,mappedCount:controlledBoq?count:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(count,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r[key].length).map(r=>r.itemId)};}),{dimension:'quantity tracking',mappedCount:controlledBoq?boqRows.filter(r=>r.quantityTrackingEstablished).length:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(boqRows.filter(r=>r.quantityTrackingEstablished).length,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r.quantityTrackingEstablished).map(r=>r.itemId)}];
- const quantityPopulations=[...new Set(boqRows.map(r=>r.unit).filter(Boolean))].map(unit=>{const rows=boqRows.filter(r=>r.unit===unit);return {unit,requiredQuantity:sumKnown(rows.map(r=>r.quantity)),itemCount:rows.length,itemIds:rows.map(r=>r.itemId)};});
+ const quantityPopulations=boqRows.map(row=>({unit:row.unit,requiredQuantity:row.quantity,itemCount:1,itemIds:[row.itemId],description:row.description,basis:'Individual BOQ item; shared units alone do not establish compatible scope.',quantityReview:/^(ls|l\.?s\.?|lump\s*sum)$/i.test(row.unit??'')&&row.quantity!==null&&row.quantity!==1?'Lump-sum quantity differs from one; check the item basis.':null}));
  const boqIntelligence={valueByDiscipline:dimensionValues('disciplines'),valueByLocation:dimensionValues('locationIds'),valueByWorkfront:dimensionValues('workfrontIds'),topPackages:dimensionValues('procurementPackageIds').sort((a,b)=>a.currency.localeCompare(b.currency)||(b.value??-Infinity)-(a.value??-Infinity)),quantityPopulations,mappingCoverage,source:boq.selection,itemCount:controlledBoq?boqRows.length:null,mappedItemCount:controlledBoq?boqRows.filter(r=>mapped.has(r.itemId)).length:null,
   procurementMappingPercent:controlledBoq?pct(boqRows.filter(r=>mapped.has(r.itemId)).length,boqRows.length):null,currencies:currencyGroups,
   topCostDrivers:currencyGroups.map(g=>({currency:g.currency,items:boqRows.filter(r=>r.currency===g.currency&&r.amount!==null).sort((a,b)=>b.amount!-a.amount!).slice(0,20)})),rows:boqRows};
@@ -240,74 +268,119 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const r of byKind('package')){const amount=numeric(r,'package value','amount','value'),currency=field(r,'currency');if(amount===null||!currency)continue;for(const series of ['planned','forecast','actual'] as const){const when=milestone(r,'po')[series];if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'commitment_value',stage:'po',series,dateIso:when,value:amount,unit:currency,authority:'source_package_value'});}}
  const groupEvents=new Map<string,typeof events>();for(const e of events){const key=[e.kind,e.stage,e.series,e.unit].join('|');const list=groupEvents.get(key)??[];list.push(e);groupEvents.set(key,list);}
  const curves=[...groupEvents].map(([key,rows])=>{let cumulative=0;const buckets=new Map<string,typeof events>();for(const e of rows){const list=buckets.get(e.dateIso)??[];list.push(e);buckets.set(e.dateIso,list);}return {key,kind:rows[0]!.kind,stage:rows[0]!.stage,series:rows[0]!.series,unit:rows[0]!.unit,population:rows.map(r=>r.recordId),dataDateIso,denominator:null,weighting:rows[0]!.kind==='commitment_value'?'Package value by currency':'Count of dated events; throughput, not physical progress',points:[...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([dateIso,entries])=>({dateIso,value:round(cumulative+=entries.reduce((n,e)=>n+e.value,0)),recordIds:entries.map(e=>e.recordId)}))};});
- const weightedPackages=byKind('package').map(r=>{const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));const stages=template?ids(field(template,'stages')):[];const weights=stages.map(s=>numeric(template!,s+' weight'));const total=weights.every(w=>w!==null&&w>=0)?sumKnown(weights):null;const basis=field(r,'weighting basis');const weight=basis==='controlled package value'?numeric(r,'package value','amount','value'):basis==='controlled management weight'?numeric(r,'management weight'):null;let earned=0;let known=!!dataDateIso&&stages.length>0&&total===100;
+ const weightedPackages=byKind('package').map(r=>{const template=lifecycleById.get(field(r,'lifecycle id'));const stages=template?ids(field(template,'stages')):[];const weights=stages.map(s=>numeric(template!,s+' weight'));const total=weights.every(w=>w!==null&&w>=0)?sumKnown(weights):null;const basis=field(r,'weighting basis');const weight=basis==='controlled package value'?numeric(r,'package value','amount','value'):basis==='controlled management weight'?numeric(r,'management weight'):null;let earned=0;let known=!!dataDateIso&&stages.length>0&&total===100;
   stages.forEach((stage,i)=>{const when=milestone(r,stage).actual;if(isOnDate(when,dataDateIso))earned+=weights[i]??0;else if(!(when&&dataDateIso&&when>dataDateIso)&&!(date(r,stage+' status as of')===dataDateIso&&field(r,stage+' status')==='not started'))known=false;});
   return {recordId:r.recordId,basis,unit:basis==='controlled package value'?field(r,'currency')||null:'management weight',weight,percent:known?earned:null,lifecycleId:template?.recordId??null};});
  const weightedGroups=[...new Set(weightedPackages.map(r=>r.basis+'|'+r.unit))].map(key=>{const rows=weightedPackages.filter(r=>r.basis+'|'+r.unit===key),complete=populations.package!.state==='established'&&rows.every(r=>r.percent!==null&&r.weight!==null&&r.weight>0&&r.unit);const total=sumKnown(rows.map(r=>r.weight));return {key,unit:rows[0]?.unit??null,basis:rows[0]?.basis??null,value:complete&&total?round(rows.reduce((n,r)=>n+r.percent!*r.weight!,0)/total):null,denominator:complete?total:null,includedRecordIds:rows.filter(r=>r.percent!==null&&r.weight!==null).map(r=>r.recordId),excludedRecordIds:rows.filter(r=>r.percent===null||r.weight===null).map(r=>r.recordId),explanation:complete?'Governed lifecycle weights and complete package denominator.':'Weighted procurement progress not established. Confirm the package population, package weights and dated lifecycle status.'};});
+ const operations=operationalReporting(state);
+ const operationalRows=new Map([...operations.rfi.current,...operations.quality.current].flatMap(row=>row.sourceRefs.map(ref=>[ref,row] as const)));
  const registerRows=governed.map(r=>{const raised=date(r,'raised date','identified date','submitted date','actual issue','incident date','event start','report date','effective date');const actual=date(r,'actual date','actual issue'),approval=date(r,'approval date'),verified=date(r,'verification date'),closed=date(r,'closed date','close date'),rectified=date(r,'rectified date'),accepted=date(r,'acceptance date','handover acceptance date');
   const statusAsOf=date(r,'status as of');const rawStatus=field(r,'status','outcome').toLowerCase();
+  const due=date(r,'due date','required by','required response');
   const verifiedEvidence=r.state==='verified'&&r.sourceActive&&r.receipts.length>0&&isOnDate(verified,dataDateIso);
-  const verificationRequired=(isOnDate(accepted,dataDateIso)||isOnDate(closed,dataDateIso))&&!verifiedEvidence;
+  const sourceRegisterCandidate=r.state==='extracted_candidate'&&r.sourceActive;
+  const sourceOperational=sourceRegisterCandidate&&['design','quality'].includes(r.kind)?r.receipts.map(receipt=>operationalRows.get('evidence-document:'+receipt.documentId+':'+receipt.locator)).find(Boolean):undefined;
+  const sourceClosed=sourceOperational?['closed','answered'].includes(sourceOperational.status):sourceRegisterCandidate&&isOnDate(closed,dataDateIso)&&/^(closed|complete|completed|resolved)$/i.test(rawStatus);
+  const sourceAccepted=sourceRegisterCandidate&&isOnDate(accepted,dataDateIso)&&/^(accepted|approved|passed|commissioned|complete|completed)$/i.test(rawStatus);
+  const verificationRequired=(isOnDate(accepted,dataDateIso)||isOnDate(closed,dataDateIso))&&!verifiedEvidence&&!sourceClosed&&!sourceAccepted;
   if(verificationRequired)add('VERIFICATION_EVIDENCE_REQUIRED',r,'Reported acceptance or closure is awaiting verified supporting evidence.','Review the supporting document and date, then record a Verified decision. Reported dates remain visible.');
-  let currentStatus='not_established';if(dataDateIso){if(isOnDate(accepted,dataDateIso)&&verifiedEvidence)currentStatus='accepted';else if(isOnDate(closed,dataDateIso)&&verifiedEvidence)currentStatus='closed';else if(verificationRequired)currentStatus='verification_required';else if(approval&&approval<=dataDateIso)currentStatus='source_approved';else if(actual&&actual<=dataDateIso)currentStatus=['quality','commissioning'].includes(r.kind)&&['passed','failed','retest required','accepted','rejected'].includes(rawStatus)&&isOnDate(date(r,'outcome date')??statusAsOf,dataDateIso)?rawStatus:'performed';else if(raised&&raised<=dataDateIso)currentStatus='open';if(currentStatus==='not_established'&&statusAsOf===dataDateIso&&!['approved','accepted','closed','commissioned','complete','passed'].includes(rawStatus))currentStatus=rawStatus||'not_established';}
+  const rawLatenessStatus=/\b(?:overdue|late)\b/i.test(rawStatus);
+  if(rawLatenessStatus&&!due)add('DELIVERY_LATENESS_DUE_DATE_REQUIRED',r,'The source labels this record '+(rawStatus||'late')+' but no required/due date is established.','Provide or reconcile the applicable required date before CMeng states that this record is overdue.');
+  let currentStatus='not_established';if(dataDateIso){if(sourceAccepted||isOnDate(accepted,dataDateIso)&&verifiedEvidence)currentStatus='accepted';else if(sourceClosed||isOnDate(closed,dataDateIso)&&verifiedEvidence)currentStatus='closed';else if(verificationRequired)currentStatus='verification_required';else if(approval&&approval<=dataDateIso)currentStatus='source_approved';else if(actual&&actual<=dataDateIso)currentStatus=['quality','commissioning'].includes(r.kind)&&['passed','failed','retest required','accepted','rejected'].includes(rawStatus)&&isOnDate(date(r,'outcome date')??statusAsOf,dataDateIso)?rawStatus:'performed';else if(raised&&raised<=dataDateIso)currentStatus='open';if(currentStatus==='not_established'&&statusAsOf===dataDateIso&&!rawLatenessStatus&&!['approved','accepted','closed','commissioned','complete','passed'].includes(rawStatus))currentStatus=rawStatus||'not_established';}
+  // Source RFI/NCR lifecycles use the same dated authority as dashboard and Ask.
+  if(sourceOperational)currentStatus=sourceClosed?'closed':sourceOperational.status==='open'?'open':'not_established';
   // Scope establishes when the requirement exists, not when it is completed.
   // Every completion/outcome above must independently satisfy its event date.
-  const due=date(r,'due date','required by','required response'),firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
+  const firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
-  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible party')||null,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,links:r.links,fields:r.fields,receipts:r.receipts};
+  const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
+  const programmeContext=registerProgrammeContext(r.links.activityIds,activities);
+  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
  });
+ const registerById=new Map(registerRows.map(r=>[r.recordId,r] as const));
+ const registerOrder=new Map(registerRows.map((r,i)=>[r.recordId,i] as const));
+ // Index the retained relationships once rather than scanning every row for each asset.
+ const rowsByAsset=new Map<string,typeof registerRows>();
+ for(const row of registerRows)for(const assetId of row.links.assetIds){const related=rowsByAsset.get(assetId)??[];related.push(row);rowsByAsset.set(assetId,related);}
  const rates=(rows:typeof registerRows,complete:boolean)=>{const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,passRatePercent:complete?pct(pass,rows.length):null,basis:complete?'Rate uses the confirmed current applicable population at the Data Date; future and undated rows are excluded.':'Known current outcomes remain visible, but the rate is withheld until the applicable population and outcome coverage are complete.'};};
  const allHandover=registerRows.filter(r=>r.kind==='handover'),handoverRows=allHandover.filter(r=>r.scope==='current'),handoverKnown=allHandover.every(r=>r.scope==='future'||r.currentStatus!=='not_established'&&r.scope!=='undated'&&!r.verificationRequired);
  const handover={population:populations.handover!,acceptedKnownCount:handoverRows.filter(r=>r.currentStatus==='accepted').length,readinessPercent:populations.handover!.state==='established'&&handoverKnown?pct(handoverRows.filter(r=>r.currentStatus==='accepted').length,handoverRows.length):null,rows:handoverRows};
  const hsePosition=deliveryHsePosition(byKind('hse'),dataDateIso,populations.hse!.state==='established');
  const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>}>();
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
+ // A specialist workfront register enriches the programme; its absence must
+ // not hide programme progress that is already classified in Activity Review.
+ if(model)for(const dimension of ['discipline','location'] as const){
+  if([...scopeGroups.values()].some(group=>group.dimension===dimension))continue;
+  for(const row of scheduleScopeClassification(model).rows){
+   const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
+   const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
+   group.activityIds.add(row.activityId);scopeGroups.set(key,group);
+  }
+ }
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   const baseline=state.schedules.filter(r=>['baseline','revised_baseline'].includes(r.role)&&isAdoptedProgrammeRevision(state,r)&&isOnDate(r.revision.model.dataDateIso?.slice(0,10)??null,dataDateIso)).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1)?.revision.model??null;
-  const config={baselineModel:baseline,generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',config:projectScheduleControlBasis(state).analysisConfig};
+  const config={baselineModel:baseline,readinessEvidence:state.controls.readinessEvidence,generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',config:projectScheduleControlBasis(state).analysisConfig};
   const rows=model&&selected.length?buildProgressBreakdownProjection({...model,activities:selected},config).rows:[];
   const total=model&&selected.length?buildProgressBreakdownProjection({...model,activities:selected.map(a=>({...a,wbsId:'DELIVERY_SCOPE'}))},config).rows[0]:null;
-  const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=gates.some(r=>r.state==='blocked')?'blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
+  const linkedBlockers=selected.filter(a=>a.status!=='completed').flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
+  const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=linkedBlockers.length||gates.some(r=>r.state==='blocked')?'blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
   return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
    plannedPercent:total?.currentPlanCoveragePercent===100?total.currentPlanPercent??null:null,baselinePlannedPercent:total?.baselinePlanCoveragePercent===100?total.baselinePlannedPercent??null:null,scheduleProgressPercent:total?.durationWeightedCoveragePercent===100?total.durationWeightedProgressPercent??null:null,
    variancePercentagePoints:total?.currentPlanCoveragePercent===100&&total?.durationWeightedCoveragePercent===100?total.scheduleMinusCurrentPlanPercentagePoints??null:null,
-   readinessState:ready,mainBlockers:gates.flatMap(g=>g.rows.filter(r=>r.applicable&&r.outcome==='blocked').map(r=>r.requirement)),
-   progressAuthority:'Existing WBS Progress producer; submitted schedule progress is separate from installed physical quantities.',wbsRows:rows,readiness:gates};
+   readinessState:ready,mainBlockers:[...new Set([...linkedBlockers,...gates.flatMap(g=>g.rows.filter(r=>r.applicable&&r.outcome==='blocked').map(r=>r.requirement))])],
+   activityCount:selected.length,completedActivityCount:selected.filter(a=>a.status==='completed').length,
+   authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',
+   progressAuthority:'Shared Progress Breakdown calculation; programme progress is separate from installed physical quantities and workfront acceptance.',wbsRows:rows,readiness:gates};
  });
- const supplierRows=byKind('supplier').map(r=>{const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
+ const supplierKey=(value:string|null|undefined)=>String(value??'').trim().toLocaleLowerCase();
+ const registeredSuppliers=byKind('supplier').map(r=>{const names=[r.reference,r.description,field(r,'company')].map(supplierKey).filter(Boolean);const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)||p.supplier&&names.includes(supplierKey(p.supplier))),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
   return {recordId:r.recordId,reference:r.reference,description:r.description,packages,packageCount:packages.length,
-   lateKnownPackageCount:packages.some(p=>p.headroomCalendarDays!==null)?packages.filter(p=>p.headroomCalendarDays!==null&&p.headroomCalendarDays<0).length:null,
+   lateKnownPackageCount:packages.some(p=>p.overdueUndelivered||p.headroomCalendarDays!==null)?packages.filter(p=>p.overdueUndelivered||p.forecastLate).length:null,
    unresolvedPackageCount:packages.length?packages.filter(p=>p.headroomCalendarDays===null).length:null,
    materials:materialRows.filter(p=>packageIds.has(p.recordId)),quality:related.filter(q=>q.kind==='quality'),hse:related.filter(q=>q.kind==='hse'),workfronts:related.filter(q=>q.kind==='workfront'),
    existingRiskIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.riskIds))],existingVariationIds:[...new Set([r,...related.map(q=>byId.get(q.recordId)!)].flatMap(q=>q.links.variationIds))],
    commercialAuthority:'/commercial/modules/commercial-overview',source:r};});
+ const supplierNames=new Map<string,string>();for(const row of packageRows)if(row.supplier&&!supplierNames.has(supplierKey(row.supplier)))supplierNames.set(supplierKey(row.supplier),row.supplier.trim());
+ const sourceSuppliers=[...supplierNames.values()].filter(name=>!registeredSuppliers.some(r=>[r.reference,r.description,field(r.source,'company')].some(v=>v?.trim().toLowerCase()===name.trim().toLowerCase()))).map(name=>{
+  const packages=packageRows.filter(r=>supplierKey(r.supplier)===supplierKey(name));
+  return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
+ });
+ const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
   const rows=registerRows.filter(r=>r.kind===kind),currentRows=rows.filter(r=>r.scope==='current'),complete=populations[kind]!.state==='established'&&!!dataDateIso&&rows.every(r=>r.scope==='future'||r.scope==='current'&&r.currentStatus!=='not_established'&&!r.verificationRequired);
   const count=(condition:(r:typeof rows[number])=>boolean)=>complete?currentRows.filter(condition).length:null;
   const closeCount=count(r=>['closed','accepted'].includes(r.currentStatus));
+   const knownOpenCount=currentRows.filter(r=>!['closed','accepted','source_approved','passed'].includes(r.currentStatus)).length;
+   const knownOverdueCount=currentRows.length&&currentRows.every(r=>r.overdue!==null)?currentRows.filter(r=>r.overdue===true).length:null;
   const reviewPeriods=currentRows.flatMap(row=>{const r=byId.get(row.recordId)!,submitted=date(r,'actual submission date','submitted date','actual issue'),response=date(r,'response date','approval date');if(!isOnDate(submitted,dataDateIso)||!isOnDate(response,dataDateIso))return [];const period=days(response,submitted);if(period!==null&&period<0){add('REVIEW_DATE_ORDER_INVALID',r,'The response date precedes the submission date.','Reconcile the dated source; this interval is excluded from completed review statistics.');return [];}return period===null?[]:[period];});
-  return [kind,{totalRequired:populations[kind]!.denominator,currentCount:complete?currentRows.length:null,knownCurrentCount:currentRows.length,futureCount:rows.filter(r=>r.scope==='future').length,undatedCount:rows.filter(r=>r.scope==='undated').length,
+  return [kind,{totalRequired:populations[kind]!.denominator,currentCount:complete?currentRows.length:null,knownCurrentCount:currentRows.length,knownOpenCount,knownOverdueCount,futureCount:rows.filter(r=>r.scope==='future').length,undatedCount:rows.filter(r=>r.scope==='undated').length,
    openCount:count(r=>!['closed','accepted','source_approved','passed'].includes(r.currentStatus)),overdueCount:rows.every(r=>r.scope==='future'||r.overdue!==null)?count(r=>r.overdue===true):null,
    closedCount:closeCount,closurePercent:complete?pct(closeCount,currentRows.length):null,passedCount:count(r=>r.currentStatus==='passed'),failedCount:count(r=>r.currentStatus==='failed'),retestCount:count(r=>r.currentStatus==='retest required'),
    ...rates(currentRows,complete),reviewPeriodCalendarDays:reviewPeriods.length?round(reviewPeriods.reduce((a,b)=>a+b,0)/reviewPeriods.length):null,reviewPeriodKnownCount:reviewPeriods.length}];
  }));
  const permitRows=byKind('permit').map(r=>{
-  const issued=date(r,'issue date','actual issue'),expiry=date(r,'expiry date','valid until'),start=date(r,'valid from')??issued,permanent=field(r,'expiry applicable')==='no';
-  const status=!dataDateIso||!issued?'not_established':issued>dataDateIso?'future_issue':!start||!permanent&&!expiry?'validity_not_established':expiry&&expiry<dataDateIso?'expired':start>dataDateIso?'not_yet_valid':'valid';
-  return {...registerRows.find(q=>q.recordId===r.recordId)!,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
+  const issued=date(r,'issue date','actual issue'),expiry=date(r,'expiry date','valid until','valid to'),start=date(r,'valid from')??issued,permanent=field(r,'expiry applicable')==='no';
+  const pending=!start&&!issued&&/pending|applied|submitted|awaiting/i.test(field(r,'status'));
+  const status=pending?'pending':!dataDateIso||!start?'not_established':issued&&issued>dataDateIso?'future_issue':start>dataDateIso?'not_yet_valid':!permanent&&!expiry?'validity_not_established':expiry&&expiry<dataDateIso?'expired':'valid';
+  return {...registerById.get(r.recordId)!,issuingAuthority:field(r,'issuing authority','authority')||null,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
  });
  const spareRows=byKind('spare').map(r=>{
   const value=(name:string)=>{const n=numeric(r,name+' quantity');return !invalidFields.get(r.recordId)?.has(name+' quantity')&&n!==null&&n>=0&&(name==='required'||isOnDate(date(r,name+' date','status as of'),dataDateIso))?n:null;};
   const required=value('required'),delivered=value('delivered'),accepted=value('accepted'),stored=value('stored'),handedOver=value('handed over'),linked=value('asset linked'),unit=field(r,'unit')||null;
   const before=findings.length;
   for(const [code,left,right,label] of [['SPARES_DELIVERED_ABOVE_REQUIREMENT',delivered,required,'Delivered above requirement'],['SPARES_ACCEPTED_ABOVE_DELIVERED',accepted,delivered,'Accepted above delivered'],['SPARES_ACCEPTED_ABOVE_REQUIREMENT',accepted,required,'Accepted above requirement'],['SPARES_STORED_ABOVE_ACCEPTED',stored,accepted,'Stored above accepted'],['SPARES_STORED_ABOVE_REQUIREMENT',stored,required,'Stored above requirement'],['SPARES_HANDED_OVER_ABOVE_STORED',handedOver,stored,'Handed over above stored'],['SPARES_HANDED_OVER_ABOVE_ACCEPTED',handedOver,accepted,'Handed over above accepted'],['SPARES_HANDED_OVER_ABOVE_DELIVERED',handedOver,delivered,'Handed over above delivered'],['SPARES_HANDED_OVER_ABOVE_REQUIREMENT',handedOver,required,'Handed over above requirement']] as const)if(left!==null&&right!==null&&left>right)add(code,r,label+': '+left+' / '+right+(unit?' '+unit:'')+'.','Reconcile the quantities against their source and scope. Original quantities and signed remaining values are retained.');
-  return {...registerRows.find(q=>q.recordId===r.recordId)!,unit,required,delivered,accepted,stored,assetLinked:linked,handedOver,remaining:difference(required,handedOver),quantityExceptions:findings.slice(before).map(f=>f.message)};
+  return {...registerById.get(r.recordId)!,unit,required,delivered,accepted,stored,assetLinked:linked,handedOver,remaining:difference(required,handedOver),quantityExceptions:findings.slice(before).map(f=>f.message)};
  });
  const assetRows=byKind('asset').map(r=>{
-  const related=registerRows.filter(q=>q.links.assetIds.includes(r.recordId)||r.links.recordIds.includes(q.recordId));
-  return {...registerRows.find(q=>q.recordId===r.recordId)!,readiness:gatesFor(r),installationDate:actualOn(r,'installation'),inspectionAcceptance:actualOn(r,'inspection acceptance'),commissioningDate:actualOn(r,'commissioning'),takingOverDate:actualOn(r,'taking over'),
+  // Look up forward and reverse links, deduplicate, then retain original register order.
+  const linked=new Map<string,(typeof registerRows)[number]>();
+  for(const item of rowsByAsset.get(r.recordId)??[])linked.set(item.recordId,item);
+  for(const id of r.links.recordIds){const item=registerById.get(id);if(item)linked.set(item.recordId,item);}
+  const related=[...linked.values()].sort((a,b)=>(registerOrder.get(a.recordId)??0)-(registerOrder.get(b.recordId)??0));
+  return {...registerById.get(r.recordId)!,readiness:gatesFor(r),installationDate:actualOn(r,'installation'),inspectionAcceptance:actualOn(r,'inspection acceptance'),commissioningDate:actualOn(r,'commissioning'),takingOverDate:actualOn(r,'taking over'),
    tests:related.filter(q=>q.kind==='commissioning'),requirements:related.filter(q=>q.kind==='handover'),snags:related.filter(q=>q.kind==='snag'),spares:spareRows.filter(q=>q.links.assetIds.includes(r.recordId)),acceptanceAuthority:'Dated source position; commissioning and handover acceptance are separate.'};
  });
  const locations=byKind('location').map(r=>{const path:string[]=[];const visited=new Set<string>();let current:DeliveryRecord|undefined=r;while(current&&!visited.has(current.recordId)){visited.add(current.recordId);path.unshift(current.description??current.reference??current.recordId);current=byId.get(field(current,'parent location id'));}return {recordId:r.recordId,reference:r.reference,description:r.description,parentId:field(r,'parent location id')||null,level:field(r,'location type')||null,path:path.join(' / ')};});
@@ -337,13 +410,13 @@ function buildDelivery(state:ProjectRuntimeState){
   const kind:DeliveryKind=curve.kind==='submittal_throughput'?'submittal':'package';const included=new Set(curve.population),all=byKind(kind).filter(r=>!('packageId' in curve)||r.recordId===curve.packageId);
   return {...curve,denominator:curve.denominator??(curve.unit==='records'?populations[kind]!.denominator:null),period:{from:curve.points[0]?.dateIso??null,to:curve.points.at(-1)?.dateIso??null},populationState:populations[kind]!.state,includedRecordIds:[...included],excludedRecordIds:all.filter(r=>!included.has(r.recordId)).map(r=>r.recordId),sourceRecordIds:[...included],coveragePercent:populations[kind]!.state==='established'?pct(all.filter(r=>included.has(r.recordId)).length,all.length):null};
  });
- const operations=operationalReporting(state),config=projectScheduleControlBasis(state).analysisConfig;
+ const config=projectScheduleControlBasis(state).analysisConfig;
  const recordsByRisk=new Map<string,DeliveryRecord[]>();for(const r of governed)for(const id of r.links.riskIds){const rows=recordsByRisk.get(id)??[];rows.push(r);recordsByRisk.set(id,rows);}
  const riskRows=operations.risk.current.map(risk=>{const linked=recordsByRisk.get(risk.riskId)??[];const linkedActivities=[...new Set([...(risk.linkedActivityId?[risk.linkedActivityId]:[]),...linked.flatMap(r=>r.links.activityIds)])].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);return {...risk,
   description:risk.subject??null,categories:[...new Set([risk.category,...linked.map(r=>r.kind==='package'?'procurement':r.kind==='workfront'?'construction':r.kind)].filter(Boolean))],
   deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId),
   programmeExposure:linkedActivities.map(a=>({activityId:a.activityId,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,criticality:model?sourceFloatCriticality(model,a,config):'unknown',totalFloatHours:a.totalFloatHours})),
-  score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis};});
+  probability:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.probability??null,impact:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.impact??null,score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis};});
  const evidenceMetrics=Object.fromEntries(['quality','commissioning','snag','handover','design','submittal'].map(kind=>[kind,deliveryEvidenceMetrics(byKind(kind as DeliveryKind),dataDateIso)]));
  const commissioningRows=registerRows.filter(r=>r.kind==='commissioning').map(r=>({...r,system:field(byId.get(r.recordId)!,'system')||null,subsystem:field(byId.get(r.recordId)!,'subsystem')||null,plannedDate:date(byId.get(r.recordId)!,'planned date'),forecastDate:date(byId.get(r.recordId)!,'forecast date'),readiness:gatesFor(byId.get(r.recordId)!)}));
  const commissioningSystems=[...new Set(commissioningRows.map(r=>r.system).filter((s):s is string=>!!s))].map(system=>{const rows=commissioningRows.filter(r=>r.system===system);return {system,requiredTestCount:populations.commissioning!.state==='established'?rows.length:null,knownStartedCount:rows.filter(r=>r.actualDate&&isOnDate(r.actualDate,dataDateIso)).length,
@@ -357,7 +430,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const relationshipAuthorities=Object.fromEntries(([['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const).map(([key,kind])=>{const linked=new Set(governed.flatMap(r=>r.links[key]));return [kind,linked.size?deliveryAuthorityCatalog(state,kind).filter(r=>linked.has(r.id)):[]];}));
  return {schemaVersion:'1.0',producerVersion:'delivery-v1',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeLabel:current?.revision.label??current?.sourceFilename??null,programmeRevisionId:current?.revision.revisionId??null,
   scheduleAuthorityReview:scheduleAuthorityReview(state),records,documents:source.documents,diagnostics:source.diagnostics,populations,findings,
-  packageRows,materialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
+  packageRows,materialRows,itemMaterialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
   existingAuthorities:{risk:operations.risk,quality:operations.quality,rfi:operations.rfi,programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installedQuantities:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},
   lifecycleExamples:lifecycleExamples.map(t=>({...t,state:'example_requires_adoption',weights:null})),
   authorityScope:'Delivery consumes the controlled BOQ, programme, progress and commercial/claims authorities. Procurement exposure does not establish EOT or causation.'};
@@ -370,16 +443,17 @@ const deliverySourceDomain=(key:string):ManagementSourceDomain|null=>
  key==='delivery-quality'?'quality':
  key==='delivery-hse'?'hse':null;
 export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRuntimeResult{
- if(key==='delivery-interfaces')return interfaceModule(state);
+ if(key==='delivery-interfaces')return deliveryExportResult(state,interfaceModule(state));
  const definition=deliveryPages.find(p=>p[0]===key);if(!definition)return {key,status:'blocked',reason:'Delivery page not found.',dependencies:[],data:null};
  const p=deliveryPosition(state),kind=definition[3],title=definition[1],riskPage=key==='delivery-risks',risk=p.existingAuthorities.risk,boqScope=boqScopeIntelligence(state),interfaces=interfaceIntelligence(state);
+ const reportedHse=key==='delivery-hse'?hseReportPosition(state,p.dataDateIso):null;
  const records=p.records.filter(r=>riskPage?r.links.riskIds.length>0:r.kind===kind);
  const population=riskPage?{kind:'risk',scopeId:null,state:risk.complete?'established':'not_established',denominator:risk.complete?risk.currentRecordCount:null,knownRecordCount:risk.currentRecordCount,pendingRecordCount:risk.undatedRecordCount+ risk.unknownStatusCount,recordIds:risk.current.map(r=>r.riskId),basis:'Existing project risk register, using its dated status and source completeness checks. Delivery record review does not approve the risk register.',confirmedAt:null}:p.populations[kind]!;
- const summary=riskPage?{currentCount:risk.complete?risk.currentRecordCount:null,openCount:risk.complete?risk.current.filter(r=>r.status==='open').length:null,overdueCount:null,passRatePercent:null,unknownOutcomeCount:risk.unknownStatusCount,basis:population.basis}:p.summaries[kind]!;
+ const summary=riskPage?{currentCount:risk.complete?risk.currentRecordCount:null,knownCurrentCount:risk.currentRecordCount,openCount:risk.complete?risk.current.filter(r=>r.status==='open').length:null,knownOpenCount:risk.current.filter(r=>r.status==='open').length,overdueCount:null,knownOverdueCount:null,passRatePercent:null,unknownOutcomeCount:risk.unknownStatusCount,basis:population.basis}:p.summaries[kind]!;
  const populationAuthority=deliveryPopulationAuthority(population,records.length,summary.currentCount);
  const confirmedInterfaceIssues=interfaces.rows.filter(r=>r.authority==='confirmed'&&r.state!=='closed');
  const interfaceRiskRows=confirmedInterfaceIssues.map(r=>({recordId:'interface-risk:'+r.interfaceId,riskId:'IF-'+r.interfaceId,reference:r.interfaceId,description:r.consequence||('Open interface '+r.interfaceId),status:'Candidate',rating:null,score:null,categories:['interface'],owner:r.responsibleParty??r.givingParty??r.receivingParty,authority:'candidate',basis:'Professional delivery-risk candidate from confirmed Interface records; not a formal Project Risk Register entry.',linkedActivity:r.linkedActivity,relatedPackages:r.packageIds}));
- const baseGovernedRows:any[]=key==='delivery-control'||key==='long-lead'||key==='procurement-packages'?p.packageRows:key==='material-tracking'?p.materialRows:key.includes('readiness')&&key!=='handover-readiness'?p.readiness.filter(r=>r.kind===(key==='construction-readiness'?'workfront':'package')):key==='construction-discipline'||key==='construction-locations'?p.workfrontMatrix.filter(r=>r.dimension===(key==='construction-discipline'?'discipline':'location')):key==='delivery-suppliers'?p.supplierRows:key==='delivery-risks'?[...p.riskRows,...interfaceRiskRows]:key==='delivery-commissioning'?p.commissioningRows:key==='delivery-permits'?p.permitRows:key==='delivery-spares'?p.spareRows:key==='delivery-assets'?p.assetRows:key==='delivery-weather'?p.weatherRows:p.registerRows.filter(r=>r.kind===kind);
+ const baseGovernedRows:any[]=key==='delivery-control'||key==='procurement-packages'?p.packageRows:key==='long-lead'?p.packageRows.filter(r=>r.longLeadCandidate):key==='material-tracking'?(p.materialRows.some(r=>r.required!==null||r.installed!==null)?p.materialRows:p.materialRows.length?p.itemMaterialRows:[]):key.includes('readiness')&&key!=='handover-readiness'?p.readiness.filter(r=>r.kind===(key==='construction-readiness'?'workfront':'package')):key==='construction-discipline'||key==='construction-locations'?p.workfrontMatrix.filter(r=>r.dimension===(key==='construction-discipline'?'discipline':'location')):key==='delivery-suppliers'?p.supplierRows:key==='delivery-risks'?p.riskRows:key==='delivery-commissioning'?p.commissioningRows:key==='delivery-permits'?p.permitRows:key==='delivery-spares'?p.spareRows:key==='delivery-assets'?p.assetRows:key==='delivery-weather'?p.weatherRows:p.registerRows.filter(r=>r.kind===kind);
  const readinessInterfaceIssues=(row:any)=>{
   if(key!=='construction-readiness'&&key!=='procurement-readiness')return [];
   const source=p.records.find(r=>r.recordId===row.recordId);
@@ -395,16 +469,23 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   });
  };
  const governedRows:any[]=baseGovernedRows.map(row=>{
-  if(key==='long-lead')return {...row,authority:'confirmed',basis:row.leadTimeBasis};
+  if(key==='long-lead')return {...row,currentStatus:row.currentStage,
+    authority:row.sourceState==='extracted_candidate'?'From register, not yet confirmed':'Confirmed',
+    basis:row.sourceState==='extracted_candidate'
+      ?'Source-register fact used immediately; population confirmation remains separate. '+row.leadTimeBasis
+      :row.leadTimeBasis};
   if(key!=='construction-readiness'&&key!=='procurement-readiness')return row;
   const linked=readinessInterfaceIssues(row);if(!linked.length)return row;
   const interfaceState=linked.some(issue=>issue.state==='blocked'||issue.state==='overdue')?'blocked':'at_risk';
   const stateNow=row.state==='blocked'||interfaceState==='blocked'?'blocked':row.state==='at_risk'||interfaceState==='at_risk'?'at_risk':row.state;
   return {...row,state:stateNow,interfaceGate:{state:interfaceState,interfaceIds:linked.map(issue=>issue.interfaceId),basis:'Confirmed unresolved Interface records explicitly linked to this package/workfront or one of its programme activities.'}};
  });
+ // One indexed material lookup for large 30k-item BOQs. A .find per row
+ // was quadratic and could hang the Material Tracking page on real tenders.
+ const itemMaterialByReference=key==='material-tracking'?new Map(p.itemMaterialRows.map(row=>[row.reference,row] as const)):null;
  const boqCandidateRows:any[]=key==='procurement-packages'?boqScope.packages.map((r,index)=>({recordId:'boq-package-'+index,reference:r.package,description:r.package,discipline:r.discipline,system:r.system,itemCount:r.itemCount,currency:r.currency,packageValue:r.readableValue,longLeadItemCount:r.longLeadItemCount,criticalItemCount:r.criticalItemCount,procurementPriority:r.priority,currentStatus:'candidate from BOQ'}))
   :key==='long-lead'?[...boqScope.longLead.map(r=>({recordId:r.itemId,reference:r.itemNumber,description:r.description,discipline:r.discipline,system:r.system,package:r.packageCandidate,currency:r.currency,amount:r.amount,procurementPriority:r.procurementPriority,confirmedLeadTime:null,latestOrderDate:null,currentStatus:'candidate from BOQ',authority:'candidate',basis:'BOQ-screened long-lead scope candidate; not a confirmed procurement package.'})),...p.scheduleLongLeadCandidates]
-  :key==='material-tracking'?boqScope.rows.map(r=>({recordId:r.itemId,reference:r.itemNumber||r.itemId,description:r.description,discipline:r.discipline,location:[r.building,r.tower,r.zone,r.floor,r.level,r.area].filter(Boolean).join(' / ')||null,package:r.packageCandidate,unit:r.unit,required:r.quantity,ordered:null,manufactured:null,delivered:null,accepted:null,installed:null,remainingToOrder:null,remainingToDeliver:null,remainingToInstall:null,currentStatus:'scope from BOQ',state:'extracted_candidate',basis:'BOQ quantity and scope only. Procurement, delivery and installation status are not established.'}))
+  :key==='material-tracking'?boqScope.rows.map(r=>({recordId:r.itemId,reference:r.itemNumber||r.itemId,description:r.description,discipline:r.discipline,location:[r.building,r.tower,r.zone,r.floor,r.level,r.area].filter(Boolean).join(' / ')||null,package:r.packageCandidate,unit:r.unit,required:r.quantity,ordered:null,manufactured:null,delivered:null,accepted:null,installed:itemMaterialByReference?.get(r.itemNumber||r.itemId)?.installed??null,remainingToOrder:null,remainingToDeliver:null,remainingToInstall:itemMaterialByReference?.get(r.itemNumber||r.itemId)?.remainingToInstall??null,currentStatus:'scope from BOQ',state:'extracted_candidate',basis:'BOQ quantity and scope only. Procurement, delivery and installation status are not established.'}))
   :key==='construction-discipline'?boqScope.dimensions.discipline.map((r,index)=>({recordId:'boq-discipline-'+index,dimension:'discipline',label:r.value,discipline:r.value,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
   :key==='construction-locations'?[...boqScope.dimensions.building,...boqScope.dimensions.tower,...boqScope.dimensions.zone,...boqScope.dimensions.floor,...boqScope.dimensions.level,...boqScope.dimensions.area].map((r,index)=>({recordId:'boq-location-'+index,dimension:'location',label:r.value,location:r.value,locationType:r.dimension,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
   :key==='delivery-risks'?boqScope.risks.map(r=>({recordId:r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact,probability:r.probability,severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:r.responsibleParty,status:'Candidate',currentStatus:'candidate management risk',state:'extracted_candidate',basis:r.basis,relatedPackages:r.relatedPackages}))
@@ -420,7 +501,26 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
         :records.length;
  const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
  const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition;
- const rows:any[]=riskPage?[...governedRows,...boqScope.risks.map(r=>({recordId:'boq-risk:'+r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact??'Not established',probability:r.probability??'Not established',severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:r.responsibleParty,status:'Candidate',currentStatus:'candidate management risk',state:'extracted_candidate',authority:'candidate',basis:r.basis,relatedPackages:r.relatedPackages}))]:useBoqCandidates?boqCandidateRows:governedRows;
+ let rows:any[]=useBoqCandidates?boqCandidateRows:governedRows;
+ const programmeFallbackPattern=key==='delivery-commissioning'?/testing|commissioning|\btest\b/i:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?/handover|taking[- ]over|section(?:al)? completion|practical completion/i:null;
+ const programmeFallback=!rows.length&&programmeFallbackPattern?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&programmeFallbackPattern.test(a.name??'')).map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'From programme, not yet verified as acceptance',basis:'Programme task and progress only; inspection results, snag closure and acceptance need their own evidence.'})):[];
+ if(programmeFallback.length)rows=programmeFallback;
+ const disruptionEvents=key==='delivery-weather'&&!rows.length?(claimsReporting(state)?.current.events??[]).filter(event=>/weather|climat|rain|wind|heat|disrupt/i.test(event.category+' '+event.title)).map(event=>({
+  reference:event.eventId,description:event.title,eventStart:event.startIso,eventEnd:event.endIso,
+  durationHours:null,recordedWorkingImpactHours:null,claimIds:claimsReporting(state)?.current.claims.filter(claim=>claim.eventIds.includes(event.eventId)).map(claim=>claim.claimId)??[],
+  activityIds:event.relatedActivityIds,authority:'From claim register; causation not established',sourceRefs:event.evidenceRefs.map(ref=>ref.sourceId+':'+ref.locator),
+ })) : [];
+ if(disruptionEvents.length)rows=disruptionEvents;
+ const scopedProgramme=key==='construction-readiness'&&!rows.length?reportingState(state):null;
+ const readinessModel=scopedProgramme?projectControlSchedule(scopedProgramme)?.revision.model:null;
+ const programmeReadiness=readinessModel?buildLookAheadProjection(readinessModel,{generatedAt:new Date().toISOString(),producerVersion:'shared-lookahead-readiness',drivingActivityIds:cachedIndependentForecast(readinessModel,new Date().toISOString()).drivingNetwork?.activityIds??[],readinessEvidence:scopedProgramme!.controls.readinessEvidence}):null;
+ const readinessClassifications=readinessModel?new Map(scheduleScopeClassification(readinessModel).rows.map(row=>[row.activityId,row])):new Map();
+ if(programmeReadiness)rows=programmeReadiness.rows.map(row=>({...row,reference:row.activityId,description:row.name,
+  discipline:readinessClassifications.get(row.activityId)?.discipline??null,readinessPercent:pct(row.readiness.readyCount,row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length),
+  state:row.readiness.state==='conditional'?'unknown':row.readiness.state,unknownCount:row.readiness.unknownCount,
+  applicableCount:row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length,
+  notApplicableCount:row.readiness.dimensions.filter(d=>d.state==='not_applicable').length,
+  rows:row.readiness.dimensions,authority:'Calculated from programme and linked register evidence'}));
  const rowIds=new Set(records.map(r=>r.recordId));
  const interfaceFindingRows=(key==='construction-readiness'||key==='procurement-readiness')
   ?confirmedInterfaceIssues.filter(issue=>governedRows.some(row=>readinessInterfaceIssues(row).some(linked=>linked.interfaceId===issue.interfaceId)))
@@ -429,24 +529,31 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const findings=useBoqCandidates?interfaceFindings:[...p.findings.filter(f=>key==='delivery-control'||f.recordId&&rowIds.has(f.recordId)),...(['delivery-control','construction-readiness','procurement-readiness','delivery-risks'].includes(key)?interfaceFindings:[])];
  const programmeModel=projectControlSchedule(state)?.revision.model??null;
  const programmeActivities=new Map(programmeModel?.activities.map(a=>[a.activityId,a])??[]);
+ const controlRecordById=key==='delivery-control'?new Map(p.records.map(r=>[r.recordId,r] as const)):null;
+ const controlPackageById=key==='delivery-control'?new Map(p.packageRows.map(r=>[r.recordId,r] as const)):null;
+ const workfrontsByActivity=new Map<string,typeof p.records>();
+ if(key==='delivery-control')for(const record of p.records){
+  if(!['governed','verified'].includes(record.state)||record.kind!=='workfront')continue;
+  for(const activityId of record.links.activityIds){const list=workfrontsByActivity.get(activityId)??[];list.push(record);workfrontsByActivity.set(activityId,list);}
+ }
  const deliveryControlActions=key==='delivery-control'?findings.map((finding,index)=>{
-  const source=finding.recordId?p.records.find(r=>r.recordId===finding.recordId)??null:null;
-  const packageRow=finding.recordId?p.packageRows.find(r=>r.recordId===finding.recordId)??null:null;
+  const source=finding.recordId?controlRecordById?.get(finding.recordId)??null:null;
+  const packageRow=finding.recordId?controlPackageById?.get(finding.recordId)??null:null;
   const issueInterface=interfaceFindingRows.find(row=>finding.message.startsWith(row.interfaceId+' ·'))??null;
   const activityIds=[...new Set([...(source?.links.activityIds??[]),...(issueInterface?.linkedActivity?issueInterface.linkedActivity.split(';').map(v=>v.trim()).filter(Boolean):[])])];
-  const workfronts=p.records.filter(r=>['governed','verified'].includes(r.state)&&r.kind==='workfront'&&r.links.activityIds.some(id=>activityIds.includes(id)));
+  const workfronts=[...new Map(activityIds.flatMap(id=>workfrontsByActivity.get(id)??[]).map(r=>[r.recordId,r] as const)).values()];
   const affectedSchedule=activityIds.map(id=>{const activity=programmeActivities.get(id);return activity?(activity.name?activity.activityId+' · '+activity.name:activity.activityId):id;});
   const consequence=issueInterface?.consequence
-    ??(packageRow?.headroomCalendarDays!==null&&packageRow?.headroomCalendarDays!==undefined&&packageRow.headroomCalendarDays<0
-      ?'Forecast delivery is '+(-packageRow.headroomCalendarDays)+' calendar days after the controlled programme need date.'
+    ??(packageRow?.forecastLate===true&&packageRow.headroomCalendarDays!==null
+      ?'Forecast delivery is '+(-packageRow.headroomCalendarDays)+' calendar days after '+packageRow.needDateBasis.toLowerCase()+'.'
       :'The Delivery exception affects the linked scope or programme until the recorded action is resolved.');
-  const requiredDate=issueInterface?.requiredDate??packageRow?.programmeNeedDate??packageRow?.sourceRequiredOnSite??null;
+  const requiredDate=issueInterface?.requiredDate??packageRow?.needDate??null;
   const owner=issueInterface?.responsibleParty??issueInterface?.givingParty??issueInterface?.receivingParty??packageRow?.owner??(source?field(source,'owner','responsible party')||null:null);
   const packageLabel=issueInterface?.package??packageRow?.reference??(source?.kind==='package'?(source.reference??source.recordId):null);
   return {
    actionId:'delivery-control:'+index,issue:finding.message,workfront:workfronts.map(r=>r.reference??r.description??r.recordId).join('; ')||issueInterface?.affectedWorkfront||null,
    affectedSchedule,package:packageLabel,owner,requiredDate,consequence,action:finding.action,
-   severity:issueInterface&&['blocked','overdue'].includes(issueInterface.state)||packageRow?.headroomCalendarDays!==null&&packageRow?.headroomCalendarDays!==undefined&&packageRow.headroomCalendarDays<0?'high':'medium',
+   severity:issueInterface&&['blocked','overdue'].includes(issueInterface.state)||packageRow?.forecastLate===true?'high':'medium',
    authority:issueInterface?'source':source?'source':'calculated',sourceRefs:finding.sourceRefs
   };
  }).sort((a,b)=>(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||(a.requiredDate??'9999').localeCompare(b.requiredDate??'9999')):[];
@@ -456,15 +563,19 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const sourceAvailability=sourceDomain?managementSourceInventory(state).domains.find(domain=>domain.domain===sourceDomain)??null:null;
  const sourceEvidenceAvailable=Boolean(sourceAvailability?.documentCount);
  const usable=hasRows||sourceEvidenceAvailable;
- let managementPosition=useBoqCandidates?(key==='long-lead'?'CMeng has identified '+rows.length+' qualified long-lead scope candidate'+(rows.length===1?'':'s')+' from BOQ and/or controlled schedule/WBS intelligence. These candidates remain separate from confirmed procurement status, supplier dates and lateness.':'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':'')):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?pending.length+' supplied records still need confirmation; confirmed records remain usable.':findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
+ let managementPosition=useBoqCandidates?(key==='long-lead'?'CMeng has identified '+rows.length+' qualified long-lead scope candidate'+(rows.length===1?'':'s')+' from BOQ and/or controlled schedule/WBS intelligence. These candidates remain separate from confirmed procurement status, supplier dates and lateness.':'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':'')):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?pending.length+' supplied records are usable as source-register facts and still await confirmation of the complete applicable population.':findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
  const metric=(label:string,value:number|null,unit='records',basis='Governed records at the programme Data Date')=>({label,value,unit,state:value===null?'unavailable':'calculated',basis});
  const establishedCurrentCount=establishedPopulationCount(summary.currentCount,populationAuthority),establishedOpenCount=establishedPopulationCount(summary.openCount,populationAuthority),establishedOverdueCount=establishedPopulationCount(summary.overdueCount,populationAuthority);
+ const sourceCountBasis=populationAuthority.state==='established'?'Confirmed applicable population':'From supplied register, not yet confirmed as the complete applicable population';
+ const visibleCurrentCount=establishedCurrentCount??summary.knownCurrentCount??null;
+ const visibleOpenCount=establishedOpenCount??summary.knownOpenCount??null;
+ const visibleOverdueCount=establishedOverdueCount??summary.knownOverdueCount??null;
  let metrics=!hasRows&&sourceEvidenceAvailable?[
    metric('Source documents',sourceAvailability!.documentCount,'documents','Relevant supplied evidence; document presence does not establish a complete control population.'),
    metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
    metric('Governed current records',null,'records','Not established until the applicable source population and mapping are confirmed.'),
    metric('Overdue / late position',null,'records','Requires dated governed records; source availability alone does not establish lateness.')
- ]:[metric('Current records',establishedCurrentCount),metric('Open records',establishedOpenCount),metric('Overdue records',establishedOverdueCount),metric('Known reviewed records',populationAuthority.state==='established'?null:population.knownRecordCount,'records','Known subset only; the complete applicable population is not established.'),metric('Awaiting review',hasRows?pending.length:null,'records','Count of supplied records awaiting review; this is not an activity or scope total.')];
+ ]:[metric('Current records',visibleCurrentCount,'records',sourceCountBasis),metric('Open records',visibleOpenCount,'records',sourceCountBasis),metric('Overdue records',visibleOverdueCount,'records',sourceCountBasis),metric('Known source rows',populationAuthority.state==='established'?null:population.knownRecordCount,'records','Source-register rows currently usable for facts; population completeness is not yet confirmed.'),metric('Awaiting confirmation',hasRows?pending.filter(r=>r.state==='extracted_candidate').length:null,'records','Clean source rows remain usable while confirmation controls completeness/percentages, not visibility.')];
  if(['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key))metrics=!hasRows&&sourceEvidenceAvailable?[
    metric('Source documents',sourceAvailability!.documentCount,'documents','Relevant supplied procurement evidence; source presence does not establish a complete lifecycle population.'),
    metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
@@ -478,14 +589,21 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('Actual procurement status',null,'','Not recorded in the current Project information.')
   ]:[
    metric('BOQ mapped to procurement',p.boqIntelligence.procurementMappingPercent,'%','Controlled BOQ item denominator; mapped item IDs counted once.'),
-   metric('Confirmed packages',population.denominator),
+   metric(population.state==='established'?'Confirmed packages':'Packages from register',p.packageRows.length,'records',sourceCountBasis),
    metric('Source-marked long lead',sourceAvailability?.signals.longLeadMarkedCount??null,'items','Explicit Long Lead marks from a supplied procurement register; schedule impact remains separate.'),
-   metric('Late delivery · known subset',p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null),
+   metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null),
    metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
   ];
+ if(key==='material-tracking'&&rows.some(r=>r.authority==='From BOQ and dated measurement register')){
+  metrics=[metric('BOQ items',rows.length,'items','Each item retains its own quantity and unit.'),metric('Items with dated measurements',rows.filter(r=>r.installed!==null).length,'items','Latest measurement through the Data Date.'),metric('Procurement packages without item allocations',p.materialRows.filter(r=>r.required===null).length,'packages','Package allocation is separate from the known item quantities.')];
+  managementPosition=rows.length+' BOQ items with dated installed quantities where supplied. Procurement quantities need explicit item allocations.';
+ }
+ if(key==='delivery-permits')metrics=[metric('Permits from register',p.permitRows.length,'records',sourceCountBasis),metric('Valid',p.permitRows.filter(r=>r.permitStatus==='valid').length),metric('Expired',p.permitRows.filter(r=>r.permitStatus==='expired').length),metric('Pending approval',p.permitRows.filter(r=>r.permitStatus==='pending').length),metric('Not yet valid',p.permitRows.filter(r=>['future_issue','not_yet_valid'].includes(r.permitStatus)).length),metric('Validity dates missing',p.permitRows.filter(r=>['not_established','validity_not_established'].includes(r.permitStatus)).length)];
  if(key==='delivery-hse')metrics=[metric('Reported exposure',p.hsePosition.exposureHours,'hours'),metric('Reported lost-time injuries',p.hsePosition.lostTimeInjuries),metric('Frequency rate',p.hsePosition.frequencyRate,'per '+(p.hsePosition.rateBasis??'unresolved')+' hours',p.hsePosition.explanation)];
+ if(reportedHse?.periodEndIso)metrics=[metric('Reported exposure',reportedHse.metrics.manHours??null,'hours',reportedHse.scope),metric('Lost-time injuries',reportedHse.metrics.lostTimeInjuries??null,'cases',reportedHse.scope),metric('Medical treatment',reportedHse.metrics.medicalTreatmentCases??null,'cases',reportedHse.scope),metric('Restricted work',reportedHse.metrics.restrictedWorkCases??null,'cases',reportedHse.scope),metric('Reported LTIFR',reportedHse.rates.reportedRates.ltifr,'per '+(reportedHse.rates.sourceBasisHours?.ltifr??'source basis')+' hours',reportedHse.scope),metric('Reported TRIR',reportedHse.rates.reportedRates.trir,'per '+(reportedHse.rates.sourceBasisHours?.trir??'source basis')+' hours',reportedHse.scope)];
  if(key==='handover-readiness')metrics=[metric('Handover readiness',p.handover.readinessPercent,'%','Accepted and verified requirements / confirmed current requirement population.'),metric('Confirmed requirement population',population.denominator),metric('Accepted · known subset',p.handover.rows.length?p.handover.acceptedKnownCount:null),metric('Overdue',summary.overdueCount)];
- if(key==='delivery-quality'||key==='delivery-commissioning')metrics=[...metrics.slice(0,3),metric(key==='delivery-commissioning'?'Test pass rate':'Known inspection outcome rate',summary.passRatePercent,'%',summary.basis),metric('Unknown outcomes',rows.length?summary.unknownOutcomeCount:null)];
+ if(key==='delivery-quality')metrics=metrics.slice(0,3);
+ if(key==='delivery-commissioning'||key==='delivery-quality'&&'knownOutcomeCount' in summary&&summary.knownOutcomeCount>0)metrics=[...metrics.slice(0,3),metric(key==='delivery-commissioning'?'Test pass rate':'Known inspection outcome rate',summary.passRatePercent,'%',summary.basis),metric('Unknown outcomes',rows.length?summary.unknownOutcomeCount:null)];
  if(key==='construction-readiness'||key==='procurement-readiness')metrics=[metric('Ready · known subset',rows.length?rows.filter(r=>r.state==='ready').length:null),metric('At risk · known subset',rows.length?rows.filter(r=>r.state==='at_risk').length:null),metric('Blocked · known subset',rows.length?rows.filter(r=>r.state==='blocked').length:null),metric('Unknown readiness',rows.length?rows.filter(r=>r.state==='unknown').length:null),metric('Not applicable',rows.length?rows.filter(r=>r.state==='not_applicable').length:null,'scope items'),metric('Reviewed scope',rows.length||null,'scope items','Ready + at risk + blocked + unknown + N/A reconcile to this reviewed population.'),metric('Confirmed scope population',population.denominator)];
  if(key==='delivery-risks')metrics=useBoqCandidates?[metric('BOQ-derived candidate risks',boqScope.risks.length),metric('Confirmed Project risks',null,'records','No confirmed Risk Register is currently available; candidate risks remain professional assessment only.')]:[metric('Open risks',p.existingAuthorities.risk.complete?p.riskRows.filter(r=>r.status==='open').length:null),metric('Current risks',p.existingAuthorities.risk.complete?p.riskRows.length:null),metric('Linked to Delivery · known subset',p.riskRows.length?p.riskRows.filter(r=>r.deliveryRecordIds.length>0).length:null)];
  if(hasRows&&p.dataDateIso&&!pending.length){
@@ -499,6 +617,29 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(riskPage&&!useBoqCandidates)managementPosition=risk.state==='missing'?'No confirmed Project Risk Register is available. Other scope intelligence remains available where supported by the BOQ/programme.':!p.dataDateIso?'Risk records are available; a reporting programme would add the dated risk position.':risk.sourceRecordCount+' risk records are supplied: '+risk.currentRecordCount+' current, '+risk.futureRecordCount+' after the Data Date and '+risk.undatedRecordCount+' without a reporting date. '+(risk.unknownStatusCount?risk.unknownStatusCount+' current risk statuses need dated evidence. ':'')+(risk.validation.state==='conflicted'?'Supplied risk ratings conflict. ':'')+(pending.length?pending.length+' linked Delivery records still need confirmation.':'');
  const ready=useBoqCandidates?false:!hasRows&&sourceEvidenceAvailable?false:riskPage?risk.complete&&risk.validation.state!=='conflicted'&&!!p.dataDateIso:hasRows&&!unread&&!!p.dataDateIso&&pending.length===0&&findings.length===0&&population.state==='established'&&metrics.every(m=>m.value!==null);
  const extras:Record<string,unknown>={};
+ if(['delivery-design','delivery-quality'].includes(key)){
+  const open=p.registerRows.filter(row=>row.kind===kind&&row.scope==='current'&&row.currentStatus==='open');
+  const closeout=open.filter(row=>row.programmeContext.state==='completed_work');
+  extras.programmeFollowUp={openOnUnfinishedWork:open.filter(row=>row.programmeContext.state==='unfinished_work').length,closeoutCount:closeout.length,
+   linksNeedReview:open.filter(row=>['unlinked','links_incomplete'].includes(row.programmeContext.state)).length,closeoutRows:closeout,
+   basis:'Open records on completed programme work require register close-out and any outstanding acceptance checks. They are not blockers to starting that completed work.'};
+  const order=(row:any)=>row.scope==='current'&&row.currentStatus==='open'?(row.programmeContext?.state==='unfinished_work'?0:row.programmeContext?.state==='completed_work'?2:1):3;
+  rows=[...rows].sort((a,b)=>order(a)-order(b)||(a.programmeContext?.linkedFloatHours??Infinity)-(b.programmeContext?.linkedFloatHours??Infinity)||String(a.dueDate??'9999').localeCompare(String(b.dueDate??'9999'))||String(a.reference??'').localeCompare(String(b.reference??'')));
+ }
+ if(riskPage&&!useBoqCandidates)extras.derivedRiskCandidates=[...boqCandidateRows,...interfaceRiskRows];
+ if(disruptionEvents.length){metrics=[metric('Reported disruption events',disruptionEvents.length,'events','Claim-register events through the Data Date')];managementPosition='Reported weather and disruption events are available from the claim register. Event dates and activity links are shown; working-hour loss and delay causation need separate evidence.';}
+ if(programmeReadiness){metrics=metrics.filter(m=>m.label!=='Confirmed scope population');extras.programmeReadiness=true;managementPosition=rows.length+' activities from the shared 42-day look-ahead and overdue backlog: '+rows.filter(r=>r.state==='blocked').length+' blocked, '+rows.filter(r=>r.state==='unknown').length+' with missing readiness evidence. Open each activity for its linked prerequisites.';}
+ if(['construction-discipline','construction-locations'].includes(key)&&governedRows.length){
+  metrics=[metric('Programme activities',governedRows.reduce((sum,row)=>sum+(row.activityCount??0),0),'activities'),metric('Progress groups',governedRows.length,'groups'),metric('Unclassified activities',governedRows.filter(row=>row.label==='Unclassified').reduce((sum,row)=>sum+(row.activityCount??0),0),'activities')];
+  managementPosition='Programme progress by '+(key==='construction-discipline'?'discipline':'location')+' uses the same classifications as Activity Review. Workfront release and installed quantities retain their separate evidence.';
+ }
+ if(key==='delivery-suppliers'&&p.supplierRows.length){
+  const linked=new Set(p.supplierRows.flatMap(row=>row.packages.map(pkg=>pkg.recordId)));
+  metrics=[metric('Suppliers in available records',p.supplierRows.length,'suppliers','Distinct supplier identities from supplier and procurement registers.'),metric('Linked procurement packages',linked.size,'packages','Each linked package counted once.'),metric('Suppliers with known late packages',p.supplierRows.filter(row=>(row.lateKnownPackageCount??0)>0).length,'suppliers','Known late delivery against the programme or register need date.')];
+  managementPosition=p.supplierRows.length+' suppliers are identified in the available supplier and procurement registers, linked to '+linked.size+' packages. Formal supplier approval and population completeness remain separate.';
+ }
+ if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities','Current programme fallback'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition='The programme provides '+programmeFallback.length+' relevant tasks and their current dates. Verification and formal acceptance are not established by programme progress.';}
+ if(reportedHse?.periodEndIso){extras.reportedHse=reportedHse;managementPosition='Reported HSE position through '+reportedHse.periodEndIso+'. '+reportedHse.scope+(reportedHse.diagnostics.length?' Review the stated source reconciliation findings.':' The reported rates reconcile with the incident and exposure table.');}
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
@@ -510,15 +651,16 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(key==='delivery-commissioning')extras.systems=p.commissioningSystems;
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
- return {key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
-  data:{projectionKey:'delivery',deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
-   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}};
+ return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
+  data:{projectionKey:'delivery',empty:!usable,deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
+   reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}});
 }
 export function deliveryDashboard(state:ProjectRuntimeState){
  const inventory=managementSourceInventory(state);
  const domain=(key:ManagementSourceDomain)=>inventory.domains.find(row=>row.domain===key)??null;
  const boq=boqScopeIntelligence(state);
- if(!state.delivery?.decisions.length){
+ const p=deliveryPosition(state),packagePopulation=p.populations.package;
+ if(!p.records.some(currentRecord)){
   return {projectId:state.projectId,dataDateIso:projectDataDate(state),programmeRevisionId:projectControlSchedule(state)?.revision.revisionId??null,
    mode:'source_available',boqMappingPercent:null,handoverReadinessPercent:null,latePackageKnownCount:null,unresolvedPackageCount:null,
    packagePopulationState:'not_established',
@@ -527,23 +669,22 @@ export function deliveryDashboard(state:ProjectRuntimeState){
    exceptions:[],exceptionCount:0,
    basis:'Available source evidence and BOQ-derived candidates are shown without asserting governed Delivery lifecycle status, lateness or schedule impact.'};
  }
- const p=deliveryPosition(state),packagePopulation=p.populations.package;
  const packageSourceCount=p.records.filter(r=>r.kind==='package'&&!['superseded','scenario'].includes(r.state)).length;
  const packageAuthority=deliveryPopulationAuthority(packagePopulation,packageSourceCount,packagePopulation?.denominator??null);
- return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:'governed_or_reviewed',
+ return {projectId:state.projectId,dataDateIso:p.dataDateIso,programmeRevisionId:p.programmeRevisionId,mode:state.delivery?.decisions.length?'governed_or_reviewed':'source_available',
   boqMappingPercent:p.boqIntelligence.procurementMappingPercent,handoverReadinessPercent:p.handover.readinessPercent,
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
   candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,scheduleLongLeadCandidateCount:p.scheduleLongLeadCandidates.length||null,
-  latePackageKnownCount:p.packageRows.some(r=>r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.headroomCalendarDays!==null&&r.headroomCalendarDays<0).length:null,
+  latePackageKnownCount:p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null,
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
   sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
   exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length,
-  basis:'Governed/reviewed Delivery records remain primary. Source evidence and BOQ candidates remain visible when a dependent control population is incomplete.'};
+  basis:packageAuthority.state==='established'?'Confirmed applicable register population.':'From supplied register, not yet confirmed as the complete applicable population. Clean dated rows are used now; unresolved rows qualify only the affected figures.'};
 }
 export function deliveryExportResult(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
  const data=result.data as any;if(data?.projectionKey!=='delivery')return result;
- const p=deliveryPosition(state),riskPage=data.deliveryPage==='delivery-risks',kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[data.kind,'lifecycle','gate'];
+ const p=deliveryPosition(state),riskPage=data.deliveryPage==='delivery-risks',kind=data.kind??deliveryPages.find(page=>page[0]===data.deliveryPage)?.[3],kinds=data.deliveryPage==='delivery-control'?deliveryKinds:[kind,'lifecycle','gate'];
  const sourceRecords=p.records.filter(r=>riskPage?r.links.riskIds.length>0:kinds.includes(r.kind)),recordIds=new Set(sourceRecords.map(r=>r.recordId));
  return {...result,data:{...data,sourceRecords,reviewHistory:deliveryStore(state).decisions.filter(d=>recordIds.has(d.recordId)),populationDecisions:deliveryStore(state).populations.filter(d=>riskPage?d.recordIds.some(id=>recordIds.has(id))||!!d.scopeId&&recordIds.has(d.scopeId):kinds.includes(d.kind))}};
 }

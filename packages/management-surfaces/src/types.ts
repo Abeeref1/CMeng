@@ -1,6 +1,7 @@
 import type {
   ProjectDirectorPosition,
 } from "../../project-director/src";
+import type {ProjectFactsSnapshot} from "../../runtime-api/src/project-facts";
 
 export type ManagementSurfaceKey =
   | "master-dashboard"
@@ -148,6 +149,7 @@ export interface ManagementSurfacesInput {
   projectId: string;
   generatedAt: string;
   director: ProjectDirectorPosition | null;
+  projectFacts: ProjectFactsSnapshot;
   modules: ManagementModuleInput[];
   consistency?: ManagementConsistency;
   negativeFloatCount?: number | null;

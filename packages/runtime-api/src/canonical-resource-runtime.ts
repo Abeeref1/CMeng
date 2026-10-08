@@ -4,6 +4,21 @@ import { buildResourceUtilizationProjection } from '../../resource-utilization/s
 import { sumKnown, round } from '../../truth-kernel/src';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
 import {resourceBasisReview} from './resource-basis-review';
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
+import {refreshResourceSourceFields} from './resource-source-refresh';
+import {isExecutionActivity} from '../../schedule-analysis-core/src';
+
+export function criticalResourceHours(model:import('../../schedule-analysis-core/src').CanonicalScheduleModel,resources:import('../../schedule-resource-core/src').CanonicalResourceModel){
+ const activities=new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed'&&a.totalFloatHours!==null&&a.totalFloatHours<=0).map(a=>[a.activityId,a]));
+ return resources.resources.filter(resourceLaborHourEligible).flatMap(resource=>{
+  const assignments=resources.assignments.filter(a=>a.resourceId===resource.resourceId&&activities.has(a.activityId));
+  if(!assignments.length)return [];
+  const complete=assignments.every(a=>typeof a.remainingUnits==='number'&&Number.isFinite(a.remainingUnits));
+  return [{resourceId:resource.resourceId,resourceName:resource.name,remainingHours:complete?round(assignments.reduce((n,a)=>n+a.remainingUnits!,0),2):null,
+   knownAssignmentCount:assignments.filter(a=>typeof a.remainingUnits==='number'&&Number.isFinite(a.remainingUnits)).length,assignmentCount:assignments.length,
+   activityIds:[...new Set(assignments.map(a=>a.activityId))],basis:'Remaining labour-hour assignments on unfinished execution activities with submitted total float at or below zero.'}];
+ });
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;summary:WeeklyResourceCapacitySummary}>();
 export function canonicalResources(state:ProjectRuntimeState):WeeklyResourceCapacitySummary{
  const cached=cache.get(state);if(cached?.version===state.version)return cached.summary;
@@ -20,10 +35,11 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
  const summary=canonicalResources(state);if(summary.state==='not_found')return null;
  const generatedAt=new Date().toISOString();
  const current=projectControlSchedule(state);
- const resourceModel=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+ const storedResources=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+ const resourceModel=storedResources?refreshResourceSourceFields(state,storedResources):null;
  let data:unknown;
  if(key==='resource-utilization'){
-  const hourly=resourceModel&&current?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1'}):null;
+  const hourly=resourceModel&&current&&resourceModel.assignments.length>0?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1'}):null;
   const weeklyAssignedResourceCount=new Set(summary.points.map(p=>p.resourceId).filter(Boolean)).size;
   const distinctResourceCount=summary.masterResources.length||summary.observedResourceCount||hourly?.resourceCount||summary.resourceCount;
   const distinctAssignedResourceCount=hourly?.assignedResourceCount??0;
@@ -41,6 +57,7 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    weeklyOverloadedResourceCount:new Set(summary.points.filter(p=>p.availableCapacity!==null&&p.plannedDemand!==null&&p.plannedDemand>p.availableCapacity).map(p=>p.resourceId)).size,
    plannedUtilizationPercent:summary.plannedAverageToDataDate,actualUtilizationPercent:summary.actualAverageToDataDate,
    weeklyCapacityEvidence:summary,weeklyResourceRows:summary.resourceSummaries,diagnostics:summary.diagnostics,
+   criticalResourceHours:current&&resourceModel?criticalResourceHours(current.revision.model,resourceModel):[],
   };
  }else{
   const labor=summary.weeklyTotals.filter(p=>p.resourceClass==='labor'&&p.unit==='labor_hour'&&p.weekStartIso!==null);

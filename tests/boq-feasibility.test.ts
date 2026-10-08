@@ -65,3 +65,20 @@ test('runtime reads a supplied productivity rate and compares only the adopted P
  state.activeEvidenceBasis['schedule:baseline']=undefined;state.version++;
  assert.equal(deliveryFeasibilityForState(state)!.programmePc.movementDays,null);
 });
+
+
+test('remaining item quantities survive a missing activity allocation',()=>{
+ const input=fixture();input.quantities.allocations=[];
+ const result=buildBoqFeasibility(input);
+ assert.equal(result.rows[0]!.remainingQuantity,80);assert.equal(result.rows[0]!.activityId,null);assert.equal(result.rows[0]!.requiredAveragePeople,null);
+ assert.match(result.rows[0]!.reason,/allocation/);
+});
+
+test('all labour readers recognize P6 hourly metadata and preserve genuinely missing assignment quantities',()=>{
+ const f=fixture();f.resources.resources[0].unitAbbreviation=null;f.resources.resources[0].priceTimeUnit='QT_Hour';f.resources.assignments[0].remainingUnits=160;
+ assert.equal(buildBoqFeasibility(f).activityChecks[0]!.submittedPeople,5);
+ const state:any={version:1,activeEvidenceBasis:{'schedule:control':{activeArtifactId:'S'}},schedules:[{role:'update',revision:{revisionId:'S',model:f.schedule}}],quantities:f.quantities,resourcesByRevision:new Map([['S',f.resources]]),evidenceDocuments:[]};
+ assert.equal(deliveryFeasibilityForState(state)!.programmeChecks.remainingLaborHours,160);
+ f.resources.assignments.push({...f.resources.assignments[0],remainingUnits:undefined});state.version++;
+ assert.equal(deliveryFeasibilityForState(state)!.programmeChecks.remainingLaborHours,null);
+});

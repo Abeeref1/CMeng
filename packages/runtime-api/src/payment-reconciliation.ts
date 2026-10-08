@@ -34,9 +34,15 @@ export function reconcilePaymentEvidence(
       calculatedNet = subtotal + amounts.taxAmount.value;
     } else diagnostics.push('CERTIFICATE_TAX_BASIS_NOT_RECONCILED');
   } else diagnostics.push('CERTIFICATE_COMPONENTS_OR_MONEY_BASIS_INCOMPLETE');
+  const arithmeticTolerance=(values:Array<number|null>)=>{
+    const known=values.filter((value):value is number=>value!==null&&Number.isFinite(value));
+    return known.length&&known.every(Number.isInteger)?1:0.01;
+  };
+  const reconciliationTolerance=arithmeticTolerance([calculatedNet,net.value]);
   const reconciliation = calculatedNet === null ? 'unresolved' as const :
-    Math.abs(calculatedNet - net.value!) > 0.01 ? 'conflicted' as const : 'matched' as const;
+    Math.abs(calculatedNet - net.value!) > reconciliationTolerance ? 'conflicted' as const : 'matched' as const;
   if (reconciliation === 'conflicted') diagnostics.push('CERTIFICATE_NET_COMPONENTS_CONFLICT');
+  else if(calculatedNet!==null&&net.value!==null&&Math.abs(calculatedNet-net.value)>0.01)diagnostics.push('CERTIFICATE_COMPONENT_ROUNDING_WITHIN_TOLERANCE');
 
   // Check the stated equation even when optional columns are absent. This is
   // not evidence that an omitted deduction is zero, or that cash was received.
@@ -49,10 +55,11 @@ export function reconcilePaymentEvidence(
   const statedNet = statedComparable && optionalComparable && net.value !== null
     ? amounts.grossWork.value! + amounts.variations.value! - amounts.retentionDeduction.value! -
       amounts.advanceRecovery.value! - (amounts.otherDeduction.value ?? 0) : calculatedNet;
+  const componentTolerance=arithmeticTolerance([statedNet,net.value,...stated.map(value=>value.value),amounts.otherDeduction.value]);
   const componentArithmetic = {
-    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= 0.01 ? 'matched' as const : 'conflicted' as const,
+    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= componentTolerance ? 'matched' as const : 'conflicted' as const,
     calculatedNet: statedNet,
-    difference: statedNet !== null && net.value !== null ? round(statedNet - net.value, 6) : null,
+    difference: statedNet !== null && net.value !== null ? round(net.value - statedNet, 6) : null,
     omittedComponents: optionalKnown ? [] : ['other deductions'],
     basis: optionalKnown ? 'Stated gross work + variations − retention − advance recovery − other deductions.' :
       'Stated gross work + variations − retention − advance recovery. Other deductions are not supplied; equality checks this equation only.',
@@ -60,8 +67,8 @@ export function reconcilePaymentEvidence(
 
   const paymentDate = dateValue(cell(row, 'payment as of', 'paid date', 'payment date'));
   const paymentReference = cell(row, 'payment reference', 'receipt reference') || null;
-  const allocatedBasis = /^(cumulative|certificate total|cumulative allocated to certificate)$/i.test(
-    cell(row, 'paid amount basis', 'payment amount basis').replace(/[_-]+/g, ' '));
+  const allocatedBasis = /^(cumulative|certificate total|certificate cumulative|cumulative allocated to certificate)$/i.test(
+    cell(row, 'paid allocation basis', 'payment allocation basis', 'paid amount basis', 'payment amount basis').replace(/[_-]+/g, ' '));
   const posted = /^(approved|posted|verified)$/i.test(cell(row, 'payment source status', 'receipt status'));
   const sameMoneyBasis = net.currency !== null && paid.currency === net.currency &&
     net.taxBasis !== 'unknown' && paid.taxBasis === net.taxBasis;
@@ -83,5 +90,12 @@ export function reconcilePaymentEvidence(
     calculatedOutstandingAmount.state = 'conflicted';
     diagnostics.push('REPORTED_OUTSTANDING_DIFFERS_FROM_RECONCILIATION');
   }
-  return {reconciliation, componentArithmetic, diagnostics, calculatedOutstandingAmount, paymentDate, paymentReference};
+  // An explicitly reported net certificate is valid source evidence even
+  // when the optional deductions column is absent. A matching stated
+  // component equation is a qualification, not permission to invent a zero.
+  const finalReconciliation=reconciliation==='unresolved'&&componentArithmetic.state==='matched'
+    ?'matched' as const:reconciliation;
+  if(finalReconciliation==='matched'&&reconciliation==='unresolved')
+    diagnostics.push('CERTIFICATE_NET_RECONCILES_STATED_COMPONENTS_OPTIONAL_DEDUCTIONS_UNSUPPLIED');
+  return {reconciliation:finalReconciliation, componentArithmetic, diagnostics, calculatedOutstandingAmount, paymentDate, paymentReference};
 }

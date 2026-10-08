@@ -75,17 +75,19 @@ test('ordinary management questions and WBS follow-ups retain the requested acti
  assert.equal(f.calls(),0);
 });
 
-test('diagnosis crosses linked evidence, revision changes, candidate updates and record withdrawal without affecting another project',async t=>{
+test('diagnosis follows submitted revision changes and record withdrawal without affecting another project',async t=>{
  const a=await fixture(t),b=await fixture(t);const first=a.full();
- await a.upload('2030-01-03',2,'add_update');assert.equal(a.full().revision.state,'unavailable');assert.equal(a.full().dataDateIso,first.dataDateIso);
- const candidate=a.state.schedules.at(-1)!;runtimeProjects.adoptSchedule(a.id,candidate.revision.revisionId);
- let d=a.full();assert.equal(d.revision.state,'available');assert.equal(d.revision.finishMovementCalendarDays,2);assert.equal(d.counts.previousUpdateSlippage.knownCount,5);
+ await a.upload('2030-01-03',2,'add_update');
+ let d=a.full();
+ assert.equal(d.revision.state,'available');
+ assert.notEqual(d.dataDateIso,first.dataDateIso);
+ assert.equal(d.revision.finishMovementCalendarDays,2);assert.equal(d.counts.previousUpdateSlippage.knownCount,5);
  assert.equal(d.actions[0]!.groupedCount,5);assert.match(d.actions[0]!.reason,/5 activities moved 2 elapsed days later/);
  const packageRow=a.record('package','MEP-017',{'scope basis':'Controlled equipment package','forecast delivery':'2030-01-10'},'B');
  d=a.full();assert.ok(d.evidenceChecks.some((c:any)=>c.recordId===packageRow.recordId&&c.activityId==='B'&&/5 calendar days after/.test(c.explanation)));
-  const answer=await a.ask('Why are we late?');assert.equal(answer.plan.questionRecipe,'delay_diagnosis');assert.match(answer.narrative[0]!.text,/MEP-017/);assert.ok(answer.sections.some(s=>s.tables.some(t=>t.id==='project-diagnosis.linked-evidence')));
-  const grouped=await a.ask('Which WBS has most schedule pressure?'),drill=await a.ask('Show the contributing activities for WBS "MEP"',grouped),explanation=await a.ask('Explain these',drill);
-  assert.ok(explanation.sections.find(s=>s.authorityId==='project-diagnosis')!.tables.find(t=>t.id==='project-diagnosis.linked-evidence')!.rows.some(r=>r.recordId===packageRow.recordId));
+ const answer=await a.ask('Why are we late?');assert.equal(answer.plan.questionRecipe,'delay_diagnosis');assert.match(answer.narrative[0]!.text,/MEP-017/);assert.ok(answer.sections.some(s=>s.tables.some(t=>t.id==='project-diagnosis.linked-evidence')));
+ const grouped=await a.ask('Which WBS has most schedule pressure?'),drill=await a.ask('Show the contributing activities for WBS "MEP"',grouped),explanation=await a.ask('Explain these',drill);
+ assert.ok(explanation.sections.find(s=>s.authorityId==='project-diagnosis')!.tables.find(t=>t.id==='project-diagnosis.linked-evidence')!.rows.some(r=>r.recordId===packageRow.recordId));
  assert.equal(b.full().evidenceChecks.length,0);assert.equal(b.full().dataDateIso,'2030-01-01T08:00:00');
  a.change({action:'review',recordId:packageRow.recordId,sourceRevision:packageRow.revision,state:'governed',fields:{'forecast delivery':'2030-01-04'},note:'Delivery date corrected by reviewed source'});
  assert.ok(!a.full().evidenceChecks.some((c:any)=>c.recordId===packageRow.recordId));

@@ -43,3 +43,11 @@ test('one project cannot acquire another project unassigned records, and a genui
   const {state:a}=fixture(),{state:b}=fixture();a.controls.ncrs.push(ncr('N1'));a.version++;
   assert.equal(crossDomainAccountability(a).actions.length,1);assert.equal(crossDomainAccountability(b).actions.length,0);assert.equal(accountabilityModule(b).status,'blocked');
 });
+test('an overdue due date alone cannot establish an undated risk as currently open',()=>{
+  const {state}=fixture();
+  state.controls.risks.push({riskId:'UNDATED',status:'open',rating:'high',owner:'Engineer',dueIso:'2031-04-10',sourceRefs:['retained-undated-risk']});
+  state.version++;
+  const before=JSON.stringify(state.controls.risks),result=accountabilityModule(state);
+  assert.equal(result.status,'blocked');assert.deepEqual(crossDomainAccountability(state).actions,[]);
+  assert.equal(JSON.stringify(state.controls.risks),before);
+});

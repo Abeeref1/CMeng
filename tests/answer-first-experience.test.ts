@@ -51,8 +51,8 @@ test('every analytical page renders its available answer before review and sourc
  new Function(script);
  for(const descriptor of moduleRegistry.filter(m=>m.area!=='delivery'&&m.key!=='source-quality'&&m.key!=='challenge-contract')){
   const nodes=new Map<string,any>();const el=(id:string)=>{if(!nodes.has(id))nodes.set(id,{style:{},classList:{remove(){}},innerHTML:''});return nodes.get(id);};
-  const ctx:any={el,names:{[descriptor.key]:descriptor.title},descriptions:{},managementSurfaceKeysForApi:new Set(['master-dashboard','command-center','master-control-programme']),selectedRoleView:'overall',roleViews:{overall:{label:'Overall'}},appView:'project',renderRoleViewSelector(){},renderDelivery:()=>false,renderPositionVerdict:()=>'<p>ADMINISTRATION</p>',renderModuleBasis:()=>'<div class="module-basis">REPORTING-DATE</div>',renderRegisterScope:()=>'<p>POPULATION-DETAIL</p>',renderUniversalChallenge:()=>'',renderSpecializedModule:()=>'<section>PROJECT-ANSWER</section>',scalarPairs:()=>[],renderStructuredSections:()=>'',renderBasisReviews:()=>'<p>SOURCE-REVIEW</p>',findProjectionRoot:(d:any)=>d,renderClaimsReporting:()=>'',renderRoleContent:(_k:any,_d:any,v:string)=>v,experienceDisclosure:(_t:string,b:string)=>'<details>'+b+'</details>',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',userFacingModuleReason:()=>'',escapeHtml:String,formatDocumentTime:String};
-  runInNewContext(functions(['progressBreakdownSystemFailures','renderModuleResultBody']),ctx);ctx.renderModuleResultBody({key:descriptor.key,status:'partial',data:{}});
+  const ctx:any={el,renderModuleWorkspace(){},renderContractSections:()=>'',renderClaimPipeline:()=>'',names:{[descriptor.key]:descriptor.title},descriptions:{},managementSurfaceKeysForApi:new Set(['master-dashboard','command-center','master-control-programme']),selectedRoleView:'overall',roleViews:{overall:{label:'Overall'}},appView:'project',renderRoleViewSelector(){},renderDelivery:()=>false,renderPositionVerdict:()=>'<p>ADMINISTRATION</p>',renderModuleBasis:()=>'<div class="module-basis">REPORTING-DATE</div>',renderRegisterScope:()=>'<p>POPULATION-DETAIL</p>',renderUniversalChallenge:()=>'',renderSpecializedModule:()=>'<section>PROJECT-ANSWER</section>',scalarPairs:()=>[],renderStructuredSections:()=>'',renderBasisReviews:()=>'<p>SOURCE-REVIEW</p>',findProjectionRoot:(d:any)=>d,renderClaimsReporting:()=>'',renderRoleContent:(_k:any,_d:any,v:string)=>v,experienceDisclosure:(_t:string,b:string)=>'<details>'+b+'</details>',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',userFacingModuleReason:()=>'',escapeHtml:String,formatDocumentTime:String};
+  runInNewContext(functions(['progressBreakdownSystemFailures','renderActivityFloatReconciliation','renderModuleResultBody']),ctx);ctx.renderModuleResultBody({key:descriptor.key,status:'partial',data:{}});
   const html=el('moduleContent').innerHTML;assert.ok(html.indexOf('PROJECT-ANSWER')>=0,descriptor.key);if(descriptor.key==='progress-breakdown'){assert.ok(!html.includes('ADMINISTRATION'),descriptor.key);assert.ok(!html.includes('SOURCE-REVIEW'),descriptor.key);}else{assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('ADMINISTRATION'),descriptor.key);assert.ok(html.indexOf('PROJECT-ANSWER')<html.indexOf('SOURCE-REVIEW'),descriptor.key);}
  }
 });
@@ -68,7 +68,7 @@ test('Progress Breakdown renders the answer without generic gap, review or confi
  const nodes:Record<string,any>={};
  const node=(id:string)=>nodes[id]??=( {innerHTML:'',textContent:'',className:'',disabled:false,hidden:false,open:false,style:{},classList:{remove(){},add(){}}} );
  const ctx:any={
-  currentModuleResult:null,names:{'progress-breakdown':'Progress Breakdown'},descriptions:{'progress-breakdown':'Current programme progress'},
+  renderModuleWorkspace(){},currentModuleResult:null,names:{'progress-breakdown':'Progress Breakdown'},descriptions:{'progress-breakdown':'Current programme progress'},
   managementSurfaceKeysForApi:new Set(),selectedRoleView:'overall',roleViews:{overall:{label:'Overall'}},appView:'project',
   el:node,renderRoleViewSelector(){},renderDelivery:()=>false,renderPositionVerdict:()=>'<p>CONFIRM FIGURE TO COMPARE</p>',
   renderModuleBasis:(_d:any,_detail?:boolean,contextOnly?:boolean)=>contextOnly?'<div>PROGRAMME BASIS</div>':'<p>UNRESOLVED BASELINE</p>',
@@ -79,7 +79,7 @@ test('Progress Breakdown renders the answer without generic gap, review or confi
   experienceReviewSummary:()=>'<p>CONFIRM FIGURE TO COMPARE</p>',renderModuleReadiness:()=>'<p>CONFIRM SCHEDULE</p>',
   userFacingModuleReason:()=>'',escapeHtml:String,fmt:String,readerIssue:(i:any)=>({title:i.summary||'',action:i.action||''}),readerText:String
  };
- runInNewContext(functions(['progressBreakdownSystemFailures','renderModuleResultBody']),ctx);
+ runInNewContext(functions(['progressBreakdownSystemFailures','renderActivityFloatReconciliation','renderModuleResultBody']),ctx);
  ctx.renderModuleResultBody({key:'progress-breakdown',status:'partial',data:{projectionKey:'progress_breakdown',issueAssessment:{counts:{system_defect:0},issues:[]},challenge:{reconciliationState:'not_reconciled',items:[{metric:'progress'}]}}});
  const html=nodes.moduleContent.innerHTML;
  assert.match(html,/FILTERED PROGRESS BREAKDOWN/);
@@ -95,6 +95,15 @@ test('Progress Breakdown does not append a page-level schedule confirmation noti
  runInNewContext(functions(['renderModuleResult']),ctx);
  ctx.renderModuleResult({key:'progress-breakdown',scheduleAuthorityReview:{state:'pending_review',pendingSchedules:[{revisionId:'R2'}]}});
  assert.equal(content.inserted,'');
+});
+
+test('page verdict shows accountable roles instead of a universal unassigned placeholder',()=>{
+ const claims=positionVerdict({key:'notices-claims',status:'partial',reason:null,dependencies:[],data:{noticeEventDateMissingCount:1}} as any);
+ assert.equal(claims.owner,'Contracts Manager');
+ assert.equal(claims.owner,claims.assignTo);
+ const cash=positionVerdict({key:'cash-flow',status:'partial',reason:null,dependencies:[],data:{position:{performance:{cashFlow:{currencies:[]}}}}} as any);
+ assert.equal(cash.owner,'Commercial Manager');
+ assert.equal(cash.owner,cash.assignTo);
 });
 
 test('completion calculation differences stay as inline information and never become user actions',async()=>{

@@ -23,21 +23,21 @@ async function csv(store:RuntimeProjectStore,id:string,name:string,text:string,i
  return store.ingestEvidenceFile({projectId:id,sourceFilename:name,bytes:Buffer.from(text),mediaType:'text/csv',uploadedAt:'2031-09-01T00:00:00Z',uploadIntent:intent});
 }
 
-test('later programme data dates never adopt themselves; drafts remain scenarios even under replacement intent',async t=>{
+test('later ordinary programme updates become submitted-current while drafts remain scenarios',async t=>{
  const {store,dir}=fixture(t),id='AUTH';
- const first=await schedule(store,id,'2031-03-31','Current.xer');
+ await schedule(store,id,'2031-03-31','Current.xer');
  const second=await schedule(store,id,'2031-06-30','Update.xer','add_update');
  const draft=await schedule(store,id,'2031-08-31','S04_DRAFT_Future.xer');
  let state=store.get(id)!;
- assert.equal(projectControlSchedule(state)?.revision.revisionId,first.linkedArtifactId);
- assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.basisState,'candidate');
+ assert.equal(projectControlSchedule(state)?.revision.revisionId,second.linkedArtifactId);
+ assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.basisState,'active');
+ assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.scheduleAdoption?.method,'submitted_update');
  assert.equal(state.evidenceDocuments.find(d=>d.documentId===draft.documentId)?.basisState,'scenario');
  assert.throws(()=>store.adoptSchedule(id,draft.linkedArtifactId!),/SCENARIO/);
- store.adoptSchedule(id,second.linkedArtifactId!);
- assert.equal(projectControlSchedule(state)?.revision.revisionId,second.linkedArtifactId);
  const restored=new RuntimeProjectStore({dataDir:dir,durable:false});state=restored.get(id)!;
  assert.equal(projectControlSchedule(state)?.revision.revisionId,second.linkedArtifactId);
- assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.uploadIntent,'add_update','original upload intent retained separately from subsequent adoption');
+ assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.uploadIntent,'add_update');
+ assert.equal(state.evidenceDocuments.find(d=>d.documentId===second.documentId)?.scheduleAdoption?.method,'submitted_update');
 });
 
 test('legacy automatic draft selection is withdrawn using retained history without fabricating approval or changing sources',async t=>{

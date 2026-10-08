@@ -1,0 +1,912 @@
+{
+  "asOf": "2026-10-05",
+  "candidate": "BOQ numeric-review follow-up to 169c419; see git history for the exact commit",
+  "production": "828b4ad9dc0a628b19c64d83b865b4e95244ec0f",
+  "reviewRelease": "9831316a6ae9c4405c4c81482d31a827500b9686",
+  "rules": [
+    "The fixed seven-stage agreement controls. No stage advances before independent acceptance.",
+    "Complete means the stated activity has evidence. It does not close its stage or establish enterprise readiness.",
+    "A failure reopens its stage. Never weaken a valid assertion, threshold or expected answer.",
+    "Fresh cohorts materially exercise each feature. Minimum ten fresh projects per family; failed and previously used projects are regression-only.",
+    "Independent inputs and answers must not be derived from CMeng. Internal generated testing is not independent real-project acceptance.",
+    "Preserve original source files, hashes, revisions, authority and project isolation. Missing and quarantined values are not authoritative zeros.",
+    "CMeng must work without paid AI. No project-specific product logic.",
+    "Completion dates are recorded only after evidence is captured. Unscheduled dates are not promises."
+  ],
+  "stages": [
+    [
+      1,
+      "Close all known defects"
+    ],
+    [
+      2,
+      "Strict-suite root causes and fresh reacceptance"
+    ],
+    [
+      3,
+      "Independent truth mechanisms"
+    ],
+    [
+      4,
+      "PMO domain-by-domain certification"
+    ],
+    [
+      5,
+      "Cross-domain and management integration"
+    ],
+    [
+      6,
+      "Ask CMeng, reports, filters and exports"
+    ],
+    [
+      7,
+      "Operations, final blind and exact production acceptance"
+    ]
+  ],
+  "activities": [
+    [
+      "1.01",
+      1,
+      "Recover controlling agreement and historical findings",
+      "Complete",
+      "",
+      "Seven stages and historical obligations reconciled",
+      "Fixed agreement; defect register; prior audit; source records",
+      "2026-10-05"
+    ],
+    [
+      "1.02",
+      1,
+      "Verify candidate, production and review versions",
+      "Complete",
+      "1.01",
+      "Exact code and deployment identities captured",
+      "GitHub PR213; Railway production/review metadata",
+      "2026-10-05"
+    ],
+    [
+      "1.03",
+      1,
+      "Verify latest internal regression and scale evidence",
+      "Complete",
+      "1.02",
+      "Read exact-version job logs and conclusions",
+      "Verify2237 and Scale2122 passed on bdf936f. Verify: 1096 regressions, separate internal 100-project cohort, 4771ms cold dashboard (<5000ms), 20k upload-to-ready 3678ms, restart/durability and Delivery gates passed.",
+      "2026-10-05"
+    ],
+    [
+      "1.04",
+      1,
+      "Protect old work and prepare isolated current candidate",
+      "Complete",
+      "1.02",
+      "Clean worktree from exact candidate; old changes preserved",
+      "0d48a507 worktree; build passed",
+      "2026-10-05"
+    ],
+    [
+      "1.05",
+      1,
+      "Reproduce monetary extraction fix locally",
+      "Complete",
+      "1.04",
+      "Reject prose currencies/punctuation; retain explicit zero",
+      "Six contract-commercial tests passed",
+      "2026-10-05"
+    ],
+    [
+      "1.06",
+      1,
+      "Rerun exact three failed external projects",
+      "Complete",
+      "1.04",
+      "18 original hashes; pages, Ask, outputs and source preservation",
+      "Local baseline replay completed: 18 original hashes retained; 174 pages, 1044 exports, 45 Ask calls; no server errors. OCR disabled; BOQ acceptance remains in 1.07.",
+      "2026-10-05"
+    ],
+    [
+      "1.07",
+      1,
+      "Repair BOQ source coverage and system numeric trust",
+      "Complete",
+      "1.06",
+      "Retain every source row; prevent unconfirmed numeric observations entering calculation facts",
+      "Shared numeric guard plus consolidated BOQ review implemented. Native values remain automatic; scan decisions are saved once, source-bound, and propagated through quantities, S-curves, Ask and reports. Original files/readings retained. Scans still require source review; not an OCR-accuracy certification.",
+      "2026-10-05"
+    ],
+    [
+      "1.08",
+      1,
+      "Verify blocked and available report parity",
+      "Complete",
+      "1.06",
+      "Correct availability, missing reasons, authority and data agree",
+      "Baseline 0d48a507: 174/174 page/report outcomes agree; 1,044 exports checked (630 valid containers, 414 correctly blocked). OCR-disabled baseline, not final reader acceptance.",
+      "2026-10-05"
+    ],
+    [
+      "1.09",
+      1,
+      "Reconcile historical repeated claim sources and remaining scope",
+      "In progress",
+      "1.01",
+      "Project/hash/claim/revision/date/amount/authority/locator recorded",
+      "31 source files and 2,020 rows reconciled across ten historical projects. 1,840 production-matched rows remain quarantined; 180 alternate rows stay separate. Wider portfolio authenticity/entitlement remain unestablished.",
+      null
+    ],
+    [
+      "1.10",
+      1,
+      "Replay recovered historical sources on current candidate",
+      "Complete",
+      "1.09",
+      "Replay all recovered 10-project sources; retain every source and quarantine; no invented determination",
+      "Recovered-source replay preserved source identities, quarantined 1,840 claims and retained null determinations; ten-project historical scope only, never fresh acceptance.",
+      "2026-10-05"
+    ],
+    [
+      "1.11",
+      1,
+      "Retain exact failures as permanent regressions",
+      "Complete",
+      "1.07",
+      "Regression fails before fix and passes after; sources hashed",
+      "Permanent numeric-review regressions cover batch validation, retries, failed durable save, restart, source changes, project isolation and actual HTTP/Ask/JSON/Excel. Original numeric-trust regressions remain unchanged.",
+      "2026-10-05"
+    ],
+    [
+      "1.12",
+      1,
+      "Run full current regression after all shared fixes",
+      "In progress",
+      "1.07,1.08,1.10,1.11",
+      "Unchanged valid assertions; no failed/cancelled/skipped checks",
+      "169c419 Verify2239/Scale2124 passed. This follow-up has 67 passing focused checks including UI component tests and a reproduced stale-revision confirmation guard. The earlier local full run ended without a final result and is not counted as passed. Full exact-candidate regression and release gates pending; previous-head results are historical.",
+      null
+    ],
+    [
+      "1.13",
+      1,
+      "Run fresh materially exercised feature cohorts",
+      "In progress",
+      "1.12",
+      "At least ten new projects per affected family; seeds and hashes retained",
+      "Ten fresh generated workflow projects pass per run; source hashes and independent numeric truth recorded. Deliberately wrong injected OCR exercises review propagation, not OCR recognition accuracy. Full new feature cohorts remain part of current CI.",
+      null
+    ],
+    [
+      "1.14",
+      1,
+      "Run genuinely unseen external-project acceptance",
+      "Open",
+      "1.13",
+      "New external inputs exercise changed families without project-specific tuning",
+      "Minimum ten materially exercised projects per affected family",
+      null
+    ],
+    [
+      "1.15",
+      1,
+      "Update runnable review service to accepted candidate",
+      "Open",
+      "1.12",
+      "Observed health version equals tested candidate; data preserved",
+      "Live review remains 9831316. Previously staged 169c419 is superseded by this follow-up; stage the final tested source only. Deployment requires explicit confirmation under Railway accept_deploy.",
+      null
+    ],
+    [
+      "1.16",
+      1,
+      "Verify deployed review and original-file regression",
+      "Open",
+      "1.15",
+      "Same original bytes and full failure surface pass on review",
+      "Local proof does not establish hosted proof",
+      null
+    ],
+    [
+      "1.17",
+      1,
+      "Publish exact-candidate independent challenge pack",
+      "Open",
+      "1.14,1.16",
+      "Inputs separate from internal cohorts; expected outcomes and evidence rules supplied",
+      "Prior 0ad6c95 pack is historical",
+      null
+    ],
+    [
+      "1.18",
+      1,
+      "Independent consultant challenge and findings closure",
+      "Awaiting independent review",
+      "1.17",
+      "Independent black-box evidence; findings fixed and reaccepted",
+      "No independent acceptance received",
+      null
+    ],
+    [
+      "1.19",
+      1,
+      "Close Stage 1 and authorize progression",
+      "Open",
+      "1.18",
+      "All Stage 1 activities complete and no unexplained material finding",
+      "Stage 1 remains OPEN",
+      null
+    ],
+    [
+      "2.01",
+      2,
+      "Inventory and classify every strict-suite failure",
+      "Waiting",
+      "Stage 1",
+      "Product, fixture, expectation or deliberate ambiguity distinguished",
+      "Retain old failures and explain every classification",
+      null
+    ],
+    [
+      "2.02",
+      2,
+      "Certify source identity and retained bytes",
+      "Waiting",
+      "2.01",
+      "Same project/source/hash/worksheet/column identity throughout",
+      "Duplicate normalized headers must survive",
+      null
+    ],
+    [
+      "2.03",
+      2,
+      "Certify classification, routing and schema interpretation",
+      "Waiting",
+      "2.01",
+      "Content, headings and related IDs do not promote incorrect ownership",
+      "English, Arabic, mixed and shuffled schemas",
+      null
+    ],
+    [
+      "2.04",
+      2,
+      "Certify authority, revisions and Data Date",
+      "Waiting",
+      "2.01",
+      "Candidate, current, approved, superseded and future remain distinct",
+      "Weekly updates and periodic lifecycle records",
+      null
+    ],
+    [
+      "2.05",
+      2,
+      "Certify eight truth states per domain",
+      "Waiting",
+      "2.02,2.03,2.04",
+      "Missing, partial, conflicting, superseded, future, duplicate, candidate, approved",
+      "Include genuine zeros and quarantined populations",
+      null
+    ],
+    [
+      "2.06",
+      2,
+      "Full regression plus new-seed project cohorts",
+      "Waiting",
+      "2.05",
+      "At least ten genuinely fresh projects per materially tested family",
+      "CSV/Excel/XER/MPX/XML, mixed OCR/native, dates and numbers",
+      null
+    ],
+    [
+      "2.07",
+      2,
+      "Independent challenge and Stage 2 closure",
+      "Awaiting independent review",
+      "2.06",
+      "No unexplained failure or source/authority mismatch",
+      "Publish stage evidence before independent review",
+      null
+    ],
+    [
+      "3.01",
+      3,
+      "Build and validate independent CPM reference",
+      "Waiting",
+      "Stage 2",
+      "Calendars, FS/SS/FF/SF, lag, constraints, status and Data Date",
+      "Validate reference itself on known hand-calculated networks",
+      null
+    ],
+    [
+      "3.02",
+      3,
+      "Compare critical path, driving logic, float and milestones",
+      "Waiting",
+      "3.01",
+      "Independent calculations reconcile or basis differences explained",
+      "No CMeng calculated answer used as reference input",
+      null
+    ],
+    [
+      "3.03",
+      3,
+      "Independent EVM workbook and recalculation",
+      "Waiting",
+      "Stage 2",
+      "PV/EV/AC/BAC/CPI/SPI/EAC; missing/zero/basis boundaries",
+      "Independent source facts and formulas",
+      null
+    ],
+    [
+      "3.04",
+      3,
+      "Independent commercial ledger and reconciliation",
+      "Waiting",
+      "Stage 2",
+      "Certificates, receipts, allocations, tax, retention, advance and cash",
+      "Dates, currencies and populations reconcile",
+      null
+    ],
+    [
+      "3.05",
+      3,
+      "Independent notice and date calculator",
+      "Waiting",
+      "Stage 2",
+      "Trigger, notice period, effective clause version, date boundary",
+      "Legal entitlement remains professional determination",
+      null
+    ],
+    [
+      "3.06",
+      3,
+      "Independent Delivery lifecycle state tables",
+      "Waiting",
+      "Stage 2",
+      "Submission/revision/response/closure/readiness transitions",
+      "Future and undated actuals withheld correctly",
+      null
+    ],
+    [
+      "3.07",
+      3,
+      "Fresh adversarial comparison across reference mechanisms",
+      "Waiting",
+      "3.02,3.03,3.04,3.05,3.06",
+      "Canonical facts reconcile against independently validated references",
+      "Disagreements investigated without retuning answers",
+      null
+    ],
+    [
+      "3.08",
+      3,
+      "Independent challenge and Stage 3 closure",
+      "Awaiting independent review",
+      "3.07",
+      "Reference mechanisms and comparisons accepted independently",
+      "No fixed two-day promise for unvalidated calculation engines",
+      null
+    ],
+    [
+      "4.01",
+      4,
+      "Contract and programme authority",
+      "Waiting",
+      "Stage 3",
+      "Baseline adoption, revisions, contract dates and governed terms",
+      "Each feature family: minimum ten fresh projects",
+      null
+    ],
+    [
+      "4.02",
+      4,
+      "CPM, float, critical path and milestones",
+      "Waiting",
+      "Stage 3",
+      "Driving paths, near-critical and milestone truth verified",
+      "Include missing calendars/logic; no false zero",
+      null
+    ],
+    [
+      "4.03",
+      4,
+      "Progress, BOQ quantities and S-curves",
+      "Waiting",
+      "Stage 3",
+      "Compatible quantities, source populations, units and cutoff",
+      "Schedule snapshot is not physical/certified progress",
+      null
+    ],
+    [
+      "4.04",
+      4,
+      "Resources, manpower, productivity and utilization",
+      "Waiting",
+      "Stage 3",
+      "Hours/capacity/assignment basis and period alignment",
+      "No invented crew sizes or 24-hour fallback",
+      null
+    ],
+    [
+      "4.05",
+      4,
+      "Forecast, history, recovery and contract challenge",
+      "Waiting",
+      "Stage 3",
+      "Contract/submitted/independent dates and scenarios stay distinct",
+      "Eligibility, bottlenecks and revision history",
+      null
+    ],
+    [
+      "4.06",
+      4,
+      "Delay windows, notices, claims and EOT",
+      "Waiting",
+      "Stage 3",
+      "Causation and entitlement not inferred from movement or claim sums",
+      "Claimed/recommended/determined/approved separated",
+      null
+    ],
+    [
+      "4.07",
+      4,
+      "Commercial and EVM",
+      "Waiting",
+      "Stage 3",
+      "Cost, forecasts, PV/EV/AC and governed monetary basis",
+      "Missing cost does not become zero or established forecast",
+      null
+    ],
+    [
+      "4.08",
+      4,
+      "Payments, variations, retention, advance and LD",
+      "Waiting",
+      "Stage 3",
+      "Full ledger and lifecycle with dated authority",
+      "Monthly certificates and multiple subcontractor payments",
+      null
+    ],
+    [
+      "4.09",
+      4,
+      "Procurement and long lead",
+      "Waiting",
+      "Stage 3",
+      "WBS need dates, lead-time components, latest actions and exposure",
+      "Throughput counts distinct from weighted progress",
+      null
+    ],
+    [
+      "4.10",
+      4,
+      "Design, submittals and RFI",
+      "Waiting",
+      "Stage 3",
+      "Revisions, response deadlines, closure and source correspondence",
+      "Exact identities and lifecycle histories",
+      null
+    ],
+    [
+      "4.11",
+      4,
+      "Quality, NCR and interfaces",
+      "Waiting",
+      "Stage 3",
+      "Status/age/responsibility and Interface ID retained",
+      "Partial, sparse and contradictory evidence",
+      null
+    ],
+    [
+      "4.12",
+      4,
+      "Readiness, T&C and handover",
+      "Waiting",
+      "Stage 3",
+      "Prerequisites and lifecycle establish readiness",
+      "Counts alone do not establish completion",
+      null
+    ],
+    [
+      "4.13",
+      4,
+      "Risk, HSE and management controls",
+      "Waiting",
+      "Stage 3",
+      "Source-backed ratings, units, actions and management position",
+      "No invented composite certainty",
+      null
+    ],
+    [
+      "4.14",
+      4,
+      "Every page and applicable management lens",
+      "Waiting",
+      "4.01–4.13",
+      "Calculations, tables, charts, filters, search, paging and drill-down",
+      "Inventory live navigation; no fixed page count as acceptance",
+      null
+    ],
+    [
+      "4.15",
+      4,
+      "Independent challenge and Stage 4 closure",
+      "Awaiting independent review",
+      "4.14",
+      "Each family independently accepted after fresh material coverage",
+      "PMC and Project Controls review required",
+      null
+    ],
+    [
+      "5.01",
+      5,
+      "Contract to Schedule integration",
+      "Waiting",
+      "Stage 4",
+      "Contract dates, EOT and baselines agree with authority",
+      "Common reporting date and source basis",
+      null
+    ],
+    [
+      "5.02",
+      5,
+      "Schedule, Progress, Resources and BOQ integration",
+      "Waiting",
+      "Stage 4",
+      "Populations, mappings, quantities and hours reconcile",
+      "No unmatched records silently dropped",
+      null
+    ],
+    [
+      "5.03",
+      5,
+      "Schedule, Procurement and Delivery integration",
+      "Waiting",
+      "Stage 4",
+      "Need dates, interfaces and readiness reflect current programme",
+      "No unsupported lateness or completion",
+      null
+    ],
+    [
+      "5.04",
+      5,
+      "Schedule, Delay, Claims and EOT integration",
+      "Waiting",
+      "Stage 4",
+      "Movement, causation, notices and entitlement stay distinct",
+      "Revision and authority chain retained",
+      null
+    ],
+    [
+      "5.05",
+      5,
+      "EOT, Contract and LD integration",
+      "Waiting",
+      "Stage 4",
+      "Approved dates drive correct applicable LD exposure",
+      "Claims do not automatically extend contract",
+      null
+    ],
+    [
+      "5.06",
+      5,
+      "BOQ, Progress and Commercial integration",
+      "Waiting",
+      "Stage 4",
+      "Quantities, valuations and EVM populations reconcile",
+      "Currency/tax/cutoff consistency",
+      null
+    ],
+    [
+      "5.07",
+      5,
+      "Risk, Delivery and Forecast integration",
+      "Waiting",
+      "Stage 4",
+      "Risks and constraints inform labelled forecasts/actions",
+      "No unsupported quantified effect",
+      null
+    ],
+    [
+      "5.08",
+      5,
+      "Management facts, priorities and actions across lenses",
+      "Waiting",
+      "5.01–5.07",
+      "Specialist/Controls/Director/Executive facts agree",
+      "No repeated priorities or unexplained contradictions",
+      null
+    ],
+    [
+      "5.09",
+      5,
+      "Independent challenge and Stage 5 closure",
+      "Awaiting independent review",
+      "5.08",
+      "No silent authority promotion or population mismatch",
+      "Fresh lifecycle projects and independent findings closure",
+      null
+    ],
+    [
+      "6.01",
+      6,
+      "Deterministic Ask calculations and schedule questions",
+      "Waiting",
+      "Stage 5",
+      "CPI/SPI/critical/delayed/milestones/DD from governed facts",
+      "Works without paid AI",
+      null
+    ],
+    [
+      "6.02",
+      6,
+      "Ask contract, claims and commercial questions",
+      "Waiting",
+      "Stage 5",
+      "Dates, approved EOT and outstanding certified position correct",
+      "Unsupported answers say Not established",
+      null
+    ],
+    [
+      "6.03",
+      6,
+      "WBS, Zone, Location, CBS and package filters",
+      "Waiting",
+      "Stage 5",
+      "Same populations across page, Ask and outputs",
+      "Explicit Zone 7 delayed-activity regression",
+      null
+    ],
+    [
+      "6.04",
+      6,
+      "Search, sorting, paging, Top-N and saved views",
+      "Waiting",
+      "Stage 5",
+      "Stable identities and full populations retained",
+      "No cross-project or cross-report filter leakage",
+      null
+    ],
+    [
+      "6.05",
+      6,
+      "PDF, Excel, CSV, Word, JSON and Power BI outputs",
+      "Waiting",
+      "Stage 5",
+      "Data and authority reproduce the screen/Ask position",
+      "Inspect content as well as file containers",
+      null
+    ],
+    [
+      "6.06",
+      6,
+      "Charts, units, source links, dates and missing states",
+      "Waiting",
+      "6.01–6.05",
+      "Exported figures and narratives retain governed meaning",
+      "Arabic/English, readable labels and source locators",
+      null
+    ],
+    [
+      "6.07",
+      6,
+      "Independent challenge and Stage 6 closure",
+      "Awaiting independent review",
+      "6.06",
+      "Screen = Ask = reports = exports for same governed fact",
+      "Fresh adverse inputs and consultant evidence",
+      null
+    ],
+    [
+      "7.01",
+      7,
+      "Authentication, roles and project isolation",
+      "Waiting",
+      "Stage 6",
+      "Unauthorized access/write denied throughout application",
+      "App-wide role tests, not one endpoint",
+      null
+    ],
+    [
+      "7.02",
+      7,
+      "Concurrency, retries and failed uploads/writes",
+      "Waiting",
+      "Stage 6",
+      "No lost evidence, duplicated writes or cross-project effects",
+      "Fresh independent projects and deliberate interruptions",
+      null
+    ],
+    [
+      "7.03",
+      7,
+      "Restart, durability and graceful shutdown",
+      "Waiting",
+      "Stage 6",
+      "Persisted truth survives termination and recovery",
+      "Include large snapshots and refreshSummary race",
+      null
+    ],
+    [
+      "7.04",
+      7,
+      "Backup/restore and release rollback",
+      "Waiting",
+      "Stage 6",
+      "Actual restore and rollback executed and reconciled",
+      "Procedure alone is not proof",
+      null
+    ],
+    [
+      "7.05",
+      7,
+      "Cold start, monitoring and service recovery",
+      "Waiting",
+      "Stage 6",
+      "Documented targets and failure visibility proven",
+      "No silent blocked queue or overview timeout trap",
+      null
+    ],
+    [
+      "7.06",
+      7,
+      "Large Schedule, BOQ and Delivery workloads",
+      "Waiting",
+      "Stage 6",
+      "100k activities and agreed scale gates on exact release",
+      "Source preservation, bounded work and responsiveness",
+      null
+    ],
+    [
+      "7.07",
+      7,
+      "100+ focused cases for critical feature families",
+      "Waiting",
+      "7.01–7.06",
+      "Material cases, documented coverage and no weakened gates",
+      "Count cases by family and actual exercise",
+      null
+    ],
+    [
+      "7.08",
+      7,
+      "Final completely fresh 100-project blind run",
+      "Waiting",
+      "7.07",
+      "All new IDs, seeds, input hashes and truth states",
+      "No previous internal/external cohort counted again",
+      null
+    ],
+    [
+      "7.09",
+      7,
+      "Known real-project and complete browser regression",
+      "Waiting",
+      "7.08",
+      "All pages, management, Ask, reports and source preservation",
+      "Human engineering workflows and all applicable roles",
+      null
+    ],
+    [
+      "7.10",
+      7,
+      "Independent final challenge and findings closure",
+      "Awaiting independent review",
+      "7.09",
+      "No known material wrong answer or unexplained mismatch",
+      "Final consultant evidence tied to exact candidate",
+      null
+    ],
+    [
+      "7.11",
+      7,
+      "Deploy exact accepted release and verify production",
+      "Waiting",
+      "7.10",
+      "Deployed source/binary equals accepted release",
+      "Production identity, smoke, known-real-project acceptance",
+      null
+    ],
+    [
+      "7.12",
+      7,
+      "Final handover and enterprise acceptance receipt",
+      "Waiting",
+      "7.11",
+      "All stages closed, evidence supplied, limitations explicit",
+      "No readiness percentage inferred from passing tests",
+      null
+    ]
+  ],
+  "updatedAt": "2026-10-05T09:16:21.050560+00:00",
+  "timezone": "Asia/Dubai",
+  "engineeringCandidate": "Consolidated source-bound BOQ review implemented; 66 focused checks passed; full current-candidate gates pending",
+  "blockers": [
+    [
+      "B01",
+      "1.07",
+      "SYSTEM FIX UNDER FULL VERIFICATION",
+      "Shared trust failure allowed uncertain OCR numbers into calculation facts",
+      "All 340 physical source rows recovered. One policy separates OCR observations from canonical quantity/rate/amount; confidence, repeated OCR agreement, balanced arithmetic and document adoption cannot promote them.",
+      "Finish exact-candidate gates and hosted proof; scan observations require independently supported source values before use."
+    ],
+    [
+      "B02",
+      "1.07, 1.11, 1.12",
+      "TESTED; COMMITTED",
+      "Fragmented PDF text falsely labelled successfully read",
+      "Committed to PR213 as c873620; tested code tree passed 1074 regressions plus internal 100-project run. Hosted review has not been advanced.",
+      "Include the correction in final-candidate hosted regression and independent acceptance."
+    ],
+    [
+      "B03",
+      "1.09",
+      "SOURCE EVIDENCE INCOMPLETE",
+      "Repeated historical claim patterns and incomplete portfolio provenance",
+      "31 source hashes verified; 180 semantic patterns repeat across project files; ten-project archive reconciled",
+      "Retain quarantine; trace remaining portfolio sources and obtain authentic supporting records before authority or entitlement"
+    ],
+    [
+      "B04",
+      "1.14, 1.17, 1.18",
+      "ACCEPTANCE PENDING",
+      "Fresh external inputs and independent Stage 1 review not completed",
+      "Internal generated cohorts and known regressions cannot substitute for these requirements",
+      "Close engineering defects, assemble independent challenge evidence and obtain consultant findings/reacceptance"
+    ],
+    [
+      "B05",
+      "1.15, 1.16",
+      "HOSTED PROOF PENDING",
+      "Hosted review does not contain the newest fixes",
+      "bdf936f Verify2237 and Scale2122 passed; hosted review remains 9831316. Additional system-policy changes are being verified.",
+      "Prepare the exact tested review candidate and complete hosted regression after deployment approval."
+    ],
+    [
+      "B06",
+      "1.07, 1.12",
+      "TESTED; COMMITTED",
+      "Native image-processing crash during new BOQ tests",
+      "Full regression and all retained BOQs finish. Real 18-page restored BOQ worker completed in 167.48s; second restart 0.43s, same receipt/hash/authority. Native crash did not recur.",
+      "Finish all original BOQs and the full regression run; retain the crash-triggering tests."
+    ],
+    [
+      "B07",
+      "1.07, 1.11, 1.12",
+      "SAME FAILURE FAMILY AS B01",
+      "Decimal loss and permissive AI source validation",
+      "3.00/300 and 4.00/400 are correlated OCR failure examples, not separate project-specific fixes. 100 different exact-span, high-confidence, arithmetic-balanced decimal errors are all withheld by shared policy.",
+      "Retain adversarial regressions; verify all consumers preserve the numeric trust decision."
+    ],
+    [
+      "B08",
+      "1.12, 1.15",
+      "PASSED ON bdf936f",
+      "Cold calculated dashboard exceeded agreed speed limit",
+      "Verify2237 passes cold dashboard 4771.202ms under unchanged 5000ms; 20k upload-to-ready 3677.866ms; durability and Delivery pass.",
+      "Run unchanged release gates for the new system-policy candidate."
+    ],
+    [
+      "B09",
+      "1.07, 1.11, 1.12",
+      "SAME FAILURE FAMILY AS B01",
+      "Diagnostics and retained caches allowed unsafe quantity propagation",
+      "Arithmetic guard extended to quantity/rate/amount and restored models. 100 correlated OCR cases plus positive native/zero, cached/adopted, S-curve and actual Ask/JSON/Excel cases pass.",
+      "Finish full current-code regression and exact hosted verification; never represent withheld values as zero."
+    ],
+    [
+      "B10",
+      "1.07, 1.11, 1.12",
+      "340-ROW REPLAY PASSED",
+      "Source population omitted or merged by table geometry",
+      "28/28 page item counts match assistant visual transcription: building224, flood24, electrical92. All three source hashes unchanged; sources still partial/unconfirmed.",
+      "Complete permanent regression run on exact candidate. This known-source replay is not fresh or independent acceptance."
+    ],
+    [
+      "B11",
+      "1.07, 1.11, 1.12, 1.15, 1.16",
+      "REVIEW FLOW IMPLEMENTED; FINAL GATES OPEN",
+      "Unconfirmed BOQ readings had no usable save-and-reuse workflow",
+      "One source-bound batch now resolves readings across the shared calculation model. Focused tests pass; native rows need no numeric confirmation.",
+      "Finish current-candidate full/release checks, hosted workflow verification and independent acceptance. Do not label scan accuracy or any readiness stage complete."
+    ]
+  ],
+  "activeFailure": "No focused regression failure. Final current-candidate gates, hosted review, fresh external acceptance and independent Stage 1 acceptance remain open."
+}

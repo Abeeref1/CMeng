@@ -1,9 +1,11 @@
 import {boqItemContinuity} from './boq-item-continuity';
-import type {BoqIngestionResult} from '../../boq-ingestion/src';
-import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
+import {applyBoqNumericReviews} from './boq-numeric-review';
+import {quarantineUnconfirmedBoqNumerics,type BoqIngestionResult} from '../../boq-ingestion/src';
+import {admissibleBoqQuantity,boqNumericsNeedConfirmation,type CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 import type {ProjectRuntimeState} from './project-state-types';
 import {documentClassificationForReview} from './document-identification';
-import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src';
+import {parseNativeBoqText,nativeBoqReportedTotals} from '../../boq-pdf-parser/src/native-text';
 
 const recoveredSources=new WeakMap<BoqIngestionResult,{reading:object;value:BoqIngestionResult}>();
 /** Restored uploads can use their retained, hash-matched complete page reading.
@@ -15,7 +17,7 @@ function readableRetainedSource(boq:BoqIngestionResult|null,document:ProjectRunt
  const cached=recoveredSources.get(boq);if(cached?.reading===read)return cached.value;
  const rows=read.result.pages.filter(p=>p.method==='native').flatMap(p=>parseNativeBoqText(p.pageNumber,p.text));
  if(!rows.length)return boq;
- const value:BoqIngestionResult={...boq,state:'partial_candidate',complete:false,candidateRows:rows.length,verifiedRows:0,unresolvedRows:rows.length,coveragePercent:null,canonicalItems:rows.map(r=>({itemId:boq.sourceHashSha256+':native:p'+r.page+':l'+r.row,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,quantity:r.quantity,rate:r.rate,amount:r.amount,currency:r.currency,sourceFormat:'pdf',status:r.status,diagnostics:r.diagnostics,
+ const value:BoqIngestionResult={...boq,pdfRead:read.result,state:'partial_candidate',complete:false,candidateRows:rows.length,verifiedRows:0,unresolvedRows:rows.length,coveragePercent:null,canonicalItems:rows.map(r=>({itemId:boq.sourceHashSha256+':native:p'+r.page+':l'+r.row,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,quantity:r.quantity,rate:r.rate,amount:r.amount,currency:r.currency,sourceFormat:'pdf',status:r.status,diagnostics:r.diagnostics,
    sourceRefs:['evidence-receipt:'+boq.evidenceReceipt.receiptId,'sha256:'+boq.sourceHashSha256+':pdf:page:'+r.page+':text-line:'+r.row]})),diagnostics:[...boq.diagnostics,'BOQ_RETAINED_NATIVE_TEXT_RECOVERY_PARTIAL']};
  recoveredSources.set(boq,{reading:read,value});return value;
 }
@@ -30,50 +32,76 @@ export function hasReadableBoqPopulation(boq: BoqIngestionResult) {
   return boq.state !== 'unavailable' && (boq.canonicalItems.length > 0 || boq.complete);
 }
 
+/** Old snapshots may have cached a suspect quantity before the adapter guard.
+ * Keep source rows, allocations and installed measurements intact. */
+export function quarantineBoqQuantityModel(model:CanonicalQuantityProgressModel|null,boq:BoqIngestionResult|null) {
+  if(!model)return model;
+  if(boq)boq=quarantineUnconfirmedBoqNumerics(boq);
+  const sources=new Map((boq?.canonicalItems??[]).map(item=>[item.itemId,item]));
+  let changed=false;
+  const items=model.items.map(item=>{
+    const source=sources.get(item.quantityItemId);
+    const diagnostics=[...new Set([...(item.diagnostics??[]),...(source?.diagnostics??[]),...(!source&&item.sourceRefs.some(ref=>ref.source==='boq_pdf')?[BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED]:[])])];
+    if(!boqNumericsNeedConfirmation(diagnostics))return item;
+    const safe=admissibleBoqQuantity(source?.quantity??item.contractQuantity,diagnostics);
+    if(item.contractQuantity===null&&safe.diagnostics.length===item.diagnostics.length&&safe.diagnostics.every(code=>item.diagnostics.includes(code)))return item;
+    changed=true;return {...item,...safe};
+  });
+  return changed?{...model,items}:model;
+}
+
 /** Display supplied figures independently of schedule links, progress, productivity
  * or approval. A missing field does not suppress the other fields in its row. */
 export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:CanonicalQuantityProgressModel|null) {
+  if(boq)boq=quarantineUnconfirmedBoqNumerics(boq);
+  else quantities=quarantineBoqQuantityModel(quantities,null);
   const rows=boq?boq.canonicalItems.map(item=>({
     itemId:item.itemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
     unit:item.unit,quantity:item.quantity,rate:item.rate,amount:item.amount,currency:item.currency,
-    sourceRefs:item.sourceRefs,
+    sourceRefs:item.sourceRefs,readingStatus:item.status,readingDiagnostics:item.diagnostics,
+    sourceNumericReadings:item.sourceNumericReadings??null,
+    numericConfirmation:item.numericConfirmation??null,
   })):(quantities?.items??[]).map(item=>({
     itemId:item.quantityItemId,itemNumber:item.itemNumber,section:item.section,description:item.description,
     unit:item.unit,quantity:item.contractQuantity,rate:null,amount:null,currency:null,
-    sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),
+    sourceRefs:item.sourceRefs.map(ref=>ref.source+':'+ref.locator),sourceNumericReadings:null,
   }));
   const populationKnown = boq ? hasReadableBoqPopulation(boq) : quantities !== null;
-  return {sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
+  return {sourceReview:boq?.sourceReview??null,sourcePopulationComplete:boq?.complete??false,sourceFilename:boq?.sourceFilename??null,revisionId:boq?.evidenceReceipt.revisionId??quantities?.boqRevisionId??null,
     itemCount:populationKnown?rows.length:null,readableQuantityCount:populationKnown?rows.filter(row=>row.quantity!==null&&Number.isFinite(row.quantity)).length:null,
-    basis:'Figures as read from the supplied BOQ. Schedule links and calculation inputs do not block these figures.',rows};
+    basis:'Source-native figures retain their readings. Unconfirmed scan observations are shown separately and excluded from calculations; unknown values are not zero.',rows};
 }
 
 /** Source-family validation is shared by all consumers, including restored
  * projects. A rejected legacy classification cannot hide valid source quantities.
  * A sole usable candidate is visible as a candidate; this does not adopt it. */
 export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:string) {
-  const documents=state.evidenceDocuments.filter(d=>d.documentType==='boq'&&['active','additive','candidate'].includes(d.basisState));
+  const hasRasterBoq=(d:ProjectRuntimeState['evidenceDocuments'][number])=>Boolean(d.sourceHashSha256&&d.boqTableRead&&d.boqTableRead.sourceHashSha256===d.sourceHashSha256&&d.boqTableRead.structuredTableFound);
+  const artifactId=(d:ProjectRuntimeState['evidenceDocuments'][number])=>hasRasterBoq(d)?d.boqTableRead!.ingestionId:d.linkedArtifactId;
+  const adopted=(d:ProjectRuntimeState['evidenceDocuments'][number])=>d.documentType==='boq'&&['active','additive'].includes(d.basisState);
+  const documents=state.evidenceDocuments.filter(d=>['active','additive','candidate'].includes(d.basisState)&&(d.documentType==='boq'||hasRasterBoq(d)));
   const rejected=documents.filter(d=>documentClassificationForReview(d).documentType!=='boq');
   const usable=documents.filter(d=>!rejected.includes(d));
-  const invalidIds=new Set(rejected.map(d=>d.linkedArtifactId));
-  const recordedDocuments=state.evidenceDocuments.filter(d=>d.linkedArtifactId===state.boq?.ingestionId);
-  const hasEstablished=usable.some(d=>['active','additive'].includes(d.basisState));
+  const invalidIds=new Set(rejected.map(artifactId));
+  const recordedDocuments=state.evidenceDocuments.filter(d=>artifactId(d)===state.boq?.ingestionId);
+  const hasEstablished=usable.some(adopted);
   const validCurrent=state.boq&&!invalidIds.has(state.boq.ingestionId)&&(recordedDocuments.length
-    ? recordedDocuments.some(d=>usable.includes(d)&&(!hasEstablished||d.basisState!=='candidate'))
+    ? recordedDocuments.some(d=>usable.includes(d)&&(!hasEstablished||adopted(d)))
     : documents.length===0);
-  const established=usable.filter(d=>['active','additive'].includes(d.basisState));
+  const established=usable.filter(adopted);
   const candidates=established.length?established:usable;
-  const selectedOriginal=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===candidates[0]!.linkedArtifactId)??null:null;
-  const source=usable.find(d=>d.linkedArtifactId===selectedOriginal?.ingestionId);
-  const selected=readableRetainedSource(selectedOriginal,source);
+  const selectedOriginal=validCurrent?state.boq:candidates.length===1?state.boqRevisions.find(b=>b.ingestionId===artifactId(candidates[0]!))??null:null;
+  const source=usable.find(d=>artifactId(d)===selectedOriginal?.ingestionId);
+  const recovered=readableRetainedSource(selectedOriginal,source);
+  const selected=recovered?applyBoqNumericReviews(recovered,state):null;
   const readable = selected ? hasReadableBoqPopulation(selected) : false;
-  const selection={state:selected?(!readable?'unreadable':source?.basisState==='candidate'?'candidate':'source'):'missing',
+  const selection={state:selected?(!readable?'unreadable':source&&!adopted(source)?'candidate':'source'):'missing',
     sourceDocumentId:source?.documentId??null,sourceFilename:source?.sourceFilename??selected?.sourceFilename??null,
-    authority:'source_quantities_not_certified_installations',adoptedSource:source?['active','additive'].includes(source.basisState):Boolean(selected),
+    authority:'source_quantities_not_certified_installations',adoptedSource:source?adopted(source):Boolean(selected),
     excludedMisclassifiedDocuments:rejected.map(d=>({documentId:d.documentId,sourceFilename:d.sourceFilename,recordedType:d.documentType,detectedType:documentClassificationForReview(d).documentType})),
     diagnostics:[...(selected&&!readable?['BOQ_ITEM_POPULATION_UNREADABLE']:[]),...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
     explanation:selected&&!readable?'The selected source did not yield a readable BOQ item population. Counts and quantity calculations remain unresolved.':rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
-  return {boq:selected,quantities:selected?(readable?(selected===state.boq&&state.quantities?state.quantities:quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:state.quantities,selection};
+  return {boq:selected,quantities:selected?(readable?(selected===state.boq&&state.quantities?quarantineBoqQuantityModel(state.quantities,selected):quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:quarantineBoqQuantityModel(state.quantities,null),selection};
 }
 
 export function quantityModelFromBoq(
@@ -82,6 +110,7 @@ export function quantityModelFromBoq(
   existing:
     CanonicalQuantityProgressModel | null,
 ): CanonicalQuantityProgressModel {
+  result=quarantineUnconfirmedBoqNumerics(result);
   const source =
     result.sourceFormat === "pdf"
       ? "boq_pdf" as const
@@ -97,8 +126,7 @@ export function quantityModelFromBoq(
       section: item.section,
       description: item.description,
       unit: item.unit,
-      contractQuantity:
-        item.quantity,
+      contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnostics).contractQuantity,
       sourceRefs: [{
         source,
         locator:
@@ -108,7 +136,7 @@ export function quantityModelFromBoq(
               .receiptId,
       }],
       diagnostics: [
-        ...item.diagnostics,
+        ...admissibleBoqQuantity(item.quantity,item.diagnostics).diagnostics,
         ...(item.status ===
         "unresolved"
           ? [
@@ -134,6 +162,7 @@ export function quantityModelFromBoq(
       existing?.installedSnapshots.filter(s=>continuity.has(s.quantityItemId)).map(s=>({...s,quantityItemId:continuity.get(s.quantityItemId)!})) ?? [],
     diagnostics: [
       ...result.diagnostics,
+      ...(result.sourceFormat==='pdf'&&!result.complete?['BOQ_SOURCE_POPULATION_INCOMPLETE']:[]),
       ...(existing&&continuity.size<existing.items.length?['BOQ_ITEM_LINKS_REQUIRE_REVIEW']:[]),
       ...([...continuity].some(([a,b])=>a!==b)?['BOQ_LINKS_CARRIED_BY_UNIQUE_ITEM_IDENTITY']:[]),
     ],
