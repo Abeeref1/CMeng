@@ -60,6 +60,9 @@ const groups:Record<string,string[]>={
   'expiry date':['valid to','valid until','date of expiry','expiration date','guarantee expiry','تاريخ الانتهاء'],
   'approval date':['date approved','date of approval','تاريخ الموافقة'],
   'days claimed':['claimed days','claimed delay days','أيام المطالبة'],
+  // The claimant's Source Granted Days is an asserted assessment, not an
+  // Engineer's dated determination. Never alias it to awarded EOT.
+  'source granted days':['days granted','register granted days','source days granted','source grant days'],
   'awarded eot days':['granted days','awarded days','determined days','أيام التمديد المعتمدة'],
   'determination date':['decision date','award date','date of determination'],
   'linked activity':['activity id','activity code','affected activity','linked schedule activity','schedule activity','activity ref','activity reference','linked activity id','رقم النشاط'],
