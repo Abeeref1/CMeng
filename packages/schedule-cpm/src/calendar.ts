@@ -272,7 +272,9 @@ export function resolveWorkingCalendar(
     return {
       calendar: source,
       mode: "source_calendar",
-      assumptions: [],
+      assumptions: source.reconciledFromP6Dates
+        ? ["CALENDAR_P6_DATE_RECONCILIATION_QUALIFIED:"+source.calendarId]
+        : [],
     };
   }
 
