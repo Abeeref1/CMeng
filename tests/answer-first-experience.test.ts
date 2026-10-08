@@ -97,6 +97,15 @@ test('Progress Breakdown does not append a page-level schedule confirmation noti
  assert.equal(content.inserted,'');
 });
 
+test('page verdict shows accountable roles instead of a universal unassigned placeholder',()=>{
+ const claims=positionVerdict({key:'notices-claims',status:'partial',reason:null,dependencies:[],data:{noticeEventDateMissingCount:1}} as any);
+ assert.equal(claims.owner,'Contracts Manager');
+ assert.equal(claims.owner,claims.assignTo);
+ const cash=positionVerdict({key:'cash-flow',status:'partial',reason:null,dependencies:[],data:{position:{performance:{cashFlow:{currencies:[]}}}}} as any);
+ assert.equal(cash.owner,'Commercial Manager');
+ assert.equal(cash.owner,cash.assignTo);
+});
+
 test('completion calculation differences stay as inline information and never become user actions',async()=>{
  const values=completionPosition({}, {sourceForecastCompletionIso:'2030-01-12',independentForecastCompletionIso:'2030-01-13',complete:true,origin:'deterministic_source_calendar',forecastVarianceDays:1,assumptions:[]});
  const ctx:any={fmt:String,escapeHtml:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(r=>r.join(' ')).join('\n'),basisTable:()=>'',project:()=> 'UX',overview:{},projectRequestSeq:1,projectRequestIsCurrent:()=>true,formatDocumentTime:String,names:{},readerIssue:(i:any)=>({title:i.summary,action:i.action}),el:()=>null,api:async()=>({projectId:'UX',projectVersion:1,checkedAt:'2030-01-01',actionCount:0,actions:[],information:[{id:'matter:schedule-calculation',title:'Programme calculation and date differences',reason:'The submitted and calculated positions differ.',category:'information',resolution:{kind:'information',requiresUserAction:false,instruction:'No user action is required.',completionRule:'Updates automatically.'},target:{type:'inline',label:'Why this is not an action'},completionPosition:values,findings:[]}]})};
