@@ -53,6 +53,8 @@ export interface CanonicalCalendar {
   calendarId: string;
   name: string | null;
   semanticComplete: boolean;
+  /** Reconstructed only from uniquely matching submitted P6 task dates; not source-exported work intervals. */
+  reconciledFromP6Dates?:boolean;
   weeklyWorkMinutes?: [
     number,
     number,
