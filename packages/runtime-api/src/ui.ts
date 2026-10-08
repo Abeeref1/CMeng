@@ -512,7 +512,13 @@ const projectUploadJobs=new Map();
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
-const fmt=v=>v===null||v===undefined?"Unresolved":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(6))):humanizeIsoText(String(v));
+const fmt=v=>{
+ if(v===null||v===undefined)return "Not established";
+ if(typeof v==='number')return Number.isFinite(v)?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(2))):"Not established";
+ if(typeof v==='string'&&/^[+-]?[0-9]+[.][0-9]{3,}$/.test(v.trim()))
+  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v));
+ return humanizeIsoText(String(v));
+};
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
 function fmtForField(key,value){
   if(value===null||value===undefined)return"Not established";
@@ -947,22 +953,37 @@ function renderComplexCell(value,key=""){
   if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
   return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
+function readerTechnicalField(key){
+  return /^(?:id|recordId|documentId|sourceRefs?|sourceHash(?:Sha256)?|fingerprint|evidenceRefs?|diagnostics|sourcePath|storedPath|cacheKey|debug|nativeId|recordIds|filePath)$/i.test(String(key));
+}
+function readerSourceValue(metric){
+ if(!metric||typeof metric!=="object"||Array.isArray(metric))return null;
+ const alternatives=[metric.submitted,metric.reported,metric.reportedValue,metric.sourceValue,metric.rawValue,metric.source?.value,metric.sourceRegister?.value];
+ for(const value of alternatives)if((typeof value==="number"&&Number.isFinite(value))||(typeof value==="string"&&value.trim().length))return value;
+ return null;
+}
 function renderRecordTable(records){
-  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
+  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,25);
   if(!rows.length)return"";
-  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))];
+  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)).slice(0,24);
+  if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
   return '<div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
-function renderStructuredValue(value,depth=0){
+function renderStructuredValue(value,depth=0,key=''){
+  if(readerTechnicalField(key))return '<div class="muted">Source references retained in the original file and downloadable record.</div>';
+  if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.prototype.hasOwnProperty.call(value,'value')&&(value.value===null||value.value===undefined)){
+    const reported=readerSourceValue(value);
+    if(reported!==null)return '<div class="value-chip">'+escapeHtml(fmtForField(key,reported))+' · Source reported; not an approval</div>';
+  }
   if(isScalarValue(value))return '<div class="value-chip">'+escapeHtml(fmt(value))+'</div>';
   if(depth>3)return '<div class="muted">Additional supporting detail retained in the project record.</div>';
   if(Array.isArray(value)){
     if(!value.length)return '<div class="muted">No records.</div>';
     if(value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
     if(value.every(x=>x&&typeof x==="object"&&!Array.isArray(x)))return renderRecordTable(value);
-    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.map(item=>renderStructuredValue(item,depth+1)).join("")+'</div></details>';
+    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.slice(0,25).map(item=>renderStructuredValue(item,depth+1,key)).join("")+'</div></details>';
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
@@ -973,7 +994,7 @@ function renderStructuredValue(value,depth=0){
     html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
     return html;
   }
-  html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
+  html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1,key)+'</div>').join("");
   return html||'<div class="muted">No displayable values.</div>';
 }
 function projectionFor(data,projectionKey){
@@ -4279,7 +4300,11 @@ function renderManagementMetricGrid(metrics){
 function commercialFindingText(metric){
   if(metric==null)return"Unresolved: amount not established";
   if(typeof metric!=="object")return typeof metric==="number"?fmtExecutive(metric):fmt(metric);
-  if(metric.value===null||metric.value===undefined)return"Unresolved: "+(metric.reason||(metric.state==='conflicted'?'records disagree':'amount not established in the supplied records'));
+  if(metric.value===null||metric.value===undefined){
+    const source=readerSourceValue(metric);
+    if(source!==null)return fmtForField('amount',source)+' · Source reported'+(metric.state==='conflicted'?' (records disagree)':'');
+    return 'Not established: '+(metric.reason||(metric.state==='conflicted'?'records disagree':'no supplied value'));
+  }
   return fmtExecutive(metric.value)+((metric.diagnostics||[]).includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')?' · '+commercialSourceState(metric):metric.state&&metric.state!=="established"?" · "+humanizeKey(metric.state):"");
 }
 function commercialFindingTitle(metric){
@@ -4293,7 +4318,7 @@ function renderManagementCommercial(rows){
     ['retentionDeductedAmount','Retention deducted through DD'],['retentionHeldAmount','Held balance'],['activeBondAmount','Active bonds'],
     ['claimClaimedAmount','Claimed'],['claimAssessedAmount','Assessed'],['ldScenarioAmount','LD scenario']
   ];
-  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined));
+  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined||readerSourceValue(m)!==null));
   const visible=fields.filter(([key])=>rows.some(r=>established(r[key])));
   const missing=rows.flatMap(r=>fields.filter(([key])=>!established(r[key])).map(([key,label])=>({currency:r.currency,label,detail:commercialFindingText(r[key])})));
   if(!visible.length)return '<div class="notice info">No commercial amount is established from the supplied records.</div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
@@ -4902,11 +4927,11 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
-  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds"]);
+  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs"]);
   const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!isScalarValue(value));
   return complex.map(([key,value])=>{
     const count=Array.isArray(value)?value.length:null;
-    return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
+    return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0,key)+'</div></section>';
   }).join("");
 }
 function userFacingModuleReason(key,reason){
@@ -5015,7 +5040,7 @@ function renderModuleResultBody(result){
   const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
-  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
+  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
