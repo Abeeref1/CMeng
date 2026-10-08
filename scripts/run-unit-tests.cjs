@@ -16,21 +16,26 @@ const acceptance = tests.filter(path => relative(testRoot, path) === acceptanceN
 if (acceptance.length !== 1) throw new Error('The mandatory 100-project blind acceptance suite must exist exactly once.');
 const raster = tests.filter(path => relative(testRoot, path) === 'boq-raster-recovery.test.js');
 if (raster.length !== 1) throw new Error('The retained scan regression suite must exist exactly once.');
-const regression = tests.filter(path => !acceptance.includes(path) && !raster.includes(path));
+const concurrency = tests.filter(path => relative(testRoot, path) === 'project-concurrency.test.js');
+if (concurrency.length !== 1) throw new Error('The simultaneous-upload and restart regression suite must exist exactly once.');
+const regression = tests.filter(path => !acceptance.includes(path) && !raster.includes(path) && !concurrency.includes(path));
 
 // Keep the full test population and each suite's deadlines. Original-page
 // OCR is CPU intensive and hit its unchanged deadline beside other suites;
 // run that complete file in its own phase. The 100-project benchmark already exercises its own four-worker gateway and concurrent
 // requests. Running unrelated heavy suites beside it measures runner contention
 // on the two-CPU CI host rather than that bounded system workload.
+// The simultaneous 30,000-activity uploads have their own unchanged latency and
+// 120-second limits. Exercise that workload in isolation from the feature cohorts.
 const phases = [
   ['regression', 'regression and feature cohorts', regression],
   ['raster', 'isolated original-page raster regressions', raster],
+  ['concurrency', 'isolated simultaneous uploads and restart regressions', concurrency],
   ['acceptance', 'isolated 100-project blind acceptance', acceptance],
 ];
 const selectedPhase = process.argv[2];
 if (process.argv.length > 3 || (selectedPhase && !phases.some(([key]) => key === selectedPhase))) {
-  throw new Error('Optional phase must be regression, raster or acceptance; omitting it runs every mandatory phase.');
+  throw new Error('Optional phase must be regression, raster, concurrency or acceptance; omitting it runs every mandatory phase.');
 }
 for (const [key, label, files] of phases) {
   if (selectedPhase && key !== selectedPhase) continue;

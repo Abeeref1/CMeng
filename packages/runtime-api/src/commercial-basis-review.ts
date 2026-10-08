@@ -32,6 +32,7 @@ export function variationBasisReview(ledger:CanonicalCommercialModel,amendments:
   return {dataDateIso:ledger.dataDateIso,groups:[...groups.values()].map(records=>{
     const {currency,taxBasis}=records[0]!.approvedAmount;
     const approved=records.filter(r=>/^(approved|accepted|executed)$/i.test(r.status.trim()));
+    const signExceptions=approved.filter(r=>/^\s*(omission|omit(?:ted)?|deduction|credit)\b/i.test(r.description)&&r.approvedAmount.value!==null&&r.approvedAmount.value>0).map(r=>({variationId:r.variationId,description:r.description,sourceAmount:r.approvedAmount.value,suggestedAmount:r.approvedAmount.value===null?null:-Math.abs(r.approvedAmount.value),sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator],action:'Confirm the sign of this omission against its approval. Retain the original source value until corrected.'}));
     const sum=(rows:CommercialVariation[])=>rows.length?rows.every(r=>r.approvedAmount.value!==null)?rows.reduce((n,r)=>n+r.approvedAmount.value!,0):null:0;
     const slice=(cutoff:string|null)=>{const rows=approved.filter(r=>reportingScope(r.approvalDate,cutoff)==='as_of');return {count:rows.length,amount:cutoff?sum(rows):null};};
     const current=slice(ledger.dataDateIso),future=approved.filter(r=>reportingScope(r.approvalDate,ledger.dataDateIso)==='future');
@@ -49,7 +50,7 @@ export function variationBasisReview(ledger:CanonicalCommercialModel,amendments:
         sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator]}));
     const aggregates=ledger.costPosition.filter(r=>r.currency===currency&&r.taxBasis===taxBasis&&r.values['approved variations']!=null).map(r=>({asOf:r.asOf,amount:r.values['approved variations']!,
       datedApprovals:slice(r.asOf),difference:slice(r.asOf).amount===null?null:r.values['approved variations']!-slice(r.asOf).amount!,sourceRefs:r.receipts}));
-    return {currency,taxBasis,sourceCount:records.length,approvedSourceCount:approved.length,current,future:{count:future.length,amount:sum(future)},
+    return {currency,taxBasis,sourceCount:records.length,approvedSourceCount:approved.length,signExceptions,current,future:{count:future.length,amount:sum(future)},
       undatedCount:approved.filter(r=>!r.approvalDate).length,unknownAmountCount:approved.filter(r=>r.approvedAmount.value===null).length,fullAmount:sum(approved),median,upperFence,lowerFence,exceptions,aggregates,
       amendments:amendments.filter(a=>a.currency===currency&&a.taxBasis===taxBasis&&taxBasis!=='unknown').map(a=>{const effective=slice(a.effectiveDate);const after=approved.filter(r=>r.approvalDate&&a.effectiveDate&&r.approvalDate>a.effectiveDate&&reportingScope(r.approvalDate,ledger.dataDateIso)==='as_of');return {...a,atEffectiveDate:effective,
         scope:reportingScope(a.effectiveDate,ledger.dataDateIso),afterEffectiveThroughDataDate:{count:after.length,amount:a.effectiveDate&&ledger.dataDateIso?sum(after):null},
@@ -60,17 +61,27 @@ export function variationBasisReview(ledger:CanonicalCommercialModel,amendments:
 
 /** An index can be arithmetically valid while its underlying amounts have no
  * demonstrated correspondence to schedule progress or certificate periods. */
-export function costBasisReview(ledger:CanonicalCommercialModel,certificates:ReturnCertificateProfile){
-  return ledger.costPosition.map(row=>{
+export function costBasisReview(ledger:CanonicalCommercialModel,certificates:ReturnCertificateProfile,currentContracts:Array<{currency:string;currentContractValue:{value:number|null}}> = []){
+  const latest=new Map<string,CanonicalCommercialModel['costPosition'][number]>();
+  for(const row of ledger.costPosition){
+    if(reportingScope(row.asOf,ledger.dataDateIso)!=='as_of')continue;
+    const key=JSON.stringify([row.currency,row.taxBasis]),prior=latest.get(key);
+    if(!prior||row.asOf>prior.asOf)latest.set(key,row);
+  }
+  return [...latest.values()].map(row=>{
     const v=row.values,bac=v.bac??null,pv=v.pv??null,ev=v.ev??null,ac=v.ac??null;
     const pct=(n:number|null)=>n!==null&&bac!==null&&bac>0?n/bac*100:null;
     const group=certificates.groups.find(g=>g.currency===row.currency&&g.taxBasis===row.taxBasis&&row.taxBasis!=='unknown');
     const net=group?.totals?.netCertifiedAmount??null;
     const certificateDate=group?.latestPeriod?.date??null;
     const certificateDateMatches=certificateDate!==null&&row.asOf===certificateDate;
-    return {currency:row.currency,taxBasis:row.taxBasis,asOf:row.asOf,bac,pv,ev,ac,plannedPercentOfBudget:pct(pv),earnedPercentOfBudget:pct(ev),
+    const currentContract=currentContracts.find(c=>c.currency===row.currency)?.currentContractValue.value??null;
+    return {currency:row.currency,taxBasis:row.taxBasis,asOf:row.asOf,bac,pv,ev,ac,sourceEac:v.eac??null,eacVsCurrentContract:v.eac!=null&&currentContract!==null?v.eac-currentContract:null,plannedPercentOfBudget:pct(pv),earnedPercentOfBudget:pct(ev),
       certificatePeriodNet:net,certificateDate,certificateDateMatches,
-      actualCostToCertificateRatio:ac!==null&&net!==null&&net!==0&&certificateDateMatches?ac/net:null,
+      actualCostToCertificateRatio:null,
+      currentContractValue:currentContract,budgetVsContractDifference:bac!==null&&currentContract!==null?bac-currentContract:null,
+      earnedPercentOfCurrentContract:ev!==null&&currentContract!==null&&currentContract>0?ev/currentContract*100:null,
+      actualCostComparisonBasis:'Actual cost is compared with earned value through CPI. Net certification is a cash receivable after deductions and is not a cost-efficiency denominator.',
       spi:ev!==null&&pv!==null&&pv>0?ev/pv:null,cpi:ev!==null&&ac!==null&&ac>0?ev/ac:null,
       interpretation:'SPI and CPI check arithmetic within the cost source. Cost-weighted EV/PV, duration-weighted schedule progress, accrued cost and certificate-period values are different measures. Their amounts remain unreconciled until a dated CBS/WBS/certificate bridge explains scope, valuation and timing. Multiplying schedule progress by BAC is an illustration, not a calculated PV or EV.'};
   });

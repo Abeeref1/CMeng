@@ -344,6 +344,7 @@ export interface PaymentRegisterProjection {
     | "established"
     | "partial"
     | "not_assessable";
+  latePaymentDays?: {min:number|null;max:number|null};
   slaCounts: {
     paidOnTime: number | null;
     paidLate: number | null;

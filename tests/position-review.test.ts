@@ -27,7 +27,7 @@ test('claim verdicts use assessed events, not correspondence or unrelated progre
 test('a specific headline retains its own next step despite an unrelated first issue',()=>{
  const r:any=result('notices-claims',{noticeEventDateMissingCount:2});
  r.issueAssessment={counts:{missing_information:1},issues:[{kind:'missing_information',summary:'Bond expiry needed',action:'Provide bond dates',owner:'Project evidence owner'}]};
- const v=positionVerdict(r);assert.match(v.text,/event dates/);assert.match(v.nextAction,/event or awareness date/);assert.doesNotMatch(v.nextAction,/bond/);assert.equal(v.owner,'Not assigned');
+ const v=positionVerdict(r);assert.match(v.text,/event dates/);assert.match(v.nextAction,/event or awareness date/);assert.doesNotMatch(v.nextAction,/bond/);assert.equal(v.owner,'Contracts Manager');assert.equal(v.owner,v.assignTo);assert.notEqual(v.owner,r.issueAssessment.issues[0].owner,'unrelated issue owner must not replace the domain role');
  const late=positionVerdict(result('master-dashboard',{metrics:[{key:'submitted-programme-finish',value:'2031-06-07'},{key:'contract-finish',value:'2031-04-15'}]}));
  assert.match(late.text,/53 calendar days late/);assert.equal(late.assignTo,'Project Director');assert.match(late.nextAction,/packages.*not yet been established/);assert.doesNotMatch(late.owner,/assign a person/);
 });

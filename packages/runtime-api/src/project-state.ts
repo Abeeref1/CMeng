@@ -1882,6 +1882,7 @@ export class RuntimeProjectStore {
         scheduleAuthorityVersion: 'explicit-adoption-v1',
         version: 1,
         demo: false,
+        testProject: false,
         schedules: [],
         evidenceDocuments: [],
         resourcesByRevision:

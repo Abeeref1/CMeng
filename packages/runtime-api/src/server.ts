@@ -9,9 +9,11 @@ import {deliveryRequest} from './delivery-api';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {parentPort} from 'node:worker_threads';
 import {sendHttpBody} from './http-response';
+import {isProjectScreenRequest,pageProjectResponse,recordDetailPage} from './response-paging';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
+import {activityRegisterPage,activityRegisterView} from './activity-register-page';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
@@ -59,6 +61,7 @@ import {
   managementSurfaceForProject,
   managementSurfacesForProject,
   moduleForProject,
+  projectActionRegisterForState,
   overviewForProject,
   rerunProject,
 } from "./project-projections";
@@ -154,7 +157,10 @@ export function projectDocumentRegister(projectId:string){
             mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
-            classificationReview: documentClassificationForReview(document),
+            classificationReview: documentClassificationForReview(document,schemaByDocument.has(document.documentId)?[
+              schemaByDocument.get(document.documentId)!.headers,
+              ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
+            ]:undefined),
             readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(
@@ -348,7 +354,10 @@ function json(
   statusCode: number,
   body: unknown,
 ): void {
-  const payload = JSON.stringify(body);
+  const requestUrl=res.req.url??'';
+  const pathname=new URL(requestUrl,'http://localhost').pathname;
+  const screen=statusCode===200&&isProjectScreenRequest(res.req.method,pathname);
+  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl):body);
   sendHttpBody(res,statusCode, {
     "cache-control": "no-store",
     "content-type":
@@ -764,6 +773,17 @@ async function route(
             approvedEotDays:
               projectFacts.time.awardedEotDays.value,
             approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
+            extendedContractBasis:projectFacts.time.extendedContractCompletionIso.basis,
+            extendedContractState:projectFacts.time.extendedContractCompletionIso.state,
+            criticalActivityCount:projectFacts.schedule.criticalActivityCount.value,
+            nearCriticalActivityCount:projectFacts.schedule.nearCriticalActivityCount.value,
+            negativeFloatActivityCount:projectFacts.schedule.negativeFloatActivityCount.value,
+            openRfiCount:projectFacts.controls.openRfiCount.value,
+            overdueRfiCount:projectFacts.controls.overdueRfiCount.value,
+            openNcrCount:projectFacts.controls.openNcrCount.value,
+            overdueNcrCount:projectFacts.controls.overdueNcrCount.value,
+            activeBondCount:projectFacts.commercial.activeBondCount.value,
+            expiredBondCount:projectFacts.commercial.expiredBondCount.value,
             claimCount:
               director?.claims
                 .claimCount ??
@@ -773,13 +793,17 @@ async function route(
                 .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              canonicalManagementActions.length,
+              projectFacts.actions.openCount.value,
             managementActions:
               canonicalManagementActions.map((action:any)=>
                 [action.issue,action.requiredAction].filter(Boolean).join(" — ")
               ),
             commercialCurrencyCount:
               projectFacts.commercial.currencies.length,
+            submittedDaysAfterCurrentContract:projectFacts.time.submittedDaysAfterCurrentContract?.value??null,
+            submittedProgrammeCompletionIso:projectFacts.schedule.submittedProgrammeCompletionIso.value,
+            independentDaysAfterCurrentContract:projectFacts.time.independentDaysAfterCurrentContract?.value??null,
+            commercialSummary:projectFacts.commercial.currencies.map(row=>({currency:row.currency,currentContractValue:row.currentContractValue.value,forecastEac:row.forecastEac?.value??null,certifiedUnpaidAmount:row.certifiedUnpaidAmount.value})),
             analysisError: null,
           };
         })
@@ -811,6 +835,7 @@ async function route(
     const body =
       await readJsonBody<{
         projectId?: string;
+        testProject?: boolean;
       }>(req);
     const projectId =
       normalizeProjectCode(
@@ -846,10 +871,14 @@ async function route(
       return;
     }
 
+    if(body.testProject!==undefined&&typeof body.testProject!=='boolean'){
+      json(res,400,{error:'test_project_boolean_required'});return;
+    }
     const state =
       runtimeProjects.getOrCreate(
         projectId,
       );
+    if(body.testProject===true){state.testProject=true;runtimeProjects.touch(state);}
     json(
       res,
       201,
@@ -857,6 +886,7 @@ async function route(
         projectId:
           state.projectId,
         created: true,
+        testProject:state.testProject===true,
         version:
           state.version,
       },
@@ -1804,6 +1834,19 @@ async function route(
   }
 
 
+  // Explicit project type is a durable user decision, not inferred from names.
+  const projectTypeMatch=/^\/api\/projects\/([^/]+)\/purpose$/.exec(url.pathname);
+  if(req.method==='POST'&&projectTypeMatch){
+    const id=decodeURIComponent(projectTypeMatch[1]!);
+    const target=runtimeProjects.get(id);
+    if(!target){json(res,404,{error:'project_not_found'});return;}
+    const body=await readJsonBody<{testProject?:boolean}>(req);
+    if(typeof body.testProject!=='boolean'){json(res,400,{error:'test_project_boolean_required'});return;}
+    if(target.testProject!==body.testProject){target.testProject=body.testProject;runtimeProjects.touch(target);}
+    json(res,200,{projectId:target.projectId,testProject:target.testProject===true,version:target.version});
+    return;
+  }
+
   const demoMatch =
     /^\/api\/projects\/([^/]+)\/demo$/.exec(
       url.pathname,
@@ -1877,7 +1920,28 @@ async function route(
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
-    if(req.method==='GET'&&!actionsMatch[2]){const surfaces=managementSurfacesForProject(projectId)!;json(res,200,projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}));return;}
+    if(req.method==='GET'&&!actionsMatch[2]){
+      const workflow=projectActionRegisterForState(state).workflow;
+      if(url.searchParams.has('page')){
+        // Server-side selection ensures the browser receives only the
+        // current action page, not the entire register or its source receipts.
+        const page=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('page')??'0',10)||0));
+        const pageSize=Math.min(25,Math.max(1,Number.parseInt(url.searchParams.get('pageSize')??'25',10)||25));
+        const term=(url.searchParams.get('query')??'').trim().toLowerCase().slice(0,200);
+        const category=url.searchParams.get('category')??'all';
+        const relevant=workflow.actions.filter(action=>
+          (category==='all'||action.category===category)&&
+          (!term||(action.title+' '+action.reason).toLowerCase().includes(term)));
+        const gaps=workflow.information??[];
+        const gapsPage=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('dataGapsPage')??'0',10)||0));
+        json(res,200,{...workflow,actions:relevant.slice(page*pageSize,(page+1)*pageSize),
+          information:gaps.slice(gapsPage*pageSize,(gapsPage+1)*pageSize),
+          page,pageSize,matchedActionCount:relevant.length,hasMoreActions:(page+1)*pageSize<relevant.length,
+          dataGapsTotalCount:gaps.length,dataGapsPage:gapsPage,hasMoreDataGaps:(gapsPage+1)*pageSize<gaps.length});
+        return;
+      }
+      json(res,200,workflow);return;
+    }
     if(req.method==='POST'&&actionsMatch[2]==='confirm-schedule'){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
     if(req.method==='POST'&&actionsMatch[2]==='confirm-contract-completion'){try{
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
@@ -2185,12 +2249,67 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      200,
       result,
     );
+    return;
+  }
+
+  // R8: one durable source producer per module, paged on request instead of
+  // sending thousands of rows and diagnostics with every management screen.
+  const detailMatch=/^\/api\/projects\/([^/]+)\/record-page$/.exec(url.pathname);
+  if(req.method==='GET'&&detailMatch){
+    const projectId=decodeURIComponent(detailMatch[1]!);
+    const state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    const rawSource=url.searchParams.get('source')??'';
+    if(rawSource.length>600||!rawSource.startsWith('/api/projects/'+encodeURIComponent(projectId)+'/')){
+      json(res,400,{error:'source_route_not_allowed'});return;
+    }
+    const source=new URL(rawSource,'http://localhost');
+    const pathname=source.pathname;
+    let result:unknown=null;
+    const module=/^\/api\/projects\/[^/]+\/(schedule|commercial|delivery)\/modules\/([^/]+)$/.exec(pathname);
+    const management=/^\/api\/projects\/[^/]+\/management\/([^/]+)$/.exec(pathname);
+    const advanced=/^\/api\/projects\/[^/]+\/advanced\/([^/]+)$/.exec(pathname);
+    if(module){
+      const key=decodeURIComponent(module[2]!);
+      if(module[1]==='commercial'&&!commercialPageModules.some(row=>row.key===resolveModuleKey(key))){
+        json(res,404,{error:'module_not_found'});return;
+      }
+      const value=moduleForProject(projectId,key);
+      result=resolveModuleKey(key)==='activity-analytics'&&source.searchParams.get('view')==='page'
+        ?publicModuleResult({...value,data:activityRegisterView(value.data)},key)
+        :publicModuleResult(value,key);
+    }else if(management){
+      const key=decodeURIComponent(management[1]!);
+      result=publicModuleResult(moduleForProject(projectId,key),key);
+    }else if(advanced&&advancedControlKeys.has(decodeURIComponent(advanced[1]!))){
+      result=moduleForProject(projectId,decodeURIComponent(advanced[1]!));
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents'){
+      result=projectDocumentRegister(projectId);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/actions'){
+      result=projectActionRegisterForState(state).workflow;
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/page-review'){
+      result=boqPageReview(state);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/numeric-review'){
+      result=boqNumericReview(state);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/overview'){
+      result=overviewForProject(projectId);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/director-position'){
+      result=directorForProject(projectId);
+    }else{
+      json(res,400,{error:'source_route_not_allowed'});return;
+    }
+    const rawExpected=url.searchParams.get('version');
+    const expected=rawExpected===null||rawExpected.trim()===''?null:Number(rawExpected);
+    if(expected!==null&&Number.isInteger(expected)&&expected!==state.version){
+      json(res,409,{error:'project_version_changed',projectVersion:state.version});return;
+    }
+    const pointer=url.searchParams.get('pointer')??'';
+    const offset=Number(url.searchParams.get('offset')??0);
+    const page=recordDetailPage(result,pointer,offset,25);
+    json(res,200,pageProjectResponse({...page,projectVersion:state.version},rawSource));
     return;
   }
 
@@ -2223,7 +2342,7 @@ async function route(
     }
     if (
       result.status ===
-      "blocked"
+      "blocked" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2249,7 +2368,7 @@ async function route(
     const projectId=decodeURIComponent(advancedReportMatch[1]!),key=decodeURIComponent(advancedReportMatch[2]!),format=advancedReportMatch[3] as 'xlsx'|'json';
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    if(result.status==='blocked'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
+    if(result.status==='blocked'&&format!=='json'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
     const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
@@ -2260,7 +2379,7 @@ async function route(
     const projectId=decodeURIComponent(advancedMatch[1]!),key=decodeURIComponent(advancedMatch[2]!);
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    json(res,result.status==='blocked'?409:200,result);
+    json(res,200,result);
     return;
   }
 
@@ -2310,7 +2429,7 @@ async function route(
 
     if (
       result.status ===
-      "blocked" && moduleArea!=="delivery"
+      "blocked" && moduleArea!=="delivery" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2372,11 +2491,12 @@ async function route(
       );
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
-      publicModuleResult(result,key),
+      200,
+      resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='register'
+        ?{...activityRegisterPage((result.data as any)?.rows??[],url.searchParams),projectId,projectVersion:runtimeProjects.get(projectId)?.version??null}
+        :resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='page'
+        ?publicModuleResult({...result,data:activityRegisterView(result.data)},key)
+        :publicModuleResult(result,key),
     );
     return;
   }
@@ -2544,10 +2664,7 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      200,
       publicModuleResult(result,key),
     );
     return;
@@ -2582,23 +2699,24 @@ async function route(
     // different governed position from the individual page endpoints.
     const canonicalManagementPages = {
       masterDashboard:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-dashboard",
         )?.data ??
         surfaces.masterDashboard,
       commandCenter:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "command-center",
         )?.data ??
         surfaces.commandCenter,
       masterControlProgramme:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-control-programme",
         )?.data ??
         surfaces.masterControlProgramme,
+      sourceQuality: moduleForProject(projectId, "source-quality")?.data ?? surfaces.sourceQuality,
     };
     json(
       res,

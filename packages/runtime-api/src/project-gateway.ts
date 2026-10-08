@@ -4,13 +4,13 @@ import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
-import {mkdir} from 'node:fs/promises';
+import {mkdir,statfs} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary} from './registry';
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
-import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
+import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
 import {randomBytes,createHmac} from 'node:crypto';
 import {ExternalAccess,filePolicy} from '../../external-intelligence/src/access';
@@ -22,6 +22,8 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
+  await clearDerivedReadCaches(root,release());
+  const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);
@@ -196,8 +198,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
-    if(req.method==='GET'&&url.pathname==='/api/portfolio'){
-      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
+    if(req.method==='GET'&&(url.pathname==='/api/portfolio'||url.pathname==='/api/test-projects')){
+      const testList=url.pathname==='/api/test-projects';
+      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-')&&(e.metadata?.testProject===true)===testList);
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
       return;
     }
@@ -207,18 +210,21 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(req.method==='POST'&&url.pathname==='/api/projects'){
       applicationAccess.administrator(principal);
       let body='';for await(const chunk of req){body+=chunk;if(body.length>8192){send(res,413,{error:'request_too_large'});return;}}
-      let id=normalizeProjectCode(JSON.parse(body).projectId??'');if(!id){send(res,400,{error:'project_id_required',message:'Enter a project code.'});return;}
+      const requested=JSON.parse(body) as {projectId?:string;testProject?:boolean};
+      if(requested.testProject!==undefined&&typeof requested.testProject!=='boolean'){send(res,400,{error:'test_project_boolean_required'});return;}
+      let id=normalizeProjectCode(requested.projectId??'');if(!id){send(res,400,{error:'project_id_required',message:'Enter a project code.'});return;}
       const existing=[...catalog.keys()].find(key=>normalizeProjectCode(key)===id);
       if(existing&&catalog.get(existing)?.metadata){send(res,409,{error:'project_code_already_exists',projectId:existing,message:'Project code '+existing+' already exists. Open the existing project instead.'});return;}
       if(existing)id=existing;
       await register(id);
-      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http'),...actorHeaders.get(req)},body:JSON.stringify({projectId:id})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
+      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http'),...actorHeaders.get(req)},body:JSON.stringify({projectId:id,testProject:requested.testProject===true})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
     }
     const match=/^\/api\/projects\/([^/]+)(\/.*)?$/.exec(url.pathname);
     if(match){
       const supplied=decodeURIComponent(match[1]!);const id=catalog.has(supplied)?supplied:[...catalog.keys()].find(key=>normalizeProjectCode(key)===normalizeProjectCode(supplied))??normalizeProjectCode(supplied);
       if(!id){send(res,400,{error:'project_id_required'});return;}
       applicationAccess.project(principal,id,req.method==='POST'&&match[2]==='/intelligence/ask'?'GET':req.method);
+      if(req.method==='POST'&&match[2]==='/purpose')applicationAccess.administrator(principal);
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
       if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}

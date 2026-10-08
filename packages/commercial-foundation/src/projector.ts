@@ -1,5 +1,5 @@
 import {contractTermSelectionFactState,termAtEvent} from '../../runtime-api/src/contract-term-versions';
-import { partitionAsOf } from "../../truth-kernel/src";
+import { partitionAsOf, selectCostMetricRows } from "../../truth-kernel/src";
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CbsBreakdownProjection,
@@ -1299,8 +1299,9 @@ function buildCostRegister(
         candidates,
       ] of byMetric
     ) {
+      const selection=selectCostMetricRows(candidates);
       const valuesKnown =
-        candidates.filter(
+        selection.selected.filter(
           (candidate) =>
             candidate.amount
               .value !== null,
@@ -1354,9 +1355,13 @@ function buildCostRegister(
       } else {
         metrics[metric] =
           moneyFinding(
-            candidates.at(-1)!
+            selection.selected.at(-1)!
               .amount,
           );
+        if(selection.historyDiffers){
+          metrics[metric]!.diagnostics.push('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY');
+          metrics[metric]!.consequence='The current confirmed source is used; differing unconfirmed history is retained for reconciliation.';
+        }
       }
     }
     const state:
@@ -1884,27 +1889,29 @@ function buildPaymentRegister(
       "slaCounts"
     ] = {
     paidOnTime:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.paidOnTime
         : null,
     paidLate:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.paidLate
         : null,
     overdueUnpaid:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.overdueUnpaid
         : null,
     openUnpaid:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.openUnpaid
         : null,
+    // Keep uncertified applications visible as unassessed records, while
+    // they stay outside the certified-payment SLA denominator above.
     notEstablished:
-      rawSlaCounts.notEstablished,
+      rows.filter(row=>!row.lifecycle.certificationDate||row.lifecycle.slaState==="not_established").length,
   };
   return {
     capabilityKey:
@@ -1932,6 +1939,10 @@ function buildPaymentRegister(
     lifecycleCounts,
     slaAssessmentState,
     slaCounts,
+    latePaymentDays: (()=>{
+      const days=slaRows.filter(r=>r.lifecycle.slaState==='late'&&r.lifecycle.paymentDate&&r.lifecycle.paymentDueDate.value).map(r=>Math.round((Date.parse(r.lifecycle.paymentDate!.slice(0,10))-Date.parse(r.lifecycle.paymentDueDate.value!.slice(0,10)))/86400000));
+      return {min:days.length?Math.min(...days):null,max:days.length?Math.max(...days):null};
+    })(),
     rows,
     diagnostics: [
       "APPLIED_ASSESSED_CERTIFIED_AND_PAID_STAGES_REMAIN_SEPARATE",

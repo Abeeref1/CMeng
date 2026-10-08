@@ -5,12 +5,14 @@ import type { ProjectRuntimeState } from './project-state-types';
 import { reportingScope,partitionAsOf } from '../../truth-kernel/src';
 import { projectControlSchedule } from './canonical-time-claims';
 import {operationalControlsAsOf,type OperationalReporting} from './operational-reporting';
+import {commercialCanonical} from './commercial-canonical';
 import {resolveBoqSource} from './boq-source';
 import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
 import {reportingReadinessEvidence} from './evidence-readiness';
 import {noticeVersionCohorts} from './contract-notice-rules';
 import {withInstalledMeasurements} from './installed-measurements';
+import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-core/src';
 
 const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ProjectRuntimeState}>();
 const views = new WeakSet<ProjectRuntimeState>();
@@ -35,19 +37,27 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   // for claims reporting; it never becomes programme authority.
   const date=scheduleDate??source?.dataDateIso??null;
   if(old?.version===state.version&&old.date===date)return old.value;
-  const hasBaseline=state.schedules.some(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,date)==='as_of');
+  const baselines=state.schedules.filter(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role));
   const schedules=state.schedules.map(stored=>{
     const model=refreshScheduleConstraints(state,stored);
     if(!Array.isArray(model.activities))return stored;
     const cutoff=model.dataDateIso??date;
+    const baseline=baselines.filter(s=>reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,cutoff)==='as_of')
+      .sort((a,b)=>(a.revision.model.dataDateIso??a.revision.effectiveAt??'').localeCompare(b.revision.model.dataDateIso??b.revision.effectiveAt??'' )).at(-1);
+    const baselineRows=new Map(baseline?.revision.model.activities.map(row=>[row.activityId,row])??[]);
+    const baselineMatches=new Map(resolveRevisionActivityCorrespondence(baseline?.revision.model.activities??[],model.activities).matches.map(match=>[match.toActivityId,baselineRows.get(match.fromActivityId)!]));
     let changed=model!==stored.revision.model;
     const activities=model.activities.map(row=>{
       const invalidStart=Boolean(row.actualStartIso)&&reportingScope(row.actualStartIso,cutoff)!=='as_of';
       const invalidFinish=Boolean(row.actualFinishIso)&&reportingScope(row.actualFinishIso,cutoff)!=='as_of';
-      const unconfirmedBaseline=!hasBaseline&&(row.baselineStartIso!==null||row.baselineFinishIso!==null);
-      if(!invalidStart&&!invalidFinish&&!unconfirmedBaseline)return row;
+      const basis=baselineMatches.get(row.activityId);
+      const baselineStartIso=basis?.baselineStartIso??basis?.currentStartIso??null;
+      const baselineFinishIso=basis?.baselineFinishIso??basis?.currentFinishIso??null;
+      const baselineDateBasis=basis?'controlled_baseline' as const:undefined;
+      const baselineChanged=row.baselineStartIso!==baselineStartIso||row.baselineFinishIso!==baselineFinishIso||row.baselineDateBasis!==baselineDateBasis;
+      if(!invalidStart&&!invalidFinish&&!baselineChanged)return row;
       changed=true;
-      return {...row,...(!hasBaseline?{baselineStartIso:null,baselineFinishIso:null}:{}),
+      return {...row,baselineStartIso,baselineFinishIso,...(baselineDateBasis?{baselineDateBasis}:{}),
         ...(invalidStart||invalidFinish?{actualStartIso:invalidStart?null:row.actualStartIso,actualFinishIso:invalidFinish?null:row.actualFinishIso,
         status:'unknown' as const,percentComplete:null,diagnostics:[...row.diagnostics,'ACTUAL_EVENT_OUTSIDE_SNAPSHOT_DATA_DATE_STATUS_AND_PROGRESS_WITHHELD']}:{} )};
     });
@@ -58,7 +68,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const view={...state,schedules,boq:boqSource.boq,quantities:withInstalledMeasurements(state,boqSource.quantities,date),
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
-    controls:{...state.controls,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
+    controls:{...state.controls,bonds:commercialCanonical(state).bonds??state.controls.bonds,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   inheritTimeClaimsCache(state,view);
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;

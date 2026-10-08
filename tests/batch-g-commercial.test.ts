@@ -41,7 +41,7 @@ function money(value:number|null, documentId:string):CommercialMoney {
   };
 }
 
-test("Batch G C1 never substitutes net certified for employer certified", () => {
+test("Cash receivable uses net certification while employer certification remains missing", () => {
   const amounts = {
     applicationAmount: money(1100,"application"),
     engineerAssessedAmount: money(1050,"assessment"),
@@ -82,11 +82,13 @@ test("Batch G C1 never substitutes net certified for employer certified", () => 
     paymentReference:"PAY-01",
   };
   const performance = performancePaymentFromCanonical(row);
-  assert.equal(performance.certifiedAmount, null);
+  assert.equal(performance.certifiedAmount, 900);
+  assert.equal(performance.certifiedAmountLabel,"Net certified receivable");
+  assert.equal(row.amounts.employerCertifiedAmount.value,null);
   assert.equal(performance.paidAmount, 800);
   assert.equal(performance.currency, "AED");
-  assert.ok(performance.sourceRefs.some(ref=>ref.includes("employer-certified")));
-  assert.ok(!performance.sourceRefs.some(ref=>ref.includes("net-certified")));
+  assert.ok(!performance.sourceRefs.some(ref=>ref.includes("employer-certified")));
+  assert.ok(performance.sourceRefs.some(ref=>ref.includes("net-certified")));
 });
 
 function version(overrides:Partial<ContractTermVersion> = {}):ContractTermVersion {

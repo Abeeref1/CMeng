@@ -1391,10 +1391,10 @@ export function certifyCrossModuleConsistency(
     )
       ? quantity.series
       : [];
-  const quantityUnitKeys =
+  const quantityItemUnitKeys =
     quantitySeries.map(
       (series: any) =>
-        series.unitKey,
+        series.quantityItemId+'|'+series.unitKey,
     );
   const quantityCurveContractOk =
     !quantity ||
@@ -1407,6 +1407,7 @@ export function certifyCrossModuleConsistency(
           typeof series
             .seriesKey ===
             "string" &&
+          typeof series.quantityItemId === "string" && series.quantityItemId.length > 0 &&
           typeof series
             .unitKey ===
             "string" &&
@@ -1423,16 +1424,16 @@ export function certifyCrossModuleConsistency(
           )
       ) &&
       new Set(
-        quantityUnitKeys,
+        quantityItemUnitKeys,
       ).size ===
-        quantityUnitKeys.length
+        quantityItemUnitKeys.length
     );
 
   checks.push(
     booleanCheck(
       "QUANTITY_CURVE_UNIT_AUTHORITY_CONTRACT",
       quantityCurveContractOk,
-      "Quantity S-Curve must remain unit-keyed, keep one series per unit key and declare governed versus scenario mapping authority.",
+      "Quantity S-Curve must keep one separate series per BOQ item and unit, and declare governed versus scenario mapping authority. Different items must never be added together merely because their units match.",
       [
         {
           source:
@@ -1443,9 +1444,9 @@ export function certifyCrossModuleConsistency(
         },
         {
           source:
-            "quantity-scurve.unitKeys",
+            "quantity-scurve.itemUnitKeys",
           value:
-            quantityUnitKeys.join(
+            quantityItemUnitKeys.join(
               ",",
             ),
         },

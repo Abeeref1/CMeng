@@ -51,6 +51,8 @@ export type PerformancePaymentSeriesBasis =
   | "unknown";
 
 export interface PerformancePaymentInput {
+  sourceStatus?: string;
+  certifiedAmountLabel?: string;
   taxBasis?: "exclusive" | "inclusive" | "unknown";
   paymentId: string;
   periodEnd: string | null;
@@ -238,6 +240,7 @@ export interface CashFlowSourceReadiness {
 }
 
 export interface CashFlowCurrencyPosition {
+  certifiedAmountLabel?: string;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   currency: string;
   entries: CashFlowEntry[];

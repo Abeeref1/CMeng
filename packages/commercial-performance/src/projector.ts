@@ -1633,7 +1633,7 @@ function cashFlow(
         (payment) =>
           reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
       );
-    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis);
+    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis&&(Boolean(p.certificationDate)||! /application|applied|submitted|draft|pending certif/i.test(p.sourceStatus??'')));
     const paidPayments=payments.filter(p=>paidCurrency(p)===currency&&paidTax(p)===taxBasis);
 
     const addPaymentSeries = (
@@ -2207,7 +2207,11 @@ function cashFlow(
       if(kind==='paid_income'||kind==='certified_income')return (kind==='paid_income'?paidPayments:certifiedPayments).every(payment=>{
         const amount=kind==='paid_income'?payment.paidAmount:payment.certifiedAmount,
           date=kind==='paid_income'?payment.paymentDate:payment.certificationDate;
-        return amount!==null&&reportingScope(date,input.dataDateIso)!=='undated';
+        // An explicit zero paid against a dated certificate is a reported
+        // absence of payment, not an undated cash transaction. Blank amounts
+        // still remain unknown and non-zero amounts still need receipt dates.
+        const explicitUnpaid=kind==='paid_income'&&amount===0&&payment.paidState!=='conflicted'&&payment.paidState!=='missing'&&reportingScope(payment.periodEnd,input.dataDateIso)==='as_of';
+        return explicitUnpaid||amount!==null&&reportingScope(date,input.dataDateIso)!=='undated';
       });
       const names=kind==='actual_expenditure'?aliases.actualExpenditure:
         kind==='expenditure_budget'?aliases.expenditureBudget:aliases.expenditureForecast;
@@ -2920,6 +2924,7 @@ function cashFlow(
       taxBasis,
       entries,
       certifiedIncome,
+      certifiedAmountLabel:[...new Set(certifiedPayments.map(p=>p.certifiedAmountLabel??"Certified income"))].join(" / "),
       paidIncome,
       expenditureBudget,
       expenditureForecast,

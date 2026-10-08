@@ -216,11 +216,11 @@ export function commercialContractControlsForState(
         currency:
           row.currency,
         value:
-          row.current.value,
+          row.original.value,
         state:
-          row.current.state,
+          row.original.state,
         sourceRefs: [
-          ...row.current
+          ...row.original
             .basis.sourceRefs,
         ],
       }));
@@ -401,7 +401,7 @@ export function commercialContractControlsForState(
             }),
           ),
       bonds:
-        state.controls.bonds
+        (ledger.bonds??state.controls.bonds)
           .map((row) => ({
             bondId:
               row.bondId,

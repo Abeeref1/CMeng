@@ -1,4 +1,5 @@
 import {certificateProfile} from "./certificate-profile";
+import {programmeCashScenario} from './programme-cash-scenario';
 import {amendmentAmounts,variationBasisReview,costBasisReview} from "./commercial-basis-review";
 import {contractNoticeRules} from "./contract-notice-rules";
 import { reportingScope } from "../../truth-kernel/src";
@@ -77,7 +78,7 @@ export function commercialPositionForState(
         commercial: Boolean(state.contract || state.controls.contractValue),
         payments: Boolean(state.controls.invoices.length || state.controls.retentions.length || parsedSource(/payment|invoice|certificate|retention|advance/i)),
         variations: Boolean(state.controls.variations.length || parsedSource(/variation|change/i)),
-        bonds: Boolean(state.controls.bonds.length || parsedSource(/bond|guarantee|security/i)),
+        bonds: Boolean((ledger.bonds??state.controls.bonds).length || parsedSource(/bond|guarantee|security/i)),
         claims: Boolean(state.controls.claimCommercials.length || state.controls.delayClaims || parsedSource(/claim|eot|notice/i)),
       },
       sourceDelayClaims:claimsReporting(state)?.source??null,
@@ -122,9 +123,12 @@ export function commercialPositionForState(
       invoices:
         state.controls.invoices.filter(row=>sourceFactVisibleWithoutProgramme(row.certificateDateIso)).map(row=>({...row,paidAmount:sourceFactVisibleWithoutProgramme(row.paymentDateIso)?row.paidAmount:null})),
       retentions:
-        state.controls.retentions,
+        state.controls.retentions.filter(retention=>{
+          const certificate=ledger.payments.find(row=>retention.retentionId===row.paymentId+':retention');
+          return !certificate||sourceFactVisibleWithoutProgramme(certificate.certificationDate);
+        }),
       bonds:
-        state.controls.bonds,
+        (ledger.bonds??state.controls.bonds),
       claimCommercials:
         state.controls.claimCommercials.flatMap(row=>{
           const claim=state.controls.delayClaims?.claims.find(candidate=>candidate.claimId===row.claimId);
@@ -214,9 +218,17 @@ export function commercialPositionForState(
 
   position.certificateProfile=certificateProfile(ledger);
   position.variationBasisReview=variationBasisReview(ledger,amendmentAmounts(state));
-  position.costBasisReview=costBasisReview(ledger,position.certificateProfile);
+  for(const group of position.variationBasisReview.groups){
+    if(!group.signExceptions.length)continue;
+    const currency=position.currencies.find(c=>c.currency===group.currency);if(!currency)continue;
+    const diagnostics=group.signExceptions.map(r=>'OMISSION_SIGN_REVIEW:'+r.variationId);
+    currency.approvedVariationAmount={...currency.approvedVariationAmount,state:'candidate',diagnostics:[...currency.approvedVariationAmount.diagnostics,...diagnostics],consequence:'Positive omission amounts need sign confirmation before the approved-change total is relied on.',action:'Review the named omission rows in Variations & Change.'};
+    currency.currentContractValue={...currency.currentContractValue,state:'candidate',diagnostics:[...currency.currentContractValue.diagnostics,...diagnostics]};
+  }
+  position.costBasisReview=costBasisReview(ledger,position.certificateProfile,position.currencies);
   position.contractNoticeRules=[...contractNoticeRules(state),...contractNoticeRules(state,'detailed_claim')];
   position.foundation.commercialTerms.noticeVersions=position.contractNoticeRules;
+  position.programmeCashScenario=programmeCashScenario(position,sourceCommercialCutoff);
   cache.set(
     state,
     {

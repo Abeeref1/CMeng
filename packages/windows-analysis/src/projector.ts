@@ -807,6 +807,8 @@ export function buildWindowsAnalysisProjection(
         enteredCritical,
       exitedCriticalActivityIds:
         exitedCritical,
+      fromDrivingActivityIds:fromForecast.complete?fromForecast.drivingNetwork?.activityIds??[]:[],
+      toDrivingActivityIds:toForecast.complete?toForecast.drivingNetwork?.activityIds??[]:[],
 
       delayEvents:
         overlappingEvents.map(eventRef),

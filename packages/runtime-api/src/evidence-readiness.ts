@@ -1,4 +1,4 @@
-import {cell,csv as parseCsv,sourceTables} from "../../truth-kernel/src";
+import {cell,csv as parseCsv,sourceTables,procurementTiming} from "../../truth-kernel/src";
 import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
@@ -288,6 +288,10 @@ export function deriveReadinessFromCsv(
   const snapshotIndex=headerIndex(headers,['status as of','status date','as of','as of date','snapshot date']);
   const activityById=new Map((projectControlSchedule(input.state)?.revision.model.activities??[]).map(a=>[a.activityId,a]));
   const recordIdIndex=headerIndex(headers,['deliverable id','package id','ncr id','rfi id','submittal id']);
+  const longLeadIndex=headerIndex(headers,['long lead']);
+  const ownerIndex=headerIndex(headers,['owner','responsible','responsible party','action owner']);
+  const forecastDeliveryIndex=headerIndex(headers,['forecast delivery','forecast delivery date','delivery forecast date']);
+  const actualDeliveryIndex=headerIndex(headers,['actual delivery','actual delivery date','delivered date']);
 
 
   const result:
@@ -378,6 +382,11 @@ export function deriveReadinessFromCsv(
     }
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
+      const timing=procurementTiming({dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status});
+      if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
+      else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
+      else if(timing.overdueUndelivered){state='blocked';scopeNote='Required-on-site date '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
+      else if(timing.forecastLate){state='blocked';scopeNote='Forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis;}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
       if(due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }
@@ -390,6 +399,7 @@ export function deriveReadinessFromCsv(
       state,
       diagnostics,
       records:[{recordId:valueAt(row,recordIdIndex)||null,documentType:input.document.documentType,state,dueIso:dateValue(dueIso),
+        owner:valueAt(row,ownerIndex)||null,longLead:/^(yes|true|1|y)$/i.test(valueAt(row,longLeadIndex)),
         note:scopeNote||'Source status: '+(status||'not stated'),sourceRefs:[readinessSourceRef(input.document,index+1,input.sheetName)]}],
       sourceRefs: [
         readinessSourceRef(input.document,index+1,input.sheetName),

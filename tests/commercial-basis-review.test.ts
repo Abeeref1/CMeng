@@ -112,7 +112,7 @@ test('certificate source sums and observed rate are separate from certification 
   assert.equal(review.actualCostToCertificateRatio,null,'Project Data Date must not be substituted for the latest certificate-period cutoff');
   const aligned=costBasisReview(ledger({payments:l.payments,costPosition:[{...snapshots[0]!,asOf:'2028-04-15'}]}),certificateProfile(l))[0]!;
   assert.equal(aligned.certificateDateMatches,true);
-  assert.equal(aligned.actualCostToCertificateRatio,2500/830);
+  assert.equal(aligned.actualCostToCertificateRatio,null,'net cash receivables are not an actual-cost efficiency denominator');assert.match(aligned.actualCostComparisonBasis,/earned value/);
   assert.equal(costBasisReview(ledger({costPosition:[{...snapshots[0]!,asOf:'2028-03-31'}]}),certificateProfile(l))[0]!.actualCostToCertificateRatio,null);
 });
 
@@ -149,4 +149,13 @@ test('one dated variation conflict does not become one conflict per propagated c
   const r=assessModuleIssues(result,{state:'pass',failedCheckIds:[],checkCount:0});
   assert.equal(r.counts.source_conflict,1);assert.match(r.issues.find(i=>i.kind==='source_conflict')!.detail,/difference 60/);
   assert.ok(r.issues.find(i=>i.kind==='source_conflict')!.evidencePaths.length>1);
+});
+
+
+test('current cost review chooses the latest dated position per currency and retains history separately',()=>{
+ const snapshot=(asOf:string,currency='AED')=>({currency,taxBasis:'exclusive',asOf,state:'official' as const,values:{bac:10000,pv:3000,ev:2700,ac:2500,eac:11000},receipts:[receipt],diagnostics:[]});
+ const l=ledger({costPosition:[snapshot('2028-03-31'),snapshot('2028-04-30'),snapshot('2028-05-31'),snapshot('2028-04-15','USD')]});
+ const rows=costBasisReview(l,certificateProfile(l),[{currency:'AED',currentContractValue:{value:12000}}]);
+ assert.equal(rows.length,2);assert.equal(rows[0]!.asOf,'2028-04-30');assert.equal(rows[0]!.eacVsCurrentContract,-1000);
+ assert.equal(l.costPosition.length,4,'history and future observations remain available');
 });

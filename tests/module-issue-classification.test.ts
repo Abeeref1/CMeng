@@ -27,7 +27,7 @@ test('classification keeps failed software checks separate from missing, invalid
   ['data_quality',input({focus:{date:{state:'invalid',value:null,diagnostics:['INVALID_DATE'],sourceRefs:['DOC-C:row:3']}}})],
   ['missing_information',input({focus:{permit:{state:'missing',value:null}}})],
   ['comparison_difference',input({challenge:{reconciliationState:'material_difference'}})],
-  ['governance_review',input({focus:{amendment:{state:'candidate',value:'2035-12-31'}}})],
+  ['governance_review',input({focus:{amendment:{state:'candidate',value:'2035-12-31',decisionRequired:true}}})],
   ['verification_pending',input({focus:{payment:{state:'submitted_unparsed',value:null,sourceRefs:['DOC-D:page:1']}}})],
  ] as const;
  for (const [kind,result] of cases){
@@ -36,6 +36,8 @@ test('classification keeps failed software checks separate from missing, invalid
   assert.ok(assessment.issues.every(i=>i.owner&&i.action&&i.evidencePaths.length));
  }
  assert.equal(assessModuleIssues(input(),pass).primaryKind,'checked');
+ assert.equal(assessModuleIssues(input({focus:{amendment:{state:'candidate',value:'2035-12-31'}}}),pass).primaryKind,'checked',
+   'F28 a source candidate does not create an approval action without an explicit decision requirement');
 });
 test('submitted but uninterpreted sources and missing CMeng comparisons belong to CMeng, not the contractor',()=>{
  const r=assessModuleIssues(input({focus:{register:{state:'submitted_unparsed',value:null}},challenge:{reconciliationState:'independent_unavailable'}}),pass);

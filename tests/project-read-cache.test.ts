@@ -30,3 +30,17 @@ test('project workers respect available CPU capacity and an explicit smaller lim
  assert.equal(projectWorkerCapacity(8,24),8);
  assert.equal(projectWorkerCapacity(NaN,1),1);
 });
+
+test('derived read storage is bounded and release cleanup preserves source and saved results',async t=>{
+ const {mkdir,writeFile,readFile,readdir}=await import('node:fs/promises');
+ const {clearDerivedReadCaches}=await import('../packages/runtime-api/src/project-read-cache');
+ const root=await mkdtemp(join(tmpdir(),'bounded-reads-'));t.after(()=>rm(root,{recursive:true,force:true}));
+ const directory=join(root,'projects','a'.repeat(64)),cache=new ProjectReadCache(directory,12);
+ await cache.put('r',1,'one',Buffer.from('12345678'));await cache.put('r',1,'two',Buffer.from('87654321'));
+ assert.equal((await readdir(join(directory,'.analysis-reads'))).filter(name=>name.endsWith('.json')).length,1);
+ assert.equal(await cache.get('r',1,'one'),null);assert.equal((await cache.get('r',1,'two'))?.toString(),'87654321');
+ await writeFile(join(directory,'cmeng-project-state.json'),'source-state');await mkdir(join(directory,'ask-ai'));await writeFile(join(directory,'ask-ai','saved.json'),'saved-analysis');
+ await clearDerivedReadCaches(root,'r');assert.equal((await cache.get('r',1,'two'))?.toString(),'87654321','same-release restart preserves valid derived reads');
+ await clearDerivedReadCaches(root,'next-release');assert.equal(await cache.get('r',1,'two'),null);
+ assert.equal(await readFile(join(directory,'cmeng-project-state.json'),'utf8'),'source-state');assert.equal(await readFile(join(directory,'ask-ai','saved.json'),'utf8'),'saved-analysis');
+});

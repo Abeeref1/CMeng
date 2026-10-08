@@ -40,6 +40,8 @@ export interface ReadinessEvidence {
 }
 
 export interface ReadinessRecord {
+  owner?:string|null;
+  longLead?:boolean;
   recordId:string|null;documentType:string;state:ReadinessDimensionState;
   dueIso:string|null;note:string;sourceRefs:string[];
 }
@@ -74,6 +76,7 @@ export interface LookAheadActivityRow {
   baselineFinishIso: string | null;
   percentComplete: number | null;
   totalFloatHours: number | null;
+  drivingPath?:boolean|null;
   classification: LookAheadClassification;
   missedPlannedStart?: boolean;
   finishOverdue?: boolean;

@@ -7,6 +7,7 @@ import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
 import { inferDocumentType } from './evidence';
 import { resolveClaimActivityCorrespondence } from '../../claim-activity-correspondence/src';
+import type {ClaimActivityCorrespondenceInput,ClaimActivityCorrespondenceResolution} from '../../claim-activity-correspondence/src';
 import { contractNoticeRules } from './contract-notice-rules';
 import { reportedClaim } from '../../delay-analysis-core/src/reporting';
 export interface DeterminationRecord {
@@ -27,6 +28,34 @@ export interface CanonicalTimeClaims {
   futureDeterminationCount: number; diagnostics: string[];
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
+/** One deterministic association pass per source event/project version. A
+ * rebuilt reporting view may have different object identity even though its
+ * programme and claim sources are unchanged. Version/revision plus an exact
+ * input fingerprint make that reuse safe without masking changed evidence. */
+const claimAssociationCache=new Map<string,{
+  version:number;revisionId:string;resolutions:Map<string,{fingerprint:string;result:ClaimActivityCorrespondenceResolution}>
+}>();
+function versionedClaimAssociation(state:ProjectRuntimeState,input:ClaimActivityCorrespondenceInput):ClaimActivityCorrespondenceResolution{
+  const revisionId=input.schedule.sourceRevisionId;
+  let cached=claimAssociationCache.get(state.projectId);
+  if(!cached||cached.version!==state.version||cached.revisionId!==revisionId){
+    cached={version:state.version,revisionId,resolutions:new Map()};
+    // Avoid keeping entire old project populations alive across deployments.
+    if(claimAssociationCache.size>=40)claimAssociationCache.delete(claimAssociationCache.keys().next().value!);
+    claimAssociationCache.set(state.projectId,cached);
+  }
+  const fingerprint=createHash('sha256').update(JSON.stringify([
+    input.eventId,input.claimId,input.narrative,input.explicitActivityIds,
+    input.claimEvidenceRefs,input.maxCandidates,input.aiScores,revisionId,
+    input.schedule.activities.length,input.schedule.wbs?.length??0,
+  ])).digest('hex');
+  const prior=cached.resolutions.get(input.eventId);
+  if(prior?.fingerprint===fingerprint)return prior.result;
+  const result=resolveClaimActivityCorrespondence(input);
+  cached.resolutions.set(input.eventId,{fingerprint,result});
+  return result;
+}
+
 
 const sequenceNumber=(value:string,pattern:RegExp):number|null=>{
   const match=pattern.exec(value.trim());
@@ -83,22 +112,17 @@ export function assessClaimPopulationIntegrity(
   const sourceClaimCount=claims.length;
   const pairCoverage=sourceClaimCount?genericClaimEventPairCount/sourceClaimCount:0;
   const noticeCoverage=sourceClaimCount?genericNoticePairCount/sourceClaimCount:0;
-  const quarantined=
-    sourceClaimCount>=25&&
-    pairCoverage>=0.9&&
-    noticeCoverage>=0.9&&
-    linkedActivityEventCount===0&&
-    arithmeticClaimedDaysPrefixLength>=5;
-  const reasons=quarantined?[
-    "GENERIC_SEQUENTIAL_CLAIM_EVENT_IDENTITIES",
-    "GENERIC_SEQUENTIAL_NOTICE_REFERENCES",
-    "NO_SCHEDULE_ACTIVITY_LINKS",
-    "GENERATED_ARITHMETIC_CLAIM_DAY_PATTERN",
-  ]:[];
+  // A sequence or arithmetic pattern is not proof that a real register is synthetic.
+  // Keep it as a non-blocking source-quality observation. Genuine conflicts,
+  // missing approvals and supersession checks are still evaluated per record.
+  const patternDetected=
+    sourceClaimCount>=25&&pairCoverage>=0.9&&noticeCoverage>=0.9&&
+    linkedActivityEventCount===0&&arithmeticClaimedDaysPrefixLength>=5;
+  const reasons=patternDetected?["CLAIM_SOURCE_PATTERN_INFORMATION_ONLY"]:[];
   return {
-    state:quarantined?"quarantined" as const:"accepted" as const,
+    state:"accepted" as const,
     sourceClaimCount,
-    quarantinedClaimCount:quarantined?sourceClaimCount:0,
+    quarantinedClaimCount:0,
     linkedActivityEventCount,
     genericClaimEventPairCount,
     genericNoticePairCount,
@@ -724,7 +748,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       const explicitActivityIds=uniq(
         eventClaims.flatMap(claim=>explicitActivitiesByClaim.get(claim.claimId)??[]),
       );
-      const resolution=resolveClaimActivityCorrespondence({
+      const resolution=versionedClaimAssociation(state,{
         claimId:eventClaims[0]?.claimId??event.eventId,
         eventId:event.eventId,
         narrative,
@@ -769,24 +793,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     sourceLettersByClaim,
     [...new Set([...claimDiagnosticSources.values()].map(source=>source.tableSourceFilename).filter((value):value is string=>Boolean(value)))],
   );
-  const quarantinedClaimIds=new Set(
-    claimIntegrity.state==="quarantined"?claims.map(claim=>claim.claimId):[],
-  );
-  const quarantinedEventIds=new Set(
-    claims
-      .filter(claim=>quarantinedClaimIds.has(claim.claimId))
-      .flatMap(claim=>claim.eventIds),
-  );
-  const trustedClaims=claims.filter(claim=>!quarantinedClaimIds.has(claim.claimId));
-  const trustedEvents=events.filter(event=>!quarantinedEventIds.has(event.eventId));
-  const trustedNotices=notices.filter(notice=>!notice.claimId||!quarantinedClaimIds.has(notice.claimId));
-  const trustedDeterminations=determinations.filter(determination=>!quarantinedClaimIds.has(determination.claimId));
-  if(claimIntegrity.state==="quarantined"){
-    diagnostics.push(
-      "CLAIM_POPULATION_QUARANTINED_SYNTHETIC_SEQUENCE:"+
-      claimIntegrity.quarantinedClaimCount,
-    );
-  }
+  // Source identity patterns do not remove retained claim, notice, event or
+  // determination records from analysis. Status and authority stay per-record.
+  const trustedClaims=claims;
+  const trustedEvents=events;
+  const trustedNotices=notices;
+  const trustedDeterminations=determinations;
+  if(claimIntegrity.reasons.length)diagnostics.push("CLAIM_SOURCE_PATTERN_INFORMATION_ONLY:"+claimIntegrity.sourceClaimCount);
 
   // Validate lineage once, but resolve supersession separately for each reporting cutoff.
   for (const d of trustedDeterminations.filter(d => d.state === 'source_immutable' && d.supersedes)) {
@@ -877,6 +890,24 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs,...(determinationOnlyExtension?effectiveDeterminationRefs:[])])]};
     if(determinationOnlyExtension)diagnostics.push('OFFICIAL_DETERMINATIONS_APPLIED_TO_UNAMENDED_CONTRACT_COMPLETION');
     if(completion.reason)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
+  }
+
+  // A governed award is not erased merely because the importer did not
+  // populate a day-basis field. Resolve explicit working-day definitions
+  // first; absent those, show a calendar-day assumption as a qualified date.
+  if(contractTimeBasis&&contractTimeBasis.officialApprovedEotDays!==null&&
+     contractTimeBasis.officialApprovedEotDays>0&&contractTimeBasis.eotDayBasis==='unknown'){
+    const contractText=state.contractDocuments.filter(document=>['main','replacement','amendment'].includes(document.role))
+      .filter(document=>state.evidenceDocuments.some(source=>source.documentId===document.documentId&&
+        ['active','additive'].includes(source.basisState)))
+      .flatMap(document=>[...document.result.sections.map(section=>section.text),
+        ...(document.result.pdf?.pages??[]).filter(page=>page.method==='native').map(page=>page.text)]).join('\n');
+    const explicitWorking=/(?:a\s+)?days?\s+(?:shall\s+)?(?:mean|means|be|constitute)\s+(?:a\s+)?working\s+days?/i.test(contractText);
+    const explicitCalendar=/(?:a\s+)?days?\s+(?:shall\s+)?(?:mean|means|be|constitute)\s+(?:a\s+)?calendar\s+days?/i.test(contractText);
+    contractTimeBasis={...contractTimeBasis,
+      eotDayBasis:explicitWorking?'working_days':'calendar_days',
+      eotDayBasisState:explicitWorking||explicitCalendar?'official':'candidate'};
+    if(!explicitWorking&&!explicitCalendar)diagnostics.push('EOT_CALENDAR_DAYS_ASSUMED_CHECK_CONTRACT_DEFINITION');
   }
 
   for(const claim of claims){

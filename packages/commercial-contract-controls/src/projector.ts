@@ -1,4 +1,5 @@
 import { partitionAsOf } from "../../truth-kernel/src";
+import {performanceSecurityValidity} from './security-validity';
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
@@ -1411,9 +1412,9 @@ function liquidatedDamages(
           );
     const exposure =
       dayDiff(
-        adjusted,
+        adjusted?.slice(0,10)??null,
         input.ldTime
-          .programmeCompletionIso,
+          .programmeCompletionIso?.slice(0,10)??null,
       );
     const exposureDays =
       exposure === null
@@ -1701,6 +1702,12 @@ function liquidatedDamages(
   }
 
   return {
+    reportedSourceTerms:{
+      rate:terms?.rate??null,
+      cap:terms?.cap??null,
+      rateEvidence:terms?.rate?'reported_source_value':rateState==='conflicted'?'conflicted':'missing',
+      capEvidence:terms?.cap?'reported_source_value':capState==='conflicted'?'conflicted':'missing',
+    },
     capabilityKey:
       "liquidated-damages",
     state:
@@ -1830,6 +1837,7 @@ function bondsInsurance(
           );
         return {
           bondId: row.bondId,
+          contractValidity:performanceSecurityValidity(row,input.contractClauses,input.ldTime.programmeCompletionIso),
           kind: row.kind,
           status: row.status,
           amount: finding(

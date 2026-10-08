@@ -8,6 +8,8 @@ import { readFileSync, statSync } from 'node:fs';
 export * from './reporting';
 export * from './issues';
 export * from './aggregates';
+export * from './procurement-timing';
+export * from './cost-selection';
 
 export type FactState = 'official' | 'candidate' | 'missing' | 'partial' | 'conflicted';
 export type ManagementFactState = FactState | 'not_applicable' | 'quarantined';
@@ -188,6 +190,9 @@ export function establishedPopulationCount(
 }
 
 export interface ManagementAction {
+  recordKey?: string;
+  priorityBasis?: {linkedFloatHours:number|null;floatAuthority?:'independent_cpm'|'source_total_float';drivingPath:boolean;milestoneCount:number;moneyAtRisk?:Array<{amount:number;currency:string}>};
+  moneyAtRisk?:Array<{amount:number;currency:string}>;
   actionId: string;
   issue: string;
   consequence: string | null;
@@ -239,6 +244,7 @@ export function featureAvailability(input: {
 }
 
 export const MANAGEMENT_DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL: 'Delay damages are a planning scenario; no award or accrual is established',
   CALENDAR_SEMANTICS_UNRESOLVED:
     'Programme calendar working days, shifts or exceptions are not sufficiently defined.',
   CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:

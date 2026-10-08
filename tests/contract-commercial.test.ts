@@ -94,6 +94,19 @@ test("LD extraction is currency-agnostic and preserves rate and cap separately",
   );
 });
 
+test('native sectional contract rows preserve separate rates and the explicit whole-works cap',()=>{
+  const text='The Works comprise Section 1 (Infrastructure) and Section 2 (the whole\nof the Works).\nSection 1 Infrastructure Works\nRoads and drainage\nSection 1 Delay Damages QAR 35,000 per day, capped at 10% of the Section 1 estimated value\nSection 2 Whole of the Works\nAll buildings and infrastructure\nSection 2 Delay Damages QAR 60,000 per day, capped at 10% of the Accepted Contract Amount (QAR\n21,000,000)';
+  const contract=contractWith('Delay Damages QAR 35,000 per day\nDelay Damages QAR 60,000 per day');
+  contract.pdf={pages:[{pageNumber:2,method:'native',text}]} as any;
+  const result=extractContractLdTerms(contract);
+  assert.deepEqual(result.rateCandidates.map(row=>[row.sectionIdentifier,row.amount]),[['1',35000],['2',60000]]);
+  assert.equal(result.rateState,'candidate');assert.equal(result.rate?.amount,60000);
+  assert.equal(result.rate?.sectionHeading,'the whole of the Works');
+  assert.match(result.rateCandidates[0]!.textSnippet,/Section 1 estimated value/);
+  assert.equal(result.cap?.basis,'fixed_amount');assert.equal(result.cap?.amount,21000000);
+  assert.ok(result.diagnostics.includes('LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES'));
+});
+
 test("ordinary tender LD prose cannot become a zero THE contract value", () => {
   const result = extractContractValue(contractWith(
     "Once the total sum of liquidated damages reaches ten percent (10%) of the total contract price, the Procuring Entity may rescind or terminate the contract, without prejudice to other courses of action and remedies available under the circumstances.",

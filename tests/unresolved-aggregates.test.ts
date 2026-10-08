@@ -143,7 +143,7 @@ test('actual Activity Review renderer withholds incomplete headline counts, incl
     planningActivityPressure:()=>'',renderVisualPanel:()=>'',renderDonutChart:()=>'',planningStatusBand:()=>'',planningStateLabel:String,
     distributionSummary:()=>'',planningShortDate:String,planningSignedBars:()=>'',renderMovementConcentration:()=>'',planningProgressTrack:()=>'',renderScheduleBasisReview:()=>'',
   });
-  for(const label of ['Near-critical','Float-risk watchlist','Later than baseline'])assert.equal(kpis.find(row=>row[0]===label)?.[1],null,label);
+  for(const label of ['Near-critical','Float-risk watchlist','Delayed execution activities'])assert.equal(kpis.find(row=>row[0]===label)?.[1],null,label);
 });
 
 test('absent BOQ population cannot establish zero unresolved manpower calculations or source rows', () => {

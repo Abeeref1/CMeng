@@ -128,7 +128,7 @@ test("header-first routing recognizes permit registers and common wide EVM histo
   const preparedPermit=prepareRegisterRows(permit,'permit_register');
   assert.ok(preparedPermit.headers.includes('permit id'));
   assert.ok(preparedPermit.headers.includes('owner'));
-  assert.equal(preparedPermit.rows[0]?.[preparedPermit.headers.indexOf('submission date')],'2026-07-01');
+  assert.equal(preparedPermit.rows[0]?.[preparedPermit.headers.indexOf('submitted date')],'2026-07-01');
 
   const evm=[
     ['Date','PV','EV','AC','BAC','EAC','Currency'],

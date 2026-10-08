@@ -21,6 +21,7 @@ export interface WeeklyResourceCapacitySummary {
   assignmentTimephaseRowCount: number; monthlySummaryRowCount: number;
   dataDateIso: string | null; plannedAverageToDataDate: number | null; actualAverageToDataDate: number | null;
   resourceSummaries: Array<{ resourceId: string; resourceName: string | null; resourceClass: string; unit: string | null; periodCount: number; plannedPeriodCountToDataDate: number; actualPeriodCountToDataDate: number; plannedOverloadOccurrences: number; actualOverloadOccurrencesToDataDate: number; plannedUtilizationPercent: number | null; actualUtilizationPercent: number | null; peakPlannedPercent?:number|null;peakActualPercentToDataDate?:number|null;worstActualWeekIso?:string|null }>;
+  futureCapacityPeaks?:Array<{resourceId:string;resourceName:string|null;unit:string|null;weekStartIso:string|null;required:number;available:number;gap:number;sourceRef:string}>;
   reconciliation: Array<{ metric: string; reported: number | null; computed: number | null; state: 'matched' | 'conflicted' | 'unresolved'; receipt: SourceReceipt }>;
   aggregationMethod?: string;
   overloadPeriods?: { planned: "full_source_horizon"; actual: "through_data_date" };
@@ -140,6 +141,10 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
     assignmentTimephaseRowCount:tables.filter(t=>has(t,'assignment id','activity id','week start','planned quantity')).reduce((n,t)=>n+t.rows.length,0),
     monthlySummaryRowCount:tables.filter(t=>has(t,'resource id','month','planned utilization %')).reduce((n,t)=>n+t.rows.length,0),
     dataDateIso:cutoff,plannedAverageToDataDate:mean(toDate,'plannedDemand'),actualAverageToDataDate:mean(toDate,'actualApprovedUsage'),
+    futureCapacityPeaks:[...byResource.values()].flatMap(rows=>{
+      const peak=rows.filter(row=>cutoff&&row.weekStartIso&&row.weekStartIso>cutoff&&row.plannedDemand!==null&&row.availableCapacity!==null).sort((a,b)=>b.plannedDemand!-a.plannedDemand!)[0];
+      return peak?[{resourceId:peak.resourceId,resourceName:peak.resourceName,unit:peak.unit,weekStartIso:peak.weekStartIso,required:peak.plannedDemand!,available:peak.availableCapacity!,gap:Math.max(0,peak.plannedDemand!-peak.availableCapacity!),sourceRef:peak.sourceRef}]:[];
+    }),
     resourceSummaries:[...byResource.values()].map(rows=>({ resourceId:rows[0]!.resourceId,resourceName:rows[0]!.resourceName,resourceClass:rows[0]!.resourceClass,unit:rows[0]!.unit,periodCount:rows.length,
       ...(()=>{const ranked=(key:'plannedDemand'|'actualApprovedUsage',dated:boolean)=>rows.filter(r=>r.availableCapacity!==null&&r.availableCapacity>0&&r[key]!==null&&(!dated||Boolean(cutoff&&r.weekStartIso&&r.weekStartIso<=cutoff))).sort((a,b)=>b[key]!/b.availableCapacity!-a[key]!/a.availableCapacity!);const plan=ranked('plannedDemand',false)[0],actual=ranked('actualApprovedUsage',true)[0];return {peakPlannedPercent:plan?plan.plannedDemand!/plan.availableCapacity!*100:null,peakActualPercentToDataDate:actual?actual.actualApprovedUsage!/actual.availableCapacity!*100:null,worstActualWeekIso:actual?.weekStartIso??null};})(),
       plannedPeriodCountToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.plannedDemand!==null&&p.availableCapacity!==null&&p.availableCapacity>0).length,

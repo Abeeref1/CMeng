@@ -9,13 +9,16 @@ import {Script,runInNewContext} from 'node:vm';
 import ExcelJS from 'exceljs';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {changeDelivery,classifyDeliveryRowKind,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
-import {deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
+import {deliveryDashboard,deliveryModule,deliveryPosition,deliveryPages,deliveryExportResult} from '../packages/runtime-api/src/delivery-projections';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
+import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
+import {crossDomainAccountability} from '../packages/runtime-api/src/accountability-intelligence';
+import {registerProgrammeContext} from '../packages/runtime-api/src/register-programme-context';
 
 const calendar='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
 export function deliveryProgramme(date='2031-08-31',count=2){return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tDELIVERY\t'+date,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tWorking calendar\t'+calendar,'%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt',...Array.from({length:count},(_,i)=>'%R\t'+(i+1)+'\t1\t1\tA'+(i+1)+'\tEquipment installation '+(i+1)+'\tTK_NotStart\t2031-09-30 08:00\t2031-10-10 16:00\t80\t80\t16'),'%E'].join('\n');}
@@ -28,6 +31,74 @@ async function fixture(t:any){const dir=mkdtempSync(join(tmpdir(),'delivery-'));
  function population(kind:DeliveryKind,scopeId:string|null=null){change({action:'confirm_population',kind,scopeId,note:'Complete source register and applicable obligations reconciled.'});}
  return {dir,store,state,upload,change,create,review,population};
 }
+
+test('supplier headlines use the same vendor population as their table and preserve links after formal registration',async t=>{
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Vendor,Status,Required On Site,Forecast Delivery\nP1,Pump,Acme,Ordered,2031-08-29,2031-09-05\nP2,Cable,ACME,Ordered,2031-09-10,2031-09-09\nP3,Steel,Beta,Ordered,2031-09-10,2031-09-09');
+ const check=()=>{const data=deliveryModule(f.state,'delivery-suppliers').data as any;
+  assert.equal(data.rows.length,2);assert.equal(data.metrics.find((m:any)=>m.label==='Suppliers in available records').value,2);
+  assert.equal(data.metrics.find((m:any)=>m.label==='Linked procurement packages').value,3);
+  assert.equal(data.metrics.find((m:any)=>m.label==='Suppliers with known late packages').value,1);
+  assert.equal(data.rows.reduce((n:number,r:any)=>n+r.packageCount,0),3);
+ };check();f.create('supplier','S1',{company:'Acme'});check();
+});
+
+test('register owners come from responsibility columns and never from a discipline code',async t=>{
+ const f=await fixture(t);
+ await f.upload('RFI.csv','RFI ID,Subject,Discipline,Status,Raised Date,Due Date\nR1,Drawing,ARCH,Open,2031-08-01,2031-09-01');
+ await f.upload('NCR.csv','NCR ID,Description,Responsible,Status,Date Raised,Due Date\nN1,Weld,QA Manager,Open,2031-08-01,2031-09-01');
+ assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].owner,null);
+ assert.equal((deliveryModule(f.state,'delivery-design').data as any).rows[0].discipline,'ARCH');
+ assert.equal((deliveryModule(f.state,'delivery-quality').data as any).rows[0].owner,'QA Manager');
+});
+
+test('RFI and NCR close-out follows every linked activity without hiding the open record',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.status='completed';model.activities[0]!.actualFinishIso='2031-08-01';model.activities[0]!.totalFloatHours=null;
+ model.activities[1]!.totalFloatHours=-24;f.store.touch(f.state);
+ await f.upload('RFI.csv','RFI ID,Subject,Status,Raised Date,Due Date,Linked Activity,Owner\nR-DONE,As built drawing,Open,2031-07-01,2031-07-10,A1,Design lead\nR-LIVE,Open work detail,Open,2031-08-01,2031-09-01,A2,Design lead\nR-UNKNOWN,Link needed,Open,2031-08-01,2031-09-01,,Design lead');
+ await f.upload('NCR.csv','NCR ID,Description,Responsible,Status,Date Raised,Due Date,Linked Activity\nN-DONE,Completed inspection,QA Manager,Open,2031-07-01,2031-07-10,A1\nN-LIVE,Weld,QA Manager,Open,2031-08-01,2031-09-01,A2');
+ const before=JSON.stringify(f.state.controls);
+ const design=deliveryModule(f.state,'delivery-design').data as any,quality=deliveryModule(f.state,'delivery-quality').data as any;
+ assert.equal(design.programmeFollowUp.openOnUnfinishedWork,1);assert.equal(design.programmeFollowUp.closeoutCount,1);assert.equal(design.programmeFollowUp.linksNeedReview,1);
+ assert.deepEqual(design.programmeFollowUp.closeoutRows.map((r:any)=>r.reference),['R-DONE']);assert.equal(design.rows[0].reference,'R-LIVE');
+ assert.equal(design.rows[0].programmeContext.linkedFloatHours,-24);assert.equal(quality.programmeFollowUp.closeoutCount,1);assert.equal(quality.rows[0].reference,'N-LIVE');
+ assert.equal(design.rows.find((r:any)=>r.reference==='R-DONE').currentStatus,'open','completed programme work does not close the source RFI');
+ const actions=crossDomainAccountability(f.state).actions;
+ for(const ref of ['r-done','n-done']){const action=actions.find(a=>a.recordKey?.endsWith('|'+ref))!;assert.equal(action.severity,'low');assert.match(action.requiredAction,/close-out decision/);assert.doesNotMatch(action.requiredAction,/downstream release|recovery date/);}
+ assert.equal(JSON.stringify(f.state.controls),before,'the classification is read-only');
+ const map=new Map(model.activities.map(a=>[a.activityId,a]));
+ assert.equal(registerProgrammeContext(['A1','A2'],map).state,'unfinished_work');
+ assert.equal(registerProgrammeContext(['A1','MISSING'],map).state,'links_incomplete');
+ assert.equal(registerProgrammeContext([],map).state,'unlinked');
+ const ui=runInNewContext(deliveryScript()+';({columns:deliveryColumns("delivery-design"),completedFloat:deliveryCell({programmeContext:{state:"completed_work",linkedFloatHours:null}},"programmeContext.linkedFloatHours")})',{Intl});
+ assert.ok(ui.columns.some(([key]:string[])=>key==='programmeContext.label'));assert.equal(ui.completedFloat,'Not applicable');
+});
+
+test('programme scope and look-ahead remain usable without a workfront register',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.name='Electrical installation - Plot C 81';model.activities[1]!.name='Concrete foundations - Plot C 82';f.store.touch(f.state);
+ const locations=deliveryModule(f.state,'construction-locations').data as any;
+ assert.deepEqual(locations.rows.map((row:any)=>row.label).sort(),['Plot C 81','Plot C 82']);
+ assert.equal(locations.rows.reduce((n:number,row:any)=>n+row.activityCount,0),2);
+ const disciplines=deliveryModule(f.state,'construction-discipline').data as any;
+ assert.deepEqual(disciplines.rows.map((row:any)=>row.label).sort(),['Electrical','Structural']);
+ const readiness=deliveryModule(f.state,'construction-readiness').data as any;
+ assert.equal(readiness.programmeReadiness,true);assert.equal(readiness.rows.length,2);
+ assert.ok(readiness.rows.every((row:any)=>row.state==='unknown'),'missing external prerequisites cannot become a ready workfront');
+});
+
+test('procurement protects the earlier recorded need and identifies overdue undelivered packages',async t=>{
+ const f=await fixture(t);
+ f.create('package','EARLY-NEED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19',status:'Ordered'},{activityIds:['A1']});
+ const row=deliveryPosition(f.state).packageRows.find(r=>r.reference==='EARLY-NEED')!;
+ assert.equal(row.programmeNeedDate,'2031-09-30');assert.equal(row.needDate,'2031-08-29');
+ assert.equal(row.headroomCalendarDays,-21);assert.equal(row.overdueUndelivered,true);
+ assert.equal(row.needDateBasis,'the required-on-site date from the register');
+ f.create('package','RECEIVED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19','actual delivery date':'2031-08-28',status:'Delivered'},{activityIds:['A1']});
+ const received=deliveryPosition(f.state).packageRows.find(r=>r.reference==='RECEIVED')!;
+ assert.equal(received.deliveredAtDataDate,true);assert.equal(received.overdueUndelivered,false);
+});
 
 test('Delivery follows the latest submitted programme while undated updates remain pending on every page',async t=>{
  const {store,state}=await fixture(t);
@@ -153,7 +224,9 @@ test('formal Interface Register upload is identified and mapped to interface can
  const record=deliveryRecords(f.state).records.find(r=>r.reference==='IF-001')!;
  assert.equal(record.kind,'interface');assert.equal(record.state,'extracted_candidate');assert.equal(record.fields['giving party'],'Design Consultant');
  const page=deliveryModule(f.state,'delivery-interfaces');
- assert.equal(page.status,'blocked','candidate register rows remain review evidence until governed');
+ assert.equal(page.status,'partial','clean register rows are usable without claiming confirmation');
+ assert.equal((page.data as any).rows[0].authority,'source');
+ assert.equal((page.data as any).rows[0].state,'overdue');
  assert.equal((page.data as any).title,'Interface Management');
  assert.equal((page.data as any).confirmedCount,0);
 });
@@ -220,7 +293,8 @@ test('Batch H Delivery Control publishes action-first linked management constrai
  f.create('package','PK-H',{'forecast delivery date':'2031-10-10'},{activityIds:[activity.activityId]});
  const data=deliveryModule(f.state,'delivery-control').data as any,action=data.managementActions.find((r:any)=>/after the linked programme need date/i.test(r.issue));
  assert.ok(action);assert.equal(action.package,'PK-H');assert.equal(action.requiredDate,'2031-09-30');assert.equal(action.owner,null);
- assert.ok(action.affectedSchedule.some((v:string)=>v.includes(activity.activityId)));assert.match(action.consequence,/after the controlled programme need date/i);assert.ok(action.action);
+ assert.ok(action.affectedSchedule.some((v:string)=>v.includes(activity.activityId)));assert.match(action.consequence,/after the linked programme need date/i);assert.ok(action.action);
+  assert.equal(action.requiredDate,'2031-09-30','source linked programme date is the action deadline, not a fabricated register date');
  assert.match(deliveryScript(),/Top Delivery constraints & required actions/);
 });
 
@@ -295,7 +369,7 @@ test('exports include every curve point beyond row 20, all parent keys and proje
 });
 
 test('UI pagination, filtering, sorting and chart labels preserve zero and unavailable distinctions',()=>{
- new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),'Not established');assert.equal(context.deliveryValue(0),'0');
+ new Script(deliveryScript());const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.deliveryValue=deliveryValue;',context);assert.equal(context.deliveryValue(null),STATUS_LABELS.not_established);assert.equal(context.deliveryValue(0),'0');assert.notEqual(context.deliveryValue(null),context.deliveryValue(0));
  const table={rows:Array.from({length:63},(_,i)=>({reference:'R'+i,state:i%2?'working':'governed',quantity:63-i})),query:'',filter:'governed',sort:'quantity',direction:1};const filtered=context.deliveryFiltered(table);assert.equal(filtered.length,32);assert.equal(filtered[0].quantity,1);table.filter='';table.query='R62';assert.equal(context.deliveryFiltered(table).length,1);
 });
 
@@ -307,7 +381,7 @@ test('Delivery display preserves exact record references and quantities while fo
  const rows=[{riskId:'R1',status:'open'},{riskId:'R2',status:'closed'}];
  assert.deepEqual(Array.from(context.deliveryFiltered({rows,query:'',filter:'open',sort:null}), (r:any)=>r.riskId),['R1']);
  const markup=context.deliveryTable('risk','Risk register',rows,[['riskId','Risk']]);assert.match(markup,/<option value="open">Open<\/option>/);
- const review=context.deliveryTable('review','Record review',[{state:'extracted_candidate'}],[['state','Review state']]);assert.match(review,/<option value="extracted_candidate">Awaiting review<\/option>/);
+ const review=context.deliveryTable('review','Record review',[{state:'extracted_candidate'}],[['state','Review state']]);assert.match(review,/<option value="extracted_candidate">From register, not yet confirmed<\/option>/);
 });
 
 test('Delivery Risks uses the existing risk population, not unrelated procurement candidates or population decisions',async t=>{
@@ -385,4 +459,26 @@ test('Delivery cannot call a record overdue when its due date is not established
  const rendered=page.rows.find((r:any)=>r.recordId===snag.recordId);
  assert.equal(rendered.overdue,null);
  assert.equal(rendered.dueDate,null);
+});
+
+
+test('source RFI answers and future closures use the shared dated lifecycle before confirmation',async t=>{
+ const f=await fixture(t);
+ await f.upload('RFI.csv','RFI ID,Description,Raised Date,Response Date,Required Response,Status\nR1,Answered query,2031-08-01,2031-08-10,2031-08-05,Answered\nR2,Future answer,2031-08-01,2031-09-01,2031-08-15,Closed\nR3,Pending query,2031-08-01,,2031-09-05,Open');
+ const p=deliveryPosition(f.state),summary=p.summaries.design!;
+ assert.equal(p.registerRows.find(r=>r.reference==='R1')!.currentStatus,'closed');
+ assert.equal(p.registerRows.find(r=>r.reference==='R1')!.overdue,false);
+ assert.equal(p.registerRows.find(r=>r.reference==='R2')!.currentStatus,'open');
+ assert.equal(summary.knownOpenCount,p.existingAuthorities.rfi.current.filter(r=>r.status==='open').length);
+ assert.equal(summary.knownOpenCount,2);
+ assert.equal(summary.knownOverdueCount,1);
+ assert.ok(!p.findings.some(r=>r.code==='RECORD_OVERDUE'&&r.recordId===p.registerRows.find(r=>r.reference==='R1')!.recordId));
+});
+
+test('clean source register establishes package counts and lateness before approval; one completeness decision unlocks percentages',async t=>{
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Required On Site,Forecast Delivery,Owner\nPK1,Fire pumps,2031-08-01,2031-08-15,MEP Lead\nPK2,Cables,2031-09-01,2031-08-15,Electrical Lead');
+ const dashboard=deliveryDashboard(f.state);assert.equal(dashboard.knownPackageRecordCount,2);assert.equal(dashboard.latePackageKnownCount,1);assert.equal(dashboard.confirmedPackageCount,null);
+ f.population('package');assert.equal(deliveryPosition(f.state).populations.package!.denominator,2);
+ assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='PK1')!.state,'extracted_candidate','confirming completeness does not pretend each row has been certified');
 });

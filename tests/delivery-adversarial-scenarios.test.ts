@@ -87,15 +87,16 @@ test('new Spares scenarios: all excess steps are disclosed; equal, decimal, futu
  const row=f.position().spareRows.find(r=>r.recordId===invalid.recordId)!;assert.equal(row.required,null);assert.equal(row.remaining,null);assert.equal(row.fields['required quantity'],-8);
 });
 
-test('new BOQ scenarios: compatible multi-item totals work; partial, shared and mixed-unit scope withhold table and curve consistently',async t=>{
+test('new BOQ scenarios: individual items stay separate even with shared units; partial and shared allocations do not invent package measurements',async t=>{
  const f=await fixture(t);await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\nA,Steel A,kg,80,2,160,AED\nB,Steel B,kg,120,2,240,AED\nC,Coating,m2,40,5,200,AED');
  await f.upload('Measurements.csv','Measurement Date,Item No,Cumulative Installed Qty,Unit\n2034-04-15,A,30,kg\n2034-04-20,B,45,kg\n2034-05-01,A,70,kg\n2034-04-20,C,10,m2');
  const items=resolveBoqSource(f.state,'').quantities!.items,a=items.find(i=>i.description==='Steel A')!,b=items.find(i=>i.description==='Steel B')!,c=items.find(i=>i.unit==='m2')!;
  let r=f.create('package','STEEL',{unit:'kg'},{boqItemIds:[a.quantityItemId,b.quantityItemId]});f.population('package');let row=f.position().materialRows[0]!;
- assert.equal(row.required,200);assert.equal(row.installed,75);assert.equal(row.remainingToInstall,125);assert.equal(row.installationCompletionPercent,37.5);
- assert.deepEqual(f.position().curves.find(x=>x.kind==='material_quantity'&&x.stage==='installed')!.points.map((x:any)=>x.value),[75]);
- for(const qty of [40,0]){r=f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:a.quantityItemId,quantity:qty,unit:'kg'},{boqItemId:b.quantityItemId,quantity:120,unit:'kg'}]}});row=f.position().materialRows[0]!;assert.equal(row.required,qty+120);assert.equal(row.installed,null);assert.equal(row.installationCompletionPercent,null);assert.equal(f.position().curves.some(x=>x.kind==='material_quantity'&&x.stage==='installed'),false);}
- r=f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:a.quantityItemId,quantity:80,unit:'kg'},{boqItemId:b.quantityItemId,quantity:120,unit:'kg'}]}});assert.equal(f.position().materialRows[0]!.installed,75,'explicit complete allocations remain valid');
+ assert.equal(row.required,null);assert.equal(row.installed,null);assert.equal(row.remainingToInstall,null);assert.equal(row.installationCompletionPercent,null);
+ assert.deepEqual(f.position().itemMaterialRows.filter(r=>r.unit==='kg').map(r=>r.installed),[30,45]);
+ assert.equal(f.position().curves.some(x=>x.kind==='material_quantity'&&x.stage==='installed'),false);
+ for(const qty of [40,0]){r=f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:a.quantityItemId,quantity:qty,unit:'kg'},{boqItemId:b.quantityItemId,quantity:120,unit:'kg'}]}});row=f.position().materialRows[0]!;assert.equal(row.required,null);assert.equal(row.installed,null);assert.equal(row.installationCompletionPercent,null);assert.equal(f.position().curves.some(x=>x.kind==='material_quantity'&&x.stage==='installed'),false);}
+ r=f.review(r,{}, {links:{...r.links,boqAllocations:[{boqItemId:a.quantityItemId,quantity:80,unit:'kg'},{boqItemId:b.quantityItemId,quantity:120,unit:'kg'}]}});assert.equal(f.position().materialRows[0]!.installed,null,'complete allocations still retain distinct item quantities');
  r=f.review(r,{unit:null},{links:{boqItemIds:[a.quantityItemId,c.quantityItemId]}});row=f.position().materialRows[0]!;assert.equal(row.unit,null);assert.equal(row.installed,null);assert.ok(f.position().findings.some(x=>x.code==='MATERIAL_UNITS_INCOMPATIBLE'));
  r=f.review(r,{unit:'kg'},{links:{boqItemIds:[a.quantityItemId]}});f.create('package','SHARED',{unit:'kg'},{boqItemIds:[a.quantityItemId]});assert.deepEqual(f.position().materialRows.map(x=>x.installed),[null,null]);
 });
@@ -168,4 +169,12 @@ for(const scanned of [false,true])test('new '+(scanned?'OCR':'native')+' packet:
  const records=deliveryRecords(f.state).records;assert.deepEqual(records.map(r=>[r.kind,r.reference,r.receipts[0]!.locator]),[['submittal','NEW-SUB','page:1:line:1'],['spare','NEW-SPARE','page:2:line:1'],['permit','NEW-PERMIT','page:3:line:1']]);assert.ok(records.every(r=>r.state==='extracted_candidate'));
  assert.equal(f.state.evidenceDocuments.find(d=>d.sourceFilename.endsWith('.pdf'))!.fullTextRead!.result.complete,true);
  if(!scanned){const spare=records[1]!,receipt=spare.receipts[0]!,legacyId='delivery:'+deliveryHash([f.state.projectId,'submittal',receipt.documentId,receipt.locator]).slice(0,24);f.state.delivery??={schemaVersion:1,manual:[],decisions:[],populations:[]};f.state.delivery.decisions.push({recordId:legacyId,sourceRevision:spare.revision,state:'governed',fields:spare.fields,links:spare.links,note:'Original packet classification',supersedesId:null,actorId:'fixture',recordedAt:'2034-04-30'});const reclassified=f.record(legacyId);assert.equal(reclassified.kind,'spare');assert.equal(reclassified.state,'stale');assert.notEqual(reclassified.revision,spare.revision);assert.equal(f.review(reclassified).state,'governed');assert.equal(f.state.delivery.decisions.filter(d=>d.recordId===legacyId).length,2,'corrected identity retains the earlier review history');}
+});
+
+test('permit validity uses supplied valid-from and valid-to dates without inventing an issue date',async t=>{
+ const f=await fixture(t,'PERMIT-VALIDITY');
+ await f.upload('Reference.csv','Permit ID,Permit Type,Issuing Authority,Application Date,Approval Date,Valid From,Valid To,Status,Linked Activity\nP-1,Water connection,Utility authority,2034-03-01,2034-03-10,2034-04-01,2034-04-15,Approved,ACT1\nP-2,Access,Local authority,2034-03-01,2034-03-10,2034-04-01,2034-12-31,Approved,ACT1\nP-3,Access,Local authority,2034-03-01,2034-03-10,2034-05-01,2034-12-31,Approved,ACT1\nP-4,Occupancy,Local authority,2034-04-01,,,,Pending,ACT1\n');
+ const rows=f.position().permitRows;
+ assert.equal(rows.length,4);assert.equal(rows.find(r=>r.reference==='P-4')?.permitStatus,'pending');assert.equal(rows.find(r=>r.reference==='P-4')?.validFrom,null);assert.equal(rows.find(r=>r.reference==='P-1')?.permitStatus,'expired');assert.equal(rows.find(r=>r.reference==='P-2')?.permitStatus,'valid');assert.equal(rows.find(r=>r.reference==='P-3')?.permitStatus,'not_yet_valid');
+ assert.equal(rows[0]!.issueDate,null);assert.equal(rows[0]!.issuingAuthority,'Utility authority');assert.equal(rows[0]!.description,'Water connection');
 });

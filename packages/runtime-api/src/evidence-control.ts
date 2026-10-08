@@ -308,6 +308,7 @@ export function evidenceFamily(
       "determination_register",
       "risk_register",
       "procurement_register",
+      "permit_register",
       "rfi_register",
       "submittal_register",
       "design_deliverables",

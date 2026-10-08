@@ -37,7 +37,7 @@ function fixture(t: { after(fn:()=>void): unknown }) {
   const store=new RuntimeProjectStore({dataDir:dir,durable:false});
   const state=store.getOrCreate('CANONICAL');
   state.schedules.push({role:'update',format:'xer',sourceFilename:'renamed.xer',sourceHashSha256:'schedule-hash',uploadedAt:stamp,
-    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:'CANONICAL',source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],calendars:[],diagnostics:[]}}} as unknown as ProjectRuntimeState['schedules'][number]);
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:'CANONICAL',source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as unknown as ProjectRuntimeState['schedules'][number]);
   function csvDoc(text:string,type='resource_register',basis:StoredEvidenceDocument['basisState']='active',familySuffix='') {
     const hash=createHash('sha256').update(text).digest('hex'),id='doc-'+state.evidenceDocuments.length;
     const path=join(dir,id+'.csv');writeFileSync(path,text);

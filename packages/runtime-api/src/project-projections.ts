@@ -1,3 +1,5 @@
+import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
+import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -5,6 +7,7 @@ import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage} from './delivery-projections';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
+import {projectActions,type ProjectAction} from './project-actions';
 import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
@@ -32,6 +35,8 @@ import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
 import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
+import {bindProjectFacts} from './project-fact-consumers';
+import {projectSourceLabels} from './project-presentation';
 import {attachProjectFacts,projectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
@@ -51,7 +56,7 @@ import { contractCompletionPosition } from "./contract-completion";
 import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
-import { forecastControlForState } from "./forecast-control";
+import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
@@ -210,6 +215,17 @@ const bundleCache =
     string,
     ProjectionBundle
   >();
+/** Read a completed identical-version schedule analysis. This never starts a
+ * calculation or changes authority, and is safe to use when building shared
+ * facts after the specialist bundle has already been calculated. */
+export function peekCachedScheduleAnalytics(state:ProjectRuntimeState):
+  ReturnType<typeof buildScheduleAnalyticsProjection>|null {
+  const bundle=bundleCache.get(state.projectId);
+  if(bundle?.version!==state.version)return null;
+  const existing=bundle.modules.get('schedule-analytics')?.data as ReturnType<typeof buildScheduleAnalyticsProjection>|undefined;
+  return existing?.result?existing:null;
+}
+
 
 function blocked(
   key: string,
@@ -552,6 +568,15 @@ function buildBundle(
     return cached;
   }
 
+  const bundleProfile=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const bundleTimings:Array<{part:string;ms:number}>=[];
+  let bundleMark=bundleProfile?performance.now():0;
+  const measureBundle=(part:string)=>{
+    if(!bundleProfile)return;
+    const now=performance.now();
+    bundleTimings.push({part,ms:now-bundleMark});
+    bundleMark=now;
+  };
   const generatedAt =
     new Date().toISOString();
   const modules =
@@ -769,6 +794,7 @@ function buildBundle(
       "uat-pmo-v1",
   };
 
+  measureBundle('reporting_and_baseline_basis');
   const scheduleAnalyticsRaw =
     buildScheduleAnalyticsProjection(
       model,
@@ -970,6 +996,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('schedule_analytics');
   const activityAnalyticsRaw =
     buildActivityAnalyticsProjection(
       model,
@@ -1046,10 +1073,12 @@ function buildBundle(
     ),
   );
 
+  measureBundle('activity_analytics');
   const lookAhead =
     buildLookAheadProjection(
       model,
       {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
         generatedAt,
         producerVersion:
           versions.lookAhead,
@@ -1066,6 +1095,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('lookahead_projection');
   const progressScurve =
     buildProgressScurveProjection(
       model,
@@ -1089,6 +1119,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('progress_scurve_projection');
   const milestonesRaw =
     buildMilestonesProjection(
       model,
@@ -1160,6 +1191,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('milestones_projection');
   const nearCriticalRaw =
     buildNearCriticalProjection(
       model,
@@ -1273,6 +1305,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('nearcritical_projection');
   const progressBreakdown =
     buildProgressBreakdownProjection(
       model,
@@ -1295,6 +1328,7 @@ function buildBundle(
     ),
   );
 
+  measureBundle('progress_breakdown_projection');
   const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
@@ -1586,6 +1620,7 @@ function buildBundle(
     );
   }
 
+  measureBundle('independent_forecast_and_change');
   const forecastSnapshots =
     ordered.map((stored) =>
       forecastSnapshotFromProjection(
@@ -1618,6 +1653,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     ),
   );
 
+  measureBundle('revision_forecasts');
   const resources =
     state.resourcesByRevision.get(
       current.revision
@@ -1804,6 +1840,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
       if (resourceKey === "manhour-scurve") manhourScurve = sourceResource.data as ReturnType<typeof buildManhourScurveProjection>;
     }
   }
+  measureBundle('resources_and_quantities');
   const delayModel =
     state.controls.delayClaims;
   const claimPopulationQuarantined=claimsQuarantined(delayModel);
@@ -1963,6 +2000,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     noticeAssessmentAvailable &&
     noticesClaims.noticeRequirementMissingCount === 0;
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    determinations:canonicalTimeClaims(state).determinations,
     schedule: model,
     windows,
     delay: delayClaims,
@@ -2312,6 +2350,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         state.submittedManpowerPlan,
     });
 
+  measureBundle('delay_and_claims');
   const contractValueExtraction =
     state.contract
       ? extractContractValue(
@@ -3126,6 +3165,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     pmo.progress = { ...pmo.progress, lookAheadMissedStartCount: lookAhead.missedStartCount ?? null };
   }
 
+  measureBundle('commercial_and_pmo');
   applyUniversalModuleChallenges({
     state,
     generatedAt,
@@ -3137,6 +3177,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
 
   for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel));
 
+  measureBundle('universal_challenges_and_integrity');
   const latestBoardPublicationRecord =
     state.boardPublicationHistory
       .filter(
@@ -3246,13 +3287,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           state.projectId,
         scheduleAnalytics,
         progressReport,
-        independentForecast: forecastControl.gate.publishable
+        independentForecast: forecastControl.gate.usable
           ? independentForecast
           : {
               ...independentForecast,
-              // Keep the independent CPM calculation and its evidence inside
-              // the Forecast page, but do not publish its finish into Director
-              // or executive surfaces until the reconciliation gate permits it.
+              // Only an uncalculable network result is withheld. A complete
+              // calculation remains visible with its reconciliation state.
               independentForecastCompletionIso: null,
             },
         delayClaims,
@@ -3493,6 +3533,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     boardReport,
   };
 
+  measureBundle('board_and_finalization');
+  if(bundleProfile)process.stdout.write(JSON.stringify({event:'project_bundle_profile',projectId:state.projectId,timings:bundleTimings,totalMs:bundleTimings.reduce((sum,part)=>sum+part.ms,0)})+'\n');
   bundleCache.set(
     state.projectId,
     bundle,
@@ -4145,6 +4187,7 @@ function buildPlanningModuleFast(
         buildLookAheadProjection(
           model,
           {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
             generatedAt,
             producerVersion:
               "planning-fast:lookahead-v1",
@@ -4480,6 +4523,7 @@ function buildPlanningModuleFast(
       buildLookAheadProjection(
         model,
         {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
           generatedAt,
           producerVersion:
             "planning-fast:lookahead-v1",
@@ -4789,14 +4833,6 @@ const specialistModuleCache =
     }
   >();
 
-const independentForecastCache =
-  new WeakMap<
-    ProjectRuntimeState["schedules"][number]["revision"]["model"],
-    ReturnType<
-      typeof buildIndependentForecastProjection
-    >
-  >();
-
 const sourceOnlyForecastCache =
   new Map<
     string,
@@ -5041,40 +5077,6 @@ function sourceOnlyForecast(
   return projection;
 }
 
-function cachedIndependentForecast(
-  model:
-    ProjectRuntimeState["schedules"][number]["revision"]["model"],
-  generatedAt: string,
-) {
-  const key =
-    model;
-  const cached =
-    independentForecastCache.get(
-      key,
-    );
-  if (cached) {
-    return cached;
-  }
-  const projection =
-    buildIndependentForecastProjection(
-      model,
-      {
-        generatedAt,
-        producerVersion:
-          "independent-forecast-fast-v1",
-      },
-    );
-  const calendarReview=reviewScheduleCalendarBasis(model);
-  if(calendarReview.state==='calendar_basis_difference'){
-    projection.origin='scenario_with_assumptions';
-    projection.assumptions.push('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION');
-  }
-  independentForecastCache.set(
-    key,
-    projection,
-  );
-  return projection;
-}
 
 const claimsFastContextCache =
   new Map<
@@ -5189,6 +5191,7 @@ function claimsFastContext(
     },
   );
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    determinations:canonicalTimeClaims(state).determinations,
     schedule: current.revision.model,
     windows,
     delay,
@@ -6232,6 +6235,7 @@ function buildSpecialistModuleFast(
       buildLookAheadProjection(
         model,
         {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
           generatedAt,
           producerVersion:
             "progress-position:lookahead-v1",
@@ -7522,6 +7526,7 @@ function resolveProjectModuleCandidate(
           data.requiredFinishIso ??
           null;
         return {
+          originalContractualCompletionIso:control.originalContractualCompletionIso,
           requiredFinishIso:
             required,
           requiredFinishVarianceDays:
@@ -7562,7 +7567,7 @@ function resolveProjectModuleCandidate(
             finalReview,
           probabilistic: {
             ...data.probabilistic,
-            ...(forecastReview
+            ...(!forecast?.complete||forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))
               ? {
                   status:
                     "unavailable",
@@ -7574,8 +7579,8 @@ function resolveProjectModuleCandidate(
                     null,
                 }
               : {}),
-            suppressionReason:
-              forecastReview,
+            suppressionReason:!forecast?.complete?forecastReview:null,
+            reviewReason:forecastReview,
           },
         };
       })() : {}),
@@ -7603,9 +7608,13 @@ function resolveProjectModuleCandidate(
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
     const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
     result.data=attachActivityFloatReconciliation(result.data,review);
-    if(review.summary.disputedActivityCount){
+    if(review.summary.differenceActivityCount){
       result.status='partial';result.professionalState='review_required';
-      result.reason=[result.reason,review.summary.disputedActivityCount+' activities have disputed submitted versus independent float. Each affected row identifies both values and classifications.'].filter(Boolean).join(' ');
+      const offset=review.summary.commonOffsetHours;
+      result.reason=[result.reason,review.summary.differenceActivityCount+' open activities have submitted versus independently calculated float differences ('+
+        review.summary.criticalityDifferenceCount+' change criticality classification; '+review.summary.numericDifferenceActivityCount+' retain the same classification).'+
+        (offset!==null?' A common '+offset+'-hour difference requires calendar/definition reconciliation; it is not evidence of a contractual dispute.':'')+
+        ' Both hourly values and classifications remain available; no difference is silently approved.'].filter(Boolean).join(' ');
     }
   }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
@@ -7613,6 +7622,7 @@ function resolveProjectModuleCandidate(
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
+    if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
   }
   return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims)));
 }
@@ -7679,6 +7689,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     if(profiling)readinessProfile.push({key,ms:performance.now()-t});
     return [key,ready] as const;
   }));
+  const postReadiness=profiling?performance.now():0;
   const forecast=modules.get('independent-forecast')?.data as any;
   const near=modules.get('near-critical')?.data as any;
   const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
@@ -7693,16 +7704,61 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     const currentModule=modules.get(moduleKey),moduleData=currentModule?.data;
     if(currentModule&&moduleData&&typeof moduleData==='object')modules.set(moduleKey,{...currentModule,data:{...(moduleData as Record<string,unknown>),interfacePosition}});
   }
+  const beforeDiagnosis=profiling?performance.now():0;
   const diagnosis=buildProjectDiagnosis(scoped,modules);
+  const afterDiagnosis=profiling?performance.now():0;
   const management=modules.get('pmo-analysis')?.data as any;
   if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
   const p5=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'project_resolution_profile',projectId:state.projectId,
-    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,totalMs:p5-p0,
+    reportingStateMs:p1-p0,bundleMs:p2-p1,candidatesMs:p3-p2,certificationMs:p4-p3,readinessMs:p5-p4,readinessOnlyMs:postReadiness-p4,diagnosisMs:afterDiagnosis-beforeDiagnosis,otherPostReadinessMs:(p5-postReadiness)-(afterDiagnosis-beforeDiagnosis),totalMs:p5-p0,
     slowCandidates:candidateProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms),
     slowReadiness:readinessProfile.filter(row=>row.ms>=5).sort((a,b)=>b.ms-a.ms)})+'\n');
   resolvedProjectCache.set(state.projectId, {version: state.version, modules});
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
+}
+
+const projectActionCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildProjectActionRegister>}>();
+function buildProjectActionRegister(state:ProjectRuntimeState){
+  // Resolve raw owning projections before facts are attached. This producer never
+  // calls a page/API wrapper, so the shared-facts consumer cannot recurse.
+  resolveProjectModule(state,'pmo-analysis');
+  const modules=resolvedProjectCache.get(state.projectId)!.modules;
+  const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]));
+  const forecast=modules.get('independent-forecast')?.data as any;
+  const review=projectActions(state,assessment,{completionPosition:forecast?.completionPosition});
+  const recordPosition=crossDomainAccountability(state);
+  const reviewById=new Map(review.actions.map(a=>[a.id,a]));
+  const reviewRows=review.actions.map(a=>managementAction({actionId:a.id,recordKey:'review|'+a.id,issue:a.title,
+    consequence:a.reason,affectedScope:[...new Set(a.findings?.flatMap(f=>f.sourceRefs)??[])],affectedMilestones:[],
+    owner:'Project controls reviewer',organisation:null,requiredAction:a.resolution?.instruction??a.reason,dueIso:null,
+    escalation:null,severity:a.category==='review'?'high':'medium',authority:'calculated',sourceRefs:a.findings?.flatMap(f=>f.sourceRefs)??[],owningModule:a.target.moduleKey??'source-quality'}));
+  const model=projectControlSchedule(state)?.revision.model??null;
+  const independentRanking=!!model&&forecast?.origin==='deterministic_source_calendar'&&forecast?.unresolvedActivityCount===0&&Array.isArray(forecast?.activities);
+  const independentFloatById=new Map<string,number|null>(
+    independentRanking?forecast.activities.map((row:any)=>[String(row.activityId),typeof row.independentTotalFloatHours==='number'?row.independentTotalFloatHours:null]):[],
+  );
+  const recordActions=consolidateScheduleChains(recordPosition.actions,model);
+  const actions=prioritizeActions(
+    [...recordActions,...reviewRows],
+    model,
+    forecast?.drivingNetwork?.activityIds??[],
+    independentRanking?'independent_cpm':'source_total_float',
+    independentRanking?independentFloatById:undefined,
+  );
+  const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
+    id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
+    owner:pmcRoleOwner(a.owningModule??a.recordKey??'project controls',a.owner??a.organisation),dueIso:a.dueIso,priorityBasis:a.priorityBasis,
+    resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
+    target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
+  });
+  return {actions,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
+    workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One ranked project action register. Record follow-up, source corrections and confirmations share one count; supporting information is separate.'},
+    recordPosition};
+}
+export function projectActionRegisterForState(state:ProjectRuntimeState){
+  const cached=projectActionCache.get(state);if(cached?.version===state.version)return cached.value;
+  const value=buildProjectActionRegister(state);projectActionCache.set(state,{version:state.version,value});return value;
 }
 
 export function moduleForProject(
@@ -7719,11 +7775,31 @@ export function moduleForProject(
       ["project"],
     );
   }
-  const finalize=(result:ModuleRuntimeResult)=>attachProjectFacts(state,result);
+  const finalize=(result:ModuleRuntimeResult)=>{
+    const attached=attachProjectFacts(state,result);
+    // A position verdict that predates canonical facts can compare against
+    // the unextended contract. Re-evaluate only existing verdict surfaces
+    // after shared fact attachment, without a second calculation producer.
+    return (result.data as any)?.positionVerdict?withPositionVerdict(attached):attached;
+  };
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,accountabilityModule(scoped))));}
-  if (isDeliveryPage(key)) {const scoped=reportingState(state);return finalize(attachReportingContract(scoped,deliveryModule(scoped,key)));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
+  if (isDeliveryPage(key)) {
+    const scoped=reportingState(state),result=deliveryModule(scoped,key);
+    const deliveryData=result.data as any;
+    const register=projectActionRegisterForState(state);
+    const moduleOwner=['long-lead','procurement-readiness','procurement-scurves','material-tracking'].includes(key)?'procurement-packages':key;
+    const sourceRecords=deliveryData?.reviewRecords??[];
+    const sourceByReference=new Map(sourceRecords.map((r:any)=>[String(r.reference??'').toLowerCase(),r]));
+    const priorityActions=register.actions.filter(a=>a.owningModule===moduleOwner&&(!sourceRecords.length||sourceByReference.has(a.recordKey?.split('|').slice(1).join('|')??'')));
+    result.data={...deliveryData,priorityFindings:priorityActions.map(a=>({message:a.issue,action:a.requiredAction,recordId:(sourceByReference.get(a.recordKey?.split('|').slice(1).join('|')??'') as any)?.recordId??null,sourceRefs:a.sourceRefs,priorityBasis:a.priorityBasis}))};
+    if(key==='delivery-control'){
+      const actions=register.actions.filter(a=>isDeliveryPage(a.owningModule??''));
+      result.data={...(result.data as object),findings:[],managementActions:actions.map(a=>({actionId:a.actionId,recordKey:a.recordKey,issue:a.issue,workfront:a.affectedMilestones.join('; ')||null,affectedSchedule:a.affectedScope,package:a.recordKey?.startsWith('procurement|')?a.recordKey.split('|')[1]:null,owner:a.owner??a.organisation,requiredDate:a.dueIso,consequence:a.consequence,action:a.requiredAction,priorityBasis:a.priorityBasis,sourceRefs:a.sourceRefs})),managementPosition:actions.length+' delivery actions from the shared project action register, ranked by linked programme and commercial effect.'};
+    }
+    return finalize(attachReportingContract(scoped,result));
+  }
   if (key==='scope-classification') return finalize(resolveProjectModuleUncertified(reportingState(state),key));
   if (key==='monte-carlo-risk') return finalize(scheduleRiskMonteCarlo(reportingState(state)));
   if (key==='earned-schedule') return finalize(earnedScheduleForState(reportingState(state)));
@@ -7751,8 +7827,14 @@ export function directorForProject(
   const data=buildBundle(state).director;
   if(!data)return null;
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
-  const reviewed=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
-  return reportingData(state,'project-director',reviewed);
+  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
+  const register=projectActionRegisterForState(state);
+  const reviewed={...reviewedBase,managementActions:register.actions.map(a=>{
+    const kind=a.recordKey?.split('|')[0],label=kind==='ncr'?'NCR':kind==='rfi'?'RFI':null;
+    const issue=label&&!a.issue.startsWith(label)?label+' '+a.issue:a.issue;
+    return [issue,a.requiredAction,a.dueIso?'Due '+a.dueIso:null].filter(Boolean).join(' — ');
+  }),managementActionCount:register.actions.length};
+  return reportingData(state,'project-director',bindProjectFacts('project-director',reviewed,projectFactsForState(state)) as typeof reviewed);
 }
 
 export function boardReportForProject(
@@ -7781,6 +7863,33 @@ function gapState(
     : partial
       ? "partial"
       : "missing";
+}
+
+/** Presentation-only, exact-count operational scope for management pages.
+ * Keep all original rows in specialist authorities and their exports. */ 
+export function compactManagementOperationalReporting(operations: ReturnType<typeof operationalReporting>){
+ const register=(row:any)=>({
+   state:row.state,
+   sourceRecordCount:row.sourceRecordCount,
+   currentRecordCount:row.currentRecordCount,
+   futureRecordCount:row.futureRecordCount,
+   undatedRecordCount:row.undatedRecordCount,
+   unknownStatusCount:row.unknownStatusCount,
+ });
+ return {
+   dataDateIso:operations.dataDateIso,
+   counts:operations.counts,
+   knownCounts:operations.knownCounts,
+   quality:register(operations.quality),
+   rfi:register(operations.rfi),
+   risk:{...register(operations.risk),
+     // Only displayed status breakdown is needed for undated-risk coverage;
+     // source references, identities, dates and evidence stay in Risk Review.
+     sourceRows:(operations.risk.sourceRows??[]).map((row:any)=>({
+       sourceStatus:row.sourceStatus??null,status:row.status??null,
+     })),
+   },
+ };
 }
 
 const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
@@ -8353,6 +8462,7 @@ export function managementSurfacesForProject(
     boardPublicationState,
   });
   const mp5=profiling?performance.now():0;
+  const issueStage0=profiling?performance.now():0;
   const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
   const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
     summary:g.label+' needs approval',detail:'Review and approve the current report before publication.',
@@ -8368,19 +8478,27 @@ export function managementSurfacesForProject(
       challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
+  const issueStage1=profiling?performance.now():0;
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
   const activities=resolvedModules.get('activity-analytics')?.data as any;
+  // Management pages expose source counts and priority previews; complete
+  // activity and backlog rows stay available on their specialist pages.
+  const delayedSourceRows=(activities?.rows??[])
+    .filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true);
+  const exceptionPreview=[...delayedSourceRows]
+    .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||
+      (b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||
+      String(a.activityId).localeCompare(String(b.activityId))).slice(0,60);
   const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,counts:activities.counts,
-    rows:(activities.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true)
-      .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||(b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||String(a.activityId).localeCompare(String(b.activityId)))
-      .map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
-  const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>{
+    totalDelayedOpenCount:delayedSourceRows.length,detailModule:'activity-analytics',
+    rows:exceptionPreview.map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,
+      currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,
+      totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
+  const deliveryExceptions={actions:[...operations.actions.slice(0,60),...overdueRows.slice(0,60).map((r:any)=>{
     const missedStart=r.missedPlannedStart===true||r.classification==='missed_start';
     const missedFinish=r.finishOverdue===true||r.classification==='overdue';
-    // The backlog includes missed starts whose finishes are still in the future.
-    // Preserve the breached date instead of turning that future finish into a
-    // negative overdue duration on the management pages and their action lists.
+    // The backlog includes missed starts with finishes in the future.
     const dueIso=missedFinish?r.finishIso:missedStart?r.startIso:null;
     const dataDate=current?.revision.model.dataDateIso;
     const elapsed=dataDate&&dueIso?Math.floor((Date.parse(dataDate.slice(0,10))-Date.parse(dueIso.slice(0,10)))/86400000):null;
@@ -8388,49 +8506,41 @@ export function managementSurfacesForProject(
     return {recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso,ageDays:null,
       overdueDays:elapsed!==null&&Number.isFinite(elapsed)?Math.max(0,elapsed):null,
       action:'Review '+basis+' for activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]};
-  })],overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
-  const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
+  })],totalActionCount:operations.actions.length+overdueRows.length,detailModule:'lookahead-schedule',
+    overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
+  const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
+  const rawCompletion=currentForecast?.completionPosition??null;
+  const completion=rawCompletion&&hasUnreconciledScheduleCalendar(currentForecast)
+    ?{...rawCompletion,independentFinishIso:null,calculationState:'unresolved',
+      reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
+    :rawCompletion;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const issueStage2=profiling?performance.now():0;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
+  const issueStage3=profiling?performance.now():0;
   const visualControl=managementVisualControl(state,resolvedModules,commercial,managementContext);
+  const issueStage4=profiling?performance.now():0;
   const interfaces=interfaceIntelligence(state);
+  const issueStage5=profiling?performance.now():0;
   const accountability=crossDomainAccountability(state);
+  const issueStage6=profiling?performance.now():0;
   const deliveryPosition=deliveryDashboard(state);
-  const deliveryManagementActions:ManagementAction[]=(deliveryExceptions.actions??[]).map((row:any,index:number)=>managementAction({
-    actionId:'delivery-exception:'+String(row.recordId??row.type??index),
-    issue:String(row.action??row.type??'Delivery control item requires review'),
-    consequence:typeof row.overdueDays==='number'&&row.overdueDays>0
-      ?'Required date is '+row.overdueDays+' calendar days overdue.'
-      :'Delivery control evidence requires management review.',
-    affectedScope:[String(row.recordId??'')].filter(Boolean),
-    affectedMilestones:[],
-    owner:row.owner??null,
-    organisation:null,
-    requiredAction:String(row.action??'Review the delivery control item.'),
-    dueIso:row.dueIso??null,
-    escalation:typeof row.overdueDays==='number'&&row.overdueDays>0?'Escalate the overdue item.':null,
-    severity:row.priority==='critical'?'critical':'high',
-    authority:'source',
-    sourceRefs:Array.isArray(row.sourceRefs)?row.sourceRefs:[],
-    owningModule:'lookahead-schedule',
-  }));
-  const canonicalActionRows:ManagementAction[]=[
-    ...(surfaces.commandCenter.actions??[]),
-    ...(accountability.actions??[]),
-    ...deliveryManagementActions,
-  ];
-  const canonicalActionMap=new Map<string,ManagementAction>();
-  for(const row of canonicalActionRows){
-    const identity=(row.issue+'|'+row.requiredAction+'|'+row.affectedScope.join('|')).toLowerCase().replace(/\s+/g,' ').trim();
-    if(identity&&!canonicalActionMap.has(identity))canonicalActionMap.set(identity,row);
-  }
-  const canonicalActions=[...canonicalActionMap.values()];
+  const issueStage7=profiling?performance.now():0;
+  const canonicalActions=projectActionRegisterForState(state).actions;
+  const issueStage8=profiling?performance.now():0;
+  accountability.actions=canonicalActions;
+  accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
+  // Management pages need evaluated as-of totals, not the same full NCR,
+  // RFI and Risk source population a second time. Specialist pages retain the
+  // exact dated records and full provenance for drill-down/export.
+  const managementOperations=compactManagementOperationalReporting(operations);
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
-    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
-    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
-    masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };
+    masterDashboard: {actions:canonicalActions,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation},
+    commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,controls:({...surfaces.commandCenter.controls,reporting:managementOperations} as any),operationalReporting:managementOperations,interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
+    masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation} };
+  for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])Object.assign(surface,{sourceLabels:projectSourceLabels(state)});
   const allPages=new Map(resolvedModules);
   allPages.set('master-dashboard',{key:'master-dashboard',status:'partial',reason:null,dependencies:[],data:result.masterDashboard});
   allPages.set('command-center',{key:'command-center',status:'partial',reason:null,dependencies:[],data:result.commandCenter});
@@ -8446,7 +8556,7 @@ export function managementSurfacesForProject(
   const mp7=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
-    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
+    buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }
@@ -8555,11 +8665,11 @@ export function overviewForProject(
   const latest =
     projectControlSchedule(state);
   const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision);
+  const retainedReceipt=state.lastRerunReceipt?.projectVersion===state.version?state.lastRerunReceipt:null;
   const receiptStates =
     new Map(
       (
-        state.lastRerunReceipt
-          ?.moduleResults ??
+        retainedReceipt?.moduleResults ??
         []
       ).map(
         (item) => [
@@ -8571,137 +8681,91 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // Resolve specialists first. One call populates the project-scoped certified
-  // module cache; all remaining specialist lookups are then O(1). Management
-  // surfaces consume that same cache, avoiding the previous cold-start path
-  // where management triggered a second full specialist resolution.
-  const overviewModuleStates =
-    certifiedAnalyticalModules.map(
-      (module) => {
-        const resolved =
-          resolveProjectModule(
-            state,
-            module.key,
-          );
-        return {
-          key: module.key,
-          issueAssessment:
-            resolved.issueAssessment,
-          status:
-            resolved.status,
-          reason:
-            resolved.reason,
-        };
-      },
-    );
-  const overviewManagementResults =
-    new Map(
-      managementModuleKeys.map(
-        (key) => [
-          key,
-          moduleForProject(
-            projectId,
-            key,
-          ),
-        ] as const,
-      ),
-    );
-  const overviewManagementStates =
-    managementModuleKeys.map(
-      (key) => {
-        const resolved =
-          overviewManagementResults.get(
-            key,
-          )!;
-        return {
-          key,
-          status:
-            resolved.status,
-          reason:
-            resolved.reason,
-          issueAssessment:
-            resolved.issueAssessment,
-        };
-      },
-    );
+  // The overview must never trigger the full certified specialist suite.
+  // Only reuse completed calculations for the identical project version.
+  // On a cold open, retain a conservative qualified state and let each
+  // specialist/management page calculate when that page is requested.
+  const resolvedCache=resolvedProjectCache.get(state.projectId);
+  const overviewResolvedModules=resolvedCache?.version===state.version?resolvedCache.modules:null;
+  const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
+    const ready=overviewResolvedModules?.get(module.key);
+    if(ready)return {key:module.key,status:ready.status,reason:ready.reason,issueAssessment:ready.issueAssessment};
+    const stored=receiptStates.get(module.key);
+    return {key:module.key,status:stored??'partial' as const,
+      reason:stored?'Previously calculated at this project version; open the specialist page to view the retained basis.':
+        'Specialist calculation has not run for this project version; open the page to establish the position.',
+      issueAssessment:undefined};
+  });
+  const overviewIssueAssessment=overviewResolvedModules
+    ?summarizeControlIssues([...overviewResolvedModules.values()].flatMap(result=>result.issueAssessment?.issues??[]))
+    :undefined;
+  const cachedManagement=managementProjectionCache.get(state.projectId);
+  const overviewManagementStates=managementModuleKeys.map(key=>{
+    // A completed management calculation is safe to reuse, but never run it
+    // just to supply a navigation badge on a cold project overview.
+    if(cachedManagement?.version===state.version){
+      const result=managementSurfaceForProject(state.projectId,key);
+      if(result)return {key,status:result.status,reason:result.reason,issueAssessment:result.issueAssessment};
+    }
+    return {key,status:'partial' as const,
+      reason:'Management position has not been calculated for this project version; open the management page for its full answer.',
+      issueAssessment:overviewIssueAssessment};
+  });
 
-  // Task 56: every role lens consumes the same already-resolved Management
-  // Control payloads. Do not perform a second management-surface lookup solely
-  // for presentation; the role lens is a compact view, not another calculation.
-  const roleDashboard =
-    (overviewManagementResults.get(
-      "master-dashboard",
-    )?.data as any) ?? {};
-  const roleCommand =
-    (overviewManagementResults.get(
-      "command-center",
-    )?.data as any) ?? {};
-  const roleMcp =
-    (overviewManagementResults.get(
-      "master-control-programme",
-    )?.data as any) ?? {};
-  const roleDiagnosis =
-    roleDashboard.projectDiagnosis ??
-    null;
-  const roleCompletion =
-    roleDashboard.completionPosition ??
-    null;
-  const roleContext =
-    roleDashboard.managementContext ??
-    roleCommand.managementContext ??
-    roleMcp.managementContext ??
-    null;
-  const compactActions = (
-    roleCommand.actions ??
-    []
-  ).slice(0, 12).map(
-    (action: any) => ({
-      issue: action.issue ?? null,
-      consequence:
-        action.consequence ?? null,
-      affectedScope:
-        Array.isArray(
-          action.affectedScope,
-        )
-          ? action.affectedScope
-          : [],
-      affectedMilestones:
-        Array.isArray(
-          action.affectedMilestones,
-        )
-          ? action.affectedMilestones
-          : [],
-      owner: action.owner ?? null,
-      organisation:
-        action.organisation ?? null,
-      requiredAction:
-        action.requiredAction ??
-        null,
-      dueIso:
-        action.dueIso ?? null,
-      escalation:
-        action.escalation ?? null,
-      severity:
-        action.severity ?? null,
-      authority:
-        action.authority ?? null,
-      owningModule:
-        action.owningModule ??
-        null,
-    }),
-  );
-  const projectFacts=projectFactsForState(state);
+  const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
+  const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
+  const roleDiagnosis=pmoData?.projectDiagnosis??null;
+  const roleCompletion=forecastData?.completionPosition&&hasUnreconciledScheduleCalendar(forecastData)
+    ?{...forecastData.completionPosition,independentFinishIso:null,calculationState:'unresolved'}
+    :forecastData?.completionPosition??null;
+  const bundle=overviewResolvedModules?buildBundle(state):null;
+  const overviewCommercial=bundle?commercialPositionForState(state,bundle.generatedAt):null;
+  const roleContext=overviewResolvedModules?projectManagementContext(state,overviewResolvedModules,overviewCommercial):null;
+  const roleInterfaces=overviewResolvedModules?interfaceIntelligence(state):null;
+  const projectFacts=overviewResolvedModules?projectFactsForState(state):null;
+  const canonicalActions=overviewResolvedModules?projectActionRegisterForState(state).actions:[];
+  const compactActions=canonicalActions.slice(0,12).map(action=>({
+    issue:action.issue??null,
+    consequence:action.consequence??null,
+    affectedScope:Array.isArray(action.affectedScope)?action.affectedScope:[],
+    affectedMilestones:Array.isArray(action.affectedMilestones)?action.affectedMilestones:[],
+    owner:pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner),
+    organisation:action.organisation??null,
+    requiredAction:action.requiredAction??null,
+    dueIso:action.dueIso??null,
+    escalation:action.escalation??null,
+    severity:action.severity??null,
+    authority:action.authority??null,
+    owningModule:action.owningModule??null,
+  }));
+  const executiveMetrics=[
+    {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
+    {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
+    {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
+    {label:'Programme calendar recalculation',value:hasUnreconciledScheduleCalendar(forecastData)?null:forecastData?.independentForecastCompletionIso??null,unit:'date',
+      basis:hasUnreconciledScheduleCalendar(forecastData)?'Withheld from management until source calendar hours, work periods and duration conversion reconcile.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
+    {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
+  ];
+  const executiveDecisions=canonicalActions.slice(0,8).map(action=>({
+    description:action.issue,
+    accountableOwner:pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner),
+    dueDate:action.dueIso??null,
+    requiredAuthority:action.authority??null,
+    dependencyParty:action.organisation??null,
+    state:'open',
+  }));
   const roleLensContext = {
     dataDateIso:
       latest?.revision.model
         .dataDateIso ?? null,
     planning: {
       criticalCount:
-        projectFacts.schedule.criticalActivityCount.value,
+        projectFacts?.schedule.criticalActivityCount.value??null,
       nearCriticalCount:
-        projectFacts.schedule.nearCriticalActivityCount.value,
+        projectFacts?.schedule.nearCriticalActivityCount.value??null,
       negativeFloatCount:
-        projectFacts.schedule.negativeFloatActivityCount.value,
+        projectFacts?.schedule.negativeFloatActivityCount.value??null,
       drivingNetworkState:
         roleDiagnosis?.network
           ?.state ?? null,
@@ -8779,7 +8843,7 @@ export function overviewForProject(
           ?.independentFinishIso ??
         null,
       submittedCompletionIso:
-        projectFacts.schedule.submittedProgrammeCompletionIso.value,
+        projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,
       scheduleVarianceDays:
         roleCompletion
           ?.differenceElapsedDays ??
@@ -8812,14 +8876,14 @@ export function overviewForProject(
           roleContext?.schedule
             ?.programmeStages,
         )
-          ? roleContext.schedule.programmeStages
+          ? roleContext?.schedule?.programmeStages
               .slice(0, 10)
           : [],
       interfaces:
         Array.isArray(
-          roleCommand.interfaces?.rows,
+          roleInterfaces?.rows,
         )
-          ? roleCommand.interfaces.rows
+          ? roleInterfaces?.rows
               .slice(0, 10)
               .map((row: any) => ({
                 interfaceId:
@@ -8846,42 +8910,16 @@ export function overviewForProject(
     },
     executive: {
       contractualCompletionIso:
-        projectFacts.time.contractualCompletionIso.value,
+        projectFacts?.time.contractualCompletionIso.value??null,
       submittedCompletionIso:
-        projectFacts.schedule.submittedProgrammeCompletionIso.value,
+        projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,
       forecastCompletionIso:
         roleCompletion
           ?.independentFinishIso ??
         null,
-      metrics:
-        Array.isArray(
-          roleDashboard.metrics,
-        )
-          ? roleDashboard.metrics
-              .filter(
-                (metric: any) =>
-                  metric?.value !==
-                    null &&
-                  metric?.value !==
-                    undefined,
-              )
-              .slice(0, 10)
-          : [],
-      commercialByCurrency:
-        Array.isArray(
-          roleDashboard
-            .commercialByCurrency,
-        )
-          ? roleDashboard.commercialByCurrency
-              .slice(0, 8)
-          : [],
-      decisions:
-        Array.isArray(
-          roleCommand.decisions,
-        )
-          ? roleCommand.decisions
-              .slice(0, 8)
-          : [],
+      metrics:executiveMetrics.filter(metric=>metric.value!==null&&metric.value!==undefined).slice(0,10),
+      commercialByCurrency:(projectFacts?.commercial.currencies??[]).slice(0,8).map(row=>({currency:row.currency})),
+      decisions:executiveDecisions,
     },
   };
 
@@ -8890,6 +8928,7 @@ export function overviewForProject(
     releaseCommitSha: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null,
     version: state.version,
     demo: state.demo,
+    testProject:state.testProject===true,
     revisionCount:
       programmeSchedules.length,
     baselineRevisionCount:
