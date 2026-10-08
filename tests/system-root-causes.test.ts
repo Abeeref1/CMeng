@@ -223,6 +223,24 @@ test('management pages receive quantity summaries, not duplicated full item curv
  assert.equal('series' in context.crossModule.quantities,false,'curves remain in owning quantity module only');
  assert.equal(curves.length,896,'original per-item source curves preserved');
  assert.ok(!JSON.stringify(context.crossModule.quantities).includes('ITEM-100'),'management summary cannot serialize raw curve points');
+ const many=Array.from({length:5000},(_,i)=>({activityId:'LARGE-ACTIVITY-'+i,status:'not_started',activityType:'task',finishVarianceDays:9,totalFloatHours:-8,name:'Representative unfinished task'}));
+ const progressRows=Array.from({length:5000},(_,i)=>({recordId:'PROGRESS-PAYLOAD-'+i,plannedPercent:70,actualPercent:60}));
+ const resourceRows=Array.from({length:5000},(_,i)=>({resourceId:'RESOURCE-PAYLOAD-'+i,plannedHours:80,actualHours:64}));
+ modules.set('activity-analytics',{data:{rows:many}} as any);
+ modules.set('progress-breakdown',{data:{rows:progressRows}} as any);
+ modules.set('resource-utilization',{data:{rows:resourceRows}} as any);
+ const management=projectManagementContext(state,modules,null);
+ assert.equal(management.crossModule.programme.delayedActivityCount,5000);
+ assert.equal(management.crossModule.programme.delayedActivitySamples.length,20);
+ assert.equal(management.crossModule.progress.breakdownCount,5000);
+ assert.equal(management.crossModule.progress.breakdownSamples.length,15);
+ assert.equal(management.crossModule.resources.utilizationCount,5000);
+ assert.equal(management.crossModule.resources.utilizationSamples.length,15);
+ assert.equal('delayedActivities' in management.crossModule.programme,false);
+ assert.equal('breakdown' in management.crossModule.progress,false);
+ assert.equal('utilization' in management.crossModule.resources,false);
+ assert.ok(JSON.stringify(management).length<250000,'Management summary must not repeat thousands of specialist rows');
+ assert.equal(many.length,5000);assert.equal(progressRows.length,5000);assert.equal(resourceRows.length,5000);
 });
 
 test('one procurement date rule identifies overdue delivery and late forecasts for readiness and actions',()=>{
