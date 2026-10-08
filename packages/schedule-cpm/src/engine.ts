@@ -299,7 +299,13 @@ function backwardConstraintFinish(
   const last=closing?previousWorkingInstant(predecessorCalendar.calendar,bound):bound;
   const lastClosesShift=nextWorkingInstant(predecessorCalendar.calendar,last)>last;
   const strictlyAfterClosing=last<bound;
-  const start=closing&&strictlyAfterClosing&&lastClosesShift&&predecessorDurationHours>0
+  // With an explicit signed lag, the successor calendar owns the lag
+  // reversal. Moving this predecessor start one extra working hour changes
+  // that lag's feasible boundary and invents negative/one-hour float.
+  // A zero-lag start link instead requires a genuine working start before a
+  // successor event occurring in the predecessor's closed shift.
+  const zeroLagStartLink=relation.lagHours===0;
+  const start=zeroLagStartLink&&closing&&strictlyAfterClosing&&lastClosesShift&&predecessorDurationHours>0
     ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
     :last;
   return {start, finish: addWorkingHours(
