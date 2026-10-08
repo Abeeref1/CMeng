@@ -143,9 +143,20 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',
       'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs);
-    else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
-      value.consequence??'The value is provisional or awaiting governance; it is not an official approval.',
-      value.action||'Review the source and approve or reject the proposed authority through the governed workflow.',path,'Project controls reviewer',refs);
+    else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) {
+      // An identified contract/register candidate can be used as *reported source*
+      // without inventing a new management approval task. This does not promote
+      // its authority to governed or establish a contractual determination.
+      const explicitDecision=value.state==='pending_review'||value.approvalRequired===true||
+        value.requiresUserApproval===true||value.decisionRequired===true||
+        diagnostics.some(s=>/(?:APPROVAL_REQUIRED|ADOPTION_REQUIRED|OVERRIDE_PENDING|UNTIL_MAPPED|REQUIRES_MAPPING|UNRESOLVED_AUTHORITY)/.test(s));
+      const sourceSupported=!!value.basis&&typeof value.basis.method==='string'&&
+        value.value!==null&&value.value!==undefined&&refs.length>0;
+      if(explicitDecision||!sourceSupported)
+        add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
+          value.consequence??'A management decision, selection or approval remains outstanding; the candidate is not an official approval.',
+          value.action||'Review the source basis and record the decision through the governed workflow.',path,'Project controls reviewer',refs);
+    }
     if(value.population?.exclusions) {
       const missing=value.population.exclusions.filter((e:any)=>/date_missing/.test(e.reason));
       const invalidDates=value.population.exclusions.filter((e:any)=>/^(record_)?date_invalid$|^invalid_date$/.test(e.reason));
