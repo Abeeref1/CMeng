@@ -309,6 +309,16 @@ test('an obsolete view request cannot replace the current page with an error',as
   assert.equal(h.context.currentModuleResult.key,'progress');
 });
 
+test('rendered management and delivery status vocabulary uses one central source',()=>{
+ const labels=runInNewContext(functions(['humanizeKey','planningStateLabel','deliveryLabel','deliveryValue'])+
+   ';[humanizeKey("not_established"),planningStateLabel(null),deliveryLabel("not_established"),deliveryValue(null),humanizeKey("governance_review")]',{...common});
+ assert.deepEqual(Array.from(labels),['Unresolved','Unresolved','Unresolved','Unresolved','Review required']);
+ const html=runInNewContext(functions(['renderPositionVerdict'])+
+   ';renderPositionVerdict({positionVerdict:{rag:"amber",specific:true,label:"Review needed",text:"Source finding",nextAction:"Check contract",owner:"Contracts Manager",assignTo:"Contracts Manager",basis:"Current source"}})',{...common});
+ assert.match(html,/Contracts Manager/);
+ assert.doesNotMatch(html,/Not assigned/);
+});
+
 test('shared verdict, source scope and Source Quality distinguish source issues from system failures',()=>{
  const code=functions(['renderPositionVerdict','renderRegisterScope']);
  const html=runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',{...common,data:{positionVerdict:{rag:'red',label:'Action required',text:'Submitted completion is 7 days late.',nextAction:'Review recovery',owner:'Project controls reviewer',basis:'Contract comparison'},reportingContract:{dataDateIso:'2031-04-15',populations:{register:{populationId:'x',entity:'claim',name:'Claims',sourceCount:3,denominator:1,dateBasis:'notice date',exclusions:[{id:'F',reason:'after_data_date'},{id:'U',reason:'record_date_missing'}]}}}}});
