@@ -12,14 +12,14 @@ function fixture(){
   state.version++;return {state,model};
 }
 function ncr(id:string,owner:string|null=null){return {ncrId:id,status:'open' as const,severity:'major' as const,raisedIso:'2031-04-01',dueIso:'2031-04-10',closedIso:null,owner,linkedActivityId:'WORK',sourceRefs:['quality-source:'+id]};}
-test('unassigned NCR stays actionable with its source, scope, due date and escalation',()=>{
+test('NCR without a named individual retains source, scope, due date and PMC QA/QC accountable role',()=>{
   const {state}=fixture();state.controls.ncrs.push(ncr('N1'));state.version++;
   const before=JSON.stringify(state.controls),p=crossDomainAccountability(state);
   assert.equal(p.actions.length,1);const a=p.actions[0]!;
-  assert.equal(a.owner,null);assert.equal(a.organisation,null);
+  assert.equal(a.owner,'QA/QC Manager');assert.equal(a.organisation,null);
   assert.equal(a.dueIso,'2031-04-10');assert.deepEqual(a.affectedScope,['WORK']);assert.deepEqual(a.sourceRefs,['quality-source:N1']);
-  assert.match(a.requiredAction,/Assign an accountable party/);assert.match(a.escalation??'',/required date is already past/);
-  assert.match(p.managementPosition,/1 still need ownership/);assert.equal(accountabilityModule(state).status,'partial');
+  assert.match(a.requiredAction,/Close the NCR with corrective evidence/);assert.match(a.escalation??'',/required date is already past/);
+  assert.match(p.managementPosition,/1 have a reusable accountable party/);assert.equal(accountabilityModule(state).status,'partial');
   assert.equal(JSON.stringify(state.controls),before,'read-only projection must preserve source records');
 });
 test('assigning ownership changes the accountable party, not the action identity or population',()=>{
@@ -33,11 +33,11 @@ test('unassigned RFI and risk remain distinct actions; closed and future NCRs do
   const {state}=fixture();state.controls.ncrs.push({...ncr('CLOSED'),status:'closed',closedIso:'2031-04-12'},{...ncr('FUTURE'),raisedIso:'2031-04-20'});
   state.controls.rfis.push({rfiId:'R1',status:'open',raisedIso:'2031-04-01',dueIso:'2031-04-10',owner:null,linkedActivityId:'WORK',sourceRefs:['rfi-source:R1']});
   state.controls.risks.push({riskId:'K1',status:'open',rating:'high',raisedIso:'2031-04-01',dueIso:'2031-04-10',owner:null,sourceRefs:['risk-source:K1']});state.version++;
-  const p=crossDomainAccountability(state);assert.deepEqual(p.actions.map(a=>a.actionId).sort(),['accountability:RFI|R1','accountability:risk|K1'].sort());assert.ok(p.actions.every(a=>a.owner===null));
+  const p=crossDomainAccountability(state);assert.deepEqual(p.actions.map(a=>a.actionId).sort(),['accountability:RFI|R1','accountability:risk|K1'].sort());assert.deepEqual(p.actions.map(a=>a.owner).sort(),['Design Manager','Risk Manager'].sort());
 });
-test('schedule pressure without ownership or scope classification stays an unassigned programme action',()=>{
+test('schedule pressure without a named individual is assigned to the PMC Planning Manager',()=>{
   const {state,model}=fixture();model.activities.push({projectId:state.projectId,activityId:'WORK',nativeId:'1',name:'Unassigned work',wbsId:null,calendarId:null,activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:'2031-04-01',currentFinishIso:'2031-04-10',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:-8,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]});state.version++;
-  const p=crossDomainAccountability(state);assert.equal(p.actions.length,1);assert.equal(p.actions[0]!.actionId,'accountability:schedule|WORK');assert.equal(p.actions[0]!.owner,null);assert.deepEqual(p.actions[0]!.affectedScope,['WORK']);
+  const p=crossDomainAccountability(state);assert.equal(p.actions.length,1);assert.equal(p.actions[0]!.actionId,'accountability:schedule|WORK');assert.equal(p.actions[0]!.owner,'Planning Manager');assert.deepEqual(p.actions[0]!.affectedScope,['WORK']);
 });
 test('one project cannot acquire another project unassigned records, and a genuine empty position stays empty',()=>{
   const {state:a}=fixture(),{state:b}=fixture();a.controls.ncrs.push(ncr('N1'));a.version++;
