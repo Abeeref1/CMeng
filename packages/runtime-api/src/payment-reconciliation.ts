@@ -93,9 +93,12 @@ export function reconcilePaymentEvidence(
   // An explicitly reported net certificate is valid source evidence even
   // when the optional deductions column is absent. A matching stated
   // component equation is a qualification, not permission to invent a zero.
-  const finalReconciliation=reconciliation==='unresolved'&&componentArithmetic.state==='matched'
-    ?'matched' as const:reconciliation;
-  if(finalReconciliation==='matched'&&reconciliation==='unresolved')
-    diagnostics.push('CERTIFICATE_NET_RECONCILES_STATED_COMPONENTS_OPTIONAL_DEDUCTIONS_UNSUPPLIED');
+  // Equality of the supplied columns is NOT a fully reconciled
+  // certificate while other deductions are absent. Keep the qualified
+  // arithmetic observation separately; do not silently treat the missing
+  // column as a zero-value deduction or promote cash/certification.
+  const finalReconciliation=optionalKnown?reconciliation:'unresolved' as const;
+  if(!optionalKnown&&componentArithmetic.state==='matched')
+    diagnostics.push('CERTIFICATE_STATED_COMPONENTS_MATCH_OTHER_DEDUCTIONS_UNSUPPLIED');
   return {reconciliation:finalReconciliation, componentArithmetic, diagnostics, calculatedOutstandingAmount, paymentDate, paymentReference};
 }
