@@ -154,7 +154,7 @@ function renderDashboardDecisions(data){
 }
 function renderDashboardExceptions(data){
   const actions=data.actions||[];
-  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?fmt(row.priorityBasis.linkedFloatHours)+' h float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||'Not assigned',row.dueIso?planningShortDate(row.dueIso):'Not set',readerText(row.requiredAction)]));
+  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?fmt(row.priorityBasis.linkedFloatHours)+' h float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),row.dueIso?planningShortDate(row.dueIso):'Not set',readerText(row.requiredAction)]));
   return managementPanel('Priority project actions',fmt(actions.length)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+fmt(actions.length)+' project actions'):'<p>No current project actions are identified.</p>',true);
 }
 function renderDashboardScheduleExceptions(data){

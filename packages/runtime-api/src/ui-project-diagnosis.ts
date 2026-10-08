@@ -29,7 +29,7 @@ function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question
 function renderProjectPrioritySummary(register){
  if(!register)return '';
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
- return '<p>'+fmt(register.total)+' project actions · same ranking as Command Center.</p><ol>'+(register.actions||[]).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b><br>'+escapeHtml(row.owner||row.organisation||'Owner not assigned')+(row.dueIso?' · '+planningShortDate(row.dueIso):'')+'<br>'+escapeHtml(text(row.requiredAction))+'</li>').join('')+'</ol>';
+ return '<p>'+fmt(register.total)+' project actions · same ranking as Command Center.</p><ol>'+(register.actions||[]).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b><br>'+escapeHtml(row.owner||row.organisation||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'))+(row.dueIso?' · '+planningShortDate(row.dueIso):'')+'<br>'+escapeHtml(text(row.requiredAction))+'</li>').join('')+'</ol>';
 }
 function renderProjectDashboardSummary(d){
  if(!d)return '';

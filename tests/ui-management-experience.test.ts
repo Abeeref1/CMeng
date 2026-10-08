@@ -374,7 +374,7 @@ test('plain information actions preserve original findings and all document refe
  const ctx={...common,names:{'cash-flow':'Cash Flow'},managementModuleLink:(_k:string,label:string)=>label,managementPanel:(_t:string,_s:string,b:string)=>b,basisTable:()=>'',formatDocumentTime:String,data:{sourceIssues:[issue],systemFailures:[],reviewActions:[],pendingChecks:[],coverage:[],documents:[],pageValueChecks:[]}};
  const html=runInNewContext(render+';renderSourceQuality(data)',ctx);
  assert.match(html,/Provide the certificate, receipt or payment amount and its actual event date/);
- assert.match(html,/Not assigned/);assert.match(html,/Document Owner/);assert.doesNotMatch(html,/assign a person/);
+ assert.doesNotMatch(html,/Not assigned/);assert.match(html,/Commercial Manager/);assert.doesNotMatch(html,/assign a person/);
  assert.match(html,/Original finding and document references/);
  assert.match(html,/BANK-SOURCE-required.pdf: row 7; amount 123.45/);
  assert.match(html,/BANK-SOURCE-required.pdf:row:7/);
