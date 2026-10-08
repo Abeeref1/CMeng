@@ -1,4 +1,19 @@
 # CMeng — single system-wide closure board
+
+## Current authoritative consultant execution scope — 8 October 2026
+
+The latest read-only consultant review added eight independently identified issues (N-1 to N-8) to the **unchanged original D-001–D-266** register. The complete scope is **274 tracked findings, exactly assigned once to 61 existing fix items (F01–F61)**, ordered by the consultant's **Step 0–7**. This is a **more detailed mapping of the existing nine-system-root programme**, not a replacement for the earlier seven-stage engineering/independent-certification programme.
+
+**READ FIRST:** [61 full fix descriptions, original IDs, observed status and exact tests](cmeng-f01-f61-274-defect-plan.md) · [machine-readable plan with all eight new defects and exact mapping](cmeng-f01-f61-274-defect-plan.json) · [original unchanged 266-defect/page register](../../tests/fixtures/reem-112-review.json).
+
+The uploaded review's 8 October `aadd8d4` observations classify **12 fixes as apparently Fixed, 32 Partly, 4 Open, 13 Not checked**. This is **consultant read-only, old-release observation**, NOT formal completion on the repair head. All 61 fix items remain tracked until independently tested against a single reviewed SHA, with no High/Critical live findings. The eight new items include false procurement lateness, false approval prompts, missing accountable role, huge repeated quantity curves, source productivity false actions, precision and API-only acceptance tests. New defects are tracked within existing F items, not as a restart.
+
+**Canonical root ownership:** R1 facts (49 original), R4 reading (43), R2 source state (27), R3 routes (9), R5 PMC logic (71), R6 prioritization (2), R7 presentation (53), R8 platform (12). R9 is the cross-cutting acceptance failure: **0 original D defects, 1 new N-8**. Other seven new findings have their original consultant root tags and one-to-one F mapping. Some fix items address related defects classified under a different original root; preserve both identities and do not retag original findings merely to match the implementation owner.
+
+**Immediate release gate:** the completed code CI at `c5679d1` had 1,248/1,256 regression passes, eight failures and a red operational 5,000ms gate; scale, raster, independent and 100-project acceptance jobs passed. Documentation commits subsequent to that do **not** prove a repaired build. Fix actual failing behavior and all 61 items; run source-grounded rendered-page tests (F01) before the final promotion, and preserve original tests and limits. The review deployment `aadd8d4` was older than the repair head at that check. No claim of current/live closure is made.
+
+---
+
 **Control baseline:** Original CMeng Page Review / REEM 112 at release `47cd8029856ab6447497a9f922a2705460406a56` (Data Date `2026-08-31`). **All 62 pages and all 266 individual findings remain in `tests/fixtures/reem-112-review.json`, not in chat messages.**
 
 > **CURRENT FORMAL ACCEPTANCE: 0 of 9 root causes closed; no CMeng release accepted.** Code changes and partial automated passes are implementation evidence, not acceptance. Baseline defect counts below are **original classifications, NOT a claim that those exact numbers remain unfixed in the newest branch**. Never subtract a defect without an exact defect-ID/source-answer/live-UI retest.
