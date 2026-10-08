@@ -1,4 +1,5 @@
 import {deliveryCurrentRecord} from './delivery-records';
+import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
@@ -25,6 +26,7 @@ export interface ProjectAction {
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
+  missingFields?:Array<{field:string;file:string;owner:string}>;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -200,9 +202,22 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const pushMatter=(subset:ControlIssue[],suffix='')=>{
       if(!subset.length)return;
       const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
-      const resolution=actionResolution(group,subset,context);
+      let resolution=actionResolution(group,subset,context);
+      const missing=subset.some(issue=>issue.kind==='missing_information');
+      if(missing&&!resolution.resolution?.requiresUserAction&&!['programme-comparison','schedule-calculation'].includes(group.key)){
+        resolution=uploadResolution('Supply '+group.title.toLowerCase(),group.title+' source document',
+          'Upload the source containing the missing field. Values from other available source fields remain visible.',
+          group.key==='programme-information'?'schedule':'evidence');
+      }
+      const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
+      const sourceFiles=[...new Set(refs.flatMap(ref=>state.evidenceDocuments
+        .filter(doc=>ref.includes(doc.documentId)).map(doc=>doc.sourceFilename)))];
+      const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
+      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>({
+        field:issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file,owner
+      })):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
-        recordCount:refs.length,requestCount:subset.length,findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
+        recordCount:refs.length,requestCount:subset.length,owner,missingFields,findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
       if(resolution.resolution?.kind==='upload'){
         item.correctionRecords=refs.map(ref=>{
@@ -224,7 +239,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
   const programme=projectControlSchedule(state),model=programme?.revision.model;
-  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:unique.length,actions:unique,information,
+  const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));
+  const dataGaps=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
+  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,
     analysis:{state:model?'analysed':state.schedules.length?'programme_selection_needed':'no_programme',activityCount:model?.activities.length??null,dataDateIso:model?.dataDateIso??null,sourceFilename:programme?.sourceFilename??null},
     systemCheckCount:systemItems.length,scope:'One matter per underlying information or decision group. Affected pages and all original findings are retained inside each matter. Missing optional domains are shown separately as coverage information. Decisions refresh from the current project records.'};
 }
