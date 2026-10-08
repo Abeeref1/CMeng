@@ -296,10 +296,32 @@ test('changing dated evidence propagates automatically to all management surface
 });
 
 
+test('a cold project overview reuses only finished version-matched calculations, without inventing ready state',t=>{
+ const {state}=fixture(t);
+ const cold=overviewForProject(state.projectId)!;
+ assert.equal(cold.moduleStates.length,29);
+ assert.ok(cold.moduleStates.every(item=>item.status==='partial'&&item.issueAssessment===undefined),
+   'new projects must not appear certified without calculation');
+ assert.ok(cold.managementStates.every(item=>item.status==='partial'),
+   'management readiness cannot be invented on a cold shell');
+ assert.equal(cold.roleLensContext.planning.criticalCount,null,'uncomputed critical count is unavailable, not zero');
+ assert.equal(cold.roleLensContext.executive.metrics.length,0,'uncomputed metrics are not presented as an all-clear');
+ const specialist=moduleForProject(state.projectId,'pmo-analysis');
+ const warm=overviewForProject(state.projectId)!;
+ const matching=warm.moduleStates.find(item=>item.key==='pmo-analysis')!;
+ assert.equal(matching.status,specialist.status);
+ assert.equal(matching.reason,specialist.reason);
+ assert.deepEqual(matching.issueAssessment,specialist.issueAssessment);
+ state.version++;
+ const changed=overviewForProject(state.projectId)!;
+ assert.equal(changed.moduleStates.find(item=>item.key==='pmo-analysis')?.status,'partial',
+   'stale results from an earlier project version must not be presented as current');
+});
+
 test('all specialist and management status surfaces use the same fail-closed readiness result',t=>{
  const {state}=fixture(t);
- const overview=overviewForProject(state.projectId)!;
  const surfaces=managementSurfacesForProject(state.projectId)!;
+ const overview=overviewForProject(state.projectId)!;
  for (const specialist of surfaces.masterControlProgramme.specialistPositions) {
    const resolved=moduleForProject(state.projectId,specialist.key);
    if(resolved.data) {

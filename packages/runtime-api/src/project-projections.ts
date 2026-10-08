@@ -8563,11 +8563,11 @@ export function overviewForProject(
   const latest =
     projectControlSchedule(state);
   const programmeSchedules = state.schedules.filter(isProgrammeScheduleRevision);
+  const retainedReceipt=state.lastRerunReceipt?.projectVersion===state.version?state.lastRerunReceipt:null;
   const receiptStates =
     new Map(
       (
-        state.lastRerunReceipt
-          ?.moduleResults ??
+        retainedReceipt?.moduleResults ??
         []
       ).map(
         (item) => [
@@ -8579,56 +8579,47 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // Resolve specialists first. One call populates the project-scoped certified
-  // module cache; all remaining specialist lookups are then O(1). Management
-  // surfaces consume that same cache, avoiding the previous cold-start path
-  // where management triggered a second full specialist resolution.
-  const overviewModuleStates =
-    certifiedAnalyticalModules.map(
-      (module) => {
-        const resolved =
-          resolveProjectModule(
-            state,
-            module.key,
-          );
-        return {
-          key: module.key,
-          issueAssessment:
-            resolved.issueAssessment,
-          status:
-            resolved.status,
-          reason:
-            resolved.reason,
-        };
-      },
-    );
-  // The overview is a compact project shell, not another management
-  // calculation. Reuse the specialist resolution already completed above and
-  // derive the role lenses from canonical facts/actions/context. Full management
-  // surfaces remain lazy and are calculated only when their page is opened.
-  const overviewResolvedModules=resolvedProjectCache.get(state.projectId)!.modules;
-  const overviewIssueAssessment=summarizeControlIssues(
-    [...overviewResolvedModules.values()].flatMap(result=>result.issueAssessment?.issues??[]),
-  );
-  const overviewManagementStatus:ModuleRuntimeResult['status']=
-    overviewModuleStates.some(item=>item.status==='blocked'||item.status==='partial')?'partial':'ready';
-  const overviewManagementStates=managementModuleKeys.map(key=>({
-    key,
-    status:overviewManagementStatus,
-    reason:overviewManagementStatus==='ready'?null:'Management summary reflects specialist positions that still require review.',
-    issueAssessment:overviewIssueAssessment,
-  }));
+  // The overview must never trigger the full certified specialist suite.
+  // Only reuse completed calculations for the identical project version.
+  // On a cold open, retain a conservative qualified state and let each
+  // specialist/management page calculate when that page is requested.
+  const resolvedCache=resolvedProjectCache.get(state.projectId);
+  const overviewResolvedModules=resolvedCache?.version===state.version?resolvedCache.modules:null;
+  const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
+    const ready=overviewResolvedModules?.get(module.key);
+    if(ready)return {key:module.key,status:ready.status,reason:ready.reason,issueAssessment:ready.issueAssessment};
+    const stored=receiptStates.get(module.key);
+    return {key:module.key,status:stored??'partial' as const,
+      reason:stored?'Previously calculated at this project version; open the specialist page to view the retained basis.':
+        'Specialist calculation has not run for this project version; open the page to establish the position.',
+      issueAssessment:undefined};
+  });
+  const overviewIssueAssessment=overviewResolvedModules
+    ?summarizeControlIssues([...overviewResolvedModules.values()].flatMap(result=>result.issueAssessment?.issues??[]))
+    :undefined;
+  const cachedManagement=managementProjectionCache.get(state.projectId);
+  const overviewManagementStates=managementModuleKeys.map(key=>{
+    // A completed management calculation is safe to reuse, but never run it
+    // just to supply a navigation badge on a cold project overview.
+    if(cachedManagement?.version===state.version){
+      const result=managementSurfaceForProject(state.projectId,key);
+      if(result)return {key,status:result.status,reason:result.reason,issueAssessment:result.issueAssessment};
+    }
+    return {key,status:'partial' as const,
+      reason:'Management position has not been calculated for this project version; open the management page for its full answer.',
+      issueAssessment:overviewIssueAssessment};
+  });
 
-  const pmoData=overviewResolvedModules.get('pmo-analysis')?.data as any;
-  const forecastData=overviewResolvedModules.get('independent-forecast')?.data as any;
+  const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
+  const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
   const roleDiagnosis=pmoData?.projectDiagnosis??null;
   const roleCompletion=forecastData?.completionPosition??null;
-  const bundle=buildBundle(state);
-  const overviewCommercial=commercialPositionForState(state,bundle.generatedAt);
-  const roleContext=projectManagementContext(state,overviewResolvedModules,overviewCommercial);
-  const roleInterfaces=interfaceIntelligence(state);
-  const projectFacts=projectFactsForState(state);
-  const canonicalActions=projectActionRegisterForState(state).actions;
+  const bundle=overviewResolvedModules?buildBundle(state):null;
+  const overviewCommercial=bundle?commercialPositionForState(state,bundle.generatedAt):null;
+  const roleContext=overviewResolvedModules?projectManagementContext(state,overviewResolvedModules,overviewCommercial):null;
+  const roleInterfaces=overviewResolvedModules?interfaceIntelligence(state):null;
+  const projectFacts=overviewResolvedModules?projectFactsForState(state):null;
+  const canonicalActions=overviewResolvedModules?projectActionRegisterForState(state).actions:[];
   const compactActions=canonicalActions.slice(0,12).map(action=>({
     issue:action.issue??null,
     consequence:action.consequence??null,
@@ -8644,12 +8635,12 @@ export function overviewForProject(
     owningModule:action.owningModule??null,
   }));
   const executiveMetrics=[
-    {label:'Original contract completion',value:projectFacts.time.contractualCompletionIso.value,unit:'date',basis:projectFacts.time.contractualCompletionIso.basis,health:'unavailable'},
-    {label:'Contract completion including awarded EOT',value:projectFacts.time.extendedContractCompletionIso.value,unit:'date',basis:projectFacts.time.extendedContractCompletionIso.basis,health:'unavailable'},
-    {label:'Submitted programme finish',value:projectFacts.schedule.submittedProgrammeCompletionIso.value,unit:'date',basis:projectFacts.schedule.submittedProgrammeCompletionIso.basis,health:'unavailable'},
+    {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
+    {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
+    {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Programme calendar recalculation',value:forecastData?.independentForecastCompletionIso??null,unit:'date',basis:'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
-    {label:'Critical activities',value:projectFacts.schedule.criticalActivityCount.value,unit:null,basis:projectFacts.schedule.criticalActivityCount.basis,health:(projectFacts.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
-    {label:'Near-critical activities',value:projectFacts.schedule.nearCriticalActivityCount.value,unit:null,basis:projectFacts.schedule.nearCriticalActivityCount.basis,health:'unavailable'},
+    {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
+    {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
   ];
   const executiveDecisions=canonicalActions.slice(0,8).map(action=>({
     description:action.issue,
@@ -8665,11 +8656,11 @@ export function overviewForProject(
         .dataDateIso ?? null,
     planning: {
       criticalCount:
-        projectFacts.schedule.criticalActivityCount.value,
+        projectFacts?.schedule.criticalActivityCount.value??null,
       nearCriticalCount:
-        projectFacts.schedule.nearCriticalActivityCount.value,
+        projectFacts?.schedule.nearCriticalActivityCount.value??null,
       negativeFloatCount:
-        projectFacts.schedule.negativeFloatActivityCount.value,
+        projectFacts?.schedule.negativeFloatActivityCount.value??null,
       drivingNetworkState:
         roleDiagnosis?.network
           ?.state ?? null,
@@ -8747,7 +8738,7 @@ export function overviewForProject(
           ?.independentFinishIso ??
         null,
       submittedCompletionIso:
-        projectFacts.schedule.submittedProgrammeCompletionIso.value,
+        projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,
       scheduleVarianceDays:
         roleCompletion
           ?.differenceElapsedDays ??
@@ -8780,14 +8771,14 @@ export function overviewForProject(
           roleContext?.schedule
             ?.programmeStages,
         )
-          ? roleContext.schedule.programmeStages
+          ? roleContext?.schedule?.programmeStages
               .slice(0, 10)
           : [],
       interfaces:
         Array.isArray(
           roleInterfaces?.rows,
         )
-          ? roleInterfaces.rows
+          ? roleInterfaces?.rows
               .slice(0, 10)
               .map((row: any) => ({
                 interfaceId:
@@ -8814,15 +8805,15 @@ export function overviewForProject(
     },
     executive: {
       contractualCompletionIso:
-        projectFacts.time.contractualCompletionIso.value,
+        projectFacts?.time.contractualCompletionIso.value??null,
       submittedCompletionIso:
-        projectFacts.schedule.submittedProgrammeCompletionIso.value,
+        projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,
       forecastCompletionIso:
         roleCompletion
           ?.independentFinishIso ??
         null,
       metrics:executiveMetrics.filter(metric=>metric.value!==null&&metric.value!==undefined).slice(0,10),
-      commercialByCurrency:projectFacts.commercial.currencies.slice(0,8).map(row=>({currency:row.currency})),
+      commercialByCurrency:(projectFacts?.commercial.currencies??[]).slice(0,8).map(row=>({currency:row.currency})),
       decisions:executiveDecisions,
     },
   };
