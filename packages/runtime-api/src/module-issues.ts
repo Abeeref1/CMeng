@@ -83,6 +83,12 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // expose their owned evidence in focus; unrelated missing registers must not
   // turn every commercial page into the same warning.
   const visited=new WeakSet<object>();
+  // A productivity-based independent forecast is an optional analytical
+  // source, not an unconditional requirement for the current programme,
+  // management dashboard or CPM. Genuine conflicts and parser faults are
+  // still inspected and remain actionable.
+  const optionalForecastAbsent=(path:string,value:any)=>path.endsWith('.sourceProductivityForecast')&&
+    value?.state==='missing'&&!(Array.isArray(value?.diagnostics)&&value.diagnostics.length);
   const noDiagnostics:readonly string[]=[];
   const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
   // Comparison envelopes retain their own input/reconciliation states. The
@@ -112,6 +118,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
+    if(optionalForecastAbsent(path,value))return;
     // An explicitly supplied outstanding advance does not depend on deriving
     // the original advance from a contract percentage.
     if(path.endsWith('.advancePaymentPercent')&&d?.position?.currencies?.some((row:any)=>typeof row.advanceBalance?.value==='number'))return;
