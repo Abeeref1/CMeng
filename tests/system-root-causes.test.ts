@@ -12,7 +12,7 @@ import {managementVisualControl} from '../packages/runtime-api/src/management-vi
 import {commercialPositionForState} from '../packages/runtime-api/src/commercial-runtime';
 import {performanceSecurityValidity} from '../packages/commercial-contract-controls/src/security-validity';
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
-import {reportingState} from '../packages/runtime-api/src/reporting-state';
+import {reportingState,operationalReporting} from '../packages/runtime-api/src/reporting-state';
 import {prioritizeActions,actionRecordKey,consolidateScheduleChains} from '../packages/runtime-api/src/action-priority';
 import {managementAction} from '../packages/truth-kernel/src';
 import {classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
@@ -33,6 +33,18 @@ test('management source inventory reads retained CSV rows and follows header ide
   const inventory=managementSourceInventory(state);
   assert.equal(inventory.domains.find(row=>row.domain==='design')!.readableRowCount,2);
   assert.equal(inventory.domains.find(row=>row.domain==='quality')!.documentCount,0);
+ }finally{rmSync(folder,{recursive:true,force:true});}
+});
+
+test('risk source Score is retained and reconciled instead of being replaced by probability times impact',()=>{
+ const folder=mkdtempSync(join(tmpdir(),'cmeng-risk-score-'));
+ try{
+  const state=loadCertifiedDemoProject('RISK-SCORE-'+randomUUID()),path=join(folder,'Risk.csv');
+  const csv='Risk ID,Status,Probability,Impact,Score,Rating,Identified Date,Action Due Date,Last Reviewed,Owner\nR-1,Open,4,5,18,High,2026-01-01,2026-02-01,2026-01-15,Risk Lead\n';
+  writeFileSync(path,csv);state.evidenceDocuments=[{documentId:'RISK-SCORE',documentType:'risk_register',sourceFilename:'Risk.csv',mediaType:'text/csv',sourceHashSha256:createHash('sha256').update(csv).digest('hex'),storedPath:path,basisState:'active',parserState:'parsed'} as any];state.version++;
+  const validation=operationalReporting(state).risk.validation,row=validation.scoreRows[0]!;
+  assert.equal(row.sourceScore,18);assert.equal(row.calculatedScore,20);assert.equal(row.score,18);assert.equal(row.scoreConflict,true);
+  assert.equal(validation.state,'conflicted');assert.ok(validation.diagnostics.includes('RISK_SOURCE_SCORE_CONFLICT'));
  }finally{rmSync(folder,{recursive:true,force:true});}
 });
 
@@ -116,8 +128,9 @@ test('one record produces one action and driving work outranks an older non-driv
  const state=loadCertifiedDemoProject('PRIORITY-'+randomUUID()),model=state.schedules.at(-1)!.revision.model,sample=model.activities[0]!;
  model.activities=[{...sample,activityId:'DRIVER',status:'not_started',totalFloatHours:-40},{...sample,activityId:'SLACK',status:'not_started',totalFloatHours:80}];
  const row=(id:string,activity:string,due:string,owner:string|null)=>managementAction({actionId:id,recordKey:actionRecordKey('RFI',id),issue:id,affectedScope:[activity],affectedMilestones:[],owner,organisation:null,requiredAction:'Obtain response',dueIso:due,escalation:null,severity:'high',authority:'source',consequence:null,sourceRefs:[id]});
- const result=prioritizeActions([row('OLD','SLACK','2020-01-01',null),row('NEW','DRIVER','2030-01-01','Design Lead'),{...row('NEW','DRIVER','2030-01-01',null),actionId:'activity-copy',sourceRefs:['second receipt']}],model,['DRIVER']);
+ const result=prioritizeActions([row('OLD','SLACK','2020-01-01',null),row('NEW','DRIVER','2030-01-01','Design Lead'),{...row('NEW','DRIVER','2030-01-01',null),actionId:'activity-copy',sourceRefs:['second receipt']}],model,['DRIVER'],'independent_cpm',new Map([['DRIVER',-4],['SLACK',120]]));
  assert.equal(result.length,2);assert.equal(result[0]!.issue,'NEW');assert.equal(result[0]!.owner,'Design Lead');assert.deepEqual(result[0]!.sourceRefs,['NEW','second receipt']);
+ assert.equal(result[0]!.priorityBasis?.linkedFloatHours,-4);assert.equal(result[0]!.priorityBasis?.floatAuthority,'independent_cpm');
 });
 
 test('plot location is parsed from source text without project-specific assumptions',()=>{
