@@ -1,6 +1,22 @@
 import type {ManagementAction} from '../../truth-kernel/src';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 
+/** Preserve any named source owner; otherwise assign an accountable PMC discipline. */
+export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=null):string {
+ const owner=typeof sourceOwner==='string'?sourceOwner.trim():'';
+ if(owner&&!/^(not assigned|unassigned|unknown|not supplied|tbd|n\\/?a|-)$/i.test(owner))return owner;
+ const scope=domain.toLowerCase();
+ if(/rfi|design|submittal/.test(scope))return 'PMC Design Manager';
+ if(/ncr|quality|inspection/.test(scope))return 'PMC Quality Manager';
+ if(/procurement|material|purchase|supplier/.test(scope))return 'PMC Procurement Manager';
+ if(/claim|notice|eot|contract/.test(scope))return 'PMC Contracts Manager';
+ if(/bond|insurance|commercial|payment|certificate|cost|variation/.test(scope))return 'PMC Commercial Manager';
+ if(/hse|safety|permit/.test(scope))return 'PMC HSE Manager';
+ if(/site|delivery|interface|resource|construction/.test(scope))return 'PMC Construction Manager';
+ if(/schedule|programme|activity|cpm|float/.test(scope))return 'PMC Planning Engineer';
+ return 'PMC Project Controls Manager';
+}
+
 export function actionRecordKey(domain:string,reference:string){
  const name=domain.toLowerCase();
  const kind=({design:'rfi',quality:'ncr',package:'procurement',activity:'schedule'} as Record<string,string>)[name]??name;
@@ -10,6 +26,7 @@ export function actionRecordKey(domain:string,reference:string){
 /** Connected programme findings with the same owner form one recovery task.
  * Source RFIs, NCRs and procurement records always retain their own action. */
 export function consolidateScheduleChains(rows:ManagementAction[],model:CanonicalScheduleModel|null){
+ rows=rows.map(row=>({...row,owner:pmcRoleOwner(row.recordKey??row.issue,row.owner)}));
  if(!model)return rows;
  const activityIds=new Set(model.activities.map(activity=>activity.activityId));
  const byActivity=new Map(rows.flatMap(row=>{
@@ -64,6 +81,7 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
  }
  const severity={critical:0,high:1,medium:2,low:3,information:4};
  return [...unique.values()].map(row=>{
+  row={...row,owner:pmcRoleOwner(row.recordKey??row.issue,row.owner)};
   const linked=row.affectedScope.flatMap(id=>{const a=activities.get(id);return a&&a.status!=='completed'?[a]:[];});
   const floats=linked.flatMap(a=>{const value=rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours;return value===null?[]:[value];});
   return {...row,priorityBasis:{linkedFloatHours:floats.length?Math.min(...floats):null,floatAuthority,drivingPath:linked.some(a=>driving.has(a.activityId)),milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
