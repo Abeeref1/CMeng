@@ -289,20 +289,17 @@ function backwardConstraintFinish(
   if (relation.type === 'FS' || relation.type === 'FF') {
     return {finish: bound, start: null};
   }
-  // A start deadline inside a calendar gap cannot move beyond the deadline.
-  // A shift closing instant has NO available work to start. Select the last
-  // workable start slot on the predecessor calendar instead of treating the
-  // closing instant as a start and carrying its duration into the next week.
-  // A deadline already inside a nonworking gap may use the last closing
-  // boundary: the boundary remains a feasible instant before that deadline.
-  // A deadline *after* shift closing can rewind to the earlier closing
-  // boundary. That boundary itself is not a feasible activity start, whether
-  // or not it equals the original deadline. Rewind into real working time
-  // rather than adding duration across a non-working gap.
+  // For an SS/SF start deadline strictly *inside* an off-shift gap, the
+  // previous closing boundary is not the final feasible start slot: go back
+  // into the last workable hour. At a deadline exactly ON that closing
+  // instant, independent slot enumeration permits the boundary itself
+  // (subsequent work resumes at the next opening). Rewinding that exact
+  // instant incorrectly loses one hour of float in mixed-lag networks.
   const closing=nextWorkingInstant(predecessorCalendar.calendar,bound)>bound;
   const last=closing?previousWorkingInstant(predecessorCalendar.calendar,bound):bound;
   const lastClosesShift=nextWorkingInstant(predecessorCalendar.calendar,last)>last;
-  const start=closing&&lastClosesShift&&predecessorDurationHours>0
+  const strictlyAfterClosing=last<bound;
+  const start=closing&&strictlyAfterClosing&&lastClosesShift&&predecessorDurationHours>0
     ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
     :last;
   return {start, finish: addWorkingHours(
