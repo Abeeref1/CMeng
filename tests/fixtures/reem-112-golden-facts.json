@@ -47,6 +47,11 @@
       "forecastEac": 218403148
     }
   },
+  "procurementReconciliation": {
+    "expectedKnownLate": 17,
+    "sourceDeliveredMissingActual": 27,
+    "expectationBasis": "Consultant-reported REEM register breakdown, 8 October 2026; confirm original records independently before formal acceptance"
+  },
   "delivery": {
     "package": 90,
     "design": 680,
