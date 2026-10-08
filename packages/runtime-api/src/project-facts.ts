@@ -178,10 +178,14 @@ function projectedCount(
 }
 
 export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnapshot{
+  // Facts are reporting facts. Cache them on the canonical read-only reporting
+  // view so callers that start from persisted state and callers already working
+  // on that view share one exact snapshot for the same project version.
+  state=reportingState(state);
   const cached=cache.get(state);
   if(cached?.version===state.version)return cached.value;
 
-  const scoped=reportingState(state);
+  const scoped=state;
   const current=projectControlSchedule(scoped);
   const model=current?.revision.model??null;
   const dataDateIso=model?.dataDateIso?.slice(0,10)??null;
