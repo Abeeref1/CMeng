@@ -6,9 +6,12 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const needDateBasis=needDate===sourceRequiredOnSite?'the required-on-site date from the register':'the linked programme need date';
  const deliveredAtDataDate=!!actualDelivery&&!!cutoff&&actualDelivery<=cutoff;
  const terminal=/^(delivered|accepted|installed|closed|complete|completed)$/i.test(input.status.trim());
- const knownUndelivered=!!cutoff&&!deliveredAtDataDate&&(!!actualDelivery&&actualDelivery>cutoff||!!input.status.trim()&&!terminal);
+ // The status is evidence of completion, not proof of an actual delivery date or on-time delivery.
+ // A recorded future actual date takes precedence over a stale completed-status label.
+ const deliveredStatusOnly=!!cutoff&&terminal&&!actualDelivery;
+ const knownUndelivered=!!cutoff&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!input.status.trim()&&!terminal);
  const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;
  const headroomCalendarDays=needDate&&forecastDelivery?(Date.parse(needDate)-Date.parse(forecastDelivery))/86400000:null;
- const forecastLate=!deliveredAtDataDate&&headroomCalendarDays!==null&&headroomCalendarDays<0;
- return {programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,overdueUndelivered,headroomCalendarDays,forecastLate};
+ const forecastLate=!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
+ return {programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,headroomCalendarDays,forecastLate};
 }
