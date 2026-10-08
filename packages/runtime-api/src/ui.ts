@@ -1655,7 +1655,7 @@ function planningRevisionLabel(value){
     .trim();
 }
 function planningStateLabel(value){
-  if(value===null||value===undefined)return 'Not established';
+  if(value===null||value===undefined)return humanizeKey('not_established');
   const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[value])return sharedLabels[value];
   const labels={
     ready:"Ready",partial:"Needs attention",blocked:"More information needed",
