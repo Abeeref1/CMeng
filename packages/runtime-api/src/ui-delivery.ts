@@ -4,7 +4,7 @@ import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
 export function deliveryScript():string{return `const deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0;
-const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:6});
+const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
  if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return deliveryUnknownText;
@@ -25,7 +25,13 @@ function deliveryTable(id,title,rows,columns){
  deliveryTables[id]={rows,columns,page:0,query:'',filter:'',sort:null,direction:1,title};
  return '<section class="card delivery-table" data-delivery-table="'+id+'"><h4>'+escapeHtml(title)+'</h4><div class="delivery-toolbar"><label>Search <input aria-label="Search '+escapeHtml(title)+'" data-delivery-search="'+id+'" placeholder="Reference, owner, discipline, source…"></label><label>State <select data-delivery-filter="'+id+'"><option value="">All states</option>'+[...new Set(rows.map(deliveryRowState).filter(Boolean))].sort().map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(deliveryLabel(s))+'</option>').join('')+'</select></label><button class="btn small" data-delivery-clear="'+id+'">Clear filters</button></div><div id="'+id+'Body"></div><div class="delivery-toolbar"><button class="btn small" data-delivery-page="'+id+'" data-step="-1">Previous</button><span id="'+id+'Count" role="status"></span><button class="btn small" data-delivery-page="'+id+'" data-step="1">Next</button></div></section>';
 }
-function deliveryCell(row,key){if(key==='programmeContext.linkedFloatHours'&&row.programmeContext?.state==='completed_work')return 'Not applicable';return key.split('.').reduce((v,k)=>v?.[k],row);}
+function deliveryCell(row,key){
+ if(key==='programmeContext.linkedFloatHours'&&row.programmeContext?.state==='completed_work')return 'Not applicable';
+ const result=key.split('.').reduce((v,k)=>v?.[k],row);
+ if(/(?:owner|responsibleParty|organisation)$/i.test(key)&&(!result||/^not assigned|unassigned|not recorded$/i.test(String(result))))
+  return typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.kind||key):'PMC Project Controls Manager';
+ return result;
+}
 function deliveryFiltered(table){let rows=table.rows.filter(r=>(!table.query||JSON.stringify(r).toLowerCase().includes(table.query.toLowerCase()))&&(!table.filter||deliveryRowState(r)===table.filter));if(table.sort)rows=[...rows].sort((a,b)=>{const x=deliveryCell(a,table.sort),y=deliveryCell(b,table.sort);if((x===null||x===undefined)&&(y===null||y===undefined))return 0;if(x===null||x===undefined)return 1;if(y===null||y===undefined)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*table.direction;});return rows;}
 function refreshDeliveryTable(id){const t=deliveryTables[id],target=el(id+'Body');if(!t||!target)return;const rows=deliveryFiltered(t),pages=Math.max(1,Math.ceil(rows.length/25));t.page=Math.max(0,Math.min(t.page,pages-1));const displayed=rows.slice(t.page*25,t.page*25+25);
  target.innerHTML='<div class="table-wrap"><table><thead><tr>'+t.columns.map(([key,label])=>'<th><button class="delivery-sort" data-delivery-sort="'+id+'" data-key="'+escapeHtml(key)+'">'+escapeHtml(label)+(t.sort===key?(t.direction===1?' ↑':' ↓'):'')+'</button></th>').join('')+'<th>Detail</th></tr></thead><tbody>'+displayed.map((r,index)=>'<tr>'+t.columns.map(([key])=>'<td>'+deliveryText(/(?:state|status)$/i.test(key)&&typeof deliveryCell(r,key)==='string'?deliveryLabel(deliveryCell(r,key)):key==='latestOrderDate'&&deliveryCell(r,key)?String(deliveryCell(r,key)).slice(0,10):deliveryCell(r,key))+'</td>').join('')+'<td><button class="btn small" data-delivery-detail="'+id+'" data-index="'+(t.page*25+index)+'">Open</button></td></tr>').join('')+'</tbody></table></div>'+(displayed.length?'':'<p class="empty">'+(t.rows.length?'Records exist, but none match these filters. Clear filters to restore the complete set.':'No reviewed rows in this view. Review supplied records and source coverage below.')+'</p>');
@@ -55,7 +61,7 @@ function deliveryDetailNode(label,value){
 function deliveryObjectDetail(value){
  if(value===null||typeof value!=='object')return deliveryText(value);
  if(Array.isArray(value))return value.length?deliveryDetailNode('View records',value):'<p>None in this set.</p>';
- return '<dl class="delivery-detail">'+Object.entries(value).map(([key,v])=>'<dt>'+escapeHtml(deliveryLabel(key))+'</dt><dd>'+(v&&typeof v==='object'?deliveryDetailNode('Open '+deliveryLabel(key),v):deliveryText(/(?:state|status|kind|series)$/i.test(key)&&typeof v==='string'?deliveryLabel(v):v))+'</dd>').join('')+'</dl>';
+ return '<dl class="delivery-detail">'+Object.entries(value).filter(([key])=>!(typeof readerTechnicalField==='function'&&readerTechnicalField(key))).map(([key,v])=>'<dt>'+escapeHtml(deliveryLabel(key))+'</dt><dd>'+(v&&typeof v==='object'?deliveryDetailNode('Open '+deliveryLabel(key),v):deliveryText(/(?:state|status|kind|series)$/i.test(key)&&typeof v==='string'?deliveryLabel(v):v))+'</dd>').join('')+'</dl>';
 }
 function deliveryEvidencePage(id){
  const view=deliveryDetailViews[id];if(!view||!Array.isArray(view.value))return '';
