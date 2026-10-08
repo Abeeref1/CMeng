@@ -2301,8 +2301,9 @@ async function route(
     }else{
       json(res,400,{error:'source_route_not_allowed'});return;
     }
-    const expected=Number(url.searchParams.get('version'));
-    if(Number.isInteger(expected)&&expected!==state.version){
+    const rawExpected=url.searchParams.get('version');
+    const expected=rawExpected===null||rawExpected.trim()===''?null:Number(rawExpected);
+    if(expected!==null&&Number.isInteger(expected)&&expected!==state.version){
       json(res,409,{error:'project_version_changed',projectVersion:state.version});return;
     }
     const pointer=url.searchParams.get('pointer')??'';
