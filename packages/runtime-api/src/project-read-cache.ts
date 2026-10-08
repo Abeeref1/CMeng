@@ -6,12 +6,14 @@ export const MAX_PROJECT_READ_BYTES=32*1024*1024;
 const DEFAULT_CACHE_BYTES=64*1024*1024;
 const STORAGE_RESERVE_BYTES=512*1024*1024;
 /** These are disposable projections, never uploads, snapshots or saved Ask results. */
-export async function clearDerivedReadCaches(root:string){
+export async function clearDerivedReadCaches(root:string,currentRelease?:string){
   const projects=join(root,'projects');
   for(const entry of await readdir(projects,{withFileTypes:true}).catch(()=>[])){
     if(!entry.isDirectory()||!/^[a-f0-9]{64}$/.test(entry.name))continue;
     const directory=join(projects,entry.name);
-    await rm(join(directory,'.analysis-reads'),{recursive:true,force:true});
+    const cacheDirectory=join(directory,'.analysis-reads');
+    const cachedRelease=await readFile(join(cacheDirectory,'release'),'utf8').catch(()=>null);
+    if(!currentRelease||cachedRelease!==currentRelease)await rm(cacheDirectory,{recursive:true,force:true});
     for(const name of await readdir(directory))if(/^(?:portfolio|metadata)\.json\.[a-f0-9-]{36}\.tmp$/.test(name))await rm(join(directory,name),{force:true});
   }
 }
@@ -43,6 +45,7 @@ export class ProjectReadCache {
         await rm(entry.path,{force:true});bytes-=entry.info.size;
       }
       await writeFile(temporary,body);await rename(temporary,file);
+      await writeFile(join(directory,'release'),release);
     }
     catch{await rm(temporary,{force:true}).catch(()=>{});}
   }

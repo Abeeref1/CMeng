@@ -22,7 +22,7 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
-  await clearDerivedReadCaches(root);
+  await clearDerivedReadCaches(root,release());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();

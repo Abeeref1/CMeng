@@ -425,7 +425,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Documents and activity links",
       "CMeng AI",
       "Management decision required",
-      "Current positions",
+      "Finish dates available",
       "Need attention",
       "Productivity forecast",
       "Portfolio attention",
