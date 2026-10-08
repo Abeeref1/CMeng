@@ -190,9 +190,9 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
     const field=headers[index]??normalizeHeader(rawHeader);
     const mapped=fields.has(field)||fields.has(field.replace(/ [a-z]{3}$/,''));
     const text=normalizeHeader(rawHeader+' '+field);
-    const kind=isRegisterDateHeader(field)||/\\b(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)\\b/.test(text)?'date':
-      /\\b(days|day count|duration|working days|calendar days)\\b/.test(text)?'days':
-      /\\b(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)\\b/.test(text)?'amount':'other';
+    const kind=isRegisterDateHeader(field)||/(?:^| )(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)(?: |$)/.test(text)?'date':
+      /(?:^| )(days|day count|duration|working days|calendar days)(?: |$)/.test(text)?'days':
+      /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
     return {sourceHeader:rawHeader,canonicalHeader:field,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
       reason:mapped
         ?'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.'
