@@ -151,8 +151,9 @@ export function buildForecastReconciliationGate(input: {
   const publishable =
     forecast.independentForecastCompletionIso !== null &&
     checks.every(check => check.state === "passed");
-  const usable=forecast.independentForecastCompletionIso!==null&&checks
-    .filter(check=>!['material_activity_divergence','required_finish_authority'].includes(check.key))
+  const usable=forecast.independentForecastCompletionIso!==null&&
+    !hasUnreconciledScheduleCalendar(forecast)&&checks
+    .filter(check=>check.key!=='required_finish_authority')
     .every(check=>check.state==='passed');
   const failed = checks.filter(check => check.state !== "passed");
   return {
@@ -173,6 +174,18 @@ export function buildForecastReconciliationGate(input: {
       materialActivityScreeningDays +
       "-day activity divergence threshold is a CMeng screening threshold, not a contractual materiality rule.",
   };
+}
+
+/** Source-calendar anomalies must not be promoted as a management finish. */
+export function hasUnreconciledScheduleCalendar(
+  forecast: {diagnostics?:readonly string[];assumptions?:readonly string[]}|null|undefined,
+):boolean {
+  const messages=[...(forecast?.diagnostics??[]),...(forecast?.assumptions??[])];
+  return messages.some(message=>
+    message.startsWith('CALENDAR_SEMANTICS_UNRESOLVED:')||
+    message.startsWith('CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:')||
+    message.includes('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION')
+  );
 }
 
 export function forecastControlForState(
