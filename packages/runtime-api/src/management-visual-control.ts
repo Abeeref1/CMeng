@@ -104,7 +104,7 @@ export function managementVisualControl(
   }
   const boqCandidatesByWbs=new Map<string,string[]>();
   for(const p of boqScope.packages){
-    const label=String(p.packageCandidate??p.label??p.package??''),rows=boqCandidatesByWbs.get(label)??[];
+    const label=String(p.package??''),rows=boqCandidatesByWbs.get(label)??[];
     rows.push(label);boqCandidatesByWbs.set(label,rows);
   }
   for(const row of drivingActivities){
