@@ -8592,103 +8592,63 @@ export function overviewForProject(
         };
       },
     );
-  const overviewManagementResults =
-    new Map(
-      managementModuleKeys.map(
-        (key) => [
-          key,
-          moduleForProject(
-            projectId,
-            key,
-          ),
-        ] as const,
-      ),
-    );
-  const overviewManagementStates =
-    managementModuleKeys.map(
-      (key) => {
-        const resolved =
-          overviewManagementResults.get(
-            key,
-          )!;
-        return {
-          key,
-          status:
-            resolved.status,
-          reason:
-            resolved.reason,
-          issueAssessment:
-            resolved.issueAssessment,
-        };
-      },
-    );
-
-  // Task 56: every role lens consumes the same already-resolved Management
-  // Control payloads. Do not perform a second management-surface lookup solely
-  // for presentation; the role lens is a compact view, not another calculation.
-  const roleDashboard =
-    (overviewManagementResults.get(
-      "master-dashboard",
-    )?.data as any) ?? {};
-  const roleCommand =
-    (overviewManagementResults.get(
-      "command-center",
-    )?.data as any) ?? {};
-  const roleMcp =
-    (overviewManagementResults.get(
-      "master-control-programme",
-    )?.data as any) ?? {};
-  const roleDiagnosis =
-    roleDashboard.projectDiagnosis ??
-    null;
-  const roleCompletion =
-    roleDashboard.completionPosition ??
-    null;
-  const roleContext =
-    roleDashboard.managementContext ??
-    roleCommand.managementContext ??
-    roleMcp.managementContext ??
-    null;
-  const compactActions = (
-    roleCommand.actions ??
-    []
-  ).slice(0, 12).map(
-    (action: any) => ({
-      issue: action.issue ?? null,
-      consequence:
-        action.consequence ?? null,
-      affectedScope:
-        Array.isArray(
-          action.affectedScope,
-        )
-          ? action.affectedScope
-          : [],
-      affectedMilestones:
-        Array.isArray(
-          action.affectedMilestones,
-        )
-          ? action.affectedMilestones
-          : [],
-      owner: action.owner ?? null,
-      organisation:
-        action.organisation ?? null,
-      requiredAction:
-        action.requiredAction ??
-        null,
-      dueIso:
-        action.dueIso ?? null,
-      escalation:
-        action.escalation ?? null,
-      severity:
-        action.severity ?? null,
-      authority:
-        action.authority ?? null,
-      owningModule:
-        action.owningModule ??
-        null,
-    }),
+  // The overview is a compact project shell, not another management
+  // calculation. Reuse the specialist resolution already completed above and
+  // derive the role lenses from canonical facts/actions/context. Full management
+  // surfaces remain lazy and are calculated only when their page is opened.
+  const overviewResolvedModules=resolvedProjectCache.get(state.projectId)!.modules;
+  const overviewIssueAssessment=summarizeControlIssues(
+    [...overviewResolvedModules.values()].flatMap(result=>result.issueAssessment?.issues??[]),
   );
+  const overviewManagementStatus:ModuleRuntimeResult['status']=
+    overviewModuleStates.some(item=>item.status==='blocked'||item.status==='partial')?'partial':'ready';
+  const overviewManagementStates=managementModuleKeys.map(key=>({
+    key,
+    status:overviewManagementStatus,
+    reason:overviewManagementStatus==='ready'?null:'Management summary reflects specialist positions that still require review.',
+    issueAssessment:overviewIssueAssessment,
+  }));
+
+  const pmoData=overviewResolvedModules.get('pmo-analysis')?.data as any;
+  const forecastData=overviewResolvedModules.get('independent-forecast')?.data as any;
+  const roleDiagnosis=pmoData?.projectDiagnosis??null;
+  const roleCompletion=forecastData?.completionPosition??null;
+  const bundle=buildBundle(state);
+  const overviewCommercial=commercialPositionForState(state,bundle.generatedAt);
+  const roleContext=projectManagementContext(state,overviewResolvedModules,overviewCommercial);
+  const roleInterfaces=interfaceIntelligence(state);
   const projectFacts=projectFactsForState(state);
+  const canonicalActions=projectActionRegisterForState(state).actions;
+  const compactActions=canonicalActions.slice(0,12).map(action=>({
+    issue:action.issue??null,
+    consequence:action.consequence??null,
+    affectedScope:Array.isArray(action.affectedScope)?action.affectedScope:[],
+    affectedMilestones:Array.isArray(action.affectedMilestones)?action.affectedMilestones:[],
+    owner:action.owner??null,
+    organisation:action.organisation??null,
+    requiredAction:action.requiredAction??null,
+    dueIso:action.dueIso??null,
+    escalation:action.escalation??null,
+    severity:action.severity??null,
+    authority:action.authority??null,
+    owningModule:action.owningModule??null,
+  }));
+  const executiveMetrics=[
+    {label:'Original contract completion',value:projectFacts.time.contractualCompletionIso.value,unit:'date',basis:projectFacts.time.contractualCompletionIso.basis,health:'unavailable'},
+    {label:'Contract completion including awarded EOT',value:projectFacts.time.extendedContractCompletionIso.value,unit:'date',basis:projectFacts.time.extendedContractCompletionIso.basis,health:'unavailable'},
+    {label:'Submitted programme finish',value:projectFacts.schedule.submittedProgrammeCompletionIso.value,unit:'date',basis:projectFacts.schedule.submittedProgrammeCompletionIso.basis,health:'unavailable'},
+    {label:'Programme calendar recalculation',value:forecastData?.independentForecastCompletionIso??null,unit:'date',basis:'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Critical activities',value:projectFacts.schedule.criticalActivityCount.value,unit:null,basis:projectFacts.schedule.criticalActivityCount.basis,health:(projectFacts.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
+    {label:'Near-critical activities',value:projectFacts.schedule.nearCriticalActivityCount.value,unit:null,basis:projectFacts.schedule.nearCriticalActivityCount.basis,health:'unavailable'},
+  ];
+  const executiveDecisions=canonicalActions.slice(0,8).map(action=>({
+    description:action.issue,
+    accountableOwner:action.owner??null,
+    dueDate:action.dueIso??null,
+    requiredAuthority:action.authority??null,
+    dependencyParty:action.organisation??null,
+    state:'open',
+  }));
   const roleLensContext = {
     dataDateIso:
       latest?.revision.model
@@ -8815,9 +8775,9 @@ export function overviewForProject(
           : [],
       interfaces:
         Array.isArray(
-          roleCommand.interfaces?.rows,
+          roleInterfaces?.rows,
         )
-          ? roleCommand.interfaces.rows
+          ? roleInterfaces.rows
               .slice(0, 10)
               .map((row: any) => ({
                 interfaceId:
@@ -8851,35 +8811,9 @@ export function overviewForProject(
         roleCompletion
           ?.independentFinishIso ??
         null,
-      metrics:
-        Array.isArray(
-          roleDashboard.metrics,
-        )
-          ? roleDashboard.metrics
-              .filter(
-                (metric: any) =>
-                  metric?.value !==
-                    null &&
-                  metric?.value !==
-                    undefined,
-              )
-              .slice(0, 10)
-          : [],
-      commercialByCurrency:
-        Array.isArray(
-          roleDashboard
-            .commercialByCurrency,
-        )
-          ? roleDashboard.commercialByCurrency
-              .slice(0, 8)
-          : [],
-      decisions:
-        Array.isArray(
-          roleCommand.decisions,
-        )
-          ? roleCommand.decisions
-              .slice(0, 8)
-          : [],
+      metrics:executiveMetrics.filter(metric=>metric.value!==null&&metric.value!==undefined).slice(0,10),
+      commercialByCurrency:projectFacts.commercial.currencies.slice(0,8).map(row=>({currency:row.currency})),
+      decisions:executiveDecisions,
     },
   };
 
