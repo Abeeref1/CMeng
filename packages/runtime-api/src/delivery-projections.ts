@@ -118,7 +118,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
   const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
-  if(forecastLate)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  if(forecastLate&&headroom!==null)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
   if(overdueUndelivered)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=byKind('lifecycle').find(t=>t.recordId===field(r,'lifecycle id'));
@@ -515,7 +515,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   const workfronts=p.records.filter(r=>['governed','verified'].includes(r.state)&&r.kind==='workfront'&&r.links.activityIds.some(id=>activityIds.includes(id)));
   const affectedSchedule=activityIds.map(id=>{const activity=programmeActivities.get(id);return activity?(activity.name?activity.activityId+' · '+activity.name:activity.activityId):id;});
   const consequence=issueInterface?.consequence
-    ??(packageRow?.forecastLate===true
+    ??(packageRow?.forecastLate===true&&packageRow.headroomCalendarDays!==null
       ?'Forecast delivery is '+(-packageRow.headroomCalendarDays)+' calendar days after '+packageRow.needDateBasis.toLowerCase()+'.'
       :'The Delivery exception affects the linked scope or programme until the recorded action is resolved.');
   const requiredDate=issueInterface?.requiredDate??packageRow?.needDate??null;
