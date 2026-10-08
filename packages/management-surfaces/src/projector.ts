@@ -681,7 +681,7 @@ function dashboardMetrics(
         : "calculated",
       health: (facts.schedule.negativeFloatActivityCount.value ?? 0) > 0 ? "attention" : "unavailable",
       basis:
-        "Execution activities with source total float ≤ 0; critical-path presence alone is not adverse health",
+        facts.schedule.criticalActivityCount.basis+" Critical-path presence alone is not adverse health.",
       consequence: facts.schedule.negativeFloatActivityCount.value == null ? "Negative-float exposure is not established; the critical count is inventory only."
         : String(facts.schedule.negativeFloatActivityCount.value) + " activities have negative float. Zero-float critical activities are not automatically adverse.",
       owningModule:
@@ -723,8 +723,8 @@ function dashboardMetrics(
         : "calculated",
       health: "unavailable",
       basis:
-        d?.sourceInterpretation?.nearCriticalScreening?.basis ?? "Source-float screening; project threshold authority unresolved",
-      consequence: d?.sourceInterpretation?.nearCriticalScreening?.explanation ?? "Review float erosion, upcoming work and driving-path evidence before assigning risk severity.",
+        facts.schedule.nearCriticalActivityCount.basis+(d?.sourceInterpretation?.nearCriticalScreening?.basis?" Threshold basis: "+d.sourceInterpretation.nearCriticalScreening.basis:""),
+      consequence: "Review submitted-versus-independent differences, float erosion, upcoming work and driving-path evidence before assigning risk severity.",
       action: d?.sourceInterpretation?.nearCriticalScreening?.action ?? null,
       owningModule:
         "near-critical",
