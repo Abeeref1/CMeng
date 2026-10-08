@@ -100,7 +100,7 @@ test('ORBIT source: 26 awarded days are not erased by an amendment repeating ori
  assert.equal(facts.time.extendedContractCompletionIso.complete,false,
    'a calculated comparison must never invent amendment certification');
  assert.ok(facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
- assert.equal(facts.time.submittedDaysAfterCurrentContract.value,null,
+ assert.equal(facts.time.submittedDaysAfterCurrentContract?.value??null,null,
    'qualified amendment comparison cannot silently establish late days or LD entitlement');
 });
 
