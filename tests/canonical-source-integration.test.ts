@@ -1217,12 +1217,18 @@ test('source claim reporting preserves granted and assessed values separately ac
  assert.equal(report.current.claims[0]!.assessedDays,null);assert.ok(report.reported.conflictingRows[0]!.diagnostics.includes('REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER'));
 });
 
-test('certificate source sums retain current and future values without certification or cash authority',t=>{
+test('source-stated certified certificates are visible as dated source facts without treating future amounts as current cash',t=>{
  const {state,csvDoc}=fixture(t);amendment(state);
  csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,Currency,VAT Basis,Status\nOTHER-1,2026-08-01,100,20,6,10,104,AED,Exclusive of VAT,Certified\nOTHER-2,2026-09-01,200,10,8,10,192,AED,Exclusive of VAT,Certified','payment_certificate');
  const p=certificateProfile(commercialCanonical(state));const g=p.groups[0]!;
  assert.equal(g.as_of.length,1);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,104);assert.equal(g.futureTotals!.netCertifiedAmount,192);
- assert.deepEqual(g.certificationUnconfirmedIds,['OTHER-1']);assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.deepEqual(g.certificationUnconfirmedIds,[],'explicit source-certified status is retained, not hidden behind a second manual approval');
+ assert.equal(g.certifiedCount,1);assert.equal(g.certifiedTotals?.netCertifiedAmount,104);
+ assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);
+ assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.equal(p.groups[0]!.future.length,1,'a future certificate must stay excluded from current cumulative certification');
+ assert.equal(commercialCanonical(state).payments.every(row=>row.amounts.paidAmount.value===null),true,
+   'source-reported certification is not proof of paid cash');
 });
 
 test('individual resource overload survives aggregation below total capacity',t=>{
