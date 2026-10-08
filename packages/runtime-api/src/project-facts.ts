@@ -279,8 +279,11 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const baseCompletion=commercial.timeExposure.contractualCompletion.value;
   const adjustmentUnapplied=(extendedCompletion===null||(
     baseCompletion!==null&&extendedCompletion.slice(0,10)===baseCompletion.slice(0,10)));
-  const overlapPending=adjustmentUnapplied&&officialAward!==null&&officialAward>0&&
-    contractTime?.overlapResolution!=='resolved';
+  const dateRepeatedDespiteAward=baseCompletion!==null&&extendedCompletion!==null&&
+    baseCompletion.slice(0,10)===extendedCompletion.slice(0,10);
+  const overlapPending=adjustmentUnapplied&&officialAward!==null&&officialAward>0&&(
+    dateRepeatedDespiteAward||contractTime?.overlapResolution!=='resolved'
+  );
   const completionCandidates=overlapPending?contractCompletionPosition(scoped,dataDateIso).candidates:[];
   const originalDates=[...new Set(completionCandidates.filter(item=>item.role==='main'||item.role==='replacement').map(item=>item.date))];
   const amendedDates=[...new Set(completionCandidates.filter(item=>item.role==='amendment'&&
