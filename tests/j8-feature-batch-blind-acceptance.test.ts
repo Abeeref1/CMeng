@@ -7,6 +7,7 @@ import type {AddressInfo} from 'node:net';
 import JSZip from 'jszip';
 
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
+import {pageProjectResponse,jsonPointer} from '../packages/runtime-api/src/response-paging';
 import {moduleRegistry,type ModuleDescriptor} from '../packages/runtime-api/src/registry';
 import {
   defaultBlindSeed,
@@ -615,8 +616,23 @@ for(const batch of pageBatches){
           const jsonReport=await request(base,reportPath(project.projectId,page,'json'));
           assert.equal(jsonReport.status,200,batch.id+' JSON report failed '+project.projectId+' / '+page.key+': '+jsonReport.text.slice(0,500));
           assert.equal(jsonReport.body?.report?.projectId,project.projectId,batch.id+' JSON report project drift '+page.key);
-          assert.deepEqual(jsonReport.body?.result?.data,result.body?.data,batch.id+' JSON report data drift from live page '+project.projectId+' / '+page.key);
-          assert.equal(jsonReport.body?.result?.status,result.body?.status,batch.id+' JSON report status drift '+project.projectId+' / '+page.key);
+          // N-20: the downloaded report MUST preserve the original full
+          // producer, while the on-screen result is a bounded projection of
+          // that identical result. Comparing the entire unpaged export to a
+          // 25-row page is logically wrong and encouraged invented counts.
+          const fullResult=jsonReport.body?.result;
+          const projected=pageProjectResponse(fullResult,pagePath(project.projectId,page)) as any;
+          assert.deepEqual(projected?.data,result.body?.data,batch.id+' JSON report canonical screen projection drift '+project.projectId+' / '+page.key);
+          assert.equal(fullResult?.status,result.body?.status,batch.id+' JSON report status drift '+project.projectId+' / '+page.key);
+          for(const table of result.body?.responsePaging?.tables??[]){
+            const original=jsonPointer(fullResult,table.pointer);
+            if(table.kind==='array'){
+              assert.ok(Array.isArray(original),batch.id+' paged table is absent in full report '+table.pointer);
+              assert.equal(original.length,table.total,batch.id+' full producer count mismatches page table '+table.pointer);
+              assert.ok(table.shown<=25,batch.id+' page returned more than 25 source rows '+table.pointer);
+            }
+          }
+          assert.ok(Buffer.byteLength(result.text)<2_000_000,batch.id+' screen exceeds 2 MB '+project.projectId+' / '+page.key);
           assert.ok(!/\b(?:NaN|Infinity|-Infinity)\b/.test(jsonReport.text),batch.id+' report emitted non-finite value '+page.key);
           for(const otherId of allIds)if(otherId!==project.projectId)assert.ok(!jsonReport.text.includes(otherId),
             batch.id+' report cross-project disclosure '+project.projectId+' / '+page.key);
