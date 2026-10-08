@@ -8415,16 +8415,23 @@ export function managementSurfacesForProject(
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
   const activities=resolvedModules.get('activity-analytics')?.data as any;
+  // Management pages expose source counts and priority previews; complete
+  // activity and backlog rows stay available on their specialist pages.
+  const delayedSourceRows=(activities?.rows??[])
+    .filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true);
+  const exceptionPreview=[...delayedSourceRows]
+    .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||
+      (b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||
+      String(a.activityId).localeCompare(String(b.activityId))).slice(0,60);
   const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,counts:activities.counts,
-    rows:(activities.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true)
-      .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||(b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||String(a.activityId).localeCompare(String(b.activityId)))
-      .map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
-  const deliveryExceptions={actions:[...operations.actions,...overdueRows.map((r:any)=>{
+    totalDelayedOpenCount:delayedSourceRows.length,detailModule:'activity-analytics',
+    rows:exceptionPreview.map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,
+      currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,
+      totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
+  const deliveryExceptions={actions:[...operations.actions.slice(0,60),...overdueRows.slice(0,60).map((r:any)=>{
     const missedStart=r.missedPlannedStart===true||r.classification==='missed_start';
     const missedFinish=r.finishOverdue===true||r.classification==='overdue';
-    // The backlog includes missed starts whose finishes are still in the future.
-    // Preserve the breached date instead of turning that future finish into a
-    // negative overdue duration on the management pages and their action lists.
+    // The backlog includes missed starts with finishes in the future.
     const dueIso=missedFinish?r.finishIso:missedStart?r.startIso:null;
     const dataDate=current?.revision.model.dataDateIso;
     const elapsed=dataDate&&dueIso?Math.floor((Date.parse(dataDate.slice(0,10))-Date.parse(dueIso.slice(0,10)))/86400000):null;
@@ -8432,7 +8439,8 @@ export function managementSurfacesForProject(
     return {recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso,ageDays:null,
       overdueDays:elapsed!==null&&Number.isFinite(elapsed)?Math.max(0,elapsed):null,
       action:'Review '+basis+' for activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]};
-  })],overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
+  })],totalActionCount:operations.actions.length+overdueRows.length,detailModule:'lookahead-schedule',
+    overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const completion=(resolvedModules.get('independent-forecast')?.data as any)?.completionPosition??null;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
