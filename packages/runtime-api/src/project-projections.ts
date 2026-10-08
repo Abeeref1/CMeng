@@ -7691,8 +7691,22 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
     owner:'Project controls reviewer',organisation:null,requiredAction:a.resolution?.instruction??a.reason,dueIso:null,
     escalation:null,severity:a.category==='review'?'high':'medium',authority:'calculated',sourceRefs:a.findings?.flatMap(f=>f.sourceRefs)??[],owningModule:a.target.moduleKey??'source-quality'}));
   const model=projectControlSchedule(state)?.revision.model??null;
+  const independentRanking=!!model&&forecast?.origin==='deterministic_source_calendar'&&forecast?.unresolvedActivityCount===0&&Array.isArray(forecast?.activities);
+  const independentFloatById=new Map<string,number|null>(
+    independentRanking?forecast.activities.map((row:any)=>[String(row.activityId),typeof row.independentTotalFloatHours==='number'?row.independentTotalFloatHours:null]):[],
+  );
+  const rankingModel=model&&independentRanking?{...model,activities:model.activities.map(activity=>{
+    if(activity.status==='completed')return activity;
+    const value=independentFloatById.get(activity.activityId);
+    return value===undefined?activity:{...activity,totalFloatHours:value};
+  })}:model;
   const recordActions=consolidateScheduleChains(recordPosition.actions,model);
-  const actions=prioritizeActions([...recordActions,...reviewRows],model,forecast?.drivingNetwork?.activityIds??[]);
+  const actions=prioritizeActions(
+    [...recordActions,...reviewRows],
+    rankingModel,
+    forecast?.drivingNetwork?.activityIds??[],
+    independentRanking?'independent_cpm':'source_total_float',
+  );
   const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
     id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
     owner:a.owner??a.organisation,dueIso:a.dueIso,priorityBasis:a.priorityBasis,
