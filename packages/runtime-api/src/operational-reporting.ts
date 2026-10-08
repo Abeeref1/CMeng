@@ -60,25 +60,29 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
   const risk=scope(risks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
   const scoreRows=rows('risk_register').map(row=>{
-    const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact'));
-    return {riskId:cell(row,'risk id'),probability,impact,score:probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null,
+    const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact')),sourceScore=numberValue(cell(row,'score'));
+    const calculatedScore=probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null;
+    const score=sourceScore??calculatedScore;
+    const scoreConflict=sourceScore!==null&&calculatedScore!==null&&Math.abs(sourceScore-calculatedScore)>0.000001;
+    return {riskId:cell(row,'risk id'),probability,impact,sourceScore,calculatedScore,score,scoreConflict,
       rating:cell(row,'rating')||null,dueIso:dateValue(cell(row,'due date')),sourceRefs:refs(row)};
   });
   const scoreGroups=[...new Set(scoreRows.map(r=>r.score).filter((n):n is number=>n!==null))].sort((a,b)=>a-b).map(score=>{
     const members=scoreRows.filter(r=>r.score===score);return {score,recordCount:members.length,ratings:[...new Set(members.map(r=>r.rating).filter(Boolean))],counts:[...new Set(members.map(r=>r.rating))].map(rating=>({rating,count:members.filter(r=>r.rating===rating).length})),riskIds:members.map(r=>r.riskId)};
   });
   const ratingInconsistencyGroups=scoreGroups.filter(g=>g.ratings.length>1);
+  const scoreConflictRows=scoreRows.filter(r=>r.scoreConflict);
   const missingProbabilityCount=scoreRows.filter(r=>r.probability===null).length,missingImpactCount=scoreRows.filter(r=>r.impact===null).length;
-  const riskValidation={state:ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
+  const riskValidation={state:scoreConflictRows.length||ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
     missingProbabilityCount,missingImpactCount,
     sourceFactKey:'RISK_RATING_SCORE_CONFLICT',
-    scoreBasis:'Source probability × impact; no rating thresholds are invented. Identical scores with different supplied ratings require a documented rating method.',
-    ratingInconsistencyGroups,scoreGroups,scoreRows,
+    scoreBasis:'Supplied risk Score is retained when present and reconciled against probability × impact. When Score is absent, probability × impact is a calculated comparison value. No rating thresholds are invented.',
+    scoreConflictRows,ratingInconsistencyGroups,scoreGroups,scoreRows,
     statusDateMissingCount:risk.undatedRecordCount,
     dueAfterDataDateCount:scoreRows.filter(r=>dateValue(date??'')&&r.dueIso&&r.dueIso>dateValue(date??'')!).length,
     sourceRefs:scoreRows.flatMap(r=>r.sourceRefs),
-    diagnostics:ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[],
-    explanation:risks.length+' risk records are present. '+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' probability × impact scores have inconsistent supplied ratings. ':'')+
+    diagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[])],
+    explanation:risks.length+' risk records are present. '+(scoreConflictRows.length?scoreConflictRows.length+' supplied Score value(s) differ from probability × impact. ':'')+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' equal score values have inconsistent supplied ratings. ':'')+
       (missingProbabilityCount||missingImpactCount?'Risk score validation is unresolved: probability is missing or unreadable in '+missingProbabilityCount+' rows; impact is missing or unreadable in '+missingImpactCount+' rows. Provide those source values to assess the scores. ':'')+
       risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
