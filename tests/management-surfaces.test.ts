@@ -225,6 +225,8 @@ function input():
       controls:{
         openRfiCount:{value:4,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         overdueRfiCount:{value:2,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openNcrCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        overdueNcrCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         openCriticalMajorNcrCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
         openRiskCount:{value:null,state:"missing",complete:false,basis:"test",sourceRefs:[],diagnostics:[]},
       },
