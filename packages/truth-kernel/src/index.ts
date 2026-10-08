@@ -244,6 +244,7 @@ export function featureAvailability(input: {
 }
 
 export const MANAGEMENT_DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL: 'Delay damages are a planning scenario; no award or accrual is established',
   CALENDAR_SEMANTICS_UNRESOLVED:
     'Programme calendar working days, shifts or exceptions are not sufficiently defined.',
   CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:

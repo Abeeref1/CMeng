@@ -4255,7 +4255,7 @@ function commercialFindingText(metric){
 }
 function commercialFindingTitle(metric){
   if(!metric||typeof metric!=="object")return"";
-  return "State: "+commercialSourceState(metric)+(metric.diagnostics?.length?" · "+metric.diagnostics.join(" · "):"");
+  return "State: "+commercialSourceState(metric)+(metric.diagnostics?.length?" · "+metric.diagnostics.map(humanizeKey).join(" · "):"");
 }
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No confirmed commercial currency position is established.</div>';

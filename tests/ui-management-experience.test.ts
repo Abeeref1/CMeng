@@ -15,6 +15,10 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('commercial figure tooltips explain the qualification without internal codes',()=>{
+ const title=runInNewContext(functions(['humanizeKey','commercialFindingTitle'])+';commercialFindingTitle({diagnostics:["LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL"]})',{commercialSourceState:()=> 'Needs review'});
+ assert.match(title,/Delay damages are a planning scenario/);assert.doesNotMatch(title,/LD_EXPOSURE|NOT_AWARD|ACCRUAL/);
+});
 test('portfolio card shows current-contract lateness and currency-specific money',()=>{
  const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2031-10-06',officialCompletionIso:'2031-09-08',furtherAdjustedCompletionIso:'2031-09-21',submittedDaysAfterCurrentContract:15,commercialSummary:[{currency:'USD',currentContractValue:120000,forecastEac:118000,certifiedUnpaidAmount:5000}],managementActionCount:2};
  const html=runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p});
