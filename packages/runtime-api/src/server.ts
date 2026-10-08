@@ -773,6 +773,17 @@ async function route(
             approvedEotDays:
               projectFacts.time.awardedEotDays.value,
             approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
+            extendedContractBasis:projectFacts.time.extendedContractCompletionIso.basis,
+            extendedContractState:projectFacts.time.extendedContractCompletionIso.state,
+            criticalActivityCount:projectFacts.schedule.criticalActivityCount.value,
+            nearCriticalActivityCount:projectFacts.schedule.nearCriticalActivityCount.value,
+            negativeFloatActivityCount:projectFacts.schedule.negativeFloatActivityCount.value,
+            openRfiCount:projectFacts.controls.openRfiCount.value,
+            overdueRfiCount:projectFacts.controls.overdueRfiCount.value,
+            openNcrCount:projectFacts.controls.openNcrCount.value,
+            overdueNcrCount:projectFacts.controls.overdueNcrCount.value,
+            activeBondCount:projectFacts.commercial.activeBondCount.value,
+            expiredBondCount:projectFacts.commercial.expiredBondCount.value,
             claimCount:
               director?.claims
                 .claimCount ??
@@ -782,7 +793,7 @@ async function route(
                 .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              canonicalManagementActions.length,
+              projectFacts.actions.openCount.value,
             managementActions:
               canonicalManagementActions.map((action:any)=>
                 [action.issue,action.requiredAction].filter(Boolean).join(" — ")
