@@ -45,15 +45,26 @@ export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:D
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
 type DeliveryDocumentReceipt={documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]};
-const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;value:{
+const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;decisionFingerprint:string;value:{
  records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[];
 }}>();
 export function deliveryRecords(state:ProjectRuntimeState){
- // Avoid repeatedly parsing and hashing identical source registers inside
- // one version. The persisted project version invalidates the cache.
+ // The persisted version changes after ordinary writes. A decision/import
+ // may also be appended inside an in-progress transaction before touch().
+ // Include its identity and latest record content so the read cache cannot
+ // return the wrong original kind or omit revised evidence when state.version
+ // has not yet advanced. This is the same bug exposed by native mixed PDF
+ // packets containing submittals, spares and permits.
+ const store=deliveryStore(state);
+ const decisionFingerprint=deliveryHash([
+   store.manual.length,store.decisions.length,store.populations.length,
+   store.mappings?.length??0,
+   store.manual.at(-1)??null,store.decisions.at(-1)??null,
+   store.populations.at(-1)??null,store.mappings?.at(-1)??null,
+ ]);
  const prior=deliveryRecordsCache.get(state);
- if(prior?.version===state.version)return prior.value;
- const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
+ if(prior?.version===state.version&&prior.decisionFingerprint===decisionFingerprint)return prior.value;
+ const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
  const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
  const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
@@ -98,7 +109,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const governed=records.filter(deliveryCurrentRecord),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
  for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple current source records share this reference; select the current revision explicitly.');}
- const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,value});
+ const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value});
  return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
