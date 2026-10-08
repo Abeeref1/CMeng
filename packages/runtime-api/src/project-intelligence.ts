@@ -296,7 +296,7 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
   const q = question.toLowerCase(), facts: AnswerFact[] = [];
   const canonicalState=runtimeProjects.get(projectId),canonical=canonicalState?projectFactsForState(canonicalState):null;
   const data = (key: string) => moduleForProject(projectId, key).data as any;
-  const add = (path: string, label: string, value: AnswerFact['value'], context: Partial<AnswerFact> = {}) =>
+  const add = (path: string, label: string, value: AnswerFact['value'] | undefined, context: Partial<AnswerFact> = {}) =>
     facts.push({path, label, value: value ?? null, ...context});
   const population = (key: string, name: string, label: string, established = true) => {
     const p = data(key)?.reportingContract?.populations?.[name];
