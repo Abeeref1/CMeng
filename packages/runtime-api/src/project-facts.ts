@@ -10,6 +10,8 @@ import {pmcScheduleRules} from './pmc-schedule-rules';
 import {projectActionRegisterForState,peekCachedScheduleAnalytics} from './project-projections';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
+import {contractCompletionPosition} from './contract-completion';
+import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {cachedIndependentForecast} from './forecast-cache';
 import {securityValidityReview} from './security-validity';
@@ -269,6 +271,31 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
+  const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
+  const overlapPending=extendedCompletion===null&&officialAward!==null&&officialAward>0&&
+    contractTime?.overlapResolution==='unresolved';
+  const completionCandidates=overlapPending?contractCompletionPosition(scoped,dataDateIso).candidates:[];
+  const originalDates=[...new Set(completionCandidates.filter(item=>item.role==='main'||item.role==='replacement').map(item=>item.date))];
+  const amendedDates=[...new Set(completionCandidates.filter(item=>item.role==='amendment'&&
+    item.effectiveFrom!==null&&dataDateIso!==null&&item.effectiveFrom<=dataDateIso).map(item=>item.date))];
+  // This is a visible SOURCE-QUALIFIED comparison, never a second official
+  // EOT award or a new governing contract date. No extra days are silently
+  // added to an amendment, because that could double-count awarded EOT.
+  const provisionalExtendedDate=overlapPending?(
+    originalDates.length===1&&contractTime?.eotDayBasis!=='working_days'
+      ?new Date(Date.parse(originalDates[0]!+'T00:00:00Z')+officialAward!*86400000).toISOString().slice(0,10)
+      :amendedDates.length===1?amendedDates[0]!:null
+  ):null;
+  const overlapSourceRefs=overlapPending?[...new Set([
+    ...completionCandidates.map(item=>item.sourceRef),
+    ...(contractTime?.sourceRefs??[]),
+  ])]:[];
+  const presentedExtension=provisionalExtendedDate!==null
+    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: source-reported awarded EOT and the original completion date give a comparison date. This is not a certified extension and must not be used for LD or late-day determinations.','from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
+    :commercialFact(commercial.timeExposure.officialAdjustedCompletion,
+        commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
+          ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
+          :'Contract completion plus reconciled official awarded EOT.',true);
   // Never call a project late against the original date when an award exists
   // but the extended date cannot yet be calculated.
   const currentContractCompletion=extendedCompletion??(
@@ -353,13 +380,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         commercial.timeExposure.approvedEotDays,
         'Official awarded EOT through the project Data Date.',
       ),
-      extendedContractCompletionIso:commercialFact(
-        commercial.timeExposure.officialAdjustedCompletion,
-        commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
-          ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
-          :'Contract completion plus reconciled official awarded EOT.',
-        true,
-      ),
+      extendedContractCompletionIso:presentedExtension,
     },
     controls:{
       expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)?null:row.permitStatus==='expired'),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),

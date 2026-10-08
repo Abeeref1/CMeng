@@ -7,6 +7,7 @@ import type { ContractTimeBasis } from '../../eot-assessment/src';
 import type { ProjectRuntimeState } from './project-state-types';
 import { inferDocumentType } from './evidence';
 import { resolveClaimActivityCorrespondence } from '../../claim-activity-correspondence/src';
+import type {ClaimActivityCorrespondenceInput,ClaimActivityCorrespondenceResolution} from '../../claim-activity-correspondence/src';
 import { contractNoticeRules } from './contract-notice-rules';
 import { reportedClaim } from '../../delay-analysis-core/src/reporting';
 export interface DeterminationRecord {
@@ -27,6 +28,34 @@ export interface CanonicalTimeClaims {
   futureDeterminationCount: number; diagnostics: string[];
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
+/** One deterministic association pass per source event/project version. A
+ * rebuilt reporting view may have different object identity even though its
+ * programme and claim sources are unchanged. Version/revision plus an exact
+ * input fingerprint make that reuse safe without masking changed evidence. */
+const claimAssociationCache=new Map<string,{
+  version:number;revisionId:string;resolutions:Map<string,{fingerprint:string;result:ClaimActivityCorrespondenceResolution}>
+}>();
+function versionedClaimAssociation(state:ProjectRuntimeState,input:ClaimActivityCorrespondenceInput):ClaimActivityCorrespondenceResolution{
+  const revisionId=input.schedule.sourceRevisionId;
+  let cached=claimAssociationCache.get(state.projectId);
+  if(!cached||cached.version!==state.version||cached.revisionId!==revisionId){
+    cached={version:state.version,revisionId,resolutions:new Map()};
+    // Avoid keeping entire old project populations alive across deployments.
+    if(claimAssociationCache.size>=40)claimAssociationCache.delete(claimAssociationCache.keys().next().value!);
+    claimAssociationCache.set(state.projectId,cached);
+  }
+  const fingerprint=createHash('sha256').update(JSON.stringify([
+    input.eventId,input.claimId,input.narrative,input.explicitActivityIds,
+    input.claimEvidenceRefs,input.maxCandidates,input.aiScores,revisionId,
+    input.schedule.activities.length,input.schedule.wbs?.length??0,
+  ])).digest('hex');
+  const prior=cached.resolutions.get(input.eventId);
+  if(prior?.fingerprint===fingerprint)return prior.result;
+  const result=resolveClaimActivityCorrespondence(input);
+  cached.resolutions.set(input.eventId,{fingerprint,result});
+  return result;
+}
+
 
 const sequenceNumber=(value:string,pattern:RegExp):number|null=>{
   const match=pattern.exec(value.trim());
@@ -719,7 +748,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       const explicitActivityIds=uniq(
         eventClaims.flatMap(claim=>explicitActivitiesByClaim.get(claim.claimId)??[]),
       );
-      const resolution=resolveClaimActivityCorrespondence({
+      const resolution=versionedClaimAssociation(state,{
         claimId:eventClaims[0]?.claimId??event.eventId,
         eventId:event.eventId,
         narrative,

@@ -512,7 +512,13 @@ const projectUploadJobs=new Map();
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
-const fmt=v=>v===null||v===undefined?"Unresolved":typeof v==="number"?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(6))):humanizeIsoText(String(v));
+const fmt=v=>{
+ if(v===null||v===undefined)return "Not established";
+ if(typeof v==='number')return Number.isFinite(v)?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(2))):"Not established";
+ if(typeof v==='string'&&/^[+-]?[0-9]+[.][0-9]{3,}$/.test(v.trim()))
+  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v));
+ return humanizeIsoText(String(v));
+};
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
 function fmtForField(key,value){
   if(value===null||value===undefined)return"Not established";
@@ -947,22 +953,37 @@ function renderComplexCell(value,key=""){
   if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
   return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
+function readerTechnicalField(key){
+  return /^(?:id|recordId|documentId|sourceRefs?|sourceHash(?:Sha256)?|fingerprint|evidenceRefs?|diagnostics|sourcePath|storedPath|cacheKey|debug|nativeId|recordIds|filePath)$/i.test(String(key));
+}
+function readerSourceValue(metric){
+ if(!metric||typeof metric!=="object"||Array.isArray(metric))return null;
+ const alternatives=[metric.submitted,metric.reported,metric.reportedValue,metric.sourceValue,metric.rawValue,metric.source?.value,metric.sourceRegister?.value];
+ for(const value of alternatives)if((typeof value==="number"&&Number.isFinite(value))||(typeof value==="string"&&value.trim().length))return value;
+ return null;
+}
 function renderRecordTable(records){
-  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
+  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,25);
   if(!rows.length)return"";
-  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))];
+  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)).slice(0,24);
+  if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
   return '<div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
-function renderStructuredValue(value,depth=0){
+function renderStructuredValue(value,depth=0,key=''){
+  if(readerTechnicalField(key))return '<div class="muted">Source references retained in the original file and downloadable record.</div>';
+  if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.prototype.hasOwnProperty.call(value,'value')&&(value.value===null||value.value===undefined)){
+    const reported=readerSourceValue(value);
+    if(reported!==null)return '<div class="value-chip">'+escapeHtml(fmtForField(key,reported))+' · Source reported; not an approval</div>';
+  }
   if(isScalarValue(value))return '<div class="value-chip">'+escapeHtml(fmt(value))+'</div>';
   if(depth>3)return '<div class="muted">Additional supporting detail retained in the project record.</div>';
   if(Array.isArray(value)){
     if(!value.length)return '<div class="muted">No records.</div>';
     if(value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
     if(value.every(x=>x&&typeof x==="object"&&!Array.isArray(x)))return renderRecordTable(value);
-    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.map(item=>renderStructuredValue(item,depth+1)).join("")+'</div></details>';
+    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.slice(0,25).map(item=>renderStructuredValue(item,depth+1,key)).join("")+'</div></details>';
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
@@ -973,7 +994,7 @@ function renderStructuredValue(value,depth=0){
     html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
     return html;
   }
-  html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1)+'</div>').join("");
+  html+=complex.map(([key,v])=>'<div class="nested-block"><div class="nested-title">'+escapeHtml(humanizeKey(key))+'</div>'+renderStructuredValue(v,depth+1,key)+'</div>').join("");
   return html||'<div class="muted">No displayable values.</div>';
 }
 function projectionFor(data,projectionKey){
@@ -4279,7 +4300,11 @@ function renderManagementMetricGrid(metrics){
 function commercialFindingText(metric){
   if(metric==null)return"Unresolved: amount not established";
   if(typeof metric!=="object")return typeof metric==="number"?fmtExecutive(metric):fmt(metric);
-  if(metric.value===null||metric.value===undefined)return"Unresolved: "+(metric.reason||(metric.state==='conflicted'?'records disagree':'amount not established in the supplied records'));
+  if(metric.value===null||metric.value===undefined){
+    const source=readerSourceValue(metric);
+    if(source!==null)return fmtForField('amount',source)+' · Source reported'+(metric.state==='conflicted'?' (records disagree)':'');
+    return 'Not established: '+(metric.reason||(metric.state==='conflicted'?'records disagree':'no supplied value'));
+  }
   return fmtExecutive(metric.value)+((metric.diagnostics||[]).includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')?' · '+commercialSourceState(metric):metric.state&&metric.state!=="established"?" · "+humanizeKey(metric.state):"");
 }
 function commercialFindingTitle(metric){
@@ -4293,7 +4318,7 @@ function renderManagementCommercial(rows){
     ['retentionDeductedAmount','Retention deducted through DD'],['retentionHeldAmount','Held balance'],['activeBondAmount','Active bonds'],
     ['claimClaimedAmount','Claimed'],['claimAssessedAmount','Assessed'],['ldScenarioAmount','LD scenario']
   ];
-  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined));
+  const established=(m)=>m!==null&&m!==undefined&&(typeof m!=='object'||(m.value!==null&&m.value!==undefined||readerSourceValue(m)!==null));
   const visible=fields.filter(([key])=>rows.some(r=>established(r[key])));
   const missing=rows.flatMap(r=>fields.filter(([key])=>!established(r[key])).map(([key,label])=>({currency:r.currency,label,detail:commercialFindingText(r[key])})));
   if(!visible.length)return '<div class="notice info">No commercial amount is established from the supplied records.</div>'+(missing.length?'<details><summary>'+fmt(missing.length)+' commercial measures need more information</summary><ul>'+missing.map(x=>'<li>'+escapeHtml(x.currency+' · '+x.label+': '+x.detail)+'</li>').join('')+'</ul></details>':'');
@@ -4902,11 +4927,11 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
-  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds"]);
+  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs"]);
   const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!isScalarValue(value));
   return complex.map(([key,value])=>{
     const count=Array.isArray(value)?value.length:null;
-    return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0)+'</div></section>';
+    return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0,key)+'</div></section>';
   }).join("");
 }
 function userFacingModuleReason(key,reason){
@@ -4938,9 +4963,69 @@ function bindAdvancedControls(parentKey){
     }catch(e){const d=e.data||{};host.innerHTML='<div class="notice warn"><b>'+escapeHtml(label)+' is not established.</b><p>'+escapeHtml(d.reason||d.message||e.message||"The current project evidence does not support this analysis.")+'</p></div>';}
   });
 }
+function pmcDisplayOwner(domain){
+ const area=String(domain||'').toLowerCase();
+ if(/design|rfi|submittal/.test(area))return 'PMC Design Manager';
+ if(/quality|ncr|inspection/.test(area))return 'PMC Quality Manager';
+ if(/procurement|material|supplier/.test(area))return 'PMC Procurement Manager';
+ if(/claim|eot|notice|contract/.test(area))return 'PMC Contracts Manager';
+ if(/payment|commercial|security|bond|cost|cash/.test(area))return 'PMC Commercial Manager';
+ if(/hse|safety|permit/.test(area))return 'PMC HSE Manager';
+ if(/construction|delivery|resource|interface|site/.test(area))return 'PMC Construction Manager';
+ if(/programme|schedule|activity|planning|float/.test(area))return 'PMC Planning Engineer';
+ return 'PMC Project Controls Manager';
+}
+function applyPmcDisplayOwners(root,defaultDomain){
+ if(!root)return;
+ root.querySelectorAll('td,span,small,p,.value-chip').forEach(node=>{
+   if(node.children.length||!/^\\s*(Not assigned|Unassigned|Not recorded|Owner not assigned)\\s*$/i.test(node.textContent||''))return;
+   const heading=node.closest('.planning-panel,.card,.data-section,.action,.project-action')?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
+   node.textContent=pmcDisplayOwner(heading);
+   node.title='Accountable PMC role fallback; no named source owner is recorded';
+ });
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  const paged=result.responsePaging;
+  if(paged?.tables?.length){
+    const tables=paged.tables.filter(table=>table.total>table.shown||table.kind==='text');
+    if(tables.length){
+      const controls=tables.map((table,index)=>{
+        const parts=table.pointer.split('/').filter(Boolean).filter(part=>!/^[0-9]+$/.test(part));
+        const label=parts.length?humanizeKey(parts.slice(-2).join(' ')):'Additional source data';
+        return '<article class="project-action"><h4>'+escapeHtml(label)+'</h4><p>'+fmt(table.total)+' original '+(table.kind==='text'?'characters':'records')+' retained · '+fmt(table.shown)+' initially shown</p><button type="button" class="btn small" data-paged-detail="'+index+'" data-detail-offset="0">View 25 source records</button><div class="paged-evidence-list" data-paged-target="'+index+'"></div></article>';
+      }).join('');
+      container.insertAdjacentHTML('beforeend','<details class="planning-panel"><summary>Additional source records · '+fmt(tables.length)+' groups</summary><div class="planning-panel-body"><p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>'+controls+'</div></details>');
+      container.querySelectorAll('[data-paged-detail]').forEach(button=>button.onclick=async()=>{
+        const index=Number(button.dataset.pagedDetail),entry=tables[index],target=container.querySelector('[data-paged-target="'+index+'"]');
+        if(!entry||!target)return;
+        const offset=Number(button.dataset.detailOffset||0);
+        button.disabled=true;button.textContent='Loading source records…';
+        try{
+          const query=new URLSearchParams({source:paged.source,pointer:entry.pointer,offset:String(offset),...(typeof paged.projectVersion==='number'?{version:String(paged.projectVersion)}:{})});
+          const details=await api('/api/projects/'+encodeURIComponent(project())+'/record-page?'+query);
+          const rows=details.rows||[];
+          const content=details.kind==='text'?'<p>'+escapeHtml(details.text||'')+'</p>':
+            rows.length?renderRecordTable(rows.map(value=>typeof value==='object'&&value!==null?value:{value})):'<p>No further source records.</p>';
+          target.insertAdjacentHTML('beforeend',content);
+          if(details.hasMore){button.dataset.detailOffset=String(offset+(details.kind==='text'?8192:25));button.disabled=false;button.textContent='Next 25 source records';}
+          else{button.textContent='All records in this group shown';button.disabled=true;}
+        }catch(error){button.disabled=false;button.textContent='Retry source records';target.insertAdjacentHTML('beforeend','<p>Source details could not be loaded. Please retry.</p>');}
+      });
+    }
+  }
+  const timeFact=result.data?.projectFacts?.time?.extendedContractCompletionIso??result.projectFacts?.time?.extendedContractCompletionIso;
+  if(timeFact?.diagnostics?.includes('AMENDMENT_OVERLAP_TO_CONFIRM')&&timeFact.value){
+    const award=result.data?.projectFacts?.time?.awardedEotDays?.value??null;
+    container.insertAdjacentHTML('afterbegin','<div class="notice info"><b>Extended completion comparison · '+escapeHtml(planningShortDate(timeFact.value))+'</b><p>Amendment overlap to confirm'+(award!==null?' · '+fmt(award)+' awarded EOT days':'')+'. The source figures are retained; this is not an additional certified EOT or a basis for liquidated damages.</p></div>');
+  }
+  applyPmcDisplayOwners(container,result.key);
+  const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
+  if(missing.length){
+    container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
+    container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
+  }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   const pageKey=result.legacyKey||result.key;
   if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
@@ -4987,7 +5072,7 @@ function renderModuleResultBody(result){
   const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
-  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge").map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("");
+  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
@@ -5078,7 +5163,7 @@ function renderDirector(d){
   const programmeKpis=planningKpis([
     ["Data Date",s.dataDateIso,"current reporting programme"],
     ["Original contract completion",s.contractualCompletionIso?planningShortDate(s.contractualCompletionIso):"Missing","Contract agreement"],
-    ["Contract completion including awarded EOT",s.officialAdjustedCompletionIso?planningShortDate(s.officialAdjustedCompletionIso):"Missing","Original contract date plus dated EOT awards"],
+    ["Contract completion including awarded EOT"+(d.projectFacts?.time?.extendedContractCompletionIso?.diagnostics?.includes("AMENDMENT_OVERLAP_TO_CONFIRM")?" · amendment overlap to confirm":""),d.projectFacts?.time?.extendedContractCompletionIso?.value?planningShortDate(d.projectFacts.time.extendedContractCompletionIso.value):s.officialAdjustedCompletionIso?planningShortDate(s.officialAdjustedCompletionIso):"Not established","Source-qualified when amendment overlap is unresolved"],
     ["Submitted Programme Finish",s.submittedProgrammeCompletionIso||"Unresolved","current programme"],
     ["Programme calendar recalculation",s.independentForecastCompletionIso||"Unresolved","submitted logic on its own calendars; not attributable delay"],
     ["Positive submitted window movement",c.observedProgrammeMovementDays===null||c.observedProgrammeMovementDays===undefined?"Unresolved":c.observedProgrammeMovementDays,"sum of positive submitted project-finish changes; not EOT"],
@@ -5103,6 +5188,7 @@ function renderDirector(d){
     '<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+
     '</div></div></div>';
   el("director").innerHTML=renderActivityFloatReconciliation(d.activityFloatReconciliation)+html;
+  applyPmcDisplayOwners(el('director'),'project controls');
 }
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;

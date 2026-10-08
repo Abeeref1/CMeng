@@ -1,5 +1,5 @@
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
-import {actionRecordKey,prioritizeActions,consolidateScheduleChains} from './action-priority';
+import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -7748,7 +7748,7 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   );
   const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
     id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
-    owner:a.owner??a.organisation,dueIso:a.dueIso,priorityBasis:a.priorityBasis,
+    owner:pmcRoleOwner(a.owningModule??a.recordKey??'project controls',a.owner??a.organisation),dueIso:a.dueIso,priorityBasis:a.priorityBasis,
     resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
     target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
   });
@@ -8729,7 +8729,7 @@ export function overviewForProject(
     consequence:action.consequence??null,
     affectedScope:Array.isArray(action.affectedScope)?action.affectedScope:[],
     affectedMilestones:Array.isArray(action.affectedMilestones)?action.affectedMilestones:[],
-    owner:action.owner??null,
+    owner:pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner),
     organisation:action.organisation??null,
     requiredAction:action.requiredAction??null,
     dueIso:action.dueIso??null,
@@ -8749,7 +8749,7 @@ export function overviewForProject(
   ];
   const executiveDecisions=canonicalActions.slice(0,8).map(action=>({
     description:action.issue,
-    accountableOwner:action.owner??null,
+    accountableOwner:pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner),
     dueDate:action.dueIso??null,
     requiredAuthority:action.authority??null,
     dependencyParty:action.organisation??null,
