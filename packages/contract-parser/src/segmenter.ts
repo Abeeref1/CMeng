@@ -615,7 +615,7 @@ export function segmentContractTextBlocks(
         // not competing legal clauses bearing the same number.
         const sectionalParticular=/^section\s+\d+\s+(?:time\s+for\s+completion|completion\s+date|delay\s+damages|estimated\s+value|description|scope)\b/i;
         if(prior===current&&heading.kind==='clause'&&sectionalParticular.test(line.text)&&
-          sectionalParticular.test(current.sourceSpans[0]?.text??'')){
+          /^section\s+\d+\s+/i.test(current.sourceSpans[0]?.text??'')){
           appendLine(current,line);continue;
         }
         // A contract-data table can have several particulars under one Article
@@ -808,7 +808,7 @@ export function segmentContractTextBlocks(
     );
 
   return {
-    segmentationVersion: 'contract-data-rows-v5',
+    segmentationVersion: 'contract-data-rows-v6',
     sourceType: options.sourceType,
     pdf: null,
     docx: null,

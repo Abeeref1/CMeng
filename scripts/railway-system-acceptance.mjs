@@ -93,7 +93,14 @@ try{
       if(!facts)return;
       check(label+": displayed values match shared facts",projectFactConsumerMismatches(body.data).length===0,id);
       const current=digest(facts);
-      if(projectFactsDigest===null)projectFactsDigest=current;
+      if(projectFactsDigest===null){
+        projectFactsDigest=current;
+        check('Portfolio current-contract comparison matches project facts',p.submittedDaysAfterCurrentContract===(facts.time.submittedDaysAfterCurrentContract?.value??null),id);
+        for(const money of facts.commercial.currencies){
+          const card=p.commercialSummary?.find(row=>row.currency===money.currency);
+          check('Portfolio '+money.currency+' money matches project facts',card?.currentContractValue===money.currentContractValue.value&&card?.forecastEac===(money.forecastEac?.value??null)&&card?.certifiedUnpaidAmount===money.certifiedUnpaidAmount.value,id);
+        }
+      }
       else check(label+": canonical project facts equal every other page",current===projectFactsDigest,id);
     };
 

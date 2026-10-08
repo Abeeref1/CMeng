@@ -13,6 +13,7 @@ import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {deliveryPosition} from './delivery-projections';
 import {cachedIndependentForecast} from './forecast-cache';
+import {securityValidityReview} from './security-validity';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -68,6 +69,7 @@ export interface ProjectFactsSnapshot {
     noticeRequirementMissingCount:ProjectFact<number>;
   };
   commercial:{
+    securityValidity?:ReturnType<typeof securityValidityReview>;
     variationRecordCount:ProjectFact<number>;
     approvedVariationCount:ProjectFact<number>;
     pendingVariationCount:ProjectFact<number>;
@@ -80,6 +82,7 @@ export interface ProjectFactsSnapshot {
       currency:string;
       originalContractValue:ProjectFact<number>;
       currentContractValue:ProjectFact<number>;
+      forecastEac?:ProjectFact<number>;
       approvedVariationAmount:ProjectFact<number>;
       pendingVariationAmount:ProjectFact<number>;
       grossCertifiedAmount:ProjectFact<number>;
@@ -387,8 +390,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         'Insurance policies expired before the Data Date.',
         insuranceRefs,
       ),
+      securityValidity:securityValidityReview(scoped,commercial.sourceLedger?.bonds??[],submittedFinish?.dateIso??null),
       currencies:commercial.currencies.map(row=>({
         currency:row.currency,
+        forecastEac:(()=>{const positions=commercial.costBasisReview?.filter(p=>p.currency===row.currency)??[];return fact(positions.length===1?positions[0]!.sourceEac:null,'Latest EAC in the cost register, with currency and tax basis retained.','from_register_not_confirmed',positions.length===1);})(),
         pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
         grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
         netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),

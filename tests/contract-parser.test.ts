@@ -90,7 +90,7 @@ test('amendment prose and repeated final body sentences never become discarded h
 });
 
 test('sectional completion particulars retain date and damages under one section without a false duplicate-clause conflict',()=>{
- const parsed=segmentContractPages(pdfResult([page(1,'SECTIONAL COMPLETION\nSection 1 Description First handover\nSection 1 Completion Date 2027-05-01\nSection 1 Delay Damages USD 1200 per day\nSection 2 Description Final handover\nSection 2 Completion Date 2027-09-01\nSection 2 Delay Damages USD 2500 per day')]));
+ const parsed=segmentContractPages(pdfResult([page(1,'SECTIONAL COMPLETION\nSection 1 Infrastructure Works First handover\nSection 1 Completion Date 2027-05-01\nSection 1 Delay Damages USD 1200 per day\nSection 2 Whole of the Works Final handover\nSection 2 Completion Date 2027-09-01\nSection 2 Delay Damages USD 2500 per day')]));
  assert.equal(parsed.clauses.length,2);
  assert.ok(!parsed.diagnostics.some(d=>d.startsWith('CONTRACT_DUPLICATE_SECTION_INSTANCE')));
  assert.match(parsed.clauses[0]!.text,/2027-05-01/);assert.match(parsed.clauses[0]!.text,/1200 per day/);

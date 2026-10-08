@@ -15,6 +15,11 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('portfolio card shows current-contract lateness and currency-specific money',()=>{
+ const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2031-10-06',officialCompletionIso:'2031-09-08',furtherAdjustedCompletionIso:'2031-09-21',submittedDaysAfterCurrentContract:15,commercialSummary:[{currency:'USD',currentContractValue:120000,forecastEac:118000,certifiedUnpaidAmount:5000}],managementActionCount:2};
+ const html=runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p});
+ assert.match(html,/15 days after current contract/);assert.match(html,/USD · Current contract 120000 · EAC 118000 · Unpaid 5000/);
+});
 test('documents label a submitted-current programme as usable without demanding adoption',()=>{
  const label=runInNewContext(functions(['documentUseLabel'])+';documentUseLabel',{humanizeKey:String});
  for(const method of ['submitted_update','legacy_retained']){

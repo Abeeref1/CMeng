@@ -36,7 +36,8 @@
       "retentionHeldAmount": 9801726,
       "advanceBalance": 1396548,
       "currentContractValue": 221776000,
-      "pendingVariationAmount": 0
+      "pendingVariationAmount": 0,
+      "forecastEac": 218403148
     }
   },
   "delivery": {
@@ -148,6 +149,9 @@
     "cash-flow": {
       "position.performance.cashFlow.currencies.0.certifiedIncome.value": 166629358,
       "position.performance.cashFlow.currencies.0.certifiedUnpaid.value": 9899013
+    },
+    "contract-particulars-bonds": {
+      "projectFacts.commercial.securityValidity.0.daysAfterProgrammeFinish": 86
     }
   },
   "sectionMilestones": {
