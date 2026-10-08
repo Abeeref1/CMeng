@@ -54,6 +54,8 @@ jobs:
             case "$CMENG_GATE" in
               regression)
                 npm run typecheck
+                node --check scripts/cmeng-all-project-root-gate.mjs
+                node --check scripts/cmeng-all-project-screen-acceptance.mjs
                 node scripts/run-unit-tests.cjs regression
                 ;;
               raster)
