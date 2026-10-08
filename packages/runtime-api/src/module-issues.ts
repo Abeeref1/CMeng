@@ -154,12 +154,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       // An identified contract/register candidate can be used as *reported source*
       // without inventing a new management approval task. This does not promote
       // its authority to governed or establish a contractual determination.
-      const explicitDecision=value.state==='pending_review'||value.approvalRequired===true||
+      const explicitDecision=value.approvalRequired===true||
         value.requiresUserApproval===true||value.decisionRequired===true||
         diagnostics.some(s=>/(?:APPROVAL_REQUIRED|ADOPTION_REQUIRED|OVERRIDE_PENDING|UNTIL_MAPPED|REQUIRES_MAPPING|UNRESOLVED_AUTHORITY)/.test(s));
-      const sourceSupported=!!value.basis&&typeof value.basis.method==='string'&&
-        value.value!==null&&value.value!==undefined&&refs.length>0;
-      if(explicitDecision||!sourceSupported)
+      // A source candidate, a missing provenance field, or generic "pending"
+      // state is not an approval request. Only a concrete selection, override
+      // or required determination can enter the decision queue.
+      // Missing or conflicted source evidence remains separately classified.
+      if(explicitDecision)
         add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
           value.consequence??'A management decision, selection or approval remains outstanding; the candidate is not an official approval.',
           value.action||'Review the source basis and record the decision through the governed workflow.',path,'Project controls reviewer',refs);

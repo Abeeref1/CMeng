@@ -216,9 +216,10 @@ test('source-backed contract candidates are visible without fabricated approvals
  const source=assess(cap);
  assert.equal(source.issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,0,'clean source term is reported, not a new approval request');
  assert.equal(cap.state,'candidate','source candidate remains explicitly unapproved');
- assert.equal(assess({...cap,state:'pending_review'}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'actual pending decision must stay actionable');
+ assert.equal(assess({...cap,state:'pending_review'}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,0,'pending status alone is not a separate approval demand');
+ assert.equal(assess({...cap,state:'pending_review',decisionRequired:true}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'an explicitly required decision remains actionable');
  assert.equal(assess({...cap,approvalRequired:true}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'explicit approval requests survive');
- assert.equal(assess({...cap,basis:{method:'governed_ld_cap_basis',sourceRefs:[]}}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,1,'unsupported candidates still require review');
+ assert.equal(assess({...cap,basis:{method:'governed_ld_cap_basis',sourceRefs:[]}}).issues.filter(i=>i.code==='AUTHORITY_REVIEW').length,0,'a missing receipt is not a request for formal approval; the unapproved source state remains visible');
 });
 
 test('management pages receive quantity summaries, not duplicated full item curves',()=>{

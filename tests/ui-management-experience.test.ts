@@ -311,6 +311,14 @@ test('an obsolete view request cannot replace the current page with an error',as
   assert.equal(h.context.currentModuleResult.key,'progress');
 });
 
+test('management elapsed-calendar wording is readable while CPI and exact engineering values remain untouched',()=>{
+ const values=runInNewContext(functions(['fmtManagementDayCount'])+
+   ';[fmtManagementDayCount(-0.25),fmtManagementDayCount(0.25),fmtManagementDayCount(1),fmtManagementDayCount(15),fmtManagementDayCount(null)]',{});
+ assert.deepEqual(Array.from(values),['less than one day','less than one day','1 day','15 days','Unresolved']);
+ assert.match(script,/fmtManagementDayCount\(comparisonDays\)/,'portfolio uses the same elapsed-day presentation rule');
+ assert.match(script,/maximumFractionDigits:2/,'exact engineering and financial precision is retained');
+});
+
 test('rendered management and delivery status vocabulary uses one central source',()=>{
  const management=runInNewContext(functions(['humanizeKey','planningStateLabel'])+
    ';[humanizeKey("not_established"),planningStateLabel(null),humanizeKey("governance_review")]',{...common});

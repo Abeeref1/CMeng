@@ -522,6 +522,15 @@ const fmtExecutive=v=>{
   if(a>=10)return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(v);
   return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(6)));
 };
+// Management-level elapsed calendar days do not show misleading quarter-day
+// precision. Engineering tables retain their full numeric working-day bases.
+function fmtManagementDayCount(value){
+  if(typeof value!=="number"||!Number.isFinite(value))return "Unresolved";
+  const magnitude=Math.abs(value);
+  if(magnitude>0&&magnitude<1)return "less than one day";
+  const days=Math.round(magnitude);
+  return new Intl.NumberFormat("en-GB",{maximumFractionDigits:0}).format(days)+(days===1?" day":" days");
+}
 const statusClass=s=>s==="ready"?"ready":s==="partial"?"partial":"blocked";
 const statusLabel=s=>s==="ready"?"Listed checks passed":s==="partial"?"Review required":"Calculation blocked";
 function renderRoleViewSelector(){
@@ -5334,7 +5343,7 @@ function projectCard(p){
   const calculatedComparison=p.forecastCompletionIso&&p.forecastCompletionIso===p.calendarRecalculationIso;
   const comparisonDays=calculatedComparison?p.independentDaysAfterCurrentContract:p.submittedDaysAfterCurrentContract;
   const comparisonPrefix=!calculatedComparison&&p.submittedProgrammeCompletionIso&&p.forecastCompletionIso!==p.submittedProgrammeCompletionIso?'Submitted programme '+planningShortDate(p.submittedProgrammeCompletionIso)+': ':'';
-  const lateness=comparisonPrefix+(typeof comparisonDays==='number'?(comparisonDays>0?fmt(comparisonDays)+' days after current contract':comparisonDays===0?'On the current contract date':fmt(-comparisonDays)+' days before current contract'):'Contract comparison unavailable');
+  const lateness=comparisonPrefix+(typeof comparisonDays==='number'?(comparisonDays>0?fmtManagementDayCount(comparisonDays)+' after current contract':comparisonDays===0?'On the current contract date':fmtManagementDayCount(comparisonDays)+' before current contract'):'Contract comparison unavailable');
   const money=(p.commercialSummary||[]).map(row=>row.currency+' · Current contract '+(row.currentContractValue==null?'Not supplied':fmtExecutive(row.currentContractValue))+' · EAC '+(row.forecastEac==null?'Not supplied':fmtExecutive(row.forecastEac))+' · Unpaid '+(row.certifiedUnpaidAmount==null?'Not supplied':fmtExecutive(row.certifiedUnpaidAmount))).join(' | ');
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
   const attention=p.analysisError||(p.managementActions||[])[0]||(
