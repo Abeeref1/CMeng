@@ -23,7 +23,7 @@ function readerReference(value){
   return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document')
     .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision')
     .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
-    .replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
+    .replace(/:clause:[^\s;,]+/g,' · source section').replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
     .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
 }
 function readerAuditAction(value){

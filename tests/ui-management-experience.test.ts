@@ -448,4 +448,15 @@ test('reader references name source documents and rows while retaining the under
  assert.equal(runInNewContext(run+";readerReference('evidence-document:evidence_123456abcdef:row:12')",{currentModuleResult}),'Claims.csv · row 12');
  assert.equal(runInNewContext(run+";readerAuditAction('POST /api/projects/P/schedule/revisions/schedrev_123456abcdef/adopt')",{currentModuleResult}),'Updated programme records');
  assert.equal(currentModuleResult.data.sourceLabels['schedrev_123456abcdef'],'Update02.xer');
+ assert.equal(runInNewContext(run+";readerText('evidence_123456abcdef:clause:cycle:1:2#3 · Delay damages')",{currentModuleResult}),'Source document · source section · Delay damages');
+});
+
+test('dashboard date comparisons retain the current contract basis after awarded EOT',()=>{
+ const data={metrics:[{key:'submitted-vs-contract',value:15},{key:'independent-vs-contract',value:15}],projectFacts:{time:{submittedDaysAfterExtendedCompletion:{value:15}}}};
+ let scheduleRows:any[]=[];
+ runInNewContext(functions(['renderPmcControlCharts'])+';renderPmcControlCharts(data)',{...common,data,
+  pmcMetric:(d:any,k:string)=>d.metrics.find((m:any)=>m.key===k),pmcDefined:(v:any)=>v!==null&&v!==undefined,pmcFirst:()=>null,
+  renderWaterfallChart:(rows:any[])=>{scheduleRows=rows;return 'chart';},renderVisualPanel:()=>'',renderVisualBars:()=>''});
+ assert.deepEqual(Array.from(scheduleRows,r=>[r.label,r.value]),[['Submitted vs current contract',15],['Recalculation vs current contract',15]]);
+ assert.doesNotMatch(script,/vs original contract/);
 });
