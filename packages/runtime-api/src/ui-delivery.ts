@@ -3,7 +3,7 @@ import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-cor
 import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
 export function deliveryScript():string{return `const deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
-let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0;
+let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
@@ -22,7 +22,14 @@ const deliveryRowState=r=>r.state||r.currentStatus||r.permitStatus||r.readinessS
 function deliveryTable(id,title,rows,columns){
  rows=Array.isArray(rows)?rows:[];
  columns=Array.isArray(columns)?columns:[];
- deliveryTables[id]={rows,columns,page:0,query:'',filter:'',sort:null,direction:1,title};
+ const pointers={deliveryMain:'/data/rows',deliveryScheduleLongLead:'/data/scheduleLongLeadCandidates',
+  deliverySystems:'/data/systems',deliveryBoqCurrency:'/data/boqIntelligence/currencies',
+  deliveryBoq:'/data/boqIntelligence/rows',derivedRisks:'/data/derivedRiskCandidates'};
+ const pointer=pointers[id]??null;
+ const info=pointer?deliveryResponsePaging?.tables?.find(table=>table.kind==='array'&&table.pointer===pointer):null;
+ const server=info?{source:deliveryResponsePaging.source,pointer,total:info.total,matched:info.total,
+   version:deliveryResponsePaging.projectVersion,request:0,timer:null}:null;
+ deliveryTables[id]={rows,columns,page:0,query:'',filter:'',sort:null,direction:1,title,server};
  return '<section class="card delivery-table" data-delivery-table="'+id+'"><h4>'+escapeHtml(title)+'</h4><div class="delivery-toolbar"><label>Search <input aria-label="Search '+escapeHtml(title)+'" data-delivery-search="'+id+'" placeholder="Reference, owner, discipline, source…"></label><label>State <select data-delivery-filter="'+id+'"><option value="">All states</option>'+[...new Set(rows.map(deliveryRowState).filter(Boolean))].sort().map(s=>'<option value="'+escapeHtml(s)+'">'+escapeHtml(deliveryLabel(s))+'</option>').join('')+'</select></label><button class="btn small" data-delivery-clear="'+id+'">Clear filters</button></div><div id="'+id+'Body"></div><div class="delivery-toolbar"><button class="btn small" data-delivery-page="'+id+'" data-step="-1">Previous</button><span id="'+id+'Count" role="status"></span><button class="btn small" data-delivery-page="'+id+'" data-step="1">Next</button></div></section>';
 }
 function deliveryCell(row,key){
@@ -33,10 +40,42 @@ function deliveryCell(row,key){
  return result;
 }
 function deliveryFiltered(table){let rows=table.rows.filter(r=>(!table.query||JSON.stringify(r).toLowerCase().includes(table.query.toLowerCase()))&&(!table.filter||deliveryRowState(r)===table.filter));if(table.sort)rows=[...rows].sort((a,b)=>{const x=deliveryCell(a,table.sort),y=deliveryCell(b,table.sort);if((x===null||x===undefined)&&(y===null||y===undefined))return 0;if(x===null||x===undefined)return 1;if(y===null||y===undefined)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*table.direction;});return rows;}
-function refreshDeliveryTable(id){const t=deliveryTables[id],target=el(id+'Body');if(!t||!target)return;const rows=deliveryFiltered(t),pages=Math.max(1,Math.ceil(rows.length/25));t.page=Math.max(0,Math.min(t.page,pages-1));const displayed=rows.slice(t.page*25,t.page*25+25);
- target.innerHTML='<div class="table-wrap"><table><thead><tr>'+t.columns.map(([key,label])=>'<th><button class="delivery-sort" data-delivery-sort="'+id+'" data-key="'+escapeHtml(key)+'">'+escapeHtml(label)+(t.sort===key?(t.direction===1?' ↑':' ↓'):'')+'</button></th>').join('')+'<th>Detail</th></tr></thead><tbody>'+displayed.map((r,index)=>'<tr>'+t.columns.map(([key])=>'<td>'+deliveryText(/(?:state|status)$/i.test(key)&&typeof deliveryCell(r,key)==='string'?deliveryLabel(deliveryCell(r,key)):key==='latestOrderDate'&&deliveryCell(r,key)?String(deliveryCell(r,key)).slice(0,10):deliveryCell(r,key))+'</td>').join('')+'<td><button class="btn small" data-delivery-detail="'+id+'" data-index="'+(t.page*25+index)+'">Open</button></td></tr>').join('')+'</tbody></table></div>'+(displayed.length?'':'<p class="empty">'+(t.rows.length?'Records exist, but none match these filters. Clear filters to restore the complete set.':'No reviewed rows in this view. Review supplied records and source coverage below.')+'</p>');
- el(id+'Count').textContent=rows.length?((t.page*25+1)+'–'+Math.min((t.page+1)*25,rows.length)+' of '+rows.length+' matching rows · '+t.rows.length+' in the complete set'):t.rows.length?'No matching rows':'No rows in this view';
- document.querySelectorAll('[data-delivery-page="'+id+'"]').forEach(b=>b.disabled=Number(b.dataset.step)<0?t.page===0:t.page===pages-1);
+function refreshDeliveryTable(id){
+ const t=deliveryTables[id],target=el(id+'Body');if(!t||!target)return;
+ const rows=t.server?t.rows:deliveryFiltered(t);
+ const total=t.server?t.server.matched:rows.length;
+ const pages=Math.max(1,Math.ceil(total/25));
+ t.page=Math.max(0,Math.min(t.page,pages-1));
+ const displayed=t.server?rows:rows.slice(t.page*25,t.page*25+25);
+ target.innerHTML='<div class="table-wrap"><table><thead><tr>'+t.columns.map(([key,label])=>'<th><button class="delivery-sort" data-delivery-sort="'+id+'" data-key="'+escapeHtml(key)+'">'+escapeHtml(label)+(t.sort===key?(t.direction===1?' ↑':' ↓'):'')+'</button></th>').join('')+'<th>Detail</th></tr></thead><tbody>'+
+  displayed.map((r,index)=>'<tr>'+t.columns.map(([key])=>'<td>'+deliveryText(/(?:state|status)$/i.test(key)&&typeof deliveryCell(r,key)==='string'?deliveryLabel(deliveryCell(r,key)):key==='latestOrderDate'&&deliveryCell(r,key)?String(deliveryCell(r,key)).slice(0,10):deliveryCell(r,key))+'</td>').join('')+'<td><button class="btn small" data-delivery-detail="'+id+'" data-index="'+(t.server?index:t.page*25+index)+'">Open</button></td></tr>').join('')+'</tbody></table></div>'+
+  (displayed.length?'':'<p class="empty">'+(total?'Records exist, but none match these filters. Clear filters to restore the complete set.':'No reviewed rows in this view.')+'</p>');
+ el(id+'Count').textContent=total?(t.page*25+1)+'–'+Math.min((t.page+1)*25,total)+' of '+total+' matching rows · '+(t.server?t.server.total:t.rows.length)+' in the complete set':t.server?.total?'No matching rows':'No rows in this view';
+ document.querySelectorAll('[data-delivery-page="'+id+'"]').forEach(button=>button.disabled=Number(button.dataset.step)<0?t.page===0:t.page===pages-1);
+}
+async function deliveryLoadServerPage(id,page){
+ const t=deliveryTables[id],owner=project();if(!t?.server)return;
+ const ticket=++t.server.request;
+ const offset=Math.max(0,page)*25;
+ const params=new URLSearchParams({source:t.server.source,pointer:t.server.pointer,offset:String(offset),
+  q:t.query,filter:t.filter,...(t.sort?{sort:t.sort,direction:t.direction<0?'desc':'asc'}:{}),
+  ...(typeof t.server.version==='number'?{version:String(t.server.version)}:{})});
+ try{
+   const response=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
+   if(project()!==owner||ticket!==t.server.request||deliveryTables[id]!==t)return;
+   if(!Array.isArray(response.rows))throw new Error('Source records were not returned');
+   t.rows=response.rows;t.page=Math.floor(response.offset/25);t.server.matched=response.total;
+   t.server.total=response.sourceTotal??t.server.total;refreshDeliveryTable(id);
+ }catch(error){
+   if(ticket!==t.server.request||project()!==owner)return;
+   const target=el(id+'Body');if(target)target.innerHTML='<p class="notice error">The source record page could not be loaded. Retry using Next or Previous.</p>';
+ }
+}
+function deliveryReload(id){
+ const t=deliveryTables[id];if(!t)return;
+ t.page=0;
+ if(t.server){if(t.server.timer)clearTimeout(t.server.timer);t.server.timer=setTimeout(()=>deliveryLoadServerPage(id,0),170);}
+ else refreshDeliveryTable(id);
 }
 function deliveryColumns(key){
  if(['delivery-design','delivery-quality'].includes(key))return [['reference','Reference'],['description','Description'],['discipline','Discipline'],['currentStatus','Position at Data Date'],['programmeContext.label','Programme work'],['programmeContext.activityIds','Linked activities'],['programmeContext.linkedFloatHours','Live float · hours'],['dueDate','Required by'],['overdue','Overdue'],['owner','Owner']];
@@ -114,7 +153,7 @@ function renderDelivery(result){const raw=result.data;if(raw?.deliveryPage==='de
    topPackages:Array.isArray(raw.boqIntelligence.topPackages)?raw.boqIntelligence.topPackages:[],
    quantityPopulations:Array.isArray(raw.boqIntelligence.quantityPopulations)?raw.boqIntelligence.quantityPopulations:[]
  }:null
-};deliveryTables={};deliveryEditorContext=null;deliverySourceContext=null;deliveryDetailViews={};
+};deliveryResponsePaging=result.responsePaging??null;deliveryTables={};deliveryEditorContext=null;deliverySourceContext=null;deliveryDetailViews={};
  if(raw.empty){el('moduleContent').innerHTML='<section class="card"><p>No '+escapeHtml(p.title.toLowerCase())+' records supplied.</p><button class="btn primary" id="deliveryEmptyUpload">Upload register</button></section>';el('deliveryEmptyUpload').onclick=()=>{openEvidenceLibrary();el('evidenceFiles')?.click();};return true;}
  const curveBox=p.curves.length?'<section class="card"><h4>Separate curves</h4><label>View <select id="deliveryCurveChoice"><option value="">Select a curve</option>'+p.curves.map((c,i)=>'<option value="'+i+'">'+escapeHtml(deliveryLabel(c.kind)+' · '+c.stage+' · '+c.series+' · '+c.unit+(c.packageId?' · '+(p.reviewRecords.find(r=>r.recordId===c.packageId)?.reference||c.packageId):''))+'</option>').join('')+'</select></label><div id="deliveryChart">'+(p.curves.length?deliveryChart(p.curves[0]):'<p>Curves require dated governed records. Throughput, currency, compatible quantities and weighted progress are kept separate.</p>')+'</div></section>':'';
  const exceptions=p.findings.length?'<section class="notice warn"><h4>Required actions</h4>'+p.findings.slice(0,6).map(f=>'<p><b>'+escapeHtml((!f.priorityBasis&&p.reviewRecords.find(r=>r.recordId===f.recordId)?.reference? p.reviewRecords.find(r=>r.recordId===f.recordId).reference+' · ':'')+f.message)+'</b><br>'+escapeHtml(f.action)+(f.recordId?' <button class="btn small" data-delivery-edit="'+escapeHtml(f.recordId)+'">Review record</button>':'')+'</p>').join('')+(p.findings.length>6?'<details><summary>All '+p.findings.length+' exceptions</summary>'+deliveryObjectDetail(p.findings)+'</details>':'')+'</section>':'';
