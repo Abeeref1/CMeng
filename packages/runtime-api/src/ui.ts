@@ -4963,6 +4963,27 @@ function bindAdvancedControls(parentKey){
     }catch(e){const d=e.data||{};host.innerHTML='<div class="notice warn"><b>'+escapeHtml(label)+' is not established.</b><p>'+escapeHtml(d.reason||d.message||e.message||"The current project evidence does not support this analysis.")+'</p></div>';}
   });
 }
+function pmcDisplayOwner(domain){
+ const area=String(domain||'').toLowerCase();
+ if(/design|rfi|submittal/.test(area))return 'PMC Design Manager';
+ if(/quality|ncr|inspection/.test(area))return 'PMC Quality Manager';
+ if(/procurement|material|supplier/.test(area))return 'PMC Procurement Manager';
+ if(/claim|eot|notice|contract/.test(area))return 'PMC Contracts Manager';
+ if(/payment|commercial|security|bond|cost|cash/.test(area))return 'PMC Commercial Manager';
+ if(/hse|safety|permit/.test(area))return 'PMC HSE Manager';
+ if(/construction|delivery|resource|interface|site/.test(area))return 'PMC Construction Manager';
+ if(/programme|schedule|activity|planning|float/.test(area))return 'PMC Planning Engineer';
+ return 'PMC Project Controls Manager';
+}
+function applyPmcDisplayOwners(root,defaultDomain){
+ if(!root)return;
+ root.querySelectorAll('td,span,small,p,.value-chip').forEach(node=>{
+   if(node.children.length||!/^\\s*(Not assigned|Unassigned|Not recorded|Owner not assigned)\\s*$/i.test(node.textContent||''))return;
+   const heading=node.closest('.planning-panel,.card,.data-section,.action,.project-action')?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
+   node.textContent=pmcDisplayOwner(heading);
+   node.title='Accountable PMC role fallback; no named source owner is recorded';
+ });
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -4993,6 +5014,12 @@ function renderModuleResult(result){
         }catch(error){button.disabled=false;button.textContent='Retry source records';target.insertAdjacentHTML('beforeend','<p>Source details could not be loaded. Please retry.</p>');}
       });
     }
+  }
+  applyPmcDisplayOwners(container,result.key);
+  const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
+  if(missing.length){
+    container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
+    container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
   }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   const pageKey=result.legacyKey||result.key;
@@ -5156,6 +5183,7 @@ function renderDirector(d){
     '<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+
     '</div></div></div>';
   el("director").innerHTML=renderActivityFloatReconciliation(d.activityFloatReconciliation)+html;
+  applyPmcDisplayOwners(el('director'),'project controls');
 }
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;
