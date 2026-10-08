@@ -246,6 +246,9 @@ test('one procurement date rule identifies overdue delivery and late forecasts f
  const document={documentType:'procurement_register',documentId:'PACKAGES'} as any;
  const readiness=deriveReadinessFromCsv({state,document,dataDateIso:'2036-08-31',bytes:Buffer.from('Package ID,Linked Activity,Required On Site,Forecast Delivery,Status,Owner\nPUMP,FIRE,2036-08-29,,Ordered,Procurement Manager')});
  assert.equal(readiness.FIRE!.procurement_material!.state,'blocked');assert.equal(readiness.FIRE!.procurement_material!.records![0]!.owner,'Procurement Manager');
+ const sourceReported=deriveReadinessFromCsv({state,document,dataDateIso:'2036-08-31',bytes:Buffer.from('Package ID,Linked Activity,Required On Site,Forecast Delivery,Status,Owner\nPUMP,FIRE,2036-08-29,2036-09-05,Delivered,Procurement Manager')});
+ assert.equal(sourceReported.FIRE!.procurement_material!.state,'unknown','an undated source-reported delivery is not a confirmed blocker or an invented dated receipt');
+ assert.match(sourceReported.FIRE!.procurement_material!.note??'',/source reports Delivered\/Accepted.*no actual delivery date/i);
  const result=buildLookAheadProjection(model,{generatedAt:'2036-08-31',producerVersion:'test',readinessEvidence:readiness,drivingActivityIds:['FIRE']});
  assert.equal(result.blockedCount,1);assert.equal(result.rows[0]!.totalFloatHours,-88);assert.equal(result.rows[0]!.drivingPath,true);
  assert.equal(result.managementInterventions![0]!.owner,'Procurement Manager');assert.deepEqual(result.blockerTypes![0]!.recordIds,['PUMP']);
