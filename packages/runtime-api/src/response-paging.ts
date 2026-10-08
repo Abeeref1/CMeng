@@ -51,25 +51,43 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
  * screen, independent of how large the surrounding specialist module is.
  * Original registers, receipts and full source facts remain in producers and
  * downloadable reports, and are retrievable on demand. */
-function compactFactSnapshot(value:unknown):unknown {
+function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void):unknown {
  const seen=new Set<object>();
- const walk=(v:any,key:string,depth:number):any=>{
+ const walk=(v:any,key:string,pointer:string,depth:number):any=>{
   if(v===null||typeof v!=='object'){
-   return typeof v==='string'&&v.length>FACT_BUDGET.text?v.slice(0,FACT_BUDGET.text):v;
+   if(typeof v==='string'&&v.length>FACT_BUDGET.text){
+    record({pointer,total:v.length,shown:FACT_BUDGET.text,kind:'text'});
+    return v.slice(0,FACT_BUDGET.text)+'…';
+   }
+   return v;
   }
-  if(seen.has(v))return null;
-  if(depth>FACT_BUDGET.depth)return Array.isArray(v)?[]:{detailAvailable:true};
+  if(seen.has(v))return {detailAvailable:true};
+  if(depth>FACT_BUDGET.depth){
+   record({pointer,total:Array.isArray(v)?v.length:Object.keys(v).length,shown:0,
+    kind:Array.isArray(v)?'array':'object'});
+   return Array.isArray(v)?[]:{detailAvailable:true};
+  }
   seen.add(v);
   if(Array.isArray(v)){
-   const result=v.slice(0,FACT_BUDGET.rows).map((item:any)=>walk(item,'',depth+1));
+   const shown=Math.min(v.length,FACT_BUDGET.rows);
+   if(shown<v.length)record({pointer,total:v.length,shown,kind:'array'});
+   const result=v.slice(0,shown).map((item:any,i:number)=>walk(item,'',pointer+'/'+i,depth+1));
    seen.delete(v);return result;
   }
-  const keys=chosenKeys(v,FACT_BUDGET.keys).filter(k=>!['programmeQuality','contractSections','securityValidity'].includes(k));
+  const names=Object.keys(v),keys=chosenKeys(v,FACT_BUDGET.keys);
+  const shown=keys.filter(k=>!['programmeQuality','contractSections','securityValidity'].includes(k));
+  if(shown.length<names.length)record({pointer,total:names.length,shown:shown.length,kind:'object'});
+  // Omitted canonical groups are addressable by the same source pointers as
+  // the unpaged JSON export, rather than disappearing silently from the app.
+  for(const field of keys.filter(k=>!shown.includes(k)))record({
+   pointer:pointer+'/'+token(field),total:Array.isArray(v[field])?v[field].length:typeof v[field]==='object'&&v[field]!==null?Object.keys(v[field]).length:1,
+   shown:0,kind:Array.isArray(v[field])?'array':'object',
+  });
   const result:Record<string,unknown>={};
-  for(const field of keys)result[field]=walk(v[field],field,depth+1);
+  for(const field of shown)result[field]=walk(v[field],field,pointer+'/'+token(field),depth+1);
   seen.delete(v);return result;
  };
- return walk(value,'projectFacts',0);
+ return walk(value,'projectFacts','/data/projectFacts',0);
 }
 
 function projectFactsOf(body:unknown):unknown {
@@ -85,13 +103,14 @@ export function pageProjectResponse(
 ):unknown {
  if(!body||typeof body!=='object')return body;
  const facts=projectFactsOf(body);
- const normalizedFacts=facts?compactFactSnapshot(facts):null;
+ const sharedFactPages:PageTable[]=[];
+ const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry)):null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
  for(const budget of PAGE_BUDGETS){
-  const tables:PageTable[]=[];
-  let additionalTables=0,changed=false;
+  const tables:PageTable[]=[...sharedFactPages.slice(0,180)];
+  let additionalTables=Math.max(0,sharedFactPages.length-180),changed=sharedFactPages.length>0;
   const seen=new Set<object>();
   const record=(entry:PageTable)=>{
    changed=true;
