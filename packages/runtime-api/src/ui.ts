@@ -518,7 +518,7 @@ function fmtForField(key,value){
   if(value===null||value===undefined)return"Not established";
   if(typeof value==="string"){
     if(SCREEN_STATUS_LABELS[value])return SCREEN_STATUS_LABELS[value];
-    if(/^\\d{4}-\\d{2}-\\d{2}(?:T[\\d:.]+Z?)?$/.test(value))return planningShortDate(value);
+    if(/^[0-9]{4}-[0-9]{2}-[0-9]{2}(?:T[0-9:.]+Z?)?$/.test(value))return planningShortDate(value);
     if(/^[A-Z][A-Z0-9_]*_[A-Z0-9_]+$/.test(value))return humanizeKey(value.toLowerCase());
     return fmt(value);
   }
