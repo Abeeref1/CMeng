@@ -13,7 +13,7 @@ export interface ResponsePaging {
   sourcePreserved:true;
 }
 const token=(v:string)=>v.replace(/~/g,'~0').replace(/\//g,'~1');
-const allowedScreen=/^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|management\/[^/]+|advanced\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+)$/;
+const allowedScreen=/^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|management\/[^/]+|advanced\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+|evidence\/documents|boq\/(?:page-review|numeric-review)|actions)$/;
 export function isProjectScreenRequest(method:string|undefined,path:string):boolean {
   return method==='GET'&&allowedScreen.test(path);
 }
