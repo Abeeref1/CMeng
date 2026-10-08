@@ -963,11 +963,11 @@ test("Batch G preserves EVM minimum-point and unofficial EAC controls", () => {
 });
 
 
-test('uncertified applications do not withhold a dated net receivable',()=>{
+for(const applicationStatus of ['Application','Applied','Submitted','Draft'])test('uncertified '+applicationStatus+' does not withhold a dated net receivable',()=>{
  const model=input();model.costMetrics=[];
  const first=model.payments[0]!;
  model.payments=[{...first,paymentId:'CERT',periodEnd:'2026-06-30',certificationDate:'2026-07-10',paymentDate:'2026-07-20',certifiedAmount:900,paidAmount:800,certifiedAmountBasis:'incremental',paidAmountBasis:'incremental',sourceStatus:'Certified',certifiedAmountLabel:'Net certified receivable'},
- {...first,paymentId:'APP',periodEnd:'2026-08-31',certificationDate:null,paymentDate:null,certifiedAmount:100,paidAmount:0,certifiedAmountBasis:'incremental',paidAmountBasis:'incremental',sourceStatus:'Application'}];
+ {...first,paymentId:'APP',periodEnd:'2026-08-31',certificationDate:null,paymentDate:null,certifiedAmount:100,paidAmount:0,certifiedAmountBasis:'incremental',paidAmountBasis:'incremental',sourceStatus:applicationStatus}];
  const position=buildCommercialPerformance(model).cashFlow.currencies[0]!;
  assert.equal(position.certifiedIncome.value,900);assert.equal(position.certifiedUnpaid.value,100);
  assert.equal(position.certifiedAmountLabel,'Net certified receivable');

@@ -584,16 +584,16 @@ function dashboardMetrics(
   metrics.push(
     finishMetric(
       "contract-finish",
-      "Contract completion",
+      "Original contract completion",
       facts.time.contractualCompletionIso.value,
-      "Current contractual completion, including effective amendments; authority follows the confirmed term",
+      "Original contractual completion before awarded EOT",
       input.contractualCompletionAuthority ?? "source",
     ),
     finishMetric(
       "official-adjusted-finish",
-      "Further adjusted contractual completion",
+      "Contract completion including awarded EOT",
       facts.time.extendedContractCompletionIso.value,
-      "Additional adjustment after the current confirmed amendment; absence does not invalidate the current contract completion",
+      "Contract completion plus reconciled awarded EOT",
       "official",
     ),
     finishMetric(
@@ -690,13 +690,15 @@ function dashboardMetrics(
   );
 
   const submitted = facts.schedule.submittedProgrammeCompletionIso.value;
-  const contractual = facts.time.contractualCompletionIso.value;
-  const submittedVariance = submitted && contractual
-    ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null;
+  const contractual = facts.time.extendedContractCompletionIso.value??facts.time.contractualCompletionIso.value;
+  const submittedVariance = facts.time.submittedDaysAfterCurrentContract?.value??(submitted && contractual
+    ? (Date.parse(submitted.slice(0, 10)) - Date.parse(contractual.slice(0, 10))) / 86_400_000 : null);
+  const independent=d?.schedule.independentForecastCompletionIso;
+  const independentVariance=facts.time.independentDaysAfterCurrentContract?.value??(independent&&contractual?(Date.parse(independent.slice(0,10))-Date.parse(contractual.slice(0,10)))/86400000:null);
   for (const [key, label, value, basis] of [
-    ["independent-vs-contract", "Programme calendar recalculation vs contract", d?.schedule.varianceDaysToContractualCompletion ?? null, "Programme calendar recalculation minus current confirmed contract completion"],
+    ["independent-vs-contract", "Calendar recalculation vs current contract date", independentVariance, "Calendar recalculation minus contract completion including known awarded EOT"],
     ["independent-vs-submitted", "Programme calendar recalculation vs submitted programme", d?.schedule.varianceDaysToSubmittedProgrammeCompletion ?? null, "Programme calendar recalculation minus current submitted programme finish"],
-    ["submitted-vs-contract", "Submitted programme vs contract", Number.isFinite(submittedVariance) ? submittedVariance : null, "Current submitted programme finish minus current confirmed contract completion"],
+    ["submitted-vs-contract", "Submitted programme vs current contract date", Number.isFinite(submittedVariance) ? submittedVariance : null, "Submitted finish minus contract completion including known awarded EOT"],
   ] as const) {
     metrics.push(metric({ key, label, value, unit: "calendar days", state: value === null ? "unavailable" : "calculated",
       authority: value === null ? "unavailable" : "calculated", health: key.startsWith("independent-") ? "unavailable" : healthForSignedVariance(value), basis,

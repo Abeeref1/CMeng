@@ -23,6 +23,11 @@ try{
   if(!facts)facts=data.projectFacts;
   compare(page.key+' snapshot',digest(data.projectFacts),digest(facts));
   const mismatches=projectFactConsumerMismatches(data);compare(page.key+' displayed fact fields',mismatches.length,0);
+  if(['master-dashboard','command-center'].includes(page.key)){
+    const metrics=data.metrics??data.programmePosition;
+    compare(page.key+' submitted finish against current contract',metrics.find(row=>row.key==='submitted-vs-contract')?.value,15);
+    compare(page.key+' calendar recalculation against current contract',metrics.find(row=>row.key==='independent-vs-contract')?.value,15);
+  }
   for(const [path,expected] of Object.entries(key.pageAnswers?.[page.key]??{})){
     let actual=value(data,path);if(typeof expected==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(expected)&&typeof actual==='string')actual=actual.slice(0,10);
     compare(page.key+' '+path,actual,expected);
@@ -38,7 +43,8 @@ try{
     for(const [section,milestone] of Object.entries(key.sectionMilestones??{}))compare('Section '+section+' completion milestone',data.projectFacts.contractSections.find(row=>String(row.sectionId)===section)?.milestoneId,milestone);
   }
   if(page.key==='delivery-permits'){
-    compare('Permit supplied validity dates are usable',data.rows.filter(row=>row.validFrom&&row.expiryDate).length,70);
+    compare('Permit supplied validity dates are usable',data.rows.filter(row=>row.validFrom&&row.expiryDate).length,69);
+    compare('Pending permit retains its absent validity dates',data.rows.filter(row=>row.reference==='PMT-0069'&&row.permitStatus==='pending'&&row.validFrom===null&&row.expiryDate===null).length,1);
     compare('Permit validity falsely missing',data.rows.filter(row=>['not_established','validity_not_established'].includes(row.permitStatus)).length,0);
     compare('Permit expiry agrees with shared fact',data.rows.filter(row=>row.permitStatus==='expired').length,data.projectFacts.controls.expiredPermitCount.value);
   }

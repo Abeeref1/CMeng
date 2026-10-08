@@ -112,9 +112,13 @@
     },
     "cost-forecast": {
       "position.costBasisReview.length": 1,
-      "position.costBasisReview.0.sourceEac": 218400000,
+      "position.costBasisReview.0.sourceEac": 218403148,
       "position.costBasisReview.0.currentContractValue": 221776000,
-      "position.costBasisReview.0.eacVsCurrentContract": -3376000
+      "position.costBasisReview.0.eacVsCurrentContract": -3372852,
+      "position.costBasisReview.0.ev": 187206039,
+      "position.costBasisReview.0.ac": 194697087,
+      "position.performance.costControl.positions.0.ev.value": 187206039,
+      "position.performance.costControl.positions.0.ac.value": 194697087
     },
     "payments": {
       "focus.paymentRegister.slaCounts.paidLate": 11,
@@ -124,7 +128,7 @@
     },
     "recovery-acceleration": {
       "recoveryTargets.extended.workingDays": 11,
-      "recoveryTargets.original.workingDays": 19
+      "recoveryTargets.original.workingDays": 20
     },
     "construction-readiness": {
       "rows.length": 39

@@ -12,6 +12,7 @@ import {projectActionRegisterForState} from './project-projections';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {deliveryPosition} from './delivery-projections';
+import {cachedIndependentForecast} from './forecast-cache';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -50,6 +51,8 @@ export interface ProjectFactsSnapshot {
     awardedEotDays:ProjectFact<number>;
     extendedContractCompletionIso:ProjectFact<string>;
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
+    submittedDaysAfterCurrentContract?:ProjectFact<number>;
+    independentDaysAfterCurrentContract?:ProjectFact<number>;
   };
   controls:{
     openRfiCount:ProjectFact<number>;
@@ -217,6 +220,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const pendingClaims=reportedClaims?.rows.filter(row=>['under_review','submitted'].includes(row.state))??[];
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
+  const currentContractCompletion=extendedCompletion??commercial.timeExposure.contractualCompletion.value;
+  const independentFinish=model?cachedIndependentForecast(model,'project-version:'+state.version).independentForecastCompletionIso:null;
+  const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
   const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
@@ -264,6 +270,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     time:{
+      submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
+      independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,

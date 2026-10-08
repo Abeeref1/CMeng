@@ -77,6 +77,7 @@ export interface NarrativeBlock {
   heading: string; text: string; classification: 'project_fact' | 'calculated_intelligence' | 'ai_recommendation' | 'professional_guidance'; traceIds: string[];
 }
 export interface AnalysisResult {
+  sourceLabels?: Record<string,string>;
   schemaVersion: 1; id: string; conversationId: string; createdAt: string; scope: ProjectScope;
   plan: AnalysisPlan; presentation: Presentation; mode: 'Deterministic CMeng Summary' | 'CMeng AI Analysis';
   sections: AuthorityResult[]; narrative: NarrativeBlock[]; unresolved: string[];

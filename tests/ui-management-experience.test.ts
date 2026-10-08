@@ -15,6 +15,14 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('Ask tables translate retained revision references and internal states without changing stored identities',()=>{
+ const labels={schedrev_abcdef123456:'August update',evidence_abcdef123456:'Risk register.csv'};
+ const ctx={askAnalysis:{sourceLabels:labels},currentModuleResult:null};
+ const code=functions(['askReadable','readerText','readerReference']);
+ assert.equal(runInNewContext(code+`;askReadable('schedrev_abcdef123456')`,ctx),'August update');
+ assert.equal(runInNewContext(code+`;askReadable('evidence-document:evidence_abcdef123456:row:12')`,ctx),'Risk register.csv · row 12');
+ assert.equal(runInNewContext(code+`;askReadable('independent_cpm')`,ctx),'Programme calendar recalculation');
+});
 
 test('browser presentation boundary never renders literal undefined or null for absent values',()=>{
   assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(undefined)',{}),'');

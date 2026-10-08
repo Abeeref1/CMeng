@@ -57,6 +57,11 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   bind('schedule.delayedExecutionActivityCount',['delayEotEvidenceChain.programmeContext.delayedActivityCount','contextualProgrammeIntelligence.delayedActivityCount']);
   bind('schedule.negativeFloatActivityCount',['delayEotEvidenceChain.programmeContext.negativeFloatActivityCount','contextualProgrammeIntelligence.negativeFloatActivityCount']);
   bind('actions.openCount',['actionCount','managementActionCount']);
+  for(const base of ['metrics','programmePosition']){
+    const rows=at(data,base);if(!Array.isArray(rows))continue;
+    const metrics:Record<string,string>={'submitted-vs-contract':'time.submittedDaysAfterCurrentContract','independent-vs-contract':'time.independentDaysAfterCurrentContract','contract-finish':'time.contractualCompletionIso','official-adjusted-finish':'time.extendedContractCompletionIso','submitted-programme-finish':'schedule.submittedProgrammeCompletionIso'};
+    rows.forEach((row:any,index:number)=>{const fact=metrics[row.key];if(fact&&at(facts,fact))bind(fact,[base+'.'+index+'.value']);});
+  }
   bind('time.contractualCompletionIso',['claims.contractualCompletionIso','schedule.contractualCompletionIso','recoveryTargets.original.dateIso']);
   bind('time.extendedContractCompletionIso',['recoveryTargets.extended.dateIso']);
   bind('schedule.submittedProgrammeCompletionIso',['recoveryTargets.submittedCompletionIso']);

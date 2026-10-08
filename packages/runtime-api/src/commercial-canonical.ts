@@ -403,7 +403,16 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   const k=[r.amount.currency,r.amount.taxBasis,r.amount.asOf].join('|');const list=groups.get(k)??[];list.push(r);groups.set(k,list);}
  const costPosition=[...groups.values()].map(rows=>{
   const values:Record<string,number|null>={},issues:string[]=[];
-  for(const r of rows){const k=norm(r.metric);if(k in values&&values[k]!==r.amount.value){values[k]=null;issues.push('CONFLICTING_COST_METRIC:'+k);}else if(!(k in values))values[k]=r.amount.value;}
+  const selected:CostMetricRecord[]=[];
+  for(const k of new Set(rows.map(r=>canonicalHeader(r.metric)))){
+   const matching=rows.filter(r=>canonicalHeader(r.metric)===k),official=matching.filter(r=>r.amount.state==='official');
+   const current=official.length?official:matching;
+   selected.push(...current);
+   const distinct=new Set(current.map(r=>r.amount.value));
+   values[k]=distinct.size===1?current[0]!.amount.value:null;
+   if(distinct.size>1)issues.push('CONFLICTING_COST_METRIC:'+k);
+   if(official.length&&matching.some(r=>!official.includes(r)&&r.amount.value!==values[k]))issues.push('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY:'+k);
+  }
   const get=(k:string)=>values[k]??null;
   const compatible=rows[0]!.amount.taxBasis!=='unknown';
   values.spi=compatible?round(ratio(get('ev'),get('pv'))):null;values.cpi=compatible?round(ratio(get('ev'),get('ac'))):null;
@@ -420,7 +429,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   if(variationRows.length&&lineTotal!==null&&change!==null&&Math.abs(lineTotal-change)>.01)issues.push('DATED_VARIATION_LEDGER_VS_SOURCE_AGGREGATE_CONFLICT');
   if(variations.some(v=>v.approvedAmount.currency===rows[0]!.amount.currency&&v.approvedAmount.taxBasis!==rows[0]!.amount.taxBasis))issues.push('VARIATION_RECONCILIATION_TAX_BASIS_UNRESOLVED');
   if(!compatible)issues.push('TAX_BASIS_UNKNOWN_DERIVED_METRICS_WITHHELD');
-  return {state:rows.some(r=>r.amount.state==='candidate')?'candidate' as const:issues.length?'partial' as const:'official' as const,currency:rows[0]!.amount.currency!,taxBasis:rows[0]!.amount.taxBasis,asOf:rows[0]!.amount.asOf!,values,receipts:rows.flatMap(r=>r.amount.receipts),diagnostics:issues};
+  return {state:selected.some(r=>r.amount.state==='candidate')?'candidate' as const:issues.some(i=>!i.startsWith('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY:'))?'partial' as const:'official' as const,currency:rows[0]!.amount.currency!,taxBasis:rows[0]!.amount.taxBasis,asOf:rows[0]!.amount.asOf!,values,receipts:selected.flatMap(r=>r.amount.receipts),diagnostics:issues};
  });
  const temporalMoney = new Map<string,Array<{value:number|null;date:string|null}>>();
  const collect=(kind:string,amount:CommercialMoney,date:string|null)=>{const key=[amount.currency??'Unknown',amount.taxBasis,kind].join('|');const group=temporalMoney.get(key)??[];group.push({value:amount.value,date});temporalMoney.set(key,group);};

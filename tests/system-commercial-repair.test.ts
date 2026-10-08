@@ -10,6 +10,20 @@ import {commercialPositionForState} from '../packages/runtime-api/src/commercial
 import {commercialContractControlsForState} from '../packages/runtime-api/src/commercial-contract-controls-runtime';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 
+test('current approved cost facts survive different unconfirmed history values at the same date',t=>{
+ const {state,csv}=fixture(t);
+ const history=csv('supporting_document','Period End,PV,EV,AC,Currency,VAT Basis\n2031-08-31,90,81,86,AED,exclusive');
+ state.evidenceDocuments.find(d=>d.documentId===history)!.basisState='historical';
+ csv('cost_evm_report','Metric,Value,Unit,Status,As Of,VAT Basis\nPV,90,AED,Approved,2031-08-31,exclusive\nEV,80,AED,Approved,2031-08-31,exclusive\nAC,85,AED,Actual,2031-08-31,exclusive\nBAC,100,AED,Approved,2031-08-31,exclusive');
+ const current=commercialCanonical(state).costPosition[0]!;
+ assert.equal(current.values.ev,80);assert.equal(current.values.ac,85);assert.equal(current.state,'official');
+ assert.ok(current.diagnostics.includes('CURRENT_COST_METRIC_DIFFERS_FROM_UNCONFIRMED_HISTORY:ev'));
+ assert.equal(commercialCanonical(state).costMetrics.length,7,'history remains available as retained evidence');
+ csv('cost_evm_report','Metric,Value,Unit,Status,As Of,VAT Basis\nEV,79,AED,Approved,2031-08-31,exclusive');
+ const conflict=commercialCanonical(state).costPosition[0]!;
+ assert.equal(conflict.values.ev,null,'two current approved sources still require reconciliation');assert.equal(conflict.values.ac,85,'only the conflicting figure is withheld');
+});
+
 function fixture(t:any){
  const dir=mkdtempSync(join(tmpdir(),'shared-commercial-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const state=loadCertifiedDemoProject('COMMERCIAL-REPAIR-'+randomUUID());

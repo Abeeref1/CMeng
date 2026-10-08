@@ -16,6 +16,7 @@ import {AuthorityBuilder} from './ask-authority-builder';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
+import {projectSourceLabels} from './project-presentation';
 
 export const askCatalogue=createAskAuthorityCatalogue();
 function managementActionsAnswer(result:AnalysisResult):NarrativeBlock|null{
@@ -144,16 +145,41 @@ function plainAskNeed(value:string){
 function improvementNeedsFor(result:AnalysisResult){
   const raw=[...result.unresolved,...result.sections.filter(s=>s.state==='unavailable').map(s=>s.explanation)];
   const needs=raw.map(plainAskNeed).filter((v):v is string=>!!v);
-  return [...new Set(needs)].slice(0,6);
+  const known=result.sections.flatMap(s=>s.metrics).filter(m=>m.value!==null);
+  return [...new Set(needs)].filter(need=>!(need==='A confirmed contractual completion date would add contract-date and time-entitlement comparisons.'&&known.some(m=>/contract.*completion/i.test(m.label)))).slice(0,6);
+}
+export function requestedProjectFactsAnswer(result:AnalysisResult):NarrativeBlock|null{
+  const q=result.plan.objective;
+  if(/\bwhy|explain|cause|recommend|scenario|what if\b/i.test(q))return null;
+  const rules:Array<[RegExp,RegExp,RegExp?]>=[
+    [/original.*contract|contract.*original/i,/^Original contractual completion$/i],
+    [/extended|amended|adjusted|including.*eot/i,/^Contract completion including awarded EOT$/i],
+    [/awarded.*eot|approved.*eot|\beot\b/i,/^Awarded EOT$/i],
+    [/current.*(?:programme|program|schedule).*finish|programme.*completion|submitted.*finish/i,/^Submitted programme (?:finish|completion)$/i],
+    [/open.*rfi|rfi.*open/i,/^Open records$/i,/^design$/i],
+    [/overdue.*rfi|rfi.*overdue/i,/^Overdue records$/i,/^design$/i],
+    [/certified.*unpaid|unpaid.*(?:amount|certif)/i,/^Certified Unpaid Amount/i],
+    [/critical.*activit/i,/^Critical (?:execution )?activities$/i],
+  ];
+  const chosen:AnalysisResult['sections'][number]['metrics']=[];
+  for(const [question,metric,authority] of rules){
+    if(!question.test(q))continue;
+    const section=result.sections.find(s=>(!authority||authority.test(s.authorityId))&&s.metrics.some(m=>metric.test(m.label)));
+    const found=section?.metrics.find(m=>metric.test(m.label));
+    if(found&&!chosen.some(m=>m.id===found.id))chosen.push({...found,label:section?.authorityId==='design'?found.label.replace('records','RFIs'):found.label});
+  }
+  if(!chosen.length)return null;
+  return {heading:'Project figures',text:chosen.map(m=>m.label+': '+(m.value===null?'Missing':typeof m.value==='number'?new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(m.value):String(m.value).replace(/T\d\d:.*$/,''))+(m.unit&&m.value!==null?' '+m.unit:'')+(m.state==='candidate'?' · From register, not yet confirmed':m.state==='scenario'?' · Calculated with stated assumption':'')).join('\n'),classification:'calculated_intelligence',traceIds:chosen.map(m=>m.traceId)};
 }
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
   const allMetrics=result.sections.flatMap(s=>s.metrics),knownMetrics=allMetrics.filter(m=>m.value!==null);
   const metrics=knownMetrics.length?knownMetrics:allMetrics;
   const lines=metrics.slice(0,result.presentation.detail==='short'?6:18).map(m=>m.label+': '+(m.value===null?(ar?'غير مثبت':'Not established'):String(m.value)+(m.unit?' '+m.unit:''))+(m.state==='candidate'?' · candidate source, not governed':''));
-  const direct=managementActionsAnswer(result)??diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
+  const factAnswer=requestedProjectFactsAnswer(result);
+  const direct=factAnswer??managementActionsAnswer(result)??diagnosisAnswer(result)??drivingPathAnswer(result)??delayDriversAnswer(result)??activityAnswer(result)??completionAnswer(result);
   const blocks:NarrativeBlock[]=direct?[direct]:[{heading:ar?'الوضع الحالي':'Answer',text:lines.length?lines.join('\n'):result.sections.map(s=>s.tables.length?s.tables.reduce((n,t)=>n+(t.selection?.matching??t.rows.length),0)+' matching records in '+s.title+'.':s.title+': '+s.explanation).slice(0,8).join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)}];
-  if(direct&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&knownMetrics.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
+  if(direct&&!factAnswer&&result.sections.some(s=>!['activities','float','critical-path'].includes(s.authorityId))&&knownMetrics.length)blocks.push({heading:'Other project figures',text:lines.join('\n'),classification:'calculated_intelligence',traceIds:metrics.slice(0,18).map(m=>m.traceId)});
   const findings=result.sections.flatMap(s=>s.findings).filter(f=>f.severity==='action').sort((a,b)=>a.id.localeCompare(b.id));
   if(findings.length)blocks.push({heading:ar?'ما يحتاج الى اهتمام':'What requires attention',text:findings.slice(0,8).map(f=>f.title+': '+f.explanation).join('\n'),classification:'calculated_intelligence',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
   if(findings.length)blocks.push({heading:ar?'الاجراءات المقترحة':'Recommended actions',text:[...new Set(findings.map(f=>f.action))].slice(0,8).join('\n'),classification:'professional_guidance',traceIds:findings.slice(0,8).flatMap(f=>f.traceIds)});
@@ -298,6 +324,7 @@ export class ProjectAskEngine {
     const result:AnalysisResult={schemaVersion:1,id:randomUUID(),conversationId:request.conversationId??randomUUID(),createdAt:new Date().toISOString(),scope,plan,presentation,sections,narrative:[],unresolved:[...new Set(unresolved)],mode:'Deterministic CMeng Summary',providerStatus,
       route,telemetry:{route,aiInvoked:false,authorities:sections.map(s=>s.authorityId),retrievalRounds:0,retrievedRecords:0,calls:[],providerFailures:[],validationFailures:[],criticUsed:false},
       referenceFiles:files.map(({id,filename,hash,state,reading})=>({id,filename,hash,state,reading})),factsHash:askHash(sections),snapshotHash:''};
+    result.sourceLabels=projectSourceLabels(state);
     const references=files.flatMap(f=>f.pages.map(p=>({filename:f.filename,fileId:f.id,hash:f.hash,page:p.page,text:p.text})));
     result.coverage=selectEvidence(result,references).coverage;
     result.improvementNeeds=improvementNeedsFor(result);

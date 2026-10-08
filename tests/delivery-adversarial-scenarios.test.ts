@@ -173,8 +173,8 @@ for(const scanned of [false,true])test('new '+(scanned?'OCR':'native')+' packet:
 
 test('permit validity uses supplied valid-from and valid-to dates without inventing an issue date',async t=>{
  const f=await fixture(t,'PERMIT-VALIDITY');
- await f.upload('Reference.csv','Permit ID,Permit Type,Issuing Authority,Application Date,Approval Date,Valid From,Valid To,Status,Linked Activity\nP-1,Water connection,Utility authority,2034-03-01,2034-03-10,2034-04-01,2034-04-15,Approved,ACT1\nP-2,Access,Local authority,2034-03-01,2034-03-10,2034-04-01,2034-12-31,Approved,ACT1\nP-3,Access,Local authority,2034-03-01,2034-03-10,2034-05-01,2034-12-31,Approved,ACT1\n');
+ await f.upload('Reference.csv','Permit ID,Permit Type,Issuing Authority,Application Date,Approval Date,Valid From,Valid To,Status,Linked Activity\nP-1,Water connection,Utility authority,2034-03-01,2034-03-10,2034-04-01,2034-04-15,Approved,ACT1\nP-2,Access,Local authority,2034-03-01,2034-03-10,2034-04-01,2034-12-31,Approved,ACT1\nP-3,Access,Local authority,2034-03-01,2034-03-10,2034-05-01,2034-12-31,Approved,ACT1\nP-4,Occupancy,Local authority,2034-04-01,,,,Pending,ACT1\n');
  const rows=f.position().permitRows;
- assert.equal(rows.length,3);assert.equal(rows.find(r=>r.reference==='P-1')?.permitStatus,'expired');assert.equal(rows.find(r=>r.reference==='P-2')?.permitStatus,'valid');assert.equal(rows.find(r=>r.reference==='P-3')?.permitStatus,'not_yet_valid');
+ assert.equal(rows.length,4);assert.equal(rows.find(r=>r.reference==='P-4')?.permitStatus,'pending');assert.equal(rows.find(r=>r.reference==='P-4')?.validFrom,null);assert.equal(rows.find(r=>r.reference==='P-1')?.permitStatus,'expired');assert.equal(rows.find(r=>r.reference==='P-2')?.permitStatus,'valid');assert.equal(rows.find(r=>r.reference==='P-3')?.permitStatus,'not_yet_valid');
  assert.equal(rows[0]!.issueDate,null);assert.equal(rows[0]!.issuingAuthority,'Utility authority');assert.equal(rows[0]!.description,'Water connection');
 });
