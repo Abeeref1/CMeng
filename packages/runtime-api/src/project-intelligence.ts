@@ -294,6 +294,7 @@ function sharedHeadlineFacts(projectId:string,question:string):AnswerFact[] {
  * and exports. Never infer dated approvals or cash from an aggregate source. */
 function requestedFacts(question: string, projectId: string): AnswerFact[] {
   const q = question.toLowerCase(), facts: AnswerFact[] = [];
+  const canonicalState=runtimeProjects.get(projectId),canonical=canonicalState?projectFactsForState(canonicalState):null;
   const data = (key: string) => moduleForProject(projectId, key).data as any;
   const add = (path: string, label: string, value: AnswerFact['value'], context: Partial<AnswerFact> = {}) =>
     facts.push({path, label, value: value ?? null, ...context});
@@ -324,14 +325,14 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     const d=data('command-center'),r=d?.operationalReporting;
     const context={dataDateIso:r?.dataDateIso,authority:'calculated'};
     if(/\bncr\b|quality/.test(q)){
-      add('command-center.operationalReporting.counts.openCriticalMajorNcrCount','Complete open major/critical NCR count at Data Date',r?.counts?.openCriticalMajorNcrCount,context);
+      add('command-center.operationalReporting.counts.openCriticalMajorNcrCount','Complete open major/critical NCR count at Data Date',canonical?.controls.openCriticalMajorNcrCount.value,context);
       add('command-center.operationalReporting.knownCounts.openCriticalMajorNcrCount','Confirmed open major/critical NCRs · known subset',r?.knownCounts?.openCriticalMajorNcrCount,context);
       add('command-center.operationalReporting.knownCounts.uncertainCriticalMajorNcrCount','Current major/critical NCRs with unresolved status or severity',r?.knownCounts?.uncertainCriticalMajorNcrCount,context);
       population('command-center','ncrs','NCR records');
     }
     if(/\brfi\b/.test(q)){
-      add('command-center.operationalReporting.counts.openRfiCount','Open RFIs at Data Date',r?.counts?.openRfiCount,context);
-      add('command-center.operationalReporting.counts.overdueRfiCount','Overdue RFIs at Data Date',r?.counts?.overdueRfiCount,context);
+      add('command-center.operationalReporting.counts.openRfiCount','Open RFIs at Data Date',canonical?.controls.openRfiCount.value,context);
+      add('command-center.operationalReporting.counts.overdueRfiCount','Overdue RFIs at Data Date',canonical?.controls.overdueRfiCount.value,context);
       population('command-center','rfis','RFI records');
     }
     if(/risk register/.test(q)){
@@ -368,9 +369,9 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
   if (/critical|float/.test(q)) {
     const d = data('near-critical');
     const p = d?.reportingContract?.populations?.execution_control;
-    add('schedule-analytics.result.float.criticalCount','Critical execution activities',data('schedule-analytics')?.result?.float?.criticalCount,{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
+    add('schedule-analytics.result.float.criticalCount','Critical execution activities',canonical?.schedule.criticalActivityCount.value,{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
     for (const [field,label] of [['nearCriticalCount','Strict near-critical execution activities'],['negativeFloatCount','Negative-float execution activities']] as const)
-      add('near-critical.'+field,label,d?.[field],{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
+      add('near-critical.'+field,label,field==='nearCriticalCount'?canonical?.schedule.nearCriticalActivityCount.value:canonical?.schedule.negativeFloatActivityCount.value,{populationId:p?.populationId,dataDateIso:p?.dataDateIso,authority:'calculated'});
   }
   if (/resource|assignment/.test(q)) {
     const d = data('resource-utilization');
