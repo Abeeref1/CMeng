@@ -322,8 +322,12 @@ function buildDelivery(state:ProjectRuntimeState){
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   const baseline=state.schedules.filter(r=>['baseline','revised_baseline'].includes(r.role)&&isAdoptedProgrammeRevision(state,r)&&isOnDate(r.revision.model.dataDateIso?.slice(0,10)??null,dataDateIso)).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1)?.revision.model??null;
   const config={baselineModel:baseline,readinessEvidence:state.controls.readinessEvidence,generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',config:projectScheduleControlBasis(state).analysisConfig};
-  const rows=model&&selected.length?buildProgressBreakdownProjection({...model,activities:selected},config).rows:[];
-  const total=model&&selected.length?buildProgressBreakdownProjection({...model,activities:selected.map(a=>({...a,wbsId:'DELIVERY_SCOPE'}))},config).rows[0]:null;
+  // One full-scope projection is authoritative for BOTH the WBS view and
+  // its summary. Rebuilding a fake-WBS programme for every workfront was
+  // a major 20k-activity cold-start hotspot and could create count drift.
+  const progress=model&&selected.length?buildProgressBreakdownProjection({...model,activities:selected},config):null;
+  const rows=progress?.rows??[];
+  const total=progress?.overallSummary??null;
   const linkedBlockers=selected.filter(a=>a.status!=='completed').flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
   const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=linkedBlockers.length||gates.some(r=>r.state==='blocked')?'blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
   return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
