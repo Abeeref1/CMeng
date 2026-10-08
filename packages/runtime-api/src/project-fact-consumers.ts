@@ -39,6 +39,16 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     'near-critical':{nearCriticalActivityCount:['nearCriticalCount'],negativeFloatActivityCount:['negativeFloatCount']},
   };
   for(const [fact,paths] of Object.entries(schedulePaths[key]??{}))bind('schedule.'+fact,paths);
+  // The displayed basis must move with the canonical counts. Submitted/source
+  // values remain available in projectFacts for reconciliation and audit.
+  const floatBasisPaths:Record<string,string[]>={
+    'pmo-analysis':['schedule.criticalityBasis'],
+    'schedule-analytics':['criticalityBasis'],
+    'activity-analytics':['floatClassificationBasis'],
+    'near-critical':['classificationBasis'],
+    'project-director':['schedule.criticalityBasis'],
+  };
+  for(const path of floatBasisPaths[key]??[])if(at(data,path)!==undefined)data=write(data,path.split('.'),facts.schedule.floatBasis);
   bind('schedule.criticalActivityCount',['scheduleExceptions.counts.critical.value']);
   bind('schedule.nearCriticalActivityCount',['scheduleExceptions.counts.nearCritical.value']);
   bind('schedule.delayedExecutionActivityCount',['scheduleExceptions.counts.late.value']);
