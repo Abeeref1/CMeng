@@ -57,7 +57,7 @@ export function reconcileCalendarWithP6Dates(
       let intervals:Array<{start:number;finish:number}>=[];
       if(exception){
         intervals=exception.intervals.map(period=>{
-          const parts=(time:string)=>{const [h,m]=time.split(':').map(Number);return h*60+m;};
+          const parts=(time:string)=>{const [h,m]=time.split(':').map(Number);return (h??0)*60+(m??0);};
           const s=parts(period.start),f=parts(period.finish);
           return {start:s,finish:f<=s?f+1440:f};
         });
