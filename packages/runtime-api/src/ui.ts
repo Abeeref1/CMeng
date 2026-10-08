@@ -4573,7 +4573,7 @@ function renderCommandActionTable(data){
 function renderMcpProgrammeControl(data){
  const context=data.managementContext||{},stages=context.schedule?.programmeStages||[],vc=data.visualControl||{};
  const stageRows=stages.map(stage=>{
-   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+(stage.wbsPaths?.length>5?" · "+fmt(stage.wbsPaths.length-5)+" more":"");
+   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+((stage.wbsPathCount??stage.wbsPaths?.length??0)>5?" · "+fmt((stage.wbsPathCount??stage.wbsPaths?.length??0)-5)+" more":"");
    const milestones=(stage.controlMilestoneIds||[]).slice(0,6).join("; ")||"No control milestone identified in this stage";
    const dependencies=(stage.dependencyStages||[]).map(humanizeKey).join(" → ")||"No incoming cross-stage dependency identified";
    const float=pmcDefined(stage.lowestFloatHours)?fmt(stage.lowestFloatHours)+" h":"Not established";
