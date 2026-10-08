@@ -68,6 +68,8 @@ export interface ProjectFactsSnapshot {
   controls:{
     openRfiCount:ProjectFact<number>;
     overdueRfiCount:ProjectFact<number>;
+    openNcrCount:ProjectFact<number>;
+    overdueNcrCount:ProjectFact<number>;
     openCriticalMajorNcrCount:ProjectFact<number>;
     openRiskCount:ProjectFact<number>;
     expiredPermitCount?:ProjectFact<number>;
@@ -372,6 +374,18 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         overdueRfiKnown,
         operations.rfi.complete,
         'Open RFIs whose required response date is before the project Data Date.',
+      ),
+      openNcrCount:sourceCount(
+        operations.counts.openNcrCount,
+        operations.knownCounts.openNcrCount,
+        operations.quality.complete,
+        'Current NCR register open records through the project Data Date, all severities.',
+      ),
+      overdueNcrCount:sourceCount(
+        operations.counts.overdueNcrCount,
+        operations.knownCounts.overdueNcrCount,
+        operations.quality.complete,
+        'Open NCRs whose required closure date precedes the project Data Date.',
       ),
       openCriticalMajorNcrCount:sourceCount(
         operations.counts.openCriticalMajorNcrCount,
