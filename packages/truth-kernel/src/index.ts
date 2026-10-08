@@ -191,7 +191,7 @@ export function establishedPopulationCount(
 
 export interface ManagementAction {
   recordKey?: string;
-  priorityBasis?: {linkedFloatHours:number|null;drivingPath:boolean;milestoneCount:number;moneyAtRisk?:Array<{amount:number;currency:string}>};
+  priorityBasis?: {linkedFloatHours:number|null;floatAuthority?:'independent_cpm'|'source_total_float';drivingPath:boolean;milestoneCount:number;moneyAtRisk?:Array<{amount:number;currency:string}>};
   moneyAtRisk?:Array<{amount:number;currency:string}>;
   actionId: string;
   issue: string;
