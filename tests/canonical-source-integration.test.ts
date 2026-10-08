@@ -87,6 +87,23 @@ test('one project facts snapshot is reused for the whole project version and reb
   assert.equal(third.projectVersion,state.version);
 });
 
+test('ORBIT source: 26 awarded days are not erased by an amendment repeating original 31 March 2030',t=>{
+ const {state,csvDoc}=fixture(t);
+ amendment(state);
+ csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
+ const basis=canonicalTimeClaims(state).contractTimeBasis;
+ assert.equal(basis?.overlapResolution,'unresolved','amendment and determination overlap must remain qualified');
+ const facts=projectFactsForState(state);
+ assert.equal(facts.time.awardedEotDays.value,26);
+ assert.equal(facts.time.extendedContractCompletionIso.value,'2030-04-26',
+   'a repeated original date must not masquerade as extended contractual completion');
+ assert.equal(facts.time.extendedContractCompletionIso.complete,false,
+   'a calculated comparison must never invent amendment certification');
+ assert.ok(facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
+ assert.equal(facts.time.submittedDaysAfterCurrentContract.value,null,
+   'qualified amendment comparison cannot silently establish late days or LD entitlement');
+});
+
 test('civil programme dates accept XER timestamps without inventing a timezone',()=>{
   for(const s of ['2026-08-31','2026-08-31T08:00:00','2026-08-31T08:00:00.000Z','2026-08-31T08:00:00+03:00','31 August 2026'])assert.equal(dateValue(s),'2026-08-31');
   for(const s of ['2026-02-30','2026-08-31T26:00:00','08/09/2026','garbage'])assert.equal(dateValue(s),null);
