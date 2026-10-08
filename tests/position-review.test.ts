@@ -27,7 +27,7 @@ test('claim verdicts use assessed events, not correspondence or unrelated progre
 test('a specific headline retains its own next step despite an unrelated first issue',()=>{
  const r:any=result('notices-claims',{noticeEventDateMissingCount:2});
  r.issueAssessment={counts:{missing_information:1},issues:[{kind:'missing_information',summary:'Bond expiry needed',action:'Provide bond dates',owner:'Project evidence owner'}]};
- const v=positionVerdict(r);assert.match(v.text,/event dates/);assert.match(v.nextAction,/event or awareness date/);assert.doesNotMatch(v.nextAction,/bond/);assert.equal(v.owner,'Not assigned');
+ const v=positionVerdict(r);assert.match(v.text,/event dates/);assert.match(v.nextAction,/event or awareness date/);assert.doesNotMatch(v.nextAction,/bond/);assert.equal(v.owner,'Contracts Manager');assert.equal(v.owner,v.assignTo);assert.notEqual(v.owner,r.issueAssessment.issues[0].owner,'unrelated issue owner must not replace the domain role');
  const late=positionVerdict(result('master-dashboard',{metrics:[{key:'submitted-programme-finish',value:'2031-06-07'},{key:'contract-finish',value:'2031-04-15'}]}));
  assert.match(late.text,/53 calendar days late/);assert.equal(late.assignTo,'Project Director');assert.match(late.nextAction,/packages.*not yet been established/);assert.doesNotMatch(late.owner,/assign a person/);
 });
@@ -35,4 +35,26 @@ test('a specific headline retains its own next step despite an unrelated first i
 test('matching progress does not request recovery for a difference that is absent',()=>{
  const v=positionVerdict(result('progress-report',{scopeComparison:{gapPercentagePoints:0}}));
  assert.match(v.text,/matches baseline plan/);assert.match(v.nextAction,/Monitor schedule progress/);assert.doesNotMatch(v.nextAction,/difference|recovery/);
+});
+
+
+test('Master Dashboard lets a publishable CMeng forecast lead over an ahead submitted date',()=>{
+ const verdict=positionVerdict(result('master-dashboard',{metrics:[
+  {key:'contract-finish',value:'2043-08-20'},
+  {key:'submitted-programme-finish',value:'2043-04-17'},
+  {key:'independent-forecast-finish',value:'2043-09-11'},
+ ]}));
+ assert.equal(verdict.rag,'red');
+ assert.match(verdict.text,/CMeng programme calendar recalculation is 22 calendar days late/);
+ assert.doesNotMatch(verdict.text,/125 days ahead|within the contract date/);
+});
+
+test('an ahead submitted date cannot create a green management verdict while the CMeng forecast is withheld',()=>{
+ const verdict=positionVerdict(result('master-dashboard',{metrics:[
+  {key:'contract-finish',value:'2043-08-20'},
+  {key:'submitted-programme-finish',value:'2043-04-17'},
+  {key:'independent-forecast-finish',value:null},
+ ]}));
+ assert.equal(verdict.rag,'amber');
+ assert.match(verdict.text,/submitted position, not a confirmed management forecast/i);
 });

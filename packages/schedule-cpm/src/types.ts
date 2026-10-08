@@ -20,6 +20,8 @@ export interface CpmConfig {
   criticalThresholdHours: number;
   projectStartIso?: string | null;
   requiredFinishIso?: string | null;
+  /** Keep the unconstrained diagnostic comparison available explicitly. */
+  applySourceConstraints?: boolean;
 }
 
 export const DEFAULT_CPM_CONFIG: CpmConfig = {
@@ -66,7 +68,7 @@ export interface CpmResult {
   durationBasis: CpmDurationBasis;
   calculationMode: CpmCalculationMode;
   relationshipLagCalendarMethod:
-    "successor_calendar_forward_predecessor_calendar_backward";
+    "successor_calendar_forward_and_backward";
   projectStartIso: string | null;
   projectFinishIso: string | null;
   requiredFinishIso: string | null;

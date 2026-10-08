@@ -1,4 +1,5 @@
 import {checkPageValues} from '../packages/runtime-api/src/page-value-checks';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
@@ -22,6 +23,7 @@ import {createCmengServer} from '../packages/runtime-api/src/server';
 import type {AddressInfo} from 'node:net';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
+import {deliveryPages} from '../packages/delivery-core/src/registry';
 
 let sequence=0;
 function fixture(t:{after(fn:()=>void):unknown}) {
@@ -76,6 +78,33 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
  state.schedules[0]!.revision.model.dataDateIso='2031-04-16';state.version++;
  assert.equal(directorForProject(state.projectId)!.controls.openCriticalMajorNcrCount,2);
  assert.equal(operationalReporting(state).quality.current.find(r=>r.ncrId==='N1')!.status,'closed');
+});
+
+test('Actions required carries the same shared project truth contract as the other management pages',t=>{
+ const {state}=fixture(t);
+ const dashboard=moduleForProject(state.projectId,'master-dashboard').data as any;
+ const actions=moduleForProject(state.projectId,'source-quality').data as any;
+ assert.ok(actions.reportingContract,'Actions required must expose the shared reporting contract');
+ assert.equal(actions.reportingContract.dataDateIso,dashboard.reportingContract.dataDateIso);
+ assert.equal(actions.reportingContract.projectVersion,dashboard.reportingContract.projectVersion);
+ assert.equal(actions.reportingContract.programmeRevisionId,dashboard.reportingContract.programmeRevisionId);
+ assert.deepEqual(actions.reportingContract.programmeAuthority,dashboard.reportingContract.programmeAuthority);
+ assert.deepEqual(actions.reportingContract.populations.source_records,dashboard.reportingContract.populations.source_records);
+ assert.equal(actions.scheduleAuthorityReview.currentRevisionId,dashboard.scheduleAuthorityReview.currentRevisionId);
+});
+
+test('every registered Delivery page carries the same shared reporting truth',t=>{
+ const {state}=fixture(t);
+ const reference=(moduleForProject(state.projectId,'master-dashboard').data as any).reportingContract;
+ for(const [key] of deliveryPages){
+  const result=moduleForProject(state.projectId,key),data=result.data as any;
+  assert.ok(data?.reportingContract,key+' must carry the shared reporting contract');
+  assert.equal(data.reportingContract.dataDateIso,reference.dataDateIso,key);
+  assert.equal(data.reportingContract.projectVersion,reference.projectVersion,key);
+  assert.equal(data.reportingContract.programmeRevisionId,reference.programmeRevisionId,key);
+  assert.deepEqual(data.reportingContract.programmeAuthority,reference.programmeAuthority,key);
+  assert.deepEqual(data.reportingContract.populations.source_records,reference.populations.source_records,key);
+ }
 });
 
 test('undated or malformed operational records do not create a zero current result',t=>{
@@ -164,7 +193,7 @@ test('future approvals are separated and never contaminate pending aging or curr
 
 test('certificate, retention, report payload and capability populations use the same cutoff',t=>{
  const {state,csv}=fixture(t);
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified\nP3,,4000,200,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified\nP3,,,4000,200,USD,exclusive,Certified');
  const ledger=commercialCanonical(state),payment=commercialFoundationForState(state).paymentRegister,retention=commercialContractControlsForState(state).retentionCalendar;
  assert.equal(payment.recordCount,1);assert.equal(payment.sourceRecordCount,3);assert.equal(payment.futureRows.length,1);assert.equal(payment.undatedRows.length,1);
  assert.equal(retention.recordCount,1);assert.equal(retention.futureRows.length,1);assert.equal(retention.undatedRows.length,1);
@@ -207,14 +236,19 @@ test('portfolio retains the shared current contract, separate further adjustment
  const director=directorForProject(state.projectId)!;
  assert.equal(director.schedule.contractualCompletionIso,'2031-12-31');
  assert.equal(director.schedule.officialAdjustedCompletionIso,null);
+
  const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  try {
   const port=(server.address() as AddressInfo).port;
-  const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200);
+  const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200,response.status===200?'':await response.clone().text());
   const body=await response.json() as any, item=body.projects.find((p:any)=>p.projectId===state.projectId);
   assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
-  assert.equal(item.forecastAuthority,'missing');assert.equal(item.forecastCompletionIso,null);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
+  assert.equal(item.forecastAuthority,director.schedule.independentForecastCompletionIso?'calculated_with_assumptions':'source');assert.equal(item.forecastCompletionIso,director.schedule.independentForecastCompletionIso??director.schedule.submittedProgrammeCompletionIso);assert.match(item.forecastLabel,/programme finish/);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
   assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
+  const facts=projectFactsForState(state);
+  assert.equal(item.submittedProgrammeCompletionIso,facts.schedule.submittedProgrammeCompletionIso.value);
+  assert.equal(item.submittedDaysAfterCurrentContract,facts.time.submittedDaysAfterCurrentContract?.value??null);
+  assert.equal(item.independentDaysAfterCurrentContract,facts.time.independentDaysAfterCurrentContract?.value??null);
  } finally {await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 
@@ -242,7 +276,7 @@ test('movement cohort verifies every pair, retains future planned work, and dist
 
 test('changing dated evidence propagates automatically to all management surfaces and commercial consumers', t => {
  const {state,csv}=fixture(t);
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified');
  csv('Claim ID,Event,Notice Date,Days Claimed,Status\nC1,Access,2031-04-15,8,Submitted\nC2,Later,2031-04-16,10,Submitted','delay_eot_claims_register');
  for (const [date, expectedClaims, expectedRetention] of [['2031-04-15',1,100],['2031-04-16',2,250]] as const) {
    state.schedules[0]!.revision.model.dataDateIso=date; state.version++;
@@ -262,10 +296,32 @@ test('changing dated evidence propagates automatically to all management surface
 });
 
 
+test('a cold project overview reuses only finished version-matched calculations, without inventing ready state',t=>{
+ const {state}=fixture(t);
+ const cold=overviewForProject(state.projectId)!;
+ assert.equal(cold.moduleStates.length,29);
+ assert.ok(cold.moduleStates.every(item=>item.status==='partial'&&item.issueAssessment===undefined),
+   'new projects must not appear certified without calculation');
+ assert.ok(cold.managementStates.every(item=>item.status==='partial'),
+   'management readiness cannot be invented on a cold shell');
+ assert.equal(cold.roleLensContext.planning.criticalCount,null,'uncomputed critical count is unavailable, not zero');
+ assert.equal(cold.roleLensContext.executive.metrics.length,0,'uncomputed metrics are not presented as an all-clear');
+ const specialist=moduleForProject(state.projectId,'pmo-analysis');
+ const warm=overviewForProject(state.projectId)!;
+ const matching=warm.moduleStates.find(item=>item.key==='pmo-analysis')!;
+ assert.equal(matching.status,specialist.status);
+ assert.equal(matching.reason,specialist.reason);
+ assert.deepEqual(matching.issueAssessment,specialist.issueAssessment);
+ state.version++;
+ const changed=overviewForProject(state.projectId)!;
+ assert.equal(changed.moduleStates.find(item=>item.key==='pmo-analysis')?.status,'partial',
+   'stale results from an earlier project version must not be presented as current');
+});
+
 test('all specialist and management status surfaces use the same fail-closed readiness result',t=>{
  const {state}=fixture(t);
- const overview=overviewForProject(state.projectId)!;
  const surfaces=managementSurfacesForProject(state.projectId)!;
+ const overview=overviewForProject(state.projectId)!;
  for (const specialist of surfaces.masterControlProgramme.specialistPositions) {
    const resolved=moduleForProject(state.projectId,specialist.key);
    if(resolved.data) {
@@ -294,7 +350,7 @@ test('all specialist and management status surfaces use the same fail-closed rea
 test('AI commercial questions answer the dated ledger and preserve future exclusions and missing balances',t=>{
  const {state,csv}=fixture(t);
  csv('Variation ID,Description,Status,Submitted Date,Approval Date,Approved Amount,Claimed Amount,Currency,Tax Basis\nV1,Current approval,Approved,2031-04-01,2031-04-15,900,950,USD,exclusive\nV2,Future approval,Approved,2031-04-16,2031-04-20,1200,1250,USD,exclusive');
- csv('Certificate No,Period End,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,3000,150,USD,exclusive,Certified');
+ csv('Certificate No,Period End,Certification Date,Net Certified,Retention,Currency,Tax Basis,Status\nP1,2031-04-15,2031-04-15,2000,100,USD,exclusive,Certified\nP2,2031-04-16,2031-04-16,3000,150,USD,exclusive,Certified');
  const answer=answerProjectQuestion(state.projectId,'What are approved variations and retention deductions at the Data Date?')!;
  assert.deepEqual(answer.relevantModules.map(m=>m.key),['variations-change','payments']);
  assert.match(answer.answer,/Dated approved variations on\/before Data Date: 1/);
@@ -468,6 +524,42 @@ test('one overdue activity has the same exception on dashboard, command center a
  for(const key of ['master-dashboard','command-center']){
   const d=moduleForProject(state.projectId,key).data as any;
   assert.equal(d.deliveryExceptions.overdueActivityCount,1);assert.equal(d.deliveryExceptions.actions.find((r:any)=>r.type==='Activity').recordId,'WORK');
+ }
+});
+
+test('ten fresh projects preserve missed-start versus overdue-finish dates in management actions',t=>{
+ const seed=process.env.CMENG_MANAGEMENT_OVERDUE_SEED?.trim()||randomUUID();process.stdout.write('\nCMENG_MANAGEMENT_OVERDUE_SEED='+seed+'\n');
+ for(let i=0;i<10;i++){
+  const {state,model}=fixture(t),bytes=createHash('sha256').update(seed+':'+i).digest();
+  const lateStart=1+bytes[0]!%60,lateFinish=1+bytes[1]!%20,futureFinish=1+bytes[2]!%240;
+  const date=(days:number)=>new Date(Date.UTC(2031,3,15+days)).toISOString().slice(0,10);
+  const base=model.activities[0]!;
+  model.activities=[
+   {...base,activityId:'START',name:'Start missed; finish is future',currentStartIso:date(-lateStart),currentFinishIso:date(futureFinish)},
+   {...base,activityId:'FINISH',name:'Started; finish missed',status:'in_progress',percentComplete:50,actualStartIso:date(-lateStart-lateFinish),currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'BOTH',name:'Start and finish missed',currentStartIso:date(-lateStart-lateFinish),currentFinishIso:date(-lateFinish)},
+   {...base,activityId:'FUTURE',name:'Future work',currentStartIso:date(1),currentFinishIso:date(futureFinish+1)},
+   {...base,activityId:'DONE',name:'Completed work',status:'completed',percentComplete:100,actualStartIso:date(-20),actualFinishIso:date(-10),currentStartIso:date(-20),currentFinishIso:date(-10)},
+  ];state.version++;
+  const checkedPages=new Map(['lookahead-schedule','master-dashboard','command-center'].map(key=>[key,moduleForProject(state.projectId,key)]));
+  const look=checkedPages.get('lookahead-schedule')!.data as any;
+  assert.equal(look.overdueCount,2,'finish-only count excludes the missed-start-only row');
+  assert.equal(look.overdueBacklogCount,3,'backlog includes the union of missed starts and finishes');
+  assert.equal(checkPageValues(checkedPages).find(c=>c.metric==='Overdue activity exceptions')?.state,'passed');
+  const corrupted=structuredClone(checkedPages);(corrupted.get('master-dashboard')!.data as any).deliveryExceptions.overdueActivityCount=2;
+  assert.equal(checkPageValues(corrupted).find(c=>c.metric==='Overdue activity exceptions')?.state,'failed','a real missing backlog action must still fail');
+  for(const key of ['master-dashboard','command-center']){
+   const data=moduleForProject(state.projectId,key).data as any;
+   const rows=data.deliveryExceptions.actions.filter((r:any)=>r.type==='Activity');
+   assert.deepEqual(rows.map((r:any)=>r.recordId).sort(),['BOTH','FINISH','START'],key+' / '+i);
+   const start=rows.find((r:any)=>r.recordId==='START'),finish=rows.find((r:any)=>r.recordId==='FINISH'),both=rows.find((r:any)=>r.recordId==='BOTH');
+   assert.equal(start.dueIso,date(-lateStart),key+' missed start must use its start date');
+   assert.equal(start.overdueDays,lateStart);assert.match(start.action,/missed start/i);
+   assert.equal(finish.dueIso,date(-lateFinish));assert.equal(finish.overdueDays,lateFinish);assert.match(finish.action,/overdue finish/i);
+   assert.equal(both.dueIso,date(-lateFinish));assert.equal(both.overdueDays,lateFinish);assert.match(both.action,/start and finish/i);
+   assert.ok(rows.every((r:any)=>r.overdueDays>=0));
+   assert.equal(data.deliveryExceptions.overdueActivityCount,3);
+  }
  }
 });
 

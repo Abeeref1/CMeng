@@ -269,9 +269,11 @@ export interface StoredEvidenceDocument {
   scheduleRoleConfirmed?:boolean;
   scheduleApprovalReference?:string;
   relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string};
-  scheduleAdoption?:{method:'explicit'|'legacy_retained';sourceHashSha256:string;recordedAt:string;note:string};
+  scheduleAdoption?:{method:'explicit'|'legacy_retained'|'submitted_update';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
+  csvSemantic?: import("../../truth-kernel/src").EvidenceTableSemantic;
+  tableConfirmations?: import("../../truth-kernel/src").EvidenceColumnConfirmation[];
   documentId: string;
   category: EvidenceCategory;
   documentType: string;
@@ -293,6 +295,7 @@ export interface StoredEvidenceDocument {
   textSegments?: EvidenceTextSegment[];
   hseSummary?: import("./hse-report-evidence").HseReportSummary;
   fullTextRead?: {producerVersion:'full-page-read-v1';sourceHashSha256:string;completedAt:string;result:import('../../pdf-document-parser/src').PdfDocumentResult};
+  boqTableRead?: {producerVersion:'offline-boq-cells-v1'|'offline-boq-cells-v2';sourceHashSha256:string;completedAt:string;structuredTableFound:boolean;ingestionId:string};
   correspondenceNarrativeRefresh?: CorrespondenceNarrativeRefreshReceipt;
   uploadIntent: EvidenceUploadIntent;
   familyKey: string;
@@ -326,6 +329,8 @@ export type ScheduleUploadFormat =
   | "schedule_csv";
 
 export interface StoredScheduleRevision {
+  tabularDateReaderVersion?:string;
+  dataDateReadRefresh?:{readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDataDateIso:string|null;dataDateIso:string|null;diagnostics:string[]};
   calendarReaderVersion?:string;
   calendarReadRefresh?:{readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDiagnostics:string[];diagnostics:string[];resolvedCalendarCount:number;totalCalendarCount:number};
   roleConfirmed?:boolean;
@@ -434,6 +439,8 @@ export interface ProjectRuntimeState {
   projectId: string;
   version: number;
   demo: boolean;
+  /** Explicitly classified as non-client test data; absent means live for legacy projects. */
+  testProject?: boolean;
   schedules: StoredScheduleRevision[];
   evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<
@@ -442,6 +449,9 @@ export interface ProjectRuntimeState {
   >;
   boq: BoqIngestionResult | null;
   boqRevisions: BoqIngestionResult[];
+  boqPageReviews?: import('./boq-page-projection').BoqPageDecision[];
+  boqNumericReviews?: import('./boq-numeric-review').BoqNumericReviewDecision[];
+  boqNumericReviewBatches?: Array<{batchId:string;payloadHash:string;confirmedAt:string;itemCount:number}>;
   quantities:
     CanonicalQuantityProgressModel | null;
   contract: ContractDocumentResult | null;
@@ -526,6 +536,7 @@ export interface ProjectRuntimeOverview {
   releaseCommitSha?: string | null;
   version: number;
   demo: boolean;
+  testProject?: boolean;
   revisionCount: number;
   baselineRevisionCount: number;
   updateRevisionCount: number;

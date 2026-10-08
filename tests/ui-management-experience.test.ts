@@ -4,17 +4,75 @@ import assert from 'node:assert/strict';
 import { runInNewContext, createContext, runInContext } from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration, isCallExpression, isIdentifier, forEachChild, Node } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
+import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
 function functions(names:string[]) {
-  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","uniqueReportingPopulations"]:[])])];
+  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","readerReference","uniqueReportingPopulations"]:[]),...(names.includes("projectCard")?["fmtManagementDayCount"]:[])])];
   const selected=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text));
   assert.equal(selected.length,names.length);
   return selected.map(n=>n.getText(source)).join('\n');
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('commercial figure tooltips explain the qualification without internal codes',()=>{
+ const title=runInNewContext(functions(['humanizeKey','commercialFindingTitle'])+';commercialFindingTitle({diagnostics:["LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL"]})',{commercialSourceState:()=> 'Needs review'});
+ assert.match(title,/Delay damages are a planning scenario/);assert.doesNotMatch(title,/LD_EXPOSURE|NOT_AWARD|ACCRUAL/);
+});
+test('programme basis keeps readable revision names in both text and hover labels',()=>{
+ const html=runInNewContext(functions(['renderModuleBasis','findProjectionRoot'])+';renderModuleBasis(data)',{
+  ...common,data:{projectionKey:'activity_analytics',sourceRevisionId:'schedrev_1234567890abcdef',dataDateIso:'2031-08-31'},overview:{latestRevisionLabel:'Update 02'},renderClaimsReporting:()=>''
+ });
+ assert.match(html,/title="Update 02"/);assert.doesNotMatch(html,/schedrev_/);
+});
+test('portfolio card shows current-contract lateness and currency-specific money',()=>{
+ const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2031-10-06',officialCompletionIso:'2031-09-08',furtherAdjustedCompletionIso:'2031-09-21',submittedDaysAfterCurrentContract:15,commercialSummary:[{currency:'USD',currentContractValue:120000,forecastEac:118000,certifiedUnpaidAmount:5000}],managementActionCount:2};
+ const html=runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p});
+ assert.match(html,/15 days after current contract/);assert.match(html,/USD · Current contract 120000 · EAC 118000 · Unpaid 5000/);
+});
+test('portfolio compares the displayed calculated finish with the current contract and labels a distinct submitted comparison',()=>{
+ const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2043-09-11',forecastLabel:'Calculated programme finish',calendarRecalculationIso:'2043-09-11',submittedProgrammeCompletionIso:'2043-04-17',furtherAdjustedCompletionIso:'2043-08-31',submittedDaysAfterCurrentContract:-136,independentDaysAfterCurrentContract:11};
+ const render=(row:any)=>runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p:row});
+ assert.match(render(p),/11 days after current contract/);assert.doesNotMatch(render(p),/136 days before/);
+ assert.match(render({...p,forecastCompletionIso:'2043-10-01',forecastLabel:'Productivity forecast'}),/Submitted programme 2043-04-17: 136 days before current contract/);
+});
+test('documents label a submitted-current programme as usable without demanding adoption',()=>{
+ const label=runInNewContext(functions(['documentUseLabel'])+';documentUseLabel',{humanizeKey:String});
+ for(const method of ['submitted_update','legacy_retained']){
+  assert.equal(label('active',{category:'schedule',scheduleAdoption:{method}}),'Current submitted programme · not an approval');
+ }
+ assert.equal(label('active',{category:'schedule',scheduleAdoption:{method:'explicit'}}),'Current / used now');
+ assert.equal(label('superseded',{category:'schedule',scheduleAdoption:{method:'submitted_update'}}),'Previous version');
+});
+test('Ask tables translate retained revision references and internal states without changing stored identities',()=>{
+ const labels={schedrev_abcdef123456:'August update',evidence_abcdef123456:'Risk register.csv'};
+ const ctx={askAnalysis:{sourceLabels:labels},currentModuleResult:null};
+ const code=functions(['askReadable','readerText','readerReference']);
+ assert.equal(runInNewContext(code+`;askReadable('schedrev_abcdef123456')`,ctx),'August update');
+ assert.equal(runInNewContext(code+`;askReadable('evidence-document:evidence_abcdef123456:row:12')`,ctx),'Risk register.csv · row 12');
+ assert.equal(runInNewContext(code+`;askReadable('independent_cpm')`,ctx),'Programme calendar recalculation');
+});
+
+test('browser presentation boundary never renders literal undefined or null for absent values',()=>{
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(undefined)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml(null)',{}),'');
+  assert.equal(runInNewContext(functions(['escapeHtml'])+';escapeHtml("<unsafe>")',{}),'&lt;unsafe&gt;');
+});
+
+test('forecast management diagnostics translate raw CPM and calendar codes into business language',()=>{
+  const messages=runInNewContext(
+    functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages(["CALENDAR_SEMANTICS_UNRESOLVED:CAL-1","SCHEDULE_GRAPH_CYCLES:A-B-C"])',
+    {}
+  );
+  assert.equal(messages.length,2);
+  assert.match(messages[0],/^Programme calendar definition does not sufficiently establish working days, shifts or exceptions\./);
+  assert.match(messages[0],/Affected: CAL-1\./);
+  assert.match(messages[1],/^Schedule logic contains a cycle\/circular relationship\./);
+  assert.match(messages[1],/Affected: A-B-C\./);
+  assert.doesNotMatch(messages.join(' '),/CALENDAR_SEMANTICS_UNRESOLVED|SCHEDULE_GRAPH_CYCLES/);
+});
 
 test('named curves and variance trend render their chart before KPI and source detail blocks',()=>{
   const data={points:[{dateIso:'2031-01-01',dataDateIso:'2031-01-01',revisionId:'S',sequence:1}],dataDateIso:'2031-01-01',revisionCount:1};
@@ -139,7 +197,7 @@ test('calendar source context changes with the evidence rather than applying one
   assert.match(review,/This date is excluded from delay and entitlement/);
 });
 
-test('fully evidenced actual cash renders its currency-specific chart; incomplete funding evidence cannot enable that chart',()=>{
+test('cash receipts remain visible when incomplete expenditure prevents the net funding curve',()=>{
   const names=new Set<string>();
   const node=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderCommercialVisual')!;
   function visit(n:Node){if(isCallExpression(n)&&isIdentifier(n.expression))names.add(n.expression.text);forEachChild(n,visit);}
@@ -155,7 +213,8 @@ test('fully evidenced actual cash renders its currency-specific chart; incomplet
   assert.deepEqual(Array.from(charts[0].points,(p:any)=>p.net),[3,6]);
   row.sourceReadiness.fundingCurveReady=false;charts.length=0;
   runInNewContext(code+';renderCommercialVisual("cash-flow",data)',context);
-  assert.equal(charts.length,0);
+  assert.equal(charts.length,1);
+  assert.deepEqual(Array.from(charts[0].series,(s:any)=>s.key),['paid'],'Known receipts do not establish net cash');
 });
 
 test('all six lenses retain access to the full module and leadership does not invent repeated actions',()=>{
@@ -252,6 +311,29 @@ test('an obsolete view request cannot replace the current page with an error',as
   assert.equal(h.context.currentModuleResult.key,'progress');
 });
 
+test('management elapsed-calendar wording is readable while CPI and exact engineering values remain untouched',()=>{
+ const values=runInNewContext(functions(['fmtManagementDayCount'])+
+   ';[fmtManagementDayCount(-0.25),fmtManagementDayCount(0.25),fmtManagementDayCount(1),fmtManagementDayCount(15),fmtManagementDayCount(null)]',{});
+ assert.deepEqual(Array.from(values),['less than one day','less than one day','1 day','15 days','Unresolved']);
+ assert.match(script,/fmtManagementDayCount\(comparisonDays\)/,'portfolio uses the same elapsed-day presentation rule');
+ assert.match(script,/maximumFractionDigits:2/,'exact engineering and financial precision is retained');
+});
+
+test('rendered management and delivery status vocabulary uses one central source',()=>{
+ const management=runInNewContext(functions(['humanizeKey','planningStateLabel'])+
+   ';[humanizeKey("not_established"),planningStateLabel(null),humanizeKey("governance_review")]',{...common});
+ assert.deepEqual(Array.from(management),[STATUS_LABELS.not_established,STATUS_LABELS.not_established,STATUS_LABELS.governance_review]);
+ // The delivery UI lives in its own embedded source, not among the main
+ // page's top-level function declarations. Test what that script renders.
+ const delivery=runInNewContext(deliveryScript()+
+   ';[deliveryLabel("not_established"),deliveryValue(null),deliveryValue(0)]',{escapeHtml:String});
+ assert.deepEqual(Array.from(delivery),[STATUS_LABELS.not_established,STATUS_LABELS.not_established,'0']);
+ const html=runInNewContext(functions(['renderPositionVerdict'])+
+   ';renderPositionVerdict({positionVerdict:{rag:"amber",specific:true,label:"Review needed",text:"Source finding",nextAction:"Check contract",owner:"Contracts Manager",assignTo:"Contracts Manager",basis:"Current source"}})',{...common});
+ assert.match(html,/Contracts Manager/);
+ assert.doesNotMatch(html,/Not assigned/);
+});
+
 test('shared verdict, source scope and Source Quality distinguish source issues from system failures',()=>{
  const code=functions(['renderPositionVerdict','renderRegisterScope']);
  const html=runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',{...common,data:{positionVerdict:{rag:'red',label:'Action required',text:'Submitted completion is 7 days late.',nextAction:'Review recovery',owner:'Project controls reviewer',basis:'Contract comparison'},reportingContract:{dataDateIso:'2031-04-15',populations:{register:{populationId:'x',entity:'claim',name:'Claims',sourceCount:3,denominator:1,dateBasis:'notice date',exclusions:[{id:'F',reason:'after_data_date'},{id:'U',reason:'record_date_missing'}]}}}}});
@@ -261,7 +343,7 @@ test('shared verdict, source scope and Source Quality distinguish source issues 
 
 test('delay and float matrix visibly reconciles excluded LOE and WBS records',()=>{
  const render=functions(['planningActivityPressure']);const html=runInNewContext(render+';planningActivityPressure(rows)',{...common,rows:[{activityType:'task',criticality:'critical',finishVarianceDays:4},{activityType:'level_of_effort',criticality:'critical',finishVarianceDays:4},{activityType:'wbs_summary',finishVarianceDays:null}]});
- assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 execution activities/);
+ assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 unfinished execution activities/);
 });
 test('source quality and date scope preserve record evidence behind concise disclosures',()=>{
  const render=functions(['renderSourceQuality','renderRegisterScope','experienceDisclosure','readerIssue']);
@@ -367,11 +449,20 @@ test('supplied BOQ rows are visible, searchable and pageable without schedule or
    'Challenge position must lead; source BOQ remains searchable supporting evidence below.');
 });
 
+test('unconfirmed numeric observations are clearly separated from usable BOQ figures',()=>{
+ const boq={sourceFilename:'scan.pdf',itemCount:1,rows:[{itemId:'OCR-1',description:'Source item',unit:'m2',quantity:null,rate:null,amount:null,currency:'SAR',sourceNumericReadings:{quantity:300,rate:4,amount:1200}}]};
+ const html=runInNewContext(functions(['renderSuppliedBoqRows'])+';renderSuppliedBoqRows(boq)',{...common,boq});
+ assert.equal((html.match(/Needs source confirmation/g)||[]).length,3);
+ assert.match(html,/Unconfirmed source readings — excluded from calculations/);
+ assert.match(html,/300/);assert.match(html,/1200/);
+ assert.doesNotMatch(html,/<td>300<\/td>|<td>1200<\/td>/);
+});
+
 test('primary findings hide internal codes and the banner action needs no click',()=>{
  const code=functions(['readerIssue','renderIssueAssessment','renderPositionVerdict','experienceDisclosure']);
  const issue={kind:'data_quality',summary:'CALENDAR_CYCLE:ACTIVITY_1',detail:'CLAUSE_PARSE_FAILURE:ARTICLE_1',code:'SOURCE_QUALITY',action:'Resolve CALENDAR_CYCLE:ACTIVITY_1',owner:'Project evidence owner',moduleKeys:[]};
  const html=runInNewContext(code+';renderIssueAssessment({issues:[issue],counts:{}})',{...common,issue,issueBadge:()=>'',names:{},issueLabel:String});
- const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.match(html,/CLAUSE_PARSE_FAILURE/,'technical original retained in details');
+ const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.doesNotMatch(html,/CLAUSE_PARSE_FAILURE/,'screen details use the same plain vocabulary');assert.match(html,/clause parse failure/);
  const banner=runInNewContext(code+';renderPositionVerdict(data)',{...common,data:{positionVerdict:{specific:true,rag:'red',label:'Action required',text:'Completion is 53 days late.',nextAction:'Review the recovery plan.',assignTo:'Project Director',owner:'Not assigned',basis:'Completion dates'}}});
  const first=banner.split('<details')[0];assert.match(first,/Assign to:.*Project Director/);assert.match(first,/Next:.*recovery plan/);assert.doesNotMatch(banner,/assign a person/);
 });
@@ -402,4 +493,24 @@ test('management context has a single owner per topic and calendar naming reache
  }
  const command=runInNewContext(basis+';renderBasisReviews(data,"command-center")',basisContext);
  assert.match(command,/Not assigned/);assert.match(command,/Not set/);assert.doesNotMatch(command,/Assign owner|Set due date|HSE figures reported/);
+});
+
+
+test('reader references name source documents and rows while retaining the underlying identities',()=>{
+ const currentModuleResult={data:{sourceLabels:{'evidence-document:evidence_123456abcdef':'Claims.csv','schedrev_123456abcdef':'Update02.xer'}}};
+ const run=functions(['readerReference','readerText','readerAuditAction']);
+ assert.equal(runInNewContext(run+";readerReference('evidence-document:evidence_123456abcdef:row:12')",{currentModuleResult}),'Claims.csv · row 12');
+ assert.equal(runInNewContext(run+";readerAuditAction('POST /api/projects/P/schedule/revisions/schedrev_123456abcdef/adopt')",{currentModuleResult}),'Updated programme records');
+ assert.equal(currentModuleResult.data.sourceLabels['schedrev_123456abcdef'],'Update02.xer');
+ assert.equal(runInNewContext(run+";readerText('evidence_123456abcdef:clause:cycle:1:2#3 · Delay damages')",{currentModuleResult}),'Source document · source section · Delay damages');
+});
+
+test('dashboard date comparisons retain the current contract basis after awarded EOT',()=>{
+ const data={metrics:[{key:'submitted-vs-contract',value:15},{key:'independent-vs-contract',value:15}],projectFacts:{time:{submittedDaysAfterExtendedCompletion:{value:15}}}};
+ let scheduleRows:any[]=[];
+ runInNewContext(functions(['renderPmcControlCharts'])+';renderPmcControlCharts(data)',{...common,data,
+  pmcMetric:(d:any,k:string)=>d.metrics.find((m:any)=>m.key===k),pmcDefined:(v:any)=>v!==null&&v!==undefined,pmcFirst:()=>null,
+  renderWaterfallChart:(rows:any[])=>{scheduleRows=rows;return 'chart';},renderVisualPanel:()=>'',renderVisualBars:()=>''});
+ assert.deepEqual(Array.from(scheduleRows,r=>[r.label,r.value]),[['Submitted vs current contract',15],['Recalculation vs current contract',15]]);
+ assert.doesNotMatch(script,/vs original contract/);
 });

@@ -186,7 +186,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /const primaryView=\(specialized\|\|genericView\)/,
+    /const primaryView=[^\n]*\(specialized\|\|genericView\)/,
     "specialized module view must replace duplicate generic dashboard layers",
   );
   assert.match(
@@ -425,7 +425,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Documents and activity links",
       "CMeng AI",
       "Management decision required",
-      "Current positions",
+      "Finish dates available",
       "Need attention",
       "Productivity forecast",
       "Portfolio attention",
@@ -1051,7 +1051,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Notice performance is not zero; it is not assessable.",
       "Schedule movement is not an EOT time-impact assessment.",
       "Source forecast history is available.",
-      "Independent forecast requires reconciliation before management use.",
+      "Forecast differences require review; available calculations remain visible with their assumptions.",
     ]
   ) {
     assert.equal(
@@ -1096,4 +1096,34 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       ),
     "embedded browser script must parse",
   );
+});
+
+
+test("Portfolio attention excludes system checking/updating but keeps real review states", () => {
+  const html = cmengUatHtml();
+  assert.equal(
+    html.includes('function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}'),
+    true,
+    "portfolio attention must retain needs-information, needs-review and real management actions",
+  );
+  assert.equal(
+    html.includes('p.positionState!=="current"||(p.managementActionCount||0)>0'),
+    false,
+    "checking/updating must not be counted as management attention merely because they are not current",
+  );
+});
+
+
+test("Portfolio labels needs-information distinctly and bounds release recheck polling", () => {
+  const html=cmengUatHtml();
+  assert.equal(
+    html.includes('if(p.positionState==="needs_information")return["missing","Needs information"];'),
+    true,
+    "needs_information must not fall through to an unrelated missing-project-records label",
+  );
+  assert.equal(html.includes('return["missing","Needs project records"];'),false);
+  assert.equal(html.includes("const updateDeadline=Date.now()+60000;"),true);
+  assert.equal(html.includes("let loadedEvidenceWhileUpdating=false;"),true);
+  assert.equal(html.includes("setTimeout(resolve,5000)"),true);
+  assert.equal(html.includes("Automatic waiting stopped after one minute so the browser remains usable."),true);
 });

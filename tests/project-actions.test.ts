@@ -7,7 +7,7 @@ import {runInNewContext} from 'node:vm';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {projectActionsScript} from '../packages/runtime-api/src/ui-project-actions';
 const xer=(date:string,name:string)=>['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tCONTROL\t'+date,'%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttarget_start_date\ttarget_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt','%R\t1\t1\tA1\t'+name+'\t2031-01-01\t2031-12-31\t80\t80','%E'].join('\n');
-test('one project action list follows upload, stale confirmation, adoption, new revision and independent phase decisions',async t=>{
+test('project actions require decisions only for non-current programme candidates and remain project/phase scoped',async t=>{
   const root=mkdtempSync(join(tmpdir(),'project-actions-'));let gateway=await createProjectGateway(root,{maxWorkers:2}),base='';
   t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
   const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
@@ -16,18 +16,34 @@ test('one project action list follows upload, stale confirmation, adoption, new 
   for(const id of ['ACTION-A','ACTION-B'])assert.equal((await post('/api/projects',{projectId:id})).status,201);
   const upload=(id:string,name:string,date='2031-08-31',phase?:string)=>fetch(base+'/api/projects/'+id+(phase?'/phases/'+phase:'')+'/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':name,'x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer(date,name)});
   assert.equal((await upload('ACTION-A','A first.xer')).status,201);assert.equal((await upload('ACTION-B','B first.xer')).status,201);
-  const first=await get('/api/projects/ACTION-A/actions'),schedule=first.actions.find((a:any)=>a.target.type==='schedule');assert.ok(schedule.target.canConfirm);assert.match(schedule.reason,/A first.xer/);assert.doesNotMatch(JSON.stringify(first),/B first.xer/);
-  assert.equal((await upload('ACTION-A','A second.xer')).status,201);
-  const stale=await post('/api/projects/ACTION-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:first.projectVersion});assert.equal(stale.status,409);assert.match((await stale.json() as any).message,/project changed/i);
-  const pending=await get('/api/projects/ACTION-A/actions');assert.equal(pending.actions.filter((a:any)=>a.target.type==='schedule').length,2);
-  const confirm=await post('/api/projects/ACTION-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:pending.projectVersion});assert.equal(confirm.status,200);
-  const after=await get('/api/projects/ACTION-A/actions');assert.ok(!after.actions.some((a:any)=>a.id===schedule.id));assert.equal(after.actions.filter((a:any)=>a.target.type==='schedule').length,1);assert.equal(after.actionCount,after.actions.length);
-  const untouched=await get('/api/projects/ACTION-B/actions');assert.equal(untouched.actions.filter((a:any)=>a.target.type==='schedule').length,1);
+  const initial=await get('/api/projects/ACTION-A/actions');
+  assert.equal(initial.actions.filter((a:any)=>a.target.type==='schedule').length,0,'submitted-current ordinary update must not create a confirmation task');
+  assert.doesNotMatch(JSON.stringify(initial),/B first.xer/);
+
+  assert.equal((await upload('ACTION-A','A same.xer','2031-08-31')).status,201);
+  const pending=await get('/api/projects/ACTION-A/actions');
+  const schedule=pending.actions.find((a:any)=>a.target.type==='schedule'&&/A same\.xer/.test(a.reason));
+  assert.ok(schedule);assert.equal(schedule.target.canConfirm,true);
+
+  assert.equal((await upload('ACTION-A','A later.xer','2031-09-30')).status,201);
+  const stale=await post('/api/projects/ACTION-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:pending.projectVersion});
+  assert.equal(stale.status,409);assert.match((await stale.json() as any).message,/project changed/i);
+
+  const refreshed=await get('/api/projects/ACTION-A/actions');
+  const stillPending=refreshed.actions.find((a:any)=>a.id===schedule.id);
+  assert.ok(stillPending);assert.equal((await post('/api/projects/ACTION-A/actions/confirm-schedule',{actionId:stillPending.id,expectedVersion:refreshed.projectVersion})).status,200);
+  const after=await get('/api/projects/ACTION-A/actions');assert.ok(!after.actions.some((a:any)=>a.id===schedule.id));assert.equal(after.actionCount,after.actions.length);
+
+  const untouched=await get('/api/projects/ACTION-B/actions');assert.equal(untouched.actions.filter((a:any)=>a.target.type==='schedule').length,0);
   assert.equal((await upload('ACTION-A','Phase programme.xer','2032-02-29','Tower-B')).status,201);
-  const phaseList=await get('/api/projects/ACTION-A/actions'),phase=phaseList.actions.find((a:any)=>a.target.phaseId==='Tower-B'&&a.target.type==='schedule');assert.ok(phase);assert.match(phase.title,/Phase Tower-B/);
-  assert.equal((await post('/api/projects/ACTION-A/actions/confirm-schedule',{actionId:phase.id,expectedVersion:phaseList.projectVersion})).status,200);
+  const phaseList=await get('/api/projects/ACTION-A/actions');
+  assert.ok(!phaseList.actions.some((a:any)=>a.target.phaseId==='Tower-B'&&a.target.type==='schedule'),'first dated phase update is submitted-current within its phase');
   const overview=await get('/api/projects/ACTION-A/overview');assert.equal(overview.latestDataDateIso,'2031-08-31');
-  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:2});await listen();const restored=await get('/api/projects/ACTION-A/actions');assert.ok(!restored.actions.some((a:any)=>a.id===phase.id||a.id===schedule.id));assert.equal(restored.actions.filter((a:any)=>a.target.type==='schedule').length,1);
+
+  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:2});await listen();
+  const restored=await get('/api/projects/ACTION-A/actions');
+  assert.ok(!restored.actions.some((a:any)=>a.id===schedule.id));
+  assert.ok(!restored.actions.some((a:any)=>a.target.phaseId==='Tower-B'&&a.target.type==='schedule'));
 });
 
 test('missing contractual completion becomes one inline confirmation action and persists the confirmed date',async t=>{
@@ -39,10 +55,8 @@ test('missing contractual completion becomes one inline confirmation action and 
   assert.equal((await post('/api/projects',{projectId:'CONTRACT-DATE-A'})).status,201);
   const upload=await fetch(base+'/api/projects/CONTRACT-DATE-A/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current programme.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Current programme')});
   assert.equal(upload.status,201);
-  const first=await get('/api/projects/CONTRACT-DATE-A/actions');
-  const schedule=first.actions.find((a:any)=>a.target.type==='schedule');assert.ok(schedule);
-  assert.equal((await post('/api/projects/CONTRACT-DATE-A/actions/confirm-schedule',{actionId:schedule.id,expectedVersion:first.projectVersion})).status,200);
   const pending=await get('/api/projects/CONTRACT-DATE-A/actions');
+  assert.equal(pending.actions.filter((a:any)=>a.target.type==='schedule').length,0,'ordinary submitted-current schedule must not require manual confirmation');
   const contract=pending.actions.find((a:any)=>a.target.kind==='contract-completion');
   assert.ok(contract);assert.equal(contract.category,'confirmation');assert.equal(contract.target.type,'inline');
   assert.match(contract.resolution.instruction,/current programme finish|contractual completion date/i);
@@ -94,4 +108,33 @@ test('unrelated missing commercial inputs remain visible together without creati
   assert.ok(result.information.every(a=>a.target.type==='inline'));
   assert.equal(result.information.flatMap(a=>a.findings??[]).length,3);
   assert.ok(!result.actions.some(a=>a.target.type==='module'));
+});
+
+
+test('review grouping does not confuse data-quality metadata with Quality or contractor with Contract',async()=>{
+  const {projectReviewGroup}=await import('../packages/runtime-api/src/project-review-groups');
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const state=runtimeProjects.getOrCreate('DOMAIN-GROUPING');
+  const contractDuplicate:any={code:'SOURCE_QUALITY',kind:'data_quality',summary:'data · data quality',detail:'CONTRACT_DUPLICATE_SECTION_INSTANCE:clause:1',action:'Review source',owner:'Project evidence owner',moduleKeys:['pmo-analysis'],sourceRefs:[],checkIds:[],evidencePaths:['data']};
+  const contractorProgress:any={code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'progress Bases · contractor Reported · information missing',detail:'The required source value is not established.',action:'Provide contractor reported progress',owner:'Project evidence owner',moduleKeys:['progress-report'],sourceRefs:[],checkIds:[],evidencePaths:['data.progressBases.contractorReported']};
+  assert.notEqual(projectReviewGroup(contractDuplicate,state).key,'quality','generic data-quality diagnostics are not construction Quality records');
+  assert.notEqual(projectReviewGroup(contractorProgress,state).key,'commercial','contractor-reported progress is not a Contract/Commercial matter');
+});
+
+test('one payment conflict does not turn unrelated missing fields into one corrected-file demand',async()=>{
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const state=runtimeProjects.getOrCreate('PAYMENT-ACTION-SPLIT');
+  const issues:any[]=[
+    {code:'SOURCE_CONFLICT',kind:'source_conflict',summary:'rows · component Arithmetic · source conflict',detail:'One certificate arithmetic does not reconcile.',action:'Reconcile the retained source record.',owner:'Project evidence owner',moduleKeys:['payments'],sourceRefs:['evidence-document:IPC:row:3'],checkIds:[],evidencePaths:['data.focus.paymentRegister.rows[*].componentArithmetic']},
+    {code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'amounts · application Amount · information missing',detail:'Application amount is not supplied.',action:'Supply only if required.',owner:'Project evidence owner',moduleKeys:['payments'],sourceRefs:['evidence-document:IPC:row:3'],checkIds:[],evidencePaths:['data.focus.paymentRegister.rows[*].amounts.applicationAmount']}
+  ];
+  const result=projectActions(state,summarizeControlIssues(issues));
+  const correction=result.actions.find((a:any)=>a.id==='matter:payments:correction');
+  const information=result.information.find((a:any)=>a.id==='matter:payments:information');
+  assert.ok(correction);assert.equal(correction!.requestCount,1);assert.equal(correction!.findings?.[0]?.kind,'source_conflict');
+  assert.equal(correction!.correctionRecords?.[0]?.locator,'Row 3');
+  assert.match(correction!.reason,/only the listed fields need correction/);
+  assert.ok(information);assert.equal(information!.requestCount,1);assert.equal(information!.findings?.[0]?.kind,'missing_information');
 });
