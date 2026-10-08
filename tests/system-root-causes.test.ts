@@ -199,6 +199,15 @@ test('two equivalent crews recover local time on a cross-plot chain and never al
 });
 
 
+test('missing optional productivity forecast is not a false management action but true faults remain',()=>{
+ const consistency={state:'pass',failedCheckIds:[],checkCount:0} as any;
+ const candidate={key:'pmo-analysis',status:'partial',reason:null,dependencies:[],evidenceState:'established'} as any;
+ const absent=assessModuleIssues({...candidate,data:{systemEvidenceContract:{state:'verified_for_checked_metrics'},sourceProductivityForecast:{state:'missing',completionIso:null,sourceRefs:[],diagnostics:[]}}},consistency);
+ assert.equal(absent.issues.filter(issue=>issue.code==='MISSING_SOURCE_VALUE'&&issue.evidencePaths.some(path=>path.includes('sourceProductivityForecast'))).length,0,'a missing optional productivity source must never require a re-upload');
+ const conflict=assessModuleIssues({...candidate,data:{systemEvidenceContract:{state:'verified_for_checked_metrics'},sourceProductivityForecast:{state:'conflicted',completionIso:null,sourceRefs:['source:1'],diagnostics:['SOURCE_CONFLICT']}}},consistency);
+ assert.ok(conflict.issues.some(issue=>issue.kind==='source_conflict'),'genuine productivity source disagreement must remain visible');
+});
+
 test('source-backed contract candidates are visible without fabricated approvals',()=>{
  const consistency={state:'pass',failedCheckIds:[],checkCount:0} as any;
  const base={key:'contract-particulars-bonds',status:'partial',reason:null,dependencies:[],evidenceState:'established'} as any;
