@@ -358,6 +358,14 @@ function json(
   const pathname=new URL(requestUrl,'http://localhost').pathname;
   const screen=statusCode===200&&isProjectScreenRequest(res.req.method,pathname);
   const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl):body);
+  // The public gateway can only keep a version-safe result after this header
+  // proves which project snapshot was used. Previously it was never sent, so
+  // every visit after worker eviction repeated the complete analysis.
+  const projectMatch=/^\/api\/projects\/([^/]+)/.exec(pathname);
+  if(statusCode===200&&res.req.method==='GET'&&projectMatch){
+    const snapshot=runtimeProjects.get(decodeURIComponent(projectMatch[1]!));
+    if(snapshot)res.setHeader('x-cmeng-project-version',String(snapshot.version));
+  }
   sendHttpBody(res,statusCode, {
     "cache-control": "no-store",
     "content-type":
