@@ -302,6 +302,7 @@ ${boqPageReviewStyles}
         <div class="card" style="margin-bottom:16px">
           <h3>Create project</h3>
           <div class="project-create"><input id="newProjectId" placeholder="Project ID / code"><button class="btn primary" id="createProject">Create project</button></div>
+          <label class="muted"><input id="newProjectTest" type="checkbox"> Test project — exclude from live Portfolio</label>
           <div style="margin-top:10px"><button class="btn small" id="loadDemo">Open sample project</button></div>
           <div id="createProjectMessage"></div>
         </div>
@@ -317,6 +318,7 @@ ${boqPageReviewStyles}
         </div>
         <div class="workspace-actions">
           <button class="btn" id="openProjectActions">Project review</button>
+          <button class="btn small" id="changeProjectPurpose">Live/Test classification</button>
           <button class="btn" id="openLibraryQuick">Documents</button>
           <button class="btn primary" id="openEvidenceTop">Add documents</button>
           <button class="btn" id="runAnalysisTop">Update position</button>
@@ -503,7 +505,7 @@ const roleViews={
 const roleViewOrder=["overall","planning","controls","project-director","program-director","executive"];
 const storedRoleView=localStorage.getItem("cmeng-role-view");
 let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"overall";
-let overview=null,selected="master-dashboard",portfolioData=null,appView="portfolio",currentModuleResult=null;
+let overview=null,selected="master-dashboard",portfolioData=null,testPortfolioData=null,appView="portfolio",currentModuleResult=null;
 let projectRequestSeq=0,evidenceRequestSeq=0,aiRequestSeq=0,projectLoadState="idle";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 const projectUploadJobs=new Map();
@@ -5089,8 +5091,8 @@ function renderStatus(o){
   const partial=o.moduleStates.filter(x=>x.status==="partial").length;
   const blocked=o.moduleStates.filter(x=>x.status==="blocked").length;
   const total=o.moduleStates.length;
-  el("projectBadge").className="badge "+(o.demo?"partial":"");
-  el("projectBadge").textContent=o.demo?"DEMONSTRATION PROJECT":"CURRENT PROJECT";
+  el("projectBadge").className="badge "+(o.demo||o.testProject?"partial":"");
+  el("projectBadge").textContent=o.demo?"DEMONSTRATION PROJECT":o.testProject?"TEST PROJECT":"CURRENT PROJECT";
   el("projectStatus").innerHTML='<div class="scalar-grid">'+
     '<div class="scalar"><b>Baseline / revised baseline</b><span>'+fmt(o.baselineRevisionCount)+'</span></div>'+
     '<div class="scalar"><b>Updates</b><span>'+fmt(o.updateRevisionCount)+'</span></div>'+
@@ -5379,6 +5381,10 @@ function bindPortfolioEmptyActions(){
 function renderPortfolio(){
   const data=portfolioData||{projects:[],projectCount:0};
   const projects=data.projects||[];
+  const tests=testPortfolioData?.projects||[];
+  const separateTestList=tests.length?'<details class="card" id="testProjectList"><summary>Test projects · '+tests.length+' (not included in live totals)</summary>'+
+    tests.map(p=>'<div class="attention-row"><b>'+escapeHtml(p.projectId)+'</b><span>Non-client test evidence</span><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open test</button></div>').join('')+'</details>':'';
+
   const current=projects.filter(p=>p.forecastCompletionIso).length;
   const checking=projects.filter(p=>p.positionState==="checking"||p.positionState==="updating").length;
   const attention=projects.filter(portfolioNeedsAttention).length;
@@ -5394,13 +5400,14 @@ function renderPortfolio(){
   if(!projects.length){
     el("portfolioProjects").innerHTML=
       '<div class="portfolio-empty"><div class="portfolio-empty-mark">+</div><div><h3>No live projects yet</h3><p>Create your first project, add the programme and BOQ, then update the project position. The sample project remains available separately for familiarisation.</p></div><div class="portfolio-empty-actions"><button class="btn primary portfolio-create-project">Create project</button><button class="btn portfolio-open-sample">Open sample</button></div></div>';
+    el("portfolioProjects").innerHTML+=separateTestList;
     el("portfolioAttention").innerHTML="";
     el("projectRegister").innerHTML='<div class="empty">No live projects have been created.</div>';
-    bindPortfolioEmptyActions();
+    bindPortfolioEmptyActions();bindProjectOpeners();
     return;
   }
 
-  el("portfolioProjects").innerHTML=projects.map(projectCard).join("");
+  el("portfolioProjects").innerHTML=projects.map(projectCard).join("")+separateTestList;
 
   const attentionRows=projects.flatMap(p=>(p.managementActions||[]).slice(0,2).map(action=>({projectId:p.projectId,action})));
   el("portfolioAttention").innerHTML=attentionRows.length
@@ -5412,7 +5419,7 @@ function renderPortfolio(){
   bindProjectOpeners();
 }
 async function loadPortfolio(){
-  try{portfolioData=await api("/api/portfolio");renderPortfolio()}catch(e){el("portfolioProjects").innerHTML='<div class="notice error">Projects could not be loaded: '+escapeHtml(e.message)+'</div>'}
+  try{[portfolioData,testPortfolioData]=await Promise.all([api("/api/portfolio"),api("/api/test-projects")]);renderPortfolio()}catch(e){el("portfolioProjects").innerHTML='<div class="notice error">Projects could not be loaded: '+escapeHtml(e.message)+'</div>'}
 }
 function updateActiveProjectShell(){
   const id=overview?.projectId||project();
@@ -5503,7 +5510,7 @@ async function createProject(){
   if(!projectId){el("createProjectMessage").innerHTML='<div class="notice warn">Enter a project ID or code.</div>';return}
   setBusy("Creating project");
   try{
-    const created=await api("/api/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({projectId})});
+    const created=await api("/api/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({projectId,testProject:el("newProjectTest")?.checked===true})});
     el("newProjectId").value=created.projectId;
     el("createProjectMessage").innerHTML='<div class="notice info">Project '+escapeHtml(created.projectId)+' created. Opening project controls...</div>';
     await loadPortfolio();
@@ -5740,7 +5747,16 @@ function uploadEvidenceFileWithProgress(file,fileIndex,fileTotal,job){
   });
 }
 bindAskWorkspace();
-el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
+el("changeProjectPurpose").onclick=async()=>{
+    if(!overview)return;
+    const next=overview.testProject!==true;
+    if(!confirm(next?"Move this project from live Portfolio to Test projects? No evidence will be deleted.":"Move this project to live Portfolio? Confirm that its source records represent a genuine project."))return;
+    try{
+      await api("/api/projects/"+encodeURIComponent(project())+"/purpose",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({testProject:next})});
+      await loadPortfolio();await refresh(false);
+    }catch(e){alert("Project classification could not be saved: "+e.message);}
+  };
+  el("loadDemo").onclick=loadDemo;el("refresh").onclick=()=>refresh(false);el("runAnalysisTop").onclick=runAnalysis;el("openAiTop").onclick=()=>setAppView("ai");el("askAi").onclick=askCmeng;el("createProject").onclick=createProject;el("portfolioNewProject").onclick=()=>setAppView("projects");
 el('openProjectActions').onclick=()=>openProjectActions();
 window.addEventListener('focus',()=>{if(overview&&['project','ai'].includes(appView))void loadProjectActions();});
 function openEvidenceWorkspace(){
