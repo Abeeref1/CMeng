@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cmeng-verify-${{ github.ref }}
+  group: cmeng-verify-${{ github.ref }}-${{ github.sha }}
   # During active engineering, verify the newest candidate only. Superseded
   # commits keep any evidence already produced, but they must not delay the
   # exact current head. Test scope, assertions and thresholds are unchanged.
