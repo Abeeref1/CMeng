@@ -202,6 +202,16 @@ test('one procurement date rule identifies overdue delivery and late forecasts f
  assert.equal(position.overdueUndelivered,true);assert.equal(position.needDate,'2036-08-29');
  assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-09-13',sourceRequiredOnSite:null,forecastDelivery:'2036-09-20',actualDelivery:null,status:'Ordered'}).headroomCalendarDays,-7);
  assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:null,actualDelivery:'2036-09-02',status:'Delivered'}).overdueUndelivered,true,'future delivery must not clear a current blocker');
+ const statusOnly=procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:'2036-09-05',actualDelivery:null,status:'Delivered'});
+ assert.equal(statusOnly.deliveredStatusOnly,true,'source says delivered although dated proof is absent');
+ assert.equal(statusOnly.deliveredAtDataDate,false,'undated status cannot become a dated actual');
+ assert.equal(statusOnly.overdueUndelivered,false,'completed source status is not an open package');
+ assert.equal(statusOnly.forecastLate,false,'stale forecast must not relabel a delivered-status package as late');
+ const futureActual=procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:'2036-09-05',actualDelivery:'2036-09-02',status:'Delivered'});
+ assert.equal(futureActual.deliveredStatusOnly,false,'future actual outranks stale completed status');
+ assert.equal(futureActual.forecastLate,true,'future actual retains current schedule exposure');
+ const mixed=Array.from({length:44},(_,i)=>procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:'2036-09-05',actualDelivery:null,status:i<17?'Ordered':'Delivered'}));
+ assert.equal(mixed.filter(row=>row.overdueUndelivered||row.forecastLate).length,17,'status-only delivered rows excluded consistently from late totals');
  assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:'2036-09-02',actualDelivery:'2036-08-28',status:'Ordered'}).deliveredAtDataDate,true,'actual date wins over stale source status');
  const state=loadCertifiedDemoProject('PACKAGE-READINESS-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
  model.dataDateIso='2036-08-31';model.activities=[{...model.activities[0]!,activityId:'FIRE',activityType:'task',status:'not_started',actualStartIso:null,actualFinishIso:null,currentStartIso:'2036-09-13',currentFinishIso:'2036-09-24',forecastFinishIso:null,totalFloatHours:-88}];model.relationships=[];
