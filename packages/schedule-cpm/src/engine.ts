@@ -289,11 +289,16 @@ function backwardConstraintFinish(
   if (relation.type === 'FS' || relation.type === 'FF') {
     return {finish: bound, start: null};
   }
-  // A start deadline inside a calendar gap must not be rounded forward past
-  // that deadline. The closing work boundary remains the latest permitted
-  // start event; work resumes at the next opening without adding duration.
-  const start = nextWorkingInstant(predecessorCalendar.calendar, bound) > bound
-    ? previousWorkingInstant(predecessorCalendar.calendar, bound) : bound;
+  // A start deadline inside a calendar gap cannot move beyond the deadline.
+  // A shift closing instant has NO available work to start. Select the last
+  // workable start slot on the predecessor calendar instead of treating the
+  // closing instant as a start and carrying its duration into the next week.
+  // Use at most one source working hour (or the shorter task duration).
+  const closing=nextWorkingInstant(predecessorCalendar.calendar,bound)>bound;
+  const last=closing?previousWorkingInstant(predecessorCalendar.calendar,bound):bound;
+  const start=closing&&predecessorDurationHours>0
+    ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
+    :last;
   return {start, finish: addWorkingHours(
     predecessorCalendar.calendar, start, predecessorDurationHours,
   )};
