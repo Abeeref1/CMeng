@@ -29,7 +29,16 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     const independent=get('independent-forecast-finish'),submitted=get('submitted-programme-finish'),contract=get('contract-finish');
     const variance=(finish:unknown)=>typeof finish==='string'&&typeof contract==='string'
       ?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
-    const independentDays=variance(independent),submittedDays=variance(submitted);
+    // The shared contract/EOT fact is the only authority for a late/early
+    // management verdict. Never compare against an obsolete original date
+    // when awarded EOT exists or the extended date is unavailable.
+    const canonicalTime=d.projectFacts?.time;
+    const independentDays=canonicalTime
+      ? (canonicalTime.independentDaysAfterCurrentContract?.value??null)
+      :variance(independent);
+    const submittedDays=canonicalTime
+      ? (canonicalTime.submittedDaysAfterCurrentContract?.value??null)
+      :variance(submitted);
     if(number(independentDays)){
       rag=independentDays>0?'red':'green';
       text=independentDays>0
