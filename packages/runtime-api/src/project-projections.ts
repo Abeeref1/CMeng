@@ -7775,7 +7775,13 @@ export function moduleForProject(
       ["project"],
     );
   }
-  const finalize=(result:ModuleRuntimeResult)=>attachProjectFacts(state,result);
+  const finalize=(result:ModuleRuntimeResult)=>{
+    const attached=attachProjectFacts(state,result);
+    // A position verdict that predates canonical facts can compare against
+    // the unextended contract. Re-evaluate only existing verdict surfaces
+    // after shared fact attachment, without a second calculation producer.
+    return (result.data as any)?.positionVerdict?withPositionVerdict(attached):attached;
+  };
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
