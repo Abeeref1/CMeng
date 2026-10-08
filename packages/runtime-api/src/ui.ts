@@ -4941,6 +4941,34 @@ function bindAdvancedControls(parentKey){
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  const paged=result.responsePaging;
+  if(paged?.tables?.length){
+    const tables=paged.tables.filter(table=>table.total>table.shown||table.kind==='text');
+    if(tables.length){
+      const controls=tables.map((table,index)=>{
+        const parts=table.pointer.split('/').filter(Boolean).filter(part=>!/^[0-9]+$/.test(part));
+        const label=parts.length?humanizeKey(parts.slice(-2).join(' ')):'Additional source data';
+        return '<article class="project-action"><h4>'+escapeHtml(label)+'</h4><p>'+fmt(table.total)+' original '+(table.kind==='text'?'characters':'records')+' retained · '+fmt(table.shown)+' initially shown</p><button type="button" class="btn small" data-paged-detail="'+index+'" data-detail-offset="0">View 25 source records</button><div class="paged-evidence-list" data-paged-target="'+index+'"></div></article>';
+      }).join('');
+      container.insertAdjacentHTML('beforeend','<details class="planning-panel"><summary>Additional source records · '+fmt(tables.length)+' groups</summary><div class="planning-panel-body"><p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>'+controls+'</div></details>');
+      container.querySelectorAll('[data-paged-detail]').forEach(button=>button.onclick=async()=>{
+        const index=Number(button.dataset.pagedDetail),entry=tables[index],target=container.querySelector('[data-paged-target="'+index+'"]');
+        if(!entry||!target)return;
+        const offset=Number(button.dataset.detailOffset||0);
+        button.disabled=true;button.textContent='Loading source records…';
+        try{
+          const query=new URLSearchParams({source:paged.source,pointer:entry.pointer,offset:String(offset),version:String(paged.projectVersion??'')});
+          const details=await api('/api/projects/'+encodeURIComponent(project())+'/record-page?'+query);
+          const rows=details.rows||[];
+          const content=details.kind==='text'?'<p>'+escapeHtml(details.text||'')+'</p>':
+            rows.length?renderRecordTable(rows.map(value=>typeof value==='object'&&value!==null?value:{value})):'<p>No further source records.</p>';
+          target.insertAdjacentHTML('beforeend',content);
+          if(details.hasMore){button.dataset.detailOffset=String(offset+(details.kind==='text'?8192:25));button.disabled=false;button.textContent='Next 25 source records';}
+          else{button.textContent='All records in this group shown';button.disabled=true;}
+        }catch(error){button.disabled=false;button.textContent='Retry source records';target.insertAdjacentHTML('beforeend','<p>Source details could not be loaded. Please retry.</p>');}
+      });
+    }
+  }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   const pageKey=result.legacyKey||result.key;
   if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
