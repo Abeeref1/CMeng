@@ -23,6 +23,7 @@ import {projectActionRegisterForState,moduleForProject,directorForProject} from 
 import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-scenario';
 import {contractCompletionDependencies,sectionCompletionMilestone} from '../packages/runtime-api/src/project-contract-sections';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+import {projectManagementContext} from '../packages/runtime-api/src/management-context';
 
 test('management source inventory reads retained CSV rows and follows header identity before the filename',()=>{
  const folder=mkdtempSync(join(tmpdir(),'cmeng-source-inventory-'));
@@ -196,6 +197,19 @@ test('two equivalent crews recover local time on a cross-plot chain and never al
  model.activities[1]!.sourceConstraints=[{type:'CS_MSO',dateIso:'2034-02-01'}];assert.equal(plotCrewScenarios(model)[0]!.possibleDaysRecovered,null,'unresolved constraint effect is not bypassed for a scenario');
 });
 
+
+test('management pages receive quantity summaries, not duplicated full item curves',()=>{
+ const state=loadCertifiedDemoProject('QUANTITY-CONTEXT-'+randomUUID());
+ const curves=Array.from({length:896},(_,i)=>({itemId:'ITEM-'+i,points:Array.from({length:40},(_,day)=>({dateIso:'2036-08-'+String(1+day%30).padStart(2,'0'),planned:day,actual:day/2}))}));
+ const modules=new Map([['quantity-scurve',{data:{boqItemCount:896,installedQuantityStatus:'reported_source',series:curves}}]]) as any;
+ const context=projectManagementContext(state,modules,null);
+ assert.equal(context.crossModule.quantities.sourceSeriesCount,896);
+ assert.equal(context.crossModule.quantities.curvesWithPoints,896);
+ assert.equal(context.crossModule.quantities.detailModule,'quantity-scurve');
+ assert.equal('series' in context.crossModule.quantities,false,'curves remain in owning quantity module only');
+ assert.equal(curves.length,896,'original per-item source curves preserved');
+ assert.ok(!JSON.stringify(context.crossModule.quantities).includes('ITEM-100'),'management summary cannot serialize raw curve points');
+});
 
 test('one procurement date rule identifies overdue delivery and late forecasts for readiness and actions',()=>{
  const position=procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-09-13',sourceRequiredOnSite:'2036-08-29',forecastDelivery:null,actualDelivery:null,status:'Ordered'});
