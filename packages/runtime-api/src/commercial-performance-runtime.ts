@@ -70,12 +70,16 @@ function moneyRefs(
 export function performancePaymentFromCanonical(
   row: PaymentStageRecord,
 ): PerformancePaymentInput {
-  const employerCertified =
-    row.amounts.employerCertifiedAmount;
+  // Cash receivables use explicit net certification after deductions. The
+  // employer/gross certification remains unchanged in the commercial ledger.
+  const net=row.amounts.netCertifiedAmount;
+  const employerCertified = net?.value!==null&&net?.value!==undefined?net:row.amounts.employerCertifiedAmount;
   const paid = row.amounts.paidAmount;
   return {
     taxBasis: employerCertified.taxBasis,
     paymentId: row.paymentId,
+    sourceStatus: row.sourceStatus,
+    certifiedAmountLabel: employerCertified===net?"Net certified receivable":"Employer certified amount",
     periodEnd: row.periodEnd,
     certificationDate: row.certificationDate,
     paymentDate: row.paymentDate,

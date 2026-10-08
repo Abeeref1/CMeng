@@ -1884,23 +1884,23 @@ function buildPaymentRegister(
       "slaCounts"
     ] = {
     paidOnTime:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.paidOnTime
         : null,
     paidLate:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.paidLate
         : null,
     overdueUnpaid:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.overdueUnpaid
         : null,
     openUnpaid:
-      slaAssessmentState ===
-        "established"
+      slaAssessmentState !==
+        "not_assessable"
         ? rawSlaCounts.openUnpaid
         : null,
     // Keep uncertified applications visible as unassessed records, while
@@ -1934,6 +1934,10 @@ function buildPaymentRegister(
     lifecycleCounts,
     slaAssessmentState,
     slaCounts,
+    latePaymentDays: (()=>{
+      const days=slaRows.filter(r=>r.lifecycle.slaState==='late'&&r.lifecycle.paymentDate&&r.lifecycle.paymentDueDate.value).map(r=>Math.round((Date.parse(r.lifecycle.paymentDate!.slice(0,10))-Date.parse(r.lifecycle.paymentDueDate.value!.slice(0,10)))/86400000));
+      return {min:days.length?Math.min(...days):null,max:days.length?Math.max(...days):null};
+    })(),
     rows,
     diagnostics: [
       "APPLIED_ASSESSED_CERTIFIED_AND_PAID_STAGES_REMAIN_SEPARATE",

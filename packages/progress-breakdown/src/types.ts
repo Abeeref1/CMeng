@@ -13,6 +13,7 @@ export interface ProgressBreakdownRow {
   longLeadActivityCount?: number;
   procurementBlockerCount?: number;
   designBlockerCount?: number;
+  completedRecordCleanupCount?:number;
   owner?: string | null;
   managementAction?: string;
   wbsId: string;

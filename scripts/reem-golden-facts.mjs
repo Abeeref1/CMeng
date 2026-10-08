@@ -35,7 +35,19 @@ try{
       compare('Section 2 '+scenario+' cap',row?.capAmount?.value,key.sectionTwoDelayDamages.cap);
     }
     compare('Sectional rate count',data.projectFacts.contractSections?.length,2);
+    for(const [section,milestone] of Object.entries(key.sectionMilestones??{}))compare('Section '+section+' completion milestone',data.projectFacts.contractSections.find(row=>String(row.sectionId)===section)?.milestoneId,milestone);
   }
+  if(page.key==='delivery-permits'){
+    compare('Permit supplied validity dates are usable',data.rows.filter(row=>row.validFrom&&row.expiryDate).length,70);
+    compare('Permit validity falsely missing',data.rows.filter(row=>['not_established','validity_not_established'].includes(row.permitStatus)).length,0);
+    compare('Permit expiry agrees with shared fact',data.rows.filter(row=>row.permitStatus==='expired').length,data.projectFacts.controls.expiredPermitCount.value);
+  }
+  if(page.key==='delivery-risks'){
+    compare('Open risk records',data.rows.filter(row=>row.status==='open').length,73);
+    compare('Risk Impact column used',data.rows.filter(row=>typeof row.impact==='number').length,110);
+  }
+  if(page.key==='material-tracking')compare('Dated installed quantities remain available',data.rows.filter(row=>typeof row.installed==='number').length,896);
+  if(page.key==='variance-trends')compare('Human-readable revision labels',Object.values(data.revisionLabels).every(label=>typeof label==='string'&&!/^schedrev_/.test(label)),true);
   if(page.key==='schedule-analytics'){
     const quality=data.projectFacts.programmeQuality;
     compare('Remaining execution float population',quality.remainingActivityCount,220);
@@ -51,6 +63,17 @@ try{
   compare(path,actual,expected);
  }
  for(const [currency,metrics] of Object.entries(key.currencies))for(const [name,expected] of Object.entries(metrics))compare(currency+' '+name,facts.commercial.currencies.find(row=>row.currency===currency)?.[name]?.value,expected);
+ const documents=await get(prefix+'/evidence/documents');
+ for(const [filename,type] of [['P8_Permit_Register.csv','permit_register'],['P8_Cost_EVM_Monthly_History.csv','cost_evm_report']]){
+  const document=documents.documents.find(row=>row.sourceFilename===filename);
+  compare(filename+' header classification',document?.classificationReview?.documentType,type);
+  compare(filename+' usable source',document?.classificationReview?.usableRegister,true);
+ }
+ for(const document of documents.documents.filter(row=>row.columnUsage?.length))compare(document.sourceFilename+' recognized columns',document.columnUsage.flatMap(table=>table.ignoredColumns).length,0);
+ const director=await get(prefix+'/director-position'),directorData=director.data??director;
+ compare('Director snapshot',digest(directorData.projectFacts),digest(facts));
+ const actions=await get(prefix+'/actions');compare('Project review action count',actions.actionCount,facts.actions.openCount.value);
+ compare('Project review one record per action',new Set(actions.actions.map(row=>row.id)).size,actions.actions.length);
  result.passed=result.checks.every(c=>c.passed);
 }catch(error){result.error=error.message;result.passed=false;}
 writeFileSync(process.env.CMENG_ANSWER_OUTPUT??'/tmp/cmeng-reem-golden-facts.json',JSON.stringify(result,null,2));

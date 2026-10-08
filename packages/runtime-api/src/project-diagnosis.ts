@@ -26,7 +26,7 @@ export function presentProjectDiagnosis(d:any){if(!d)return null;const {activiti
 export function projectDiagnosisDetails(value:any){
  if(!value)return null;
  const full=details.get(value)??value[detailKey];
- return full?{...full,completion:{...full.completion,...value.completion}}:value;
+ return full?{...full,completion:{...full.completion,...value.completion},...(value.actionRegister?{actionRegister:value.actionRegister}:{})}:value;
 }
 const count=(rows:ActivityAnalyticsRow[],test:(r:ActivityAnalyticsRow)=>boolean|null)=>{let known=0,unresolved=0;for(const row of rows){const yes=test(row);if(yes===null)unresolved++;else if(yes)known++;}return {knownCount:rows.length&&unresolved<rows.length?known:null,value:rows.length&&!unresolved?known:null,unresolvedCount:unresolved,population:rows.length};};
 

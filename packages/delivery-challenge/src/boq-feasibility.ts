@@ -46,6 +46,10 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     const row:BoqFeasibilityRow={quantityItemId:item.quantityItemId,activityId:null,description:item.description,unit:item.unit,remainingQuantity:null,laborHoursPerUnit:null,productivityBasis:'unresolved',requiredLaborHours:null,availableWorkingHours:null,requiredAveragePeople:null,submittedPeople:null,manpowerGap:null,submittedFinishIso:null,productionFinishIso:null,manpowerState:'unresolved',scheduleState:'unresolved',reason:'',scheduleReason:'',sourceRefs:item.sourceRefs.map(r=>r.source+':'+r.locator)};
     rows.push(row);
     const fail=(reason:string)=>{row.reason=reason;row.scheduleReason=reason;};
+    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>parseScheduleTime(b.asOfIso)-parseScheduleTime(a.asOfIso));
+    const latest=history[0],sameDate=history.filter(s=>s.asOfIso===latest?.asOfIso);
+    if(item.contractQuantity===null||!latest||latest.asOfIso.slice(0,10)!==schedule.dataDateIso?.slice(0,10)||new Set(sameDate.map(s=>s.installedQuantity)).size!==1||latest.installedQuantity<0||latest.installedQuantity>item.contractQuantity){fail('Installed quantity at the reporting date is missing, stale or conflicting.');continue;}
+    row.remainingQuantity=rounded(item.contractQuantity-latest.installedQuantity);
     if(quantities?.scheduleRevisionId!==schedule.sourceRevisionId){fail('BOQ-to-activity mapping belongs to a different schedule revision; confirm the current links.');continue;}
     const links=allocations.get(item.quantityItemId)??[];
     if(dataDate===null){fail('Schedule data date is unresolved.');continue;}
@@ -54,10 +58,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     row.sourceRefs.push(...link.sourceRefs.map(r=>r.source+':'+r.locator));
     if(!activity){fail('The linked activity is absent from the current programme.');continue;}
     row.submittedFinishIso=activity.forecastFinishIso??activity.currentFinishIso;
-    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>parseScheduleTime(b.asOfIso)-parseScheduleTime(a.asOfIso));
-    const latest=history[0],sameDate=history.filter(s=>s.asOfIso===latest?.asOfIso);
-    if(!latest||latest.asOfIso.slice(0,10)!==schedule.dataDateIso?.slice(0,10)||new Set(sameDate.map(s=>s.installedQuantity)).size!==1||latest.installedQuantity<0||latest.installedQuantity>item.contractQuantity){fail('Installed quantity at the reporting date is missing, stale or conflicting.');continue;}
-    row.remainingQuantity=rounded(item.contractQuantity-latest.installedQuantity);
+
     const supplied=(rates.get(item.quantityItemId+'|'+activity.activityId)??[]).filter(r=>r.unit.toUpperCase()===item.unit?.toUpperCase()&&positive(r.laborHoursPerUnit));
     const labor=resources?.sourceRevisionId===schedule.sourceRevisionId?(assignments.get(activity.activityId)??[]):[];
     if(supplied.length){

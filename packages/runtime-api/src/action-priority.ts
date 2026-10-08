@@ -34,7 +34,7 @@ export function consolidateScheduleChains(rows:ManagementAction[],model:Canonica
   replacements.set(first.actionId,{...first,actionId:key,recordKey:key,
    issue:'Recover linked programme work · '+ids.length+' activities',affectedScope:scope,
    affectedMilestones:[...new Set(group.flatMap(row=>row.affectedMilestones))],
-   requiredAction:'Agree one recovery plan for the linked activities: '+ids.join(', ')+'.',
+   requiredAction:'Agree one recovery plan covering the '+ids.length+' linked activities; confirm resources, sequencing and the forecast finish.',
    consequence:'Connected programme exceptions are one recovery task. Every affected activity remains available in Activity Review.',
    dueIso:group.flatMap(row=>row.dueIso?[row.dueIso]:[]).sort()[0]??null,
    sourceRefs:[...new Set(group.flatMap(row=>row.sourceRefs))],

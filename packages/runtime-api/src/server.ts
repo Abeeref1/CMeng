@@ -156,7 +156,10 @@ export function projectDocumentRegister(projectId:string){
             mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
-            classificationReview: documentClassificationForReview(document),
+            classificationReview: documentClassificationForReview(document,schemaByDocument.has(document.documentId)?[
+              schemaByDocument.get(document.documentId)!.headers,
+              ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
+            ]:undefined),
             readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(

@@ -1,17 +1,69 @@
+import {procurementTiming} from '../packages/truth-kernel/src';
+import {deriveReadinessFromCsv} from '../packages/runtime-api/src/evidence-readiness';
+import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
+import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {managementSourceInventory} from '../packages/runtime-api/src/management-source-inventory';
+import {managementVisualControl} from '../packages/runtime-api/src/management-visual-control';
+import {commercialPositionForState} from '../packages/runtime-api/src/commercial-runtime';
+import {performanceSecurityValidity} from '../packages/commercial-contract-controls/src/security-validity';
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
 import {reportingState} from '../packages/runtime-api/src/reporting-state';
 import {prioritizeActions,actionRecordKey,consolidateScheduleChains} from '../packages/runtime-api/src/action-priority';
 import {managementAction} from '../packages/truth-kernel/src';
 import {classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
 import {analyzeSchedule} from '../packages/schedule-analysis-core/src';
+import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import {projectActionRegisterForState,moduleForProject,directorForProject} from '../packages/runtime-api/src/project-projections';
 import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-scenario';
-import {contractCompletionDependencies} from '../packages/runtime-api/src/project-contract-sections';
+import {contractCompletionDependencies,sectionCompletionMilestone} from '../packages/runtime-api/src/project-contract-sections';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+
+test('management source inventory reads retained CSV rows and follows header identity before the filename',()=>{
+ const folder=mkdtempSync(join(tmpdir(),'cmeng-source-inventory-'));
+ try{
+  const state=loadCertifiedDemoProject('CSV-INVENTORY-'+randomUUID()),path=join(folder,'Quality-risk.csv');
+  const csv='RFI ID,Subject,Status,Raised Date,Due Date,Linked Activity,Discipline\nRFI-1,Drawing,Open,2026-01-01,2026-01-08,A,MEP\nRFI-2,Detail,Closed,2026-01-01,2026-01-08,B,STR\n';
+  writeFileSync(path,csv);state.evidenceDocuments=[{documentId:'CSV-ONLY',documentType:'supporting_document',sourceFilename:'Quality-risk.csv',mediaType:'text/csv',sourceHashSha256:createHash('sha256').update(csv).digest('hex'),storedPath:path,basisState:'active',parserState:'parsed'} as any];
+  const inventory=managementSourceInventory(state);
+  assert.equal(inventory.domains.find(row=>row.domain==='design')!.readableRowCount,2);
+  assert.equal(inventory.domains.find(row=>row.domain==='quality')!.documentCount,0);
+ }finally{rmSync(folder,{recursive:true,force:true});}
+});
+
+test('management driver groups retain the entire network and delayed WBS groups exclude completed work',()=>{
+ const state=loadCertifiedDemoProject('FULL-DRIVER-'+randomUUID());
+ const rows=Array.from({length:35},(_,i)=>({activityId:'A'+i,name:'Task '+i,wbsId:'W',wbsPath:'Work',status:i===34?'completed':'not_started',activityType:'task',currentFinishIso:i===33?'2036-12-31':'2036-02-01',totalFloatHours:-8,finishVarianceDays:5}));
+ const modules=new Map([['activity-analytics',{data:{rows}}],['independent-forecast',{data:{drivingNetwork:{activityIds:rows.slice(0,34).map(row=>row.activityId),finishActivityIds:['A33']}}}],['milestones',{data:{rows:[{activityId:'A33',status:'not_started',currentDateIso:'2036-12-31'}]}}]]) as any;
+ const view=managementVisualControl(state,modules,commercialPositionForState(state),{dataDateIso:'2036-01-01',schedule:{longLeadEvidence:[]}} as any);
+ assert.equal(view.schedule.drivingActivities.length,34);assert.equal(view.schedule.priorityGroups[0]!.activityCount,34);
+ assert.equal(view.schedule.priorityGroups[0]!.latestCurrentFinishIso,'2036-12-31');assert.deepEqual(view.schedule.priorityGroups[0]!.milestoneIds,['A33']);
+ assert.equal(view.schedule.delayedWbs.reduce((sum,row)=>sum+row.count,0),34);
+});
+
+test('performance security expiry does not imply coverage through the contract defects obligation',()=>{
+ const bond:any={bondId:'PB',kind:'performance',status:'active',expiryIso:'2027-12-31',sourceRefs:['register:PB']};
+ const clauses:any=[{textPreview:'Performance Security shall be valid until the Contractor has completed the Works and remedied any defects.',sourceRef:'contract:4.2'}];
+ const result=performanceSecurityValidity(bond,clauses,'2027-10-06')!;
+ assert.equal(result.daysAfterProgrammeFinish,86);assert.equal(result.state,'review_required');assert.equal(result.requiredReleaseDateIso,null);assert.match(result.message,/defects obligations/);
+ assert.match(performanceSecurityValidity({...bond,expiryIso:'2027-10-01'},clauses,'2027-10-06')!.message,/5 calendar days before/);
+ assert.equal(performanceSecurityValidity({...bond,kind:'advance_payment'},clauses,'2027-10-06'),null);
+});
+
+test('revision engineering checks separate duration, constraints, lags and completion movement',()=>{
+ const state=loadCertifiedDemoProject('ENGINEERING-CHANGES-'+randomUUID());
+ const from=structuredClone(state.schedules[0]!.revision),to=structuredClone(state.schedules[0]!.revision),template=from.model.activities[0]!;
+ from.model.activities=[{...template,activityId:'A',activityType:'task',status:'not_started',currentFinishIso:'2036-06-01',forecastFinishIso:null,actualFinishIso:null,originalDurationHours:8,remainingDurationHours:8,sourceConstraints:[]},{...template,activityId:'FIN',name:'Project completion',activityType:'finish_milestone',status:'not_started',currentFinishIso:'2036-07-01',forecastFinishIso:null,actualFinishIso:null}];
+ from.model.dataDateIso='2036-01-01';from.model.relationships=[{relationshipId:'LINK',predecessorActivityId:'A',successorActivityId:'FIN',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]}];
+ to.revisionId+='-2';to.model=structuredClone(from.model);to.model.dataDateIso='2036-04-01';to.model.activities[0]!.originalDurationHours=16;to.model.activities[0]!.sourceConstraints=[{type:'CS_MEO',dateIso:'2036-05-31'}];to.model.activities[1]!.currentFinishIso='2036-07-08';to.model.relationships[0]!.type='SS';to.model.relationships[0]!.lagHours=8;
+ const result=buildScheduleChangeReportProjection(from,to,{generatedAt:'2036-04-01',producerVersion:'test'}).engineeringChanges!;
+ assert.deepEqual(result.originalDurationActivityIds,['A']);assert.deepEqual(result.constraintActivityIds,['A']);assert.equal(result.lagChangeCount,1);assert.equal(result.relationshipTypeChangeCount,1);assert.equal(result.completionMovementDays,7);assert.equal(result.updateGapCalendarDays,91);
+});
 
 test('forward receipt assumptions conserve each currency and missing deductions withhold only the net figure',()=>{
  const position:any={foundation:{commercialTerms:{retentionPercent:{value:5},paymentPeriodDays:{value:45}}},contractControls:{liquidatedDamages:{scenarios:[{forecastCompletion:{value:'2036-10-15'}}]}},currencies:[{currency:'USD',currentContractValue:{value:1000},grossCertifiedAmount:{value:400},advanceBalance:{value:30}}]};
@@ -32,6 +84,13 @@ test('contract section dependencies and detailed-claim trigger use their own exp
  const detailed=contractNoticeRules(state,'detailed_claim');assert.equal(detailed[0]!.noticePeriodDays,42);assert.equal(detailed[0]!.triggerBasis,'awareness');
  state.contractDocuments[0]!.result.pdf!.pages[0]!.text='20.2.4 Fully detailed claim\nWithin 42 days submit supporting particulars.';
  assert.equal(contractNoticeRules(state,'detailed_claim')[0]!.triggerBasis,'not_stated','the initial notice trigger must not be borrowed for a detailed claim');
+});
+
+test('section completion chooses the named scope milestone and retains ambiguous matches',()=>{
+ const rows:any=[{activityId:'ELEC',activityType:'finish_milestone',name:'Electrical Infrastructure - Complete'},{activityId:'INFRA',activityType:'finish_milestone',name:'Infrastructure Completion & Handover - Complete'},{activityId:'ALL',activityType:'finish_milestone',name:'Contractual Completion of the Works'}];
+ assert.equal(sectionCompletionMilestone(rows,'Infrastructure')?.activityId,'INFRA');
+ assert.equal(sectionCompletionMilestone(rows,'the whole of the Works')?.activityId,'ALL');
+ assert.equal(sectionCompletionMilestone([...rows,{...rows[1],activityId:'DUP'}],'Infrastructure'),null);
 });
 
 test('baseline start and finish come from the matched adopted baseline, never the update target dates',()=>{
@@ -86,11 +145,14 @@ test('all management surfaces, the Director and project review use one complete 
  assert.equal(register.workflow.actionCount,register.actions.length);
  assert.deepEqual(register.workflow.actions.map(a=>a.id),register.actions.map(a=>a.actionId));
  assert.equal(new Set(register.actions.map(a=>a.recordKey)).size,register.actions.length);
- for(const key of ['command-center','cross-domain-accountability']){
+ for(const key of ['master-dashboard','command-center','cross-domain-accountability']){
    const data=moduleForProject(state.projectId,key).data as any;
    assert.deepEqual(data.actions.map((a:any)=>a.actionId),register.actions.map(a=>a.actionId));
    assert.equal(data.projectFacts.actions.openCount.value,register.actions.length);
  }
+ const brief=moduleForProject(state.projectId,'pmo-analysis').data as any;
+ assert.equal(brief.projectDiagnosis.actionRegister.total,register.actions.length);
+ assert.deepEqual(brief.projectDiagnosis.actionRegister.actions.map((a:any)=>a.actionId),register.actions.slice(0,5).map(a=>a.actionId));
  const director=directorForProject(state.projectId)!;
  assert.equal(director.managementActionCount,register.actions.length);
  assert.equal(director.managementActions.length,register.actions.length);
@@ -119,4 +181,50 @@ test('two equivalent crews recover local time on a cross-plot chain and never al
  model.relationships=Array.from({length:3},(_,i)=>({relationshipId:'LINK'+i,predecessorActivityId:'A'+i,successorActivityId:'A'+(i+1),type:'FS' as const,lagHours:0,external:false,sourceRefs:[],diagnostics:[]}));
  const before=JSON.stringify(model),scenarios=plotCrewScenarios(model);assert.equal(scenarios.length,1);assert.equal(scenarios[0]!.possibleDaysRecovered,2);assert.match(scenarios[0]!.assumption,/LINK0, LINK1, LINK2/);assert.match(scenarios[0]!.effectBasis,/local chain/);assert.equal(JSON.stringify(model),before);
  model.activities[1]!.sourceConstraints=[{type:'CS_MSO',dateIso:'2034-02-01'}];assert.equal(plotCrewScenarios(model)[0]!.possibleDaysRecovered,null,'unresolved constraint effect is not bypassed for a scenario');
+});
+
+
+test('one procurement date rule identifies overdue delivery and late forecasts for readiness and actions',()=>{
+ const position=procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-09-13',sourceRequiredOnSite:'2036-08-29',forecastDelivery:null,actualDelivery:null,status:'Ordered'});
+ assert.equal(position.overdueUndelivered,true);assert.equal(position.needDate,'2036-08-29');
+ assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-09-13',sourceRequiredOnSite:null,forecastDelivery:'2036-09-20',actualDelivery:null,status:'Ordered'}).headroomCalendarDays,-7);
+ assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:null,actualDelivery:'2036-09-02',status:'Delivered'}).overdueUndelivered,true,'future delivery must not clear a current blocker');
+ assert.equal(procurementTiming({dataDateIso:'2036-08-31',programmeNeedDate:'2036-08-29',sourceRequiredOnSite:null,forecastDelivery:'2036-09-02',actualDelivery:'2036-08-28',status:'Ordered'}).deliveredAtDataDate,true,'actual date wins over stale source status');
+ const state=loadCertifiedDemoProject('PACKAGE-READINESS-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
+ model.dataDateIso='2036-08-31';model.activities=[{...model.activities[0]!,activityId:'FIRE',activityType:'task',status:'not_started',actualStartIso:null,actualFinishIso:null,currentStartIso:'2036-09-13',currentFinishIso:'2036-09-24',forecastFinishIso:null,totalFloatHours:-88}];model.relationships=[];
+ const document={documentType:'procurement_register',documentId:'PACKAGES'} as any;
+ const readiness=deriveReadinessFromCsv({state,document,dataDateIso:'2036-08-31',bytes:Buffer.from('Package ID,Linked Activity,Required On Site,Forecast Delivery,Status,Owner\nPUMP,FIRE,2036-08-29,,Ordered,Procurement Manager')});
+ assert.equal(readiness.FIRE!.procurement_material!.state,'blocked');assert.equal(readiness.FIRE!.procurement_material!.records![0]!.owner,'Procurement Manager');
+ const result=buildLookAheadProjection(model,{generatedAt:'2036-08-31',producerVersion:'test',readinessEvidence:readiness,drivingActivityIds:['FIRE']});
+ assert.equal(result.blockedCount,1);assert.equal(result.rows[0]!.totalFloatHours,-88);assert.equal(result.rows[0]!.drivingPath,true);
+ assert.equal(result.managementInterventions![0]!.owner,'Procurement Manager');assert.deepEqual(result.blockerTypes![0]!.recordIds,['PUMP']);
+});
+
+
+test('completed work carries register cleanup rather than a release-to-start blocker',async()=>{
+ const {buildProgressBreakdownProjection}=await import('../packages/progress-breakdown/src');
+ const state=loadCertifiedDemoProject('COMPLETED-READINESS-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
+ model.dataDateIso='2036-08-31';model.activities=[{...model.activities[0]!,activityId:'DONE',wbsId:'AREA',activityType:'task',status:'completed',actualFinishIso:'2036-08-01',percentComplete:100}];model.wbs=[{wbsId:'AREA',parentWbsId:null,name:'Finished area',sourceRefs:[]}];model.relationships=[];
+ const result=buildProgressBreakdownProjection(model,{generatedAt:'2036-08-31',producerVersion:'test',readinessEvidence:{DONE:{design_submittal:{state:'blocked',records:[{owner:'Design manager'}]}}}});
+ assert.equal(result.rows[0]!.designBlockerCount,0);assert.equal(result.rows[0]!.completedRecordCleanupCount,1);assert.match(result.rows[0]!.managementAction!,/closeout/);assert.equal(result.rows[0]!.owner,'Design manager');
+});
+
+test('certified measured-work ratios exclude applications and future certification dates',async()=>{
+ const {certificateProfile}=await import('../packages/runtime-api/src/certificate-profile');
+ const amount=(value:number)=>({value,currency:'USD',taxBasis:'exclusive',receipts:[]});
+ const row=(id:string,status:string,date:string|null)=>({paymentId:id,periodEnd:'2036-08-01',certificationDate:date,certifiedAmountBasis:'incremental',sourceStatus:status,amounts:{grossWork:amount(100),variations:amount(10),retentionDeduction:amount(5),advanceRecovery:amount(10),netCertifiedAmount:amount(95)}});
+ const result=certificateProfile({dataDateIso:'2036-08-31',payments:[row('CERT','Certified','2036-08-10'),row('APP','Application',null),row('FUTURE','Certified','2036-09-10')]} as any).groups[0]!;
+ assert.equal(result.certifiedCount,1);assert.equal(result.certifiedTotals!.grossWork,100);assert.equal(result.totals!.grossWork,300,'retained source period arithmetic stays a separate population');
+});
+
+
+test('delay evidence shows dated awards and excludes completed work from current pressure',async()=>{
+ const {buildDelayEotEvidenceChain}=await import('../packages/runtime-api/src/delay-eot-evidence-chain');
+ const state=loadCertifiedDemoProject('AWARD-CHAIN-'+randomUUID()),model=state.schedules.at(-1)!.revision.model,template=model.activities[0]!;
+ model.dataDateIso='2036-08-31';model.activities=[{...template,activityId:'OPEN',activityType:'task',status:'not_started',baselineFinishIso:'2036-09-01',currentFinishIso:'2036-10-01',forecastFinishIso:null,totalFloatHours:-8},{...template,activityId:'DONE',activityType:'task',status:'completed',baselineFinishIso:'2036-01-01',actualFinishIso:'2036-02-01',totalFloatHours:-8}];
+ const event:any={eventId:'C:event',title:'Access',linkedClaimIds:['C'],noticeIds:[],relatedActivityIds:['OPEN'],overlappingWindowIds:[],determinationIds:['DET'],noticeTimeliness:'unknown',candidateClass:'insufficient_evidence',describedImpactDays:4,describedImpactState:'candidate',responsibility:'employer',responsibilityState:'candidate',observedPositiveProgrammeMovementDays:10};
+ const input:any={schedule:model,windows:{revisionCount:1,windows:[],projectCompletionMovementDays:10},delay:{events:[event]},notices:{events:[]},populationState:'established',sourceClaimCount:1,quarantinedClaimCount:0,determinations:[{determinationId:'DET',claimId:'C',state:'source_immutable',determinationDate:'2036-08-10',awardedDays:4,supersedes:null}]};
+ const chain=buildDelayEotEvidenceChain(input);
+ assert.equal(chain.programmeContext.delayedActivityCount,1);assert.equal(chain.programmeContext.negativeFloatActivityCount,1);assert.equal(chain.rows[0]!.links.find(row=>row.key==='eot')!.value,4);
+ input.determinations[0].determinationDate='2036-09-10';assert.equal(buildDelayEotEvidenceChain(input).rows[0]!.links.find(row=>row.key==='eot')!.value,null);
 });

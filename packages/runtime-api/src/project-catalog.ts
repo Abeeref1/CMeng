@@ -1,7 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,rename,rm} from 'node:fs/promises';
 import {join} from 'node:path';
-import {statSync,writeFileSync,renameSync} from 'node:fs';
+import {statSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {isProgrammeScheduleRevision} from './project-identity';
 import type {ProjectRuntimeState} from './project-state-types';
 import {readSnapshotJson,writeSnapshotJson} from './snapshot-json';
@@ -10,7 +10,8 @@ export const release=()=>process.env.RAILWAY_GIT_COMMIT_SHA??process.env.GIT_COM
 export const projectDirectory=(root:string,id:string)=>join(root,'projects',createHash('sha256').update(id).digest('hex'));
 export async function atomicJson(path:string,value:unknown){
   const temporary=path+'.'+randomUUID()+'.tmp';
-  await writeFile(temporary,JSON.stringify(value));await rename(temporary,path);
+  try{await writeFile(temporary,JSON.stringify(value));await rename(temporary,path);}
+  finally{await rm(temporary,{force:true}).catch(()=>{});}
 }
 export function projectMetadata(state:ProjectRuntimeState){
   const schedules=state.schedules.filter(isProgrammeScheduleRevision);
@@ -27,7 +28,8 @@ export function projectMetadata(state:ProjectRuntimeState){
 export function snapshotStamp(directory:string){const s=statSync(join(directory,'cmeng-project-state.json'));return String(s.mtimeMs)+':'+s.size;}
 export function persistProjectMetadata(directory:string,state:ProjectRuntimeState){
   const target=join(directory,'metadata.json'),temp=target+'.'+randomUUID()+'.tmp';
-  writeFileSync(temp,JSON.stringify({metadata:projectMetadata(state),stamp:snapshotStamp(directory)}));renameSync(temp,target);
+  try{writeFileSync(temp,JSON.stringify({metadata:projectMetadata(state),stamp:snapshotStamp(directory)}));renameSync(temp,target);}
+  finally{rmSync(temp,{force:true});}
 }
 export type ProjectMetadata=ReturnType<typeof projectMetadata>;
 export type CatalogEntry={projectId:string;metadata:ProjectMetadata|null;summary:Record<string,any>|null;summaryRelease:string|null};

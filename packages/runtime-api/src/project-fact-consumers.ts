@@ -49,9 +49,19 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     bind('controls.'+name,['controls.'+name,'controls.reporting.counts.'+name,'operationalReporting.counts.'+name]);
   }
   bind('commercial.expiredBondCount',['controls.expiredBondCount']);
+  if(key==='delivery-quality'&&Array.isArray(at(data,'metrics'))){
+    const metrics=at(data,'metrics'),index=metrics.length;
+    data=write(data,['metrics'],[...metrics,{label:'Open critical / major NCRs',value:facts.controls.openCriticalMajorNcrCount.value,unit:'records',state:facts.controls.openCriticalMajorNcrCount.state,basis:facts.controls.openCriticalMajorNcrCount.basis}]);
+    bind('controls.openCriticalMajorNcrCount',['metrics.'+index+'.value']);
+  }
+  bind('schedule.delayedExecutionActivityCount',['delayEotEvidenceChain.programmeContext.delayedActivityCount','contextualProgrammeIntelligence.delayedActivityCount']);
+  bind('schedule.negativeFloatActivityCount',['delayEotEvidenceChain.programmeContext.negativeFloatActivityCount','contextualProgrammeIntelligence.negativeFloatActivityCount']);
   bind('actions.openCount',['actionCount','managementActionCount']);
-  bind('time.contractualCompletionIso',['claims.contractualCompletionIso','schedule.contractualCompletionIso']);
+  bind('time.contractualCompletionIso',['claims.contractualCompletionIso','schedule.contractualCompletionIso','recoveryTargets.original.dateIso']);
+  bind('time.extendedContractCompletionIso',['recoveryTargets.extended.dateIso']);
+  bind('schedule.submittedProgrammeCompletionIso',['recoveryTargets.submittedCompletionIso']);
   bind('time.extendedContractCompletionIso',['claims.officialAdjustedCompletionIso','schedule.officialAdjustedCompletionIso']);
+  if(key==='eot-assessment'){bind('time.contractualCompletionIso',['originalContractualCompletionIso']);bind('time.awardedEotDays',['officialApprovedEotDays']);bind('time.extendedContractCompletionIso',['officialAdjustedCompletionIso']);bind('schedule.submittedProgrammeCompletionIso',['sourceForecastCompletionIso']);}
   if(key==='independent-forecast')bind(facts.time.extendedContractCompletionIso.value!==null?'time.extendedContractCompletionIso':'time.contractualCompletionIso',['requiredFinishIso','forecastTaxonomy.contractualCompletion.completionIso']);
   for(const base of ['completionPosition','projectDiagnosis.completion','completion']){
     if(!at(data,base))continue;

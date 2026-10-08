@@ -1,3 +1,4 @@
+import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
@@ -1054,6 +1055,7 @@ function buildBundle(
     buildLookAheadProjection(
       model,
       {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
         generatedAt,
         producerVersion:
           versions.lookAhead,
@@ -1967,6 +1969,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     noticeAssessmentAvailable &&
     noticesClaims.noticeRequirementMissingCount === 0;
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    determinations:canonicalTimeClaims(state).determinations,
     schedule: model,
     windows,
     delay: delayClaims,
@@ -4148,6 +4151,7 @@ function buildPlanningModuleFast(
         buildLookAheadProjection(
           model,
           {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
             generatedAt,
             producerVersion:
               "planning-fast:lookahead-v1",
@@ -4483,6 +4487,7 @@ function buildPlanningModuleFast(
       buildLookAheadProjection(
         model,
         {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
           generatedAt,
           producerVersion:
             "planning-fast:lookahead-v1",
@@ -4792,14 +4797,6 @@ const specialistModuleCache =
     }
   >();
 
-const independentForecastCache =
-  new WeakMap<
-    ProjectRuntimeState["schedules"][number]["revision"]["model"],
-    ReturnType<
-      typeof buildIndependentForecastProjection
-    >
-  >();
-
 const sourceOnlyForecastCache =
   new Map<
     string,
@@ -5044,41 +5041,6 @@ function sourceOnlyForecast(
   return projection;
 }
 
-function cachedIndependentForecast(
-  model:
-    ProjectRuntimeState["schedules"][number]["revision"]["model"],
-  generatedAt: string,
-) {
-  const key =
-    model;
-  const cached =
-    independentForecastCache.get(
-      key,
-    );
-  if (cached) {
-    return cached;
-  }
-  const projection =
-    buildIndependentForecastProjection(
-      model,
-      {
-        generatedAt,
-        producerVersion:
-          "independent-forecast-fast-v1",
-        cpmConfig:{applySourceConstraints:true},
-      },
-    );
-  const calendarReview=reviewScheduleCalendarBasis(model);
-  if(calendarReview.state==='calendar_basis_difference'){
-    projection.origin='scenario_with_assumptions';
-    projection.assumptions.push('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION');
-  }
-  independentForecastCache.set(
-    key,
-    projection,
-  );
-  return projection;
-}
 
 const claimsFastContextCache =
   new Map<
@@ -5193,6 +5155,7 @@ function claimsFastContext(
     },
   );
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
+    determinations:canonicalTimeClaims(state).determinations,
     schedule: current.revision.model,
     windows,
     delay,
@@ -6236,6 +6199,7 @@ function buildSpecialistModuleFast(
       buildLookAheadProjection(
         model,
         {
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
           generatedAt,
           producerVersion:
             "progress-position:lookahead-v1",
@@ -7618,6 +7582,7 @@ function resolveProjectModuleCandidate(
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
+    if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
   }
   return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims)));
 }
@@ -7761,7 +7726,21 @@ export function moduleForProject(
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
-  if (isDeliveryPage(key)) {const scoped=reportingState(state);return finalize(attachReportingContract(scoped,deliveryModule(scoped,key)));}
+  if (isDeliveryPage(key)) {
+    const scoped=reportingState(state),result=deliveryModule(scoped,key);
+    const deliveryData=result.data as any;
+    const register=projectActionRegisterForState(state);
+    const moduleOwner=['long-lead','procurement-readiness','procurement-scurves','material-tracking'].includes(key)?'procurement-packages':key;
+    const sourceRecords=deliveryData?.reviewRecords??[];
+    const sourceByReference=new Map(sourceRecords.map((r:any)=>[String(r.reference??'').toLowerCase(),r]));
+    const priorityActions=register.actions.filter(a=>a.owningModule===moduleOwner&&(!sourceRecords.length||sourceByReference.has(a.recordKey?.split('|').slice(1).join('|')??'')));
+    result.data={...deliveryData,priorityFindings:priorityActions.map(a=>({message:a.issue,action:a.requiredAction,recordId:(sourceByReference.get(a.recordKey?.split('|').slice(1).join('|')??'') as any)?.recordId??null,sourceRefs:a.sourceRefs,priorityBasis:a.priorityBasis}))};
+    if(key==='delivery-control'){
+      const actions=register.actions.filter(a=>isDeliveryPage(a.owningModule??''));
+      result.data={...(result.data as object),findings:[],managementActions:actions.map(a=>({actionId:a.actionId,recordKey:a.recordKey,issue:a.issue,workfront:a.affectedMilestones.join('; ')||null,affectedSchedule:a.affectedScope,package:a.recordKey?.startsWith('procurement|')?a.recordKey.split('|')[1]:null,owner:a.owner??a.organisation,requiredDate:a.dueIso,consequence:a.consequence,action:a.requiredAction,priorityBasis:a.priorityBasis,sourceRefs:a.sourceRefs})),managementPosition:actions.length+' delivery actions from the shared project action register, ranked by linked programme and commercial effect.'};
+    }
+    return finalize(attachReportingContract(scoped,result));
+  }
   if (key==='scope-classification') return finalize(resolveProjectModuleUncertified(reportingState(state),key));
   if (key==='monte-carlo-risk') return finalize(scheduleRiskMonteCarlo(reportingState(state)));
   if (key==='earned-schedule') return finalize(earnedScheduleForState(reportingState(state)));
@@ -8446,7 +8425,7 @@ export function managementSurfacesForProject(
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
-    masterDashboard: {projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {actions:canonicalActions,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,operationalReporting:operationalReporting(state),interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:operationalReporting(state),sourceInterpretation:director?.sourceInterpretation} };
   for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])Object.assign(surface,{sourceLabels:projectSourceLabels(state)});

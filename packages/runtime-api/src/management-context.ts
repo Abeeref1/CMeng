@@ -110,7 +110,10 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
   const stageByActivity=new Map<string,ProgrammeControlStage>();
   const stageFor=(activity:typeof model.activities[number]):ProgrammeControlStage=>{
     const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
-    return stageRules.find(rule=>rule.pattern.test(text))?.stage??'other';
+    const direct=stageRules.find(rule=>rule.pattern.test(activity.name??''));
+    if(direct)return direct.stage;
+    if(activity.activityType==='finish_milestone'&&/complet(?:e|ion)/i.test(activity.name??''))return 'handover';
+    return stageRules.find(rule=>rule.pattern.test(text))?.stage??(/\binfrastructure\b|\broads?\b|\bpaving\b|\bdrainage\b|\bsewer\b|\birrigation\b|\bvillas?\b/i.test(text)?'construction':'other');
   };
   for(const activity of model.activities){
     if(['level_of_effort','wbs_summary'].includes(activity.activityType))continue;
@@ -129,7 +132,6 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
     const rows=buckets.get(stage)??[];if(!rows.length)return [];
     const currentStarts=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
     const currentFinishes=rows.map(r=>r.currentFinishIso).filter((v):v is string=>!!v).sort();
-    const forecastFinishes=rows.map(r=>r.forecastFinishIso).filter((v):v is string=>!!v).sort();
     const effectiveFinishes=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
     const open=rows.filter(r=>r.status!=='completed');
     const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
@@ -145,7 +147,7 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
       dependencyStages:[...(incomingStages.get(stage)??new Set<ProgrammeControlStage>())],
       earliestStartIso:currentStarts[0]??null,latestFinishIso:effectiveFinishes.at(-1)??null,
       earliestCurrentStartIso:currentStarts[0]??null,latestCurrentFinishIso:currentFinishes.at(-1)??null,
-      latestForecastFinishIso:forecastFinishes.at(-1)??null,lowestFloatHours:knownFloat.length?Math.min(...knownFloat):null,
+      latestForecastFinishIso:effectiveFinishes.at(-1)??null,lowestFloatHours:knownFloat.length?Math.min(...knownFloat):null,
       sampleActivities:[...open].sort((a,b)=>(a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER))
         .slice(0,5).map(r=>({activityId:r.activityId,name:r.name,wbsPath:r.wbsId?paths.get(r.wbsId)??null:null,
           currentFinishIso:r.currentFinishIso,forecastFinishIso:r.forecastFinishIso,

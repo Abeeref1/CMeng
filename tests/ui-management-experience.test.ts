@@ -158,7 +158,7 @@ test('calendar source context changes with the evidence rather than applying one
   assert.match(review,/This date is excluded from delay and entitlement/);
 });
 
-test('fully evidenced actual cash renders its currency-specific chart; incomplete funding evidence cannot enable that chart',()=>{
+test('cash receipts remain visible when incomplete expenditure prevents the net funding curve',()=>{
   const names=new Set<string>();
   const node=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderCommercialVisual')!;
   function visit(n:Node){if(isCallExpression(n)&&isIdentifier(n.expression))names.add(n.expression.text);forEachChild(n,visit);}
@@ -174,7 +174,8 @@ test('fully evidenced actual cash renders its currency-specific chart; incomplet
   assert.deepEqual(Array.from(charts[0].points,(p:any)=>p.net),[3,6]);
   row.sourceReadiness.fundingCurveReady=false;charts.length=0;
   runInNewContext(code+';renderCommercialVisual("cash-flow",data)',context);
-  assert.equal(charts.length,0);
+  assert.equal(charts.length,1);
+  assert.deepEqual(Array.from(charts[0].series,(s:any)=>s.key),['paid'],'Known receipts do not establish net cash');
 });
 
 test('all six lenses retain access to the full module and leadership does not invent repeated actions',()=>{
@@ -280,7 +281,7 @@ test('shared verdict, source scope and Source Quality distinguish source issues 
 
 test('delay and float matrix visibly reconciles excluded LOE and WBS records',()=>{
  const render=functions(['planningActivityPressure']);const html=runInNewContext(render+';planningActivityPressure(rows)',{...common,rows:[{activityType:'task',criticality:'critical',finishVarianceDays:4},{activityType:'level_of_effort',criticality:'critical',finishVarianceDays:4},{activityType:'wbs_summary',finishVarianceDays:null}]});
- assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 execution activities/);
+ assert.match(html,/LOE \/ WBS summaries/);assert.match(html,/2 source records excluded/);assert.match(html,/All 1 unfinished execution activities/);
 });
 test('source quality and date scope preserve record evidence behind concise disclosures',()=>{
  const render=functions(['renderSourceQuality','renderRegisterScope','experienceDisclosure','readerIssue']);

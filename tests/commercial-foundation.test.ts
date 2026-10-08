@@ -696,3 +696,13 @@ test("official contractual completion remains established and approved", () => {
   assert.equal(completion.authority,"approved");
   assert.equal(completion.action,null);
 });
+
+
+test('one missing due date retains the timing outcomes of the other certificates',()=>{
+ const value=input(),base=value.payments[0]!;
+ value.payments=[{...base,paymentId:'KNOWN',periodEnd:'2026-07-31',certificationDate:'2026-08-01',paymentDate:'2026-08-20',paymentDueDate:'2026-08-10'},
+ {...base,paymentId:'UNKNOWN',periodEnd:'2026-07-31',certificationDate:'2026-08-01',paymentDate:null,paymentDueDate:null}];
+ value.contractTimeBasis=null;
+ const p=buildCommercialFoundation(value).paymentRegister;
+ assert.equal(p.slaCounts.paidLate,1);assert.deepEqual(p.latePaymentDays,{min:10,max:10});
+});

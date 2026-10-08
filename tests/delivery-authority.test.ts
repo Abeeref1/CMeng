@@ -178,7 +178,9 @@ test('formal Interface Register upload is identified and mapped to interface can
  const record=deliveryRecords(f.state).records.find(r=>r.reference==='IF-001')!;
  assert.equal(record.kind,'interface');assert.equal(record.state,'extracted_candidate');assert.equal(record.fields['giving party'],'Design Consultant');
  const page=deliveryModule(f.state,'delivery-interfaces');
- assert.equal(page.status,'blocked','candidate register rows remain review evidence until governed');
+ assert.equal(page.status,'partial','clean register rows are usable without claiming confirmation');
+ assert.equal((page.data as any).rows[0].authority,'source');
+ assert.equal((page.data as any).rows[0].state,'overdue');
  assert.equal((page.data as any).title,'Interface Management');
  assert.equal((page.data as any).confirmedCount,0);
 });

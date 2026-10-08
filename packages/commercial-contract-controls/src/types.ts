@@ -459,6 +459,7 @@ export interface LiquidatedDamagesProjection {
 }
 
 export interface BondPosition {
+  contractValidity?:ReturnType<typeof import('./security-validity').performanceSecurityValidity>;
   bondId: string;
   kind: BondControlInput["kind"];
   status: BondControlInput["status"];

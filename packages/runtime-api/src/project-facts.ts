@@ -11,6 +11,7 @@ import {pmcScheduleRules} from './pmc-schedule-rules';
 import {projectActionRegisterForState} from './project-projections';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
+import {deliveryPosition} from './delivery-projections';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -48,15 +49,17 @@ export interface ProjectFactsSnapshot {
     contractualCompletionIso:ProjectFact<string>;
     awardedEotDays:ProjectFact<number>;
     extendedContractCompletionIso:ProjectFact<string>;
+    submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
   };
   controls:{
     openRfiCount:ProjectFact<number>;
     overdueRfiCount:ProjectFact<number>;
     openCriticalMajorNcrCount:ProjectFact<number>;
     openRiskCount:ProjectFact<number>;
+    expiredPermitCount?:ProjectFact<number>;
   };
   claims:{
-    pipeline?:{recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;basis:string};
+    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;basis:string};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -101,7 +104,7 @@ function fact<T>(
   sourceRefs:string[]=[],
   diagnostics:string[]=[],
 ):ProjectFact<T>{
-  return {value,state,complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
+  return {value,state:value===null?'missing':state,complete:value===null?false:complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
 }
 
 function aggregateFact(
@@ -193,6 +196,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ??null;
 
   const operations=operationalReporting(scoped);
+  const permitRows=deliveryPosition(scoped).permitRows;
   const openRfiKnown=operations.rfi.state==='missing'?null:operations.rfi.current.filter((row:any)=>row.status==='open').length;
   const overdueRfiKnown=operations.rfi.state==='missing'?null:operations.rfi.current.filter((row:any)=>
     row.status==='open'&&row.dueIso&&operations.dataDateIso&&row.dueIso<operations.dataDateIso
@@ -260,6 +264,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     time:{
+      submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,
         'Canonical contract-time position used by every consumer.',
@@ -275,6 +280,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     controls:{
+      expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)?null:row.permitStatus==='expired'),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
       openRfiCount:sourceCount(
         operations.counts.openRfiCount,
         openRfiKnown,
@@ -301,7 +307,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     claims:{
-      ...(reportedClaims?{pipeline:{recordCount:reportedClaims.recordCount,claimedDays:reportedClaims.claimedDays.value,assessedDays:reportedClaims.assessedDays.value,
+      ...(reportedClaims?{pipeline:{rows:reportedClaims.rows.map(row=>({claimId:row.claimId,state:row.sourceStatus||row.state,claimedDays:row.claimedDays,assessedDays:row.assessedDays})),recordCount:reportedClaims.recordCount,claimedDays:reportedClaims.claimedDays.value,assessedDays:reportedClaims.assessedDays.value,
         pendingCount:pendingClaims.length,pendingAssessedDays,
         pendingScenarioCompletionIso:extendedCompletion&&pendingAssessedDays!==null?new Date(Date.parse(extendedCompletion.slice(0,10))+pendingAssessedDays*86400000).toISOString().slice(0,10):null,
         basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
@@ -421,5 +427,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
 
 export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
   const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
-  return {...result,data:{...bindProjectFacts(result.key,data,projectFactsForState(state)),sourceLabels:projectSourceLabels(state)}};
+  const bound=bindProjectFacts(result.key,data,projectFactsForState(state));
+  if(bound.projectDiagnosis&&typeof bound.projectDiagnosis==='object'){
+    const register=projectActionRegisterForState(state);
+    bound.projectDiagnosis={...bound.projectDiagnosis,actionRegister:{total:register.actions.length,actions:register.actions.slice(0,5)}};
+  }
+  return {...result,data:{...bound,sourceLabels:projectSourceLabels(state)}};
 }

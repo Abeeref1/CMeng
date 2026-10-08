@@ -18,7 +18,11 @@
     "commercial.rejectedVariationCount": 1,
     "commercial.activeBondCount": 1,
     "commercial.expiredBondCount": 1,
-    "commercial.expiredInsuranceCount": 1
+    "commercial.expiredInsuranceCount": 1,
+    "schedule.nearCriticalActivityCount": 7,
+    "schedule.negativeFloatActivityCount": 41,
+    "schedule.delayedExecutionActivityCount": 189,
+    "time.submittedDaysAfterExtendedCompletion": 15
   },
   "currencies": {
     "QAR": {
@@ -66,7 +70,8 @@
     "quantity-scurve": {
       "boqItemCount": 896,
       "series.length": 896,
-      "inferredMapping.sourceWbsCoveragePercent": 100
+      "inferredMapping.sourceWbsCoveragePercent": 100,
+      "quantityQueries.length": 132
     },
     "notices-claims": {
       "noticeCount": 16,
@@ -94,6 +99,53 @@
     },
     "delivery-permits": {
       "rows.length": 70
+    },
+    "long-lead": {
+      "rows.length": 30
+    },
+    "delivery-risks": {
+      "rows.length": 110,
+      "riskBasis.currentRecordCount": 110
+    },
+    "material-tracking": {
+      "rows.length": 896
+    },
+    "cost-forecast": {
+      "position.costBasisReview.length": 1,
+      "position.costBasisReview.0.sourceEac": 218400000,
+      "position.costBasisReview.0.currentContractValue": 221776000,
+      "position.costBasisReview.0.eacVsCurrentContract": -3376000
+    },
+    "payments": {
+      "focus.paymentRegister.slaCounts.paidLate": 11,
+      "focus.paymentRegister.slaCounts.paidOnTime": 10,
+      "focus.paymentRegister.latePaymentDays.min": 5,
+      "focus.paymentRegister.latePaymentDays.max": 25
+    },
+    "recovery-acceleration": {
+      "recoveryTargets.extended.workingDays": 11,
+      "recoveryTargets.original.workingDays": 19
+    },
+    "construction-readiness": {
+      "rows.length": 39
+    },
+    "variance-trends": {
+      "revisionCount": 3,
+      "points.2.criticalCount": 41,
+      "points.2.nearCriticalCount": 7,
+      "points.2.projectCompletionVarianceDays": 49
+    },
+    "schedule-change-report": {
+      "engineeringChanges.updateGapCalendarDays": 427,
+      "engineeringChanges.completionMovementDays": 17
+    },
+    "cash-flow": {
+      "position.performance.cashFlow.currencies.0.certifiedIncome.value": 166629358,
+      "position.performance.cashFlow.currencies.0.certifiedUnpaid.value": 9899013
     }
+  },
+  "sectionMilestones": {
+    "1": "VLC-08-005",
+    "2": "VLC-PC-001"
   }
 }

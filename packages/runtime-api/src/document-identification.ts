@@ -2178,7 +2178,15 @@ function classifyText(
 
 /** Correct a legacy display classification from retained content, without promoting
  * the document, replacing its evidence family, or changing any official facts. */
-export function documentClassificationForReview(document: StoredEvidenceDocument) {
+export function documentClassificationForReview(document: StoredEvidenceDocument, tableRows?:readonly string[][]) {
+  const headerRoute=tableRows?inferTableSemanticRoute(tableRows,document.documentType):null;
+  if(headerRoute)return {
+    documentType:headerRoute.documentType,category:headerRoute.category,
+    recordedDocumentType:document.documentType,confidence:headerRoute.confidence,
+    reviewRequired:false,headerClassified:true,
+    usableRegister:!['superseded','scenario'].includes(document.basisState),
+    reason:'Register type established by the retained header and rows. Row-level qualifications and completeness are assessed separately.',
+  };
   if(document.boqTableRead&&document.sourceHashSha256&&document.boqTableRead.sourceHashSha256===document.sourceHashSha256&&document.boqTableRead.structuredTableFound)return {
     documentType:'boq',category:'boq_cost',recordedDocumentType:document.documentType,
     reviewRequired:document.documentType!=='boq',

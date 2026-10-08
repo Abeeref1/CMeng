@@ -9,7 +9,7 @@ import type {RecoveryScenario} from './recovery-acceleration';
 export function plotCrewScenarios(model:CanonicalScheduleModel):RecoveryScenario[]{
  if(!model.dataDateIso)return [];
  const activities=new Map(model.activities.map(a=>[a.activityId,a]));
- const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:classifyScheduleActivity(model,a).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\s*\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').trim().toLowerCase()}]));
+ const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:classifyScheduleActivity(model,a).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\s*\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').replace(/[-–:]\s*$/,'').trim().toLowerCase()}]));
  const links=model.relationships.filter(r=>{const p=members.get(r.predecessorActivityId),s=members.get(r.successorActivityId);return !r.external&&r.type==='FS'&&r.lagHours===0&&p?.plot&&s?.plot&&p.plot!==s.plot&&p.work&&p.work===s.work;});
  const incoming=new Map<string,typeof links>(),outgoing=new Map<string,typeof links>();
  for(const r of links){incoming.set(r.successorActivityId,[...(incoming.get(r.successorActivityId)??[]),r]);outgoing.set(r.predecessorActivityId,[...(outgoing.get(r.predecessorActivityId)??[]),r]);}
@@ -42,6 +42,8 @@ export function plotCrewScenarios(model:CanonicalScheduleModel):RecoveryScenario
   const days=valid&&baseFinish!==null&&parallelFinish!==null?Math.max(0,Number(((baseFinish-parallelFinish)/86400000).toFixed(2))):null;
   scenarios.push({scenarioId:'plot-crews:'+start.a.activityId,type:'additional_crew',state:days===null?'option_requires_assumption':'calculated',subject:start.work+' · '+chain.length+' plots',affectedActivities:[...ids],affectedPackages:[],
    assumption:'Assume these cross-plot FS links represent one shared crew, and add a second equivalent crew: '+removed.join(', ')+'. Preserve each task duration and source calendar; external predecessor finish dates remain release limits.',
+   remainingWorkHours:chain.every(row=>row.remainingDurationHours!==null)?chain.reduce((sum,row)=>sum+row.remainingDurationHours!,0):null,
+   sourceWorkingDays:chain.every(row=>row.remainingDurationHours!==null&&resolveWorkingCalendar(row.calendarId,model.calendars,false)?.calendar.standardDayHours)?chain.reduce((sum,row)=>sum+row.remainingDurationHours!/resolveWorkingCalendar(row.calendarId,model.calendars,false)!.calendar.standardDayHours!,0):null,
    currentPosition:baseFinish===null?'The source contains a sequential same-work chain across plots.':'One-crew local finish '+new Date(baseFinish).toISOString().slice(0,10)+'.',
    targetPosition:parallelFinish===null?'Review unresolved constraints, calendars or external relationships before quantifying the option.':'Two-crew local finish '+new Date(parallelFinish).toISOString().slice(0,10)+'.',possibleDaysRecovered:days,
    effectBasis:'Conditional local chain sensitivity. Confirm that the listed links are crew dependencies, not physical prerequisites. Project completion gain requires a full approved network scenario.',

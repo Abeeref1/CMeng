@@ -41,7 +41,7 @@ const groups:Record<string,string[]>={
   'identified date':['date identified','risk identified date','risk date','تاريخ تحديد الخطر'],
   'status as of':['status date','status as of date','تاريخ الحالة'],
   'due date':['date due','target date','required response','response due','reply due date','action due date','target action date','تاريخ الاستحقاق'],
-  'expiry date':['date of expiry','expiration date','guarantee expiry','تاريخ الانتهاء'],
+  'expiry date':['valid to','valid until','date of expiry','expiration date','guarantee expiry','تاريخ الانتهاء'],
   'approval date':['date approved','date of approval','تاريخ الموافقة'],
   'days claimed':['claimed days','claimed delay days','أيام المطالبة'],
   'awarded eot days':['granted days','awarded days','determined days','أيام التمديد المعتمدة'],
@@ -93,8 +93,9 @@ export function canonicalHeader(value:string,documentType=''):string {
   return key;
 }
 const fields=new Set([...Object.keys(groups),
-  'amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
-  'permit id','policy id','authority','submission date','review date','issue date','valid from','expiry applicable','renewal required','required by','blocker',
+  'section','quantity','rate','category','instruction date','claimed amount','amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
+  'permit id','permit type','issuing authority','policy id','authority','submission date','review date','issue date','valid from','expiry applicable','renewal required','required by','blocker',
+  'subject','response date','close date','severity','order value','time impact days','outcome','engineer letter ref','notice letter ref','contract clause',
   'pv','ev','ac','bac','eac','etc','sv','cv',
   'approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier',
   'trir','ltifr','reporting month','tax basis','vat basis',

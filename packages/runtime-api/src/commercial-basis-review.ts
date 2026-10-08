@@ -32,7 +32,7 @@ export function variationBasisReview(ledger:CanonicalCommercialModel,amendments:
   return {dataDateIso:ledger.dataDateIso,groups:[...groups.values()].map(records=>{
     const {currency,taxBasis}=records[0]!.approvedAmount;
     const approved=records.filter(r=>/^(approved|accepted|executed)$/i.test(r.status.trim()));
-    const signExceptions=records.filter(r=>/^\s*(omission|omit(?:ted)?|deduction|credit)\b/i.test(r.description)&&Object.values({claimed:r.claimedAmount,assessed:r.assessedAmount,agreed:r.agreedAmount,approved:r.approvedAmount}).some(m=>m.value!==null&&m.value>0)).map(r=>({variationId:r.variationId,description:r.description,sourceAmount:r.approvedAmount.value,suggestedAmount:r.approvedAmount.value===null?null:-Math.abs(r.approvedAmount.value),sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator],action:'Confirm the sign of this omission against its approval. Retain the original source value until corrected.'}));
+    const signExceptions=approved.filter(r=>/^\s*(omission|omit(?:ted)?|deduction|credit)\b/i.test(r.description)&&r.approvedAmount.value!==null&&r.approvedAmount.value>0).map(r=>({variationId:r.variationId,description:r.description,sourceAmount:r.approvedAmount.value,suggestedAmount:r.approvedAmount.value===null?null:-Math.abs(r.approvedAmount.value),sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator],action:'Confirm the sign of this omission against its approval. Retain the original source value until corrected.'}));
     const sum=(rows:CommercialVariation[])=>rows.length?rows.every(r=>r.approvedAmount.value!==null)?rows.reduce((n,r)=>n+r.approvedAmount.value!,0):null:0;
     const slice=(cutoff:string|null)=>{const rows=approved.filter(r=>reportingScope(r.approvalDate,cutoff)==='as_of');return {count:rows.length,amount:cutoff?sum(rows):null};};
     const current=slice(ledger.dataDateIso),future=approved.filter(r=>reportingScope(r.approvalDate,ledger.dataDateIso)==='future');
@@ -62,7 +62,13 @@ export function variationBasisReview(ledger:CanonicalCommercialModel,amendments:
 /** An index can be arithmetically valid while its underlying amounts have no
  * demonstrated correspondence to schedule progress or certificate periods. */
 export function costBasisReview(ledger:CanonicalCommercialModel,certificates:ReturnCertificateProfile,currentContracts:Array<{currency:string;currentContractValue:{value:number|null}}> = []){
-  return ledger.costPosition.map(row=>{
+  const latest=new Map<string,CanonicalCommercialModel['costPosition'][number]>();
+  for(const row of ledger.costPosition){
+    if(reportingScope(row.asOf,ledger.dataDateIso)!=='as_of')continue;
+    const key=JSON.stringify([row.currency,row.taxBasis]),prior=latest.get(key);
+    if(!prior||row.asOf>prior.asOf)latest.set(key,row);
+  }
+  return [...latest.values()].map(row=>{
     const v=row.values,bac=v.bac??null,pv=v.pv??null,ev=v.ev??null,ac=v.ac??null;
     const pct=(n:number|null)=>n!==null&&bac!==null&&bac>0?n/bac*100:null;
     const group=certificates.groups.find(g=>g.currency===row.currency&&g.taxBasis===row.taxBasis&&row.taxBasis!=='unknown');
@@ -70,7 +76,7 @@ export function costBasisReview(ledger:CanonicalCommercialModel,certificates:Ret
     const certificateDate=group?.latestPeriod?.date??null;
     const certificateDateMatches=certificateDate!==null&&row.asOf===certificateDate;
     const currentContract=currentContracts.find(c=>c.currency===row.currency)?.currentContractValue.value??null;
-    return {currency:row.currency,taxBasis:row.taxBasis,asOf:row.asOf,bac,pv,ev,ac,plannedPercentOfBudget:pct(pv),earnedPercentOfBudget:pct(ev),
+    return {currency:row.currency,taxBasis:row.taxBasis,asOf:row.asOf,bac,pv,ev,ac,sourceEac:v.eac??null,eacVsCurrentContract:v.eac!=null&&currentContract!==null?v.eac-currentContract:null,plannedPercentOfBudget:pct(pv),earnedPercentOfBudget:pct(ev),
       certificatePeriodNet:net,certificateDate,certificateDateMatches,
       actualCostToCertificateRatio:null,
       currentContractValue:currentContract,budgetVsContractDifference:bac!==null&&currentContract!==null?bac-currentContract:null,

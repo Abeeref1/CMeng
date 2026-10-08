@@ -47,7 +47,7 @@ function forecastDate(
   activity: CanonicalScheduleActivity,
 ): string | null {
   if (activity.status === "completed") return null;
-  return activity.forecastFinishIso ?? activity.forecastStartIso;
+  return activity.forecastFinishIso ?? activity.forecastStartIso ?? activity.currentFinishIso ?? activity.currentStartIso;
 }
 
 function managementDate(
@@ -417,6 +417,7 @@ export function buildMilestonesProjection(
             baselineIso,
           currentDateIso: current,
           forecastDateIso: forecast,
+          forecastDateBasis:activity.status==='completed'?null:activity.forecastFinishIso||activity.forecastStartIso?'submitted_forecast':forecast?'current_programme':null,
           actualDateIso:
             activity.actualFinishIso ??
             activity.actualStartIso,

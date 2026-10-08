@@ -1,4 +1,5 @@
 import { partitionAsOf } from "../../truth-kernel/src";
+import {performanceSecurityValidity} from './security-validity';
 import { reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
@@ -1830,6 +1831,7 @@ function bondsInsurance(
           );
         return {
           bondId: row.bondId,
+          contractValidity:performanceSecurityValidity(row,input.contractClauses,input.ldTime.programmeCompletionIso),
           kind: row.kind,
           status: row.status,
           amount: finding(

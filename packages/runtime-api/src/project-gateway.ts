@@ -4,13 +4,13 @@ import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
-import {mkdir} from 'node:fs/promises';
+import {mkdir,statfs} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary} from './registry';
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
-import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
+import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
 import {randomBytes,createHmac} from 'node:crypto';
 import {ExternalAccess,filePolicy} from '../../external-intelligence/src/access';
@@ -22,6 +22,8 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
+  await clearDerivedReadCaches(root);
+  const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);

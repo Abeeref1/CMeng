@@ -65,3 +65,11 @@ test('runtime reads a supplied productivity rate and compares only the adopted P
  state.activeEvidenceBasis['schedule:baseline']=undefined;state.version++;
  assert.equal(deliveryFeasibilityForState(state)!.programmePc.movementDays,null);
 });
+
+
+test('remaining item quantities survive a missing activity allocation',()=>{
+ const input=fixture();input.quantities.allocations=[];
+ const result=buildBoqFeasibility(input);
+ assert.equal(result.rows[0]!.remainingQuantity,80);assert.equal(result.rows[0]!.activityId,null);assert.equal(result.rows[0]!.requiredAveragePeople,null);
+ assert.match(result.rows[0]!.reason,/allocation/);
+});

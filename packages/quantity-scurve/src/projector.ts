@@ -666,6 +666,7 @@ export function buildQuantityScurveProjection(
   return {
     schemaVersion: "1.0",
     projectionKey: "quantity_scurve",
+    quantityQueries:quantities.items.filter(item=>/^(ls|l\.?s\.?|lump\s*sum)$/i.test(item.unit?.trim()??'')&&item.contractQuantity!==null&&item.contractQuantity!==1).map(item=>({quantityItemId:item.quantityItemId,itemNumber:item.itemNumber,unit:item.unit,quantity:item.contractQuantity,reason:'Lump-sum quantity differs from 1. Confirm the unit or the contract quantity against the BOQ.'})),
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     projectId:

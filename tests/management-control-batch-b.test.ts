@@ -88,7 +88,7 @@ test('programme control stages derive an integrated execution sequence from prog
   assert.deepEqual(procurement.wbsPaths,['Long Lead Procurement']);
   assert.deepEqual(construction.wbsPaths,['Civil Construction']);
   assert.equal(procurement.latestCurrentFinishIso,'2030-05-01');
-  assert.equal(procurement.latestForecastFinishIso,null);
+  assert.equal(procurement.latestForecastFinishIso,'2030-05-01','the submitted programme finish is the forecast when no distinct forecast column is supplied');
   assert.ok(Array.isArray(procurement.dependencyStages));
   assert.ok(Array.isArray(procurement.controlMilestoneIds));
 });
