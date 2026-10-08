@@ -4255,7 +4255,7 @@ function commercialFindingText(metric){
 }
 function commercialFindingTitle(metric){
   if(!metric||typeof metric!=="object")return"";
-  return "State: "+commercialSourceState(metric)+(metric.diagnostics?.length?" · "+metric.diagnostics.map(humanizeKey).join(" · "):"");
+  return "State: "+commercialSourceState(metric)+(metric.diagnostics?.length?" · "+[...new Set(metric.diagnostics.map(humanizeKey))].join(" · "):"");
 }
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No confirmed commercial currency position is established.</div>';
@@ -4852,7 +4852,7 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const scopeHtml=renderClaimsReporting(data?.claimsReporting);
   const contract=data?.reportingContract;
   const populations=contract?uniqueReportingPopulations(Object.values(contract.populations||{})).map(p=>[p.populationId,p]):[];
-  const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting populations · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Population</th><th>Included / source</th><th>Excluded</th><th>Date basis</th><th>Authority</th><th>Population ID</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(p.exclusions.length)+'</td><td>'+escapeHtml(p.dateBasis)+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td><td>'+escapeHtml(p.populationId)+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
+  const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting populations · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Population</th><th>Included / source</th><th>Excluded</th><th>Date basis</th><th>Authority</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(p.exclusions.length)+'</td><td>'+escapeHtml(p.dateBasis)+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
   const baselineHeadline=data?.baselineComparison?.state==='unresolved'&&['schedule_analytics','activity_analytics','milestones','near_critical','progress_report','progress_scurve','variance_trends','lookahead_schedule','challenge_contract'].includes(root.projectionKey)?'<p class="source-scope-summary">Baseline comparisons unresolved: no confirmed baseline.</p>':'';
   const completion=contract?.completionAuthority;
   const completionHeadline=completion&&!completion.governedContractualFinish&&['master_dashboard','command_center','pmo_analysis','independent_forecast','eot_assessment','notices_claims','milestones','commercial_claims_notices','contract_particulars_bonds','challenge_contract'].includes(root.projectionKey)?'<div class="notice warn"><b>Contract completion: unresolved.</b> '+escapeHtml(completion.reason||completion.explanation)+'</div>':'';
@@ -4868,7 +4868,7 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const adoptionReview=data?.scheduleAuthorityReview;
   const adoptionHeadline=adoptionReview&&adoptionReview.state!=="established"?'<div class="notice warn">'+escapeHtml(adoptionReview.explanation)+'</div>':"";
   const newerHeadline=newer.length?'<div class="notice warn"><b>Newer programme supplied, not adopted.</b> '+newer.map(r=>escapeHtml(planningShortDate(r.dataDateIso))+' · '+escapeHtml(r.filename||'Programme')).join('; ')+'</div>':'';
-  const chips='<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(label==="Programme basis"&&revision?revision:value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
+  const chips='<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
   return contextOnly?chips:baselineHeadline+completionHeadline+calendarHeadline+screeningHeadline+chips;
 }
 function renderStructuredSections(data){
@@ -5331,7 +5331,10 @@ function projectCard(p){
   const forecastLabel=p.forecastLabel||"Productivity forecast";
   const contractLabel=p.officialCompletionIso?(p.contractualCompletionState==="established"?"Official contract: ":"Contract source / review: ")+official:"Contract completion unresolved";
   const adjustmentLabel=p.furtherAdjustedCompletionIso?"Including awarded EOT: "+planningShortDate(p.furtherAdjustedCompletionIso):"Extended contract date not established";
-  const lateness=typeof p.submittedDaysAfterCurrentContract==='number'?(p.submittedDaysAfterCurrentContract>0?fmt(p.submittedDaysAfterCurrentContract)+' days after current contract':p.submittedDaysAfterCurrentContract===0?'On the current contract date':fmt(-p.submittedDaysAfterCurrentContract)+' days before current contract'):'Contract comparison unavailable';
+  const calculatedComparison=p.forecastCompletionIso&&p.forecastCompletionIso===p.calendarRecalculationIso;
+  const comparisonDays=calculatedComparison?p.independentDaysAfterCurrentContract:p.submittedDaysAfterCurrentContract;
+  const comparisonPrefix=!calculatedComparison&&p.submittedProgrammeCompletionIso&&p.forecastCompletionIso!==p.submittedProgrammeCompletionIso?'Submitted programme '+planningShortDate(p.submittedProgrammeCompletionIso)+': ':'';
+  const lateness=comparisonPrefix+(typeof comparisonDays==='number'?(comparisonDays>0?fmt(comparisonDays)+' days after current contract':comparisonDays===0?'On the current contract date':fmt(-comparisonDays)+' days before current contract'):'Contract comparison unavailable');
   const money=(p.commercialSummary||[]).map(row=>row.currency+' · Current contract '+(row.currentContractValue==null?'Not supplied':fmtExecutive(row.currentContractValue))+' · EAC '+(row.forecastEac==null?'Not supplied':fmtExecutive(row.forecastEac))+' · Unpaid '+(row.certifiedUnpaidAmount==null?'Not supplied':fmtExecutive(row.certifiedUnpaidAmount))).join(' | ');
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
   const attention=p.analysisError||(p.managementActions||[])[0]||(

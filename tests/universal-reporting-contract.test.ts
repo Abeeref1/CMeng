@@ -1,4 +1,5 @@
 import {checkPageValues} from '../packages/runtime-api/src/page-value-checks';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
@@ -244,6 +245,10 @@ test('portfolio retains the shared current contract, separate further adjustment
   assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
   assert.equal(item.forecastAuthority,director.schedule.independentForecastCompletionIso?'calculated_with_assumptions':'source');assert.equal(item.forecastCompletionIso,director.schedule.independentForecastCompletionIso??director.schedule.submittedProgrammeCompletionIso);assert.match(item.forecastLabel,/programme finish/);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
   assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
+  const facts=projectFactsForState(state);
+  assert.equal(item.submittedProgrammeCompletionIso,facts.schedule.submittedProgrammeCompletionIso.value);
+  assert.equal(item.submittedDaysAfterCurrentContract,facts.time.submittedDaysAfterCurrentContract?.value??null);
+  assert.equal(item.independentDaysAfterCurrentContract,facts.time.independentDaysAfterCurrentContract?.value??null);
  } finally {await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 

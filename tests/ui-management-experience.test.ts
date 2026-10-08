@@ -19,10 +19,22 @@ test('commercial figure tooltips explain the qualification without internal code
  const title=runInNewContext(functions(['humanizeKey','commercialFindingTitle'])+';commercialFindingTitle({diagnostics:["LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL"]})',{commercialSourceState:()=> 'Needs review'});
  assert.match(title,/Delay damages are a planning scenario/);assert.doesNotMatch(title,/LD_EXPOSURE|NOT_AWARD|ACCRUAL/);
 });
+test('programme basis keeps readable revision names in both text and hover labels',()=>{
+ const html=runInNewContext(functions(['renderModuleBasis','findProjectionRoot'])+';renderModuleBasis(data)',{
+  ...common,data:{projectionKey:'activity_analytics',sourceRevisionId:'schedrev_1234567890abcdef',dataDateIso:'2031-08-31'},overview:{latestRevisionLabel:'Update 02'},renderClaimsReporting:()=>''
+ });
+ assert.match(html,/title="Update 02"/);assert.doesNotMatch(html,/schedrev_/);
+});
 test('portfolio card shows current-contract lateness and currency-specific money',()=>{
  const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2031-10-06',officialCompletionIso:'2031-09-08',furtherAdjustedCompletionIso:'2031-09-21',submittedDaysAfterCurrentContract:15,commercialSummary:[{currency:'USD',currentContractValue:120000,forecastEac:118000,certifiedUnpaidAmount:5000}],managementActionCount:2};
  const html=runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p});
  assert.match(html,/15 days after current contract/);assert.match(html,/USD · Current contract 120000 · EAC 118000 · Unpaid 5000/);
+});
+test('portfolio compares the displayed calculated finish with the current contract and labels a distinct submitted comparison',()=>{
+ const p={projectId:'EXAMPLE',positionState:'needs_review',forecastCompletionIso:'2043-09-11',forecastLabel:'Calculated programme finish',calendarRecalculationIso:'2043-09-11',submittedProgrammeCompletionIso:'2043-04-17',furtherAdjustedCompletionIso:'2043-08-31',submittedDaysAfterCurrentContract:-136,independentDaysAfterCurrentContract:11};
+ const render=(row:any)=>runInNewContext(functions(['projectCard','positionText','portfolioNeedsAttention'])+';projectCard(p)',{...common,p:row});
+ assert.match(render(p),/11 days after current contract/);assert.doesNotMatch(render(p),/136 days before/);
+ assert.match(render({...p,forecastCompletionIso:'2043-10-01',forecastLabel:'Productivity forecast'}),/Submitted programme 2043-04-17: 136 days before current contract/);
 });
 test('documents label a submitted-current programme as usable without demanding adoption',()=>{
  const label=runInNewContext(functions(['documentUseLabel'])+';documentUseLabel',{humanizeKey:String});

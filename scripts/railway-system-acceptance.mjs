@@ -170,6 +170,8 @@ try{
     check('Portfolio is current after project calculation',currentCard&&currentCard.version===overview.version&&!['stale','unresolved','processing'].includes(currentCard.analysisState),id,currentCard?.analysisState??null);
     if(canonicalFacts){
       check('Portfolio current-contract comparison matches project facts',currentCard?.submittedDaysAfterCurrentContract===(canonicalFacts.time.submittedDaysAfterCurrentContract?.value??null),id);
+      check('Portfolio submitted finish matches project facts',currentCard?.submittedProgrammeCompletionIso===canonicalFacts.schedule.submittedProgrammeCompletionIso.value,id);
+      check('Portfolio calculated-finish comparison matches project facts',currentCard?.independentDaysAfterCurrentContract===(canonicalFacts.time.independentDaysAfterCurrentContract?.value??null),id);
       for(const money of canonicalFacts.commercial.currencies){
         const card=currentCard?.commercialSummary?.find(row=>row.currency===money.currency);
         check('Portfolio '+money.currency+' money matches project facts',card?.currentContractValue===money.currentContractValue.value&&card?.forecastEac===(money.forecastEac?.value??null)&&card?.certifiedUnpaidAmount===money.certifiedUnpaidAmount.value,id);

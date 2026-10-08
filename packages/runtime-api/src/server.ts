@@ -786,6 +786,8 @@ async function route(
             commercialCurrencyCount:
               projectFacts.commercial.currencies.length,
             submittedDaysAfterCurrentContract:projectFacts.time.submittedDaysAfterCurrentContract?.value??null,
+            submittedProgrammeCompletionIso:projectFacts.schedule.submittedProgrammeCompletionIso.value,
+            independentDaysAfterCurrentContract:projectFacts.time.independentDaysAfterCurrentContract?.value??null,
             commercialSummary:projectFacts.commercial.currencies.map(row=>({currency:row.currency,currentContractValue:row.currentContractValue.value,forecastEac:row.forecastEac?.value??null,certifiedUnpaidAmount:row.certifiedUnpaidAmount.value})),
             analysisError: null,
           };
