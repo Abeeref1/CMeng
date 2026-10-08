@@ -178,14 +178,19 @@ export function buildForecastReconciliationGate(input: {
 
 /** Source-calendar anomalies must not be promoted as a management finish. */
 export function hasUnreconciledScheduleCalendar(
-  forecast: {diagnostics?:readonly string[];assumptions?:readonly string[]}|null|undefined,
+  forecast: {diagnostics?:readonly string[];assumptions?:readonly string[];forecastVarianceDays?:number|null}|null|undefined,
 ):boolean {
   const messages=[...(forecast?.diagnostics??[]),...(forecast?.assumptions??[])];
-  return messages.some(message=>
+  const calendarWarning=messages.some(message=>
     message.startsWith('CALENDAR_SEMANTICS_UNRESOLVED:')||
     message.startsWith('CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:')||
     message.includes('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION')
   );
+  // Independent CPM may remain available in the specialist evidence, but its
+  // management headline is withheld if it differs materially from the source
+  // completion until the difference is reconciled.
+  return calendarWarning||(typeof forecast?.forecastVarianceDays==='number'&&
+    Math.abs(forecast.forecastVarianceDays)>1);
 }
 
 export function forecastControlForState(
