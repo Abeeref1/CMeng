@@ -5003,7 +5003,7 @@ function renderModuleResult(result){
         const offset=Number(button.dataset.detailOffset||0);
         button.disabled=true;button.textContent='Loading source records…';
         try{
-          const query=new URLSearchParams({source:paged.source,pointer:entry.pointer,offset:String(offset),version:String(paged.projectVersion??'')});
+          const query=new URLSearchParams({source:paged.source,pointer:entry.pointer,offset:String(offset),...(typeof paged.projectVersion==='number'?{version:String(paged.projectVersion)}:{})});
           const details=await api('/api/projects/'+encodeURIComponent(project())+'/record-page?'+query);
           const rows=details.rows||[];
           const content=details.kind==='text'?'<p>'+escapeHtml(details.text||'')+'</p>':
