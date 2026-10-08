@@ -4,7 +4,7 @@ import type { ControlIssueAssessment } from '../../truth-kernel/src';
 /** One reader-facing vocabulary; source authority and project performance stay separate. */
 export const STATUS_LABELS: Record<string,string> = {
   system_defect:'System failure',source_conflict:'Records disagree',data_quality:'Record needs correction',
-  missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Approval needed',
+  missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Review required',
   verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Unresolved',
   candidate:'Needs review',governed:'Confirmed',governed_source:'Reported forecast',source:'Reported',source_current:'Current record',source_report:'Reported',unknown:'Not known',partial:'Partly confirmed',
   reported_source_value:'Reported amount',cmeng_policy_default:'Default rule',conditions_present_status_register_missing:'Conditions present; permit status needed',validation_failed:'Records need correction',
