@@ -1,4 +1,6 @@
 import {titleForModule} from "./registry";
+import {runtimeProjects} from "./project-state";
+import {projectFactsForState,type ProjectFact} from "./project-facts";
 import {
   directorForProject,
   moduleForProject,
@@ -239,6 +241,55 @@ function factLabel(
 type AnswerFact = {path: string; value: string | number | boolean | null; label?: string;
   populationId?: string; dataDateIso?: string | null; authority?: string; state?: string; unit?: string};
 
+/** Report headline positions from the same project-version fact snapshot used
+ * by portfolio cards, module pages and project drawers. This path does not
+ * rebuild specialist modules simply to count records or report an EOT date. */
+function sharedHeadlineFacts(projectId:string,question:string):AnswerFact[] {
+ const state=runtimeProjects.get(projectId);if(!state)return [];
+ const q=question.toLowerCase(),snapshot=projectFactsForState(state),rows:AnswerFact[]=[];
+ const put=<T extends string|number>(path:string,label:string,item:ProjectFact<T>|undefined,unit?:string)=>{
+   if(!item)return;
+   rows.push({path:'projectFacts.'+path,label,value:item.value,state:item.state,
+     dataDateIso:snapshot.dataDateIso,authority:item.complete?'canonical_calculated':'source_qualified',...(unit?{unit}:{})});
+ };
+ if(/extended|adjusted|eot|extension|contractual completion|late|early|ahead|behind|slip/.test(q)){
+   put('time.contractualCompletionIso','Original/current contractual completion',snapshot.time.contractualCompletionIso,'date');
+   put('time.awardedEotDays','Awarded EOT',snapshot.time.awardedEotDays,'days');
+   put('time.extendedContractCompletionIso',
+     snapshot.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM')
+       ?'Extended completion comparison · amendment overlap to confirm'
+       :'Contract completion including awarded EOT',
+     snapshot.time.extendedContractCompletionIso,'date');
+   if(/late|early|ahead|behind|slip|days/.test(q)){
+     put('time.submittedDaysAfterCurrentContract','Submitted days after current contract completion',snapshot.time.submittedDaysAfterCurrentContract,'calendar days');
+     put('time.independentDaysAfterCurrentContract','CPM days after current contract completion',snapshot.time.independentDaysAfterCurrentContract,'calendar days');
+   }
+ }
+ if(/critical|negative.float|float/.test(q)){
+   put('schedule.criticalActivityCount','Critical execution activities',snapshot.schedule.criticalActivityCount);
+   put('schedule.nearCriticalActivityCount','Near-critical execution activities',snapshot.schedule.nearCriticalActivityCount);
+   put('schedule.negativeFloatActivityCount','Negative-float execution activities',snapshot.schedule.negativeFloatActivityCount);
+ }
+ if(/rfi|information request/.test(q)){
+   put('controls.openRfiCount','Open RFIs',snapshot.controls.openRfiCount);
+   put('controls.overdueRfiCount','Overdue RFIs',snapshot.controls.overdueRfiCount);
+ }
+ if(/ncr|nonconformance|non.conformance|quality/.test(q)){
+   put('controls.openNcrCount','Open NCRs',snapshot.controls.openNcrCount);
+   put('controls.overdueNcrCount','Overdue NCRs',snapshot.controls.overdueNcrCount);
+   put('controls.openCriticalMajorNcrCount','Open major/critical NCRs',snapshot.controls.openCriticalMajorNcrCount);
+ }
+ if(/bond|securit|insurance|expir/.test(q)){
+   for(const name of ['activeBondCount','expiredBondCount','activeInsuranceCount','expiredInsuranceCount'] as const)
+     put('commercial.'+name,name.replace(/([A-Z])/g,' $1'),snapshot.commercial[name]);
+ }
+ if(/certified unpaid|unpaid certific|outstanding certific/.test(q)){
+   snapshot.commercial.currencies.forEach((group,i)=>
+     put('commercial.currencies.'+i+'.certifiedUnpaidAmount','Certified unpaid · '+group.currency,group.certifiedUnpaidAmount,group.currency));
+ }
+ return rows;
+}
+
 /** Answer the requested metric from the same resolved population used by pages
  * and exports. Never infer dated approvals or cash from an aggregate source. */
 function requestedFacts(question: string, projectId: string): AnswerFact[] {
@@ -388,7 +439,7 @@ function summarizeFacts(
             ? fact.value
               ? "Yes"
               : "No"
-            : fact.value === null ? 'Not established' : typeof fact.value === 'number' ? fact.value.toLocaleString('en-US',{maximumFractionDigits:6}) : String(fact.value)
+            : fact.value === null ? 'Not established' : typeof fact.value === 'number' ? fact.value.toLocaleString('en-US',{maximumFractionDigits:2}) : String(fact.value)
         ) + (fact.state && fact.state !== 'established' ? ' ('+fact.state.replaceAll('_',' ')+')' : ''),
     );
   return (
@@ -403,6 +454,17 @@ export function answerProjectQuestion(
   projectId: string,
   question: string,
 ) {
+  const exact=sharedHeadlineFacts(projectId,question);
+  // Pure headline questions should not expand every specialist source register.
+  // Detailed activity lists and causal "why" questions keep the domain path.
+  if(exact.length>0&&!/which|list|show all|each|activities|activity ids|driving path|cause|why|breakdown|by zone|by wbs/i.test(question)){
+    return {projectId,question,generatedAt:new Date().toISOString(),
+      engine:'cmeng_canonical_project_facts_v1',modelBacked:false,authority:'advisory_only',
+      answer:summarizeFacts(exact),relevantModules:[],facts:exact,reportingContexts:[],
+      managementActions:[],sources:['Canonical shared project facts'],
+      suggestedQuestions:['Which activities are critical?','What source data supports the EOT?'],
+      governance:'The identical project-version facts are used in portfolio, management pages and Ask. Qualified source values are not deemed official determinations.'};
+  }
   const overview =
     overviewForProject(projectId);
   if (!overview) {
