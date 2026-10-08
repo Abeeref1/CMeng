@@ -1706,7 +1706,8 @@ export function buildCommercialControlPosition(
             "official" &&
           contractTime
             ?.overlapResolution !==
-            "unresolved"
+            "unresolved" &&
+          contractTime?.eotDayBasisState === "official"
             ? "established"
             : adjusted
               ? "candidate"
@@ -1717,7 +1718,9 @@ export function buildCommercialControlPosition(
                 : "not_submitted",
           timeRefs,
           adjusted
-            ? []
+            ? (contractTime?.eotDayBasisState === "candidate"
+               ? ["EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT"]
+               : [])
             : contractTime?.overlapResolution === "unresolved"
               ? ["AMENDMENT_DETERMINATION_OVERLAP_NOT_CONFIRMED"]
             : contractTime?.eotDayBasis !== "calendar_days" ? ["OFFICIAL_ADJUSTED_COMPLETION_REQUIRES_SUPPORTED_EOT_DAY_BASIS"] : [
