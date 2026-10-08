@@ -1062,7 +1062,7 @@ test('unprovided deductions stay unknown and cannot yield a matched certificate'
 });
 test('net inclusive tax is added only to explicitly exclusive components with a tax amount', t => {
   const p=paymentFixture(t,{'Net Certified':'1122','Net VAT Basis':'Inclusive','Tax Amount':'102','Paid VAT Basis':'Inclusive','Outstanding Amount':'922'});
-  assert.equal(p.reconciliation,'matched');assert.equal(p.calculatedOutstandingAmount.value,922);
+  assert.equal(p.reconciliation,'unresolved','missing deductions cannot establish a fully matched certificate');assert.equal(p.componentArithmetic?.state,'matched','reported components can still reconcile on their stated basis');assert.equal(p.calculatedOutstandingAmount.value,922);
 });
 test('a tax-basis transition without tax evidence remains unresolved', t => {
   const p=paymentFixture(t,{'Net VAT Basis':'Inclusive'});assert.equal(p.reconciliation,'unresolved');
