@@ -89,7 +89,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(!nextAction)nextAction=result.status==='blocked'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
-    nextAction,owner:'Not assigned',assignTo,
+    nextAction,owner:assignTo,assignTo,
     basis:'Red: a reported target is exceeded or a calculation check failed. Amber: information or review is incomplete. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {
