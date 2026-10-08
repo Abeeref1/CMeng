@@ -5,6 +5,7 @@ import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
+import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 
 const numeric=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const difference=(after:string|null,before:string|null)=>{const a=parseScheduleInstant(after),b=parseScheduleInstant(before);return a===null||b===null?null:Number(((a-b)/86400000).toFixed(6));};
@@ -82,7 +83,13 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    g.activityCount++;if(pressureSet.has(r.activityId))g.pressureCount++;if(unfinished(r)&&drivingIds.has(r.activityId))g.drivingCount++;if(r.criticality==='critical')g.criticalCount++;if(numeric(r.totalFloatHours)&&r.totalFloatHours<0)g.negativeFloatCount++;if(r.criticality==='near_critical')g.nearCriticalCount++;if(r.missedPlannedStart)g.missedStartCount++;if(r.finishOverdue)g.overdueFinishCount++;if((previousMovement(r.activityId)??0)>0)g.previousSlippageCount++;if(numeric(r.totalFloatHours))g.worstFloatHours=g.worstFloatHours===null?r.totalFloatHours:Math.min(g.worstFloatHours,r.totalFloatHours);wbsGroups.set(id,g);}
  const wbsRows=[...wbsGroups.values()].sort((a,b)=>b.drivingCount-a.drivingCount||b.pressureCount-a.pressureCount||(a.worstFloatHours??Infinity)-(b.worstFloatHours??Infinity)||a.wbs.localeCompare(b.wbs));
  timed('wbs_grouping');
- const delivery=deliveryPosition(state),packageIndex=new Map<string,any[]>(),registerIndex=new Map<string,any[]>(),packageById=new Map(delivery.packageRows.map(p=>[p.recordId,p]));
+ // Programme-only projects have no current source delivery records. Their
+ // delivery position would still rebuild programme-based workfront breakdowns,
+ // yet Diagnosis only reads the sourced package and register populations.
+ // Skip that unrelated 750ms projection without concealing any actual record.
+ const currentDeliveryRecords=deliveryRecords(state).records.some(deliveryCurrentRecord);
+ const delivery=currentDeliveryRecords?deliveryPosition(state):{packageRows:[],registerRows:[]};
+ const packageIndex=new Map<string,any[]>(),registerIndex=new Map<string,any[]>(),packageById=new Map(delivery.packageRows.map(p=>[p.recordId,p]));
  timed('delivery_position');
  for(const p of delivery.packageRows)for(const id of p.activityIds){const group=packageIndex.get(id)??[];group.push(p);packageIndex.set(id,group);}
  for(const record of delivery.registerRows){const ids=new Set([...record.links.activityIds,...record.links.packageIds.flatMap(id=>packageById.get(id)?.activityIds??[])]);for(const id of ids){const group=registerIndex.get(id)??[];group.push(record);registerIndex.set(id,group);}}
