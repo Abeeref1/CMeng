@@ -186,7 +186,19 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
   if(best<2){const firstWide=input.findIndex(r=>r.filter(v=>v.trim()).length>=2);headerIndex=Math.max(0,firstWide);}
   const rawHeaders=input[headerIndex]??[],headers=rawHeaders.map(h=>canonicalHeader(h,documentType));
-  const unknown=rawHeaders.filter((h,i)=>!fields.has(headers[i]!)&&!fields.has(headers[i]!.replace(/ [a-z]{3}$/,'')));
+  const columnAudit=rawHeaders.map((rawHeader,index)=>{
+    const field=headers[index]??normalizeHeader(rawHeader);
+    const mapped=fields.has(field)||fields.has(field.replace(/ [a-z]{3}$/,''));
+    const text=normalizeHeader(rawHeader+' '+field);
+    const kind=isRegisterDateHeader(field)||/\\b(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)\\b/.test(text)?'date':
+      /\\b(days|day count|duration|working days|calendar days)\\b/.test(text)?'days':
+      /\\b(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)\\b/.test(text)?'amount':'other';
+    return {sourceHeader:rawHeader,canonicalHeader:field,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
+      reason:mapped
+        ?'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.'
+        :'No canonical calculation consumes this source header. The source column and its values remain retained and must not be silently treated as zero.'};
+  });
+  const unknown=columnAudit.filter(column=>column.mappingState==='unused').map(column=>column.sourceHeader);
   // Column meaning is constant for the table. Do not normalise and match the
   // same header again for every cell in a large BOQ/resource register.
   const dateColumns=headers.map(isRegisterDateHeader);
@@ -196,5 +208,5 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
     .map(row=>row.map((raw,i)=>dateColumns[i]?registerDate(raw)??raw:raw));
   const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no','net certified']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
   const recognized=best>=2&&required.every(key=>headers.includes(key));
-  return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,recognized,readRowCount:rows.length};
+  return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,columnAudit,recognized,readRowCount:rows.length};
 }
