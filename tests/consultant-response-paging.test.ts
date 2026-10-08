@@ -20,6 +20,8 @@ test('large screens stay under 2 MB and retain every original row via bounded se
  for(const page of [0,25,200,5650]){
    const detail=recordDetailPage(source,'/data/rows',page);
    assert.equal(detail.total,5665);
+   assert.ok(Array.isArray(detail.rows));
+   if(!Array.isArray(detail.rows))throw new Error('Expected source array page');
    assert.ok(detail.rows.length<=25);
    assert.equal(detail.rows[0].claimId,'CLM-'+page);
  }
