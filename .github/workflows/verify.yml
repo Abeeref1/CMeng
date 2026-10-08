@@ -81,9 +81,13 @@ jobs:
                 node scripts/fresh-restore-verification.cjs "$evidence/restore"
                 ;;
               operations)
-                CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency
-                CMENG_DURABILITY_RESULT=/tmp/cmeng-verification/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs
-                CMENG_DELIVERY_BENCHMARK_OUTPUT=/tmp/cmeng-verification/delivery-latency.json node scripts/delivery-latency.cjs
+                # Measure all three unchanged hard gates even if one fails.
+                # The overall operations group still fails when ANY gate fails.
+                operations_failed=0
+                CMENG_LATENCY_RESULT=/tmp/cmeng-verification/cold-dashboard.json npm run test:release:latency || operations_failed=1
+                CMENG_DURABILITY_RESULT=/tmp/cmeng-verification/upload-durability.json node --max-old-space-size=3072 scripts/upload-durability-scale.cjs || operations_failed=1
+                CMENG_DELIVERY_BENCHMARK_OUTPUT=/tmp/cmeng-verification/delivery-latency.json node scripts/delivery-latency.cjs || operations_failed=1
+                if [ "$operations_failed" -ne 0 ]; then echo "One or more unchanged operations release thresholds failed"; return 1; fi
                 ;;
               *) echo "Unknown verification group: $CMENG_GATE"; return 1 ;;
             esac
