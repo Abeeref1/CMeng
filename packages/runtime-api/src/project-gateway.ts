@@ -52,6 +52,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
   let closing=false,catalogWrites=Promise.resolve();
+  let lastForegroundProjectRequestAt=0;
   const reservations=new Map<string,Promise<Lane>>();
   const waiters=new Set<()=>void>();
   const signal=()=>{for(const wake of waiters)wake();waiters.clear();};
@@ -253,6 +254,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
       if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}
+      // A browser request takes priority over background project warm-up.
+      // Retained analyses of unchanged versions stay available from the volume.
+      lastForegroundProjectRequestAt=Date.now();
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
@@ -292,10 +296,15 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const warmer=setInterval(()=>{
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
     if(closing||warming)return;
-    // Background portfolio work must not evict a recently used project's expensive
-    // calculation cache. Foreground project requests still use normal LRU capacity.
+    // On a shared six-project dashboard, calculations must already be retained
+    // on the volume. Warm all projects over time, even when worker slots are
+    // occupied, but never evict a busy worker or disturb an active user's
+    // recent read. A 15-minute idle rule previously left 18 of 22 projects
+    // cold after the initial four, causing a repeat 10-35 second first open.
+    if(Date.now()-lastForegroundProjectRequestAt<15000)return;
+    const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
     const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
-      (lanes.has(e.projectId)||lanes.size<maxWorkers||[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>15*60*1000)));
+      (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
     if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
   },2000);warmer.unref();
   const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
