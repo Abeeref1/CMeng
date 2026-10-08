@@ -174,6 +174,33 @@ try{
     record(p,'R2',sourceOracle!==null&&sourceOracle.projectId===id,
       'Independent source-file answer key missing for '+id);
     if(sourceOracle){
+      record(p,'R2',sourceOracle.basis==='independent_original_source'&&
+        !!sourceOracle.reviewedBy&&!!sourceOracle.dataDateIso,
+        'Answer key must identify original-source method, independent reviewer and data date');
+      const oracleDocs=new Map((sourceOracle.documents??[]).map(d=>[d.sourceHash,d]));
+      for(const d of docs?.documents??[]){
+        if(d.basisState==='superseded'||d.basisState==='scenario')continue;
+        const proof=oracleDocs.get(d.sourceHashSha256);
+        record(p,'R2',!!proof&&proof.sourceFilename===d.sourceFilename&&proof.reviewed===true,
+          'Document has no independent source check '+d.sourceFilename);
+        for(const table of d.columnUsage??[]){
+          const observedColumns=[...(table.mappedColumns??[]),...(table.ignoredColumns??[])];
+          for(const header of observedColumns){
+            if(!header)continue;
+            const checked=proof?.columns?.find(c=>c.name===header&&
+              (c.disposition==='mapped'||c.disposition==='unused_with_reason'));
+            record(p,'R4',!!checked,
+              d.sourceFilename+': missing checked column disposition for '+header);
+            if((table.ignoredColumns??[]).includes(header)){
+              record(p,'R4',!!checked&&checked.disposition==='unused_with_reason'&&
+                typeof checked.reason==='string'&&checked.reason.trim().length>0,
+                d.sourceFilename+': ignored column has no accepted reason '+header);
+              record(p,'R4',!!checked&&checked.containsSourceDatesNumbersDays!==true,
+                d.sourceFilename+': ignored source column contains date/number/day values '+header);
+            }
+          }
+        }
+      }
       for(const x of sourceOracle.values??[]){
         p.sourcesChecked++;
         const actual=jsonAt(canonical,x.canonicalFactPath||'');
