@@ -384,6 +384,7 @@ export function deriveReadinessFromCsv(
       const activity=activityById.get(activityId);
       const timing=procurementTiming({dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status});
       if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
+      else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
       else if(timing.overdueUndelivered){state='blocked';scopeNote='Required-on-site date '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
       else if(timing.forecastLate){state='blocked';scopeNote='Forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis;}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
