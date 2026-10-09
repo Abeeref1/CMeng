@@ -5,7 +5,7 @@
   "description": "CMeng controlled construction/project evidence and intelligence platform",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
+    "build": "tsc && node scripts/check-browser-bootstrap.cjs",
     "start": "node dist/packages/runtime-api/src/project-gateway.js",
     "audit:counts": "npm run build && node scripts/audit-aggregate-counts.cjs",
     "test:unit": "npm run build && node scripts/run-unit-tests.cjs",
