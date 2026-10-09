@@ -51,11 +51,11 @@ function calculateReview(model:CanonicalScheduleModel,forecast:IndependentForeca
   if(five.length&&six.length===1&&five.every(c=>calendarWorkingDayHours(c!)===calendarWorkingDayHours(six[0]!))){
     const fromIds=new Set(five.map(c=>c!.calendarId)),target=six[0]!;
     const activities=model.activities.map(a=>a.calendarId&&fromIds.has(a.calendarId)?{...a,calendarId:target.calendarId}:a);
-    const result=calculateCpm({...model,activities},{durationBasis:forecast.durationBasis});
+    const result=calculateCpm({...model,activities},{durationBasis:forecast.durationBasis,applySourceConstraints:true});
     sensitivity={fromCalendarIds:[...fromIds],toCalendarId:target.calendarId,toCalendarName:target.name,
       changedActivityCount:activities.filter((a,i)=>a!==model.activities[i]).length,completionIso:result.projectFinishIso,
       movementDays:days(forecast.independentForecastCompletionIso,result.projectFinishIso),complete:result.complete,
-      assumptions:['Scenario only: replace assigned five-day calendars with the existing six-day calendar of equal standard day length. Durations, logic, actuals and other calendars are unchanged.','The unconstrained network calculation does not apply retained source date constraints. Confirm the correct calendars with the programme owner.']};
+      assumptions:['Scenario only: replace assigned five-day calendars with the existing six-day calendar of equal standard day length. Durations, logic, actuals and other calendars are unchanged.','The calculation applies retained source date constraints. Confirm the correct calendars with the programme owner.']};
   }
   return {contractFinishIso:contractFinish,packageCount:rows.length,leafWbsCount:leaves.length,excludedLeafCount:leaves.length-rows.length,
     packageDefinition:'Leaf WBS with execution tasks and exactly one finish milestone; other WBS nodes are excluded and counted.',

@@ -907,8 +907,39 @@ function metricsFor(
         ),
       ];
 
-    case "resource-utilization":
-      return [
+    case "resource-utilization": {
+      const resources = dataOf(modules, key);
+      const weekly = resources?.weeklyCapacityEvidence;
+      let sourceMetrics: IndependentMetricSpec[] | null = null;
+      if (Array.isArray(weekly?.points) && weekly.points.length > 0) {
+        // Weekly demand/capacity is an hours comparison. A separate people
+        // requirement cannot be a prerequisite for this established calculation.
+        const rows = weekly.points.filter((row: any) =>
+          weekly.dataDateIso && row.weekStartIso && row.weekStartIso <= weekly.dataDateIso);
+        const average = (field: string) => {
+          const ratios = rows.filter((row: any) =>
+            typeof row.availableCapacity === 'number' && row.availableCapacity > 0 &&
+            typeof row[field] === 'number').map((row: any) => row[field] / row.availableCapacity);
+          return ratios.length ? Number((ratios.reduce((a: number, b: number) => a + b, 0) / ratios.length * 100).toFixed(4)) : null;
+        };
+        const refs = [...new Set<string>(weekly.points.flatMap((row: any) =>
+          (row.receipts ?? []).map((receipt: any) => 'evidence-document:' + receipt.documentId + ':' + receipt.locator)))];
+        sourceMetrics = [
+          spec('weekly_planned_utilization_percent', 'Weekly planned utilization to Data Date', average('plannedDemand'), '%', 'calculated', refs,
+            {asOfIso: weekly.dataDateIso, coveragePercent: weekly.capacityCoveragePercent,
+              note: 'Mean of known resource-week demand/capacity ratios; positive source capacity required. Hours are not headcount.'}),
+          spec('weekly_actual_utilization_percent', 'Weekly approved actual utilization to Data Date', average('actualApprovedUsage'), '%', 'calculated', refs,
+            {asOfIso: weekly.dataDateIso, coveragePercent: weekly.actualPeriodCoveragePercent,
+              note: 'Approved usage through the Data Date only; future and missing usage are withheld.'}),
+        ];
+      }
+      if (!sourceMetrics && resources?.projectionKey === 'resource_utilization' && Array.isArray(resources.rows)) {
+        sourceMetrics = [spec('capacity_based_resource_count', 'Resources with established hourly capacity',
+          resources.rows.filter((row: any) => row.state === 'capacity_based').length,
+          'resources', 'calculated', [sourceRef],
+          {note: 'P6 assignment rates and hourly resource capacity; a headcount forecast is a separate comparison.'})];
+      }
+      const manpowerMetrics = [
         spec(
           "manpower_average",
           "Average manpower required",
@@ -993,6 +1024,16 @@ function metricsFor(
           },
         ),
       ];
+      if (sourceMetrics) {
+        // Retain the headcount challenge as a separate review. Its absent inputs
+        // do not invalidate the demand/capacity position on a different basis.
+        resources.manpowerRequirementComparison = buildModuleChallenge({
+          moduleKey: key, generatedAt: ctx.generatedAt, assertions: allAssertions(state), metrics: manpowerMetrics,
+        });
+        return sourceMetrics;
+      }
+      return manpowerMetrics;
+    }
 
     case "lookahead-schedule":
       return [
@@ -1292,9 +1333,9 @@ function metricsFor(
 
     case "near-critical": {
       const config = projectScheduleControlBasis(state).analysisConfig;
-      const sourceById = new Map(model.activities.filter(isExecutionActivity).map(a=>[a.activityId,a]));
+      const sourceById = new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed').map(a=>[a.activityId,a]));
       const independentRows = forecast.activities.filter(row=>sourceById.has(row.activityId));
-      const independentCount = !forecast.complete || !independentRows.length || independentRows.some(row=>row.independentTotalFloatHours===null||activityNearCriticalThresholdHours(model,sourceById.get(row.activityId)!,config)===null) ? null : independentRows.filter(row=>{
+      const independentCount = !forecast.complete || independentRows.length!==sourceById.size || independentRows.some(row=>row.independentTotalFloatHours===null||activityNearCriticalThresholdHours(model,sourceById.get(row.activityId)!,config)===null) ? null : independentRows.filter(row=>{
         const activity = sourceById.get(row.activityId)!;
         const threshold = activityNearCriticalThresholdHours(model, activity, config);
         return threshold !== null && row.independentTotalFloatHours !== null && row.independentTotalFloatHours > config.criticalFloatThresholdHours && row.independentTotalFloatHours <= threshold;

@@ -5,10 +5,10 @@
   "description": "CMeng controlled construction/project evidence and intelligence platform",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
+    "build": "tsc && node scripts/check-browser-bootstrap.cjs",
     "start": "node dist/packages/runtime-api/src/project-gateway.js",
     "audit:counts": "npm run build && node scripts/audit-aggregate-counts.cjs",
-    "test:unit": "npm run build && node --test --test-concurrency=4 $(find dist/tests -name '*.test.js' ! -name '*-scale.test.js')",
+    "test:unit": "npm run build && node scripts/run-unit-tests.cjs",
     "test:stress": "npm run build && node --test dist/tests/*-scale.test.js",
     "test": "npm run test:unit",
     "verify": "npm run typecheck && npm run test:unit",

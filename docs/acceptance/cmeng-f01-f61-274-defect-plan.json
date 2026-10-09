@@ -1,0 +1,1188 @@
+{
+  "schema": "cmeng-consultant-fix-plan-v1",
+  "sourceReviewRelease": "47cd802",
+  "liveRecheckRelease": "aadd8d4",
+  "liveRecheckDate": "2026-10-08",
+  "project": "REEM 112",
+  "baselineFixture": "tests/fixtures/reem-112-review.json",
+  "baselineDefectCount": 266,
+  "newDefectCount": 8,
+  "allDefectsMapped": 274,
+  "fixItemCount": 61,
+  "acceptanceMeaning": "Fixed/Partly/Open/Not checked are source consultant read-only observations of aadd8d4, not formal closure or validation of subsequent code.",
+  "statusCounts": {
+    "Fixed": 12,
+    "Partly": 32,
+    "Open": 4,
+    "Not checked": 13
+  },
+  "workOrder": [
+    [
+      "0",
+      "R9",
+      "Rendered-page answers and independent testing"
+    ],
+    [
+      "1",
+      "R1",
+      "One facts producer"
+    ],
+    [
+      "2",
+      "R4",
+      "Read retained documents and columns"
+    ],
+    [
+      "3",
+      "R2/R3",
+      "Evidence states and actionable routes"
+    ],
+    [
+      "4",
+      "R5",
+      "Engineering and PMC rules"
+    ],
+    [
+      "5",
+      "R6",
+      "Prioritize by consequence"
+    ],
+    [
+      "6",
+      "R7",
+      "Plain decision pages"
+    ],
+    [
+      "7",
+      "R8",
+      "Platform and page weight"
+    ]
+  ],
+  "items": [
+    {
+      "id": "F01",
+      "root": "R9",
+      "title": "Tests read the screen, with independent answers",
+      "fix": "Add a browser test that opens every REEM page (all 50 menu pages, the 7 tabs, project review, documents, director drawer, portfolio) and compares the displayed text with the answer key. Add three more checks: one fact = one value across pages; banned words; page data size. Expected values come only from source files or consultant sign-off, never from CMeng output (remove actions.openCount 276 as an \"expected\" value).",
+      "where": "scripts/reem-golden-facts.mjs, tests/fixtures/reem-112-golden-facts.json",
+      "d": [
+        "N-8"
+      ],
+      "test": "All four checks run on the exact release commit and pass before any deploy to the review site.",
+      "live": "Open",
+      "ev": "Answer key exists (251 checks) but reads API data only.",
+      "step": 0
+    },
+    {
+      "id": "F02",
+      "root": "R1",
+      "title": "Securities from one rule",
+      "fix": "Active / expired / expiring is decided once from expiry date vs data date; insurance kept separate from bonds; every page shows that result.",
+      "where": "commercial-contract-controls, security-validity.ts",
+      "d": [
+        "D-002",
+        "D-018",
+        "D-021"
+      ],
+      "test": "Active bonds 1 (PB 21M); expired 1 (APG 21M, 25 Jul 2026); CAR insurance 210M expired 01 Aug 2026; same on Dashboard, Commercial Overview, Contract page, Director drawer.",
+      "live": "Fixed",
+      "ev": "Contract page: APG expired, CAR policy expired; 21M active on all 9 pages that carry it.",
+      "step": 1
+    },
+    {
+      "id": "F03",
+      "root": "R1",
+      "title": "Schedule counts from one calculation",
+      "fix": "Critical, near-critical, negative float and delayed-open counts come from one calculation over open execution activities; every schedule page, chart and area table reads it.",
+      "where": "project-facts.ts; duplicate counts in progress-breakdown, schedule-analysis-core, near-critical-analysis",
+      "d": [
+        "D-009",
+        "D-012",
+        "D-052",
+        "D-069",
+        "D-084",
+        "D-136",
+        "D-187"
+      ],
+      "test": "41 critical, 7 near-critical, 41 negative float, 192 delayed open; Villa Type B 40 critical; same on every page.",
+      "live": "Partly",
+      "ev": "Revision History 41 / 7 / 41; Progress Breakdown Villa Type B 40 / 40. Delay pages not re-checked.",
+      "step": 1
+    },
+    {
+      "id": "F04",
+      "root": "R1",
+      "title": "RFI and NCR counts from one register reading",
+      "fix": "Register pages and the dashboard read the same open / overdue / severity counts.",
+      "where": "operationalReporting, delivery-projections.ts",
+      "d": [
+        "D-026",
+        "D-027",
+        "D-030"
+      ],
+      "test": "53 open / 44 overdue RFIs; 29 major or critical NCRs; same on Dashboard, RFI & Design, Quality.",
+      "live": "Partly",
+      "ev": "53 and 29 shown; \"Not established\" still in 83 row cells on RFI & Design.",
+      "step": 1
+    },
+    {
+      "id": "F05",
+      "root": "R1",
+      "title": "One action register",
+      "fix": "One record = one action; same total everywhere; RFI / NCR not duplicated as activity actions.",
+      "where": "project-actions.ts, action-priority.ts",
+      "d": [
+        "D-038",
+        "D-042",
+        "D-131"
+      ],
+      "test": "Same action total on Command Center, Accountability, Project review, Portfolio; no record appears twice.",
+      "live": "Fixed",
+      "ev": "276 on Command Center, Accountability and Portfolio.",
+      "step": 1
+    },
+    {
+      "id": "F06",
+      "root": "R1",
+      "title": "Claims and EOT facts shared",
+      "fix": "Events, notice timing, determinations and claim days are worked out once and read by every claims page.",
+      "where": "canonical-time-claims.ts, claimsReporting",
+      "d": [
+        "D-040",
+        "D-047",
+        "D-083",
+        "D-088",
+        "D-101",
+        "D-188"
+      ],
+      "test": "16 events, 0 event dates missing, 14 timely / 2 late notices, 13 d awarded, 75 claimed / 34 assessed on every claims page.",
+      "live": "Partly",
+      "ev": "Notice Compliance 14 / 2; Delay Event Register \"event date missing 0\". EOT page still shows \"Independent comparison not confirmed\".",
+      "step": 1
+    },
+    {
+      "id": "F07",
+      "root": "R1",
+      "title": "Shared inputs and prerequisites",
+      "fix": "Calendars, quantities, CPM coverage, capacity, installed quantities, discipline list, risk owners and row counts are one shared status, not re-decided per page.",
+      "where": "project-facts.ts",
+      "d": [
+        "D-064",
+        "D-078",
+        "D-107",
+        "D-178",
+        "D-209",
+        "D-215",
+        "D-216"
+      ],
+      "test": "A prerequisite confirmed on one page is confirmed on all; risk register 110 rows; capacity shown for all 12 trades.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 1
+    },
+    {
+      "id": "F08",
+      "root": "R1",
+      "title": "One programme state and a real consistency check",
+      "fix": "Update02 has one state on every page; the \"cross-module consistency\" check compares the values actually displayed.",
+      "where": "project-state.ts, projection-integrity.ts",
+      "d": [
+        "D-036",
+        "D-125"
+      ],
+      "test": "Update02 \"current\" on every page including Documents; the consistency check fails when any page shows a different value.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 1
+    },
+    {
+      "id": "F09",
+      "root": "R1",
+      "title": "Portfolio uses the same rules for every project",
+      "fix": "Portfolio cards read each project's shared facts.",
+      "where": "portfolio projection",
+      "d": [
+        "D-129"
+      ],
+      "test": "REEM 112 card shows extended date 21 Sep 2027 like every other project.",
+      "live": "Fixed",
+      "ev": "Portfolio data: REEM furtherAdjustedCompletion 2027-09-21.",
+      "step": 1
+    },
+    {
+      "id": "F10",
+      "root": "R1",
+      "title": "One page per question, no duplicate blocks",
+      "fix": "Each topic has one owner page; other pages link to it instead of copying its blocks.",
+      "where": "ui.ts moduleWorkspaces and page renderers",
+      "d": [
+        "D-115",
+        "D-137",
+        "D-170",
+        "D-172",
+        "D-185",
+        "D-193",
+        "D-198",
+        "D-205",
+        "D-206",
+        "D-207",
+        "D-241",
+        "D-244",
+        "D-245",
+        "D-249"
+      ],
+      "test": "No block appears on two pages; merged pages are tabs of one workspace.",
+      "live": "Partly",
+      "ev": "7 pages merged into 3 tabbed workspaces (57 to 50 menu items). Duplicate blocks not re-checked.",
+      "step": 1
+    },
+    {
+      "id": "F11",
+      "root": "R1",
+      "title": "Director drawer and Ask CMeng read the same facts",
+      "fix": "Both read the shared facts only.",
+      "where": "project-director, project-ask",
+      "d": [
+        "D-128",
+        "D-219"
+      ],
+      "test": "Director drawer figures equal the dashboard; each suggested Ask question gives the answer-key value.",
+      "live": "Not checked",
+      "ev": "Ask not tested (read-only rule: no questions asked).",
+      "step": 1
+    },
+    {
+      "id": "F12",
+      "root": "R4",
+      "title": "Owners from the registers, never hard-coded",
+      "fix": "Owner = the register's responsible column; if none, the PMC role for that domain. Remove the hard-coded \"Not assigned\".",
+      "where": "position-review.ts line 92; register column maps",
+      "d": [
+        "D-005",
+        "D-037",
+        "D-133",
+        "D-156",
+        "D-175",
+        "D-226",
+        "D-247",
+        "N-4"
+      ],
+      "test": "NCR-0042 owner MEP Coordinator; NCR-0259 QA/QC Manager; risk owners shown; no \"Not assigned\" where a name exists.",
+      "live": "Partly",
+      "ev": "Quality page shows owners (Package Manager, QA/QC Manager); \"Not assigned\" still 504 times on 30 pages.",
+      "step": 2
+    },
+    {
+      "id": "F13",
+      "root": "R4",
+      "title": "Claims register fully read",
+      "fix": "Event date, awareness date, responsibility claimed, claimed / assessed days, status and determinations all carried through.",
+      "where": "canonical-time-claims.ts, register-schema.ts",
+      "d": [
+        "D-015",
+        "D-016",
+        "D-029",
+        "D-082",
+        "D-181"
+      ],
+      "test": "Delay Event Register shows 75 claimed, 34 assessed, status 8 / 6 / 2, EOT 13 d, responsibility per claim.",
+      "live": "Partly",
+      "ev": "75 / 34 / 13 and notices 14 / 2 shown; responsibility column not re-checked.",
+      "step": 2
+    },
+    {
+      "id": "F14",
+      "root": "R4",
+      "title": "Procurement register fully read; status drives delivered",
+      "fix": "Read all 90 packages, long-lead flag, vendor and status. A terminal status (Delivered, Installed, Closed) means delivered even without an actual date. Undelivered packages on finished work go to register clean-up.",
+      "where": "truth-kernel/src/procurement-timing.ts; delivery-projections.ts line 650",
+      "d": [
+        "D-004",
+        "D-031",
+        "D-045",
+        "D-080",
+        "D-106",
+        "D-109",
+        "D-203",
+        "N-1"
+      ],
+      "test": "90 packages, 30 long-lead, 68 delivered, 22 not delivered, 17 late; PKG-0056 and PKG-0004 in top actions; suppliers from vendor field.",
+      "live": "Partly",
+      "ev": "Register read (90, 30 long-lead); PKG-0056 / PKG-0004 in actions; but \"44 known late\" counts 27 delivered packages (N-1).",
+      "step": 2
+    },
+    {
+      "id": "F15",
+      "root": "R4",
+      "title": "Risk register fully read",
+      "fix": "Impact, Score, Last Reviewed, Action Due Date and Closed status used.",
+      "where": "register-schema.ts",
+      "d": [
+        "D-041",
+        "D-121",
+        "D-122"
+      ],
+      "test": "Scores for 110 rows; 73 open; 37 closed.",
+      "live": "Fixed",
+      "ev": "Risks page: 73 open.",
+      "step": 2
+    },
+    {
+      "id": "F16",
+      "root": "R4",
+      "title": "Resource register actual hours",
+      "fix": "Actual Approved Usage read by week and linked to the look-ahead.",
+      "where": "resource-support-evidence.ts",
+      "d": [
+        "D-011",
+        "D-158"
+      ],
+      "test": "Actual hours by trade and week; Look-Ahead resources column filled.",
+      "live": "Partly",
+      "ev": "Actual utilization 30.48% shown; recorded-hours fields still \"Unresolved\" (41 times on Resources).",
+      "step": 2
+    },
+    {
+      "id": "F17",
+      "root": "R4",
+      "title": "Classify files by header, not file name",
+      "fix": "Permit register and EVM history recognised as registers and used.",
+      "where": "document-identification.ts",
+      "d": [
+        "D-092",
+        "D-116",
+        "D-126",
+        "D-171"
+      ],
+      "test": "Permit register drives Permits; monthly EVM history drives the cost trend and progress curve.",
+      "live": "Partly",
+      "ev": "Both files classified correctly in the data; curves on pages not re-checked.",
+      "step": 2
+    },
+    {
+      "id": "F18",
+      "root": "R4",
+      "title": "Bond register instrument column",
+      "fix": "Instrument column sets the instrument type.",
+      "where": "commercial-contract-controls",
+      "d": [
+        "D-103"
+      ],
+      "test": "APG recognised as the advance payment security; CAR as insurance.",
+      "live": "Fixed",
+      "ev": "APG-VLC1-0202 shown as Advance Payment; CAR as insurance policy.",
+      "step": 2
+    },
+    {
+      "id": "F19",
+      "root": "R4",
+      "title": "VO and IPC registers",
+      "fix": "VO status from the register; IPC variations column links VOs to payment.",
+      "where": "commercial-foundation, contract-commercial",
+      "d": [
+        "D-019",
+        "D-195"
+      ],
+      "test": "VO-026 rejected; pending 0; payment linkage 100% (11,776,000 certified by IPC-023).",
+      "live": "Partly",
+      "ev": "VO-026 rejected, pending 0. Payment linkage not re-checked.",
+      "step": 2
+    },
+    {
+      "id": "F20",
+      "root": "R4",
+      "title": "Commercial terms and dated payments",
+      "fix": "Advance amount from Sub-Clause 14.2 less recoveries; payment dates make a dated cash series; brief carries cost line; three progress measures side by side.",
+      "where": "commercial-performance, commercial-control",
+      "d": [
+        "D-066",
+        "D-096",
+        "D-098",
+        "D-149"
+      ],
+      "test": "Advance outstanding 1,396,548; dated cash curve; brief shows CPI 0.96, EAC 218.4M, unpaid 9.9M; EVM 89.1% / certified 87.7% / schedule 88.6% together.",
+      "live": "Partly",
+      "ev": "Payments shows advance balance 1,396,548. Brief and cash series not re-checked.",
+      "step": 2
+    },
+    {
+      "id": "F21",
+      "root": "R4",
+      "title": "BOQ to programme mapping",
+      "fix": "BOQ WBS Code maps sections to the 14 WBS areas; physical and certified progress by area.",
+      "where": "quantity-progress-core, boq-ingestion",
+      "d": [
+        "D-072",
+        "D-174",
+        "D-204"
+      ],
+      "test": "Mapping 100%; Progress Breakdown physical and certified columns filled; BOQ items linked to packages where the register allows.",
+      "live": "Partly",
+      "ev": "Mapping 100% in data; Progress Breakdown shows three progress columns. Package link not checked.",
+      "step": 2
+    },
+    {
+      "id": "F22",
+      "root": "R4",
+      "title": "Programme (XER) fields",
+      "fix": "Baseline dates from the baseline file; discipline from the programme; plot and zone parsed from names; clean filter values.",
+      "where": "xer-parser, schedule-revision-core",
+      "d": [
+        "D-113",
+        "D-114",
+        "D-152",
+        "D-230"
+      ],
+      "test": "Baseline start differs from current start where the baseline says so; plot filter (Plot B 42 ...); discipline list matches the programme.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 2
+    },
+    {
+      "id": "F23",
+      "root": "R4",
+      "title": "Programme fallback for empty delivery registers",
+      "fix": "When no register exists, use programme testing, snagging and handover activities and disruption claims, labelled as programme-based.",
+      "where": "delivery-projections.ts",
+      "d": [
+        "D-211",
+        "D-212",
+        "D-213",
+        "D-214"
+      ],
+      "test": "Testing, Snag, Handover and Weather pages show the programme activities and claims.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 2
+    },
+    {
+      "id": "F24",
+      "root": "R4",
+      "title": "HSE report fields",
+      "fix": "Native-text HSE report values extracted.",
+      "where": "hse-report-evidence.ts",
+      "d": [
+        "D-120"
+      ],
+      "test": "Man-hours 831,000, LTI 1, LTIFR 1.2, TRIR 1.68.",
+      "live": "Fixed",
+      "ev": "Dashboard shows LTIFR 1.2, TRIR 1.68.",
+      "step": 2
+    },
+    {
+      "id": "F25",
+      "root": "R2",
+      "title": "Clean registers used immediately",
+      "fix": "Clean rows are used at once with the label \"From register\". Completeness confirmation only adds percentages; it never hides figures.",
+      "where": "evidence-control.ts, delivery-projections.ts",
+      "d": [
+        "D-023",
+        "D-024",
+        "D-025",
+        "D-108",
+        "D-110",
+        "D-111",
+        "D-117",
+        "D-157",
+        "D-221"
+      ],
+      "test": "Procurement, design, permit and readiness figures shown with no gate; no \"confirm complete\" banner in front of numbers.",
+      "live": "Partly",
+      "ev": "Figures now shown; \"Confirm these records are complete\" still at the top of 5 pages.",
+      "step": 3
+    },
+    {
+      "id": "F26",
+      "root": "R2",
+      "title": "A normal constraint does not block CPM or the forecast",
+      "fix": "Apply source constraints as P6 does and also run without them; publish both.",
+      "where": "schedule-cpm/engine.ts",
+      "d": [
+        "D-013",
+        "D-044",
+        "D-049",
+        "D-051",
+        "D-077"
+      ],
+      "test": "CMeng CPM computed for all open activities; P50 / P80 / P90 shown; stage forecast finishes shown.",
+      "live": "Fixed",
+      "ev": "\"Independent CPM not established\" gone (3,032 hits to 0); P50 +17 d, P80 +46 d, P90 +62 d shown.",
+      "step": 3
+    },
+    {
+      "id": "F27",
+      "root": "R2",
+      "title": "Arithmetic is shown, not withheld",
+      "fix": "Sums and date additions are shown with their basis: extended date, unpaid, pending VOs, notice proxy, actual hours.",
+      "where": "commercial-canonical.ts, project-facts.ts",
+      "d": [
+        "D-035",
+        "D-074",
+        "D-085",
+        "D-087",
+        "D-090",
+        "D-095",
+        "D-190",
+        "D-194"
+      ],
+      "test": "Unpaid 9,899,013; extended date 21 Sep 2027; pending VOs 0; notice days for CLM-003 (44) and CLM-004 (42); actual 755,452 h plotted.",
+      "live": "Partly",
+      "ev": "Unpaid, extended date, pending 0 and notices shown. Actual-hours point not re-checked.",
+      "step": 3
+    },
+    {
+      "id": "F28",
+      "root": "R2",
+      "title": "Candidate values do not create approval requests",
+      "fix": "A value read cleanly from the contract or a register is \"From source\". Approval is raised only when two sources disagree or a user overrides a value. One prompt per fact, not one per page.",
+      "where": "module-issues.ts line 146; contract term states (LD rate and cap \"candidate\")",
+      "d": [
+        "D-124",
+        "N-2",
+        "N-3"
+      ],
+      "test": "\"approval needed\" only on real conflicts; LD cap and APG not requested again on the page that shows them.",
+      "live": "Open",
+      "ev": "\"approval needed\" 37 to 104; \"Review and promote\" 5 to 15.",
+      "step": 3
+    },
+    {
+      "id": "F29",
+      "root": "R2",
+      "title": "Best-available analyses instead of all-or-nothing",
+      "fix": "Run the feasibility check, recovery scenarios, cash forecast and late-payment test with the data held.",
+      "where": "delivery-challenge, recovery-acceleration.ts, commercial-performance",
+      "d": [
+        "D-079",
+        "D-097",
+        "D-099",
+        "D-180"
+      ],
+      "test": "Plaster-chain feasibility shown; recovery scenarios generated; cash forecast from remaining value on the programme; 11 of 21 IPCs paid late.",
+      "live": "Partly",
+      "ev": "Paid late 11 / on time 10 shown. Cash forecast \"No source rows\"; crew acceleration candidates 0.",
+      "step": 3
+    },
+    {
+      "id": "F30",
+      "root": "R3",
+      "title": "Every gap has a named route, or it is not an action",
+      "fix": "Each gap names the missing field, the file and column that would supply it, the owner and one button. Gaps without a route go to a data-gaps list. No re-upload requests for correct files.",
+      "where": "position-review.ts, ui-project-actions.ts",
+      "d": [
+        "D-028",
+        "D-105",
+        "D-118",
+        "D-145",
+        "D-179",
+        "N-6"
+      ],
+      "test": "No action without a route; unlock steps on the page headline; no \"Source productivity forecast\" request on management pages.",
+      "live": "Partly",
+      "ev": "Completeness button now prominent; \"Information needed\" still 342 times on 29 pages.",
+      "step": 3
+    },
+    {
+      "id": "F31",
+      "root": "R3",
+      "title": "Normal contract structure is not a problem",
+      "fix": "Two sections with their own dates and damages are normal; do not raise them.",
+      "where": "contract-parser, project-contract-sections.ts",
+      "d": [
+        "D-217"
+      ],
+      "test": "No \"section numbers repeat\" item in Project review.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 3
+    },
+    {
+      "id": "F32",
+      "root": "R3",
+      "title": "Stale schedule footer",
+      "fix": "Footer only when a schedule is really awaiting review.",
+      "where": "ui.ts",
+      "d": [
+        "D-223",
+        "D-224",
+        "D-225"
+      ],
+      "test": "No \"newly uploaded schedule needs your review\" after adoption.",
+      "live": "Fixed",
+      "ev": "Footer on 0 of 50 pages (was 56 of 57).",
+      "step": 3
+    },
+    {
+      "id": "F33",
+      "root": "R5",
+      "title": "Contract time: extended date everywhere",
+      "fix": "Extended date = contract + awarded EOT on every page and chart; days late against it; the completion constraint that gives -88 h is named.",
+      "where": "project-facts.ts time facts; chart renderers",
+      "d": [
+        "D-001",
+        "D-010",
+        "D-048",
+        "D-050",
+        "D-060",
+        "D-075",
+        "D-076",
+        "D-147"
+      ],
+      "test": "21 Sep 2027 and 15 days late on Dashboard, Brief, Milestones, Completion History, Completion Forecast; contract and extended lines on finish charts.",
+      "live": "Partly",
+      "ev": "Dashboard and Completion Forecast show 21 Sep 2027 and 15 days; charts not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F34",
+      "root": "R5",
+      "title": "Sectional completion and delay damages",
+      "fix": "Section 1 and Section 2 each with date, rate and cap; LD exposure with cap; never a \"conflict\".",
+      "where": "project-contract-sections.ts, commercial-contract-controls",
+      "d": [
+        "D-034",
+        "D-046",
+        "D-061",
+        "D-100",
+        "D-102",
+        "D-208"
+      ],
+      "test": "Section 1 35,000/day; Section 2 60,000/day, cap 21M; LD 0.90M (extended) / 1.68M (original) on Dashboard, Contract, Financial Claims; Section 1 to 2 interface.",
+      "live": "Partly",
+      "ev": "Section table correct on Contract page and Milestones; Contract page shows 1,680,000 / 900,000 but marked \"Needs review\"; not on Dashboard or Financial Claims.",
+      "step": 4
+    },
+    {
+      "id": "F35",
+      "root": "R5",
+      "title": "Securities and insurance validity",
+      "fix": "Check cover to completion plus defects period; flag expired insurance.",
+      "where": "security-validity.ts",
+      "d": [
+        "D-022",
+        "D-104"
+      ],
+      "test": "CAR expired flagged; PB to 31 Dec 2027 flagged as ending 86 days after forecast finish and before the defects period ends.",
+      "live": "Fixed",
+      "ev": "CAR expired with escalation; PB defects-period warning shown.",
+      "step": 4
+    },
+    {
+      "id": "F36",
+      "root": "R5",
+      "title": "Payment rules",
+      "fix": "Gross vs net; applications are not certified; advance outstanding; 1-riyal rounding is not a failure; due date vs Sub-Clause 14.7; like-for-like ratios.",
+      "where": "commercial-performance, commercial-canonical.ts",
+      "d": [
+        "D-017",
+        "D-020",
+        "D-091",
+        "D-189",
+        "D-191",
+        "D-192",
+        "D-196",
+        "D-197"
+      ],
+      "test": "Gross 196,034,538; net 166,629,358; IPC-024 excluded; advance 1,396,548; rounding passes; due-date basis shown.",
+      "live": "Partly",
+      "ev": "Payments shows gross, net and advance correctly. Ratio and due-date basis not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F37",
+      "root": "R5",
+      "title": "Cost rules",
+      "fix": "Compare EAC with the current contract, not only the original budget; query positive \"omissions\"; query register value above the contract sum.",
+      "where": "commercial-performance, ui.ts cost tile",
+      "d": [
+        "D-033",
+        "D-093",
+        "D-094",
+        "D-202"
+      ],
+      "test": "Headline: EAC 218.4M is 3.37M below current contract 221.78M; 4 omission VOs queried; 292.5M package value queried.",
+      "live": "Partly",
+      "ev": "Shows \"EAC vs current contract below by 3.37M\" but headline still \"ADVERSE FORECAST 8.4M above original budget\".",
+      "step": 4
+    },
+    {
+      "id": "F38",
+      "root": "R5",
+      "title": "CPM, driving path and programme quality checks",
+      "fix": "Correct driving chain; stage classification; DCMA-type checks, BEI, CPLI; float erosion rate; criticality definition stated.",
+      "where": "schedule-cpm, pmc-schedule-rules.ts",
+      "d": [
+        "D-006",
+        "D-008",
+        "D-032",
+        "D-165",
+        "D-234"
+      ],
+      "test": "Driving chain 34 activities (Plot B42 to B70, MEP, painting, snagging, PC); constraints / lags / relationship checks; BEI and CPLI; \"turns critical by\" date.",
+      "live": "Not checked",
+      "ev": "BEI present in data.",
+      "step": 4
+    },
+    {
+      "id": "F39",
+      "root": "R5",
+      "title": "Finished work is not open work",
+      "fix": "Counts and warnings use open work; finished areas are not blocked; RFIs and NCRs on finished work are close-out.",
+      "where": "activity-float-reconciliation.ts, delivery-projections.ts",
+      "d": [
+        "D-073",
+        "D-112",
+        "D-139",
+        "D-150",
+        "D-151",
+        "D-154",
+        "D-155",
+        "D-162",
+        "D-164"
+      ],
+      "test": "192 delayed open; no \"1,837 awaiting classification\"; 44 RFIs and 67 NCRs listed as close-out; finished milestones show no float.",
+      "live": "Partly",
+      "ev": "RFI and NCR rows marked \"Completed linked work\"; close-out counts in data.",
+      "step": 4
+    },
+    {
+      "id": "F40",
+      "root": "R5",
+      "title": "Programme change analysis",
+      "fix": "Completion movement on the comparison page; cause split; update gap flagged; slip rate; driving activities per window; plot filter.",
+      "where": "schedule-change-report, windows-analysis, revision-trend",
+      "d": [
+        "D-056",
+        "D-057",
+        "D-058",
+        "D-086",
+        "D-153",
+        "D-160",
+        "D-161",
+        "D-169",
+        "D-186"
+      ],
+      "test": "+17 d (Update01 to 02) and +32 d (baseline to 01) stated; logic / lag / duration / constraint split; 427-day gap flagged; slip rate; window driving activities.",
+      "live": "Partly",
+      "ev": "427-day gap and 17-day movement in data; pages not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F41",
+      "root": "R5",
+      "title": "Float trend charts",
+      "fix": "Unknown values are gaps, never plotted as zero.",
+      "where": "revision-trend",
+      "d": [
+        "D-059"
+      ],
+      "test": "Charts show 0 critical at baseline and 41 now.",
+      "live": "Partly",
+      "ev": "Revision History shows 41 / 7 / 41; chart lines not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F42",
+      "root": "R5",
+      "title": "Look-ahead blockers",
+      "fix": "A late long-lead package or open RFI / NCR on a driving activity is a named blocker; float column in the window.",
+      "where": "lookahead, construction readiness",
+      "d": [
+        "D-054",
+        "D-055",
+        "D-119",
+        "D-232"
+      ],
+      "test": "VLC-10-428 shows PKG-0056 as blocker; float and driving flag per activity; NCR-0259 singled out; RFI-0680 / 0677 shown with due date.",
+      "live": "Partly",
+      "ev": "Quality page lists NCR-0259 as the first required action. Look-Ahead not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F43",
+      "root": "R5",
+      "title": "Recovery options",
+      "fix": "State the recovery target and generate the first options a planner tests: second crew, sixth working day.",
+      "where": "recovery-acceleration.ts, plot-crew-scenarios.ts",
+      "d": [
+        "D-014",
+        "D-081"
+      ],
+      "test": "Target 11 working days (extended) / 20 (original); second-crew and six-day scenarios for the plaster chain.",
+      "live": "Partly",
+      "ev": "Recovery target shown; \"Crew acceleration candidates 0\" and \"Late procurement packages 44\" (N-1).",
+      "step": 4
+    },
+    {
+      "id": "F44",
+      "root": "R5",
+      "title": "EOT pending pipeline",
+      "fix": "Show the pending claims scenario.",
+      "where": "project-facts.ts claims pipeline",
+      "d": [
+        "D-089"
+      ],
+      "test": "8 pending, 21 assessed days, scenario date 12 Oct 2027.",
+      "live": "Fixed",
+      "ev": "EOT page: \"completion moves to Oct 12, 2027\".",
+      "step": 4
+    },
+    {
+      "id": "F45",
+      "root": "R5",
+      "title": "Progress and quantity rules",
+      "fix": "Progress by area; period and required rate; no cross-item unit sums; query fractional LS; installed value vs certified; earned hours; % installed.",
+      "where": "quantity-scurve, progress-report, manhour-scurve",
+      "d": [
+        "D-067",
+        "D-070",
+        "D-071",
+        "D-168",
+        "D-173",
+        "D-176",
+        "D-240",
+        "D-250"
+      ],
+      "test": "Villa Type B progress shown separately; 132 LS items queried; installed value vs 184.26M certified; earned hours about 752,200 vs 755,452 spent.",
+      "live": "Partly",
+      "ev": "Per-item curves replace unit sums, but they now load on every management page (N-5).",
+      "step": 4
+    },
+    {
+      "id": "F46",
+      "root": "R5",
+      "title": "Resources against the driving chain",
+      "fix": "Hours, shortfall and trade for the plaster chain.",
+      "where": "resource-utilization",
+      "d": [
+        "D-065"
+      ],
+      "test": "Plasterer / mason hours needed vs available for Villa Type B.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 4
+    },
+    {
+      "id": "F47",
+      "root": "R5",
+      "title": "Detailed-claim time bar check",
+      "fix": "Check Sub-Clause 20.2.4 (42 days) per claim.",
+      "where": "notices-claims",
+      "d": [
+        "D-184"
+      ],
+      "test": "Each claim shows days from notice to detailed claim against 42.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 4
+    },
+    {
+      "id": "F48",
+      "root": "R5",
+      "title": "Permits against the programme",
+      "fix": "Link each expired permit to open or finished work.",
+      "where": "delivery permits",
+      "d": [
+        "D-210"
+      ],
+      "test": "37 expired permits, none on open work, stated.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 4
+    },
+    {
+      "id": "F49",
+      "root": "R5",
+      "title": "Completed-late milestones",
+      "fix": "List milestones that finished late.",
+      "where": "milestones",
+      "d": [
+        "D-163"
+      ],
+      "test": "Landscaping +26 d, Villa Type C +9 d listed.",
+      "live": "Not checked",
+      "ev": "",
+      "step": 4
+    },
+    {
+      "id": "F50",
+      "root": "R5",
+      "title": "Portfolio card content",
+      "fix": "Card leads with forecast vs extended date, days late, cost position, top threat.",
+      "where": "portfolio UI",
+      "d": [
+        "D-130"
+      ],
+      "test": "REEM card: forecast 06 Oct 2027, extended 21 Sep 2027, 15 days late, CPI, top threat.",
+      "live": "Partly",
+      "ev": "Data has forecast and extended dates; card text not re-checked.",
+      "step": 4
+    },
+    {
+      "id": "F51",
+      "root": "R6",
+      "title": "Priority by consequence, one action per chain",
+      "fix": "Rank by driving path, float, milestone and money, then age; one action for a chain.",
+      "where": "action-priority.ts",
+      "d": [
+        "D-003",
+        "D-138",
+        "D-140"
+      ],
+      "test": "Top actions: driving chain recovery, PKG-0056, PKG-0004, RFI-0660 / 0680, NCR-0259; not every row HIGH.",
+      "live": "Fixed",
+      "ev": "Top actions: one recovery action for 41 linked activities, then PKG-0056, PKG-0004, RFI-0680.",
+      "step": 5
+    },
+    {
+      "id": "F52",
+      "root": "R7",
+      "title": "Summary pages open with the answer",
+      "fix": "No activity tables at the top of summary pages; the brief and the director view fit one screen.",
+      "where": "ui.ts page renderers",
+      "d": [
+        "D-007",
+        "D-053",
+        "D-062",
+        "D-063",
+        "D-127"
+      ],
+      "test": "Management Brief, Activity Review, Milestones, Near-Critical and Director drawer open with the position, not a table.",
+      "live": "Partly",
+      "ev": "500-row \"CPM not established\" table gone; Management Brief still opens with a 220-row float comparison table.",
+      "step": 6
+    },
+    {
+      "id": "F53",
+      "root": "R7",
+      "title": "No internal IDs, codes or data paths on screen",
+      "fix": "Readable names for revisions, documents and clauses; codes stay in logs.",
+      "where": "ui.ts, position-review.ts STATUS_LABELS",
+      "d": [
+        "D-068",
+        "D-123",
+        "D-132",
+        "D-144",
+        "D-146",
+        "D-182",
+        "D-200",
+        "D-222",
+        "D-236"
+      ],
+      "test": "Zero hash IDs, data paths, API paths or UPPER_SNAKE codes in page text.",
+      "live": "Partly",
+      "ev": "Internal IDs 2,779 to 614 hits (27 to 7 pages); codes 44 to 12.",
+      "step": 6
+    },
+    {
+      "id": "F54",
+      "root": "R7",
+      "title": "Name the record, the blocker and the issue",
+      "fix": "Issue column states the defect; actions name the RFI / NCR / package, not just the activity.",
+      "where": "project-actions.ts, ui.ts",
+      "d": [
+        "D-039",
+        "D-134",
+        "D-141",
+        "D-143",
+        "D-148",
+        "D-251"
+      ],
+      "test": "NCR-0042 \"Waterproofing defect\" as issue; blockers named (NCR-0259, RFI-0660, RFI-0680).",
+      "live": "Not checked",
+      "ev": "",
+      "step": 6
+    },
+    {
+      "id": "F55",
+      "root": "R7",
+      "title": "Accountability grouped by owner",
+      "fix": "Group actions by owner with counts and overdue.",
+      "where": "accountability-intelligence.ts",
+      "d": [
+        "D-043"
+      ],
+      "test": "One block per owner.",
+      "live": "Partly",
+      "ev": "Page shows ownership concentrations; grouping not re-checked.",
+      "step": 6
+    },
+    {
+      "id": "F56",
+      "root": "R7",
+      "title": "Precision and formats",
+      "fix": "Round to what a manager uses; one date format; no repeated lists.",
+      "where": "ui.ts formatters",
+      "d": [
+        "D-135",
+        "D-177",
+        "D-227",
+        "D-237",
+        "D-246",
+        "D-248",
+        "D-266",
+        "N-7"
+      ],
+      "test": "No \"-0.25 days\"; CPI 0.96; no cents next to whole amounts; one date format; retention stated once.",
+      "live": "Open",
+      "ev": "\"-0.25 d\" still on Completion Forecast; CPI 0.961525.",
+      "step": 6
+    },
+    {
+      "id": "F57",
+      "root": "R7",
+      "title": "Plain state words and empty states",
+      "fix": "Use one plain word list (STATUS_LABELS already exists) for every page; one line for an empty register; no caveat walls.",
+      "where": "position-review.ts STATUS_LABELS; the 49 files that write their own wording",
+      "d": [
+        "D-142",
+        "D-159",
+        "D-166",
+        "D-167",
+        "D-183",
+        "D-199",
+        "D-201",
+        "D-228",
+        "D-229",
+        "D-233",
+        "D-235",
+        "D-238",
+        "D-239",
+        "D-242",
+        "D-243",
+        "D-252",
+        "D-259",
+        "D-262"
+      ],
+      "test": "Zero \"not established\", \"candidate\", \"qualified\", \"Unresolved\" where the value is known; one empty-state line per empty register.",
+      "live": "Partly",
+      "ev": "\"not established\" 7,894 to 1,445 hits, still on 41 of 50 pages.",
+      "step": 6
+    },
+    {
+      "id": "F58",
+      "root": "R7",
+      "title": "Documents page shows fields used and ignored",
+      "fix": "Per file: columns mapped and columns ignored.",
+      "where": "ui documents view",
+      "d": [
+        "D-218"
+      ],
+      "test": "Column usage visible for each of the 22 documents.",
+      "live": "Not checked",
+      "ev": "Column usage exists in the data (0 ignored).",
+      "step": 6
+    },
+    {
+      "id": "F59",
+      "root": "R7",
+      "title": "Test projects out of the live portfolio",
+      "fix": "Separate test projects from real projects.",
+      "where": "portfolio",
+      "d": [
+        "D-220"
+      ],
+      "test": "Portfolio shows real projects only, with a separate test list.",
+      "live": "Open",
+      "ev": "84 test projects still in the portfolio.",
+      "step": 6
+    },
+    {
+      "id": "F60",
+      "root": "R8",
+      "title": "Empty modules load normally",
+      "fix": "Empty modules return a normal response and one empty-state line.",
+      "where": "server.ts",
+      "d": [
+        "D-253",
+        "D-254",
+        "D-255",
+        "D-256",
+        "D-257",
+        "D-258",
+        "D-260",
+        "D-261",
+        "D-263",
+        "D-264",
+        "D-265"
+      ],
+      "test": "No HTTP 409 on any page.",
+      "live": "Fixed",
+      "ev": "No HTTP errors or console errors on any of 50 pages.",
+      "step": 7
+    },
+    {
+      "id": "F61",
+      "root": "R8",
+      "title": "Page weight",
+      "fix": "Server-paged tables; management pages get summaries, not the 896 item curves; each page under 2 MB of data.",
+      "where": "management-context.ts crossModule.quantities.series; server paging",
+      "d": [
+        "D-231",
+        "N-5"
+      ],
+      "test": "Every page data under 2 MB; Activity Review paged.",
+      "live": "Partly",
+      "ev": "Activity Review text 31,708 characters (was about 210,000); management pages now 16.5 to 17.8 MB (N-5).",
+      "step": 7
+    }
+  ],
+  "newDefects": [
+    {
+      "id": "N-1",
+      "sev": "High",
+      "root": "R4",
+      "page": "Master Dashboard, Recovery, Procurement",
+      "text": "\"44 known late packages · DELIVERY THREAT\". 27 of the 44 have status \"Delivered\" (e.g. PKG-0073 HV switchgear, needed 15 Oct 2024). Real late packages: 17. Cause: truth-kernel/src/procurement-timing.ts treats a package as delivered only when it has an actual delivery date; the register has none, so the \"Delivered\" status is ignored in the late-forecast test."
+    },
+    {
+      "id": "N-2",
+      "sev": "High",
+      "root": "R2",
+      "page": "11 pages",
+      "text": "\"approval needed\" rose from 37 to 104 times. Cause: runtime-api/src/module-issues.ts line 146 turns every value in state \"candidate\" into an \"Approval needed\" item. The LD rate and cap read from the contract are \"candidate\", so the Contract page shows the 21M cap in its table and then asks to approve it."
+    },
+    {
+      "id": "N-3",
+      "sev": "Medium",
+      "root": "R2",
+      "page": "Contract Particulars & Bonds",
+      "text": "The page lists APG-VLC1-0202 (Advance Payment, 21,000,000, expired 25 Jul 2026) and then says \"Advance payment bond requirement · information needed · Provide the advance payment record\"."
+    },
+    {
+      "id": "N-4",
+      "sev": "Medium",
+      "root": "R3",
+      "page": "30 pages",
+      "text": "\"Not assigned\" appears 504 times on 30 pages. Cause: runtime-api/src/position-review.ts line 92 hard-codes owner:\"Not assigned\" while the same code already picks the right role in assignTo (Project Director, Contracts Manager, Commercial Manager)."
+    },
+    {
+      "id": "N-5",
+      "sev": "Medium",
+      "root": "R8",
+      "page": "Master Dashboard, Command Center, Master Control Programme, Installed Quantities",
+      "text": "All 896 per-item quantity curves (14.5 MB) are inside every management page. Master Dashboard data 2.2 MB to 16.5 MB, Command Center 3.5 MB to 17.8 MB; 134 MB for one project. The per-project cache is 64 MB."
+    },
+    {
+      "id": "N-6",
+      "sev": "Medium",
+      "root": "R3",
+      "page": "Master Dashboard, Command Center, Master Control Programme",
+      "text": "\"Source Productivity Forecast · information needed · Not assigned\" shown as a management action on three management pages. It is not a PMC requirement and has no route."
+    },
+    {
+      "id": "N-7",
+      "sev": "Low",
+      "root": "R7",
+      "page": "Master Dashboard",
+      "text": "CPI 0.961525 and SPI 0.989103 shown to six decimals."
+    },
+    {
+      "id": "N-8",
+      "sev": "High",
+      "root": "R9",
+      "page": "Tests",
+      "text": "The REEM answer key (scripts/reem-golden-facts.mjs) checks the data the server sends, not the page text, and labels itself \"does not replace the live 62-page walk\". It has no check for late packages, approval prompts or owners, so N-1 to N-4 passed."
+    }
+  ]
+}

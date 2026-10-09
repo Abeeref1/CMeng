@@ -339,6 +339,7 @@ export function buildVarianceTrendsProjection(
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     revisionCount: points.length,
+    revisionLabels: Object.fromEntries(ordered.map(revision => [revision.revisionId, revision.label || `Revision ${revision.sequence}`])),
     points,
     activityTrends,
   };

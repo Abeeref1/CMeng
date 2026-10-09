@@ -24,9 +24,19 @@ export interface CanonicalBoqCommercialItem {
   sourceRefs: string[];
   status: "verified" | "unresolved";
   diagnostics: string[];
+  sourceCellEvidence?: import('../../boq-pdf-parser/src').BoqPdfLineItem['rasterEvidence'];
+  /** Retained OCR observations. Never calculation inputs or confirmed totals. */
+  sourceNumericReadings?: {quantity:number|null;rate:number|null;amount:number|null};
+  /** Reviewed calculation overlay. Original readings, files and authority remain unchanged. */
+  numericConfirmation?: import('./numeric-confirmation').BoqNumericConfirmation;
+  sourceReadingDiagnostics?: string[];
 }
 
 export interface BoqIngestionResult {
+  /** Original reader coverage, retained separately from later human review. */
+  sourcePageCoverage?: {totalPages:number;unresolvedPages:number[];automaticCoveragePercent:number|null};
+  sourceReview?: {automaticItemCount:number;addedItemCount:number;reviewedItemCount:number;confirmedPages:number[];pendingPages:number[];coveragePercent:number|null};
+  pdfRead?: import('../../pdf-document-parser/src').PdfDocumentResult;
   ingestionId: string;
   projectId: string;
   sourceFormat: BoqSourceFormat;
