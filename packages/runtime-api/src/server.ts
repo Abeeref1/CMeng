@@ -2846,13 +2846,17 @@ async function route(
       directorForProject(projectId) ??
       directorPositions.get(projectId);
     if (!position) {
-      json(res, 404, {
-        error:
-          "director_position_not_found",
-        persistence:
-          runtimeProjects
-            .persistenceMode(),
-      });
+      // An existing project with incomplete programme authority is a normal
+      // evidence state. Do not turn it into a missing project/404.
+      const retained=runtimeProjects.get(projectId);
+      if(retained){
+        json(res,200,{projectId,status:"not_established",positionState:"no_programme",
+          reason:"A current adopted programme and sufficient Project Director inputs are not established. Existing source registers remain available.",
+          evidenceDocumentCount:retained.evidenceDocuments.length,
+          dependencies:["Confirm the current programme and its reporting date before calculating the integrated director position."]});
+        return;
+      }
+      json(res,404,{error:"project_not_found"});
       return;
     }
     json(res, 200, position);
