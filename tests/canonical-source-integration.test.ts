@@ -55,7 +55,7 @@ const weekly='Resource ID,Week Start,Available Capacity,Planned Demand,Actual Ap
 const claims='Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nC1,Access unavailable,2026-08-02,20,5,Submitted';
 const determinations='Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State\nD1,C1,15,2026-07-24,Determined,Engineer,L1,Immutable\nD2,C1,11,2026-08-16,Determined,Engineer,L2,Immutable\nD3,C1,112,2026-09-08,Determined,Engineer,L3,Immutable';
 function amendment(state:ProjectRuntimeState) {
-  const doc={documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'renamed.pdf',sourceHashSha256:'amd-hash',basisState:'additive',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
+  const doc={documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'renamed.pdf',sourceHashSha256:'amd-hash',uploadedAt:stamp,basisState:'additive',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
   state.evidenceDocuments.push(doc);
   state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030\nEOT Granted 90 calendar days',startPage:1,sectionKey:'preamble',sourceMode:'deterministic'}],pdf:{pages:[{method:'native',pageNumber:2,text:'All contract, BOQ, variation, payment and cost values are stated in AED and are exclusive of VAT unless expressly stated otherwise.'}]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
   state.version++;
