@@ -50,8 +50,49 @@ function renderProgrammeCashScenario(scenario){
  ])+experienceDisclosure('Monthly assumed receipts · '+group.currency,basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>[planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),row.assumedReceiptIso?planningShortDate(row.assumedReceiptIso):'Payment period missing'])),'Straight-line scenario through '+planningShortDate(scenario.programmeFinishIso))).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
 }
 function renderContractSections(data){
-  const sections=data?.projectFacts?.contractSections||[];if(!sections.length)return '';
-  return '<section class="planning-panel"><h4>Sectional completion and delay damages</h4><div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone / finish</th><th>Contract / extended date</th><th>Damages rate</th><th>Cap</th></tr></thead><tbody>'+sections.map(section=>'<tr><td><b>'+escapeHtml('Section '+section.sectionId+' · '+section.label)+'</b>'+((section.completionDependsOnSectionIds||[]).length?'<br><small>Completion depends on Section '+escapeHtml(section.completionDependsOnSectionIds.join(', '))+'</small>':'')+'</td><td>'+escapeHtml(section.milestoneId||'Milestone link needs review')+'<br>'+escapeHtml(section.programmeCompletionIso?planningShortDate(section.programmeCompletionIso):'Finish not linked')+'</td><td>'+escapeHtml(section.contractCompletionIso?planningShortDate(section.contractCompletionIso):'Section date not supplied')+(section.extendedCompletionIso?'<br>'+escapeHtml(planningShortDate(section.extendedCompletionIso))+' with awarded EOT':'')+'</td><td>'+escapeHtml(fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis.endsWith('_week')?'week':'day'))+'</td><td>'+escapeHtml(section.capAmount!==null?fmt(section.capAmount)+' '+section.currency:section.capPercent!==null?fmt(section.capPercent)+'%':'Not supplied')+'<br><small>'+escapeHtml(section.capBasis)+'</small></td></tr>').join('')+'</tbody></table></div><small>Source contract terms are usable with their stated section. Programme completion does not itself establish taking-over or a right to deduct damages.</small></section>';
+ const facts=data?.projectFacts;
+ const sections=facts?.contractSections||[];
+ if(!sections.length)return '';
+ const controls=data?.position?.contractControls?.liquidatedDamages??data?.focus?.liquidatedDamages??null;
+ const reported=controls?.sectionScenarios||[];
+ const bySection=new Map(reported.map(row=>[String(row.sectionId),row]));
+ const dateDiff=(due,finish)=>{
+   if(!due||!finish)return null;
+   const a=Date.parse(String(due).slice(0,10)+'T00:00:00Z'),b=Date.parse(String(finish).slice(0,10)+'T00:00:00Z');
+   return Number.isFinite(a)&&Number.isFinite(b)?Math.max(0,Math.round((b-a)/86400000)):null;
+ };
+ const result=sections.map(section=>{
+   const matching=bySection.get(String(section.sectionId));
+   const due=matching?.contractualDueDateIso??section.extendedCompletionIso??section.contractCompletionIso??null;
+   const finish=matching?.forecastCompletionIso??section.programmeCompletionIso??null;
+   const basis=section.rateBasis;
+   const days=dateDiff(due,finish);
+   const perDay=typeof section.rate==='number'&&Number.isFinite(section.rate)
+     ?basis==='fixed_amount_per_day'?section.rate:basis==='fixed_amount_per_week'?section.rate/7:null:null;
+   const uncapped=days!==null&&perDay!==null?Math.round(days*perDay*100)/100:null;
+   const capped=uncapped!==null&&typeof section.capAmount==='number'
+     ?Math.min(uncapped,section.capAmount):null;
+   const reason=!due?'Section contractual completion date not in source':
+     !finish?'Submitted sectional programme milestone not linked':
+     perDay===null?'Section damages rate or day basis is not established':
+     uncapped!==null&&capped===null?'Uncapped scenario only; valid monetary cap basis not established':
+     'Section-only scenario, not assessed entitlement or deducted damages';
+   return {section,due,finish,days,uncapped,capped,reason};
+ });
+ const body=result.map(({section,due,finish,days,uncapped,capped,reason})=>
+  '<tr><td><b>'+escapeHtml(section.label||('Section '+section.sectionId))+'</b>'+
+   ((section.completionDependsOnSectionIds||[]).length?'<br><small>Completion depends on section '+escapeHtml(section.completionDependsOnSectionIds.join(', '))+'</small>':'')+'</td>'+
+  '<td>'+escapeHtml(section.milestoneId||'No matching source completion milestone')+'</td>'+
+  '<td>'+escapeHtml(due?planningShortDate(due):'Not in source')+'</td>'+
+  '<td>'+escapeHtml(finish?planningShortDate(finish):'Not in source')+'</td>'+
+  '<td>'+escapeHtml(section.rate===null?'Not in source':fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis==='fixed_amount_per_week'?'week':'day'))+'</td>'+
+  '<td>'+escapeHtml(days===null?'Not calculated':fmt(days)+' calendar days')+'</td>'+
+  '<td>'+escapeHtml(uncapped===null?'Not calculated':fmt(uncapped)+' '+(section.currency||''))+'</td>'+
+  '<td>'+escapeHtml(capped===null?'Not calculated · cap basis missing':fmt(capped)+' '+(section.currency||''))+'</td>'+
+  '<td>'+escapeHtml(reason)+'</td></tr>').join('');
+ return '<section class="planning-panel"><h4>Delay damages by contract section — one source-based position</h4>'+
+   '<p>Every section retains its own rate, completion date, programme milestone, cap and source qualifications. No whole-project LD figure replaces these sectional positions. Calculations are scenarios, never certified deductions.</p>'+
+   '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone</th><th>Contract date with applicable award</th><th>Submitted finish</th><th>Section rate</th><th>Late days</th><th>Uncapped scenario</th><th>Capped scenario</th><th>Control</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
 }
 function renderClaimPipeline(data){
   const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
