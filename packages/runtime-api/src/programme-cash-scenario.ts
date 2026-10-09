@@ -2,8 +2,10 @@ import type {CommercialControlPosition} from '../../commercial-control/src';
 
 /** An explicit, reversible planning assumption over the existing money facts.
  * It never writes to the certificate, receipt or actual expenditure ledgers. */
-export function programmeCashScenario(position:CommercialControlPosition,dataDateIso:string|null){
- const finishIso=position.contractControls?.liquidatedDamages.scenarios.find(row=>row.forecastCompletion.value)?.forecastCompletion.value?.slice(0,10)??null;
+export function programmeCashScenario(position:CommercialControlPosition,dataDateIso:string|null,submittedProgrammeFinishIso:string|null=null){
+ // Receipts are independent of whether LD terms exist or have sectional rates.
+ // A missing sectional LD cannot erase the submitted programme finish.
+ const finishIso=submittedProgrammeFinishIso?.slice(0,10)??null;
  const start=dataDateIso?Date.parse(dataDateIso.slice(0,10)+'T00:00:00Z')+86400000:NaN;
  const finish=finishIso?Date.parse(finishIso+'T00:00:00Z'):NaN;
  const retentionPercent=position.foundation.commercialTerms.retentionPercent.value;
@@ -33,6 +35,6 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
   return [{currency:currency.currency,remainingGross,retention,advanceRecovery,netReceipts:net,rows}];
  });
  return {state:groups.length?'calculated_with_stated_assumption':'missing',dataDateIso,programmeFinishIso:finishIso,retentionPercent,paymentDays,groups,
-  basis:'Straight-line valuation of current contract value less dated gross certification from the day after the Data Date to the submitted programme finish. Monthly statements are assumed at period end. Remaining advance recovery is spread over the future receipts; retention uses the recorded contract rate. Receipt dates assume the recorded payment period in calendar days after each statement. This is a planning sensitivity, not a submitted cash plan.',
+  basis:'Straight-line valuation of current contract value less dated gross certification from the day after the Data Date to the submitted programme finish. Monthly statements are assumed at period end. Remaining advance recovery is spread over the future receipts; retention uses the recorded contract rate. Receipt dates assume the recorded payment period in calendar days after each statement. This is a receipts-only planning scenario based on the submitted programme, not actual cash or a contractual determination.',
   exclusions:'Existing unpaid certificates, tax, retention release, financing and future expenditure are excluded. Net funding requirements need a separate expenditure forecast.'};
 }

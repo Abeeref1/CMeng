@@ -39,7 +39,8 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
  const resourceModel=storedResources?refreshResourceSourceFields(state,storedResources):null;
  let data:unknown;
  if(key==='resource-utilization'){
-  const hourly=resourceModel&&current&&resourceModel.assignments.length>0?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1'}):null;
+  const hourly=resourceModel&&current&&resourceModel.assignments.length>0?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1',
+  capacityConfirmations:(state.resourceCapacityConfirmations??[]).filter(row=>row.sourceRevisionId===current.revision.revisionId)}):null;
   const weeklyAssignedResourceCount=new Set(summary.points.map(p=>p.resourceId).filter(Boolean)).size;
   const distinctResourceCount=summary.masterResources.length||summary.observedResourceCount||hourly?.resourceCount||summary.resourceCount;
   const distinctAssignedResourceCount=hourly?.assignedResourceCount??0;

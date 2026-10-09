@@ -5,13 +5,13 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
-import {actionRecordKey,prioritizeActions} from './action-priority';
+import {actionRecordKey,prioritizeActions,pmcRoleOwner} from './action-priority';
 import {commercialCanonical} from './commercial-canonical';
 import {registerProgrammeContext} from './register-programme-context';
 
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=r.fields[canonicalHeader(name)];if(value!==null&&value!==undefined&&String(value).trim())return String(value).trim();}return '';};
 const daysOver=(due:string|null,date:string|null)=>due&&date&&due<date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(due.slice(0,10)))/86400000)):null;
-type Dimension='organisation'|'party_role'|'contractor'|'subcontractor'|'discipline'|'package'|'workfront';
+type Dimension='owner'|'organisation'|'party_role'|'contractor'|'subcontractor'|'discipline'|'package'|'workfront';
 export interface AccountabilityDetail {
   dimension:Dimension;value:string;domain:string;recordId:string;reference:string|null;issue:string;dueDate:string|null;overdueDays:number|null;
   activityIds:string[];sourceRefs:string[];authority:'confirmed_record'|'programme_scope';
@@ -30,6 +30,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   const add=(dimension:Dimension,value:string|null|undefined,detail:Item)=>{retain(detail);const v=String(value??'').trim();if(v)details.push({dimension,value:v,...detail});};
   const addDelivery=(recordId:string,domain:string,issue:string,dueDate:string|null,activityIds:string[],sourceRefs:string[])=>{
     const r=recordById.get(recordId);if(!r)return;const base={domain,recordId,reference:r.reference,issue:[r.description,issue].filter(Boolean).join(' · '),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds,sourceRefs,authority:'confirmed_record' as const};
+    add('owner',pmcRoleOwner(domain,field(r,'owner','responsible party')),base);
     add('organisation',field(r,'owner','responsible party'),base);
     const explicitRole=field(r,'party role','responsible party role','party type','organisation type','organization type');
     if(explicitRole)add('party_role',explicitRole,base);
@@ -49,7 +50,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
     for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:p.headroomCalendarDays===null?daysOver(p.needDate,dataDateIso):-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
   }
-  const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue:[row.subject,issue].filter(Boolean).join(' · '),dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('organisation',row.owner,base);};
+  const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue:[row.subject,issue].filter(Boolean).join(' · '),dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('owner',pmcRoleOwner(domain,row.owner),base);add('organisation',row.owner,base);};
   for(const r of operations.quality.current)if(r.status==='open')op('NCR',r,r.ncrId,(r.severity??'unknown')+' NCR remains open');
   for(const r of operations.rfi.current)if(r.status==='open')op('RFI',r,r.rfiId,r.dueIso&&dataDateIso&&r.dueIso<dataDateIso?'RFI response is overdue':'RFI remains open');
   for(const r of operations.risk.current)if(r.status==='open')op('risk',r,r.riskId,'Open Project risk');
@@ -73,14 +74,14 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       const base={domain:'claim',recordId:claim.claimId,reference:claim.claimId,issue:'Claim is '+claim.state.replace(/_/g,' '),dueDate:null,overdueDays:null,activityIds,
         sourceRefs:claim.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
       const roles=[...new Set(linkedEvents.map(event=>partyRole(event.responsibility,event.responsibilityState)).filter((value):value is NonNullable<ReturnType<typeof partyRole>>=>value!==null))];
-      retain(base);roles.forEach(role=>add('party_role',role,base));
+      retain(base);add('owner',pmcRoleOwner('claim',null),base);roles.forEach(role=>add('party_role',role,base));
     }
     for(const notice of current.notices){
       if(!notice.claimId||!openClaimIds.has(notice.claimId)||notice.kind==='determination')continue;
       const event=notice.eventId?events.get(notice.eventId):null;
       const base={domain:'notice',recordId:notice.noticeId,reference:notice.noticeId,issue:(notice.kind.replace(/_/g,' ')+' linked to open claim '+notice.claimId),dueDate:null,overdueDays:null,
         activityIds:event?.relatedActivityIds??[],sourceRefs:notice.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
-      retain(base);if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
+      retain(base);add('owner',pmcRoleOwner('notice',null),base);if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
     }
   }
   const programme=projectControlSchedule(state)?.revision.model??null;
@@ -95,7 +96,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       const missedFinish=!!a.currentFinishIso&&!!dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso;
       const dueDate=(missedStart&&!missedFinish?a.currentStartIso:a.currentFinishIso)?.slice(0,10)??null;
       const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:(a.name?a.name+' · ':'')+(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+a.totalFloatHours+' hours total float':missedStart&&!missedFinish?'Activity has not started after its planned start':'Unfinished activity is past its current finish'),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
-      retain(base);if(!c)continue;
+      retain(base);add('owner',pmcRoleOwner('schedule',null),base);if(!c)continue;
       add('contractor',c.contractor,base);add('subcontractor',c.subcontractor,base);add('discipline',c.discipline,base);add('package',c.package,base);add('workfront',c.workFront,base);
     }
   }
@@ -105,7 +106,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     if(isNew){const kind=detailKey.split('|')[0];if((d.overdueDays??0)>0)g.overdueCount++;if(kind==='ncr')g.openNcrCount++;if(kind==='rfi'&&(d.overdueDays??0)>0)g.overdueRfiCount++;if(d.domain==='procurement')g.latePackageCount++;if(d.domain==='snag')g.openSnagCount++;if(d.domain==='permit')g.permitIssueCount++;if(d.domain==='risk')g.openRiskCount++;}
     d.activityIds.forEach(id=>g.affectedActivityIds.add(id));if(d.overdueDays!==null)g.worstOverdueDays=g.worstOverdueDays===null?d.overdueDays:Math.max(g.worstOverdueDays,d.overdueDays);grouped.set(key,g);}
   const rows=[...grouped.values()].map(g=>({dimension:g.dimension,value:g.value,openIssueCount:g.detailIds.size,domainCount:g.domains.size,overdueCount:g.overdueCount,openNcrCount:g.openNcrCount,overdueRfiCount:g.overdueRfiCount,latePackageCount:g.latePackageCount,openSnagCount:g.openSnagCount,permitIssueCount:g.permitIssueCount,openRiskCount:g.openRiskCount,affectedActivityCount:g.affectedActivityIds.size,worstOverdueDays:g.worstOverdueDays,
-    domains:[...g.domains].sort(),detailRecordIds:[...g.detailIds]})).sort((a,b)=>b.openIssueCount-a.openIssueCount||b.overdueCount-a.overdueCount||(b.worstOverdueDays??-1)-(a.worstOverdueDays??-1)||a.value.localeCompare(b.value));
+    domains:[...g.domains].sort(),detailRecordIds:[...g.detailIds]})).sort((a,b)=>Number(b.dimension==='owner')-Number(a.dimension==='owner')||b.openIssueCount-a.openIssueCount||b.overdueCount-a.overdueCount||(b.worstOverdueDays??-1)-(a.worstOverdueDays??-1)||a.value.localeCompare(b.value));
 
   const byRecord=new Map<string,AccountabilityDetail[]>([...eligible.keys()].map(key=>[key,[]]));
   for(const detail of details){const key=actionRecordKey(detail.domain,detail.reference??detail.recordId),items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
@@ -128,7 +129,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const scope=[dimension('package'),dimension('workfront'),dimension('discipline'),...first.activityIds].filter((value):value is string=>!!value);
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
-    const owner=dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor')??accountablePmcRole(domain);
+    const owner=pmcRoleOwner(domain,dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor'));
     const procurement=domain==='procurement'?delivery.packageRows.find(row=>row.recordId===first.recordId):null;
     const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work';
     const consequence=
@@ -161,17 +162,42 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   for(const bond of commercialCanonical(state).bonds??state.controls.bonds){
     if(bond.status!=='expired')continue;
     actionRows.push(managementAction({actionId:'security:'+bond.bondId,recordKey:actionRecordKey('security',bond.bondId),issue:bond.bondId+' · security expired',
-      consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:'Commercial Manager',organisation:null,
+      consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:pmcRoleOwner('bond',null),organisation:null,
       requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
       severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }
-  const actions=prioritizeActions(actionRows,programme);
+  const recordActions=prioritizeActions(actionRows,programme);
+  // A source register row is evidence, not a separate executive decision.
+  // Group it by accountable party, register/control and completed-work cleanup state.
+  // All individual records remain traceable in "details"; no source row is removed.
+  const buckets=new Map<string,typeof recordActions>();
+  for(const action of recordActions){
+    const cleanup=(action.consequence??'').startsWith('All linked activities are complete.');
+    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
+    const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
+  }
+  const actions=[...buckets.entries()].map(([key,members],index)=>{
+    const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
+    const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
+    const sourceCount=members.length;
+    const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
+    const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
+    return {...first,
+      actionId:'accountability-owner-group:'+index,
+      recordKey:'accountability-owner-group:'+key,
+      issue:sourceCount+' '+(cleanup?'register clean-up':'open control')+' record'+(sourceCount===1?'':'s')+' · '+(first.owningModule??'project control'),
+      consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
+      affectedScope:scope.slice(0,20),
+      requiredAction:(cleanup?'Reconcile completed-work records with the register and confirm close-out evidence. ':'Review source records by the accountable party; prioritise driving work and approaching due dates. ')+first.requiredAction,
+      sourceRefs:references.slice(0,50),owner,
+    };
+  });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,
-    managementPosition:actions.length
-      ?actions.length+' actionable control item'+(actions.length===1?' is':'s are')+' identified; '+owned+' have a reusable accountable party'+(unassigned?' and '+unassigned+' still need ownership.':'.')
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActionCount:recordActions.length,
+    managementPosition:recordActions.length
+      ?recordActions.length+' underlying control records are organised into '+actions.length+' accountable owner/register action groups; '+owned+' groups have an accountable role'+(unassigned?' and '+unassigned+' still need ownership.':'.')
       :'No actionable ownership chain is established from the current open/overdue records.',
-    basis:'Actions drill back to confirmed records or programme scope classifications. Ownership identifies the party carrying the current action; it is not by itself a finding of contractual delay responsibility. Concentration counts remain supporting analysis only.'};
+    basis:'One owner/register group is the management action, not one action per register row. The complete individual records and source references are retained under supporting drill-down. No claim of contractual delay responsibility follows merely from the assigned role.'};
 }
 export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.actions.length||data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.actions.length||data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};

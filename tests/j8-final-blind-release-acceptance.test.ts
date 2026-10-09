@@ -178,9 +178,13 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
     assert.equal(pageChecks,100*58,'J8 full page matrix is incomplete');
     assert.equal(askChecks,100*2,'J8 deterministic Ask matrix is incomplete');
 
+    // Blind fixtures remain accessible for full acceptance and restart proof,
+    // but must not appear among a client's live projects.
     const portfolio=await requireOk('/api/portfolio');
-    assert.equal(portfolio.projectCount,100,'J8 portfolio lost or invented projects');
-    assert.equal(new Set(portfolio.projects.map((project:any)=>project.projectId)).size,100,'J8 portfolio contains duplicate identities');
+    const fixturePortfolio=await requireOk('/api/test-projects');
+    assert.equal(portfolio.projectCount,0,'J8 synthetic projects leaked into the live portfolio');
+    assert.equal(fixturePortfolio.projectCount,100,'J8 test-project listing lost or invented projects');
+    assert.equal(new Set(fixturePortfolio.projects.map((project:any)=>project.projectId)).size,100,'J8 test-project listing contains duplicate identities');
 
     const health=await requireOk('/health');
     assert.equal(health.status,'ok');

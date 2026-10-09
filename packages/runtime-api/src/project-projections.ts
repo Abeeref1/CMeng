@@ -1,5 +1,5 @@
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
-import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner} from './action-priority';
+import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -7617,6 +7617,23 @@ function resolveProjectModuleCandidate(
         ' Both hourly values and classifications remain available; no difference is silently approved.'].filter(Boolean).join(' ');
     }
   }
+  if(key==='lookahead-schedule'&&result.data&&typeof result.data==='object'){
+    const current=projectControlSchedule(state),resource=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+    const value=result.data as any,output=value?.result?.projectionKey==='lookahead_schedule'?value.result:value;
+    const ids=new Set<string>(((output.forwardWindowRows??output.rows??[]) as Array<{activityId:string}>).map(x=>x.activityId));
+    const master=new Map((resource?.resources??[]).map(x=>[x.resourceId,x]));
+    const groups=new Map<string,{trade:string;unit:string|null;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    for(const row of resource?.assignments??[]){
+      if(!ids.has(row.activityId)||row.resourceType!=='labor'||!row.resourceId)continue;
+      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,activityIds:new Set<string>(),count:0,known:0,remaining:0};
+      g.activityIds.add(row.activityId);g.count++;
+      if(typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)){g.remaining+=row.remainingUnits;g.known++;}
+      groups.set(row.resourceId,g);
+    }
+    output.sourceResourceTrades=[...groups.values()].map(g=>({trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
+      remainingUnits:g.known===g.count?g.remaining:null,
+      basis:'Source P6 labor assignments; not approved crew capacity.'}));
+  }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     const interpretation=sharedInterpretation??buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
@@ -7782,9 +7799,24 @@ export function moduleForProject(
     // after shared fact attachment, without a second calculation producer.
     return (result.data as any)?.positionVerdict?withPositionVerdict(attached):attached;
   };
+  // No-programme is a normal management state for a real project, not a
+  // not-found exception. Non-programme registers remain independently usable.
+  const programmePages=new Set([
+    'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
+    'schedule-change-report','revision-trend','milestones','near-critical',
+    'forecast-history','independent-forecast','windows-analysis'
+  ]);
+  if(programmePages.has(key)&&!projectControlSchedule(state)){
+    return {key,status:'partial',reason:'Current programme not established. The project exists and its source documents are retained.',
+      dependencies:['Current adopted programme with a Data Date'],
+      data:{projectId:state.projectId,projectVersion:state.version,programmeState:'no_programme',
+        managementPosition:'No current programme. Supply or adopt a dated programme to calculate schedule findings.',
+        availability:{state:'unavailable',missingInput:'Current adopted programme with a Data Date'},
+        rows:[],metrics:[],sourcePreserved:true}};
+  }
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
   if (isDeliveryPage(key)) {
     const scoped=reportingState(state),result=deliveryModule(scoped,key);
     const deliveryData=result.data as any;
@@ -8510,7 +8542,7 @@ export function managementSurfacesForProject(
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
   const rawCompletion=currentForecast?.completionPosition??null;
-  const completion=rawCompletion&&hasUnreconciledScheduleCalendar(currentForecast)
+  const completion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
     ?{...rawCompletion,independentFinishIso:null,calculationState:'unresolved',
       reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
     :rawCompletion;
@@ -8528,8 +8560,9 @@ export function managementSurfacesForProject(
   const issueStage7=profiling?performance.now():0;
   const canonicalActions=projectActionRegisterForState(state).actions;
   const issueStage8=profiling?performance.now():0;
-  accountability.actions=canonicalActions;
-  accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
+  // Do not overwrite grouped accountability decisions with the raw shared register.
+  // Both totals remain explicitly distinguished by their authority and population.
+  accountability.managementPosition=canonicalActions.length+' project actions in the shared register; '+accountability.actions.length+' owner/register action groups for this view. Underlying source record counts are retained separately.';
   // Management pages need evaluated as-of totals, not the same full NCR,
   // RFI and Risk source population a second time. Specialist pages retain the
   // exact dated records and full provenance for drill-down/export.
@@ -8715,7 +8748,7 @@ export function overviewForProject(
   const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
   const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
   const roleDiagnosis=pmoData?.projectDiagnosis??null;
-  const roleCompletion=forecastData?.completionPosition&&hasUnreconciledScheduleCalendar(forecastData)
+  const roleCompletion=forecastData?.completionPosition&&(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))
     ?{...forecastData.completionPosition,independentFinishIso:null,calculationState:'unresolved'}
     :forecastData?.completionPosition??null;
   const bundle=overviewResolvedModules?buildBundle(state):null;
@@ -8742,8 +8775,8 @@ export function overviewForProject(
     {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
-    {label:'Programme calendar recalculation',value:hasUnreconciledScheduleCalendar(forecastData)?null:forecastData?.independentForecastCompletionIso??null,unit:'date',
-      basis:hasUnreconciledScheduleCalendar(forecastData)?'Withheld from management until source calendar hours, work periods and duration conversion reconcile.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Programme calendar recalculation',value:forecastData?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecastData)?forecastData?.independentForecastCompletionIso??null:null,unit:'date',
+      basis:(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))?'Withheld from management until all forecast and source-calendar checks pass.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
     {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
     {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
   ];

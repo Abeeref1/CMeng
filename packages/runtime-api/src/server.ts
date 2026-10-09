@@ -1,3 +1,4 @@
+import {projectControlSchedule} from './canonical-time-claims';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
@@ -1855,6 +1856,64 @@ async function route(
     return;
   }
 
+  // Resource capacity confirmations establish a project-approved limit;
+  // submitted P6 rates remain visible but never become limits by inference.
+  // Proposed BOQ relationships are review candidates only. The governed
+  // allocation table is unchanged until a separate explicit approval.
+  const boqLinkRoute=/^\/api\/projects\/([^/]+)\/boq\/activity-link-candidates$/.exec(url.pathname);
+  if(boqLinkRoute&&['GET','POST'].includes(req.method??'')){
+    const state=runtimeProjects.get(decodeURIComponent(boqLinkRoute[1]!));
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    if(req.method==='GET'){
+      json(res,200,{projectId:state.projectId,projectVersion:state.version,state:'candidate',
+        rows:state.boqActivityLinkCandidates??[],basis:'Review candidates only; BOQ quantities, EVM and programme allocations are unchanged.'});
+      return;
+    }
+    const body=await readJsonBody<{quantityItemId?:string;activityId?:string;proposedBy?:string;sourceRef?:string;reason?:string}>(req);
+    const current=projectControlSchedule(state),boq=state.quantities;
+    const quantityItemId=String(body.quantityItemId??'').trim(),activityId=String(body.activityId??'').trim();
+    const proposedBy=String(body.proposedBy??'').trim(),sourceRef=String(body.sourceRef??'').trim(),reason=String(body.reason??'').trim();
+    if(!current||!boq||!boq.items.some(item=>item.quantityItemId===quantityItemId)||
+       !current.revision.model.activities.some(activity=>activity.activityId===activityId)||
+       !proposedBy||!sourceRef||!reason){
+      json(res,400,{error:'boq_activity_candidate_requires_source_ids_and_proposer',
+        message:'Select an existing BOQ item and programme activity; give the proposer, supporting source reference and reason. WBS similarity alone is not an approved link.'});return;
+    }
+    const existing=(state.boqActivityLinkCandidates??[]).find(x=>x.quantityItemId===quantityItemId&&x.activityId===activityId&&x.sourceRevisionId===current.revision.revisionId&&x.boqRevisionId===boq.boqRevisionId);
+    if(existing){json(res,200,{projectVersion:state.version,candidate:existing,duplicate:true});return;}
+    const candidate={quantityItemId,activityId,proposedBy,sourceRef,reason,
+      sourceRevisionId:current.revision.revisionId,boqRevisionId:boq.boqRevisionId,
+      proposedAt:new Date().toISOString(),state:'candidate' as const};
+    state.boqActivityLinkCandidates=[...(state.boqActivityLinkCandidates??[]),candidate];
+    runtimeProjects.touch(state);
+    json(res,201,{projectVersion:state.version,candidate,
+      basis:'BOQ-to-activity link candidate only; no installed quantity, cost, EVM or contractual relationship is approved.'});
+    return;
+  }
+
+  const capacityRoute=/^\/api\/projects\/([^/]+)\/resource-capacity\/confirm(?:ations)?$/.exec(url.pathname);
+  if(capacityRoute&&['GET','POST'].includes(req.method??'')){
+    const state=runtimeProjects.get(decodeURIComponent(capacityRoute[1]!));
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    if(req.method==='GET'){json(res,200,{projectId:state.projectId,projectVersion:state.version,rows:state.resourceCapacityConfirmations??[]});return;}
+    const body=await readJsonBody<{resourceId?:string;capacityUnitsPerHour?:number;effectiveFromIso?:string;approvedBy?:string;sourceRef?:string}>(req);
+    const current=projectControlSchedule(state);
+    const stored=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+    const resourceId=String(body.resourceId??'').trim(),approval=String(body.approvedBy??'').trim(),sourceRef=String(body.sourceRef??'').trim(),date=String(body.effectiveFromIso??'').slice(0,10);
+    const amount=body.capacityUnitsPerHour;
+    if(!stored?.resources.some(r=>r.resourceId===resourceId)||typeof amount!=='number'||!Number.isFinite(amount)||amount<0||!approval||!sourceRef||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))){
+      json(res,400,{error:'capacity_confirmation_needs_resource_capacity_effective_date_approver_and_evidence',
+        message:'Confirm a current resource, non-negative approved units per hour, effective date, approving authority and supporting source reference.'});return;
+    }
+    const record={resourceId,sourceRevisionId:current!.revision.revisionId,
+      capacityUnitsPerHour:amount,effectiveFromIso:date,approvedBy:approval,sourceRef,confirmedAt:new Date().toISOString()};
+    state.resourceCapacityConfirmations=[...(state.resourceCapacityConfirmations??[]),record];
+    runtimeProjects.touch(state);
+    json(res,201,{projectId:state.projectId,projectVersion:state.version,record,
+      basis:'Project confirmation for resource capacity, not approval of the submitted P6 rate or a contractual entitlement.'});
+    return;
+  }
+
   const demoMatch =
     /^\/api\/projects\/([^/]+)\/demo$/.exec(
       url.pathname,
@@ -2787,13 +2846,17 @@ async function route(
       directorForProject(projectId) ??
       directorPositions.get(projectId);
     if (!position) {
-      json(res, 404, {
-        error:
-          "director_position_not_found",
-        persistence:
-          runtimeProjects
-            .persistenceMode(),
-      });
+      // An existing project with incomplete programme authority is a normal
+      // evidence state. Do not turn it into a missing project/404.
+      const retained=runtimeProjects.get(projectId);
+      if(retained){
+        json(res,200,{projectId,status:"not_established",positionState:"no_programme",
+          reason:"A current adopted programme and sufficient Project Director inputs are not established. Existing source registers remain available.",
+          evidenceDocumentCount:retained.evidenceDocuments.length,
+          dependencies:["Confirm the current programme and its reporting date before calculating the integrated director position."]});
+        return;
+      }
+      json(res,404,{error:"project_not_found"});
       return;
     }
     json(res, 200, position);

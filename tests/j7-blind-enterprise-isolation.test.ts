@@ -141,8 +141,10 @@ test('J7 fresh blind enterprise isolation: all 58 public pages remain project-sc
     const unknown='J7-UNKNOWN-'+createHash('sha256').update(seed).digest('hex').slice(0,10).toUpperCase();
     assert.equal((await request('/api/projects/'+unknown+'/overview')).status,404,'unknown read implicitly created a project');
     const portfolio=await requireOk('/api/portfolio');
-    assert.equal(portfolio.projectCount,20,'invalid requests changed the project catalogue');
-    assert.ok(!portfolio.projects.some((project:any)=>project.projectId===unknown));
+    const synthetic=await requireOk('/api/test-projects');
+    assert.equal(portfolio.projectCount,0,'Blind fixtures leaked into a client project portfolio');
+    assert.equal(synthetic.projectCount,20,'Invalid requests changed the blind test-project catalogue');
+    assert.ok(!synthetic.projects.some((project:any)=>project.projectId===unknown));
 
     const health=await requireOk('/health');
     assert.equal(health.status,'ok');

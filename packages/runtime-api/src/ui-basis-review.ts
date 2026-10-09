@@ -1,5 +1,18 @@
 export const basisReviewScript=String.raw`
-function basisTable(heads,rows){return '<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+escapeHtml(v??'Not in the data')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';}
+function basisTable(heads,rows){
+  const cell=(value,column)=>{
+    if(value===null||value===undefined||String(value).trim()==='')return 'Not in source';
+    if(typeof value==='number')return fmtForField(column,value);
+    if(typeof value==='boolean')return value?'Yes':'No';
+    const raw=String(value).trim();
+    if(/^(?:null|undefined)$/i.test(raw))return 'Not in source';
+    if(/\b(owner|responsible party|accountable)\b/i.test(column)&&/^(?:not recorded|not assigned|unknown|unresolved)$/i.test(raw))
+      return pmcDisplayOwner(currentModuleResult?.key||'project controls');
+    return readerText(raw);
+  };
+  return '<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+r.map((v,i)=>'<td>'+escapeHtml(cell(v,String(heads[i]||'')))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+}
 function basisPanel(title,note,body,id){return '<section class="planning-panel"'+(id?' id="'+escapeHtml(id)+'"':'')+'><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(note)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';}
 function commercialSourceState(metric){
   if(metric?.consequence)return metric.consequence;
@@ -49,8 +62,37 @@ function renderCommercialExceptions(position,key,data){
   }
   return html;
 }
+async function createCandidateBoqActivityLink(){
+ const fields=['boqCandidateItem','boqCandidateActivity','boqCandidateProposer','boqCandidateSource','boqCandidateReason'];
+ const values=fields.map(id=>document.getElementById(id)?.value?.trim()||'');
+ const result=document.getElementById('boqCandidateFeedback');if(!result)return;
+ if(values.some(v=>!v)){result.textContent='All fields are required: BOQ item, programme activity, proposer, source reference and reason.';return;}
+ try{
+   const response=await api('/api/projects/'+encodeURIComponent(project())+'/boq/activity-link-candidates',{
+     method:'POST',headers:{'content-type':'application/json'},
+     body:JSON.stringify({quantityItemId:values[0],activityId:values[1],
+       proposedBy:values[2],sourceRef:values[3],reason:values[4]})
+   });
+   result.textContent=response.duplicate?'This candidate is already recorded.':'Candidate relationship saved for review. No quantity is allocated and no programme relationship has been approved.';
+ }catch(error){
+   result.textContent='Candidate not saved: '+(error?.message||'Check the source identities.');
+ }
+}
+function renderBoqCandidateLinkPanel(mapping){
+ const saved=mapping?.userCandidateLinks||[],suggestions=mapping?.sourceWbsLinks||[];
+ const table=saved.length?basisTable(['BOQ item','Activity','Proposed by','Reason / evidence','Authority'],
+  saved.map(r=>[r.quantityItemId,r.activityId,r.proposedBy,r.reason+' · '+r.sourceRef,'Candidate only — not an approved allocation'])):'<p>No user-proposed BOQ-to-activity candidate has been saved for this programme version.</p>';
+ const wbs=suggestions.length?'<p>'+fmt(suggestions.filter(r=>r.wbsId).length)+' BOQ item WBS associations are suggested by source code/name. Each is a grouping candidate, not a direct item-to-activity allocation.</p>':'';
+ const inputs=[['boqCandidateItem','BOQ quantity item ID'],['boqCandidateActivity','Programme activity ID'],['boqCandidateProposer','Proposed by'],['boqCandidateSource','Evidence reference'],['boqCandidateReason','Reason for candidate']].map(([id,label])=>'<label>'+escapeHtml(label)+' <input id="'+id+'" type="text" maxlength="220" placeholder="'+escapeHtml(label)+'"></label>').join('');
+ return basisPanel('Candidate BOQ–programme relationships','Review suggestions; never treat shared WBS as a direct verified allocation.',
+   wbs+table+'<div class="delivery-toolbar">'+inputs+'<button class="btn small" onclick="createCandidateBoqActivityLink()">Save candidate for review</button></div><p id="boqCandidateFeedback" role="status"></p>');
+}
 function renderBasisReviews(data,key){
-  let html=''; const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
+  let html='';
+  if(key==='contract-particulars-bonds'&&data.projectFacts?.time?.amendmentEotStatements?.length)
+    html+=basisPanel('What the amendments state about EOT','An amendment with no EOT statement is not an express zero-day determination.',
+      basisTable(['Amendment','Extracted wording','Evidence state'],data.projectFacts.time.amendmentEotStatements.map(r=>[r.documentId,r.statement,r.basis])));
+ const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
   if(s&&key!=='independent-forecast')html+=managementModuleLink('independent-forecast','Review package calendars and date restrictions');
   if(s&&key==='independent-forecast'){
     html+=basisPanel(s.contractFinishIso?fmt(s.deadline.lateCount)+' of '+fmt(s.packageCount)+' package finishes fall after the contract date':'Package deadlines need a confirmed contract date',s.interpretation,
@@ -67,6 +109,8 @@ function renderBasisReviews(data,key){
     '<p>'+fmt(d.comparableCount)+' comparable duration records / '+fmt(d.matchedCount)+' matched tasks; '+fmt(d.addedCount)+' added tasks; '+fmt(d.ambiguousCount)+' ambiguous identities excluded.</p>'+
     basisTable(['Edit on an existing task','Tasks'],d.distribution.map(r=>[(r.deltaHours>0?'+':'')+fmt(r.deltaHours)+' hours',fmt(r.count)]))+
     '<details><summary>Inspect the duration arithmetic for each WBS package</summary>'+basisTable(['Package','Baseline days','Current days','Existing-task edit days','Added-task days','Edited tasks','Added tasks','Hours / day'],d.packages.map(r=>[r.name,fmt(r.baselineDurationDays),fmt(r.currentDurationDays),fmt(r.existingChangeDays),fmt(r.addedDays),r.changedExistingCount,r.addedCount,fmt(r.standardDayHours)]))+'</details>');}
+  if(q&&['quantity-scurve','challenge-contract','cost-forecast'].includes(key))
+    html+=renderBoqCandidateLinkPanel(data.quantityMapping??null);
   if(q){
     const f=q.forecast;
     html+=basisPanel('Link quantities and productivity work packages to programme activities',q.interpretation,
@@ -103,7 +147,7 @@ function renderBasisReviews(data,key){
   if(actions.length&&key==='pmo-analysis')html+=managementModuleLink('command-center','Review delivery action records');
   if(actions.length&&key==='command-center'){
     html+=basisPanel('Specific records requiring action','Owners and due dates are shown only when supplied. Full source records remain available.',
-      '<p>'+fmt(actions.filter(r=>r.type==='NCR').length)+' open major / critical NCRs; '+fmt(actions.filter(r=>r.type==='RFI').length)+' overdue RFIs through DD.</p>'+
+      '<p>'+escapeHtml(data.operationalReporting?.counts?.openCriticalMajorNcrCount==null?(data.projectFacts?.controls?.openCriticalMajorNcrCount?.value==null?'Not established':fmt(data.projectFacts.controls.openCriticalMajorNcrCount.value)):fmt(data.operationalReporting.counts.openCriticalMajorNcrCount))+' open major / critical NCRs; '+escapeHtml(data.operationalReporting?.counts?.overdueRfiCount==null?(data.projectFacts?.controls?.overdueRfiCount?.value==null?'Not established':fmt(data.projectFacts.controls.overdueRfiCount.value)):fmt(data.operationalReporting.counts.overdueRfiCount))+' overdue RFIs through DD.</p>'+
       basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Next action'],actions.slice(0,10).map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(r.owningModule||'project controls'):'PMC Project Controls Manager'),r.dueIso?planningShortDate(r.dueIso):'Not set',r.action]))+
       '<details><summary>All '+fmt(actions.length)+' action records</summary>'+basisTable(['Record','Subject','Priority','Age at reporting date','Overdue','Owner','Raised','Due','Next action'],actions.map(r=>[r.recordId,r.subject,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(r.owningModule||'project controls'):'PMC Project Controls Manager'),planningShortDate(r.raisedIso),planningShortDate(r.dueIso),r.action]))+'</details>');
   }

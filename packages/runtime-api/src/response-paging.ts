@@ -122,8 +122,13 @@ export function pageProjectResponse(
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
  for(const budget of PAGE_BUDGETS){
-  const tables:PageTable[]=[...sharedFactPages.slice(0,180)];
-  let additionalTables=Math.max(0,sharedFactPages.length-180),changed=sharedFactPages.length>0;
+  // Reserve paging metadata for the actual screen registers. A large canonical
+  // fact snapshot can have hundreds of nested arrays; allowing it to consume
+  // every slot leaves visible BOQ, evidence and action lists stuck at 25 rows.
+  // This is only a response metadata budget; it does not modify source data.
+  const factSlots=Math.min(72,sharedFactPages.length);
+  const tables:PageTable[]=[...sharedFactPages.slice(0,factSlots)];
+  let additionalTables=Math.max(0,sharedFactPages.length-factSlots),changed=sharedFactPages.length>0;
   const seen=new Set<object>();
   const record=(entry:PageTable)=>{
    changed=true;

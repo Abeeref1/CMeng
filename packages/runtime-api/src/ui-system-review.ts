@@ -14,7 +14,15 @@ function renderPositionVerdict(data,includeGeneral=false){
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
-  return readerReference(value).replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+  // Presentation-only normalization. Never alter source records, code identifiers or stored values.
+  const readable=readerReference(value)
+    .replace(/\b([a-z][a-z0-9_]*)_register\s+status\s*=\s*([a-z][a-z0-9_-]*)\b/gi,(_,name,status)=>name.replaceAll('_',' ')+' register status: '+status.replaceAll('_',' '))
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
+    .replace(/\b(?:[0-9a-f]{28,64})\b/gi,'Source record (reference in details)')
+    .replace(/\b(?:null|undefined)\b/gi,'Not established')
+    .replace(/\bUnresolved\b/gi,'Needs confirmation');
+  return humanizeIsoText(readable).replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' '))
+    .replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
 }
 function readerReference(value){
   let text=String(value??'');
@@ -60,7 +68,7 @@ function uniqueReportingPopulations(populations){
     const old=groups.get(label);
     if(!old)groups.set(label,{...p});
     else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount||old.dateBasis!==p.dateBasis){
-      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Unresolved: reporting groups disagree; review the full calculation data.'});
+      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
     }
   }
   return [...groups.values()];

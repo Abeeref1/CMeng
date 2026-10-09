@@ -1342,7 +1342,7 @@ function liquidatedDamages(
 
   for (
     const scenarioInput of
-      scenarioInputs
+      (input.sectionTerms?.length ? [] : scenarioInputs)
   ) {
     const eotDays =
       eotFinding(
@@ -1701,6 +1701,29 @@ function liquidatedDamages(
     }
   }
 
+  // Sectional rates never apply automatically to whole-project exposure.
+  // A programme completion milestone is NOT the sectional contract due date.
+  const sectionScenarios=(input.sectionTerms??[]).map(section=>{
+    const contractualDueDateIso=section.extendedCompletionIso??section.contractCompletionIso;
+    const forecastCompletionIso=section.programmeCompletionIso;
+    const missingInputs:string[]=[];
+    if(!contractualDueDateIso)missingInputs.push('Section contractual completion date');
+    if(!forecastCompletionIso)missingInputs.push('Section programme completion milestone/date');
+    if(section.rate===null)missingInputs.push('Section LD rate');
+    if(!['fixed_amount_per_day','fixed_amount_per_week'].includes(section.rateBasis))
+      missingInputs.push('Section rate basis or sectional value for percentage terms');
+    const exposure=contractualDueDateIso&&forecastCompletionIso?
+      dayDiff(contractualDueDateIso.slice(0,10),forecastCompletionIso.slice(0,10)):null;
+    const lateDays=missingInputs.length===0&&exposure!==null?Math.max(0,exposure):null;
+    const perDay=section.rate===null?null:section.rateBasis==='fixed_amount_per_week'?section.rate/7:section.rateBasis==='fixed_amount_per_day'?section.rate:null;
+    const uncappedExposure=lateDays!==null&&perDay!==null?Number((lateDays*perDay).toFixed(2)):null;
+    // An unconfirmed percentage cap cannot be calculated against overall contract value.
+    const cappedExposure=uncappedExposure!==null&&section.capAmount!==null?
+      Number(Math.min(uncappedExposure,section.capAmount).toFixed(2)):null;
+    return {...section,contractualDueDateIso,forecastCompletionIso,lateDays,uncappedExposure,cappedExposure,
+      status:lateDays===null?'unavailable' as const:'scenario' as const,missingInputs,
+      basis:'Section-only delay damages scenario; not a contractual determination or deduction. A missing date or section value withholds that figure.'};
+  });
   return {
     reportedSourceTerms:{
       rate:terms?.rate??null,
@@ -1731,6 +1754,7 @@ function liquidatedDamages(
     rateState,
     capState,
     scenarios,
+    sectionScenarios,
     diagnostics: [
       "CLAIM_REGISTER_DAY_SUMS_ARE_NOT_PROJECT_EOT_AND_NEVER_ADJUST_COMPLETION",
       "SCHEDULE_MOVEMENT_EOT_POSITION_AND_LD_AMOUNT_REMAIN_SEPARATE",

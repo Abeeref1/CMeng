@@ -151,9 +151,13 @@ export function buildForecastReconciliationGate(input: {
   const publishable =
     forecast.independentForecastCompletionIso !== null &&
     checks.every(check => check.state === "passed");
+  // A material difference from the contractor's submitted activity dates
+  // warrants qualification, not suppression of an otherwise valid source-
+  // calendar calculation. Graph, calendar, constraints and complete coverage
+  // remain hard gates: a failed recalculation is NEVER a dashboard value.
   const usable=forecast.independentForecastCompletionIso!==null&&
     !hasUnreconciledScheduleCalendar(forecast)&&checks
-    .filter(check=>check.key!=='required_finish_authority')
+    .filter(check=>!['required_finish_authority','material_activity_divergence'].includes(check.key))
     .every(check=>check.state==='passed');
   const failed = checks.filter(check => check.state !== "passed");
   return {

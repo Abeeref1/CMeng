@@ -19,19 +19,19 @@ export function activityFloatReconciliation(model:CanonicalScheduleModel,forecas
   const floatDifferenceHours=submittedTotalFloatHours!==null&&independentTotalFloatHours!==null?Number((independentTotalFloatHours-submittedTotalFloatHours).toFixed(6)):null;
   const state=completed?'not_applicable_completed':
    independentTotalFloatHours===null?'independent_not_established':submittedTotalFloatHours===null?'submitted_not_established':
-   submittedCriticality!==independentCriticality?'material_difference':Math.abs(floatDifferenceHours!)>0.000001?'numeric_difference':'matched';
+   submittedCriticality!==independentCriticality?'material_difference':'matched';
   const authority=deterministic?'deterministic_source_calendar':qualifiedScenario&&usable?'qualified_scenario_source_calendar':'not_established';
   return {activityId:activity.activityId,name:activity.name,calendarId:activity.calendarId,sourceRevisionId:model.sourceRevisionId,
    submittedTotalFloatHours,independentTotalFloatHours,submittedCriticality,independentCriticality,floatDifferenceHours,
-   floatReconciliationState:state,floatReviewLabel:state==='material_difference'?'Disputed / under review':state==='numeric_difference'?'Float values differ · classification unchanged; compare calendar basis':state==='matched'?'Reconciled':state==='not_applicable_completed'?'Not applicable · completed':state==='submitted_not_established'?'Submitted float missing':'Independent CPM not established',
+   floatReconciliationState:state,floatReviewLabel:state==='material_difference'?'Disputed / under review':state==='matched'&&floatDifferenceHours!==null&&Math.abs(floatDifferenceHours)>0.000001?'Classification matched; numeric difference retained in planner detail':state==='matched'?'Reconciled':state==='not_applicable_completed'?'Not applicable · completed':state==='submitted_not_established'?'Submitted float missing':'Independent CPM not established',
    independentCpmAuthority:authority,sourceRefs:[...activity.sourceRefs]};
  });
  const byActivityId=new Map(rows.map(row=>[row.activityId,row]));
  const comparableRows=rows.filter(row=>row.floatReconciliationState!=='not_applicable_completed');
  const scenarioComparable=qualifiedScenario&&comparableRows.some(row=>row.independentCpmAuthority==='qualified_scenario_source_calendar');
- const differingRows=comparableRows.filter(row=>row.floatReconciliationState==='numeric_difference'||row.floatReconciliationState==='material_difference');
- const numericOnly=differingRows.filter(row=>row.floatReconciliationState==='numeric_difference');
- const classificationsDiffer=differingRows.filter(row=>row.floatReconciliationState==='material_difference');
+ const classificationsDiffer=comparableRows.filter(row=>row.floatReconciliationState==='material_difference');
+ const numericOnly=comparableRows.filter(row=>row.floatReconciliationState==='matched'&&row.floatDifferenceHours!==null&&Math.abs(row.floatDifferenceHours)>0.000001);
+ const differingRows=classificationsDiffer;
  const commonOffsetHours=comparableRows.length>=10&&numericOnly.length===comparableRows.length&&
    numericOnly.every(row=>row.floatDifferenceHours!==null&&Math.abs(row.floatDifferenceHours!-numericOnly[0]!.floatDifferenceHours!)<=0.000001)
    ?numericOnly[0]!.floatDifferenceHours:null;
@@ -41,9 +41,10 @@ export function activityFloatReconciliation(model:CanonicalScheduleModel,forecas
   disputedActivityCount:classificationsDiffer.length,
   criticalityDifferenceCount:classificationsDiffer.length,
   numericDifferenceActivityCount:numericOnly.length,
-  differenceActivityCount:differingRows.length,
+  differenceActivityCount:classificationsDiffer.length,
+  numericAuditRows:numericOnly,
   commonOffsetHours,
-  unresolvedActivityCount:comparableRows.filter(row=>!['matched','material_difference','numeric_difference'].includes(row.floatReconciliationState)).length,
+  unresolvedActivityCount:comparableRows.filter(row=>!['matched','material_difference'].includes(row.floatReconciliationState)).length,
   basis:deterministic
     ?'Submitted total float and CMeng independent source-calendar CPM are compared for the same open activity and revision using the same critical and near-critical thresholds. Completed activities are outside the live float-comparison denominator.'
     :scenarioComparable

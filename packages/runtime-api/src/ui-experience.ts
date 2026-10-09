@@ -43,10 +43,12 @@ function experienceReviewSummary(a,management=false){
 }
 function experienceValue(value,unit=''){
   const v=value&&typeof value==='object'&&'value' in value?value.value:value;
-  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Unresolved';
-  if(unit==='date')return planningShortDate(v);
+  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Not established';
+  if(unit==='date')return fmtForField('date',v);
   const exactUnit=['','%','d','h'].includes(unit);
-  return (typeof v==='number'?(exactUnit?fmt(v):fmtExecutive(v)):String(v))+(unit?' '+unit:'');
+  // Executive abbreviation is presentation-only; source amounts stay exact in
+  // the detail and report. All other scalar values use the common presenter.
+  return (typeof v==='number'&&!exactUnit?fmtExecutive(v):fmtForField(unit||'value',v))+(unit?' '+unit:'');
 }
 // Explicit module schemas prevent status words, arbitrary counts or unrelated fields becoming a management KPI.
 function experienceBrief(key,data){
@@ -318,7 +320,7 @@ function experienceCertificateGroups(position){
   return [...groups.values()];
 }
 function certificateMoney(value,currency){
-  if(value===null||value===undefined||!Number.isFinite(value))return 'Unresolved';
+  if(value===null||value===undefined||!Number.isFinite(value))return 'Not established';
   const millions=value/1000000,absolute=Math.abs(millions);
   const rounded=Math.sign(millions)*Math.round((absolute+Number.EPSILON*Math.max(1,absolute))*100)/100;
   return rounded.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'M'+(currency?' '+currency:'');

@@ -13,10 +13,9 @@ import {projectContractSections} from './project-contract-sections';
 import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
-import {cachedIndependentForecast} from './forecast-cache';
 import {securityValidityReview} from './security-validity';
-import {activityFloatReconciliation} from './activity-float-reconciliation';
-import {hasUnreconciledScheduleCalendar} from './forecast-control';
+import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
+import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -47,6 +46,7 @@ export interface ProjectFactsSnapshot {
     /** Canonical management criticality. Deterministic independent CPM governs
      * when established; submitted/source float remains separately visible. */
     floatBasis:'independent_cpm'|'source_total_float'|'qualified_scenario'|'missing';
+    criticalityLabel?:string;
     criticalActivityCount:ProjectFact<number>;
     nearCriticalActivityCount:ProjectFact<number>;
     negativeFloatActivityCount:ProjectFact<number>;
@@ -66,6 +66,7 @@ export interface ProjectFactsSnapshot {
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
+    amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string}>;
   };
   controls:{
     openRfiCount:ProjectFact<number>;
@@ -217,33 +218,11 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     const variance=finishVarianceDays(row);return variance===null?null:variance>0;
   });
   const delayedExecution=aggregateCount(openRows,row=>{const variance=finishVarianceDays(row);return variance===null?null:variance>0;});
-  const submittedNegativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
-  const float=schedule?.result.float??null;
-  const submittedCritical=float
-    ?{value:float.criticalCount,knownCount:float.knownClassifications.critical,unresolvedCount:float.unknownFloatCount,populationCount:float.totalActivities}
-    :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
-  const submittedNearCritical=float
-    ?{value:float.nearCriticalCount,knownCount:float.knownClassifications.nearCritical,unresolvedCount:float.unknownFloatCount+float.nearCriticalThresholdUnresolvedCount,populationCount:float.totalActivities}
-    :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
-  const independentForecast=model?cachedIndependentForecast(model,'project-version:'+state.version):null;
-  const floatReview=model&&independentForecast?activityFloatReconciliation(model,independentForecast,config):null;
-  const comparableFloatRows=floatReview?[...floatReview.byActivityId.values()].filter(row=>row.floatReconciliationState!=='not_applicable_completed'):[];
-  const independentEstablished=!!floatReview&&floatReview.summary.independentCpmState==='established'&&floatReview.summary.unresolvedActivityCount===0&&
-    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-  const independentQualified=!!floatReview&&floatReview.summary.independentCpmState==='qualified_scenario'&&floatReview.summary.unresolvedActivityCount===0&&
-    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-  const independentAggregate=(predicate:(row:(typeof comparableFloatRows)[number])=>boolean)=>{
-    const known=comparableFloatRows.filter(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-    const unresolved=comparableFloatRows.length-known.length;
-    return {value:unresolved===0?known.filter(predicate).length:null,knownCount:known.filter(predicate).length,unresolvedCount:unresolved,populationCount:comparableFloatRows.length};
-  };
-  const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
-  const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
-  const independentNegativeFloat=independentAggregate(row=>(row.independentTotalFloatHours??0)<0);
-  const canonicalCritical=independentEstablished||independentQualified?independentCritical:submittedCritical;
-  const canonicalNearCritical=independentEstablished||independentQualified?independentNearCritical:submittedNearCritical;
-  const canonicalNegativeFloat=independentEstablished||independentQualified?independentNegativeFloat:submittedNegativeFloat;
-  const floatBasis:ProjectFactsSnapshot['schedule']['floatBasis']=independentEstablished?'independent_cpm':independentQualified?'qualified_scenario':model?'source_total_float':'missing';
+  const governedCriticality=scheduleCriticalityFacts(state,schedule?.result.float);
+  const {submittedCritical,submittedNearCritical,submittedNegativeFloat,
+    independentCritical,independentNearCritical,independentNegativeFloat,
+    canonicalCritical,canonicalNearCritical,canonicalNegativeFloat,
+    authoritativeIndependent,floatBasis,independentForecast}=governedCriticality;
   const submittedFinish=schedule?.result.completionBases.find(row=>row.basis==='forecast')
     ??schedule?.result.completionBases.find(row=>row.basis==='programme')
     ??null;
@@ -311,10 +290,26 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // but the extended date cannot yet be calculated.
   const currentContractCompletion=extendedCompletion??(
     officialAward!==null&&officialAward>0?null:commercial.timeExposure.contractualCompletion.value);
-  const independentFinish=hasUnreconciledScheduleCalendar(independentForecast)
-    ?null:independentForecast?.independentForecastCompletionIso??null;
+  const forecastGate=model&&independentForecast?buildForecastReconciliationGate({
+    model,forecast:independentForecast,
+    requiredFinishIso:currentContractCompletion
+  }):null;
+  const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
+    ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
+  const amendmentEotStatements=(scoped.contractDocuments??[]).filter(doc=>doc.role==='amendment').map(doc=>{
+    const sections=doc.result.sections??[];
+    const text=sections.map(row=>row.text).join('\n');
+    const explicit=/\b(?:EOT\s*(?:granted|approved)|extended\s+by)\s*:?\s*(\d+)\s*(?:calendar|working)?\s*days\b/i.exec(text);
+    const zero=/(?:\bno\s+(?:additional\s+)?(?:EOT|extension\s+of\s+time)\b|\b(?:zero|0)\s+days\s+(?:EOT|extension)\b)/i.exec(text);
+    const wording=explicit?.[0]??zero?.[0]??null;
+    return {documentId:doc.documentId,
+      statement:wording?'Amendment text: "'+wording.replace(/\s+/g,' ').trim()+'"':
+        'No explicit EOT statement was identified in the extracted amendment text; this does not establish zero EOT.',
+      sourceRefs:['contract-document:'+doc.documentId],
+      basis:wording?'Source wording, not an entitlement determination':'Source extraction incomplete or amendment silent on EOT'};
+  });
   const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
@@ -326,6 +321,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
+      criticalityLabel:governedCriticality.floatLabel,
       dataDateIso:fact(
         dataDateIso,
         'Adopted current programme Data Date.',
@@ -342,27 +338,21 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       criticalActivityCount:aggregateFact(
         canonicalCritical,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
-          :independentQualified
-            ?'Unfinished execution activities classified critical by the qualified independent CPM scenario with its stated assumptions.'
-            :'Unfinished execution activities classified critical from submitted/source total float because independent CPM is not established.',
+             :'Unfinished execution activities classified critical from '+governedCriticality.floatLabel+'.',
       ),
       nearCriticalActivityCount:aggregateFact(
         canonicalNearCritical,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
-          :independentQualified
-            ?'Unfinished execution activities classified near-critical by the qualified independent CPM scenario using the shared threshold.'
-            :'Unfinished execution activities classified near-critical from submitted/source total float because independent CPM is not established.',
+             :'Unfinished execution activities classified near-critical from '+governedCriticality.floatLabel+'.',
       ),
       negativeFloatActivityCount:aggregateFact(
         canonicalNegativeFloat,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
-          :independentQualified
-            ?'Unfinished execution activities with qualified independent CPM total float below zero.'
-            :'Unfinished execution activities with submitted/source total float below zero because independent CPM is not established.',
+             :'Unfinished execution activities with '+governedCriticality.floatLabel+'.',
       ),
       submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
       submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical population retained for reconciliation.'),
@@ -380,6 +370,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     time:{
+      amendmentEotStatements,
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
@@ -394,7 +385,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       extendedContractCompletionIso:presentedExtension,
     },
     controls:{
-      expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)?null:row.permitStatus==='expired'),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
+      expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)||row.permitStatus==='expired'&&row.affectsOpenWork===null?null:row.permitStatus==='expired'&&row.affectsOpenWork===true),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
       openRfiCount:sourceCount(
         operations.counts.openRfiCount,
         openRfiKnown,
