@@ -23,6 +23,18 @@ test('saved analyses require the same project, release, source version and read 
  assert.equal(cacheableProjectRead('GET','/api/projects/A/overview?refresh=1'),false);
 });
 
+test('cache retains a compressible finished management result larger than old two-megabyte threshold',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'large-result-read-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const cache=new ProjectReadCache(dir);
+ const route='/api/projects/P/management/command-center';
+ const bytes=Buffer.from(JSON.stringify({projectId:'P',populationTotal:58000,rows:Array.from({length:90000},(_,i)=>'ITEM-'+(i%100))}));
+ assert.ok(bytes.length>2*1024*1024,'fixture must exceed the old raw response cap');
+ assert.ok(bytes.length<8*1024*1024,'fixture must remain within bounded raw cache limit');
+ await cache.put('release-a',7,route,bytes);
+ assert.deepEqual(await cache.get('release-a',7,route),bytes);
+ assert.equal(await cache.get('release-b',7,route),null,'new release cannot use an old calculation');
+});
+
 test('project workers respect available CPU capacity and an explicit smaller limit',()=>{
  assert.equal(projectWorkerCapacity(undefined,2),2);
  assert.equal(projectWorkerCapacity(4,2),2);
