@@ -132,12 +132,44 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       implementationDate:null,constraints:['Confirm remaining quantity, productivity, available crew and working calendar first.'],risks:['An assumed extra shift can overstate recovery if access, supervision, materials or productivity do not support it.'],diminishingReturn:'Not calculable until a quantified scenario assumption is entered.',authority:'scenario'});
   }
   const drivingIds=new Set(programme?cachedIndependentForecast(programme,new Date().toISOString()).drivingNetwork?.activityIds??[]:[]),activityById=new Map(programme?.activities.map(row=>[row.activityId,row])??[]);
+  // S-24: show a sixth-working-day option without manufacturing an approved
+  // extra calendar day, crew capacity or a guaranteed project-wide recovery.
+  const fiveDayCalendars=new Set((programme?.calendars??[]).filter(calendar=>
+    calendar.weeklyWorkMinutes?.filter(minutes=>minutes>0).length===5).map(calendar=>calendar.calendarId));
+  const drivingOpen=(programme?.activities??[]).filter(activity=>drivingIds.has(activity.activityId)&&activity.status!=='completed');
+  const fiveDayDriving=drivingOpen.filter(activity=>fiveDayCalendars.has(activity.calendarId??''));
+  if(drivingOpen.length){
+    scenarios.push({scenarioId:'sixth-working-day:'+String(programme?.sourceRevisionId||'current'),
+      type:'additional_shift_or_calendar',state:'option_requires_assumption',
+      subject:'Sixth working day — completion-driving chain',
+      affectedActivities:(fiveDayDriving.length?fiveDayDriving:drivingOpen).slice(0,25).map(a=>a.activityId),
+      affectedPackages:[],
+      assumption:'Candidate six-working-day week only for currently unfinished completion-driving work. Do not assume source calendar approval, crew availability or overtime permission.',
+      currentPosition:fiveDayDriving.length+' unfinished driving activities have five-day source calendars; '+drivingOpen.length+' unfinished activities sit on the calculated completion-driving network.',
+      targetPosition:'Confirm the sixth day, lawful work arrangements, source crew productivity, access and materials; recalculate the entire CPM network before asserting a recovered completion date.',
+      possibleDaysRecovered:null,
+      effectBasis:'Source working-day shortfall to the current contract date is disclosed separately. Added days are a scenario, not an asserted extension of contractual working time or guaranteed project recovery.',
+      additionalResources:'Source-supported trade crews and matching supervision, access, plant, inspections and support for one additional working day.',
+      estimatedCost:null,currency:null,
+      costBasis:'Marginal overtime, workweek premiums and supervision/plant cost have not been established.',
+      implementationDate:dataDateIso,
+      constraints:['Confirm the governing source calendar and permitted sixth day.','Verify approved resource capacity and actual productivity on the driving chain.','Confirm workfront/material/HSE/legal readiness.','Recalculate the entire network before claiming recovered project days.'],
+      risks:['Additional-day labour and supplier availability may differ from normal shifts.','Calendar changes can move downstream interfaces and the near-critical population.'],
+      diminishingReturn:'Do not assume linear weekly improvement where workfront congestion, shared crews or approvals constrain production.',
+      authority:'scenario'});
+  }
   for(const scenario of scenarios){scenario.drivingPath=scenario.affectedActivities.some(id=>drivingIds.has(id));const floats=scenario.affectedActivities.map(id=>activityById.get(id)?.totalFloatHours).filter((value):value is number=>typeof value==='number');scenario.linkedFloatHours=floats.length?Math.min(...floats):null;}
   scenarios.sort((a,b)=>Number(b.drivingPath)-Number(a.drivingPath)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const time= commercialPositionForState(state).timeExposure,pc=programmePcMilestone(programme),finish=pc.dateIso;
   const finishActivity=pc.activityIds.length===1?activityById.get(pc.activityIds[0]!):null,calendar=finishActivity&&programme?resolveWorkingCalendar(finishActivity.calendarId,programme.calendars,false)?.calendar:null;
   const target=(dateIso:string|null)=>{let hours:number|null=null;if(calendar&&dateIso&&finish)try{hours=Math.max(0,workingHoursBetween(calendar,Date.parse(dateIso.slice(0,10)),Date.parse(finish.slice(0,10))));}catch{}return {dateIso,calendarDays:dateIso&&finish?Math.max(0,(Date.parse(finish.slice(0,10))-Date.parse(dateIso.slice(0,10)))/86400000):null,workingHours:hours,workingDays:hours!==null&&calendar?.standardDayHours?hours/calendar.standardDayHours:null};};
   const recoveryTargets={submittedCompletionIso:finish,original:target(time.contractualCompletion.value),extended:target(time.officialAdjustedCompletion.value),basis:'Calendar days compare the date portion of the submitted completion and contract dates. Working days use the completion milestone calendar and its standard day hours; this is the recovery target, not a calculated scenario gain.'};
+  const drivingChainShortfall={calendarDays:recoveryTargets.extended.calendarDays,
+    workingDays:recoveryTargets.extended.workingDays,
+    fiveDayDrivingActivityCount:fiveDayDriving.length,
+    drivingOpenActivityCount:drivingOpen.length,
+    sixthDayScenarioAvailable:drivingOpen.length>0,
+    basis:'Submitted project finish versus current contractual completion including awarded EOT, using the completion milestone calendar. A sixth working day is a candidate only, not approved recoverable time.'};
   const calculated=scenarios.filter(s=>s.state==='calculated'),max=calculated.find(s=>s.possibleDaysRecovered!==null)??null;
   const feasibilitySourceRowCount=feasibility?.rows?.length??0;
   const deliveryPackagePopulationCount=delivery.packageRows.length;
@@ -176,7 +208,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     : scenarios.length
       ? 'Recovery options exist, but the current Project evidence is insufficient to quantify days recovered without additional assumptions. '+unresolvedChecks.length+' feasibility check(s) need a quantified working-time, productivity or resource basis.'
       : 'No recovery option currently meets the calculation criteria. CMeng checked '+feasibilityChecks.length+' activity feasibility position(s), '+latePackages.length+' late procurement package(s) and '+governedResequencingWorkfronts.length+' governed workfront permission(s). A zero is not presented as a recovery result; it means no eligible scenario basis was found.';
-  return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,recoveryTargets,
+  return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,recoveryTargets,drivingChainShortfall,
     calculatedScenarioCount:calculated.length,assumptionRequiredCount:scenarios.length-calculated.length,scenarioState,eligibility,
     eligibilityAssessmentState,
     managementPosition,
