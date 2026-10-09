@@ -57,7 +57,7 @@ export function reconcilePaymentEvidence(
       amounts.advanceRecovery.value! - (amounts.otherDeduction.value ?? 0) : calculatedNet;
   const componentTolerance=arithmeticTolerance([statedNet,net.value,...stated.map(value=>value.value),amounts.otherDeduction.value]);
   const componentArithmetic = {
-    state: statedNet === null || !optionalKnown ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= componentTolerance ? 'matched' as const : 'conflicted' as const,
+    state: statedNet === null ? 'unresolved' as const : Math.abs(statedNet - net.value!) <= componentTolerance ? 'matched' as const : 'conflicted' as const,
     calculatedNet: statedNet,
     difference: statedNet !== null && net.value !== null ? round(net.value - statedNet, 6) : null,
     omittedComponents: optionalKnown ? [] : ['other deductions'],
