@@ -13,7 +13,7 @@ test('S-23 WBS dropdown shows programme hierarchy while API filters preserve exa
   ['WBS-10','WBS reference WBS-10 · source name unavailable'],
   ['WBS-08','Central Tower / Structure / Concrete'],
   ['WBS-09','Central Tower / Structure / Steel']
- ].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true})));
+ ].sort((a,b)=>a[1]!.localeCompare(b[1]!,undefined,{numeric:true})));
  const selected=activityRegisterPage(data.rows,new URLSearchParams({wbsId:'WBS-08',pageSize:'50'}));
  assert.equal(selected.matchingCount,1);
  assert.equal(selected.rows[0]!.activityId,'A-01');
