@@ -15,7 +15,7 @@ function render(overrides:Record<string,unknown>={}):string {
     ...overrides};
   const string=(value:unknown)=>String(value??'');
   return vm.runInNewContext(script.slice(start,end)+';renderNearCriticalVisual(p);',{
-    p,projectionFor:(value:unknown)=>value,escapeHtml:string,fmt:string,planningShortDate:string,
+    shortRevision:(value:unknown)=>value?'Previous programme':'No comparison programme',p,projectionFor:(value:unknown)=>value,escapeHtml:string,fmt:string,planningShortDate:string,
     planningStateLabel:string,planningDaysBetween:()=>null,planningKpis:()=>'',
     planningFloatHistogram:()=>'',planningFinishPeriodBars:()=>'',distributionSummary:()=>'',
   }) as string;

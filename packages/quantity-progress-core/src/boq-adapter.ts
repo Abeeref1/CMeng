@@ -11,6 +11,8 @@ import type {
   CanonicalQuantityItem,
   QuantitySourceRef,
 } from "./types";
+import {admissibleBoqQuantity} from './boq-quantity';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
 
 function id(
   sheet: string,
@@ -61,8 +63,7 @@ function fromLineItem(
       section: item.section ?? null,
       description: item.description,
       unit: item.unit,
-      contractQuantity:
-        item.quantity,
+      contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnosticCodes).contractQuantity,
       sourceRefs: [
         ref(
           source,
@@ -70,7 +71,7 @@ function fromLineItem(
         ),
       ],
       diagnostics: [
-        ...item.diagnosticCodes,
+        ...admissibleBoqQuantity(item.quantity,item.diagnosticCodes).diagnostics,
         ...(item.status === "unresolved"
           ? ["QUANTITY_ITEM_SOURCE_UNRESOLVED"]
           : []),
@@ -116,6 +117,7 @@ export function quantityItemsFromBoqPdf(
       item.page +
       ":t" +
       item.table;
+    const diagnostics=[...item.diagnostics,...(result.pageRead?.pages.some(page=>page.pageNumber===item.page&&page.method==='native')?[]:[BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED])];
 
     return [
       {
@@ -128,8 +130,7 @@ export function quantityItemsFromBoqPdf(
         section: item.section,
         description: item.description,
         unit: item.unit,
-        contractQuantity:
-          item.quantity,
+        contractQuantity: admissibleBoqQuantity(item.quantity,diagnostics).contractQuantity,
         sourceRefs: [
           ref(
             "boq_pdf",
@@ -142,7 +143,7 @@ export function quantityItemsFromBoqPdf(
           ),
         ],
         diagnostics: [
-          ...item.diagnostics,
+          ...admissibleBoqQuantity(item.quantity,diagnostics).diagnostics,
           ...(item.status === "unresolved"
             ? [
                 "QUANTITY_ITEM_SOURCE_UNRESOLVED",

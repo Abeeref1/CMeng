@@ -16,7 +16,7 @@ test("Task 29 exposes exactly the six governed forecast taxonomy labels",()=>{
   ]);
 });
 
-test("Task 30 blocks management publication when project finish matches but a material activity divergence remains",()=>{
+test("Task 30 retains a qualified calculation when activity divergence requires reconciliation",()=>{
   const forecast:any={
     independentForecastCompletionIso:"2030-12-31",
     sourceForecastCompletionIso:"2030-12-31",
@@ -35,7 +35,9 @@ test("Task 30 blocks management publication when project finish matches but a ma
   ]};
   const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:"2030-12-31",materialActivityScreeningDays:14});
   assert.equal(gate.publishable,false);
-  assert.equal(gate.managementForecastCompletionIso,null);
+  assert.equal(gate.managementForecastCompletionIso,"2030-12-31");
+  assert.equal(gate.usable,true);
+  assert.equal(gate.valueState,'calculated_with_stated_assumption');
   const divergence=gate.checks.find(row=>row.key==="material_activity_divergence")!;
   assert.equal(divergence.state,"review_required");
   assert.deepEqual(gate.materialActivityIds,["A2"]);

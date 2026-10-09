@@ -31,8 +31,10 @@ runtimeProjects.touch(state);
   routeStart=performance.now();
   const dashboard=await (await fetch(base+'/api/projects/'+projectId+'/management/master-dashboard')).json();routeTimings.dashboardMs=performance.now()-routeStart;
   assert.ok(dashboard.data?.positionVerdict,'dashboard is fully calculated, not a loading placeholder');
-  assert.ok(overview.moduleStates?.length===29);assert.ok(JSON.stringify(portfolio).includes(projectId));
+  assert.ok(overview.moduleStates?.length===29);assert.ok(!JSON.stringify(portfolio).includes(projectId),'Synthetic benchmark must not leak into the live portfolio');
   const coldRequestMs=performance.now()-cold;
+  const testProjects=await (await fetch(base+'/api/test-projects')).json();
+  assert.ok(JSON.stringify(testProjects).includes(projectId),'The test benchmark must remain visible on its separate test endpoint');
   const uploadProject='UPLOAD-20000';
   const lines=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tUPLOAD-20000\t2031-04-01','%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hour calendar\tMon-Fri 08:00-16:00','%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt'];
   for(let i=0;i<20000;i++)lines.push(['%R',i,1,1,'A'+i,'Work '+i,'TK_NotStart','2031-04-01','2031-06-01',8,8,i%7].join('\t'));
@@ -53,8 +55,18 @@ runtimeProjects.touch(state);
   const profileLines=log.split('\n');
   const profileEvents=profileLines.filter(line=>line.includes('"event":"project_resolution_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const managementProfileEvents=profileLines.filter(line=>line.includes('"event":"management_surface_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
-  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},profileEvents,managementProfileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
+  const bundleProfileEvents=profileLines.filter(line=>line.includes('"event":"project_bundle_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const diagnosisProfileEvents=profileLines.filter(line=>line.includes('"event":"project_diagnosis_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},profileEvents,managementProfileEvents,bundleProfileEvents,diagnosisProfileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
   assert.ok(result.passed,'Cold workflow, upload-to-ready or first-dashboard target exceeded');
- }finally{child.kill();}
-})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{rmSync(root,{recursive:true,force:true});});
+ }finally{
+  if(child.exitCode===null&&child.signalCode===null){
+    child.kill();
+    await new Promise(resolve=>{
+      const timer=setTimeout(resolve,2000);
+      child.once('exit',()=>{clearTimeout(timer);resolve();});
+    });
+  }
+ }
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});});
