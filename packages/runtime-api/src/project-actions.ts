@@ -204,11 +204,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
       let resolution=actionResolution(group,subset,context);
       const missing=subset.some(issue=>issue.kind==='missing_information');
-      if(missing&&!resolution.resolution?.requiresUserAction&&!['programme-comparison','schedule-calculation'].includes(group.key)){
-        resolution=uploadResolution('Supply '+group.title.toLowerCase(),group.title+' source document',
-          'Upload the source containing the missing field. Values from other available source fields remain visible.',
-          group.key==='programme-information'?'schedule':'evidence');
-      }
+      // Missing optional or source-unproven fields remain visible as information.
+      // Only explicit decisions and proven conflicting records create actions.
       const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
       const sourceFiles=[...new Set(refs.flatMap(ref=>state.evidenceDocuments
         .filter(doc=>ref.includes(doc.documentId)).map(doc=>doc.sourceFilename)))];
