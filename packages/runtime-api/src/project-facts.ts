@@ -13,10 +13,9 @@ import {projectContractSections} from './project-contract-sections';
 import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
-import {cachedIndependentForecast} from './forecast-cache';
 import {securityValidityReview} from './security-validity';
-import {activityFloatReconciliation} from './activity-float-reconciliation';
 import {hasUnreconciledScheduleCalendar} from './forecast-control';
+import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -47,6 +46,7 @@ export interface ProjectFactsSnapshot {
     /** Canonical management criticality. Deterministic independent CPM governs
      * when established; submitted/source float remains separately visible. */
     floatBasis:'independent_cpm'|'source_total_float'|'qualified_scenario'|'missing';
+    criticalityLabel:string;
     criticalActivityCount:ProjectFact<number>;
     nearCriticalActivityCount:ProjectFact<number>;
     negativeFloatActivityCount:ProjectFact<number>;
@@ -217,35 +217,11 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     const variance=finishVarianceDays(row);return variance===null?null:variance>0;
   });
   const delayedExecution=aggregateCount(openRows,row=>{const variance=finishVarianceDays(row);return variance===null?null:variance>0;});
-  const submittedNegativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
-  const float=schedule?.result.float??null;
-  const submittedCritical=float
-    ?{value:float.criticalCount,knownCount:float.knownClassifications.critical,unresolvedCount:float.unknownFloatCount,populationCount:float.totalActivities}
-    :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
-  const submittedNearCritical=float
-    ?{value:float.nearCriticalCount,knownCount:float.knownClassifications.nearCritical,unresolvedCount:float.unknownFloatCount+float.nearCriticalThresholdUnresolvedCount,populationCount:float.totalActivities}
-    :{value:null,knownCount:null,unresolvedCount:null,populationCount:null};
-  const independentForecast=model?cachedIndependentForecast(model,'project-version:'+state.version):null;
-  const floatReview=model&&independentForecast?activityFloatReconciliation(model,independentForecast,config):null;
-  const comparableFloatRows=floatReview?[...floatReview.byActivityId.values()].filter(row=>row.floatReconciliationState!=='not_applicable_completed'):[];
-  const independentEstablished=!!floatReview&&floatReview.summary.independentCpmState==='established'&&floatReview.summary.unresolvedActivityCount===0&&
-    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-  const independentQualified=!!floatReview&&floatReview.summary.independentCpmState==='qualified_scenario'&&floatReview.summary.unresolvedActivityCount===0&&
-    comparableFloatRows.every(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-  const independentAggregate=(predicate:(row:(typeof comparableFloatRows)[number])=>boolean)=>{
-    const known=comparableFloatRows.filter(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-    const unresolved=comparableFloatRows.length-known.length;
-    return {value:unresolved===0?known.filter(predicate).length:null,knownCount:known.filter(predicate).length,unresolvedCount:unresolved,populationCount:comparableFloatRows.length};
-  };
-  const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
-  const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
-  const independentNegativeFloat=independentAggregate(row=>(row.independentTotalFloatHours??0)<0);
-  const authoritativeIndependent=independentEstablished&&!!floatReview&&floatReview.summary.disputedActivityCount===0&&floatReview.summary.numericDifferenceActivityCount===0;
-  // A qualified or unreconciled CPM remains visible in technical detail, never the headline.
-  const canonicalCritical=authoritativeIndependent?independentCritical:submittedCritical;
-  const canonicalNearCritical=authoritativeIndependent?independentNearCritical:submittedNearCritical;
-  const canonicalNegativeFloat=authoritativeIndependent?independentNegativeFloat:submittedNegativeFloat;
-  const floatBasis:ProjectFactsSnapshot['schedule']['floatBasis']=authoritativeIndependent?'independent_cpm':model?'source_total_float':'missing';
+  const governedCriticality=scheduleCriticalityFacts(state,schedule?.result.float);
+  const {submittedCritical,submittedNearCritical,submittedNegativeFloat,
+    independentCritical,independentNearCritical,independentNegativeFloat,
+    canonicalCritical,canonicalNearCritical,canonicalNegativeFloat,
+    authoritativeIndependent,floatBasis,independentForecast}=governedCriticality;
   const submittedFinish=schedule?.result.completionBases.find(row=>row.basis==='forecast')
     ??schedule?.result.completionBases.find(row=>row.basis==='programme')
     ??null;
@@ -328,6 +304,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
+      criticalityLabel:governedCriticality.floatLabel,
       dataDateIso:fact(
         dataDateIso,
         'Adopted current programme Data Date.',
@@ -346,19 +323,19 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         canonicalCritical,
         authoritativeIndependent
           ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
-            :'Unfinished execution activities classified critical from submitted/source total float because independent CPM is not established.',
+             :'Unfinished execution activities classified critical from '+governedCriticality.floatLabel+'.',
       ),
       nearCriticalActivityCount:aggregateFact(
         canonicalNearCritical,
         authoritativeIndependent
           ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
-            :'Unfinished execution activities classified near-critical from submitted/source total float because independent CPM is not established.',
+             :'Unfinished execution activities classified near-critical from '+governedCriticality.floatLabel+'.',
       ),
       negativeFloatActivityCount:aggregateFact(
         canonicalNegativeFloat,
         authoritativeIndependent
           ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
-            :'Unfinished execution activities with submitted/source total float below zero because independent CPM is not established.',
+             :'Unfinished execution activities with '+governedCriticality.floatLabel+'.',
       ),
       submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
       submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical population retained for reconciliation.'),
