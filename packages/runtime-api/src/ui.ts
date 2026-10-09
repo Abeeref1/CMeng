@@ -5272,7 +5272,7 @@ function renderModuleResultBody(result){
   const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(['master-dashboard','command-center','pmo-analysis','master-control-programme','milestones','contract-particulars-bonds','liquidated-damages','eot-assessment'].includes(result.key)?renderContractSections(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
+  const primaryView=(['master-dashboard','command-center','pmo-analysis','master-control-programme','milestones','contract-particulars-bonds','liquidated-damages','eot-assessment'].includes(result.key)?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
   const floatReview=['activity-analytics','near-critical','independent-forecast'].includes(result.key)
     ?renderActivityFloatReconciliation(data.activityFloatReconciliation):'';
 
