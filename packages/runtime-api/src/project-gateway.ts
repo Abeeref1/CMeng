@@ -6,7 +6,7 @@ import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import {mkdir,statfs} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
-import {scheduleModuleSummary,commercialModuleSummary} from './registry';
+import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry} from './registry';
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
@@ -124,15 +124,22 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       // full project bundle is already hot in THIS worker. Browser requests
       // for six concurrent projects can read these without reviving an
       // evicted worker or rerunning project controls calculations.
-      const routes=[
-        '/api/projects/'+encodeURIComponent(id)+'/overview',
-        '/api/projects/'+encodeURIComponent(id)+'/management/master-dashboard',
-        '/api/projects/'+encodeURIComponent(id)+'/management/command-center',
-        '/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability',
-        '/api/projects/'+encodeURIComponent(id)+'/management/master-control-programme',
-        '/api/projects/'+encodeURIComponent(id)+'/management/source-quality',
-        '/api/projects/'+encodeURIComponent(id)+'/director-position',
-      ];
+      // Precompute every advertised control page against this same project version.
+      // Only complete response bodies are retained; cache keys include exact release
+      // and project version. User requests still take priority over background work.
+      const prefix='/api/projects/'+encodeURIComponent(id);
+      const routes=[...new Set([
+        prefix+'/overview',
+        prefix+'/director-position',
+        prefix+'/management-surfaces',
+        prefix+'/actions',
+        prefix+'/evidence/documents',
+        prefix+'/boq/page-review',
+        prefix+'/boq/numeric-review',
+        ...moduleRegistry.map(page=>page.area==='management'?
+          prefix+'/management/'+page.key:
+          prefix+'/'+page.area+'/modules/'+page.key),
+      ])];
       for(const route of routes){
         if(closing||updating.get(id))break;
         const retained=await reads(id).get(release(),summary.version,route);
@@ -227,7 +234,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
     if(req.method==='GET'&&(url.pathname==='/api/portfolio'||url.pathname==='/api/test-projects')){
       const testList=url.pathname==='/api/test-projects';
-      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-')&&(e.metadata?.testProject===true)===testList);
+      const isTest=(e:CatalogEntry)=>e.metadata?.testProject===true||
+        /^(?:PERSISTENCE-SMOKE-|DIAGNOSIS-|SYN-|RELEASE-SCALE|UPLOAD-20000|BLIND-|TEST-PROJECT-|CONSULTANT-TEST-)/i.test(e.projectId);
+      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&isTest(e)===testList);
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
       return;
     }
