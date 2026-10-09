@@ -171,7 +171,7 @@ export function requestedProjectFactsAnswer(result:AnalysisResult):NarrativeBloc
     const selected=matches.find(({value})=>value.value!==null&&value.state!=='candidate')
       ??matches.find(({value})=>value.value!==null)??matches[0];
     const found=selected?.value;
-    if(found&&!chosen.some(m=>m.id===found.id))chosen.push({...found,label:selected.section.authorityId==='design'?found.label.replace('records','RFIs'):found.label});
+    if(selected&&found&&!chosen.some(m=>m.id===found.id))chosen.push({...found,label:selected.section.authorityId==='design'?found.label.replace('records','RFIs'):found.label});
   }
   if(!chosen.length)return null;
   return {heading:'Project figures',text:chosen.map(m=>m.label+': '+(m.value===null?'Not established':typeof m.value==='number'?new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(m.value):String(m.value).replace(/T\d\d:.*$/,''))+(m.unit&&m.value!==null?' '+m.unit:'')+(m.state==='candidate'?' · From register, not yet confirmed':m.state==='scenario'?' · Calculated with stated assumption':'')).join('\n'),classification:'calculated_intelligence',traceIds:chosen.map(m=>m.traceId)};
