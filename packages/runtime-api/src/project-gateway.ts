@@ -261,8 +261,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
     if(req.method==='GET'&&(url.pathname==='/api/portfolio'||url.pathname==='/api/test-projects')){
       const testList=url.pathname==='/api/test-projects';
+      // Explicit test classification always applies. Reserved QA/test code namespaces
+      // are also shown in the Test list, without deleting or rewriting any source.
       const isTest=(e:CatalogEntry)=>e.metadata?.testProject===true||
-        /^(?:PERSISTENCE-SMOKE-|DIAGNOSIS-|SYN-|RELEASE-SCALE|UPLOAD-20000|BLIND-|TEST-PROJECT-|CONSULTANT-TEST-)/i.test(e.projectId);
+        /^(?:QA-|PERSISTENCE-SMOKE-|DIAGNOSIS-|SYN-|RELEASE-SCALE|UPLOAD-20000|BLIND-|TEST-PROJECT-|CONSULTANT-TEST-)/i.test(e.projectId);
       const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&isTest(e)===testList);
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
       return;
