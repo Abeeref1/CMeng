@@ -6,15 +6,15 @@ export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=nu
  const owner=typeof sourceOwner==='string'?sourceOwner.trim():'';
  if(owner&&!/^(not assigned|unassigned|unknown|not supplied|tbd|na|n-a|n_a|-)$/i.test(owner))return owner;
  const scope=domain.toLowerCase();
- if(/rfi|design|submittal/.test(scope))return 'PMC Design Manager';
- if(/ncr|quality|inspection/.test(scope))return 'PMC Quality Manager';
- if(/procurement|material|purchase|supplier/.test(scope))return 'PMC Procurement Manager';
- if(/claim|notice|eot|contract/.test(scope))return 'PMC Contracts Manager';
- if(/bond|insurance|commercial|payment|certificate|cost|variation/.test(scope))return 'PMC Commercial Manager';
- if(/hse|safety|permit/.test(scope))return 'PMC HSE Manager';
- if(/site|delivery|interface|resource|construction/.test(scope))return 'PMC Construction Manager';
- if(/schedule|programme|activity|cpm|float/.test(scope))return 'PMC Planning Engineer';
- return 'PMC Project Controls Manager';
+ if(/rfi|design|submittal/.test(scope))return 'PMC Design Manager — individual not designated';
+ if(/ncr|quality|inspection/.test(scope))return 'PMC Quality Manager — individual not designated';
+ if(/procurement|material|purchase|supplier/.test(scope))return 'PMC Procurement Manager — individual not designated';
+ if(/claim|notice|eot|contract/.test(scope))return 'PMC Contracts Manager — individual not designated';
+ if(/bond|insurance|commercial|payment|certificate|cost|variation/.test(scope))return 'PMC Commercial Manager — individual not designated';
+ if(/hse|safety|permit/.test(scope))return 'PMC HSE Manager — individual not designated';
+ if(/site|delivery|interface|resource|construction/.test(scope))return 'PMC Construction Manager — individual not designated';
+ if(/schedule|programme|activity|cpm|float/.test(scope))return 'PMC Planning Engineer — individual not designated';
+ return 'PMC Project Controls Manager — individual not designated';
 }
 
 export function actionRecordKey(domain:string,reference:string){
@@ -93,4 +93,16 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
   (a.priorityBasis.moneyAtRisk.length===1&&b.priorityBasis.moneyAtRisk.length===1&&a.priorityBasis.moneyAtRisk[0]!.currency===b.priorityBasis.moneyAtRisk[0]!.currency?b.priorityBasis.moneyAtRisk[0]!.amount-a.priorityBasis.moneyAtRisk[0]!.amount:0)||
   severity[a.severity]-severity[b.severity]||
   (a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.actionId.localeCompare(b.actionId));
+}
+
+/** Full-population action groups for register/owner presentation; never count paged rows. */
+export function groupActionsByOwnerRegister(actions:ManagementAction[]){
+ const groups=new Map<string,{owner:string;register:string;total:number;actionIds:string[]}>();
+ for(const action of actions){
+   const owner=pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner);
+   const register=String(action.recordKey??action.owningModule??'project controls').split('|')[0]!;
+   const key=register+'|'+owner.toLowerCase(),row=groups.get(key)??{owner,register,total:0,actionIds:[]};
+   row.total++;row.actionIds.push(action.actionId);groups.set(key,row);
+ }
+ return [...groups.values()].sort((a,b)=>b.total-a.total||a.register.localeCompare(b.register)||a.owner.localeCompare(b.owner));
 }

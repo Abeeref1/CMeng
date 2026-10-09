@@ -1,5 +1,5 @@
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
-import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner} from './action-priority';
+import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
@@ -7784,7 +7784,7 @@ export function moduleForProject(
   };
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
   if (isDeliveryPage(key)) {
     const scoped=reportingState(state),result=deliveryModule(scoped,key);
     const deliveryData=result.data as any;
