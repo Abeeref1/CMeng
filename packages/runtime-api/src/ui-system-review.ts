@@ -134,7 +134,7 @@ function readerIssue(i){
     /design|rfi|interface/.test(moduleKeys)?'Design Manager':
     /quality|ncr|hse/.test(moduleKeys)?'QA/QC Manager':
     /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
-    /commercial|payment|contract|claim|bond/.test(moduleKeys)?'Commercial Manager':
+    /commercial|payment|contract|claim|bond|cash|cost|retention|advance|certificate|security/.test(moduleKeys)?'Commercial Manager':
     'Project Controls Manager';
   const owner=String(i.owner&&i.owner!=='Project evidence owner'?i.owner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
   return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
