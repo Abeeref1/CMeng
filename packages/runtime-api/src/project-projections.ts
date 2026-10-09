@@ -7617,6 +7617,23 @@ function resolveProjectModuleCandidate(
         ' Both hourly values and classifications remain available; no difference is silently approved.'].filter(Boolean).join(' ');
     }
   }
+  if(key==='lookahead-schedule'&&result.data&&typeof result.data==='object'){
+    const current=projectControlSchedule(state),resource=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+    const value=result.data as any,output=value?.result?.projectionKey==='lookahead_schedule'?value.result:value;
+    const ids=new Set<string>(((output.forwardWindowRows??output.rows??[]) as Array<{activityId:string}>).map(x=>x.activityId));
+    const master=new Map((resource?.resources??[]).map(x=>[x.resourceId,x]));
+    const groups=new Map<string,{trade:string;unit:string|null;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    for(const row of resource?.assignments??[]){
+      if(!ids.has(row.activityId)||row.resourceType!=='labor'||!row.resourceId)continue;
+      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,activityIds:new Set<string>(),count:0,known:0,remaining:0};
+      g.activityIds.add(row.activityId);g.count++;
+      if(typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)){g.remaining+=row.remainingUnits;g.known++;}
+      groups.set(row.resourceId,g);
+    }
+    output.sourceResourceTrades=[...groups.values()].map(g=>({trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
+      remainingUnits:g.known===g.count?g.remaining:null,
+      basis:'Source P6 labor assignments; not approved crew capacity.'}));
+  }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     const interpretation=sharedInterpretation??buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
