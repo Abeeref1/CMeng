@@ -513,7 +513,7 @@ let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 const fmt=v=>{
- if(v===null||v===undefined)return "Not established";
+ if(v===null||v===undefined)return "Not in source";
  if(typeof v==='number')return Number.isFinite(v)?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(2))):"Not established";
  if(typeof v==='string'&&/^[+-]?[0-9]+[.][0-9]{3,}$/.test(v.trim()))
   return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v));
@@ -5105,7 +5105,7 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const completion=contract?.completionAuthority;
   const completionHeadline=completion&&!completion.governedContractualFinish&&['master_dashboard','command_center','pmo_analysis','independent_forecast','eot_assessment','notices_claims','milestones','commercial_claims_notices','contract_particulars_bonds','challenge_contract'].includes(root.projectionKey)?'<div class="notice warn"><b>Contract completion: unresolved.</b> '+escapeHtml(completion.reason||completion.explanation)+'</div>':'';
   const excludedActuals=[...(contract?.excludedScheduleActualEvents?.future||[]),...(contract?.excludedScheduleActualEvents?.undated||[])];
-  const actualScopeHtml=excludedActuals.length?'<details class="notice warn"><summary>'+fmt(excludedActuals.length)+' schedule actual events excluded from the Data Date position</summary><p>Historical completion and progress are withheld for affected records. Source evidence and planned dates are retained.</p><table><thead><tr><th>Activity</th><th>Actual event</th><th>Source date</th></tr></thead><tbody>'+excludedActuals.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(humanizeKey(r.event))+'</td><td>'+escapeHtml(r.dateIso)+'</td></tr>').join('')+'</tbody></table></details>':'';
+  const actualScopeHtml=excludedActuals.length?'<details class="notice warn"><summary>'+fmt(excludedActuals.length)+' schedule actual events excluded from the Data Date position</summary><p>Historical completion and progress are withheld for affected records. Source evidence and planned dates are retained.</p><table><thead><tr><th>Activity</th><th>Actual event</th><th>Source date</th></tr></thead><tbody>'+excludedActuals.map(r=>'<tr><td>'+escapeHtml(r.activityId)+'</td><td>'+escapeHtml(humanizeKey(r.event))+'</td><td>'+escapeHtml(planningShortDate(r.dateIso))+'</td></tr>').join('')+'</tbody></table></details>':'';
   const authorityHtml=completion&&['eot_assessment','commercial_claims_notices','contract_particulars_bonds'].includes(root.projectionKey)?'<div class="notice info"><b>Completion authority.</b> Contract completion: '+escapeHtml(planningShortDate(completion.governedContractualFinish))+' ('+escapeHtml(humanizeKey(completion.authority))+'). '+escapeHtml(completion.explanation)+'</div>':'';
   if(detail)return completionHeadline+authorityHtml+actualScopeHtml+populationHtml;
   const newer=contract?.newerUnadoptedSchedules||[];
