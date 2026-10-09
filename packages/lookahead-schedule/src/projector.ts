@@ -475,6 +475,10 @@ export function buildLookAheadProjection(
     conditionalCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "conditional",
     ).length,
+    atRiskCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
+    noKnownLinkedBlockerCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      !row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
     blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,
