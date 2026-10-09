@@ -172,13 +172,13 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   // All individual records remain traceable in "details"; no source row is removed.
   const buckets=new Map<string,typeof recordActions>();
   for(const action of recordActions){
-    const cleanup=action.consequence.startsWith('All linked activities are complete.');
+    const cleanup=(action.consequence??'').startsWith('All linked activities are complete.');
     const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
     const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
   }
   const actions=[...buckets.entries()].map(([key,members],index)=>{
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
-    const cleanup=first.consequence.startsWith('All linked activities are complete.');
+    const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
     const sourceCount=members.length;
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
