@@ -240,10 +240,12 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
   const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
   const independentNegativeFloat=independentAggregate(row=>(row.independentTotalFloatHours??0)<0);
-  const canonicalCritical=independentEstablished||independentQualified?independentCritical:submittedCritical;
-  const canonicalNearCritical=independentEstablished||independentQualified?independentNearCritical:submittedNearCritical;
-  const canonicalNegativeFloat=independentEstablished||independentQualified?independentNegativeFloat:submittedNegativeFloat;
-  const floatBasis:ProjectFactsSnapshot['schedule']['floatBasis']=independentEstablished?'independent_cpm':independentQualified?'qualified_scenario':model?'source_total_float':'missing';
+  const authoritativeIndependent=independentEstablished&&floatReview.summary.disputedActivityCount===0&&floatReview.summary.numericDifferenceActivityCount===0;
+  // A qualified or unreconciled CPM remains visible in technical detail, never the headline.
+  const canonicalCritical=authoritativeIndependent?independentCritical:submittedCritical;
+  const canonicalNearCritical=authoritativeIndependent?independentNearCritical:submittedNearCritical;
+  const canonicalNegativeFloat=authoritativeIndependent?independentNegativeFloat:submittedNegativeFloat;
+  const floatBasis:ProjectFactsSnapshot['schedule']['floatBasis']=authoritativeIndependent?'independent_cpm':model?'source_total_float':'missing';
   const submittedFinish=schedule?.result.completionBases.find(row=>row.basis==='forecast')
     ??schedule?.result.completionBases.find(row=>row.basis==='programme')
     ??null;
@@ -342,26 +344,20 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       criticalActivityCount:aggregateFact(
         canonicalCritical,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
-          :independentQualified
-            ?'Unfinished execution activities classified critical by the qualified independent CPM scenario with its stated assumptions.'
             :'Unfinished execution activities classified critical from submitted/source total float because independent CPM is not established.',
       ),
       nearCriticalActivityCount:aggregateFact(
         canonicalNearCritical,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
-          :independentQualified
-            ?'Unfinished execution activities classified near-critical by the qualified independent CPM scenario using the shared threshold.'
             :'Unfinished execution activities classified near-critical from submitted/source total float because independent CPM is not established.',
       ),
       negativeFloatActivityCount:aggregateFact(
         canonicalNegativeFloat,
-        independentEstablished
+        authoritativeIndependent
           ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
-          :independentQualified
-            ?'Unfinished execution activities with qualified independent CPM total float below zero.'
             :'Unfinished execution activities with submitted/source total float below zero because independent CPM is not established.',
       ),
       submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
