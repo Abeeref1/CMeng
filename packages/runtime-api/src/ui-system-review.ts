@@ -45,9 +45,22 @@ function readerAuditAction(value){
 }
 function renderProgrammeCashScenario(scenario){
  if(!scenario?.groups?.length)return '';
- return '<section class="planning-panel"><h4>Future receipts · programme planning assumption</h4>'+scenario.groups.map(group=>planningKpis([
-  ['Remaining gross work',group.remainingGross,group.currency],['Future retention',group.retention,group.currency],['Advance recovery',group.advanceRecovery,group.currency],['Indicative net receipts',group.netReceipts,group.currency]
- ])+experienceDisclosure('Monthly assumed receipts · '+group.currency,basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>[planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),row.assumedReceiptIso?planningShortDate(row.assumedReceiptIso):'Payment period missing'])),'Straight-line scenario through '+planningShortDate(scenario.programmeFinishIso))).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
+ return '<section class="planning-panel"><h4>Future receipts · programme planning scenario</h4>'+
+ scenario.groups.map(group=>planningKpis([
+  ['Remaining gross work',group.remainingGross,group.currency],
+  ['Future retention',group.retention,group.currency],
+  ['Advance recovery',group.advanceRecovery,group.currency],
+  ['Indicative net receipts',group.netReceipts,group.currency]
+ ])+(group.rows?.length?
+  experienceDisclosure('Monthly assumed receipts · '+group.currency,
+    basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>
+      [planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),
+       row.assumedReceiptIso?planningShortDate(row.assumedReceiptIso):'Payment period not in source'])),
+    'Straight-line scenario through '+planningShortDate(scenario.programmeFinishIso)):
+  '<p><b>Receipts scenario cannot yet be priced.</b> '+escapeHtml(group.certificateCount??'Recorded')+
+  ' payment certificates retained. Source inputs required: '+escapeHtml((group.missingInputs||[]).join('; ')||'Confirm comparable contract, certification and submitted programme dates')+
+  '. Existing payments and unpaid certificates remain separately visible; no unsupported amount is converted into zero.</p>'
+ )).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
 }
 function renderContractSections(data){
  const facts=data?.projectFacts;
