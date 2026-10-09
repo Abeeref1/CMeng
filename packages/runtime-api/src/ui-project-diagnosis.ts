@@ -72,14 +72,18 @@ function renderProjectBrief(d,data=null){
  const revision=d.revision||{};
  const facts=data?.projectFacts?.time||{},original=facts.contractualCompletionIso?.value??null;
  const extended=facts.extendedContractCompletionIso?.value??null,submitted=data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value??d.completion?.submittedFinishIso??null;
- const lateDays=facts.submittedDaysAfterExtendedCompletion?.value??null;
+ const establishedLate=facts.submittedDaysAfterExtendedCompletion?.value??null;
+ const scenarioLate=extended&&submitted?
+   (Date.parse(String(submitted).slice(0,10)+'T00:00:00Z')-Date.parse(String(extended).slice(0,10)+'T00:00:00Z'))/86400000:null;
+ const lateDays=typeof establishedLate==='number'?establishedLate:Number.isFinite(scenarioLate)?scenarioLate:null;
+ const timeQualified=facts.extendedContractCompletionIso?.complete===false;
  const timing=planningKpis([
    ['Original contract date',original?planningShortDate(original):'Not in source','Contract source date'],
    ['Contract date with awarded EOT',extended?planningShortDate(extended):'Not in source','Source-based extended commitment'],
    ['Submitted programme finish',submitted?planningShortDate(submitted):'Not in source','Current source programme'],
    ['Days late against extended contract',typeof lateDays==='number'?
      (lateDays>0?fmt(lateDays)+' days late':lateDays<0?fmt(Math.abs(lateDays))+' days early':'On the extended date'):
-     'Not in source','Submitted minus extended contractual completion']
+     'Not in source',timeQualified?'Qualified scenario · extension overlap needs confirmation; not a contractual delay determination':'Submitted less awarded-EOT adjusted contract completion']
  ]);
  const amendments=facts.amendmentEotStatements||[];
  const amendmentWording=amendments.length?'<section class="diagnosis-section"><h4>Actual amendment EOT wording</h4>'+
