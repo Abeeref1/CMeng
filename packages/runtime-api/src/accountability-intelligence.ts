@@ -166,13 +166,38 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
       severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }
-  const actions=prioritizeActions(actionRows,programme);
+  const recordActions=prioritizeActions(actionRows,programme);
+  // A source register row is evidence, not a separate executive decision.
+  // Group it by accountable party, register/control and completed-work cleanup state.
+  // All individual records remain traceable in "details"; no source row is removed.
+  const buckets=new Map<string,typeof recordActions>();
+  for(const action of recordActions){
+    const cleanup=action.consequence.startsWith('All linked activities are complete.');
+    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
+    const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
+  }
+  const actions=[...buckets.entries()].map(([key,members],index)=>{
+    const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
+    const cleanup=first.consequence.startsWith('All linked activities are complete.');
+    const sourceCount=members.length;
+    const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
+    const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
+    return {...first,
+      actionId:'accountability-owner-group:'+index,
+      recordKey:'accountability-owner-group:'+key,
+      issue:sourceCount+' '+(cleanup?'register clean-up':'open control')+' record'+(sourceCount===1?'':'s')+' · '+(first.owningModule??'project control'),
+      consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
+      affectedScope:scope.slice(0,20),
+      requiredAction:(cleanup?'Reconcile completed-work records with the register and confirm close-out evidence. ':'Review source records by the accountable party; prioritise driving work and approaching due dates. ')+first.requiredAction,
+      sourceRefs:references.slice(0,50),owner,
+    };
+  });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,
-    managementPosition:actions.length
-      ?actions.length+' actionable control item'+(actions.length===1?' is':'s are')+' identified; '+owned+' have a reusable accountable party'+(unassigned?' and '+unassigned+' still need ownership.':'.')
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActionCount:recordActions.length,
+    managementPosition:recordActions.length
+      ?recordActions.length+' underlying control records are organised into '+actions.length+' accountable owner/register action groups; '+owned+' groups have an accountable role'+(unassigned?' and '+unassigned+' still need ownership.':'.')
       :'No actionable ownership chain is established from the current open/overdue records.',
-    basis:'Actions drill back to confirmed records or programme scope classifications. Ownership identifies the party carrying the current action; it is not by itself a finding of contractual delay responsibility. Concentration counts remain supporting analysis only.'};
+    basis:'One owner/register group is the management action, not one action per register row. The complete individual records and source references are retained under supporting drill-down. No claim of contractual delay responsibility follows merely from the assigned role.'};
 }
 export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.actions.length||data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.actions.length||data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};
