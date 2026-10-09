@@ -92,7 +92,14 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPo
 
 function projectFactsOf(body:unknown):unknown {
  const item=body as any;
- return item?.data?.projectFacts??item?.projectFacts??null;
+ // The management transport bundle nests the exact same shared facts under
+ // each constituent page. Never null them simply because the route has no
+ // top-level data wrapper (N-20 / inconsistent management bundle).
+ return item?.data?.projectFacts??item?.projectFacts??
+   item?.masterDashboard?.projectFacts??
+   item?.commandCenter?.projectFacts??
+   item?.masterControlProgramme?.projectFacts??
+   item?.sourceQuality?.projectFacts??null;
 }
 
 /** No stringify of the 65-MB original data, no six full-payload
@@ -104,8 +111,13 @@ export function pageProjectResponse(
  if(!body||typeof body!=='object')return body;
  const facts=projectFactsOf(body);
  const sharedFactPages:PageTable[]=[];
- const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),
-   (body as any)?.data?.projectFacts?'/data/projectFacts':'/projectFacts'):null;
+ const item=body as any;
+ const factPointer=item?.data?.projectFacts?'/data/projectFacts':
+   item?.projectFacts?'/projectFacts':item?.masterDashboard?.projectFacts?'/masterDashboard/projectFacts':
+   item?.commandCenter?.projectFacts?'/commandCenter/projectFacts':
+   item?.masterControlProgramme?.projectFacts?'/masterControlProgramme/projectFacts':
+   '/sourceQuality/projectFacts';
+ const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),factPointer):null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
