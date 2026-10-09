@@ -298,18 +298,33 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
-  const amendmentEotStatements=(scoped.contractDocuments??[]).filter(doc=>doc.role==='amendment').map(doc=>{
-    const sections=doc.result.sections??[];
-    const text=sections.map(row=>row.text).join('\n');
-    const explicit=/\b(?:EOT\s*(?:granted|approved)|extended\s+by)\s*:?\s*(\d+)\s*(?:calendar|working)?\s*days\b/i.exec(text);
-    const zero=/(?:\bno\s+(?:additional\s+)?(?:EOT|extension\s+of\s+time)\b|\b(?:zero|0)\s+days\s+(?:EOT|extension)\b)/i.exec(text);
-    const wording=explicit?.[0]??zero?.[0]??null;
-    return {documentId:doc.documentId,
-      statement:wording?'Amendment text: "'+wording.replace(/\s+/g,' ').trim()+'"':
-        'No explicit EOT statement was identified in the extracted amendment text; this does not establish zero EOT.',
-      sourceRefs:['contract-document:'+doc.documentId],
-      basis:wording?'Source wording, not an entitlement determination':'Source extraction incomplete or amendment silent on EOT'};
-  });
+  const amendmentEotStatements=(scoped.contractDocuments??[])
+    .filter(doc=>doc.role==='amendment')
+    .filter(doc=>{
+      const row=scoped.evidenceDocuments.find(record=>record.documentId===doc.documentId);
+      return !row||['active','additive'].includes(row.basisState);
+    }).map(doc=>{
+      const fragments=[
+        ...(doc.result.pdf?.pages??[]).filter(page=>Boolean(page.text?.trim()))
+          .map(page=>({text:page.text,locator:'page:'+page.pageNumber})),
+        ...(doc.result.sections??[]).filter(section=>Boolean(section.text?.trim()))
+          .map(section=>({text:section.text,locator:'section:'+section.sectionKey}))
+      ];
+      const phrase=fragments.map(part=>{
+        const explicit=/\b(?:EOT\s*(?:granted|approved)|extended\s+by|extension\s+of\s+time\s*(?:granted|approved)?\s*(?:of|by)?)\s*:?\s*(\d+)\s*(?:calendar|working)?\s*days\b/i.exec(part.text);
+        const zero=/(?:\bno\s+(?:additional\s+)?(?:EOT|extension\s+of\s+time)\b|\b(?:zero|0)\s+days\s+(?:EOT|extension)\b)/i.exec(part.text);
+        return {wording:explicit?.[0]??zero?.[0]??null,locator:part.locator};
+      }).find(item=>item.wording!==null);
+      const sourceRefs=['contract-document:'+doc.documentId,...(phrase?['contract-document:'+doc.documentId+':'+phrase.locator]:[])];
+      return {documentId:doc.documentId,
+        statement:phrase?'Amendment states: "'+phrase.wording!.replace(/\s+/g,' ').trim()+'"':
+          fragments.length
+            ?'No explicit EOT statement identified in the extracted amendment wording; this is not evidence of a zero-day award.'
+            :'Amendment text has not been read; EOT wording cannot be determined.',
+        sourceRefs,
+        basis:phrase?'Quoted extracted source text; not an independent award determination':
+          fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete'};
+    });
   const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
