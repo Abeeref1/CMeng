@@ -60,7 +60,7 @@ function uniqueReportingPopulations(populations){
     const old=groups.get(label);
     if(!old)groups.set(label,{...p});
     else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount||old.dateBasis!==p.dateBasis){
-      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Unresolved: reporting groups disagree; review the full calculation data.'});
+      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
     }
   }
   return [...groups.values()];
