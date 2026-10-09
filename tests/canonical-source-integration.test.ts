@@ -89,6 +89,10 @@ test('one project facts snapshot is reused for the whole project version and reb
 
 test('ORBIT source: 26 awarded days are not erased by an amendment repeating original 31 March 2030',t=>{
  const {state,csvDoc}=fixture(t);
+ // Establish the original contract independently; an amendment alone must not
+ // be assumed to be the unextended contractual completion date.
+ state.evidenceDocuments.push({documentId:'ORBIT-BASE',basisState:'active'} as StoredEvidenceDocument);
+ state.contractDocuments.push({documentId:'ORBIT-BASE',role:'main',result:{sections:[{text:'Original Contractual Completion 31 March 2030',startPage:1,sectionKey:'completion',sourceMode:'deterministic'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
  amendment(state);
  csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
  const basis=canonicalTimeClaims(state).contractTimeBasis;
@@ -1079,7 +1083,7 @@ test('unprovided deductions stay unknown and cannot yield a matched certificate'
 });
 test('net inclusive tax is added only to explicitly exclusive components with a tax amount', t => {
   const p=paymentFixture(t,{'Net Certified':'1122','Net VAT Basis':'Inclusive','Tax Amount':'102','Paid VAT Basis':'Inclusive','Outstanding Amount':'922'});
-  assert.equal(p.reconciliation,'unresolved','missing deductions cannot establish a fully matched certificate');assert.equal(p.componentArithmetic?.state,'matched','reported components can still reconcile on their stated basis');assert.equal(p.calculatedOutstandingAmount.value,922);
+  assert.equal(p.reconciliation,'matched','all five source components are explicitly present and the net VAT amount reconciles');assert.equal(p.componentArithmetic?.state,'matched','reported components can still reconcile on their stated basis');assert.equal(p.calculatedOutstandingAmount.value,922);
 });
 test('a tax-basis transition without tax evidence remains unresolved', t => {
   const p=paymentFixture(t,{'Net VAT Basis':'Inclusive'});assert.equal(p.reconciliation,'unresolved');
@@ -1223,7 +1227,7 @@ test('source-stated certified certificates are visible as dated source facts wit
  const p=certificateProfile(commercialCanonical(state));const g=p.groups[0]!;
  assert.equal(g.as_of.length,1);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,104);assert.equal(g.futureTotals!.netCertifiedAmount,192);
  assert.deepEqual(g.certificationUnconfirmedIds,[],'explicit source-certified status is retained, not hidden behind a second manual approval');
- assert.equal(g.certifiedCount,1);assert.equal(g.certifiedTotals?.netCertifiedAmount,104);
+ assert.equal(g.certifiedCount,1);assert.equal(g.certifiedTotals,null,'a certified source row with an unknown amount-series basis cannot be promoted to a summed certificate balance');assert.equal(g.as_of[0]?.value,104,'the individual certified source amount remains visible');
  assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);
  assert.equal(g.cumulativeBasis,'source_row_sum_only');
  assert.equal(p.groups[0]!.future.length,1,'a future certificate must stay excluded from current cumulative certification');
