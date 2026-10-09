@@ -128,6 +128,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         '/api/projects/'+encodeURIComponent(id)+'/overview',
         '/api/projects/'+encodeURIComponent(id)+'/management/master-dashboard',
         '/api/projects/'+encodeURIComponent(id)+'/management/command-center',
+        '/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability',
         '/api/projects/'+encodeURIComponent(id)+'/management/master-control-programme',
         '/api/projects/'+encodeURIComponent(id)+'/management/source-quality',
         '/api/projects/'+encodeURIComponent(id)+'/director-position',
