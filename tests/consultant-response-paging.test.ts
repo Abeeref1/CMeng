@@ -80,3 +80,17 @@ test('S-49 nested source evidence retains full population when initial view is p
  assert.equal(remainder.rows.length,25);
  assert.equal(remainder.rows[0].recordId,'EV-75');
 });
+
+test('S-49 visible registers retain paging metadata even when nested facts exceed cap',()=>{
+ const nested=Array.from({length:10},(_,row)=>Object.fromEntries(Array.from({length:20},(_,column)=>[
+   'facts'+column,Array.from({length:16},(_,i)=>row*320+column*16+i)
+ ])));
+ const source={projectVersion:22,data:{projectFacts:{deep:{rows:nested}},
+   rows:Array.from({length:127},(_,i)=>({recordId:'RECORD-'+i,amount:i+0.25}))}};
+ const projected=pageProjectResponse(source,'/api/projects/P/delivery/modules/delivery-control') as any;
+ assert.ok(projected.responsePaging.additionalTables>0,'The fact snapshot must exceed its reserved metadata');
+ assert.ok(projected.responsePaging.tables.some((t:any)=>t.pointer==='/data/rows'&&t.total===127),
+   'The visible register must have its full 127-row paging pointer, not only 25 rows');
+ assert.equal(projected.data.rows.length,25);
+ assert.equal(recordDetailPage(source,'/data/rows',100).rows[0].recordId,'RECORD-100');
+});
