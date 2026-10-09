@@ -125,11 +125,13 @@ function buildDelivery(state:ProjectRuntimeState){
  const lifecycleById=new Map(byKind('lifecycle').map(r=>[r.recordId,r]));
  const packageRows=byKind('package').map(r=>{
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
+  const registerCleanup=linkedActivities.length>0&&linkedActivities.every(a=>a?.status==='completed');
+  const unfinishedDrivingLink=r.links.activityIds.some(id=>drivingIds.has(id)&&activities.get(id)?.status!=='completed');
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
   const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
-  if(forecastLate&&headroom!==null)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
-  if(overdueUndelivered)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
+  if(forecastLate&&headroom!==null&&!registerCleanup)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
+  if(overdueUndelivered&&!registerCleanup)add('PACKAGE_REQUIRED_DATE_MISSED',r,'Required-on-site date has passed and delivery is not recorded at the Data Date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=lifecycleById.get(field(r,'lifecycle id'));
   const stages=template?ids(field(template,'stages')):[];
@@ -159,15 +161,15 @@ function buildDelivery(state:ProjectRuntimeState){
   const latestOrder=latestActionDates.length&&latestActionDates.every(s=>s.dateIso)?latestActionDates.find(s=>s.stage==='po')?.dateIso??null:null;
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible','responsible party')||null,supplier:field(r,'supplier','vendor','manufacturer')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
-   supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,
-   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,deliveryTimingBasis:deliveredAtDataDate?'Dated actual delivery':deliveredStatusOnly?'Source reports delivered; actual date not provided':forecastLate||overdueUndelivered?'Open package with date exposure':'Open package; timing does not establish lateness',drivingPath:r.links.activityIds.some(id=>drivingIds.has(id)),drivingBlockerScenario:(forecastLate||overdueUndelivered)&&r.links.activityIds.some(id=>drivingIds.has(id)),linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
+   supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,registerCleanup,
+   programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,deliveryTimingBasis:deliveredAtDataDate?'Dated actual delivery':deliveredStatusOnly?'Source reports delivered; actual date not provided':forecastLate||overdueUndelivered?'Open package with date exposure':'Open package; timing does not establish lateness',drivingPath:unfinishedDrivingLink,drivingBlockerScenario:!registerCleanup&&(forecastLate||overdueUndelivered)&&unfinishedDrivingLink,linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readinessByRecord.get(r.recordId),receipts:r.receipts};
  }).sort((a,b)=>Number(a.deliveredAtDataDate||a.deliveredStatusOnly)-Number(b.deliveredAtDataDate||b.deliveredStatusOnly)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||Number(b.drivingPath)-Number(a.drivingPath)||(a.needDate??'9999').localeCompare(b.needDate??'9999'));
  for(const packageRow of packageRows){
   const gate=readinessByRecord.get(packageRow.recordId);if(!gate||packageRow.deliveredAtDataDate||packageRow.deliveredStatusOnly)continue;
-  if(packageRow.overdueUndelivered||packageRow.forecastLate&&packageRow.drivingPath)gate.state='blocked';
-  else if(packageRow.forecastLate&&gate.state!=='blocked')gate.state='at_risk';
+  if(!packageRow.registerCleanup&&(packageRow.overdueUndelivered||packageRow.forecastLate&&packageRow.drivingPath))gate.state='blocked';
+  else if(!packageRow.registerCleanup&&packageRow.forecastLate&&gate.state!=='blocked')gate.state='at_risk';
  }
  const scheduleWbs=model?.wbs??[];
  const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));
@@ -597,7 +599,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('BOQ mapped to procurement',p.boqIntelligence.procurementMappingPercent,'%','Controlled BOQ item denominator; mapped item IDs counted once.'),
    metric(population.state==='established'?'Confirmed packages':'Packages from register',p.packageRows.length,'records',sourceCountBasis),
    metric('Source-marked long lead',sourceAvailability?.signals.longLeadMarkedCount??null,'items','Explicit Long Lead marks from a supplied procurement register; schedule impact remains separate.'),
-   metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null),
+   metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.registerCleanup&&(r.overdueUndelivered||r.forecastLate)).length:null),
    metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
   ];
  if(key==='material-tracking'&&rows.some(r=>r.authority==='From BOQ and dated measurement register')){
@@ -682,7 +684,7 @@ export function deliveryDashboard(state:ProjectRuntimeState){
   packagePopulationState:packagePopulation?.state??'not_established',
   confirmedPackageCount:packagePopulation?.denominator??null,knownPackageRecordCount:packagePopulation?.knownRecordCount??null,
   candidatePackageCount:boq.packages.length||null,candidateLongLeadCount:boq.longLead.length||null,scheduleLongLeadCandidateCount:p.scheduleLongLeadCandidates.length||null,
-  latePackageKnownCount:p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>r.overdueUndelivered||r.forecastLate).length:null,
+  latePackageKnownCount:p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.registerCleanup&&(r.overdueUndelivered||r.forecastLate)).length:null,
   unresolvedPackageCount:p.packageRows.length?p.packageRows.filter(r=>r.headroomCalendarDays===null).length:null,
   sourceAvailability:{procurement:domain('procurement'),design:domain('design'),submittal:domain('submittal'),quality:domain('quality'),hse:domain('hse'),risk:domain('risk')},
   exceptions:p.findings.slice(0,8),exceptionCount:p.findings.length,
