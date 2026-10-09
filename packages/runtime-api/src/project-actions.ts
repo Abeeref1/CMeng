@@ -1,5 +1,6 @@
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
+import {contractCompletionPosition} from './contract-completion';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
@@ -197,8 +198,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // Once a contractual completion date has been explicitly governed, stale
     // missing-only findings must not recreate the same confirmation action.
     // A later genuine source conflict/review remains visible and actionable.
-    const confirmedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso&&state.controls.contractTimeBasis.contractualCompletionState==='official';
-    if(group.key==='contract-completion'&&confirmedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
+    const sourcedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso??contractCompletionPosition(state).value;
+    if(group.key==='contract-completion'&&sourcedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
     const pushMatter=(subset:ControlIssue[],suffix='')=>{
       if(!subset.length)return;
       const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
