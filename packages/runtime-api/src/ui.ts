@@ -2204,7 +2204,29 @@ function renderPmoVisual(data){
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
   const detail=kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section>';
-  return '<section class="planning-view management-view">'+(data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
+  // S-22: show the existing commercial facts on the management brief.
+  // CPI is not reconstructed from incomplete sources, and an absent EAC is
+  // never fabricated from the contract sum or from a zero.
+  const commercialFacts=data.projectFacts?.commercial?.currencies||[];
+  const costSources=data.visualControl?.commercial?.cost||[];
+  const briefCommercial=commercialFacts.length?
+    managementPanel('Commercial position · same Data Date and currency',
+      'Current contract, EAC and certified unpaid are distinct positions. CPI appears only when the source calculation is available; no amount changes the programme finish or contract authority.',
+      commercialFacts.map(row=>{
+        const associated=costSources.find(item=>item.currency===row.currency)||{};
+        return '<section class="planning-panel"><h4>'+escapeHtml(row.currency)+'</h4>'+
+          planningKpis([
+            ['Current contract',row.currentContractValue?.value??'Not established',row.currency],
+            ['EAC',row.forecastEac?.value??'Not established',(row.forecastEac?.state==='confirmed'?'Source reported':'Candidate or unavailable')+' · '+row.currency],
+            ['Certified unpaid',row.certifiedUnpaidAmount?.value??'Not established',row.currency+' · certified less paid, not applied certificates'],
+            ['CPI',associated.cpi??'Not established','Cost performance ratio; no cross-currency estimate']
+          ])+'</section>';
+      }).join('')+managementModuleLink('cost-forecast','Review full Cost Forecast / CPI basis'),true):
+    managementPanel('Cost and cash position','The supporting commercial currency population is not established on this brief. Do not infer a zero from missing evidence.',
+      '<p>Current contract, EAC, CPI and certified unpaid require the applicable currency and source-period evidence.</p>'+managementModuleLink('cost-forecast','Open Cost Forecast'));
+  return '<section class="planning-view management-view">'+
+    (data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+
+    briefCommercial+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
 }
 function renderProgrammeQuality(q){
  if(!q||q.state==='missing')return '';
