@@ -53,7 +53,8 @@ function buildRow(
       activity.percentComplete <= 100,
   );
 
-  const floatKnown = activities.filter(
+  const unfinished=activities.filter(activity=>activity.status!=='completed');
+  const floatKnown = unfinished.filter(
     (activity) =>
       activity.totalFloatHours !== null,
   );
@@ -100,23 +101,23 @@ function buildRow(
           (activity.remainingDurationHours ?? 0),
         0,
       ),
-    criticalCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    criticalCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.length!==activities.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
+    nearCriticalCount: floatKnown.length!==unfinished.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",
     ).length,
-    negativeFloatCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    negativeFloatCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,
     floatCoveragePercent: coverage(
       floatKnown.length,
-      activities.length,
+      unfinished.length,
     ),
   };
 }
@@ -129,7 +130,7 @@ export function buildProgressBreakdownProjection(
     config?: ScheduleAnalysisConfig;
     baselineModel?: CanonicalScheduleModel | null;
     previousModel?: CanonicalScheduleModel | null;
-    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string}>>>;
+    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
       rows: Array<{
         activityId: string;
@@ -205,16 +206,18 @@ export function buildProgressBreakdownProjection(
         (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
         (Number.isFinite(baselineMs)&&Number.isFinite(finishMs)&&finishMs>baselineMs)
       ),
-      longLead:longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
-      procurementBlocked:readiness?.procurement_material?.state==="blocked",
-      designBlocked:readiness?.design_submittal?.state==="blocked",
-      pressure:typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
+      longLead:!!readiness?.procurement_material?.records?.some(record=>record.longLead)||longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
+      procurementBlocked:activity.status!=="completed"&&readiness?.procurement_material?.state==="blocked",
+      designBlocked:activity.status!=="completed"&&readiness?.design_submittal?.state==="blocked",
+      completedRecordCleanup:activity.status==="completed"&&(readiness?.procurement_material?.state==="blocked"||readiness?.design_submittal?.state==="blocked"),
+      owners:Object.values(readiness??{}).flatMap(dimension=>(dimension.records??[]).map(row=>row.owner).filter((owner):owner is string=>!!owner)),
+      pressure:activity.status!=="completed"&&typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
     }] as const;
   }));
   const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
     const wbsIds=new Set<string>();
     let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0;
-    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0;
+    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0,completedRecordCleanupCount=0;const owners=new Set<string>();
     for(const activity of activities){
       if(activity.wbsId)wbsIds.add(activity.wbsId);
       const signal=signalByActivity.get(activity.activityId);
@@ -222,6 +225,8 @@ export function buildProgressBreakdownProjection(
       if(signal.finishIso&&(!forecastFinishIso||signal.finishIso>forecastFinishIso))forecastFinishIso=signal.finishIso;
       if(signal.delayed)delayedActivityCount++;
       if(signal.longLead)longLeadActivityCount++;
+      if(signal.completedRecordCleanup)completedRecordCleanupCount++;
+      for(const owner of signal.owners)owners.add(owner);
       if(signal.procurementBlocked)procurementBlockerCount++;
       if(signal.designBlocked)designBlockerCount++;
       if(signal.pressure)criticalOrNegative++;
@@ -242,7 +247,7 @@ export function buildProgressBreakdownProjection(
           ? "Agree recovery dates and accountable actions for delayed activities in this scope."
           : criticalOrNegative>0
             ? "Protect remaining float and monitor the critical/negative-float activities."
-            : "Monitor the current plan and recorded progress for this scope.";
+            : completedRecordCleanupCount>0?"Programme work is complete. Reconcile the open register records as closeout; they are not blockers to starting this completed work.":"Monitor the current plan and recorded progress for this scope.";
     return {
       forecastFinishIso,
       delayedActivityCount,
@@ -250,7 +255,8 @@ export function buildProgressBreakdownProjection(
       longLeadActivityCount,
       procurementBlockerCount,
       designBlockerCount,
-      owner:null,
+      completedRecordCleanupCount,
+      owner:[...owners].join('; ')||null,
       managementAction,
       physicalMeasuredPercent:null,
       certifiedPhysicalPercent:null,
@@ -327,6 +333,7 @@ export function buildProgressBreakdownProjection(
   }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   const executionActivities = model.activities.filter(isExecutionActivity);
+  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config),executionActivities);
   const progressPosition = scheduleProgress(executionActivities);
   const overallKnownWeightHours = progressPosition.knownWeightHours;
   const scopeByActivity = new Map((input.scopeClassification?.rows ?? []).map(row => [row.activityId, row]));
@@ -500,6 +507,7 @@ export function buildProgressBreakdownProjection(
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
+    overallSummary,
     totalActivityCount: rows.reduce(
       (sum, row) => sum + row.activityCount,
       0,

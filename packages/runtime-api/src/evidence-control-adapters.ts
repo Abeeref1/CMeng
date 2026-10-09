@@ -1,5 +1,5 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
+import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import type {
   CanonicalClaimRecord,
@@ -127,10 +127,13 @@ function evidenceRef(
   document:
     StoredEvidenceDocument,
   rowNumber: number,
+  sheetName?: string,
 ): string {
+  const sheet=sheetName&&sheetName!=='CSV'?':sheet:'+encodeURIComponent(sheetName):'';
   return (
     "evidence-document:" +
     document.documentId +
+    sheet +
     ":row:" +
     rowNumber
   );
@@ -333,6 +336,7 @@ export function deriveControlsFromCsv(
     document:
       StoredEvidenceDocument;
     bytes: Uint8Array;
+    sheetName?: string;
   },
 ): DerivedControlEvidence {
   const text =
@@ -344,7 +348,16 @@ export function deriveControlsFromCsv(
         /^\uFEFF/,
         "",
       );
-  const parsedTable=prepareRegisterRows(parseCsv(text),input.document.documentType);
+  const sheetName=input.sheetName??'CSV';
+  const semantic=sheetName==='CSV'
+    ?input.document.csvSemantic
+    :input.document.tabularRead?.sheets.find(sheet=>sheet.name===sheetName)?.semantic;
+  const parsedTable=prepareEvidenceRows(
+    parseCsv(text),
+    input.document.documentType,
+    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName),
+    semantic?.columnMeanings??[],
+  );
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
   const currencyIndex=indexOf(headers,['currency']);
@@ -474,6 +487,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -605,6 +619,7 @@ export function deriveControlsFromCsv(
         evidenceRef(
           input.document,
           rowIndex + parsedTable.headerRow,
+          input.sheetName,
         );
       const retentionAmount =
         numeric(
@@ -776,6 +791,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -873,6 +889,12 @@ export function deriveControlsFromCsv(
         !bondId ||
         amount === null
       ) continue;
+      const rawKind=value(row,kindIndex);
+      // Insurance policies are not financial securities even when the source
+      // stores bonds, guarantees and policies in one register. Leave them out
+      // of the legacy bond collection; the commercial canonical layer reads
+      // them as insurance from the same retained source row.
+      if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(rawKind+' '+bondId))continue;
       bonds.push({
         bondId,
         amount,
@@ -880,10 +902,7 @@ export function deriveControlsFromCsv(
           sourceCurrency,
         kind:
           bondKind(
-            value(
-              row,
-              kindIndex,
-            ),
+            rawKind,
           ),
         status:
           bondStatus(
@@ -903,6 +922,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -971,6 +991,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -1042,6 +1063,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -1130,6 +1152,7 @@ export function deriveControlsFromCsv(
           evidenceRef(
             input.document,
             rowIndex + parsedTable.headerRow,
+            input.sheetName,
           ),
         ],
       });
@@ -1580,6 +1603,7 @@ export function deriveControlsFromCsv(
               evidenceRef(
                 input.document,
                 rowIndex + parsedTable.headerRow,
+                input.sheetName,
               ),
             ],
           });

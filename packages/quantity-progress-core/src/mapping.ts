@@ -39,7 +39,8 @@ export function assessQuantityMapping(
   const overAllocatedItemIds: string[] = [];
   const partiallyAllocatedItemIds: string[] = [];
   const unmappedItemIds: string[] = [];
-  const diagnostics: string[] = [];
+  const populationIncomplete=model.diagnostics.includes('BOQ_SOURCE_POPULATION_INCOMPLETE');
+  const diagnostics: string[] = populationIncomplete?['BOQ_SOURCE_POPULATION_INCOMPLETE']:[];
 
   for (const item of model.items) {
     if (
@@ -115,9 +116,11 @@ export function assessQuantityMapping(
     unmappedItemIds:
       unmappedItemIds.sort(),
     complete:
+      !populationIncomplete &&
       overAllocatedItemIds.length === 0 &&
       partiallyAllocatedItemIds.length === 0 &&
       unmappedItemIds.length === 0 &&
+      knownQuantityItemCount === model.items.length &&
       knownQuantityItemCount > 0,
     diagnostics,
   };

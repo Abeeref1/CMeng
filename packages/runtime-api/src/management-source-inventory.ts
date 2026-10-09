@@ -1,4 +1,4 @@
-import {prepareRegisterRows} from '../../truth-kernel/src';
+import {prepareRegisterRows,sourceTables} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export type ManagementSourceDomain =
@@ -42,15 +42,29 @@ const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typ
 
 function build(state:ProjectRuntimeState){
   const documents=state.evidenceDocuments.filter(document=>document.basisState!=='superseded');
+  const tables=sourceTables(documents,[],{includeHistorical:true});
+  const normalizeSourceText=(values:Array<string|null|undefined>)=>values.filter(Boolean).join(' ').normalize('NFKC').replace(/[_/\\.-]+/g,' ').replace(/\s+/g,' ').trim();
+  const specificDomains=(document:ProjectRuntimeState['evidenceDocuments'][number])=>{
+    const semanticTypes=tables.filter(table=>table.document.documentId===document.documentId).map(table=>table.document.documentType);
+    const typed=definitions.filter(definition=>definition.pattern.test(normalizeSourceText(semanticTypes))).map(definition=>definition.domain);
+    if(typed.length)return typed;
+    const specific=normalizeSourceText([document.documentType,document.sourceFilename,document.familyKey]);
+    const matches=definitions.filter(definition=>definition.pattern.test(specific)).map(definition=>definition.domain);
+    if(matches.length)return matches;
+    // Broad storage categories such as risk_claims_procurement and hse_quality_fm
+    // are routing buckets, not proof that one document belongs to every domain.
+    // Use the category only when the specific document identity gives no signal.
+    const fallback=normalizeSourceText([document.category]);
+    return definitions.filter(definition=>definition.pattern.test(fallback)).map(definition=>definition.domain);
+  };
   const domains=definitions.map(definition=>{
-    const matched=documents.filter(document=>definition.pattern.test(
-      [document.documentType,document.category,document.sourceFilename,document.familyKey].filter(Boolean).join(' ')
-    ));
+    const matched=documents.filter(document=>specificDomains(document).includes(definition.domain));
     let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false,longLeadMarkedCount=0,longLeadObserved=false;
     const longLeadSamples:ManagementSourceDomainSummary['signals']['longLeadSamples']=[];
     for(const document of matched){
-      for(const sheet of document.tabularRead?.sheets??[]){
-        const prepared=prepareRegisterRows(sheet.rows,document.documentType);
+      const retained=tables.filter(table=>table.document.documentId===document.documentId);
+      const preparedTables=retained.length?retained.map(table=>({headers:table.headers,rows:table.rows.map(row=>table.headers.map(header=>row.cells[header]??'')),readRowCount:table.rows.length,recognized:table.recognition?.recognized??false})):(document.tabularRead?.sheets??[]).map(sheet=>prepareRegisterRows(sheet.rows,document.documentType));
+      for(const prepared of preparedTables){
         readableRows+=prepared.readRowCount;
         hasReadableRows=hasReadableRows||prepared.readRowCount>0;
         if(prepared.recognized){

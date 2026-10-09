@@ -60,6 +60,7 @@ export interface MilestoneRow {
   baselineDateIso: string | null;
   currentDateIso: string | null;
   forecastDateIso?: string | null;
+  forecastDateBasis?:'submitted_forecast'|'current_programme'|null;
   actualDateIso: string | null;
   authority?: MilestoneAuthority;
   category?: MilestoneCategory;
