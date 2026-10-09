@@ -265,8 +265,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    payments.push({
     paymentId:cell(r,'certificate no'),
     paymentType:cell(r,'payment type','type')||null,
-    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout||sourceCertificateLayout?'incremental':'unknown',
-    certifiedAmountBasisEvidence:explicitCertifiedBasis!=='unknown'?'explicit':periodCertificateLayout?'period_columns':sourceCertificateLayout?'inferred_per_certificate':'unresolved',
+    certifiedAmountBasis:explicitCertifiedBasis!=='unknown'?explicitCertifiedBasis:periodCertificateLayout?'incremental':'unknown',
+    certifiedAmountBasisEvidence:explicitCertifiedBasis!=='unknown'?'explicit':periodCertificateLayout?'period_columns':'unresolved',
     certificationDateBasis:sourceCertificationDate?'source_event_date':periodAsCertification?'period_end_proxy':'not_supplied',
     paidAmountBasis:explicitPaidBasis!=='unknown'?explicitPaidBasis:periodCertificateLayout&&has(t,'paid amount')?'incremental':'unknown',
     periodEnd:asOf,
