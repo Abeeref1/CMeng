@@ -3,7 +3,7 @@ export const projectDiagnosisStyles=String.raw`
 `;
 export const projectDiagnosisScript=String.raw`
 let diagnosisTableSeq=0;const diagnosisTables=new Map();
-function diagnosisCell(value){return value===null||value===undefined?'Not available':typeof value==='number'?fmt(value):typeof value==='string'&&/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value)?planningShortDate(value):String(value);}
+function diagnosisCell(value){return fmtForField('diagnosis',value);}
 function diagnosisTableHtml(t){
  const rows=t.rows.slice(0,t.limit),start=t.offset||0;
  return '<div class="diagnosis-table">'+basisTable(t.columns.map(c=>c[1]),rows.map(r=>t.columns.map(c=>diagnosisCell(r[c[0]]))))+'</div><div class="diagnosis-toolbar"><span>'+(!rows.length?'No established matching rows.':(start+1)+'–'+(start+rows.length)+' of '+fmt(t.total))+'</span>'+
