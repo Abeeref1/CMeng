@@ -4,7 +4,7 @@ import {completionPosition} from './completion-position';
 import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
-import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage} from './delivery-projections';
+import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,deliveryPosition} from './delivery-projections';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
 import {projectActions,type ProjectAction} from './project-actions';
@@ -92,6 +92,7 @@ import {
 import {
   buildLookAheadProjection,
 } from "../../lookahead-schedule/src";
+import type {ReadinessEvidence,ReadinessDimensionKey} from "../../lookahead-schedule/src";
 import {
   buildManhourScurveProjection,
 } from "../../manhour-scurve/src";
@@ -160,6 +161,40 @@ import {
   commercialModules,
   scheduleModules,
 } from "./registry";
+
+/** One source-to-programme readiness rule shared by every look-ahead consumer.
+ * Only current, linked, late procurement records can block unfinished driving
+ * work. No source record or pre-existing readiness evidence is removed. */
+function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
+  const retained=state.controls.readinessEvidence;
+  if(drivingIds.length===0)return retained;
+  const driving=new Set(drivingIds);
+  const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
+  for(const pkg of deliveryPosition(state).packageRows){
+    if(!pkg.drivingBlockerScenario||pkg.deliveredAtDataDate||pkg.deliveredStatusOnly)continue;
+    const sourceRefs=pkg.receipts.map(r=>'evidence-document:'+r.documentId+':'+r.locator);
+    if(!sourceRefs.length)sourceRefs.push('delivery-record:'+pkg.recordId);
+    const basis=pkg.overdueUndelivered
+      ?'Required-on-site date has passed without dated delivery evidence.'
+      :'Forecast delivery is after the controlled programme need date; forecast readiness scenario, not actual contractual delay.';
+    for(const activityId of pkg.activityIds){
+      if(!driving.has(activityId))continue;
+      const previous=overrides[activityId]?.procurement_material??retained[activityId]?.procurement_material;
+      const note=[previous?.note,basis,
+        'Linked driving activity '+activityId+', procurement package '+(pkg.reference||pkg.recordId)+
+        ', required '+(pkg.needDate||'date not established')+'. Confirm supplier recovery and owner.']
+        .filter(Boolean).join(' ');
+      const record={recordId:pkg.recordId,documentType:'procurement package',
+        state:'blocked' as const,dueIso:pkg.needDate,owner:pkg.owner??'Procurement Manager',
+        note:basis,sourceRefs};
+      overrides[activityId]={...retained[activityId],...overrides[activityId],
+        procurement_material:{state:'blocked',sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...sourceRefs])],
+          note,records:[...(previous?.records??[]).filter(r=>r.recordId!==pkg.recordId),record],
+          diagnostics:[...new Set([...(previous?.diagnostics??[]),'SOURCE_LINKED_DRIVING_PROCUREMENT_BLOCKER'])] }};
+    }
+  }
+  return Object.keys(overrides).length?{...retained,...overrides}:retained;
+}
 
 const certifiedScheduleModules = scheduleModules.filter(module => !module.onDemand);
 const certifiedCommercialModules = commercialModules.filter(module => !module.onDemand);
@@ -1083,8 +1118,7 @@ function buildBundle(
         producerVersion:
           versions.lookAhead,
         readinessEvidence:
-          state.controls
-            .readinessEvidence,
+          lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
       },
     );
   modules.set(
@@ -4192,8 +4226,7 @@ function buildPlanningModuleFast(
             producerVersion:
               "planning-fast:lookahead-v1",
             readinessEvidence:
-              state.controls
-                .readinessEvidence,
+              lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
           },
         ),
       ),
@@ -4528,8 +4561,7 @@ function buildPlanningModuleFast(
           producerVersion:
             "planning-fast:lookahead-v1",
           readinessEvidence:
-            state.controls
-              .readinessEvidence,
+            lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
         },
       );
     const milestonesRaw =
@@ -6240,8 +6272,7 @@ function buildSpecialistModuleFast(
           producerVersion:
             "progress-position:lookahead-v1",
           readinessEvidence:
-            state.controls
-              .readinessEvidence,
+            lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
         },
       );
     const progressScurve =
