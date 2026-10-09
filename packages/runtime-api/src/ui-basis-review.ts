@@ -89,9 +89,20 @@ function renderBoqCandidateLinkPanel(mapping){
 }
 function renderBasisReviews(data,key){
   let html='';
-  if(key==='contract-particulars-bonds'&&data.projectFacts?.time?.amendmentEotStatements?.length)
-    html+=basisPanel('What the amendments state about EOT','An amendment with no EOT statement is not an express zero-day determination.',
-      basisTable(['Amendment','Extracted wording','Evidence state'],data.projectFacts.time.amendmentEotStatements.map(r=>[r.documentId,r.statement,r.basis])));
+  if(key==='contract-particulars-bonds'&&data.projectFacts?.time){
+    const time=data.projectFacts.time,statements=time.amendmentEotStatements||[];
+    const timePosition=planningKpis([
+      ['Original contract completion',time.contractualCompletionIso?.value?planningShortDate(time.contractualCompletionIso.value):'Not established','Original contractual authority'],
+      ['Contract completion including awarded EOT',time.extendedContractCompletionIso?.value?planningShortDate(time.extendedContractCompletionIso.value):'Not established',time.extendedContractCompletionIso?.basis||'Current source-qualified date'],
+      ['Awarded EOT days',time.awardedEotDays?.value??'Not established',time.awardedEotDays?.basis||'Only dated awarded periods']
+    ]);
+    html+=basisPanel('Contract dates, awarded EOT and amendment wording',
+      'An award in a dated determination is distinct from wording in an amendment. An amendment silent on EOT does not grant or deny additional days.',
+      timePosition+(statements.length?
+        basisTable(['Amendment record','Exact extracted wording','Evidence / qualification'],
+          statements.map(r=>[r.documentId,r.statement,r.basis])):
+        '<p>No active amendment EOT text is recorded. The dated determination/contract-time position above remains separate and visible.</p>'));
+  }
  const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
   if(s&&key!=='independent-forecast')html+=managementModuleLink('independent-forecast','Review package calendars and date restrictions');
   if(s&&key==='independent-forecast'){
