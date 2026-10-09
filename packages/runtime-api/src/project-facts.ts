@@ -292,7 +292,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // EOT award or a new governing contract date. No extra days are silently
   // added to an amendment, because that could double-count awarded EOT.
   const originalDate=originalDates.length===1?originalDates[0]!:originalDates.length===0?baseCompletion:null;
-  const calendared=originalDate&&/^\\d{4}-\\d{2}-\\d{2}$/.test(originalDate)
+  const calendared=originalDate&&/^\d{4}-\d{2}-\d{2}$/.test(originalDate)
     ?Date.parse(originalDate+'T00:00:00Z'):NaN;
   const provisionalExtendedDate=overlapPending&&Number.isFinite(calendared)
     ?new Date(calendared+officialAward!*86400000).toISOString().slice(0,10)
