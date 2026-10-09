@@ -17,6 +17,14 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('S-30 milestone view separates overdue open dates, baseline-late and completed historical milestones',()=>{
+  assert.match(script,/Late milestone commitments — active versus history/);
+  assert.match(script,/openOverdueMilestones=.*status!=='completed'/);
+  assert.match(script,/completedAfterBaseline=.*status==='completed'/);
+  assert.match(script,/Completed · live float not applicable/);
+  assert.match(script,/Not applicable · completed/);
+  assert.match(script,/complete unaltered population is available in the page export/);
+});
 test('commercial figure tooltips explain the qualification without internal codes',()=>{
  const title=runInNewContext(functions(['humanizeKey','commercialFindingTitle'])+';commercialFindingTitle({diagnostics:["LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL"]})',{commercialSourceState:()=> 'Needs review'});
  assert.match(title,/Delay damages are a planning scenario/);assert.doesNotMatch(title,/LD_EXPOSURE|NOT_AWARD|ACCRUAL/);
