@@ -7,6 +7,7 @@ import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
+import {hasUnreconciledScheduleCalendar} from './forecast-control';
 
 const numeric=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const difference=(after:string|null,before:string|null)=>{const a=parseScheduleInstant(after),b=parseScheduleInstant(before);return a===null||b===null?null:Number(((a-b)/86400000).toFixed(6));};
@@ -41,6 +42,11 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const timed=(part:string)=>{if(!profile)return;const now=performance.now();timings.push({part,ms:now-mark});mark=now;};
  const model=projectControlSchedule(state)?.revision.model;if(!model)return null;
  const forecast=data(modules,'independent-forecast'),analytics=data(modules,'activity-analytics');
+ const forecastPublished=forecast?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecast);
+ const headlineCompletion=forecast?.completionPosition&&!forecastPublished
+   ?{...forecast.completionPosition,independentFinishIso:null,calculationState:'unresolved',
+     reason:'Independent recalculation remains in technical detail because reconciliation checks have not passed.'}
+   :forecast?.completionPosition??null;
  const rows:ActivityAnalyticsRow[]=(analytics?.rows??[]).filter((r:ActivityAnalyticsRow)=>!['wbs_summary','level_of_effort'].includes(r.activityType));
  const byId=new Map(rows.map(r=>[r.activityId,r])),sourceById=new Map(model.activities.map(r=>[r.activityId,r]));
  const wbsById=new Map(model.wbs.map(w=>[w.wbsId,w])),wbsPaths=new Map<string,string>();
@@ -155,11 +161,11 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  timed('revision_and_anomalies');
  if(profile)process.stdout.write(JSON.stringify({event:'project_diagnosis_profile',projectId:state.projectId,timings,totalMs:timings.reduce((sum,row)=>sum+row.ms,0)})+'\n');
  return {schemaVersion:1,projectId:state.projectId,projectVersion:state.version,sourceRevisionId:model.sourceRevisionId,dataDateIso:model.dataDateIso,sourceActivityCount:model.activities.length,executionActivityCount:rows.length,relationshipCount:model.relationships.length,calendarCount:model.calendars.length,activities:rows,pressureActivityIds:[...pressureSet],
-   completion:forecast?.completionPosition??null,summary,counts,criticalityBasis:governed.floatBasis,criticalityBasisLabel:governed.floatLabel,criticalityReconciliation:{submittedCritical:governed.submittedCritical.value,independentCritical:governed.independentCritical.value},wbsRows,pressureActivityCount:pressureRows.length,actions,milestoneRows,revision,anomalies,
+   completion:headlineCompletion,summary,counts,criticalityBasis:governed.floatBasis,criticalityBasisLabel:governed.floatLabel,criticalityReconciliation:{submittedCritical:governed.submittedCritical.value,independentCritical:governed.independentCritical.value},wbsRows,pressureActivityCount:pressureRows.length,actions,milestoneRows,revision,anomalies,
    network:{state:network?(forecast.origin==='deterministic_source_calendar'?'calculated':'scenario'):'unavailable',rows:networkRows,relationships:network?.relationships??[],finishActivityIds:network?.finishActivityIds??[],startReasons:network?.startReasons??[],basis:'Binding relationships from the existing forward calculation, traced back from the maximum calculated finish. All tied branches are retained. Topological order is not a claim that adjacent rows link. Relationship lags use the existing successor-calendar calculation. Source restrictions and other assumptions remain as stated in Completion position.'},
    evidenceChecks:uniqueChecks,evidenceCoverage:{pressureActivities:pressureRows.length,activitiesWithLinkedPressure:new Set(uniqueChecks.filter(c=>c.state==='linked_pressure').map(c=>c.activityId)).size,activitiesWithLinkedEvents:new Set(uniqueChecks.filter(c=>c.domain==='delay_event').map(c=>c.activityId)).size,
      basis:'Readiness, procurement, material, design/submittal, permits, resources, quality, access, commercial and risk records are checked through explicit activity/package links at the programme Data Date. Productivity and delay events use their existing authorities. A missing link is unknown, never a confirmed blocker or clearance.'},
    rankingBasis:'Unfinished finish-driving activities first, then negative float, overdue finishes, missed starts and near-critical/slipped activities. Within each group, source float and revision movement order the records. This is an action order, not quantified causal responsibility.',
-   noChangeOutlook:forecast?.completionPosition?.independentFinishIso?'If the currently modelled remaining work, logic and calendars remain unchanged, the calculation finishes '+forecast.completionPosition.independentFinishIso.slice(0,10)+'. This retains the stated assumptions and is not a probabilistic prediction.':'The submitted finish remains the available outlook. An independent no-change finish is not established.',
+   noChangeOutlook:forecastPublished&&forecast?.completionPosition?.independentFinishIso?'If the currently modelled remaining work, logic and calendars remain unchanged, the calculation finishes '+forecast.completionPosition.independentFinishIso.slice(0,10)+'. This retains the stated assumptions and is not a probabilistic prediction.':'The submitted finish remains the available outlook. An independent no-change finish is not established.',
    limitation:'Programme pressure and linked evidence do not establish contractual responsibility or entitlement. Missing domains qualify only the affected comparison.'};
 }

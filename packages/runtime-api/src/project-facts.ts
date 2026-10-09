@@ -14,7 +14,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {securityValidityReview} from './security-validity';
-import {hasUnreconciledScheduleCalendar} from './forecast-control';
+import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 
 export type ProjectFactState =
@@ -289,8 +289,12 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // but the extended date cannot yet be calculated.
   const currentContractCompletion=extendedCompletion??(
     officialAward!==null&&officialAward>0?null:commercial.timeExposure.contractualCompletion.value);
-  const independentFinish=hasUnreconciledScheduleCalendar(independentForecast)
-    ?null:independentForecast?.independentForecastCompletionIso??null;
+  const forecastGate=model&&independentForecast?buildForecastReconciliationGate({
+    model,forecast:independentForecast,
+    requiredFinishIso:currentContractCompletion
+  }):null;
+  const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
+    ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
   const actionRegister=projectActionRegisterForState(state);

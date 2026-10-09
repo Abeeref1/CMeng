@@ -8510,7 +8510,7 @@ export function managementSurfacesForProject(
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
   const rawCompletion=currentForecast?.completionPosition??null;
-  const completion=rawCompletion&&hasUnreconciledScheduleCalendar(currentForecast)
+  const completion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
     ?{...rawCompletion,independentFinishIso:null,calculationState:'unresolved',
       reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
     :rawCompletion;
@@ -8715,7 +8715,7 @@ export function overviewForProject(
   const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
   const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
   const roleDiagnosis=pmoData?.projectDiagnosis??null;
-  const roleCompletion=forecastData?.completionPosition&&hasUnreconciledScheduleCalendar(forecastData)
+  const roleCompletion=forecastData?.completionPosition&&(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))
     ?{...forecastData.completionPosition,independentFinishIso:null,calculationState:'unresolved'}
     :forecastData?.completionPosition??null;
   const bundle=overviewResolvedModules?buildBundle(state):null;
@@ -8742,8 +8742,8 @@ export function overviewForProject(
     {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
-    {label:'Programme calendar recalculation',value:hasUnreconciledScheduleCalendar(forecastData)?null:forecastData?.independentForecastCompletionIso??null,unit:'date',
-      basis:hasUnreconciledScheduleCalendar(forecastData)?'Withheld from management until source calendar hours, work periods and duration conversion reconcile.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Programme calendar recalculation',value:forecastData?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecastData)?forecastData?.independentForecastCompletionIso??null:null,unit:'date',
+      basis:(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))?'Withheld from management until all forecast and source-calendar checks pass.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
     {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
     {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
   ];
