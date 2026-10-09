@@ -1512,16 +1512,16 @@ function renderForecastVisual(data){
   const positions=[
     taxonomy.contractualCompletion||{label:"Contractual completion",completionIso:p.requiredFinishIso,state:p.requiredFinishIso?"established":"not_established"},
     taxonomy.contractorProgramme||{label:"Contractor programme forecast",completionIso:p.sourceForecastCompletionIso,state:p.sourceForecastCompletionIso?"established":"missing"},
-    taxonomy.cmengCpm||{label:"CMeng CPM/network recalculation",completionIso:p.independentForecastCompletionIso,state:p.complete?"calculated":"review_required"},
+    gate.publishable===true?(taxonomy.cmengCpm||{label:"CMeng CPM/network recalculation",completionIso:p.independentForecastCompletionIso,state:p.complete?"calculated":"review_required"}):{label:"CMeng CPM/network recalculation",completionIso:null,state:"Failed reconciliation · calculation withheld"},
     taxonomy.sourceProductivity||{label:"Source productivity forecast",completionIso:p.sourceProductivityForecastCompletionIso,state:p.sourceProductivityForecastState||"not_established"},
     taxonomy.independentEvidenceBased||{label:"Independent evidence-based forecast",completionIso:null,state:"not_established"},
     taxonomy.scenarioRecovery||{label:"Scenario/recovery forecast",completionIso:null,state:"not_established"}
   ];
-  const managementForecast=p.managementForecastCompletionIso||null;
+  const managementForecast=gate.publishable===true?p.managementForecastCompletionIso||null:null;
   const kpis=planningKpis([
     ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?(gate.publishable?"Candidate CPM analysis; reconciliation checks passed; not a contractual date":"Candidate CPM scenario with stated assumptions; unresolved differences require review"):"Calculation withheld: correct the missing/failed inputs identified below",managementForecast&&gate.publishable?"success":"warning"],
     ["CPM activity coverage",p.activityCoveragePercent===null?"Not established":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
-    ["Submitted vs CPM",p.forecastVarianceDays===null?"Not established":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","model comparison only; not delay"],
+    ["Submitted vs CPM",!gate.publishable?"Withheld · check failed":p.forecastVarianceDays===null?"Not in source":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","no failed calculation enters management truth"],
     ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]
   ]);
   const positionRows=positions.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(row.completionIso?planningShortDate(row.completionIso):"Not established")+'</td><td>'+escapeHtml(humanizeKey(row.state||"not_established"))+'</td><td>'+escapeHtml(humanizeKey(row.authority||"not_established"))+'</td><td>'+escapeHtml(row.basis||"")+'</td></tr>').join("");
@@ -1533,20 +1533,20 @@ function renderForecastVisual(data){
   const diagnosticMessages=forecastDiagnosticMessages(p.diagnostics||[]);
   const diagnosticSummary=diagnosticMessages.length?'<ul>'+diagnosticMessages.map(message=>'<li>'+escapeHtml(message)+'</li>').join("")+'</ul>':'<p>No translated CPM/calendar exception is identified by the checked calculation.</p>';
   const technical='<details><summary>Additional technical calculation evidence</summary><p>Untranslated source calculation codes remain in the downloadable calculation data rather than primary management copy.</p></details>';
-  const forecastDrivers=(p.activities||[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
+  const forecastDrivers=(gate.publishable===true?p.activities||[]:[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
   const driverRows=forecastDrivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(planningShortDate(row.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(row.independentEarlyFinishIso))+'</td><td>'+escapeHtml((row.finishVarianceDays>0?"+":"")+fmt(row.finishVarianceDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td></tr>').join("");
   const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
   const review=p.managementReviewState==="review_required"||gate.publishable===false;
   const positionBars=[
     {label:"Contractor programme",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"current"},
-    {label:"CMeng CPM/network recalculation",value:planningCalendarDaysBetween(p.dataDateIso,p.independentForecastCompletionIso),tone:"cmeng"},
+    {label:"CMeng CPM/network recalculation",value:gate.publishable===true?planningCalendarDaysBetween(p.dataDateIso,p.independentForecastCompletionIso):null,tone:"cmeng"},
     {label:"Source productivity forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"scenario"},
     {label:"Required finish",value:planningCalendarDaysBetween(p.dataDateIso,p.requiredFinishIso),tone:"baseline"}
   ].filter(row=>row.value!==null);
   const probabilityDistance=[
-    {label:"P50 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
-    {label:"P80 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
-    {label:"P90 vs CMeng CPM",value:!probAvailable?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
+    {label:"P50 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
+    {label:"P80 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
+    {label:"P90 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
   ];
   const visualOverview='<details><summary>Alternative forecast-distance charts</summary><div class="visual-chart-grid">'+
     renderVisualPanel("Completion distance from Data Date","Calendar-day distance only; each authority remains separate.",renderVisualBars(positionBars,"d"))+
@@ -2153,7 +2153,8 @@ function planningFinishPeriodBars(rows){
 function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
   if(!p.schedule||!p.progress||!p.forecast)return"";
-  const variance=typeof p.forecast.varianceDays==="number"?p.forecast.varianceDays:null;
+  const cpmReady=data.projectFacts?.time?.independentDaysAfterCurrentContract?.value!=null;
+  const variance=cpmReady&&typeof p.forecast.varianceDays==="number"?p.forecast.varianceDays:null;
   const known=data.knownScheduleCounts||{};
   const knownValue=(total,value)=>total??(typeof value==='number'?fmt(value)+' known':null);
   const kpis=planningKpis([
@@ -4502,8 +4503,10 @@ function pmcSourceValue(source){
 }
 function renderPmcControlRoom(data){
  const vc=data.visualControl||{},ops=data.operationalReporting||{},metrics=data.metrics||[];
- const contract=pmcMetric(data,"contract-finish"),submitted=pmcMetric(data,"submitted-programme-finish"),independent=pmcMetric(data,"independent-forecast-finish");
- const submittedVar=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??pmcMetric(data,"submitted-vs-contract")?.value,independentVar=pmcMetric(data,"independent-vs-contract")?.value,progressGap=pmcMetric(data,"progress-position")?.value;
+ const contract=pmcMetric(data,"contract-finish"),submitted=pmcMetric(data,"submitted-programme-finish");
+ const cpmReady=data.projectFacts?.time?.independentDaysAfterCurrentContract?.value!=null;
+ const independent=cpmReady?pmcMetric(data,"independent-forecast-finish"):null;
+ const submittedVar=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??pmcMetric(data,"submitted-vs-contract")?.value,independentVar=cpmReady?pmcMetric(data,"independent-vs-contract")?.value:null,progressGap=pmcMetric(data,"progress-position")?.value;
  const scheduleTone=pmcDefined(submittedVar)?Number(submittedVar)>0?"danger":"good":submitted?.value?"source":"unresolved";
  const scheduleValue=pmcDefined(submittedVar)?pmcDays(submittedVar)+" vs extended contract date":submitted?.value?planningShortDate(submitted.value)+" submitted programme":"Not established";
  const progress=vc.progress||{},scope=progress.scopeComparison||{},progressTone=pmcDefined(progressGap)?Number(progressGap)<0?"warning":"good":progress.progressBases?"source":"unresolved";
