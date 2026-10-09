@@ -164,12 +164,17 @@ export function requestedProjectFactsAnswer(result:AnalysisResult):NarrativeBloc
   const chosen:AnalysisResult['sections'][number]['metrics']=[];
   for(const [question,metric,authority] of rules){
     if(!question.test(q))continue;
-    const section=result.sections.find(s=>(!authority||authority.test(s.authorityId))&&s.metrics.some(m=>metric.test(m.label)));
-    const found=section?.metrics.find(m=>metric.test(m.label));
-    if(found&&!chosen.some(m=>m.id===found.id))chosen.push({...found,label:section?.authorityId==='design'?found.label.replace('records','RFIs'):found.label});
+    // A held source value wins over a missing duplicate projection. Never ask
+    // for information already present elsewhere in the same authoritative result.
+    const matches=result.sections.filter(s=>!authority||authority.test(s.authorityId))
+      .flatMap(section=>section.metrics.filter(m=>metric.test(m.label)).map(value=>({section,value})));
+    const selected=matches.find(({value})=>value.value!==null&&value.state!=='candidate')
+      ??matches.find(({value})=>value.value!==null)??matches[0];
+    const found=selected?.value;
+    if(found&&!chosen.some(m=>m.id===found.id))chosen.push({...found,label:selected.section.authorityId==='design'?found.label.replace('records','RFIs'):found.label});
   }
   if(!chosen.length)return null;
-  return {heading:'Project figures',text:chosen.map(m=>m.label+': '+(m.value===null?'Missing':typeof m.value==='number'?new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(m.value):String(m.value).replace(/T\d\d:.*$/,''))+(m.unit&&m.value!==null?' '+m.unit:'')+(m.state==='candidate'?' · From register, not yet confirmed':m.state==='scenario'?' · Calculated with stated assumption':'')).join('\n'),classification:'calculated_intelligence',traceIds:chosen.map(m=>m.traceId)};
+  return {heading:'Project figures',text:chosen.map(m=>m.label+': '+(m.value===null?'Not established':typeof m.value==='number'?new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(m.value):String(m.value).replace(/T\d\d:.*$/,''))+(m.unit&&m.value!==null?' '+m.unit:'')+(m.state==='candidate'?' · From register, not yet confirmed':m.state==='scenario'?' · Calculated with stated assumption':'')).join('\n'),classification:'calculated_intelligence',traceIds:chosen.map(m=>m.traceId)};
 }
 function narrativeFor(result:AnalysisResult):NarrativeBlock[]{
   const ar=result.presentation.language==='ar';
