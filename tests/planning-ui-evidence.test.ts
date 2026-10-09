@@ -60,7 +60,7 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
    ]
  };
  const html=runInNewContext(script+';renderProgressBreakdownVisual(data)',{
-   data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2)
+   data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2),pmcDisplayOwner:()=> 'PMC Project Controls Manager'
  });
  for(const label of ['By WBS','By WBS Level','By Zone','By Level','By Work Front','By CBS'])assert.match(html,new RegExp(label));
  assert.match(html,/data-progress-filter/);
