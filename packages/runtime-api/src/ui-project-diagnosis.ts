@@ -64,12 +64,30 @@ function renderProjectDashboardSummary(d){
  }).join('')+'</ol>':'<p>No immediate programme action is ranked from the available fields.</p>';
  return '<section class="project-diagnosis dashboard-summary"><header class="diagnosis-heading"><h3>Current project position</h3><p>Data Date '+planningShortDate(d.dataDateIso)+'</p></header>'+renderCompletionPosition(d.completion)+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+planningKpis([['Critical',value(c.critical),d.criticalityBasisLabel||'Programme float basis'],['Negative float',value(c.negativeFloat),d.criticalityBasisLabel||'Programme float basis'],['Near-critical',value(c.nearCritical),d.criticalityBasisLabel||'Programme float basis'],['Driving network',d.tableTotals?.network??d.network?.rows?.length??'Not available','activities']])+'<div class="planning-primary-grid"><section class="diagnosis-section"><h4>Main schedule pressure</h4>'+driverRows+'</section><section class="diagnosis-section"><h4>Management priorities</h4>'+(d.actionRegister?renderProjectPrioritySummary(d.actionRegister):actionRows)+'</section></div><details><summary>Detailed programme analysis</summary>'+renderProjectDiagnosis(d)+'</details></section>';
 }
-function renderProjectBrief(d){
+function renderProjectBrief(d,data=null){
  if(!d)return '';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
  const actions=(d.actions||[]).slice(0,5);
  const milestones=(d.milestoneRows||[]).slice(0,5);
  const revision=d.revision||{};
+ const facts=data?.projectFacts?.time||{},original=facts.contractualCompletionIso?.value??null;
+ const extended=facts.extendedContractCompletionIso?.value??null,submitted=data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value??d.completion?.submittedFinishIso??null;
+ const lateDays=facts.submittedDaysAfterExtendedCompletion?.value??null;
+ const timing=planningKpis([
+   ['Original contract date',original?planningShortDate(original):'Not in source','Contract source date'],
+   ['Contract date with awarded EOT',extended?planningShortDate(extended):'Not in source','Source-based extended commitment'],
+   ['Submitted programme finish',submitted?planningShortDate(submitted):'Not in source','Current source programme'],
+   ['Days late against extended contract',typeof lateDays==='number'?
+     (lateDays>0?fmt(lateDays)+' days late':lateDays<0?fmt(Math.abs(lateDays))+' days early':'On the extended date'):
+     'Not in source','Submitted minus extended contractual completion']
+ ]);
+ const amendments=facts.amendmentEotStatements||[];
+ const amendmentWording=amendments.length?'<section class="diagnosis-section"><h4>Actual amendment EOT wording</h4>'+
+   amendments.map(item=>'<p><b>'+escapeHtml(readerReference(item.documentId))+'</b> · '+escapeHtml(item.statement)+
+     '<br><small>'+escapeHtml(item.basis)+'</small></p>').join('')+'</section>':
+   '<p>No applicable amendment text is recorded; this does not assert zero awarded days.</p>';
+ const timeHtml='<section class="diagnosis-section"><h4>Contract-time position and awarded extension</h4>'+
+   timing+amendmentWording+'</section>';
  const driversHtml=drivers.length?'<div class="table-wrap"><table><thead><tr><th>Driver WBS / workfront</th><th>Pressure</th><th>Driving</th><th>Critical</th><th>Negative float</th><th>Lowest float</th></tr></thead><tbody>'+drivers.map(r=>'<tr><td><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / ')||'Project scope')+'</b></td><td>'+escapeHtml(fmt(r.pressureCount||0))+'</td><td>'+escapeHtml(fmt(r.drivingCount||0))+'</td><td>'+escapeHtml(fmt(r.criticalCount||0))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount||0))+'</td><td>'+escapeHtml(r.worstFloatHours==null?'—':fmt(r.worstFloatHours)+' h')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No concentrated schedule pressure is established from the readable programme fields.</p>';
  const milestoneHtml=milestones.length?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Current date</th><th>Float</th><th>Exposure</th><th>Action</th></tr></thead><tbody>'+milestones.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso||r.currentDateIso))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'—':fmt(r.totalFloatHours)+' h')+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(r.reason||r.priority||'Monitor'):String(r.reason||r.priority||'Monitor').toLowerCase().replaceAll('_',' '))+'</td><td>'+escapeHtml(r.action||'Confirm the milestone protection action.')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No priority milestone exposure is established from the current programme evidence.</p>';
  const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b><br><span class="muted">'+escapeHtml((r.activityIds||[r.activityId]).filter(Boolean).slice(0,5).join('; '))+(r.wbs?' · '+escapeHtml(String(r.wbs).split(' / ').slice(-3).join(' / ')):'')+'</span><br>'+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';
@@ -78,7 +96,7 @@ function renderProjectBrief(d){
    :'<p>'+escapeHtml(revision.basis||'No applicable previous controlled revision is available for comparison.')+'</p>';
  return '<section class="project-diagnosis management-brief"><header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+planningShortDate(d.dataDateIso)+' · '+fmt(d.executionActivityCount)+' execution activities</p></header>'+
    renderCompletionPosition(d.completion)+
-   '<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+
+   timeHtml+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+
    '<section class="diagnosis-section"><h4>What is driving the current position</h4><p>Distinct WBS/workfront concentrations are shown rather than repeating the same finish-driving statement per activity.</p>'+driversHtml+'</section>'+
    '<section class="diagnosis-section"><h4>Milestones to protect</h4>'+milestoneHtml+'</section>'+
    '<section class="diagnosis-section"><h4>What changed since the previous programme</h4>'+revisionHtml+'</section>'+
