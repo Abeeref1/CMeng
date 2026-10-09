@@ -92,5 +92,8 @@ test('S-49 visible registers retain paging metadata even when nested facts excee
  assert.ok(projected.responsePaging.tables.some((t:any)=>t.pointer==='/data/rows'&&t.total===127),
    'The visible register must have its full 127-row paging pointer, not only 25 rows');
  assert.equal(projected.data.rows.length,25);
- assert.equal(recordDetailPage(source,'/data/rows',100).rows[0].recordId,'RECORD-100');
+ const remaining=recordDetailPage(source,'/data/rows',100);
+ assert.equal(remaining.kind,'array');
+ assert.ok(Array.isArray(remaining.rows));
+ assert.equal(remaining.rows![0].recordId,'RECORD-100');
 });
