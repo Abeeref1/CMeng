@@ -1,3 +1,4 @@
+import {projectContractSections} from './project-contract-sections';
 import {
   buildContractControls,
   type ContractControlsProjection,
@@ -532,6 +533,17 @@ export function commercialContractControlsForState(
           .commercialTerms
           .insuranceRequirements
           .length,
+      sectionTerms:projectContractSections(state,
+        contractTime?.contractualCompletionIso??null,
+        contractTime?.officialAdjustedCompletionIso??null
+      ).map(section=>({
+        sectionId:section.sectionId,label:section.label,rate:section.rate,rateBasis:section.rateBasis,
+        currency:section.currency,capAmount:section.capAmount,capPercent:section.capPercent,
+        contractCompletionIso:section.contractCompletionIso,
+        extendedCompletionIso:section.extendedCompletionIso,
+        programmeCompletionIso:section.programmeCompletionIso,milestoneId:section.milestoneId,
+        sourceRefs:section.sourceRefs
+      })),
       ldTerms:
         ldTerms
           ? {

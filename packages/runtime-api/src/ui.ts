@@ -3966,6 +3966,9 @@ function renderCommercialVisual(key,data){
         ],"records")+
         (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Deduction rows do not establish held or released balances. Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>'):'<div class="empty-visual">No retention register or confirmed balance records are established. Held, released and due counts are not confirmed.</div>'
       );
+      const sectionalLdRows=(ld.sectionScenarios||[]).map(s=>'<tr><td><b>'+escapeHtml(s.label)+'</b></td><td>'+escapeHtml(s.rate===null?'Not established':fmt(s.rate)+' '+(s.currency||'currency not established')+' · '+humanizeKey(s.rateBasis))+'</td><td>'+escapeHtml(s.contractualDueDateIso?planningShortDate(s.contractualDueDateIso):'Not established')+'</td><td>'+escapeHtml(s.forecastCompletionIso?planningShortDate(s.forecastCompletionIso):'Not established')+'</td><td>'+escapeHtml(s.lateDays===null?'Not established':fmt(s.lateDays)+' days')+'</td><td>'+escapeHtml(s.uncappedExposure===null?'Not established':fmt(s.uncappedExposure)+' '+(s.currency||''))+'</td><td>'+escapeHtml(s.cappedExposure===null?'Not established':fmt(s.cappedExposure)+' '+(s.currency||''))+'</td><td>'+escapeHtml((s.missingInputs||[]).join('; ')||'Scenario only — not a determination')+'</td></tr>').join('');
+      const sectionalLdPanel=(ld.sectionScenarios||[]).length?
+        '<section class="planning-panel"><h4>Sectional delay damages scenarios</h4><p>Each section retains its own rate and dates. Missing sectional dates or applicable values withhold that section figure. These are scenarios, not deductions.</p><div class="table-wrap"><table><thead><tr><th>Section</th><th>Section rate</th><th>Contractual date</th><th>Programme date</th><th>Late days</th><th>Uncapped scenario</th><th>Capped scenario</th><th>Missing basis</th></tr></thead><tbody>'+sectionalLdRows+'</tbody></table></div></section>':'';
       const ldCurrencies=[...new Set((ld.scenarios||[]).map(row=>row.currency).filter(Boolean))];
       const ldVisuals=ldCurrencies.map(currency=>renderVisualPanel(
         currency+" · LD scenario exposure",
@@ -4023,12 +4026,13 @@ function renderCommercialVisual(key,data){
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No controlled obligation register or promoted clause candidates are established. This does not mean the contract contains no obligations.")+
         '</div></section>'+
+        sectionalLdPanel+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Liquidated Damages Scenarios</h4><p>Only no additional EOT beyond the amendment and reconciled additional awarded-EOT time bases may adjust project completion. Claim-register day totals are statistics only and never become project EOT.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["LD state",humanizeKey(ld.state||"missing"),"scenario authority"],
           ["Rate",humanizeKey(ld.rateState||"missing"),"contract term"],
           ["Cap",humanizeKey(ld.capState||"missing"),"contract term"],
-          ["Scenarios",(ld.scenarios||[]).length,"time positions"]
+          ["Scenarios",(ld.scenarios||[]).length+(ld.sectionScenarios||[]).length,"sectional / whole time positions"]
         ])+
         table(["Scenario","EOT","Adjusted completion","Forecast completion","Exposure days","Uncapped","Cap","Capped","Authority"],ldRows,"No defensible LD scenario can be calculated from the current evidence.")+
         '<div class="section-heading compact"><div><h5>LD management actions</h5><p>Owner is not inferred. Due uses the governed adjusted contractual completion where available.</p></div></div>'+

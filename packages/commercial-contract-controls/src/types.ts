@@ -236,6 +236,7 @@ export interface ContractControlsInput {
     CommercialFinding<string>;
   insuranceRequirementCount: number;
   ldTerms: RawLdTermInput | null;
+  sectionTerms?: SectionLdTermInput[];
   contractValues:
     ContractValuePositionInput[];
   ldTime: LdTimePositionInput;
@@ -423,6 +424,18 @@ export interface ContractObligationsProjection {
   diagnostics: string[];
 }
 
+export interface SectionLdTermInput {
+  sectionId:string;label:string;rate:number|null;rateBasis:string;
+  currency:string|null;capAmount:number|null;capPercent:number|null;
+  contractCompletionIso:string|null;extendedCompletionIso:string|null;
+  programmeCompletionIso:string|null;milestoneId:string|null;sourceRefs:string[];
+}
+export interface SectionLdScenario extends SectionLdTermInput {
+  contractualDueDateIso:string|null;
+  forecastCompletionIso:string|null;
+  lateDays:number|null;uncappedExposure:number|null;cappedExposure:number|null;
+  status:'scenario'|'unavailable';missingInputs:string[];basis:string;
+}
 export interface LdScenario {
   scenario:
     | "no_eot"
@@ -463,6 +476,7 @@ export interface LiquidatedDamagesProjection {
   capState:
     CommercialFindingState;
   scenarios: LdScenario[];
+  sectionScenarios: SectionLdScenario[];
   diagnostics: string[];
 }
 
