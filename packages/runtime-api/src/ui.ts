@@ -3040,13 +3040,13 @@ const movementClusters=new Map();
     const priority=r.managementPriority||"normal";
     const variance=r.varianceDays===null||r.varianceDays===undefined?"—":((r.varianceDays>0?"+":"")+fmt(r.varianceDays));
     const currentOrActual=r.status==="completed"?(r.actualDateIso||r.currentDateIso):r.currentDateIso;
-    const floatText=r.totalFloatHours===null||r.totalFloatHours===undefined?"—":fmt(r.totalFloatHours);
+    const floatText=r.status==="completed"?"Not applicable · completed":r.totalFloatHours===null||r.totalFloatHours===undefined?"Not established":fmt(r.totalFloatHours);
     const flags=(r.managementFlags||[]).map(f=>'<span class="milestone-flag '+escapeHtml(planningMilestoneFlagTone(f))+'">'+escapeHtml(planningMilestoneFlagLabel(f))+'</span>').join("");
     return '<tr>'+
       '<td><span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span></td>'+
       '<td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
       '<td>'+escapeHtml(planningStateLabel(r.status))+'</td>'+
-      '<td><span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span>'+activityFloatReviewHtml(r)+'</td>'+
+      '<td>'+(r.status==="completed"?'<span class="state-pill ready">Completed · live float not applicable</span>':'<span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span>'+activityFloatReviewHtml(r))+'</td>'+
       '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
       '<td>'+escapeHtml(planningShortDate(currentOrActual))+'<br><span class="muted">'+escapeHtml(planningMilestoneDueLabel(r))+'</span></td>'+
       '<td class="'+((r.varianceDays||0)>0?"late-text":(r.varianceDays||0)<0?"early-text":"")+'">'+escapeHtml(variance)+'</td>'+
@@ -3080,6 +3080,30 @@ const movementClusters=new Map();
       '<td>'+escapeHtml(r.owner||pmcDisplayOwner("planning"))+'</td>'+
       '<td>'+escapeHtml(r.managementAction||"Monitor against the current programme and controlled baseline.")+'</td></tr>';
   }).join("");
+  const openOverdueMilestones=(p.rows||[]).filter(row=>row.status!=='completed'&&row.dueState==='overdue')
+    .sort((a,b)=>(a.daysFromDataDate??0)-(b.daysFromDataDate??0));
+  const openBaselineLate=(p.rows||[]).filter(row=>row.status!=='completed'&&typeof row.varianceDays==='number'&&row.varianceDays>0)
+    .sort((a,b)=>(b.varianceDays??0)-(a.varianceDays??0));
+  const completedAfterBaseline=(p.rows||[]).filter(row=>row.status==='completed'&&row.movementBasis==='actual_vs_baseline'&&typeof row.varianceDays==='number'&&row.varianceDays>0)
+    .sort((a,b)=>(b.varianceDays??0)-(a.varianceDays??0));
+  const rowDetail=(items,max,kind)=>items.slice(0,max).map(row=>[
+    row.activityId+' · '+(row.name||'Milestone'),row.baselineDateIso?planningShortDate(row.baselineDateIso):'Not established',
+    row.status==='completed'?'Completed '+planningShortDate(row.actualDateIso):
+      row.currentDateIso?planningShortDate(row.currentDateIso):'Not established',
+    typeof row.varianceDays==='number'?fmt(row.varianceDays)+' calendar days':'Not established',
+    kind==='completed'?'Closed actual vs controlled baseline · historic movement, not a live float risk':row.managementAction||'Confirm current forecast and programme recovery'
+  ]);
+  const lateMilestones=managementPanel('Late milestone commitments — active versus history',
+    'Past-due open commitments require intervention; baseline slippage is a separate comparison. Completed milestones are historic actuals and have no live float exposure.',
+    planningKpis([
+      ['Open milestones past their current finish',openOverdueMilestones.length,'not completed at the reporting Data Date'],
+      ['Open milestones later than baseline',openBaselineLate.length,'current versus controlled baseline; overlaps overdue population'],
+      ['Completed after baseline',completedAfterBaseline.length,'historical actual completion; not live float pressure']
+    ])+
+    (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):'<p>No current open milestone finish date is overdue.</p>')+
+    (openBaselineLate.length?'<details><summary>Open milestones later than baseline · '+fmt(openBaselineLate.length)+'</summary>'+basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openBaselineLate,50,'baseline'))+'</details>':'')+
+    (completedAfterBaseline.length?'<details><summary>Historical completions later than baseline · '+fmt(completedAfterBaseline.length)+'</summary>'+basisTable(['Milestone','Baseline date','Actual completion','Movement','Historical classification'],rowDetail(completedAfterBaseline,30,'completed'))+'</details>':'')+
+    '<p>Displayed source lists are limited to the first 50 open and 30 historical milestones; the complete unaltered population is available in the page export.</p>',true);
   const managementControl=managementPanel("Milestones requiring management control","Milestone authority, baseline, current position, forecast, movement, float, driver, recorded owner and required action. Contractual/client authority is not inferred from a programme activity name.",controlRows?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Authority</th><th>Baseline</th><th>Current</th><th>Forecast</th><th>Movement</th><th>Float</th><th>Driver</th><th>Owner</th><th>Action</th></tr></thead><tbody>'+controlRows+'</tbody></table></div>':'<div class="notice info">No open milestone currently requires ranked management action.</div>',true);
   const analytics=experienceDisclosure(
     "Milestone analytics & source-float detail",
@@ -3090,7 +3114,7 @@ const movementClusters=new Map();
   const supportPanels='<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Priority watchlist</h4><p>Supporting urgency and source-float view.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>';
   const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
-  return '<section class="planning-view milestone-view">'+managementControl+timelinePanel+supportPanels+analytics+registerPanel+'</section>';
+  return '<section class="planning-view milestone-view">'+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+registerPanel+'</section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
