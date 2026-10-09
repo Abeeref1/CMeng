@@ -874,8 +874,22 @@ function renderDeliveryChallenge(data,reason,status){
   const pc=f.programmeChecks;
   const programmeChecks=pc?managementPanel('Available programme checks',pc.basis,planningKpis([['Remaining labour hours',pc.remainingLaborHours==null?'Missing':fmt(pc.remainingLaborHours)+' h','submitted assignment budget'],['Remaining activities with calendars',pc.calendarActivityCount,'source working-time basis']])+(pc.crewScenarios||[]).map(row=>'<p><b>'+escapeHtml(row.subject)+'</b> · '+fmt(row.sourceWorkingDays)+' source working days across the sequence. '+escapeHtml(row.currentPosition)+' '+escapeHtml(row.targetPosition)+' '+(row.possibleDaysRecovered===null?'':fmt(row.possibleDaysRecovered)+' calendar days of conditional local saving.')+'</p>').join(''),true):'';
   const challengeActive=availability?availability.state==="active":Boolean(data?.deliveryChallenge&&(f.activityChecks||[]).length>0);
+  const assessedItems=(f.rows||[]).filter(row=>row.manpowerState==='calculated'&&typeof row.requiredLaborHours==='number');
+  const assessedActivities=(f.activityChecks||[]).filter(row=>row.scheduleState!=='unresolved');
+  const partialFeasibility=(assessedItems.length||assessedActivities.length)?
+    managementPanel('What can be calculated now','The following is the calculated source-supported subset, not a complete BOQ or an adopted recovery plan.',
+      planningKpis([
+        ['BOQ items calculated',f.calculatedItemCount??assessedItems.length,'of '+fmt((f.rows||[]).length)+' BOQ item rows'],
+        ['Coverage',f.calculatedCoveragePercent===null?'Not established':fmt(f.calculatedCoveragePercent)+'%','only supported item calculations'],
+        ['Known subtotal of required labour',f.knownRequiredLaborHours===null?'Not established':fmt(f.knownRequiredLaborHours)+' h','incomplete subset; do not present as full project demand'],
+        ['Activities with a supported check',f.assessedActivityCheckCount??assessedActivities.length,'fully calculated activities only']
+      ])+
+      (assessedActivities.length?basisTable(['Activity','Required people','Submitted people','Candidate finish','Check'],
+        assessedActivities.slice(0,20).map(row=>[row.activityId,row.requiredAveragePeople,row.submittedPeople,row.productionFinishIso?planningShortDate(row.productionFinishIso):null,humanizeKey(row.scheduleState)])):'')+
+      (assessedItems.length?'<p>Supported item quantities and labour rates are retained for drill-down; missing item records do not erase them.</p>':'')
+    ,true):'';
   if(!challengeActive){
-    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p><b>Manpower and duration check: Unable to assess.</b> '+escapeHtml(availability?.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+programmeChecks+
+    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p><b>Manpower and duration check: Unable to assess.</b> '+escapeHtml(availability?.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+programmeChecks+partialFeasibility+
       '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What is available and what is missing</h4><p>Each check uses the evidence it needs. Quantity-driven crew sizing still requires item-level links and productivity; programme and measured-quantity checks remain available.</p></div></div><div class="planning-panel-body">'+prereqTable+'</div></section></section>';
     el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,compact,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
     return true;
