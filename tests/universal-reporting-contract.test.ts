@@ -66,10 +66,10 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
   assert.equal(p.operationalReporting.counts.openCriticalMajorNcrCount,2);assert.equal(p.reportingContract.populations.ncrs.populationId,r.quality.population.populationId);
  }
  const answer=answerProjectQuestion(state.projectId,'What are the current NCR, RFI and risk register counts?')!;
- assert.match(answer.answer,/Confirmed open major\/critical NCRs · known subset: 2/);
- assert.match(answer.answer,/Open RFIs at Data Date: 1/);
- assert.match(answer.answer,/Overdue RFIs at Data Date: 1/);
- assert.match(answer.answer,/Open risks at Data Date · requires dated status: Not established/);
+ assert.match(answer.answer,/Open major\/critical NCRs: 2 \(confirmed\)/);
+ assert.match(answer.answer,/Open RFIs: 1 \(confirmed\)/);
+ assert.match(answer.answer,/Overdue RFIs: 1 \(confirmed\)/);
+ assert.match(answer.answer,/Open risks: Not established/);
  assert.ok(answer.managementActions.some(action=>action.includes('NCR N1')));
  assert.ok(answer.managementActions.some(action=>action.includes('RFI R1')&&action.includes('2031-04-10')));
  assert.ok(!answer.managementActions.some(action=>action.includes('NCR N3')),'future records cannot enter current actions');
@@ -422,7 +422,7 @@ test('certificate source profile exposes components and future plans without man
  const ledger=commercialCanonical(state),p=certificateProfile(ledger),g=p.groups[0]!;
  assert.equal(g.as_of.length,2);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,303);assert.equal(g.totals!.retentionDeduction,17);
  assert.equal(g.futureTotals!.netCertifiedAmount,294);assert.equal(g.beforeLatestTotals!.netCertifiedAmount,104);
- assert.deepEqual(g.certificationUnconfirmedIds,['C1','C2']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.deepEqual(g.certificationUnconfirmedIds,[],'explicit Certified source status is accepted for the dated source event');assert.equal(g.cumulativeBasis,'source_row_sum_only');
  assert.deepEqual(g.futureSourceStatusConflictIds,['C3']);assert.equal(g.advanceRecoverySourceTotal,30);
  const before=JSON.stringify(ledger.payments);certificateProfile(ledger);assert.equal(JSON.stringify(ledger.payments),before);
  ledger.payments[0]!.certifiedAmountBasis='project_cumulative';assert.equal(certificateProfile(ledger).groups[0]!.totals,null,'project cumulative balances cannot be added');
