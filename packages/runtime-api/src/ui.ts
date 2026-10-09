@@ -1498,7 +1498,7 @@ function renderForecastVisual(data){
   ];
   const managementForecast=p.managementForecastCompletionIso||null;
   const kpis=planningKpis([
-    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?(gate.publishable?"reconciled calculation":"calculated with stated assumptions; review the differences below"):"calculation needs the missing inputs identified below",managementForecast?"success":"warning"],
+    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?(gate.publishable?"Candidate CPM analysis; reconciliation checks passed; not a contractual date":"Candidate CPM scenario with stated assumptions; unresolved differences require review"):"Calculation withheld: correct the missing/failed inputs identified below",managementForecast&&gate.publishable?"success":"warning"],
     ["CPM activity coverage",p.activityCoveragePercent===null?"Not established":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
     ["Submitted vs CPM",p.forecastVarianceDays===null?"Not established":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","model comparison only; not delay"],
     ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]
