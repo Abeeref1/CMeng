@@ -13,6 +13,7 @@ export interface ProgressBreakdownRow {
   longLeadActivityCount?: number;
   procurementBlockerCount?: number;
   designBlockerCount?: number;
+  completedRecordCleanupCount?:number;
   owner?: string | null;
   managementAction?: string;
   wbsId: string;
@@ -53,6 +54,9 @@ export interface ProgressBreakdownProjection {
     currentPlanPercent: number | null; basisNote: string;
   }>;
   dimensionViews?: ProgressBreakdownDimensionView[];
+  /** Identical full-scope measure formerly obtained by recomputing a fake
+   * single-WBS projection. This value reuses the same source rows and plans. */
+  overallSummary?: ProgressBreakdownRow;
   overallScheduleProgressPercent?: number | null;
   overallProgressCoveragePercent?: number | null;
   overallKnownWeightHours?: number;

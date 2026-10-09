@@ -16,10 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     # A healthy full production acceptance is currently about 29 minutes.
     # Keep headroom so successful page-first acceptance is not cancelled by the job cap.
-    timeout-minutes: 40
+    timeout-minutes: 90
     env:
       CMENG_RAILWAY_URL: https://cmeng-main-production.up.railway.app
       CMENG_EXPECTED_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+      CMENG_MIN_PROJECTS: '19'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,6 +38,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Verify live module navigation and report window without writes
         run: python scripts/railway-browser-acceptance.py
+      - name: Verify every live page across all projects, page-first, ORBIT last
+        run: node scripts/railway-full-page-acceptance.mjs
       - name: Verify every Batch B management page across all projects, ORBIT last
         env:
           CMENG_MIN_PROJECTS: '19'
@@ -48,5 +51,6 @@ jobs:
           path: |
             system-acceptance.json
             browser-acceptance.json
+            full-page-acceptance.json
             batch-b-acceptance/
           retention-days: 7

@@ -1,4 +1,5 @@
 import {phaseProgrammePosition} from './phase-programmes';
+import {projectFactsForState,type ProjectFact} from './project-facts';
 import {askScheduleActivities,askCriticalPath} from './ask-schedule';
 import {askProjectDiagnosis} from './ask-diagnosis';
 import {AuthorityCatalogue} from '../../project-ask/src/catalogue';
@@ -38,7 +39,7 @@ const registrations:Record<string,Registration>={
   'challenge-contract':{id:'challenge-contract',concepts:['challenge the contract','contract challenge'],tables:['deliveryChallenge.findings','boqFeasibility.rows','contractIntelligence.signals']},
   'recovery-acceleration':{id:'recovery',concepts:['recovery','acceleration','accelerate','recover days','additional crew','extra crew','additional shift','extra shift','resequence','re-sequence','expedite','recovery plan'],tables:['scenarios'],domains:['schedule','delivery','boq']},
   'cross-domain-accountability':{id:'accountability',concepts:['accountability','who is holding','who holds','who is delaying','who has most overdue','contractor performance','responsible party','open items by contractor'],tables:['rows','details'],domains:['schedule','delivery','claims','evidence']},
-  'schedule-analytics':{id:'programme',concepts:['programme','schedule position','data date','reporting date','program','البرنامج','تاريخ البيانات'],metrics:[['result.activityCount','Execution activities','activities'],['result.float.criticalCount','Critical execution activities','activities']]},
+  'schedule-analytics':{id:'programme',concepts:['programme','schedule position','data date','reporting date','program','البرنامج','تاريخ البيانات'],metrics:[['result.activityCount','Programme activities','activities'],['result.float.criticalCount','Critical activities','activities']]},
   'activity-analytics':{id:'activities',concepts:['activities','activity','critical activities','انشطه'],tables:['rows']},
   'near-critical':{id:'float',concepts:['critical','float','worst','حرج'],metrics:[['nearCriticalCount','Strict near-critical activities','activities'],['negativeFloatCount','Negative float activities','activities'],['classificationCoveragePercent','Float classification coverage','%']],tables:['rows']},
   'progress-report':{id:'progress',concepts:['current completion','completion percentage','progress','behind','slippage','التقدم','انجاز']},
@@ -187,6 +188,8 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   if(registration.id==='activities')return askScheduleActivities(scope);
   const result=moduleForProject(scope.projectId,key),d:any=result.data;
   const b=new AuthorityBuilder(registration.id,title,key,scope,evidenceState(result.status),result.reason??'Existing CMeng authority at the programme Data Date.');
+  const shared=projectFactsForState(context.state);
+  const sharedMetric=(id:string,name:string,fact:ProjectFact<any>,unit:string|null)=>b.metric(id,name,fact.value,unit,fact.basis,{fact:true,refs:fact.sourceRefs,state:fact.value===null?'missing':fact.complete?'established':'partial'});
   if(registration.id==='command-center'){
     const rows=Array.isArray(d?.actions)?d.actions:[];
     const requested=plan?.limit&&plan.limit>0?plan.limit:null;
@@ -267,7 +270,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
     b.metric('dataDate','Programme Data Date',scope.dataDate,null,'Selected programme authority.',{fact:true});
-    const finish=d?.result?.completionBases?.find((c:any)=>c.basis==='forecast');b.metric('source-finish','Submitted programme completion',finish?.dateIso??null,null,finish?.method??'Selected programme source finish, as published by Programme Review.',{fact:true,refs:finish?.sourceRefs??[]});
+    sharedMetric('source-finish','Submitted programme completion',shared.schedule.submittedProgrammeCompletionIso,null);
   }
   for(const m of d?.metrics??d?.programmePosition??[])if(m&&typeof m==='object'&&m.label)b.metric(m.key,m.label,m.value,m.unit??null,m.basis??'Existing management authority.',{state:m.state});
   for(const f of d?.alerts??[])b.finding(f.alertId??f.title,f.title,f.consequence??'',f.action??'Review the source position.');
@@ -281,6 +284,14 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     for(const [i,c]of(d?.position?.currencies??[]).entries())for(const name of fields){const m=c[name];b.metric(name+'-'+c.currency,label(name)+' · '+c.currency,m?.value,c.currency,m?.basis??'Existing Commercial authority; currency and temporal basis retained.',{path:'position.currencies.'+i+'.'+name,state:m?.state,refs:m?.sourceRefs??[]});}
     const table=registration.id==='payments'?'position.foundation.paymentRegister.rows':registration.id==='variations'?'position.contractControls.variations.rows':registration.id==='financial-claims'?'position.claimsNotices.claims':null;
     if(table)b.table('records',title,at(d,table),'Current records selected by the existing Commercial authority.',overrides);
+  }
+  if(['commercial','contract','eot'].includes(registration.id)){
+    sharedMetric('contract-finish','Original contractual completion',shared.time.contractualCompletionIso,null);
+    sharedMetric('extended-contract-finish','Contract completion including awarded EOT',shared.time.extendedContractCompletionIso,null);
+    sharedMetric('awarded-eot','Awarded EOT',shared.time.awardedEotDays,'calendar days');
+  }
+  if(registration.id==='contract'){
+    for(const [field,label] of [['activeBondCount','Active bonds'],['expiredBondCount','Expired bonds'],['activeInsuranceCount','Active insurance policies'],['expiredInsuranceCount','Expired insurance policies']] as const)sharedMetric(field,label,shared.commercial[field],'records');
   }
   if(registration.id==='quantities')for(const [i,s]of(d?.series??[]).entries()){
     b.metric('required-'+i,'Known contract quantity · '+s.unit,s.knownContractQuantity,s.unit,'Existing Installed Quantities authority; compatible BOQ unit group.');

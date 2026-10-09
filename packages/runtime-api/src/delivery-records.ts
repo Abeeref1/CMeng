@@ -13,11 +13,12 @@ import {deliveryFields} from '../../delivery-core/src/fields';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
-const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
+const typed:Record<string,DeliveryKind>={procurement_register:'package',interface_register:'interface',submittal_register:'submittal',rfi_register:'design',quality_ncr_register:'quality',permit_register:'permit',asset_register:'asset',testing_commissioning_register:'commissioning',hse_report:'hse'};
 // Source-table keys are already canonical. Normalise the finite identity list
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
 const signatureKeys=Object.fromEntries(deliveryKinds.map(k=>[k,deliveryFields[k].map(field=>canonicalHeader(field))])) as Record<DeliveryKind,string[]>;
+export const deliveryCurrentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&deliveryNumericIssues(r.kind,r.fields).length===0;
 export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
  // Explicit source identity is strongest. A reviewed mapping is an intentional
  // user decision and therefore outranks inferred document classification.
@@ -26,7 +27,7 @@ export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:D
  if(governedKind&&deliveryKinds.includes(governedKind))return governedKind;
 
  const candidates=deliveryKinds.filter(k=>identityKeys[k].some(id=>Object.hasOwn(row.cells,id)));
- if(row.receipt.locator.startsWith('page:')){
+ {
   if(candidates.length===1)return candidates[0]!;
   if(candidates.length>1){
    const ranked=candidates.map(kind=>({
@@ -36,17 +37,36 @@ export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:D
    if(ranked[0]!.score>0&&ranked[0]!.score>(ranked[1]?.score??-1))return ranked[0]!.kind;
   }
  }
- // Document type is useful for ordinary single-register sources, but it must
- // not erase a stronger page-specific signature in a mixed physical packet.
+ // Header evidence wins for every physical format, including previously
+ // misclassified spreadsheets. A tied signature can still use the file type.
  if(typed[type])return typed[type]!;
  if(candidates.length===1)return candidates[0]!;
  return null;
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
+type DeliveryDocumentReceipt={documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]};
+const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;decisionFingerprint:string;value:{
+ records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[];
+}}>();
 export function deliveryRecords(state:ProjectRuntimeState){
- const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);const store=deliveryStore(state);
+ // The persisted version changes after ordinary writes. A decision/import
+ // may also be appended inside an in-progress transaction before touch().
+ // Include its identity and latest record content so the read cache cannot
+ // return the wrong original kind or omit revised evidence when state.version
+ // has not yet advanced. This is the same bug exposed by native mixed PDF
+ // packets containing submittals, spares and permits.
+ const store=deliveryStore(state);
+ const decisionFingerprint=deliveryHash([
+   store.manual.length,store.decisions.length,store.populations.length,
+   store.mappings?.length??0,
+   store.manual.at(-1)??null,store.decisions.at(-1)??null,
+   store.populations.at(-1)??null,store.mappings?.at(-1)??null,
+ ]);
+ const prior=deliveryRecordsCache.get(state);
+ if(prior?.version===state.version&&prior.decisionFingerprint===decisionFingerprint)return prior.value;
+ const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
- const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
+ const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
  const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
@@ -63,8 +83,8 @@ export function deliveryRecords(state:ProjectRuntimeState){
    const previousId=previousKind&&previousKind!==k?'delivery:'+deliveryHash([state.projectId,previousKind,t.document.documentId,row.receipt.locator]).slice(0,24):null;
    const reclassified=!!previousId&&decidedIds.has(previousId);
    if(reclassified)recordId=previousId!; // Retain the decision history, but require a fresh review of the corrected kind.
-   records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test')||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register'].includes(t.document.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+   records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test',...(k==='permit'?['permit type']:[]))||null,
+    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
   }
   const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
   for(const [documentKind,documentCount] of kindCounts.size?[...kindCounts]:[[null,0] as const])documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind:documentKind,rowCount:documentCount,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':/^(boq|installed_measurement_register|risk_register|variation_register|payment_certificates)$/.test(t.document.documentType??'')?'existing_authority':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
@@ -78,7 +98,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
  for(const r of records){
   const decision=latest.get(r.recordId);
-  if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register'].includes(d.documentType)&&d.basisState==='historical')));}
+  if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical')));}
   r.links={...emptyLinks(),...r.links};
   if(r.links.boqItemIds.some(id=>continuity!.has(id)&&continuity!.get(id)!==id))r.diagnostics.push('BOQ links carried to the active revision by unique item number, section, description and unit.');
   r.links.boqItemIds=r.links.boqItemIds.map(id=>continuity!.get(id)??id);r.links.boqAllocations=r.links.boqAllocations.map(a=>({...a,boqItemId:continuity!.get(a.boqItemId)??a.boqItemId}));
@@ -86,10 +106,11 @@ export function deliveryRecords(state:ProjectRuntimeState){
  }
  const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
  for(const r of records){if(!r.sourceActive)r.state='stale';if(superseded.has(r.recordId)||r.receipts.some(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId)))r.state='superseded';}
- const governed=records.filter(r=>['governed','verified'].includes(r.state)),references=new Map<string,DeliveryRecord[]>();
+ const governed=records.filter(deliveryCurrentRecord),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
- for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple governed records share this reference; select the current revision explicitly.');}
- return {records,documents,diagnostics};
+ for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple current source records share this reference; select the current revision explicitly.');}
+ const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value});
+ return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
 export function validateDeliveryLinks(state:ProjectRuntimeState,records:DeliveryRecord[],links:DeliveryLinks){
@@ -142,7 +163,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
     const seen=new Set([r.recordId]);let parent=String(fields['parent location id']??'');
     while(parent){if(seen.has(parent))throw new Error('Location hierarchy cannot contain a cycle.');seen.add(parent);const row=all.find(x=>x.kind==='location'&&x.recordId===parent&&['governed','verified'].includes(x.state));if(!row)throw new Error('Parent location must be a governed location in this project.');parent=String(row.fields['parent location id']??'');}
    }
-   if(fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
+   if(r.kind!=='lifecycle'&&fields['lifecycle id']&&!all.some(x=>x.kind==='lifecycle'&&x.recordId===fields['lifecycle id']&&['governed','verified'].includes(x.state)))throw new Error('Select a governed lifecycle template in this project.');
   }
   if(!String(input.note??'').trim())throw new Error('Record the reason for this decision.');
   let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;
@@ -160,10 +181,11 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   (store.mappings??=[]).push({documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:input.kind,columns:columns as Record<string,string>,actorId,recordedAt});
  }else if(input.action==='confirm_population'){
   if(!deliveryKinds.includes(input.kind)||!String(input.note??'').trim())throw new Error('Select a population and record its completeness basis.');
-  const rows=all.filter(r=>r.kind===input.kind&&['governed','verified'].includes(r.state)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));
+  const rows=all.filter(r=>r.kind===input.kind&&deliveryCurrentRecord(r)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));
   if(!input.scopeId&&source.documents.some(d=>d.kind===input.kind&&d.readingComplete===false))throw new Error('Complete the physical-page reading before confirming this register population.');
   if(input.scopeId&&!all.some(r=>r.recordId===input.scopeId&&['governed','verified'].includes(r.state)))throw new Error('Population scope must be a governed record in this project.');
-  if(all.some(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!['governed','verified','superseded','scenario'].includes(r.state)))throw new Error('Review pending or conflicting records before confirming the denominator.');
+  const unresolved=all.filter(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!deliveryCurrentRecord(r)&&!['superseded','scenario'].includes(r.state));
+  if(unresolved.length)throw new Error('Resolve these records before confirming completeness: '+unresolved.map(r=>(r.reference??r.recordId)+': '+(r.diagnostics.join('; ')||r.state)).join(' | '));
   store.populations.push({kind:input.kind,scopeId:input.scopeId??null,recordIds:rows.map(r=>r.recordId),fingerprint:deliveryPopulationFingerprint(rows),note:String(input.note),actorId,recordedAt});
  }else throw new Error('Unknown Delivery action.');
  state.delivery=store;return {action:input.action,recordedAt};

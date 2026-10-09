@@ -1,4 +1,8 @@
+import {deliveryCurrentRecord} from './delivery-records';
+import {pmcRoleOwner} from './action-priority';
+import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
+import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
 import type {ControlIssueAssessment,ControlIssue} from '../../truth-kernel/src';
@@ -11,7 +15,8 @@ import {titleForModule} from './registry';
 import {deliveryPages} from '../../delivery-core/src/registry';
 
 export interface ProjectAction {
-  id:string;category:'confirmation'|'review'|'information';title:string;reason:string;recordCount:number;
+  id:string;category:'confirmation'|'review'|'follow_up'|'information';title:string;reason:string;recordCount:number;
+  owner?:string|null;dueIso?:string|null;priorityBasis?:unknown;
   resolution?:{
     kind:'confirm'|'choose'|'upload'|'information';
     requiresUserAction:boolean;
@@ -20,6 +25,8 @@ export interface ProjectAction {
   };
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
+  correctionRecords?:Array<{source:string;locator:string}>;
+  missingFields?:Array<{field:string;file:string;owner:string}>;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -142,6 +149,18 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
 }
 export function projectActions(state:ProjectRuntimeState,assessment:ControlIssueAssessment,context:{completionPosition?:unknown}={}){
   const actions=programmeActions(state);
+  const numericReview=boqNumericReview(state);
+  if(numericReview.pendingCount)actions.push({id:'boq-numeric-review',category:'review',title:'Review BOQ readings together',
+    reason:numericReview.pendingCount+' item readings remain to check across '+numericReview.sources.filter(s=>s.pendingCount).length+' source(s). '+numericReview.automaticCount+' native rows need no numeric confirmation; '+numericReview.confirmedCount+' reviewed rows are already saved.',
+    recordCount:numericReview.pendingCount,resolution:{kind:'choose',requiresUserAction:true,
+      instruction:'Open one review, check the source and save the reviewed rows together. Each decision is reused in quantities, reports and Ask.',
+      completionRule:'Only unresolved readings remain in this action; accepted readings are not requested again.'},
+    target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ readings'}});
+  const pendingPageCount=numericReview.pendingCount?0:boqPageReviewPendingCount(state);
+  if(pendingPageCount)actions.push({id:'boq-page-review',category:'review',title:'Check BOQ source pages',
+    reason:pendingPageCount+' source pages still need their complete item list checked.',recordCount:pendingPageCount,
+    resolution:{kind:'choose',requiresUserAction:true,instruction:'Compare each source page with its items, correct missing or combined items and save the page review.',completionRule:'Every required source page has a saved completeness decision.'},
+    target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ source pages'}});
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     if(d.basisState==='candidate'){
@@ -159,9 +178,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const delivery=deliveryPosition(state);
   for(const kind of deliveryKinds){const records=delivery.records.filter(r=>r.kind===kind&&!['superseded','scenario'].includes(r.state));if(!records.length)continue;
-    const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale','source_evidence','not_established'].includes(r.state)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
+    const pending=records.filter(r=>!deliveryCurrentRecord(r)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
     if(pending.length){/* Candidate/stale Delivery rows remain supporting information; no page-loop action is created. */}
-    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm complete '+deliveryLabels[kind].toLowerCase()+' population',reason:records.length+' governed record(s) are available. Confirm only if this is the complete applicable population for reporting percentages.',recordCount:records.length,
+    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm complete '+deliveryLabels[kind].toLowerCase()+' population',reason:records.length+' usable source record(s) are available. Confirm only if this is the complete applicable population for reporting percentages.',recordCount:records.length,
       resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm complete population here. If it is not complete, do nothing; CMeng will keep percentages unconfirmed.',completionRule:'The action closes immediately after population completeness is confirmed.'},
       target:{type:'delivery',kind,moduleKey,population:true,label:'Confirm complete population'}});
   }
@@ -180,17 +199,46 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // A later genuine source conflict/review remains visible and actionable.
     const confirmedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso&&state.controls.contractTimeBasis.contractualCompletionState==='official';
     if(group.key==='contract-completion'&&confirmedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
-    const refs=[...new Set(issues.flatMap(i=>i.sourceRefs))],pages=[...new Set(issues.flatMap(i=>i.moduleKeys))];
-    const resolution=actionResolution(group,issues,context);
-    const item:ProjectAction={id:'matter:'+group.key,...resolution,title:group.title,reason:group.note,
-      recordCount:refs.length,requestCount:issues.length,findings:issues,findingIds:issues.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
-      ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
-    (item.category==='information'?information:actions).push(item);
+    const pushMatter=(subset:ControlIssue[],suffix='')=>{
+      if(!subset.length)return;
+      const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
+      let resolution=actionResolution(group,subset,context);
+      const missing=subset.some(issue=>issue.kind==='missing_information');
+      // Missing optional or source-unproven fields remain visible as information.
+      // Only explicit decisions and proven conflicting records create actions.
+      const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
+      const sourceFiles=[...new Set(refs.flatMap(ref=>state.evidenceDocuments
+        .filter(doc=>ref.includes(doc.documentId)).map(doc=>doc.sourceFilename)))];
+      const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
+      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>({
+        field:issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file,owner
+      })):undefined;
+      const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
+        recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
+        ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
+      if(resolution.resolution?.kind==='upload'){
+        item.correctionRecords=refs.map(ref=>{
+          const document=state.evidenceDocuments.find(d=>ref.startsWith('evidence-document:'+d.documentId+':'));
+          const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
+          return {source:document?.sourceFilename??'Retained source record',locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section'};
+        }).filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator)===index);
+        item.reason=subset.length+' source finding'+(subset.length===1?'':'s')+' affect '+pages.map(titleForModule).join(', ')+'. Available values remain usable; only the listed fields need correction.';
+      }
+      (item.category==='information'?information:actions).push(item);
+    };
+    const correctionIssues=issues.filter(issue=>['source_conflict','data_quality'].includes(issue.kind));
+    const supportingIssues=issues.filter(issue=>!correctionIssues.includes(issue));
+    if(correctionIssues.length&&supportingIssues.length){
+      pushMatter(correctionIssues,':correction');
+      pushMatter(supportingIssues,':information');
+    }else pushMatter(issues);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
   const programme=projectControlSchedule(state),model=programme?.revision.model;
-  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:unique.length,actions:unique,information,
+  const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));
+  const dataGaps=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
+  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,
     analysis:{state:model?'analysed':state.schedules.length?'programme_selection_needed':'no_programme',activityCount:model?.activities.length??null,dataDateIso:model?.dataDateIso??null,sourceFilename:programme?.sourceFilename??null},
     systemCheckCount:systemItems.length,scope:'One matter per underlying information or decision group. Affected pages and all original findings are retained inside each matter. Missing optional domains are shown separately as coverage information. Decisions refresh from the current project records.'};
 }

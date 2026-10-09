@@ -262,3 +262,12 @@ test("forecast method narratives do not become BOQ from quantity and rate words"
   const generic = await identifyEvidenceDocument({bytes: Buffer.from("Quantity and rate are used to estimate a forecast."), sourceFilename: "unrelated.txt", sourceRelativePath: null});
   assert.notEqual(generic.identification.detectedDocumentType, "boq");
 });
+
+test('retained reference tables are classified by their headers without a re-upload or whole-register approval',()=>{
+ const legacy={documentType:'supporting_document',category:'other',basisState:'historical',mediaType:'text/csv',assertions:[],identification:{detectedTitle:'Reference',confidence:0.2}} as any;
+ const permits=documentClassificationForReview(legacy,[['Permit ID','Permit Type','Issuing Authority','Valid From','Valid To','Status'],['P-1','Water connection','Authority','2034-01-01','2034-12-31','Approved']]);
+ assert.equal(permits.documentType,'permit_register');assert.equal(permits.reviewRequired,false);assert.equal('usableRegister' in permits&&permits.usableRegister,true);
+ const evm=documentClassificationForReview(legacy,[['Period End','PV','EV','AC','Currency'],['2034-04-30','100','90','95','QAR']]);
+ assert.equal(evm.documentType,'cost_evm_report');assert.equal(evm.reviewRequired,false);
+ assert.equal(legacy.documentType,'supporting_document','display repair must retain historical metadata');
+});
