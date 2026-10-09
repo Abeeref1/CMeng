@@ -19,7 +19,15 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
  const round=(value:number)=>Math.round(value*100)/100,totalDays=months.reduce((sum,row)=>sum+row.days,0);
  const groups=position.currencies.flatMap(currency=>{
   const current=currency.currentContractValue.value,certified=currency.grossCertifiedAmount.value;
-  if(current===null||certified===null||!months.length)return [];
+  if(current===null||certified===null||!months.length){
+   const knownCertificates=currency.interimCertificateCount.value;
+   if(knownCertificates===null||knownCertificates<=0)return [];
+   const missingInputs=[current===null?'Current contract value':null,certified===null?'Dated gross certification':null,!months.length?'Submitted programme finish after reporting date':null].filter((x):x is string=>!!x);
+   return [{currency:currency.currency,remainingGross:null,retention:null,advanceRecovery:null,netReceipts:null,
+     rows:[] as Array<{periodEndIso:string;grossValuation:number;netReceipt:number|null;assumedReceiptIso:string|null}>,
+     certificateCount:knownCertificates,missingInputs,
+     basis:'Receipts planning scenario withheld pending exact source inputs; '+knownCertificates+' payment certificates are recorded and retained.'}];
+  }
   const remainingGross=round(Math.max(0,current-certified)),advance=currency.advanceBalance.value;
   const retention=retentionPercent===null?null:round(remainingGross*retentionPercent/100);
   const advanceRecovery=advance===null?null:Math.min(Math.max(0,advance),Math.max(0,remainingGross-(retention??0)));
@@ -32,9 +40,11 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
    return {periodEndIso:month.periodEndIso,grossValuation:gross,netReceipt,
     assumedReceiptIso:paymentDays===null?null:new Date(Date.parse(month.periodEndIso+'T00:00:00Z')+paymentDays*86400000).toISOString().slice(0,10)};
   });
-  return [{currency:currency.currency,remainingGross,retention,advanceRecovery,netReceipts:net,rows}];
+  return [{currency:currency.currency,remainingGross,retention,advanceRecovery,netReceipts:net,rows,
+    certificateCount:currency.interimCertificateCount.value,missingInputs:[] as string[],
+    basis:'Straight-line source-qualified future receipts, not actual cash.'}];
  });
- return {state:groups.length?'calculated_with_stated_assumption':'missing',dataDateIso,programmeFinishIso:finishIso,retentionPercent,paymentDays,groups,
+ return {state:groups.length&&groups.every(group=>group.rows.length>0)?'calculated_with_stated_assumption':groups.length?'incomplete_source_scenario':'missing',dataDateIso,programmeFinishIso:finishIso,retentionPercent,paymentDays,groups,
   basis:'Straight-line valuation of current contract value less dated gross certification from the day after the Data Date to the submitted programme finish. Monthly statements are assumed at period end. Remaining advance recovery is spread over the future receipts; retention uses the recorded contract rate. Receipt dates assume the recorded payment period in calendar days after each statement. This is a receipts-only planning scenario based on the submitted programme, not actual cash or a contractual determination.',
   exclusions:'Existing unpaid certificates, tax, retention release, financing and future expenditure are excluded. Net funding requirements need a separate expenditure forecast.'};
 }
