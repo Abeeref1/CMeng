@@ -111,6 +111,33 @@ function renderContractSections(data){
    '<p>Every section retains its own rate, completion date, programme milestone, cap and source qualifications. No whole-project LD figure replaces these sectional positions. Calculations are scenarios, never certified deductions.</p>'+
    '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone</th><th>Contract date with applicable award</th><th>Submitted finish</th><th>Section rate</th><th>Late days</th><th>Uncapped scenario</th><th>Capped scenario</th><th>Control</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
 }
+function renderRegisterContractQueries(data){
+ const currencies=data?.projectFacts?.commercial?.currencies||[];
+ const metrics=[
+  ['Variations / approvals','approvedVariationAmount'],
+  ['Pending variations','pendingVariationAmount'],
+  ['Gross certificates','grossCertifiedAmount'],
+  ['Payments','paidAmount'],
+  ['Claims register','claimedAmount'],
+  ['Assessed claims','assessedClaimAmount']
+ ];
+ const exceptions=[];
+ for(const row of currencies){
+  const sum=row.currentContractValue?.value;
+  if(typeof sum!=='number'||!Number.isFinite(sum)||sum<0)continue;
+  for(const [name,key] of metrics){
+    const fact=row[key],value=fact?.value;
+    if(typeof value!=='number'||!Number.isFinite(value)||value<=sum+0.01)continue;
+    exceptions.push({currency:row.currency,name,total:value,current:sum,difference:value-sum,
+      basis:fact?.basis||'Source population/period basis must be checked'});
+  }
+ }
+ if(!exceptions.length)return '';
+ const table=basisTable(['Register / measure','Currency','Recorded amount','Current contract','Exceeds by','Source basis to verify'],
+   exceptions.map(row=>[row.name,row.currency,row.total,row.current,row.difference,row.basis]));
+ return '<section class="planning-panel attention"><h4>Contract sum versus source register totals — query required</h4>'+
+  '<p>One currency at a time. These source figures exceed the recorded current contract and require reconciliation of scope, duplicates, reporting period and contract authority. CMeng does not silently reduce the source amount or treat the comparison as proof of invalid records.</p>'+table+'</section>';
+}
 function renderClaimPipeline(data){
   const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
   return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
