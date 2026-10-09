@@ -126,6 +126,8 @@ export interface LookAheadProjection {
   }>;
   readyCount: number;
   conditionalCount: number;
+  atRiskCount?: number;
+  noKnownLinkedBlockerCount?: number;
   blockedCount: number;
   rows: LookAheadActivityRow[];
   missingCurrentDateActivityIds: string[];
