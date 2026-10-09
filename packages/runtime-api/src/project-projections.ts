@@ -8560,8 +8560,9 @@ export function managementSurfacesForProject(
   const issueStage7=profiling?performance.now():0;
   const canonicalActions=projectActionRegisterForState(state).actions;
   const issueStage8=profiling?performance.now():0;
-  accountability.actions=canonicalActions;
-  accountability.managementPosition=canonicalActions.length+' project actions from the shared action register. Ownership concentrations cover actionable source records.';
+  // Do not overwrite grouped accountability decisions with the raw shared register.
+  // Both totals remain explicitly distinguished by their authority and population.
+  accountability.managementPosition=canonicalActions.length+' project actions in the shared register; '+accountability.actions.length+' owner/register action groups for this view. Underlying source record counts are retained separately.';
   // Management pages need evaluated as-of totals, not the same full NCR,
   // RFI and Risk source population a second time. Specialist pages retain the
   // exact dated records and full provenance for drill-down/export.
