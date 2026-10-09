@@ -4530,7 +4530,23 @@ function renderPmcControlRoom(data){
  const gapCards=cards.filter(card=>card.priority===4);
  const availableHtml=availableCards.length?'<div class="pmc-domain-grid">'+availableCards.map(card=>card.html).join("")+'</div>':'<div class="notice info">No management domain has an established or qualified position yet.</div>';
  const gapHtml=gapCards.length?'<details class="management-detail"><summary>Control gaps · '+gapCards.length+' domain'+(gapCards.length===1?"":"s")+'</summary><p>These gaps are shown after the useful Project position. They do not replace information that is already available from another source.</p><div class="pmc-domain-grid">'+gapCards.map(card=>card.html).join("")+'</div></details>':"";
- return '<section class="pmc-control-room"><div class="pmc-control-head"><div><h3>PMC Control Room</h3><p>Best available project position first. Established, source and qualified candidate evidence is shown before missing higher-authority conclusions.</p></div><span class="badge">Data Date '+escapeHtml(planningShortDate(data.reportingContract?.dataDateIso||overview?.latestDataDateIso))+'</span></div>'+availableHtml+gapHtml+'</section>';
+ const originalDate=data.projectFacts?.time?.contractualCompletionIso?.value??null;
+ const extendedDate=data.projectFacts?.time?.extendedContractCompletionIso?.value??null;
+ const submittedDate=submitted?.value??null;
+ const awardedDays=data.projectFacts?.time?.awardedEotDays?.value??null;
+ const submittedAfterEot=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??null;
+ const constraints=data.scheduleBasisReview?.constraints??[];
+ const sourceConstraint=data.scheduleBasisReview
+   ?constraints.length?constraints.slice(0,3).map(c=>humanizeKey(c.type)).join('; '):'No source date constraint identified by this review'
+   :'Programme constraints: confirm on Independent Forecast';
+ const timeSummary=originalDate||extendedDate?
+   '<div class="notice '+(typeof submittedAfterEot==='number'&&submittedAfterEot>0?'warn':'info')+'"><b>Contract time position</b><p>Original completion: '+escapeHtml(planningShortDate(originalDate))+
+   ' · Contract completion including awarded EOT: '+escapeHtml(planningShortDate(extendedDate))+
+   (typeof awardedDays==='number'?' · '+escapeHtml(fmt(awardedDays))+' awarded EOT days':'')+
+   (submittedDate?' · Submitted programme finish: '+escapeHtml(planningShortDate(submittedDate)):'')+
+   (typeof submittedAfterEot==='number'?' · Submitted finish '+escapeHtml(fmt(Math.abs(submittedAfterEot)))+' calendar days '+(submittedAfterEot>0?'after':submittedAfterEot<0?'before':'on')+' the extended contract date':' · Contract lateness not established')+
+   '. '+escapeHtml(sourceConstraint)+'. Submitted programme dates remain distinct from independently recalculated candidate dates.</p></div>':'';
+ return '<section class="pmc-control-room"><div class="pmc-control-head"><div><h3>PMC Control Room</h3><p>Best available project position first. Established, source and qualified candidate evidence is shown before missing higher-authority conclusions.</p></div><span class="badge">Data Date '+escapeHtml(planningShortDate(data.reportingContract?.dataDateIso||overview?.latestDataDateIso))+'</span></div>'+timeSummary+availableHtml+gapHtml+'</section>';
 }
 function renderPmcControlCharts(data){
  const vc=data.visualControl||{},scheduleRows=[],submitted=pmcMetric(data,"submitted-vs-contract")?.value,independent=pmcMetric(data,"independent-vs-contract")?.value,diff=pmcMetric(data,"independent-vs-submitted")?.value;
