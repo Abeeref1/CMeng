@@ -46,7 +46,7 @@ export interface ProjectFactsSnapshot {
     /** Canonical management criticality. Deterministic independent CPM governs
      * when established; submitted/source float remains separately visible. */
     floatBasis:'independent_cpm'|'source_total_float'|'qualified_scenario'|'missing';
-    criticalityLabel:string;
+    criticalityLabel?:string;
     criticalActivityCount:ProjectFact<number>;
     nearCriticalActivityCount:ProjectFact<number>;
     negativeFloatActivityCount:ProjectFact<number>;

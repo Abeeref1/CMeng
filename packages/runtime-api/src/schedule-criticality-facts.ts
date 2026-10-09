@@ -20,7 +20,7 @@ type Result={
  floatBasis:'independent_cpm'|'source_total_float'|'missing';
  floatLabel:string;
  authoritativeIndependent:boolean;
- independentForecast:ReturnType<typeof cachedIndependentForecast>;
+ independentForecast:ReturnType<typeof cachedIndependentForecast>|null;
  reconciliation:{disputedActivityCount:number;numericDifferenceActivityCount:number;unresolvedActivityCount:number}|null;
 };
 const cache=new WeakMap<CanonicalScheduleModel,{version:number;value:Result}>();
