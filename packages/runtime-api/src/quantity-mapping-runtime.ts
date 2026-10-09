@@ -40,6 +40,10 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     });
     result.sourceWbsCoveragePercent=result.sourceWbsLinks.length?result.sourceWbsLinks.filter(r=>r.wbsId).length/result.sourceWbsLinks.length*100:null;
   }
+  if(result)result.userCandidateLinks=(state.boqActivityLinkCandidates??[])
+    .filter(row=>row.sourceRevisionId===schedule.sourceRevisionId&&row.boqRevisionId===result.boqRevisionId)
+    .map(row=>({quantityItemId:row.quantityItemId,activityId:row.activityId,state:row.state,
+      reason:row.reason,sourceRef:row.sourceRef,proposedBy:row.proposedBy}));
   mappings.set(state, {version: state.version, quantities: state.quantities, schedule, result});
   return result;
 }
