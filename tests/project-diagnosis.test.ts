@@ -7,6 +7,8 @@ import ExcelJS from 'exceljs';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {projectDiagnosisDetails} from '../packages/runtime-api/src/project-diagnosis';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
+import {scheduleCriticalityFacts} from '../packages/runtime-api/src/schedule-criticality-facts';
 import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
 import {AskStore} from '../packages/runtime-api/src/ask-store';
 import {changeDelivery,deliveryRecords,deliveryStore} from '../packages/runtime-api/src/delivery-records';
@@ -37,6 +39,20 @@ async function fixture(t:any,chainLength=0){
  const ask=(question:string,previous?:AnalysisResult)=>engine.ask(id,user,{question,...previous?{conversationId:previous.conversationId,analysisId:previous.id}:{}});
  return {id,state,shown,full,upload,record,change,ask,calls:()=>calls};
 }
+
+test('criticality is governed once without diagnosis-to-actions-to-facts recursion',async t=>{
+ const f=await fixture(t);
+ // The first diagnosis call must terminate, including its action-register route.
+ const diagnosis=f.full();
+ const governed=scheduleCriticalityFacts(f.state);
+ const facts=projectFactsForState(f.state);
+ assert.equal(diagnosis.counts.critical.value,governed.canonicalCritical.value);
+ assert.equal(diagnosis.counts.nearCritical.value,governed.canonicalNearCritical.value);
+ assert.equal(facts.schedule.criticalActivityCount.value,governed.canonicalCritical.value);
+ assert.equal(facts.schedule.criticalityLabel,governed.floatLabel);
+ assert.equal(diagnosis.criticalityBasisLabel,governed.floatLabel);
+ assert.ok(['independent_cpm','source_total_float','missing'].includes(governed.floatBasis));
+});
 
 test('XER alone establishes a tied driving network, WBS pressure and a no-change finish without contract or quantities',async t=>{
  const f=await fixture(t),d=f.full();
