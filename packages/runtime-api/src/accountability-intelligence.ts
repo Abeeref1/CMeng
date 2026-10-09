@@ -18,6 +18,7 @@ export interface AccountabilityDetail {
 }
 export function crossDomainAccountability(state:ProjectRuntimeState){
   const dataDateIso=projectDataDate(state),delivery=deliveryPosition(state),recordById=new Map(delivery.records.map(r=>[r.recordId,r]));
+  const packageById=new Map(delivery.packageRows.map(row=>[row.recordId,row]));
   const operations=operationalReporting(state),details:AccountabilityDetail[]=[];
   // Action eligibility is independent of whether ownership/scope is assigned.
   // Keep concentration groups without using them to erase eligible records.
@@ -45,7 +46,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
   // Reuse the same as-of procurement flags used by the specialist Delivery page.
   // Reported delivered is not an actual delivery date, but it is not evidence
   // of an outstanding late shipment merely because the old forecast was late.
-  for(const p of delivery.packageRows)if(p.forecastLate||p.overdueUndelivered){
+  for(const p of delivery.packageRows)if(!p.registerCleanup&&(p.forecastLate||p.overdueUndelivered)){
     const r=recordById.get(p.recordId)!;const issue=p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
     for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:p.headroomCalendarDays===null?daysOver(p.needDate,dataDateIso):-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
@@ -130,7 +131,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const overdue=Math.max(0,first.overdueDays??0,...items.map(item=>item.overdueDays??0));
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
     const owner=pmcRoleOwner(domain,dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor'));
-    const procurement=domain==='procurement'?delivery.packageRows.find(row=>row.recordId===first.recordId):null;
+    const procurement=domain==='procurement'?packageById.get(first.recordId)??null:null;
     const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work';
     const consequence=
       completedRegisterFollowUp?'All linked activities are complete. Close or reconcile this open register record and check any remaining acceptance obligation.':
