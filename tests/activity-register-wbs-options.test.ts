@@ -16,6 +16,6 @@ test('S-23 WBS dropdown shows programme hierarchy while API filters preserve exa
  ].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true})));
  const selected=activityRegisterPage(data.rows,new URLSearchParams({wbsId:'WBS-08',pageSize:'50'}));
  assert.equal(selected.matchingCount,1);
- assert.equal(selected.rows[0].activityId,'A-01');
- assert.equal(data.rows[0].wbsId,'WBS-08','the source record identity must not be rewritten for presentation');
+ assert.equal(selected.rows[0]!.activityId,'A-01');
+ assert.equal(data.rows[0]!.wbsId,'WBS-08','the source record identity must not be rewritten for presentation');
 });
