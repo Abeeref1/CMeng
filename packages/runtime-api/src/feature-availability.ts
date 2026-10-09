@@ -48,8 +48,8 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
       {key:'remaining_quantities',label:'Remaining quantities',established:rows.some((row:any)=>number(row?.remainingQuantity)!==null),evidence:'Dated installed quantity and contract quantity on the same BOQ item.'},
       {key:'activity_links',label:'Activity links',established:rows.some((row:any)=>typeof row?.activityId==='string'&&row.activityId.length>0),evidence:'Current-revision BOQ-to-activity link.'},
       {key:'productivity',label:'Productivity',established:rows.some((row:any)=>number(row?.laborHoursPerUnit)!==null),evidence:'Supported labour-hours-per-unit or same-scope measured productivity.'},
-      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null),evidence:'Readable source activity calendar and positive remaining working period.'},
-      {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null),evidence:'Activity-linked remaining labour capacity in compatible hour units.'},
+      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null)||(f.programmeChecks?.calendarActivityCount??0)>0,evidence:'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.'},
+      {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null)||number(f.programmeChecks?.remainingLaborHours)!==null,evidence:'Submitted activity-linked labour hours are available; independent required headcount also needs quantity/productivity evidence.'},
     ];
     const prerequisiteComplete=prerequisites.every(row=>row.established);
     const useful=boqCount>0||checks.length>0||rows.length>0||Boolean(d.sourceLaborEvidence);
@@ -86,8 +86,8 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
   if(key==='quantity-scurve'){
     const series=array(d.series),mapped=series.filter((row:any)=>array(row?.points).length>0).length;
     const measured=d.installedQuantityStatus?.state==='available'||number(d.measurementReview?.measuredItemCount)!==null&&Number(d.measurementReview?.measuredItemCount)>0;
-    const boqCount=number(d.boqItemCount)??0;
-    const useful=boqCount>0||series.length>0||Boolean(d.boqRevisionId)||Boolean(d.measurementReview);
+    const boqCount=number(d.boqItemCount)??number(d.suppliedBoq?.itemCount)??0;
+    const useful=boqCount>0||series.length>0||Boolean(d.boqRevisionId)||Boolean(d.suppliedBoq?.revisionId)||Boolean(d.measurementReview);
     return {
       state:featureAvailability({hasEstablishedResult:mapped>0||measured,hasUsefulEvidence:useful,prerequisitesSatisfied:mapped>0||measured}),
       reason:mapped>0||measured?'A mapped planned quantity curve or measured installed-quantity position is available.':

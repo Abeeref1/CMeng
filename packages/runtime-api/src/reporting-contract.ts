@@ -1,4 +1,4 @@
-import {isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
+import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {registerDateReview,scopeRegisterDateReview} from './register-date-review';
 import { activityPopulation,calendarWorkingDayHours } from '../../schedule-analysis-core/src';
 import { populationContract, partitionAsOf, type PopulationContract, type ReportingAuthority } from '../../truth-kernel/src';
@@ -65,7 +65,7 @@ function sharedReportingContext(state:ProjectRuntimeState){
     : null;
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
   const baseline=state.schedules
-    .filter(s=>['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso)
+    .filter(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso)
     .sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
   const value={
     authorityReview,current,model,dataDateIso,operations,actuals,basePopulations,
@@ -273,6 +273,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     calendarResolution:{unresolvedActivityCount:shared.calendarUnresolvedActivityCount},
     configurationId:shared.configurationId,
     pendingScheduleReviews:authorityReview.pendingSchedules,
+    programmeAuthority:{state:authorityReview.state,method:authorityReview.method,authority:authorityReview.authority,explanation:authorityReview.explanation},
     newerUnadoptedSchedules:authorityReview.pendingSchedules.filter((s:any)=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',

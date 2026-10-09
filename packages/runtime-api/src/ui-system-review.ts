@@ -14,7 +14,44 @@ function renderPositionVerdict(data,includeGeneral=false){
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
-  return String(value||'').replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+  return readerReference(value).replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+}
+function readerReference(value){
+  let text=String(value??'');
+  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
+  for(const [id,label] of Object.entries(labels).sort((a,b)=>b[0].length-a[0].length))text=text.split(id).join(label);
+  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document')
+    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision')
+    .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
+    .replace(/:clause:[^\s;,]+/g,' · source section').replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
+    .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
+}
+function readerAuditAction(value){
+  const text=String(value??'');
+  if(/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(text)){
+    const verb=text.startsWith('GET ')?'Viewed':text.startsWith('DELETE ')?'Removed':'Updated';
+    const subject=/evidence|upload/.test(text)?'project documents':/schedule|programme/.test(text)?'programme records':/review|confirm|adopt/.test(text)?'review decision':'project records';
+    return verb+' '+subject;
+  }
+  return readerText(text);
+}
+function renderProgrammeCashScenario(scenario){
+ if(!scenario?.groups?.length)return '';
+ return '<section class="planning-panel"><h4>Future receipts · programme planning assumption</h4>'+scenario.groups.map(group=>planningKpis([
+  ['Remaining gross work',group.remainingGross,group.currency],['Future retention',group.retention,group.currency],['Advance recovery',group.advanceRecovery,group.currency],['Indicative net receipts',group.netReceipts,group.currency]
+ ])+experienceDisclosure('Monthly assumed receipts · '+group.currency,basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>[planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),row.assumedReceiptIso?planningShortDate(row.assumedReceiptIso):'Payment period missing'])),'Straight-line scenario through '+planningShortDate(scenario.programmeFinishIso))).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
+}
+function renderContractSections(data){
+  const sections=data?.projectFacts?.contractSections||[];if(!sections.length)return '';
+  return '<section class="planning-panel"><h4>Sectional completion and delay damages</h4><div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone / finish</th><th>Contract / extended date</th><th>Damages rate</th><th>Cap</th></tr></thead><tbody>'+sections.map(section=>'<tr><td><b>'+escapeHtml('Section '+section.sectionId+' · '+section.label)+'</b>'+((section.completionDependsOnSectionIds||[]).length?'<br><small>Completion depends on Section '+escapeHtml(section.completionDependsOnSectionIds.join(', '))+'</small>':'')+'</td><td>'+escapeHtml(section.milestoneId||'Milestone link needs review')+'<br>'+escapeHtml(section.programmeCompletionIso?planningShortDate(section.programmeCompletionIso):'Finish not linked')+'</td><td>'+escapeHtml(section.contractCompletionIso?planningShortDate(section.contractCompletionIso):'Section date not supplied')+(section.extendedCompletionIso?'<br>'+escapeHtml(planningShortDate(section.extendedCompletionIso))+' with awarded EOT':'')+'</td><td>'+escapeHtml(fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis.endsWith('_week')?'week':'day'))+'</td><td>'+escapeHtml(section.capAmount!==null?fmt(section.capAmount)+' '+section.currency:section.capPercent!==null?fmt(section.capPercent)+'%':'Not supplied')+'<br><small>'+escapeHtml(section.capBasis)+'</small></td></tr>').join('')+'</tbody></table></div><small>Source contract terms are usable with their stated section. Programme completion does not itself establish taking-over or a right to deduct damages.</small></section>';
+}
+function renderClaimPipeline(data){
+  const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
+  return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
+    ['Claims',p.recordCount,'Identities evidenced by the Data Date'],['Claimed days',p.claimedDays,'From register'],
+    ['Assessed days',p.assessedDays,'Register assessments; includes unconfirmed decisions'],['Awarded EOT',facts.time.awardedEotDays.value,'Dated awards'],
+    ['Pending claims',p.pendingCount,'Submitted or under review'],['Pending assessed days',p.pendingAssessedDays,'Scenario input; not awarded']
+  ])+(p.pendingScenarioCompletionIso?'<p>If all pending assessed days are awarded without overlap, completion moves to <b>'+escapeHtml(planningShortDate(p.pendingScenarioCompletionIso))+'</b>.</p>':'')+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div></details>':'')+'</section>';
 }
 function uniqueReportingPopulations(populations){
   const groups=new Map();
@@ -23,7 +60,7 @@ function uniqueReportingPopulations(populations){
     const old=groups.get(label);
     if(!old)groups.set(label,{...p});
     else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount||old.dateBasis!==p.dateBasis){
-      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Unresolved: reporting groups disagree; review the full calculation data.'});
+      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
     }
   }
   return [...groups.values()];
@@ -92,7 +129,15 @@ function readerIssue(i){
   if(!action&&i.action==='Correct or govern the specific source record, then rerun the same validation.')action='Check the records listed below, correct the inconsistent details and repeat the check.';
   if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
-  return {title:readerText(title),action:readerText(action),owner:'Not assigned',assignTo:String(i.owner==='Project evidence owner'?'Document Owner':i.owner||'Project Controls').replace(/\s*\(assign a person\)/gi,'')};
+  const moduleKeys=(i.moduleKeys??[]).map(value=>String(value).toLowerCase()).join(' ');
+  const accountableRole=/procure|long-lead|material/.test(moduleKeys)?'Procurement Manager':
+    /design|rfi|interface/.test(moduleKeys)?'Design Manager':
+    /quality|ncr|hse/.test(moduleKeys)?'QA/QC Manager':
+    /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
+    /commercial|payment|contract|claim|bond|cash|cost|retention|advance|certificate|security/.test(moduleKeys)?'Commercial Manager':
+    'Project Controls Manager';
+  const owner=String(i.owner&&i.owner!=='Project evidence owner'?i.owner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
+  return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
 }
 function renderSourceQuality(data){
   const rows=items=>items.length?'<div class="source-request-list">'+items.map(i=>{const r=readerIssue(i);return '<details class="source-request"><summary><b>'+escapeHtml(r.title)+'</b><span class="request-meta">'+fmt((i.sourceRefs||[]).length)+' references · '+fmt(i.moduleKeys.length)+' affected pages</span></summary><p><b>Next step:</b> '+escapeHtml(r.action)+'</p><p><b>Owner:</b> '+escapeHtml(r.owner)+'</p><p><b>Assign to:</b> '+escapeHtml(r.assignTo)+'</p><p>'+i.moduleKeys.map(k=>managementModuleLink(k,names[k]||k)).join(' ')+'</p><details><summary>Original finding and document references</summary><p>'+escapeHtml(i.summary)+'</p><p>'+escapeHtml(i.detail)+'</p><p>'+escapeHtml(i.action)+'</p>'+((i.sourceRefs||[]).length?'<ul>'+i.sourceRefs.map(r=>'<li>'+escapeHtml(r)+'</li>').join('')+'</ul>':'')+'</details></details>';}).join('')+'</div>':'<p>None identified in the listed checks.</p>';
@@ -103,15 +148,14 @@ function renderSourceQuality(data){
   return '<section class="source-quality-page"><div id="projectActionPanel">'+(typeof renderProjectActionList==='function'?renderProjectActionList():'')+'</div><details class="management-detail"><summary>Supporting findings, source references and system checks</summary><p>The action list above is the place to complete your decisions. Identical requests are counted once; all record references remain available. These details retain the original checks and source references.</p><div class="source-quality-counts">'+[['Information items',data.sourceIssues],['System failures',data.systemFailures],['Reviews / approvals',data.reviewActions],['Checks pending',data.pendingChecks]].map(([label,items])=>'<div>'+label+'<b>'+fmt(items?.length||0)+'</b></div>').join('')+'</div>'+(data.systemFailures?.length?failures:experienceDisclosure('System checks',failures,'No failures in the listed checks'))+managementPanel('Information and actions','Open an item to see what to provide, who should act and which pages it affects.',groups.map(([label,kind])=>{const items=(data.sourceIssues||[]).filter(i=>i.kind===kind);return experienceDisclosure(label,rows(items),fmt(items.length)+' items');}).join(''))+dateDetail+experienceDisclosure('Reviews and approvals',rows(data.reviewActions||[]),fmt(data.reviewActions?.length||0)+' items')+experienceDisclosure('Figures compared across pages',basisTable(['Measure','Result','Page values'],(data.pageValueChecks||[]).map(c=>[c.metric,humanizeKey(c.state),c.values.map(v=>(names[v.page]||v.page)+': '+(typeof v.value==='object'?JSON.stringify(v.value).slice(0,200)+' (full value in data download)':v.value)).join(' · ')])),'Results and value previews; full records in data download')+experienceDisclosure('Calculation checks',rows(data.pendingChecks||[])+(data.coverage||[]).map(r=>'<details><summary>'+escapeHtml(names[r.key]||r.key)+' · '+escapeHtml(humanizeKey(r.state))+' · '+fmt(r.checks.length)+' checks</summary>'+basisTable(['Measure','Expected','Actual','Result'],r.checks.map(c=>[c.metric,JSON.stringify(c.expected),JSON.stringify(c.actual),c.passed?'Passed':'Failed']))+'</details>').join(''),'Checks completed and work still pending')+experienceDisclosure('Project documents',basisTable(['Document','Type','Status','Uploaded'],(data.documents||[]).map(d=>[d.name,humanizeKey(d.type),humanizeKey(d.state),formatDocumentTime(d.uploadedAt)])),fmt(data.documents?.length||0)+' documents')+'</details></section>';
 }
 function renderDashboardDecisions(data){
-  const recordIds=new Set((data.operationalReporting?.actions||[]).map(r=>r.recordId));
-  const decisions=(data.decisions||[]).filter(d=>!recordIds.has(d.recordId)&&![...recordIds].some(id=>id&&String(d.title||d.label||d.action||d.description).includes(id)));
-  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,6).map(d=>'<article><b>'+escapeHtml(d.title||d.label||d.action||d.description)+'</b><small>Owner: '+escapeHtml(d.accountableOwner||'Not assigned')+' · Due: '+escapeHtml((d.dueDate||d.dueIso)?planningShortDate(d.dueDate||d.dueIso):'Date needed')+'</small><div>'+managementModuleLink(d.owningModule||'command-center','Review decision')+'</div></article>').join('')+'</div>':'<p>No decision has been recorded. Assign the outstanding document requests and delivery actions below.</p>';
-  return managementPanel('Decisions required','Confirm the decision, assign an owner and set a due date.',body+(decisions.length>6?managementModuleLink('command-center','All '+decisions.length+' decisions'):''),true);
+  const decisions=(data.actions||[]).filter(row=>row.recordKey?.startsWith('review|'));
+  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.requiredAction))+'</p>'+managementModuleLink('source-quality','Open the pre-filled review action')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
+  return managementPanel('Source decisions',fmt(decisions.length)+' source reviews within the shared project action list.',body);
 }
 function renderDashboardExceptions(data){
-  const actions=data.deliveryExceptions?.actions||data.operationalReporting?.actions||[];
-  const table=rows=>basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Action'],rows.map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Not assigned',r.dueIso?planningShortDate(r.dueIso):'Not set',r.action]));
-  return managementPanel('Delivery exceptions requiring action','Critical items appear first, then the most overdue and oldest. Assign any missing owner or due date.',actions.length?table(actions.slice(0,5))+experienceDisclosure('All '+fmt(actions.length)+' action records',table(actions),'Complete delivery exceptions'):'<p>No confirmed delivery exceptions in the checked records. Open Look-Ahead for the activity review.</p>',true);
+  const actions=data.actions||[];
+  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?fmt(row.priorityBasis.linkedFloatHours)+' h float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),row.dueIso?planningShortDate(row.dueIso):'Not set',readerText(row.requiredAction)]));
+  return managementPanel('Priority project actions',fmt(actions.length)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+fmt(actions.length)+' project actions'):'<p>No current project actions are identified.</p>',true);
 }
 function renderDashboardScheduleExceptions(data){
   const p=data.scheduleExceptions;if(!p)return managementPanel('Activities needing attention','Schedule status','<p>Adopt a programme in Documents to see missed starts, overdue finishes and critical activities.</p>',true);

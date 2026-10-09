@@ -1,0 +1,552 @@
+[
+  {
+    "filename": "building-page-2.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 2,
+    "fixtureSha256": "53ce36aacdf054e62ae852b9a8b2e2e40a1df41e69f9f4912818d263f1161eda",
+    "bytes": 429472,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "flood-page-1.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/07/6.-OCM-CDFENGINEERING-26-FLOOD-00074-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "9f5214eddd27238dacacea6e5b20ce0f5198b932be1425eab1b5baf2e04c15d8",
+    "originalPage": 1,
+    "fixtureSha256": "2b15f1b6e44ba9053412ebc372ba808b9e6c1a6ed27dd5b753b2afd0c6dc3079",
+    "bytes": 407746,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "electrical-page-2.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/08/1.-ENGINEERING-26-ELEC-00075B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "0308c5b4b58208ebdbe24f9106f9660188449be5b422d95d295af34c2bd38c0f",
+    "originalPage": 2,
+    "fixtureSha256": "2654285d8a150231a30f2aac11f8b827bd244c9077ac6808fe45ea3740d40276",
+    "bytes": 439165,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "building-page-6.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 6,
+    "fixtureSha256": "86570fc11066fae89f9c9f693f270811ee96df7cc9a3a2fe90c83101b868f597",
+    "bytes": 400319,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Painting Works, Steel (Color: Paved Path): quantity 3.00 sq.m.; OCR variant returned 300"
+  },
+  {
+    "filename": "building-page-7.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 7,
+    "fixtureSha256": "ee625d2bf27e2884b93ce7b790bf20a1ea817118d6e8d9f8cdc5c3ceb80c5b7c",
+    "bytes": 391503,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "First body row: Painting Works, Oil Wood Stain (Color: Walnut), quantity 38.00 sq.m.; preceding reader omitted the entire row."
+  },
+  {
+    "filename": "building-page-3.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 3,
+    "fixtureSha256": "8f9180b0b27cdaffb7bf9e1239a4ed6aa959e5102f964397419b112af2caf3fe",
+    "bytes": 389928,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Eleven source items, including Chipping Works 147.00; skewed table was missed completely."
+  },
+  {
+    "filename": "building-page-9.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 9,
+    "fixtureSha256": "fe8252fead8d6d817a159372c6d312d9e0465f4f422d69b8853e71ec156b7f85",
+    "bytes": 364796,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Twelve visible source items; a pale 1.00 initially read as empty hid the straight anti-bacterial grab bar."
+  },
+  {
+    "filename": "building-page-13.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 13,
+    "fixtureSha256": "4944ab7f68264f1dc2f1f6a7f0bba3f106d355c6aca1104a9af850ff29e0db71",
+    "bytes": 363437,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Fifteen visible items; faded borders merged the oval eye bolt and fabricated pull box and pale quantity cells hid other rows."
+  },
+  {
+    "filename": "building-page-17.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 17,
+    "fixtureSha256": "45725b627e4a80bcbe54a756442756036e68c28b8e6202d391941262e3bf5bd5",
+    "bytes": 356050,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Fourteen visible items; faded lower rules merged screen, WiFi, walkway, cable and earth-pit rows."
+  },
+  {
+    "filename": "building-page-18.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 18,
+    "fixtureSha256": "644a855cd9b9521f1c57e06062fe41eeb124ed12344840268067c85ce22fe7c4",
+    "bytes": 365424,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Nine visible items; an interrupted column rule hid the table; faint exhaust-pipe 4.00 was read as 400 by agreeing OCR variants."
+  },
+  {
+    "filename": "building-page-11.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/1.-ENGINEERING-26-BLDG-00100-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "8879d33daa1ba25ff48f8b8ffdca7535391bd3e1d6c93478f47dd9042a4e3300",
+    "originalPage": 11,
+    "fixtureSha256": "5d66b8a4e22a4b2711e6c8b9e30c208f12a97c743a638bdea1e664fa6f168153",
+    "bytes": 376864,
+    "role": "known-regression-only, never fresh",
+    "observedSource": "Thirteen visible source items. First two quantities visibly 7.00 and 31.00 have noisy OCR readings; retain their rows and source glyph evidence while quantities stay unknown."
+  },
+  {
+    "filename": "faint-awarded-boq-page.pdf",
+    "fixtureSha256": "04fed64d851d466e63e9f7d4300f71bff23bbe9ed1f78aa8bdd299fe16556ebe",
+    "sourceSha256": "c9af6e7c02558449f570fed748268ac97535e979f9e1a17a424bba462aaf7e7b",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/benguet-01-2025%20%5B4-5%5D.pdf",
+    "originalPage": 2,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "faint-body-rules-page.pdf",
+    "fixtureSha256": "e29b33e87090a472ec016da9094d3d35a1b6d1edbd3ada4c87d4ce3fa75648a0",
+    "sourceSha256": "7320bc8dceae6aa44fcadf1886085b483d1e45ae4e943a6629330033460a2939",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa_mp5.pdf",
+    "originalPage": 2,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "native-leading-blank-column.pdf",
+    "fixtureSha256": "e7ee8d5f7f1ee9c756ea33a6c54bd896b3bfcaeaa9aba45c8ceccb9d11b26ec9",
+    "sourceSha256": "8b87b9b74913870a8ce62ef6f842598bf8a2c3d555f43cf98acadd3413ee0950",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-APAYAO-01-2025.pdf",
+    "originalPage": 53,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "native-items-of-work.pdf",
+    "fixtureSha256": "982b7562d6749822adcdce1896a19d6b2b084802418e03af114fd4b06b340db9",
+    "sourceSha256": "a0e4eb405026d2c8061622ca08479826fe8157a284eac9e8ab1384409bb6ac45",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-KALINGA-08-2023.pdf",
+    "originalPage": 108,
+    "scope": "Fresh external failure on 9697676; permanently regression-only from first failure"
+  },
+  {
+    "filename": "multiple-quantities-tables.pdf",
+    "fixtureSha256": "4c140c46d77eaa3bb6f73de9aab65b55c2b2cda7580deac8f9fd3afa767d6b93",
+    "sourceSha256": "9a336d1669133349b4e2e63ae626290e92874084c2598be0463743e504d69c90",
+    "sourceUrl": "https://www.pced.gov.ph/wp-content/uploads/2025/04/Infrastructure_Bidding-Docs-for-Elevator-April-2025-FINAL-rev.pdf",
+    "originalPage": 50,
+    "scope": "External failure on 9697676; regression-only. Two tables, Quantities heading."
+  },
+  {
+    "filename": "native-double-rules.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/cw-kalinga-48-2022.pdf",
+    "originalSourceSha256": "bb108843f9e6d97df13255ba81d2a67bea84cb31a0640fc98850e9e57c40fb04",
+    "originalPage": 60,
+    "fixtureSha256": "ca9156f5a27ecea361eae28394835b4756e94dc640b628f99f1e0e5808c5ca15",
+    "bytes": 124574,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "faint-merged-pricing-rows.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20alspip03%202024.pdf",
+    "originalSourceSha256": "7ed10da1485dd04cd8435e4e03462427c7633ed7088d15e7f625b1473878094d",
+    "originalPage": 2,
+    "fixtureSha256": "2dbb7583cd4f7ff0c14bcbde6bdce35d55f4720d0d755d7e87c29a4abe1740a3",
+    "bytes": 595224,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "very-pale-column-rules.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao15%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "6e307ebc3a88a3f5ab10e841e0c7f1694fe62bb8548c04f2492f61a8675ef4a6",
+    "fixtureSha256": "24eec595039955c1eff1e2bb70ffac8ee537fb62fa4cf4a519a86694fc699e7c",
+    "provenance": "Exact original page, copied without raster or text alteration. Failed external input retained as regression; never fresh acceptance."
+  },
+  {
+    "filename": "pale-pricing-column-rules.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20alspip04%202024.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "9de1f8b496894294b06ee8bd03292492a7912ecbc65870f8d720745f22835506",
+    "fixtureSha256": "7b5b067836e1abd81e2c4d0f3ec767d31da086d72f177f12445ff3735038043f",
+    "provenance": "Exact original page, copied without raster or text alteration. Failed external input retained as regression; never fresh acceptance."
+  },
+  {
+    "filename": "compact-pale-boq-12.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao11%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "0e2c5f05c7bb9851aacfcf2554ebf8a3a40b8990f6699db1f758b202013e9012",
+    "fixtureSha256": "8eb6025c104bad4019135664e67744de40a43ba74967981319e6c04599ede2d4",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-16.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao212025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "8b48a59284d80a8db5a90bd3cbb2f21dc146dae1f31b15824d57b0b88de08fb8",
+    "fixtureSha256": "4678813069a8836ac71c3309f6b54c0c015b8c628b4fd1ada91af9bcbf0c88b1",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-11.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao22%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "19f1bd1e937a036d28a998b2ad3f218ab5f0ac91590a831ee26ddb613945dc28",
+    "fixtureSha256": "5a1f98789c57b2d7cd298c46fff1b4d7c7cfe909fc356f01e484a0cf74ec45b9",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "compact-pale-boq-9.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao43%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "7dbed3bd36cfba30f8a3e43073ee7f7d6bb78160ad2865dc7b52a1c05d3fd143",
+    "fixtureSha256": "32fc650ddf9ae7f6f44b1c3dffa9d7debc84b9aae4be9e232e3a5d569306d216",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "blank-heading-numeric-hallucination.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp19%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "9469146f751a1d4bc8403e8e1817e42da45aa55a4a6068225ecbbffe807398a4",
+    "fixtureSha256": "3c88c5e27f9035bcd1d6266ded0c4f52c5005266dc32e8eb3f06cf2a1366aba3",
+    "provenance": "Original source page copied unchanged after external failure; regression only."
+  },
+  {
+    "filename": "recognized-header-merged-body.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp15%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "74c0690c2bd8a90cf24d8154c099155f3af1c3d0b1772193c7def71c1ff93e9d",
+    "fixtureSha256": "0ae74a232c258e1d5c3222a89703d24c2209e6b377197aa73f48f002ecf5f10d",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "compact-total-label.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20mp04%202025.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "d768395322fcfdcbc45e9588aaaec985d44ac96d4f74ec44b21ab018eb1de374",
+    "fixtureSha256": "2ba36937e4fe5033d7b86097b3cb62a24b3fa9b08b6e74d400155d703f98d677",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "near-white-column-rule.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20ifugao39%202026.PDF",
+    "sourcePage": 2,
+    "sourceSha256": "7c6ccc4ba09df75a5d9e4dc7d21bd953b086d94d9cfc8ebfef7e72a279275e7c",
+    "fixtureSha256": "8b87ea306cf6537e49a8c54e21f6d7694cc3ee00351ed3e93b28e243eece3fa5",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "merged-wrapped-descriptions.pdf",
+    "sourceUrl": "https://car.nia.gov.ph/sites/car/files/mp-21-2026-noa_boq_260603_000437.pdf",
+    "sourcePage": 2,
+    "sourceSha256": "dba97e954012900d7821d05de6fb1524a652654c28276ecee5bf8b4788382ed9",
+    "fixtureSha256": "bca35122f6950d18e324cd3d25add1f3af17bba170f9bdc3a23e002120b1b70c",
+    "provenance": "Unchanged original page retained after external failure; regression only."
+  },
+  {
+    "filename": "merged-heading-prose.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20kalinga-13-2024.PDF",
+    "originalSourceSha256": "46d42695fdeb1bbd88167a61647d9fc2a34dd71a66fd9cb55a929ce11534ab55",
+    "originalPage": 2,
+    "fixtureSha256": "1216324d7a74eb864911d8f7be4aa29e1e312ed99cacc8517be7243f53cec2c7",
+    "bytes": 729549,
+    "role": "known-regression-only, never fresh",
+    "sourceQualification": "BOQ printed contract ID differs from publisher filename and project title; no authority claim."
+  },
+  {
+    "filename": "damaged-description-rules.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/CW-ALSPIP-02-2024%20NOA%20BOQ.PDF",
+    "originalSourceSha256": "40334160de7006d4f7f04b98c6b5c466e14674f0415a278b575e1c57e52562d2",
+    "originalPage": 2,
+    "fixtureSha256": "fb57183b95a64bcfaab33bf9c744637f7b0d033a23266e35ecf4050c98b6901e",
+    "bytes": 616367,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "merged-price-cross-row.pdf",
+    "originalSourceUrl": "https://car.nia.gov.ph/sites/car/files/noa%20boq%20apayao-13-2024.PDF",
+    "originalSourceSha256": "c58acf14756c3ec1a1acfa5934f189e3b10b464f27e20ebd22499c0983d9388a",
+    "originalPage": 2,
+    "fixtureSha256": "c6298cfad86f7856786d972947a8884a2c196816fe715f605a69aeb26c4738a8",
+    "bytes": 675968,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "continuation-without-header.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/07/2.-OCM-CDFENGINEERING-26-BLDG-00067-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "5f9a7a1d6f7848ae96c82c46cb1196b296195264ab304c0e695b0f5d937f5c5f",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "43f5af586bca34a9ffe19da317c1b873986210dc06c6d99ce9a97b7fdc3e97b3",
+    "bytes": 939732,
+    "role": "known-regression-only, never fresh",
+    "sourceQualification": "Original manual oracle said 16; direct source recount establishes 15: 4 earthwork, 5 concrete, 6 generator-room items. Mesh is a wrapped word, not a second row. Original zero-row product failure retained; all 15 quantities asserted in regression."
+  },
+  {
+    "filename": "native-scan-row-crops.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/09/3.-ENGINEERING-26-BLDG-00102-SECTION-VIII-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "9b137508c719e5d93e44e5e5278a24a20f6c9ba467af8b9f94c8273b98d15c97",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "f506960f811390f8ad2ea3de3d1cd7c7b08ae27fda67dfed6b3cfa9520478688",
+    "bytes": 392533,
+    "role": "known-regression-only, never fresh"
+  },
+  {
+    "filename": "pale-header-continuation.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/02/5.-OCM-LDRRMF-ENGINEERING-26-FLOOD-00013-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "bc7a3eee42c159f89964f762e0741c5fc59ece1fb56f0c5fc11f9ab6f03d2bd8",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "27759dcbff787be8a33509336f95343c3cda772bd90450882464dbfb738640ed",
+    "bytes": 760661,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 12,
+      "visuallyTranscribedQuantityRows": [
+        238,
+        21,
+        21,
+        1,
+        21,
+        23040,
+        240,
+        240,
+        284,
+        55,
+        49,
+        24
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Pipe Culverts"
+          ],
+          "quantity": 238,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Curb",
+            "Gutter"
+          ],
+          "quantity": 284,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Steel Barricade"
+          ],
+          "quantity": 24,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "rotated-header-continuation.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/05/2.-PDAD-26-PARK-00049B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "dc44cbe95ac70ee7c2fa0aaa40ecb9dbb09021e4682059d4c7973d51bd596448",
+    "originalPages": [
+      1,
+      2
+    ],
+    "fixtureSha256": "9786118b144c4f15a794abc624a661e254874edbfd98937d6142d1135753086c",
+    "bytes": 761601,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 14,
+      "visuallyTranscribedQuantityRows": [
+        1436.15,
+        1436.15,
+        153.98,
+        665.53,
+        4,
+        1,
+        1.7,
+        153.94,
+        10.58,
+        10.5,
+        49.43,
+        49.43,
+        24.71,
+        24.71
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Site Clearing"
+          ],
+          "quantity": 1436.15,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Formworks"
+          ],
+          "quantity": 10.58,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Hauling"
+          ],
+          "quantity": 49.43,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "dense-text-columns.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/05/1.-OCM-CDFENGINEERING-26-FLOOD-00048B-SECTION-VIII.-BILL-OF-QUANTITIES.pdf",
+    "originalSourceSha256": "3b3e044bb21f3217d17e52b7d200812a2d16d8f64e0421002889c6a4210fc9cd",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "ddb3e55d5b7b1810356acd4325ec04ae6ce0614541dca58c5b9a5cb9d67639df",
+    "bytes": 620710,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 15,
+      "visuallyTranscribedQuantityRows": [
+        1,
+        2,
+        1,
+        1,
+        30,
+        30,
+        5,
+        4,
+        654,
+        4,
+        64,
+        46,
+        357,
+        129,
+        14
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Roadway Excavation"
+          ],
+          "quantity": 4,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Hard Rock"
+          ],
+          "quantity": 654,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Tapping"
+          ],
+          "quantity": 14,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  },
+  {
+    "filename": "lower-pale-section.pdf",
+    "originalSourceUrl": "https://quezoncity.gov.ph/wp-content/uploads/2026/06/2.-OCM-CDFENGINEERING-26-BLDG-00057-SECTION-VII.-BILL-OF-QUANTITIES-1.pdf",
+    "originalSourceSha256": "f366cbbf3dc5390eaeb2350e91909f2015f4cab0ad1c5f811f84c3421e6638f4",
+    "originalPages": [
+      2
+    ],
+    "fixtureSha256": "54d1c9be384c2109fa71d0c3993b4cbb4d0b38cde26ebe71f9af3eceac926edd",
+    "bytes": 428952,
+    "role": "Failed fresh 5ac9dc1 source, regression only; never fresh again",
+    "sourceOracle": {
+      "selectedPage": 2,
+      "expectedQuantityRows": 17,
+      "visuallyTranscribedQuantityRows": [
+        1,
+        5,
+        1,
+        1,
+        30,
+        53,
+        47,
+        8,
+        98,
+        529,
+        307,
+        323,
+        33,
+        44,
+        3,
+        2,
+        1
+      ],
+      "anchors": [
+        {
+          "page": 2,
+          "tokens": [
+            "Temporary Enclosure"
+          ],
+          "quantity": 30,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Removal of Ceiling"
+          ],
+          "quantity": 307,
+          "rate": null,
+          "amount": null
+        },
+        {
+          "page": 2,
+          "tokens": [
+            "Gravel Fill"
+          ],
+          "quantity": 1,
+          "rate": null,
+          "amount": null
+        }
+      ]
+    }
+  }
+]

@@ -423,6 +423,33 @@ function calculateRevisionActivityCorrespondence(
   ambiguousTo:
     Set<string>;
 } {
+  // Normal programme updates retain stable activity IDs. When both revisions
+  // carry the same unique IDs in the same source order, the full multi-index
+  // identity matcher cannot produce a different answer. Return that exact
+  // activity-id correspondence directly and reserve the more expensive native
+  // ID / WBS-name fallback for genuinely changed populations.
+  if(fromActivities.length===toActivities.length){
+    const seen=new Set<string>();
+    let exact=true;
+    for(let i=0;i<fromActivities.length;i++){
+      const from=fromActivities[i]!,to=toActivities[i]!,id=from.activityId;
+      if(!id||id!==to.activityId||seen.has(id)){exact=false;break;}
+      seen.add(id);
+    }
+    if(exact){
+      return {
+        matches:fromActivities.map(activity=>({
+          fromActivityId:activity.activityId,
+          toActivityId:activity.activityId,
+          method:"activity_id" as const,
+          confidence:1,
+        })),
+        ambiguousFrom:new Set<string>(),
+        ambiguousTo:new Set<string>(),
+      };
+    }
+  }
+
   const matches:
     ActivityIdentityMatch[] =
     [];

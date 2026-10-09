@@ -1,3 +1,4 @@
+import {projectContractSections} from './project-contract-sections';
 import {
   buildContractControls,
   type ContractControlsProjection,
@@ -216,11 +217,11 @@ export function commercialContractControlsForState(
         currency:
           row.currency,
         value:
-          row.current.value,
+          row.original.value,
         state:
-          row.current.state,
+          row.original.state,
         sourceRefs: [
-          ...row.current
+          ...row.original
             .basis.sourceRefs,
         ],
       }));
@@ -401,7 +402,7 @@ export function commercialContractControlsForState(
             }),
           ),
       bonds:
-        state.controls.bonds
+        (ledger.bonds??state.controls.bonds)
           .map((row) => ({
             bondId:
               row.bondId,
@@ -503,6 +504,7 @@ export function commercialContractControlsForState(
             retentionReleaseDate:
               row
                 .retentionReleaseDate,
+            retentionReleaseDueDate:row.retentionReleaseDueDate??null,
             sourceRefs: [
               receiptRef(
                 row.receipt,
@@ -531,6 +533,17 @@ export function commercialContractControlsForState(
           .commercialTerms
           .insuranceRequirements
           .length,
+      sectionTerms:projectContractSections(state,
+        contractTime?.contractualCompletionIso??null,
+        null /* No separately confirmed sectional extension provided */
+      ).map(section=>({
+        sectionId:section.sectionId??'Section not identified',label:section.label,rate:section.rate,rateBasis:section.rateBasis,
+        currency:section.currency,capAmount:section.capAmount,capPercent:section.capPercent,
+        contractCompletionIso:section.contractCompletionIso,
+        extendedCompletionIso:section.extendedCompletionIso,
+        programmeCompletionIso:section.programmeCompletionIso,milestoneId:section.milestoneId,
+        sourceRefs:section.sourceRefs
+      })),
       ldTerms:
         ldTerms
           ? {
