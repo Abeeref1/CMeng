@@ -385,7 +385,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       extendedContractCompletionIso:presentedExtension,
     },
     controls:{
-      expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)?null:row.permitStatus==='expired'),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
+      expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)||row.permitStatus==='expired'&&row.affectsOpenWork===null?null:row.permitStatus==='expired'&&row.affectsOpenWork===true),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
       openRfiCount:sourceCount(
         operations.counts.openRfiCount,
         openRfiKnown,
