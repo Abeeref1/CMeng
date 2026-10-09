@@ -24,6 +24,22 @@ export function refreshContractSegmentation(contract:ContractDocumentResult):Con
   const result=segmentContractTextBlocks(blocks,{sourceType:contract.sourceType,physicalComplete:contract.physicalComplete,
     sourceDiagnostics:contract.pdf?.diagnostics??contract.docx?.diagnostics??[]});
   result.pdf=contract.pdf;result.docx=contract.docx;
+  // A retained, earlier deterministic reading is still source evidence.
+  // Native/PDF refresh may have only part of the document (for example its
+  // later scanned pages), and previously this resegmentation silently erased
+  // the extracted contract completion or EOT clause. Never discard source
+  // sections just because the second pass has incomplete native text.
+  const represented=(text:string)=>result.sections.some(section=>
+    section.text.trim().includes(text.trim())||text.trim().includes(section.text.trim())&&section.text.trim().length>=text.trim().length*0.9);
+  const missing=(contract.sections??[]).filter(section=>
+    section.sourceMode==='deterministic'&&section.text.trim()&&!represented(section.text));
+  if(missing.length){
+    result.sections=[...result.sections,...missing];
+    result.clauses=[...result.clauses,...missing.filter(s=>s.kind==='clause')];
+    result.appendices=[...result.appendices,...missing.filter(s=>s.kind==='appendix')];
+    result.semanticComplete=false;result.complete=false;
+    result.diagnostics=[...result.diagnostics,'RETAINED_DETERMINISTIC_SECTIONS_NOT_PRESENT_IN_SECOND_PASS:'+missing.length];
+  }
   refreshed.set(contract,result);return result;
 }
 
