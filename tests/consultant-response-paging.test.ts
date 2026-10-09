@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pageProjectResponse,recordDetailPage,jsonPointer,PROJECT_SCREEN_MAX_BYTES,isProjectScreenRequest} from '../packages/runtime-api/src/response-paging';
+import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 
 test('large screens stay under 2 MB and retain every original row via bounded server paging',()=>{
  const source={key:'delay-claims',status:'ready',projectVersion:10,data:{
@@ -56,4 +57,26 @@ test('management bundle and first-class pages retain the same canonical facts af
    result.masterDashboard.projectFacts.time.extendedContractCompletionIso.value);
  assert.ok(result.responsePaging.tables.some((row:any)=>row.pointer==='/masterDashboard/rows'&&row.total===140));
  assert.equal(jsonPointer(source,'/masterDashboard/rows/75/recordId'),'M75','full bundle source remains available for exact pointer download');
+});
+
+test('S-49 embedded Delivery evidence renderer compiles and has complete server paging',()=>{
+ const script=deliveryScript();
+ assert.doesNotThrow(()=>new Function(script),'Client Delivery renderer JavaScript must parse successfully');
+ assert.match(script,/function deliveryLoadEvidenceServerPage\(/);
+ assert.match(script,/source:view\.server\.source,pointer:view\.server\.pointer/);
+});
+
+test('S-49 nested source evidence retains full population when initial view is paged',()=>{
+ const source={key:'delivery-control',status:'ready',projectVersion:19,data:{
+   projectionKey:'delivery',evidenceMetrics:{records:Array.from({length:108},(_,i)=>({recordId:'EV-'+i,detail:'Record '+i}))}
+ }};
+ const projection=pageProjectResponse(source,'/api/projects/P/delivery/modules/delivery-control') as any;
+ const pointer='/data/evidenceMetrics/records';
+ assert.ok(projection.responsePaging.tables.some((row:any)=>row.pointer===pointer&&row.total===108));
+ assert.equal(projection.data.evidenceMetrics.records.length,25);
+ const remainder=recordDetailPage(source,pointer,75);
+ assert.equal(remainder.sourceTotal,108);
+ assert.equal(remainder.total,108);
+ assert.equal(remainder.rows.length,25);
+ assert.equal(remainder.rows[0].recordId,'EV-75');
 });
