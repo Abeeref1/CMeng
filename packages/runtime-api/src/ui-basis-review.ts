@@ -3,9 +3,11 @@ function basisTable(heads,rows){
  const empty=value=>value===null||value===undefined||String(value).trim()===''||
    /^(?:not established|unresolved|not recorded|undefined|null|not in source|not in the data|—|-)$/i.test(String(value).trim());
  const active=heads.map((name,index)=>({name,index})).filter(column=>
-   !rows.length||rows.some(row=>!empty(row[column.index])));
+   !rows.length||/\b(owner|responsible party|accountable)\b/i.test(String(column.name))||rows.some(row=>!empty(row[column.index])));
  if(rows.length&&!active.length)return '<p>No comparable source values are available for these columns.</p>';
  const cell=(value,column)=>{
+   if(/\b(owner|responsible party|accountable)\b/i.test(column)&&empty(value))
+     return pmcDisplayOwner(currentModuleResult?.key||'project controls');
    if(empty(value))return 'Not in source';
    if(typeof value==='number')return fmtForField(column,value);
    if(typeof value==='boolean')return value?'Yes':'No';
