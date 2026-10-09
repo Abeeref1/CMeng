@@ -492,7 +492,7 @@ test('management context has a single owner per topic and calendar naming reache
    assert.doesNotMatch(html,/<table|HSE figures reported/);assert.match(html,/command-center/);
  }
  const command=runInNewContext(basis+';renderBasisReviews(data,"command-center")',basisContext);
- assert.match(command,/Not assigned/);assert.match(command,/Not set/);assert.doesNotMatch(command,/Assign owner|Set due date|HSE figures reported/);
+ assert.match(command,/PMC Project Controls Manager/);assert.match(command,/Not set/);assert.doesNotMatch(command,/Not assigned|Assign owner|Set due date|HSE figures reported/);
 });
 
 
