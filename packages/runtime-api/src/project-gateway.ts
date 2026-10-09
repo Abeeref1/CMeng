@@ -107,9 +107,66 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   const updating=new Map<string,number>(),summaryJobs=new Map<string,Promise<void>>(),summaryAttempts=new Map<string,number>();
   const summaryFailures=new Map<string,number|undefined>();
+  // Background cache fills must NEVER keep summaryJobs open or hold one project
+  // lane across every management page. That blocks foreground project navigation.
+  let warmPageTail:Promise<void>=Promise.resolve();
+  const scheduledWarmups=new Set<string>();
+  async function warmProjectPages(id:string,version:number){
+    const prefix='/api/projects/'+encodeURIComponent(id);
+    const routes=[...new Set([
+      prefix+'/overview',
+      prefix+'/management/master-dashboard',
+      prefix+'/director-position',
+      prefix+'/management-surfaces',
+      prefix+'/actions',
+      prefix+'/evidence/documents',
+      prefix+'/phases',
+      prefix+'/boq/page-review',
+      prefix+'/boq/numeric-review',
+      ...moduleRegistry.map(page=>page.area==='management'?
+        prefix+'/management/'+page.key:
+        prefix+'/'+page.area+'/modules/'+page.key),
+    ])];
+    for(const route of routes){
+      if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
+      // A foreground user always gets the next per-project worker turn.
+      // Never keep a single worker turn during the entire cache warm-up.
+      while(!closing&&Date.now()-lastForegroundProjectRequestAt<15000){
+        await new Promise<void>(resolve=>setTimeout(resolve,1000));
+        if((updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
+      }
+      if(closing)return;
+      if(await reads(id).get(release(),version,route))continue;
+      try{
+        await work(id,async port=>{
+          if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version||
+            Date.now()-lastForegroundProjectRequestAt<15000)return;
+          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
+          if(!page.ok)return;
+          const bytes=Buffer.from(await page.arrayBuffer());
+          const responseVersion=Number(page.headers.get('x-cmeng-project-version'));
+          if(responseVersion===version&&catalog.get(id)?.metadata?.version===version&&
+            !(updating.get(id)??0)&&bytes.length<=MAX_PROJECT_READ_BYTES)
+            await reads(id).put(release(),version,route,bytes);
+        });
+      }catch{/* Background warming never blocks an interactive request. */}
+    }
+  }
+  function schedulePageWarmup(id:string,version:number){
+    const key=id+'::'+version;
+    if(scheduledWarmups.has(key))return;
+    scheduledWarmups.add(key);
+    // Bounded to one background project at a time, regardless of portfolio size.
+    const task=warmPageTail.catch(()=>{}).then(()=>warmProjectPages(id,version))
+      .catch(error=>console.warn('[project-warmup] '+id+': '+String(error)))
+      .finally(()=>scheduledWarmups.delete(key));
+    warmPageTail=task;
+  }
   async function refreshSummary(id:string){
     if(closing)return;
     if(summaryJobs.has(id))return summaryJobs.get(id);
+    const existing=catalog.get(id);
+    if(existing?.summaryRelease===release()&&existing.summary?.version===existing.metadata?.version)return;
     summaryAttempts.set(id,Date.now());
     const task=work(id,async port=>{
       const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');
@@ -120,39 +177,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
-      // Persist the finished page results on the attached volume while the
-      // full project bundle is already hot in THIS worker. Browser requests
-      // for six concurrent projects can read these without reviving an
-      // evicted worker or rerunning project controls calculations.
-      // Precompute every advertised control page against this same project version.
-      // Only complete response bodies are retained; cache keys include exact release
-      // and project version. User requests still take priority over background work.
-      const prefix='/api/projects/'+encodeURIComponent(id);
-      const routes=[...new Set([
-        prefix+'/overview',
-        prefix+'/director-position',
-        prefix+'/management-surfaces',
-        prefix+'/actions',
-        prefix+'/evidence/documents',
-        prefix+'/boq/page-review',
-        prefix+'/boq/numeric-review',
-        ...moduleRegistry.map(page=>page.area==='management'?
-          prefix+'/management/'+page.key:
-          prefix+'/'+page.area+'/modules/'+page.key),
-      ])];
-      for(const route of routes){
-        if(closing||updating.get(id))break;
-        const retained=await reads(id).get(release(),summary.version,route);
-        if(retained)continue;
-        try{
-          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
-          if(!page.ok)continue;
-          const bytes=Buffer.from(await page.arrayBuffer());
-          const version=Number(page.headers.get('x-cmeng-project-version'));
-          if(version===summary.version&&bytes.length<=MAX_PROJECT_READ_BYTES)
-            await reads(id).put(release(),version,route,bytes);
-        }catch{/* A warmup failure never changes the retained project position. */}
-      }
+      // Publish the source-versioned portfolio first. Every control page is warmed
+      // separately and only while there is no foreground navigation.
+      schedulePageWarmup(id,summary.version);
     }).catch(error=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}
       console.error('[refreshSummary] project='+id+' version='+entry?.metadata?.version+' failed:',error instanceof Error?error.stack??error.message:String(error));
     }).finally(()=>summaryJobs.delete(id));
