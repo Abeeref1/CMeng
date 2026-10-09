@@ -1879,10 +1879,10 @@ async function route(
       json(res,400,{error:'boq_activity_candidate_requires_source_ids_and_proposer',
         message:'Select an existing BOQ item and programme activity; give the proposer, supporting source reference and reason. WBS similarity alone is not an approved link.'});return;
     }
-    const existing=(state.boqActivityLinkCandidates??[]).find(x=>x.quantityItemId===quantityItemId&&x.activityId===activityId&&x.sourceRevisionId===current.revision.revisionId&&x.boqRevisionId===boq.sourceRevisionId);
+    const existing=(state.boqActivityLinkCandidates??[]).find(x=>x.quantityItemId===quantityItemId&&x.activityId===activityId&&x.sourceRevisionId===current.revision.revisionId&&x.boqRevisionId===boq.boqRevisionId);
     if(existing){json(res,200,{projectVersion:state.version,candidate:existing,duplicate:true});return;}
     const candidate={quantityItemId,activityId,proposedBy,sourceRef,reason,
-      sourceRevisionId:current.revision.revisionId,boqRevisionId:boq.sourceRevisionId,
+      sourceRevisionId:current.revision.revisionId,boqRevisionId:boq.boqRevisionId,
       proposedAt:new Date().toISOString(),state:'candidate' as const};
     state.boqActivityLinkCandidates=[...(state.boqActivityLinkCandidates??[]),candidate];
     runtimeProjects.touch(state);
