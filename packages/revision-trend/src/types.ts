@@ -22,12 +22,12 @@ export interface RevisionTrendPoint {
   forecastCompletionIso: string | null;
   programmeCompletionIso: string | null;
   /** Signed submitted forecast finish movement from the immediately previous controlled revision; not entitlement. */
-  submittedFinishMovementCalendarDays: number | null;
+  submittedFinishMovementCalendarDays?: number | null;
   /** Elapsed Data Date interval, not a contractual reporting cadence. */
-  reportingIntervalCalendarDays: number | null;
+  reportingIntervalCalendarDays?: number | null;
   /** A jump in source revision sequence, not proof that a source file is missing. */
-  sourceRevisionSequenceGap: number | null;
-  criticalityBasis: 'submitted_total_float';
+  sourceRevisionSequenceGap?: number | null;
+  criticalityBasis?: 'submitted_total_float';
   logicDensity: number | null;
   graphComplete: boolean;
   addedVsPrevious: number | null;
