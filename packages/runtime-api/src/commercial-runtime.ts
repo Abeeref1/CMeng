@@ -1,5 +1,6 @@
 import {certificateProfile} from "./certificate-profile";
 import {programmeCashScenario} from './programme-cash-scenario';
+import {projectControlSchedule} from './canonical-time-claims';
 import {amendmentAmounts,variationBasisReview,costBasisReview} from "./commercial-basis-review";
 import {contractNoticeRules} from "./contract-notice-rules";
 import { reportingScope } from "../../truth-kernel/src";
@@ -228,7 +229,16 @@ export function commercialPositionForState(
   position.costBasisReview=costBasisReview(ledger,position.certificateProfile,position.currencies);
   position.contractNoticeRules=[...contractNoticeRules(state),...contractNoticeRules(state,'detailed_claim')];
   position.foundation.commercialTerms.noticeVersions=position.contractNoticeRules;
-  position.programmeCashScenario=programmeCashScenario(position,sourceCommercialCutoff);
+  const scheduleModel=projectControlSchedule(state)?.revision.model??null;
+  const sourceFinishDates=(scheduleModel?.activities??[])
+    .filter(activity=>!['wbs_summary','level_of_effort'].includes(activity.activityType))
+    .map(activity=>activity.status==='completed'?
+      activity.actualFinishIso??activity.forecastFinishIso??activity.currentFinishIso:
+      activity.forecastFinishIso??activity.currentFinishIso)
+    .filter((date):date is string=>!!date&&Number.isFinite(Date.parse(date)));
+  const submittedProgrammeFinish=sourceFinishDates.length?
+    sourceFinishDates.reduce((latest,date)=>Date.parse(date)>Date.parse(latest)?date:latest):null;
+  position.programmeCashScenario=programmeCashScenario(position,sourceCommercialCutoff,submittedProgrammeFinish);
   cache.set(
     state,
     {
