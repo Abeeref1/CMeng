@@ -51,10 +51,17 @@ export function enforceModuleReadiness(
     if (
       issue.kind === 'system_defect' ||
       issue.kind === 'source_conflict' ||
-      issue.kind === 'data_quality' ||
-      issue.kind === 'missing_information'
+      issue.kind === 'data_quality'
     ) {
       return true;
+    }
+    if (issue.kind === 'missing_information') {
+      // Field-level gaps stay visible and block the affected figure, not an
+      // otherwise established page. Missing module authority is already gated
+      // by result.status/evidence above. This keeps "Missing" distinct from zero
+      // without turning every optional contract term into a page-level blocker.
+      return result.status === 'blocked' ||
+        ['missing', 'not_established', 'conflicted'].includes(evidence);
     }
     if (
       issue.kind === 'verification_pending' &&

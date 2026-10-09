@@ -251,6 +251,7 @@ export function buildLookAheadProjection(
     generatedAt: string;
     producerVersion: string;
     windowDays?: number;
+    drivingActivityIds?:readonly string[];
     readinessEvidence?: Record<
       string,
       Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
@@ -258,6 +259,7 @@ export function buildLookAheadProjection(
   },
 ): LookAheadProjection {
   const windowDays = input.windowDays ?? 42;
+  const drivingIds=input.drivingActivityIds?new Set(input.drivingActivityIds):null;
   if (
     !Number.isSafeInteger(windowDays) ||
     windowDays <= 0
@@ -361,6 +363,7 @@ export function buildLookAheadProjection(
         activity.percentComplete,
       totalFloatHours:
         activity.totalFloatHours,
+      drivingPath:drivingIds?drivingIds.has(activity.activityId):null,
       classification,
       missedPlannedStart: missedStart,
       finishOverdue: isOverdue,
@@ -417,7 +420,7 @@ export function buildLookAheadProjection(
     activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
     affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
     requiredByIso:group.rows.map(row=>row.startIso).filter((value):value is string=>!!value).sort()[0]??null,
-    owner:null,
+    owner:[...new Set(group.rows.flatMap(row=>row.readiness.dimensions.filter(d=>d.key===group.blockerType).flatMap(d=>(d.records??[]).filter(record=>record.state==='blocked').map(record=>record.owner).filter((owner):owner is string=>!!owner))))].join('; ')||null,
     action:readinessAction[group.blockerType],
     sourceRefs:[...group.sourceRefs],
   })).sort((a,b)=>b.activityCount-a.activityCount||(a.requiredByIso??"9999").localeCompare(b.requiredByIso??"9999")||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
@@ -472,6 +475,10 @@ export function buildLookAheadProjection(
     conditionalCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "conditional",
     ).length,
+    atRiskCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
+    noKnownLinkedBlockerCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      !row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
     blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,

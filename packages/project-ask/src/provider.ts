@@ -7,6 +7,9 @@ export interface AskModel {
   plan(question:string,base:AnalysisPlan,catalogue:AuthorityDescriptor[]):Promise<AnalysisPlan>;
   explain(result:AnalysisResult,references:ReferencePage[]):Promise<NarrativeBlock[]>;
 }
+export interface StructuredModel {
+  structured(name:string,schema:unknown,prompt:string,input:unknown):Promise<unknown>;
+}
 const object=(properties:Record<string,unknown>)=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 const str={type:'string'},strings={type:'array',items:str},scalar={type:['string','number','boolean','null']};
 const filterSchema=object({field:str,operator:{type:'string',enum:['eq','contains','lt','lte','gt','gte','between']},value:scalar,upper:scalar});
@@ -30,8 +33,11 @@ function newTelemetry(result:AnalysisResult):AskTelemetry{return {route:result.r
 
 /** Provider owns language only. All evidence selection/retrieval/validation is local and reusable. */
 export interface ModelTransportOptions {baseUrl?:string;protocol?:'responses'|'chat-completions'}
-export class OpenAiAskModel implements AskModel {
+export class OpenAiAskModel implements AskModel, StructuredModel {
   constructor(private key:string,private model:string,private request:typeof fetch=fetch,private limits:ModelLimits=configuredModelLimits(),private transport:ModelTransportOptions={}){}
+  async structured(name:string,schema:unknown,prompt:string,input:unknown):Promise<unknown>{
+    return this.generate(name,schema,prompt,input);
+  }
   private async generate(name:string,schema:unknown,prompt:string,input:unknown,telemetry?:AskTelemetry){
     const estimated=estimateTokens({instructions:prompt,input,schema})+this.limits.safetyTokens;
     if(estimated+this.limits.outputTokens>this.limits.contextTokens)throw new Error('MODEL_CONTEXT_LIMIT');

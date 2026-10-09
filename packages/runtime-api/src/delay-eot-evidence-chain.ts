@@ -1,3 +1,4 @@
+import type {DeterminationRecord} from './canonical-time-claims';
 import type { CanonicalScheduleModel } from "../../schedule-analysis-core/src";
 import type { DelayClaimEventAssessmentRow, DelayClaimsProjection } from "../../delay-claims/src";
 import type { NoticesClaimsProjection } from "../../notices-claims/src";
@@ -76,7 +77,7 @@ function effectiveFinish(activity:CanonicalScheduleModel["activities"][number]):
 }
 function activityPressure(model:CanonicalScheduleModel):DelayProgrammePressureRow[] {
   return model.activities
-    .filter(activity=>activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort")
+    .filter(activity=>activity.status!=="completed"&&activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort")
     .map(activity=>{
       const finish=effectiveFinish(activity),baseline=activity.baselineFinishIso??activity.baselineStartIso;
       const varianceDays=daysBetween(baseline,finish);
@@ -116,6 +117,7 @@ function eotState(event:DelayClaimEventAssessmentRow):DelayEvidenceLinkState {
 
 export function buildDelayEotEvidenceChain(input:{
   schedule:CanonicalScheduleModel;
+  determinations?:readonly DeterminationRecord[];
   windows:WindowsAnalysisProjection;
   delay:DelayClaimsProjection;
   notices:NoticesClaimsProjection;
@@ -123,9 +125,12 @@ export function buildDelayEotEvidenceChain(input:{
   sourceClaimCount:number|null;
   quarantinedClaimCount:number|null;
 }):DelayEotEvidenceChain {
+  const cutoff=input.schedule.dataDateIso?.slice(0,10),effective=(input.determinations??[]).filter(row=>row.state==='source_immutable'&&row.determinationDate&&cutoff&&row.determinationDate.slice(0,10)<=cutoff),superseded=new Set(effective.map(row=>row.supersedes).filter(Boolean));
   const noticeByEvent=new Map(input.notices.events.map(event=>[event.eventId,event]));
   const rows:DelayEotEvidenceChainRow[]=input.delay.events.map(event=>{
     const notice=noticeByEvent.get(event.eventId)??null;
+    const awards=effective.filter(row=>!superseded.has(row.determinationId)&&(event.linkedClaimIds.includes(row.claimId)||event.determinationIds.includes(row.determinationId)));
+    const awardedDays=awards.length&&awards.every(row=>row.awardedDays!==null)?awards.reduce((sum,row)=>sum+row.awardedDays!,0):null;
     const links:DelayEvidenceLink[]=[
       {key:"event",label:"Event",state:"established",value:event.eventId,detail:"Recorded delay-event identity. Event existence is not causation."},
       {key:"notice",label:"Notice",state:noticeState(event),value:event.noticeIds.join(", ")||null,
@@ -139,8 +144,8 @@ export function buildDelayEotEvidenceChain(input:{
       {key:"responsibility",label:"Responsibility",state:governanceState(event.responsibilityState),
         value:governanceState(event.responsibilityState)==="missing"||event.responsibility==="unknown"?null:event.responsibility,
         detail:event.responsibilityState==="official"?"Responsibility is supported at the stated source authority.":"Responsibility is not established as an official contractual conclusion."},
-      {key:"eot",label:"EOT",state:eotState(event),value:null,
-        detail:eotState(event)==="candidate"?"Analytical EOT candidate only; entitlement and award are not established.":event.candidateClass==="concurrency_review"?"Concurrency requires review before any EOT candidate can be relied upon.":"No event-level EOT entitlement is established."},
+      {key:"eot",label:"EOT",state:awardedDays!==null?"established":eotState(event),value:awardedDays,
+        detail:awardedDays!==null?"Dated Engineer award: "+awardedDays+" calendar days; "+awards.map(row=>row.determinationId).join(', ')+".":eotState(event)==="candidate"?"Analytical EOT candidate only; entitlement and award are not established.":event.candidateClass==="concurrency_review"?"Concurrency requires review before any EOT candidate can be relied upon.":"No event-level EOT entitlement is established."},
       {key:"determination",label:"Determination",state:event.determinationIds.length?"established":"missing",value:event.determinationIds.join(", ")||null,
         detail:event.determinationIds.length?"Dated determination identity linked to the event.":"No determination is linked to the event."},
     ];
@@ -150,7 +155,7 @@ export function buildDelayEotEvidenceChain(input:{
       chainState:determination.state==="established"?"determined":eot.state==="candidate"?"candidate":review?"review_required":"incomplete"};
   });
   const pressureRows=activityPressure(input.schedule);
-  const activities=input.schedule.activities.filter(activity=>activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort");
+  const activities=input.schedule.activities.filter(activity=>activity.status!=="completed"&&activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort");
   const delayedActivityCount=activities.filter(activity=>{const v=daysBetween(activity.baselineFinishIso??activity.baselineStartIso,effectiveFinish(activity));return v!==null&&v>0;}).length;
   const negativeFloatActivityCount=activities.filter(activity=>activity.totalFloatHours!==null&&activity.totalFloatHours<0).length;
   const pressuredMilestoneCount=activities.filter(activity=>{

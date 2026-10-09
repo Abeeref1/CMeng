@@ -610,6 +610,14 @@ export function segmentContractTextBlocks(
         );
 
         const prior = priorSectionByBaseKey.get(baseKey);
+        // Sectional-completion tables repeat a section identifier for its
+        // completion date, damages and value. These are fields of one section,
+        // not competing legal clauses bearing the same number.
+        const sectionalParticular=/^section\s+\d+\s+(?:time\s+for\s+completion|completion\s+date|delay\s+damages|estimated\s+value|description|scope)\b/i;
+        if(prior===current&&heading.kind==='clause'&&sectionalParticular.test(line.text)&&
+          /^section\s+\d+\s+/i.test(current.sourceSpans[0]?.text??'')){
+          appendLine(current,line);continue;
+        }
         // A contract-data table can have several particulars under one Article
         // (rate and cap, for example). Adjacent rows extend that Article; they
         // are not competing copies of a clause. Keep both source spans.
@@ -800,7 +808,7 @@ export function segmentContractTextBlocks(
     );
 
   return {
-    segmentationVersion: 'contract-data-rows-v4',
+    segmentationVersion: 'contract-data-rows-v6',
     sourceType: options.sourceType,
     pdf: null,
     docx: null,

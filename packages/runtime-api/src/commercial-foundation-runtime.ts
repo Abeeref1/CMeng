@@ -523,6 +523,10 @@ export function commercialFoundationForState(
   const mapping:Partial<Record<ContractTermKey,keyof typeof foundation.commercialTerms>>={ldRate:'ldRate',ldCap:'ldCap',retentionPercent:'retentionPercent',retentionCapPercent:'retentionCapPercent',paymentPeriodDays:'paymentPeriodDays',noticePeriodDays:'noticePeriodDays',performanceSecurity:'performanceBondRequirement',advanceSecurity:'advancePaymentBondRequirement'};
   for(const key of termKeys){
     const target=mapping[key];if(!target)continue;
+    // Different contractual sections are separate obligations. The shared LD
+    // extractor selects the explicitly identified whole-of-works row; a flat
+    // dated-term scan must not turn those sectional rates into a conflict.
+    if(['ldRate','ldCap'].includes(key)&&ldTerms?.diagnostics.includes('LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES'))continue;
     const selected=termAtEvent(datedTerms,key,projectDataDate(state));
     const old=(foundation.commercialTerms as any)[target];
     const stringValue=['ldRate','ldCap','performanceSecurity','advanceSecurity'].includes(key);

@@ -43,10 +43,12 @@ function experienceReviewSummary(a,management=false){
 }
 function experienceValue(value,unit=''){
   const v=value&&typeof value==='object'&&'value' in value?value.value:value;
-  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Unresolved';
-  if(unit==='date')return planningShortDate(v);
+  if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Not established';
+  if(unit==='date')return fmtForField('date',v);
   const exactUnit=['','%','d','h'].includes(unit);
-  return (typeof v==='number'?(exactUnit?fmt(v):fmtExecutive(v)):String(v))+(unit?' '+unit:'');
+  // Executive abbreviation is presentation-only; source amounts stay exact in
+  // the detail and report. All other scalar values use the common presenter.
+  return (typeof v==='number'&&!exactUnit?fmtExecutive(v):fmtForField(unit||'value',v))+(unit?' '+unit:'');
 }
 // Explicit module schemas prevent status words, arbitrary counts or unrelated fields becoming a management KPI.
 function experienceBrief(key,data){
@@ -318,7 +320,7 @@ function experienceCertificateGroups(position){
   return [...groups.values()];
 }
 function certificateMoney(value,currency){
-  if(value===null||value===undefined||!Number.isFinite(value))return 'Unresolved';
+  if(value===null||value===undefined||!Number.isFinite(value))return 'Not established';
   const millions=value/1000000,absolute=Math.abs(millions);
   const rounded=Math.sign(millions)*Math.round((absolute+Number.EPSILON*Math.max(1,absolute))*100)/100;
   return rounded.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'M'+(currency?' '+currency:'');
@@ -389,7 +391,7 @@ function experienceSourceContext(key,data){
   }
   if(key==='command-center'&&hse?.periodEndIso){
     const m=hse.metrics||{},rates=hse.rates||{};
-    html+=experienceDisclosure('HSE rate and exposure basis · '+planningShortDate(hse.periodEndIso),'<p>'+escapeHtml(rates.reason||'Reported rates with their underlying counts')+'</p><p>Lost-time injuries: '+escapeHtml(fmt(m.lostTimeInjuries))+'; medical treatment cases: '+escapeHtml(fmt(m.medicalTreatmentCases))+'; first-aid cases: '+escapeHtml(fmt(m.firstAidCases))+'; near misses: '+escapeHtml(fmt(m.nearMisses))+'.</p><p>Reported LTIFR '+escapeHtml(fmt(m.ltifr))+' · TRIR '+escapeHtml(fmt(m.trir))+' · exposure '+escapeHtml(fmt(m.manHours))+' hours. Open HSE cases are not confirmed by these totals.</p><p>From LTI + medical treatment = '+escapeHtml(fmt(rates.recordableCasesFromLtiAndMedical))+' cases: '+escapeHtml((rates.comparisons||[]).map(r=>fmt(r.fromReportedCases)+' on '+fmt(r.basisHours)+' hours').join('; '))+'. The supplied rate and method require reconciliation.</p><p>Approved labor usage through DD: '+escapeHtml(fmt(hse.laborComparison?.approvedLaborHoursToDataDate))+' hours. '+escapeHtml(hse.laborComparison?.basis||'')+'</p>','LTI '+fmt(m.lostTimeInjuries)+' · rate and hours reconciliation');
+    html+=experienceDisclosure('HSE rate and exposure basis · '+planningShortDate(hse.periodEndIso),'<p>'+escapeHtml(rates.reason||'Reported rates with their underlying counts')+'</p><p>Lost-time injuries: '+escapeHtml(fmt(m.lostTimeInjuries))+'; medical treatment cases: '+escapeHtml(fmt(m.medicalTreatmentCases))+'; first-aid cases: '+escapeHtml(fmt(m.firstAidCases))+'; near misses: '+escapeHtml(fmt(m.nearMisses))+'.</p><p>Reported LTIFR '+escapeHtml(fmt(m.ltifr))+' · TRIR '+escapeHtml(fmt(m.trir))+' · exposure '+escapeHtml(fmt(m.manHours))+' hours. Open HSE cases are not confirmed by these totals.</p><p>From LTI + medical treatment + reported restricted work = '+escapeHtml(fmt(rates.recordableCasesFromLtiAndMedical))+' cases: '+escapeHtml((rates.comparisons||[]).map(r=>fmt(r.fromReportedCases)+' on '+fmt(r.basisHours)+' hours').join('; '))+(rates.basisEstablished?' · source rate basis is stated.':' · rate basis requires confirmation.')+'</p><p>Approved labor usage through DD: '+escapeHtml(fmt(hse.laborComparison?.approvedLaborHoursToDataDate))+' hours. '+escapeHtml(hse.laborComparison?.basis||'')+'</p>','LTI '+fmt(m.lostTimeInjuries)+' · rate and hours reconciliation');
   }
   if(['master-dashboard','master-control-programme','pmo-analysis'].includes(key))html+=managementModuleLink('independent-forecast','Completion forecast')+managementModuleLink('progress-report','Progress measures')+managementModuleLink('command-center','Risk and HSE review');
   return html?'<section class="source-context">'+html+'</section>':'';
