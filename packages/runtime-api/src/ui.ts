@@ -803,27 +803,55 @@ function renderContractSourceContext(contract){
   ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">Contract context is unresolved: provide readable contract terms for milestone and obligation references. Delivery review can use the available schedule and resource evidence.</div></div></section>';
   return contractSummary;
 }
-function renderSuppliedBoqRows(boq,page=0,query=''){
-  const term=String(query).trim().toLowerCase();
-  const rows=(boq?.rows||[]).filter(r=>!term||[r.itemNumber,r.itemId,r.section,r.description,r.unit].some(v=>String(v??'').toLowerCase().includes(term)));
-  const pageCount=Math.max(1,Math.ceil(rows.length/100)),index=Math.max(0,Math.min(pageCount-1,page)),start=index*100;
-  const field=v=>v===null||v===undefined||v===''?'Unresolved: not read from BOQ':typeof v==='number'?fmt(v):String(v);
-  const body=rows.slice(start,start+100).map(r=>{
-    const observed=r.numericConfirmation?null:r.sourceNumericReadings;
-    const cells=[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map((v,i)=>'<td>'+escapeHtml(observed&&i>=3&&i<=5?'Needs source confirmation':field(v))+'</td>').join('');
-    const note=observed?'<tr><td colspan="7"><b>Unconfirmed source readings — excluded from calculations.</b> '+['quantity','rate','amount'].filter(key=>observed[key]!==null&&observed[key]!==undefined).map(key=>escapeHtml(humanizeKey(key)+': '+field(observed[key]))).join(' · ')+'</td></tr>':r.numericConfirmation?'<tr><td colspan="7">Source readings confirmed on '+escapeHtml(formatDocumentTime(r.numericConfirmation.confirmedAt))+'. Original readings retained.</td></tr>':'';
-    return '<tr>'+cells+'</tr>'+note;
-  }).join('');
-  return '<p>'+escapeHtml(rows.length?'Items '+fmt(start+1)+'–'+fmt(Math.min(start+100,rows.length))+' of '+fmt(rows.length)+(term?' matching items':''):'No matching BOQ items')+' · Page '+(index+1)+' of '+pageCount+'. Every item is available through these pages and in the Excel and data downloads.</p>'+
-    '<div class="actions"><button type="button" '+(index===0?'disabled ':'')+'onclick="updateSuppliedBoq('+(index-1)+')">Previous BOQ items</button><button type="button" '+(index+1===pageCount?'disabled ':'')+'onclick="updateSuppliedBoq('+(index+1)+')">Next BOQ items</button></div>'+
-    '<div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>BOQ item</th><th>Description</th><th>Unit</th><th>Quantity</th><th>Rate</th><th>Amount</th><th>Currency</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">No matching BOQ items.</td></tr>')+'</tbody></table></div>';
+let suppliedBoqPageRequest=0;
+function suppliedBoqPaging(boq){
+ const metadata=currentModuleResult?.responsePaging||null;
+ const pointer='/data/suppliedBoq/rows';
+ const table=metadata?.tables?.find(r=>r.kind==='array'&&r.pointer===pointer);
+ const total=table?.total??boq?.itemCount??boq?.rows?.length??0;
+ const enabled=!!metadata?.source&&(!!table||total>(boq?.rows?.length??0));
+ return {enabled,source:metadata?.source,pointer,version:metadata?.projectVersion,total};
 }
-function updateSuppliedBoq(page,query){
-  const target=el('suppliedBoqRows');if(target)target.innerHTML=renderSuppliedBoqRows(currentModuleResult?.data?.suppliedBoq,page,query??el('suppliedBoqSearch')?.value??'');
+function renderSuppliedBoqRows(boq,page=0,query='',serverPage=null){
+ const term=String(query).trim().toLowerCase(),meta=suppliedBoqPaging(boq);
+ const fullRows=Array.isArray(boq?.rows)?boq.rows:[];
+ const localRows=meta.enabled?fullRows:fullRows.filter(r=>!term||[r.itemNumber,r.itemId,r.section,r.description,r.unit].some(v=>String(v??'').toLowerCase().includes(term)));
+ const perPage=meta.enabled?25:100;
+ const total=serverPage?serverPage.total:meta.enabled?meta.total:localRows.length;
+ const pageCount=Math.max(1,Math.ceil(total/perPage)),index=Math.max(0,Math.min(pageCount-1,page)),start=index*perPage;
+ const visible=serverPage?serverPage.rows:meta.enabled?localRows.slice(0,perPage):localRows.slice(start,start+perPage);
+ const field=v=>v===null||v===undefined||v===''?'Not established from BOQ':typeof v==='number'?fmt(v):String(v);
+ const body=visible.map(r=>{
+   const observed=r.numericConfirmation?null:r.sourceNumericReadings;
+   const cells=[r.itemNumber||r.itemId,r.description,r.unit,r.quantity,r.rate,r.amount,r.currency].map((v,i)=>'<td>'+escapeHtml(observed&&i>=3&&i<=5?'Needs source confirmation':field(v))+'</td>').join('');
+   const note=observed?'<tr><td colspan="7"><b>Unconfirmed source readings — excluded from calculations.</b> '+['quantity','rate','amount'].filter(key=>observed[key]!==null&&observed[key]!==undefined).map(key=>escapeHtml(humanizeKey(key)+': '+field(observed[key]))).join(' · ')+'</td></tr>':r.numericConfirmation?'<tr><td colspan="7">Source readings confirmed on '+escapeHtml(formatDocumentTime(r.numericConfirmation.confirmedAt))+'. Original readings retained.</td></tr>':'';
+   return '<tr>'+cells+'</tr>'+note;
+ }).join('');
+ const caption=total?('Items '+fmt(start+1)+'–'+fmt(Math.min(start+visible.length,total))+' of '+fmt(total)+(term?' matching source items':'')):'No matching BOQ items';
+ return '<p>'+escapeHtml(caption)+' · Page '+(index+1)+' of '+pageCount+'. '+(meta.enabled?'Further items load from the complete server register.':'Items retained in this response; source exports remain available.')+'</p>'+
+ '<div class="actions"><button type="button" '+(index===0?'disabled ':'')+'onclick="updateSuppliedBoq('+(index-1)+')">Previous BOQ items</button><button type="button" '+(index+1>=pageCount?'disabled ':'')+'onclick="updateSuppliedBoq('+(index+1)+')">Next BOQ items</button></div>'+
+ '<div class="table-wrap" style="max-height:420px;overflow:auto"><table><thead><tr><th>BOQ item</th><th>Description</th><th>Unit</th><th>Quantity</th><th>Rate</th><th>Amount</th><th>Currency</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">No matching BOQ items.</td></tr>')+'</tbody></table></div>';
+}
+async function updateSuppliedBoq(page,query){
+ const target=el('suppliedBoqRows'),boq=currentModuleResult?.data?.suppliedBoq;
+ if(!target||!boq)return;
+ const term=query??el('suppliedBoqSearch')?.value??'',meta=suppliedBoqPaging(boq),ticket=++suppliedBoqPageRequest;
+ if(!meta.enabled){target.innerHTML=renderSuppliedBoqRows(boq,page,term);return;}
+ const owner=project(),params=new URLSearchParams({source:meta.source,pointer:meta.pointer,offset:String(Math.max(0,page)*25),limit:'25',q:String(term)});
+ if(Number.isInteger(meta.version))params.set('version',String(meta.version));
+ try{
+   const result=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
+   if(ticket!==suppliedBoqPageRequest||project()!==owner||!target.isConnected)return;
+   if(!Array.isArray(result.rows))throw new Error('BOQ source rows were not returned.');
+   target.innerHTML=renderSuppliedBoqRows(boq,Math.floor(result.offset/25),term,result);
+ }catch(error){
+   if(ticket!==suppliedBoqPageRequest||project()!==owner)return;
+   target.innerHTML='<p class="notice error">BOQ source page could not be loaded. No reduced list is presented as complete. Retry or use the source export.</p>';
+ }
 }
 function renderSuppliedBoq(boq){
-  if(!boq?.rows?.length)return '';
-  return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
+ if(!boq?.rows?.length&&!boq?.itemCount)return '';
+ return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount??boq.rows?.length??0)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
 }
 function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge||{};
@@ -4812,7 +4840,7 @@ function renderAccountabilityVisual(data){
  const detail=(p.details||[]).map(r=>'<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td>'+escapeHtml(r.value)+'</td><td>'+escapeHtml(r.domain)+'</td><td><b>'+escapeHtml(r.reference||r.recordId)+'</b></td><td>'+escapeHtml(r.issue)+'</td><td>'+escapeHtml(r.dueDate?planningShortDate(r.dueDate):'—')+'</td><td>'+escapeHtml(r.overdueDays===null?'—':fmt(r.overdueDays)+' d')+'</td><td>'+escapeHtml((r.activityIds||[]).join('; ')||'—')+'</td></tr>').join('');
  const primary=actions.length?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue & consequence</th><th>Affected scope</th><th>Accountable party</th><th>Due</th><th>Required action</th></tr></thead><tbody>'+actionRows+'</tbody></table></div>':'<div class="notice info">No actionable ownership chain is established from the current open records.</div>';
  const concentration=rows?'<div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Open / pressure</th><th>Domains</th><th>Overdue</th><th>Open NCR</th><th>Overdue RFI</th><th>Late package</th><th>Risk</th><th>Affected activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No supporting concentration roll-up is available.</p>';
- return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 project actions · '+fmt(actions.length)+' total</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt((p.details||[]).length)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody>'+detail+'</tbody></table></div><p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
+ return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 project actions · '+fmt(p.actionCount??(currentModuleResult?.responsePaging?.tables||[]).find(t=>t.pointer==='/data/actions')?.total??actions.length)+' total</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt((p.details||[]).length)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody>'+detail+'</tbody></table></div><p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
 }
 function renderSpecializedModule(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
