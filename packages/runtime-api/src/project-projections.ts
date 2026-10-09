@@ -7782,6 +7782,21 @@ export function moduleForProject(
     // after shared fact attachment, without a second calculation producer.
     return (result.data as any)?.positionVerdict?withPositionVerdict(attached):attached;
   };
+  // No-programme is a normal management state for a real project, not a
+  // not-found exception. Non-programme registers remain independently usable.
+  const programmePages=new Set([
+    'pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
+    'schedule-change-report','revision-trend','milestones','near-critical',
+    'forecast-history','independent-forecast','windows-analysis'
+  ]);
+  if(programmePages.has(key)&&!projectControlSchedule(state)){
+    return {key,status:'partial',reason:'Current programme not established. The project exists and its source documents are retained.',
+      dependencies:['Current adopted programme with a Data Date'],
+      data:{projectId:state.projectId,projectVersion:state.version,programmeState:'no_programme',
+        managementPosition:'No current programme. Supply or adopt a dated programme to calculate schedule findings.',
+        availability:{state:'unavailable',missingInput:'Current adopted programme with a Data Date'},
+        rows:[],metrics:[],sourcePreserved:true}};
+  }
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
