@@ -19,6 +19,8 @@ test('saved analyses require the same project, release, source version and read 
  for(const method of ['POST','PATCH','DELETE','HEAD'])assert.equal(cacheableProjectRead(method,route),false);
  assert.equal(cacheableProjectRead('GET',route),true);
  assert.equal(cacheableProjectRead('GET','/api/projects/A/evidence/documents'),true);
+ assert.equal(cacheableProjectRead('GET','/api/projects/A/phases'),true,'phase listings reuse only project/release/version-matched results');
+ assert.equal(cacheableProjectRead('POST','/api/projects/A/phases'),false,'phase changes must never be cached');
  assert.equal(cacheableProjectRead('GET','/api/projects/A/management/command-center?view=page'),true);
  assert.equal(cacheableProjectRead('GET','/api/projects/A/overview?refresh=1'),false);
 });
