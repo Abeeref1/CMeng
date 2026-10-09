@@ -49,6 +49,31 @@ function renderCommercialExceptions(position,key,data){
   }
   return html;
 }
+async function createCandidateBoqActivityLink(){
+ const fields=['boqCandidateItem','boqCandidateActivity','boqCandidateProposer','boqCandidateSource','boqCandidateReason'];
+ const values=fields.map(id=>document.getElementById(id)?.value?.trim()||'');
+ const result=document.getElementById('boqCandidateFeedback');if(!result)return;
+ if(values.some(v=>!v)){result.textContent='All fields are required: BOQ item, programme activity, proposer, source reference and reason.';return;}
+ try{
+   const response=await api('/api/projects/'+encodeURIComponent(project())+'/boq/activity-link-candidates',{
+     method:'POST',headers:{'content-type':'application/json'},
+     body:JSON.stringify({quantityItemId:values[0],activityId:values[1],
+       proposedBy:values[2],sourceRef:values[3],reason:values[4]})
+   });
+   result.textContent=response.duplicate?'This candidate is already recorded.':'Candidate relationship saved for review. No quantity is allocated and no programme relationship has been approved.';
+ }catch(error){
+   result.textContent='Candidate not saved: '+(error?.message||'Check the source identities.');
+ }
+}
+function renderBoqCandidateLinkPanel(mapping){
+ const saved=mapping?.userCandidateLinks||[],suggestions=mapping?.sourceWbsLinks||[];
+ const table=saved.length?basisTable(['BOQ item','Activity','Proposed by','Reason / evidence','Authority'],
+  saved.map(r=>[r.quantityItemId,r.activityId,r.proposedBy,r.reason+' · '+r.sourceRef,'Candidate only — not an approved allocation'])):'<p>No user-proposed BOQ-to-activity candidate has been saved for this programme version.</p>';
+ const wbs=suggestions.length?'<p>'+fmt(suggestions.filter(r=>r.wbsId).length)+' BOQ item WBS associations are suggested by source code/name. Each is a grouping candidate, not a direct item-to-activity allocation.</p>':'';
+ const inputs=[['boqCandidateItem','BOQ quantity item ID'],['boqCandidateActivity','Programme activity ID'],['boqCandidateProposer','Proposed by'],['boqCandidateSource','Evidence reference'],['boqCandidateReason','Reason for candidate']].map(([id,label])=>'<label>'+escapeHtml(label)+' <input id="'+id+'" type="text" maxlength="220" placeholder="'+escapeHtml(label)+'"></label>').join('');
+ return basisPanel('Candidate BOQ–programme relationships','Review suggestions; never treat shared WBS as a direct verified allocation.',
+   wbs+table+'<div class="delivery-toolbar">'+inputs+'<button class="btn small" onclick="createCandidateBoqActivityLink()">Save candidate for review</button></div><p id="boqCandidateFeedback" role="status"></p>');
+}
 function renderBasisReviews(data,key){
   let html='';
   if(key==='contract-particulars-bonds'&&data.projectFacts?.time?.amendmentEotStatements?.length)
@@ -71,6 +96,8 @@ function renderBasisReviews(data,key){
     '<p>'+fmt(d.comparableCount)+' comparable duration records / '+fmt(d.matchedCount)+' matched tasks; '+fmt(d.addedCount)+' added tasks; '+fmt(d.ambiguousCount)+' ambiguous identities excluded.</p>'+
     basisTable(['Edit on an existing task','Tasks'],d.distribution.map(r=>[(r.deltaHours>0?'+':'')+fmt(r.deltaHours)+' hours',fmt(r.count)]))+
     '<details><summary>Inspect the duration arithmetic for each WBS package</summary>'+basisTable(['Package','Baseline days','Current days','Existing-task edit days','Added-task days','Edited tasks','Added tasks','Hours / day'],d.packages.map(r=>[r.name,fmt(r.baselineDurationDays),fmt(r.currentDurationDays),fmt(r.existingChangeDays),fmt(r.addedDays),r.changedExistingCount,r.addedCount,fmt(r.standardDayHours)]))+'</details>');}
+  if(q&&['quantity-scurve','challenge-contract','cost-forecast'].includes(key))
+    html+=renderBoqCandidateLinkPanel(data.quantityMapping??null);
   if(q){
     const f=q.forecast;
     html+=basisPanel('Link quantities and productivity work packages to programme activities',q.interpretation,
