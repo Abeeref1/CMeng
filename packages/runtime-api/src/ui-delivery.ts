@@ -4,7 +4,7 @@ import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
 export function deliveryScript():string{return `const deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
-const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:4});
+const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
  if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return deliveryUnknownText;
@@ -14,7 +14,7 @@ function deliveryValue(v){
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
  const s=String(v),match=s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/);
  if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return deliveryDateFormat.format(at)+(match[2]?' '+match[2]+(match[3]==='Z'?' UTC':match[3]?' '+match[3]:''):'');}
- return typeof readerText==='function'&&/(?:schedrev_|evidence(?:-document)?[:_]|pdf_page:|\bdata\.|\b[A-Z]+_[A-Z_]+\b)/.test(s)?readerText(s):s;
+ return typeof readerText==='function'?readerText(s):humanizeIsoText(s);
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
 const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:deliveryUnknownText,conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
