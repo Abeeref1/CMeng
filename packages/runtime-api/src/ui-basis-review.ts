@@ -50,7 +50,11 @@ function renderCommercialExceptions(position,key,data){
   return html;
 }
 function renderBasisReviews(data,key){
-  let html=''; const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
+  let html='';
+  if(key==='contract-particulars-bonds'&&data.projectFacts?.time?.amendmentEotStatements?.length)
+    html+=basisPanel('What the amendments state about EOT','An amendment with no EOT statement is not an express zero-day determination.',
+      basisTable(['Amendment','Extracted wording','Evidence state'],data.projectFacts.time.amendmentEotStatements.map(r=>[r.documentId,r.statement,r.basis])));
+ const s=data.scheduleBasisReview,q=data.quantityBasisReview,d=data.durationEditReview,v=data.contractValueBasisReview;
   if(s&&key!=='independent-forecast')html+=managementModuleLink('independent-forecast','Review package calendars and date restrictions');
   if(s&&key==='independent-forecast'){
     html+=basisPanel(s.contractFinishIso?fmt(s.deadline.lateCount)+' of '+fmt(s.packageCount)+' package finishes fall after the contract date':'Package deadlines need a confirmed contract date',s.interpretation,

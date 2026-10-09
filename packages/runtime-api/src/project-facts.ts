@@ -66,6 +66,7 @@ export interface ProjectFactsSnapshot {
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
+    amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string}>;
   };
   controls:{
     openRfiCount:ProjectFact<number>;
@@ -297,6 +298,18 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
+  const amendmentEotStatements=(scoped.contractDocuments??[]).filter(doc=>doc.role==='amendment').map(doc=>{
+    const sections=doc.result.sections??[];
+    const text=sections.map(row=>row.text).join('\n');
+    const explicit=/\b(?:EOT\s*(?:granted|approved)|extended\s+by)\s*:?\s*(\d+)\s*(?:calendar|working)?\s*days\b/i.exec(text);
+    const zero=/(?:\bno\s+(?:additional\s+)?(?:EOT|extension\s+of\s+time)\b|\b(?:zero|0)\s+days\s+(?:EOT|extension)\b)/i.exec(text);
+    const wording=explicit?.[0]??zero?.[0]??null;
+    return {documentId:doc.documentId,
+      statement:wording?'Amendment text: "'+wording.replace(/\s+/g,' ').trim()+'"':
+        'No explicit EOT statement was identified in the extracted amendment text; this does not establish zero EOT.',
+      sourceRefs:['contract-document:'+doc.documentId],
+      basis:wording?'Source wording, not an entitlement determination':'Source extraction incomplete or amendment silent on EOT'};
+  });
   const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
@@ -357,6 +370,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
     },
     time:{
+      amendmentEotStatements,
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
