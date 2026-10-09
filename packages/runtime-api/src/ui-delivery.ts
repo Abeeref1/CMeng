@@ -130,6 +130,7 @@ function deliveryExpandEvidence(event){
  const target=node.querySelector('[data-delivery-detail-content="'+id+'"]');if(!target)return;
  target.innerHTML=Array.isArray(view.value)?'<div class="delivery-toolbar"><label>Search evidence <input aria-label="Search evidence" data-delivery-evidence-search="'+id+'" placeholder="Reference, date, value or source"></label><button class="btn small" data-delivery-evidence-clear="'+id+'">Clear evidence search</button></div><div id="'+id+'Rows">'+deliveryEvidencePage(id)+'</div>':deliveryObjectDetail(view.value,view.pointer);
  node.dataset.deliveryLoaded='true';
+ if(view.server&&view.server.total>0&&!view.value.length)void deliveryLoadEvidenceServerPage(id,0);
 }
 function refreshDeliveryEvidence(id){const view=deliveryDetailViews[id],target=el(id+'Rows');if(deliveryEvidenceOwned(view)&&target)target.innerHTML=deliveryEvidencePage(id);}
 async function deliveryLoadEvidenceServerPage(id,page){
