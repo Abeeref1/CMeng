@@ -6,7 +6,10 @@ import {promisify} from 'node:util';
 const gzipAsync=promisify(gzip),gunzipAsync=promisify(gunzip);
 const COMPRESSED_MAGIC=Buffer.from('CMZ001');
 
-export const MAX_PROJECT_READ_BYTES=2*1024*1024;
+// Cache the full calculated response even when its transport body exceeds the
+// 2 MB screen budget; disk usage is still capped by the compressed 16 MB
+// per-project cache and the free-space reserve. Page rendering limits remain unchanged.
+export const MAX_PROJECT_READ_BYTES=8*1024*1024;
 const DEFAULT_CACHE_BYTES=16*1024*1024;
 const STORAGE_RESERVE_BYTES=512*1024*1024;
 /** These are disposable projections, never uploads, snapshots or saved Ask results. */
