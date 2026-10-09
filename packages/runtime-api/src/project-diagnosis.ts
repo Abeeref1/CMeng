@@ -6,6 +6,7 @@ import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-type
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
+import {projectFactsForState} from './project-facts';
 
 const numeric=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const difference=(after:string|null,before:string|null)=>{const a=parseScheduleInstant(after),b=parseScheduleInstant(before);return a===null||b===null?null:Number(((a-b)/86400000).toFixed(6));};
@@ -68,8 +69,10 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    calculatedStartIso:calculated?.independentEarlyStartIso??null,calculatedFinishIso:calculated?.independentEarlyFinishIso??null,independentTotalFloatHours:calculated?.independentTotalFloatHours??null,
    drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; '),
    drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; ')}];});
- const counts={critical:count(rows,r=>r.criticality==='unknown'?null:r.criticality==='critical'),negativeFloat:count(rows,r=>numeric(r.totalFloatHours)?r.totalFloatHours<0:null),
-   zeroFloat:count(rows,r=>numeric(r.totalFloatHours)?r.totalFloatHours===0:null),nearCritical:count(rows,r=>r.criticality==='unknown'?null:r.criticality==='near_critical'),
+ const governed=projectFactsForState(state).schedule;
+ const asDiagnosticCount=(fact:typeof governed.criticalActivityCount)=>({knownCount:fact.value,value:fact.value,unresolvedCount:fact.complete?0:null,population:rows.length});
+ const counts={critical:asDiagnosticCount(governed.criticalActivityCount),negativeFloat:asDiagnosticCount(governed.negativeFloatActivityCount),
+   zeroFloat:count(rows,r=>numeric(r.totalFloatHours)?r.totalFloatHours===0:null),nearCritical:asDiagnosticCount(governed.nearCriticalActivityCount),
    missedStarts:count(rows,r=>r.missedPlannedStart),overdueFinishes:count(rows,r=>r.finishOverdue),baselineSlippage:count(rows,r=>r.finishVarianceDays===null?null:unfinished(r)&&r.finishVarianceDays>0),
    previousUpdateSlippage:count(rows,r=>{const move=previousMovement(r.activityId);return move===null?null:move>0;}),scheduleDelayed:count(rows,r=>r.scheduleDelayed)};
  timed('setup_and_source_counts');
@@ -152,7 +155,7 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  timed('revision_and_anomalies');
  if(profile)process.stdout.write(JSON.stringify({event:'project_diagnosis_profile',projectId:state.projectId,timings,totalMs:timings.reduce((sum,row)=>sum+row.ms,0)})+'\n');
  return {schemaVersion:1,projectId:state.projectId,projectVersion:state.version,sourceRevisionId:model.sourceRevisionId,dataDateIso:model.dataDateIso,sourceActivityCount:model.activities.length,executionActivityCount:rows.length,relationshipCount:model.relationships.length,calendarCount:model.calendars.length,activities:rows,pressureActivityIds:[...pressureSet],
-   completion:forecast?.completionPosition??null,summary,counts,wbsRows,pressureActivityCount:pressureRows.length,actions,milestoneRows,revision,anomalies,
+   completion:forecast?.completionPosition??null,summary,counts,criticalityBasis:governed.floatBasis,criticalityReconciliation:{submittedCritical:governed.submittedCriticalActivityCount.value,independentCritical:governed.independentCriticalActivityCount.value},wbsRows,pressureActivityCount:pressureRows.length,actions,milestoneRows,revision,anomalies,
    network:{state:network?(forecast.origin==='deterministic_source_calendar'?'calculated':'scenario'):'unavailable',rows:networkRows,relationships:network?.relationships??[],finishActivityIds:network?.finishActivityIds??[],startReasons:network?.startReasons??[],basis:'Binding relationships from the existing forward calculation, traced back from the maximum calculated finish. All tied branches are retained. Topological order is not a claim that adjacent rows link. Relationship lags use the existing successor-calendar calculation. Source restrictions and other assumptions remain as stated in Completion position.'},
    evidenceChecks:uniqueChecks,evidenceCoverage:{pressureActivities:pressureRows.length,activitiesWithLinkedPressure:new Set(uniqueChecks.filter(c=>c.state==='linked_pressure').map(c=>c.activityId)).size,activitiesWithLinkedEvents:new Set(uniqueChecks.filter(c=>c.domain==='delay_event').map(c=>c.activityId)).size,
      basis:'Readiness, procurement, material, design/submittal, permits, resources, quality, access, commercial and risk records are checked through explicit activity/package links at the programme Data Date. Productivity and delay events use their existing authorities. A missing link is unknown, never a confirmed blocker or clearance.'},
