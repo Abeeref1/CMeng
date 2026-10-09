@@ -40,7 +40,7 @@ test('worker gateway preserves all module, management, source and audit results 
     const base=await new Promise<string>((resolve,reject)=>{let logs='';const timer=setTimeout(()=>reject(new Error('Original server startup timeout: '+logs)),30000);child.stdout.on('data',d=>{logs+=d;const port=/PORT=(\d+)/.exec(logs)?.[1];if(port){clearTimeout(timer);resolve('http://127.0.0.1:'+port);}});child.stderr.on('data',d=>{logs+=d;});child.once('exit',()=>{clearTimeout(timer);reject(new Error(logs));});});
     await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
     const worker='http://127.0.0.1:'+(gateway.server.address() as AddressInfo).port;
-    const paths=['/overview','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>m.area==='management'?'/management/'+m.key:'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
+    const paths=['/overview','/phases','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>m.area==='management'?'/management/'+m.key:'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
     for(const path of paths){
       const replies=await Promise.all([base,worker].map(async url=>{const response=await fetch(url+'/api/projects/PRESERVE'+path);return {status:response.status,body:await response.json()};}));
       assert.ok(replies[0]!.status===200||path.startsWith('/delivery/')&&replies[0]!.status===409,path+' must return the actual project position, including Delivery blocked without governed records');
@@ -56,4 +56,40 @@ test('explicit result records remain exact after their worker-local map is recre
   const root=await mkdtemp(join(tmpdir(),'cmeng-results-'));
   try{const expected={projectId:'P',state:'unresolved',amount:null,history:[{source:'receipt-1',at:'2031-04-01'}]};projectResultMap('director-results',root).set('P',expected);assert.deepEqual(projectResultMap('director-results',root).get('P'),expected);}
   finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('explicit Live/Test classification persists, survives restart and partitions portfolio without losing project sources',{timeout:120000},async()=>{
+  const root=await mkdtemp(join(tmpdir(),'cmeng-test-projects-'));
+  const gateway=await createProjectGateway(root,{maxWorkers:2});
+  try{
+    await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
+    const base='http://127.0.0.1:'+(gateway.server.address() as AddressInfo).port;
+    const post=async(path:string,body:unknown)=>{
+      const response=await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+      return {status:response.status,data:await response.json()};
+    };
+    const live=await post('/api/projects',{projectId:'LIVE-F59',testProject:false});
+    const testRecord=await post('/api/projects',{projectId:'TEST-F59',testProject:true});
+    assert.equal(live.status,201,JSON.stringify(live));
+    assert.equal(testRecord.status,201,JSON.stringify(testRecord));
+    const qaFixture=await post('/api/projects',{projectId:'QA-F59',testProject:false});
+    assert.equal(qaFixture.status,201,JSON.stringify(qaFixture));
+    const getProjects=async(path:string)=>{const response=await fetch(base+path);assert.equal(response.status,200,path);return response.json() as Promise<{projects:Array<{projectId:string;testProject?:boolean}>}>;};
+    let p=await getProjects('/api/portfolio'),tests=await getProjects('/api/test-projects');
+    assert.ok(p.projects.some(r=>r.projectId==='LIVE-F59'));assert.ok(!p.projects.some(r=>r.projectId==='TEST-F59'));
+    assert.ok(tests.projects.some(r=>r.projectId==='TEST-F59'));assert.ok(!tests.projects.some(r=>r.projectId==='LIVE-F59'));
+    assert.ok(tests.projects.some(r=>r.projectId==='QA-F59'),'QA namespace fixture belongs to test projects');
+    assert.ok(!p.projects.some(r=>r.projectId==='QA-F59'),'QA namespace must not inflate live client totals');
+    const moved=await post('/api/projects/TEST-F59/purpose',{testProject:false});assert.equal(moved.status,200,JSON.stringify(moved));
+    p=await getProjects('/api/portfolio');tests=await getProjects('/api/test-projects');
+    assert.ok(p.projects.some(r=>r.projectId==='TEST-F59'));assert.ok(!tests.projects.some(r=>r.projectId==='TEST-F59'));
+    const data=JSON.parse(await readFile(join(projectDirectory(root,'TEST-F59'),'cmeng-project-state.json'),'utf8'));
+    assert.equal(data.projects[0].testProject,false);
+    const marked=await post('/api/projects/TEST-F59/purpose',{testProject:true});assert.equal(marked.status,200,JSON.stringify(marked));
+    const restored=JSON.parse(await readFile(join(projectDirectory(root,'TEST-F59'),'cmeng-project-state.json'),'utf8'));
+    assert.equal(restored.projects[0].testProject,true,'type is durable and cannot be reset by a dashboard restart');
+    assert.equal(restored.projects[0].projectId,'TEST-F59','project identity and source position are retained');
+    const duplicate=await post('/api/projects',{projectId:'LIVE-F59',testProject:true});
+    assert.equal(duplicate.status,409,'existing real project must not be silently relabelled');
+  }finally{await gateway.close();await rm(root,{recursive:true,force:true});}
 });

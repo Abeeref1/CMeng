@@ -13,7 +13,7 @@ export function materialReasons(row:Record<string,Cell>,authority:string){
   const reasons:string[]=[];
   if(row.critical===true)reasons.push('critical programme linkage');
   if(typeof row.totalFloatHours==='number'&&row.totalFloatHours<0)reasons.push('negative float');
-  if(typeof row.headroomCalendarDays==='number'&&row.headroomCalendarDays<0)reasons.push('negative procurement headroom');
+  if(['procurement','long-lead'].includes(authority)?row.forecastLate===true||row.overdueUndelivered===true:typeof row.headroomCalendarDays==='number'&&row.headroomCalendarDays<0)reasons.push('negative procurement headroom');
   if(Number(row.issueCount)>0||Number(row.exceptionCount)>0)reasons.push('source exceptions');
   if(['state','status','displayState','readinessState','currentStatus'].some(k=>/^(blocked|conflicting|conflicted|late|overdue|failed|unavailable|unknown)$/i.test(String(row[k]??''))))reasons.push('exception or unresolved state');
   for(const key of ['variancePercentagePoints','scheduleVariance','costVariance'])if(typeof row[key]==='number'&&Number(row[key])<0)reasons.push('adverse '+key);
@@ -28,7 +28,7 @@ export function materialReasons(row:Record<string,Cell>,authority:string){
 const ranks:Record<string,{field:string;direction:1|-1}>={boq:{field:'amount',direction:-1},activities:{field:'totalFloatHours',direction:1},float:{field:'totalFloatHours',direction:1},risks:{field:'score',direction:-1},materials:{field:'headroomCalendarDays',direction:1},procurement:{field:'headroomCalendarDays',direction:1},'long-lead':{field:'headroomCalendarDays',direction:1},progress:{field:'variancePercentagePoints',direction:1},payments:{field:'certifiedUnpaidAmount',direction:-1}};
 function rankedSupport(table:AnalysisTable){
   const rule=ranks[table.authorityId];if(!rule||!table.columns.some(c=>c.key===rule.field))return [];
-  return table.rows.filter(r=>typeof r[rule.field]==='number').sort((a,b)=>rule.direction*(Number(a[rule.field])-Number(b[rule.field]))||stableRow(a).localeCompare(stableRow(b))).slice(0,20);
+  return table.rows.filter(r=>typeof r[rule.field]==='number'&&(!['procurement','long-lead'].includes(table.authorityId)||r.deliveredAtDataDate!==true&&r.deliveredStatusOnly!==true)).sort((a,b)=>rule.direction*(Number(a[rule.field])-Number(b[rule.field]))||stableRow(a).localeCompare(stableRow(b))).slice(0,20);
 }
 /** Whole-population statistics retain missingness, units and currencies. Percentages are never summed. */
 function aggregateRows(table:AnalysisTable,rows:Record<string,Cell>[]){

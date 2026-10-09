@@ -4,7 +4,10 @@ const sourceRegisterViews=new Set(['activity-analytics','schedule-change-report'
 export function comparisonRequirement(data: any,moduleKey?:string) {
   const challenge = data?.challenge;
   const items = Array.isArray(challenge?.items) ? challenge.items : [];
-  const advisory = sourceRegisterViews.has(moduleKey??'') || items.length === 1 && items[0]?.metric === 'module_position';
+  const sourceResourceView = moduleKey === 'resource-utilization' && data?.projectionKey === 'resource_utilization' &&
+    (Array.isArray(data?.weeklyCapacityEvidence?.points) && data.weeklyCapacityEvidence.points.length > 0 ||
+      Array.isArray(data?.rows) && data.rows.length > 0);
+  const advisory = sourceRegisterViews.has(moduleKey??'') || sourceResourceView || items.length === 1 && items[0]?.metric === 'module_position';
   const state = challenge?.reconciliationState ?? 'not_checked';
   return {required: Boolean(challenge) && !advisory && (items.length > 0 || state !== 'not_checked'), advisory, state, items};
 }

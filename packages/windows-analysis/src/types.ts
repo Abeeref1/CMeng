@@ -90,6 +90,8 @@ export interface ScheduleWindowResult {
 
   enteredCriticalActivityIds: string[];
   exitedCriticalActivityIds: string[];
+  fromDrivingActivityIds?:string[];
+  toDrivingActivityIds?:string[];
 
   delayEvents: WindowEventRef[];
   employerEventIds: string[];

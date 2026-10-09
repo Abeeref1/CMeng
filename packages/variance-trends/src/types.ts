@@ -43,6 +43,7 @@ export interface VarianceTrendsProjection {
   generatedAt: string;
   producerVersion: string;
   revisionCount: number;
+  revisionLabels: Record<string, string>;
   points: VarianceTrendPoint[];
   activityTrends: ActivityVarianceTrend[];
 }
