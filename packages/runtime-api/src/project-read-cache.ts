@@ -39,7 +39,7 @@ export function cacheableProjectRead(method:string|undefined,path:string){
   if(method!=='GET')return false;
   const url=new URL(path,'http://localhost');
   if(url.searchParams.get('refresh')==='1'||url.searchParams.get('includeItems')==='true')return false;
-  return /^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|(?:schedule|commercial|delivery)\/modules\/[a-z0-9-]+|management\/[a-z0-9-]+|advanced\/[a-z0-9-]+|record-page|actions|evidence\/documents|boq\/(?:page-review|numeric-review))$/.test(url.pathname);
+  return /^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|phases|(?:schedule|commercial|delivery)\/modules\/[a-z0-9-]+|management\/[a-z0-9-]+|advanced\/[a-z0-9-]+|record-page|actions|evidence\/documents|boq\/(?:page-review|numeric-review))$/.test(url.pathname);
 }
 /** Derived read results are scoped to exact project, release and source-state
  * version. They survive worker eviction, never substitute an older position,
