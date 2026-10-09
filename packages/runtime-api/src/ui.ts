@@ -4758,7 +4758,7 @@ function renderManagementControlVisual(key,data){
       {label:"Fully defensible views",value:r.ready??0,tone:"success"},
       {label:"Views requiring review",value:r.partial??0,tone:"warning"},
       {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
-    ],"Control views");
+    ],"Assessed specialist modules");
     return '<div class="planning-view management-view master-dashboard-view">'+
       renderPmcControlRoom(data)+
       (data.projectDiagnosis?renderProjectDashboardSummary(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+managementPanel("Executive Project Position","Established and qualified current programme/progress positions. Missing higher-authority measures are kept out of this primary block.",mainMetrics.length?renderManagementMetricGrid(mainMetrics):'<div class="notice info"><b>No additional executive metric is established from the current evidence.</b><p>The best available schedule and delivery positions remain visible above and below; missing higher-authority measures stay in Control Gaps.</p></div>',true)+renderDeliveryDashboard(data.delivery)+
@@ -5326,7 +5326,7 @@ function renderStatus(o){
     '<div class="scalar"><b>Recovery scenarios</b><span>'+fmt(o.recoveryRevisionCount)+'</span></div>'+
     '<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+
     '<div class="scalar"><b>Project documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+
-    '<div class="scalar"><b>Modules live</b><span>'+fmt(total)+' / '+fmt(total)+'</span></div>'+
+    '<div class="scalar"><b>Navigation views</b><span>'+fmt(moduleRegistry.length)+'</span></div>'+
     '<div class="scalar"><b>Listed readiness checks passed</b><span>'+ready+'</span></div>'+
     '<div class="scalar"><b>Views requiring review</b><span>'+partial+'</span></div>'+
     '<div class="scalar"><b>Blocked specialist views</b><span>'+blocked+'</span></div>'+
