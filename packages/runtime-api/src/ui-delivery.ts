@@ -4,7 +4,7 @@ import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
 export function deliveryScript():string{return `const deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
-const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
+const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:15});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
  if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return deliveryUnknownText;
