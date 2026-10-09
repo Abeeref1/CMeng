@@ -1,17 +1,21 @@
 export const basisReviewScript=String.raw`
 function basisTable(heads,rows){
-  const cell=(value,column)=>{
-    if(value===null||value===undefined||String(value).trim()==='')return 'Not in source';
-    if(typeof value==='number')return fmtForField(column,value);
-    if(typeof value==='boolean')return value?'Yes':'No';
-    const raw=String(value).trim();
-    if(/^(?:null|undefined)$/i.test(raw))return 'Not in source';
-    if(/\b(owner|responsible party|accountable)\b/i.test(column)&&/^(?:not recorded|not assigned|unknown|unresolved)$/i.test(raw))
-      return pmcDisplayOwner(currentModuleResult?.key||'project controls');
-    return readerText(raw);
-  };
-  return '<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+
-    rows.map(r=>'<tr>'+r.map((v,i)=>'<td>'+escapeHtml(cell(v,String(heads[i]||'')))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+ const empty=value=>value===null||value===undefined||String(value).trim()===''||
+   /^(?:not established|unresolved|not recorded|undefined|null|not in source|not in the data|—|-)$/i.test(String(value).trim());
+ const active=heads.map((name,index)=>({name,index})).filter(column=>
+   !rows.length||rows.some(row=>!empty(row[column.index])));
+ if(rows.length&&!active.length)return '<p>No comparable source values are available for these columns.</p>';
+ const cell=(value,column)=>{
+   if(empty(value))return 'Not in source';
+   if(typeof value==='number')return fmtForField(column,value);
+   if(typeof value==='boolean')return value?'Yes':'No';
+   const raw=String(value).trim();
+   if(/\b(owner|responsible party|accountable)\b/i.test(column)&&/^(?:not recorded|not assigned|unknown|unresolved)$/i.test(raw))
+     return pmcDisplayOwner(currentModuleResult?.key||'project controls');
+   return readerText(raw);
+ };
+ return '<div class="table-wrap"><table><thead><tr>'+active.map(column=>'<th>'+escapeHtml(readerText(column.name))+'</th>').join('')+'</tr></thead><tbody>'+
+   rows.map(row=>'<tr>'+active.map(column=>'<td>'+escapeHtml(cell(row[column.index],String(column.name)))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
 }
 function basisPanel(title,note,body,id){return '<section class="planning-panel"'+(id?' id="'+escapeHtml(id)+'"':'')+'><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(note)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';}
 function commercialSourceState(metric){
