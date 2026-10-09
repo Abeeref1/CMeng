@@ -1,3 +1,4 @@
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {CanonicalQuantityProgressModel} from '../../quantity-progress-core/src';
@@ -36,7 +37,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
   for(const a of quantities?.allocations??[]){const list=allocations.get(a.quantityItemId)??[];list.push(a);allocations.set(a.quantityItemId,list);const ids=activityItems.get(a.activityId)??new Set<string>();ids.add(a.quantityItemId);activityItems.set(a.activityId,ids);}
   const assignments=new Map<string,NonNullable<typeof resources>['assignments']>();
   for(const a of resources?.assignments??[]){const resource=a.resourceId?resourceById.get(a.resourceId):null;
-    if((a.resourceType==='labor'||resource?.resourceType==='labor')&&/^(h|hr|hrs|hour|hours|labor hour|labour hour)$/i.test(resource?.unitAbbreviation??resource?.unitName??'')){const list=assignments.get(a.activityId)??[];list.push(a);assignments.set(a.activityId,list);}}
+    if(resource&&resourceLaborHourEligible(resource)){const list=assignments.get(a.activityId)??[];list.push(a);assignments.set(a.activityId,list);}}
   const snapshots=new Map<string,NonNullable<typeof quantities>['installedSnapshots']>();
   for(const s of quantities?.installedSnapshots??[]){const date=instant(s.asOfIso);if(dataDate===null||date===null||date>dataDate)continue;const list=snapshots.get(s.quantityItemId)??[];list.push(s);snapshots.set(s.quantityItemId,list);}
   const rates=new Map<string,LaborProductivityBasis[]>();
@@ -46,6 +47,10 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     const row:BoqFeasibilityRow={quantityItemId:item.quantityItemId,activityId:null,description:item.description,unit:item.unit,remainingQuantity:null,laborHoursPerUnit:null,productivityBasis:'unresolved',requiredLaborHours:null,availableWorkingHours:null,requiredAveragePeople:null,submittedPeople:null,manpowerGap:null,submittedFinishIso:null,productionFinishIso:null,manpowerState:'unresolved',scheduleState:'unresolved',reason:'',scheduleReason:'',sourceRefs:item.sourceRefs.map(r=>r.source+':'+r.locator)};
     rows.push(row);
     const fail=(reason:string)=>{row.reason=reason;row.scheduleReason=reason;};
+    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>parseScheduleTime(b.asOfIso)-parseScheduleTime(a.asOfIso));
+    const latest=history[0],sameDate=history.filter(s=>s.asOfIso===latest?.asOfIso);
+    if(item.contractQuantity===null||!latest||latest.asOfIso.slice(0,10)!==schedule.dataDateIso?.slice(0,10)||new Set(sameDate.map(s=>s.installedQuantity)).size!==1||latest.installedQuantity<0||latest.installedQuantity>item.contractQuantity){fail('Installed quantity at the reporting date is missing, stale or conflicting.');continue;}
+    row.remainingQuantity=rounded(item.contractQuantity-latest.installedQuantity);
     if(quantities?.scheduleRevisionId!==schedule.sourceRevisionId){fail('BOQ-to-activity mapping belongs to a different schedule revision; confirm the current links.');continue;}
     const links=allocations.get(item.quantityItemId)??[];
     if(dataDate===null){fail('Schedule data date is unresolved.');continue;}
@@ -54,10 +59,7 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     row.sourceRefs.push(...link.sourceRefs.map(r=>r.source+':'+r.locator));
     if(!activity){fail('The linked activity is absent from the current programme.');continue;}
     row.submittedFinishIso=activity.forecastFinishIso??activity.currentFinishIso;
-    const history=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>parseScheduleTime(b.asOfIso)-parseScheduleTime(a.asOfIso));
-    const latest=history[0],sameDate=history.filter(s=>s.asOfIso===latest?.asOfIso);
-    if(!latest||latest.asOfIso.slice(0,10)!==schedule.dataDateIso?.slice(0,10)||new Set(sameDate.map(s=>s.installedQuantity)).size!==1||latest.installedQuantity<0||latest.installedQuantity>item.contractQuantity){fail('Installed quantity at the reporting date is missing, stale or conflicting.');continue;}
-    row.remainingQuantity=rounded(item.contractQuantity-latest.installedQuantity);
+
     const supplied=(rates.get(item.quantityItemId+'|'+activity.activityId)??[]).filter(r=>r.unit.toUpperCase()===item.unit?.toUpperCase()&&positive(r.laborHoursPerUnit));
     const labor=resources?.sourceRevisionId===schedule.sourceRevisionId?(assignments.get(activity.activityId)??[]):[];
     if(supplied.length){
@@ -97,7 +99,13 @@ export function buildBoqFeasibility(input:{schedule:CanonicalScheduleModel;quant
     return {activityId,itemCount:items.length,requiredLaborHours,availableWorkingHours,requiredAveragePeople,submittedPeople,manpowerGap:requiredAveragePeople!==null&&submittedPeople!==null?rounded(submittedPeople-requiredAveragePeople):null,submittedFinishIso:first.submittedFinishIso,productionFinishIso,scheduleState,reason,sourceRefs:[...new Set(items.flatMap(r=>r.sourceRefs))]};
   });
   const unresolvedCount=quantities?rows.filter(r=>r.manpowerState==='unresolved').length:null;
+  // Keep the complete-population number withheld when inputs are incomplete,
+  // but publish the exact established subset, never a fabricated full total.
+  const calculatedItems=rows.filter(r=>r.manpowerState==='calculated'&&r.requiredLaborHours!==null);
+  const calculatedItemCount=calculatedItems.length;
+  const knownRequiredLaborHours=calculatedItemCount?rounded(calculatedItems.reduce((sum,row)=>sum+row.requiredLaborHours!,0)):null;
+  const calculatedCoveragePercent=rows.length?rounded(calculatedItemCount/rows.length*100):null;
   const assessed=activityChecks.filter(r=>r.scheduleState!=='unresolved'),insufficient=assessed.filter(r=>r.scheduleState==='exceeds').length;
   const overallStatus=insufficient?'Challenge required':!assessed.length?'Unable to assess':unresolvedCount||activityChecks.some(r=>r.scheduleState==='unresolved')?'Further evidence required':'No material contradiction found';
-  return {method:'boq_quantity_labor_productivity_working_calendar' as const,state:rows.length&&!unresolvedCount?'calculated' as const:'unresolved' as const,overallStatus,reason:!rows.length?'Readable BOQ quantities are needed for the manpower calculation.':unresolvedCount?'Manpower cannot yet be calculated for '+unresolvedCount+' items because schedule links, progress, productivity or working-time inputs are missing. The supplied BOQ figures remain available.':'Item requirements are calculated from the stated production basis. This does not prove whole-programme feasibility.',unresolvedCount,requiredLaborHours:rows.length&&!unresolvedCount?rounded(rows.reduce((sum,r)=>sum+r.requiredLaborHours!,0)):null,rows,activityChecks};
+  return {method:'boq_quantity_labor_productivity_working_calendar' as const,state:rows.length&&!unresolvedCount?'calculated' as const:'unresolved' as const,calculatedItemCount,calculatedCoveragePercent,knownRequiredLaborHours,assessedActivityCheckCount:assessed.length,overallStatus,reason:!rows.length?'Readable BOQ quantities are needed for the manpower calculation.':unresolvedCount?'Manpower cannot yet be calculated for '+unresolvedCount+' items because schedule links, progress, productivity or working-time inputs are missing. The supplied BOQ figures remain available.':'Item requirements are calculated from the stated production basis. This does not prove whole-programme feasibility.',unresolvedCount,requiredLaborHours:rows.length&&!unresolvedCount?rounded(rows.reduce((sum,r)=>sum+r.requiredLaborHours!,0)):null,rows,activityChecks};
 }

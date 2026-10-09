@@ -10,6 +10,32 @@ import {
   type CommercialPerformanceInput,
 } from "../packages/commercial-performance/src";
 
+test('derived cost and historic EVM retain source uncertainty instead of becoming established arithmetic',()=>{
+  for(const state of ['official','candidate','partial','conflicted','missing'] as const){
+    const model=input();
+    const original=model.costSnapshots.find(s=>s.asOf==='2026-08-31')!;
+    model.costSnapshots=[{...original,asOf:'2026-07-31',state},{...original,state}];model.costMetrics=[];
+    const result=buildCommercialPerformance(model),position=result.costControl.positions[0]!;
+    const history=result.evmPerformance.series[0]!.points[0]!;
+    for(const metric of ['cpi','spi','sv','cv'] as const){
+      for(const row of [position,history]){
+        const finding=row[metric];
+        assert.equal(finding.state,state==='official'?'established':state);
+        if(state==='conflicted'||state==='missing')assert.equal(finding.value,null);
+        else assert.notEqual(finding.value,null);
+      }
+    }
+    for(const scenario of position.eacScenarios.filter(s=>s.method!=='source_reported')){
+      assert.equal(scenario.value.state,state==='official'?'established':state);
+      if(state==='conflicted'||state==='missing')assert.equal(scenario.value.value,null);
+      assert.equal(scenario.official,false);
+    }
+    assert.equal(position.ev.value,original.values.ev,'The original source value must remain available separately.');
+    if(state!=='official')assert.notEqual(result.evmPerformance.state,'established');
+    if(state==='candidate'||state==='partial')assert.ok(result.costControl.managementSummary.every(line=>line.startsWith('Provisional '+state+' evidence:')));
+  }
+});
+
 function foundation() {
   const input:
     CommercialFoundationInput = {
@@ -354,14 +380,15 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
     cash.netCashPosition.value,
     -300_000,
   );
+  assert.equal(result.cashFlow.state,'established');
   assert.equal(
     cash.peakFundingNeed.value,
-    null,
+    1_200_000,
   );
   assert.equal(
     cash.cumulativeActualSeries
       .at(-1)?.net,
-    null,
+    -300_000,
   );
   assert.equal(
     cash.certifiedUnpaid.value,
@@ -373,17 +400,17 @@ test("C2B1 Cash Flow keeps certification separate from cash and computes funding
     {
       asOf: "2026-08-20",
       cumulativeCertifiedIncome:
-        null,
+        1_000_000,
       cumulativePaidIncome:
-        null,
+        900_000,
       cumulativeExpenditureBudget:
-        null,
+        2_000_000,
       cumulativeExpenditureForecast:
-        null,
+        1_800_000,
       cumulativeActualExpenditure:
-        null,
+        1_200_000,
       actualNetCash:
-        null,
+        -300_000,
     },
   );
   assert.deepEqual(
@@ -826,6 +853,24 @@ test('BAC over CPI uses the unrounded source ratio',()=>{
 });
 
 
+test('Stage 1 carries established cash movements across unrelated dates and withholds incomplete series',()=>{
+  const data=input();
+  const complete=buildCommercialPerformance(data).cashFlow.currencies[0]!;
+  // Independent transaction ledger: certification 10 Aug is not cash, an
+  // expenditure of 1.2m on 15 Aug precedes the 0.9m receipt on 20 Aug.
+  assert.equal(complete.peakFundingNeed.value,1_200_000);
+  assert.equal(complete.cumulativeActualSeries.find(row=>row.asOf==='2026-08-15')!.net,-1_200_000);
+  assert.equal(complete.cumulativeActualSeries.find(row=>row.asOf==='2026-08-20')!.net,-300_000);
+  data.payments.push({...data.payments[0]!,paymentId:'IPC-UNKNOWN',paymentDate:'2026-08-22',paidAmount:null});
+  const missing=buildCommercialPerformance(data).cashFlow.currencies[0]!;
+  assert.equal(missing.netCashPosition.value,null);assert.equal(missing.peakFundingNeed.value,null);
+  assert.ok(missing.cumulativeActualSeries.every(row=>row.net===null),'missing applicable cash must not become zero movement');
+  const undated=input();undated.payments[0]!.paymentDate=null;
+  assert.equal(buildCommercialPerformance(undated).cashFlow.currencies[0]!.peakFundingNeed.value,null);
+  const candidate=input();candidate.costMetrics.find(row=>row.metric==='actual expenditure')!.state='candidate';
+  assert.equal(buildCommercialPerformance(candidate).cashFlow.currencies[0]!.netCashPosition.value,null);
+});
+
 test('Unknown cash tax basis withholds combined cash arithmetic',()=>{
   const data=input();
   data.payments=data.payments.map(row=>({...row,taxBasis:'unknown'}));
@@ -834,6 +879,47 @@ test('Unknown cash tax basis withholds combined cash arithmetic',()=>{
   assert.ok(cash.length>0);
   assert.ok(cash.every(row=>row.netCashPosition.value===null&&row.certifiedUnpaid.value===null));
   assert.ok(cash.every(row=>row.sourceReadiness.netCashReady===false));
+});
+
+test('Stage 1 cash totals preserve candidate authority and disclose incomplete current populations',()=>{
+  for(const [metric,key] of [
+    ['actual expenditure','actualExpenditure'],
+    ['expenditure budget','expenditureBudget'],
+    ['expenditure forecast','expenditureForecast'],
+  ] as const){
+    const data=input();data.costMetrics.find(row=>row.metric===metric)!.state='candidate';
+    const cash=buildCommercialPerformance(data).cashFlow.currencies[0]!;
+    assert.equal(cash[key].state,'candidate',metric+' cannot become an established total');
+    assert.equal(cash[key].authority,'candidate');
+    assert.ok(cash[key].value!==null,'candidate source value stays available for review');
+    assert.equal(cash[key].independent,null);
+    if(metric==='actual expenditure')assert.equal(cash.sourceReadiness.expenditure.state,'partial');
+    else assert.equal(cash.sourceReadiness.forwardPlan.state,'partial');
+  }
+  const cumulative=input();
+  const actual=cumulative.costMetrics.find(row=>row.metric==='actual expenditure')!;
+  actual.amountBasis='project_cumulative';
+  cumulative.costMetrics.push({...actual,value:0,asOf:'2026-08-01',state:'candidate'});
+  const candidateOpening=buildCommercialPerformance(cumulative).cashFlow.currencies[0]!;
+  assert.equal(candidateOpening.actualExpenditure.state,'candidate');
+  assert.ok(candidateOpening.entries.filter(row=>row.kind==='actual_expenditure').every(row=>row.amount.state==='candidate'));
+  assert.equal(candidateOpening.peakFundingNeed.value,null);
+
+  const incomplete=input();incomplete.payments.push({...incomplete.payments[0]!,paymentId:'IPC-MISSING',paidAmount:null});
+  const partial=buildCommercialPerformance(incomplete).cashFlow.currencies[0]!;
+  assert.equal(partial.paidIncome.value,900_000);
+  assert.equal(partial.paidIncome.state,'partial');
+  assert.equal(partial.paidIncome.independent,null);
+  assert.equal(partial.sourceReadiness.receipts.state,'partial');
+  assert.equal(partial.netCashPosition.value,null);
+  for(const state of ['conflicted','partial'] as const){
+    const data=input();data.costMetrics.find(row=>row.metric==='actual expenditure')!.state=state;
+    const cash=buildCommercialPerformance(data).cashFlow.currencies[0]!;
+    assert.equal(cash.actualExpenditure.state,state);
+    assert.equal(cash.actualExpenditure.independent,null);
+    assert.equal(cash.sourceReadiness.expenditure.state,'partial');
+    assert.equal(cash.netCashPosition.value,null);
+  }
 });
 
 
@@ -876,3 +962,13 @@ test("Batch G preserves EVM minimum-point and unofficial EAC controls", () => {
   assert.ok(scenarios.filter(row=>row.method!=="source_reported").every(row=>row.official===false));
 });
 
+
+for(const applicationStatus of ['Application','Applied','Submitted','Draft'])test('uncertified '+applicationStatus+' does not withhold a dated net receivable',()=>{
+ const model=input();model.costMetrics=[];
+ const first=model.payments[0]!;
+ model.payments=[{...first,paymentId:'CERT',periodEnd:'2026-06-30',certificationDate:'2026-07-10',paymentDate:'2026-07-20',certifiedAmount:900,paidAmount:800,certifiedAmountBasis:'incremental',paidAmountBasis:'incremental',sourceStatus:'Certified',certifiedAmountLabel:'Net certified receivable'},
+ {...first,paymentId:'APP',periodEnd:'2026-08-31',certificationDate:null,paymentDate:null,certifiedAmount:100,paidAmount:0,certifiedAmountBasis:'incremental',paidAmountBasis:'incremental',sourceStatus:applicationStatus}];
+ const position=buildCommercialPerformance(model).cashFlow.currencies[0]!;
+ assert.equal(position.certifiedIncome.value,900);assert.equal(position.certifiedUnpaid.value,100);
+ assert.equal(position.certifiedAmountLabel,'Net certified receivable');
+});

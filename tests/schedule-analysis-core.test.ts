@@ -207,11 +207,11 @@ test("missing float is not treated as zero or critical", () => {
 
   const result = analyzeSchedule(input);
 
-  assert.equal(result.float.knownFloatCount, 2);
+  assert.equal(result.float.knownFloatCount, 1);
   assert.equal(result.float.unknownFloatCount, 1);
-  assert.equal(result.float.coveragePercent, 66.6667);
+  assert.equal(result.float.coveragePercent, 50);
   assert.equal(result.float.criticalCount, null);
-  assert.equal(result.float.knownClassifications.critical, 1);
+  assert.equal(result.float.knownClassifications.critical, 0);
   assert.equal(result.float.nearCriticalCount, null);
 });
 

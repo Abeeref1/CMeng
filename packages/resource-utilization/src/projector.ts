@@ -451,6 +451,7 @@ export function buildResourceUtilizationProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    capacityConfirmations?:Array<{resourceId:string;capacityUnitsPerHour:number;effectiveFromIso:string;approvedBy:string;sourceRef:string}>;
   },
 ): ResourceUtilizationProjection {
   if (
@@ -545,15 +546,16 @@ export function buildResourceUtilizationProjection(
             assumptions: [],
           };
 
-      const capacity = canAssessCapacity
-        ? effectiveCapacity(
-            resource,
-            schedule.dataDateIso,
-          )
-        : {
-            value: null,
-            effectiveDateIso: null,
-          };
+      // P6 maxUnitsPerHour is a supplied rate, not approval of deployable crew capacity.
+      // Keep those rates in the retained resource source; do not infer overload from them.
+      // Only a separately governed and approved capacity source can establish a verdict.
+      const sourceRate = canAssessCapacity ? effectiveCapacity(resource, schedule.dataDateIso) : {value:null,effectiveDateIso:null};
+      const confirmation=(input.capacityConfirmations??[])
+        .filter(row=>row.resourceId===resource.resourceId&&
+          row.effectiveFromIso<=(schedule.dataDateIso?.slice(0,10)??'9999-12-31'))
+        .sort((a,b)=>b.effectiveFromIso.localeCompare(a.effectiveFromIso))[0]??null;
+      const capacity={value:confirmation?.capacityUnitsPerHour??null,
+        effectiveDateIso:confirmation?.effectiveFromIso??null};
 
       const plannedUtilization = canAssessCapacity
         ? percentage(
@@ -585,7 +587,7 @@ export function buildResourceUtilizationProjection(
           : remainingCapacityGapUnitsPerHour !== null && remainingCapacityGapUnitsPerHour > 0
             ? 'Mobilise, reallocate or resequence this resource before the affected workfront demand peaks.'
             : capacity.value === null
-              ? 'Confirm usable resource capacity before relying on utilization or overload conclusions.'
+              ? 'Obtain an approved capacity basis; P6 rates are retained as source assumptions, not crew limits.'
               : 'Monitor the resource against its remaining-work peak and affected activities.';
 
       return {
@@ -639,6 +641,9 @@ export function buildResourceUtilizationProjection(
 
         capacityUnitsPerHour:
           capacity.value,
+        p6RateUnitsPerHour:sourceRate.value,
+        capacityAuthority:confirmation?'project_confirmed':'not_approved',
+        capacitySourceRef:confirmation?.sourceRef??null,
         capacityEffectiveDateIso:
           capacity.effectiveDateIso,
         plannedUtilizationPercent:

@@ -83,9 +83,18 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // expose their owned evidence in focus; unrelated missing registers must not
   // turn every commercial page into the same warning.
   const visited=new WeakSet<object>();
+  // A productivity-based independent forecast is an optional analytical
+  // source, not an unconditional requirement for the current programme,
+  // management dashboard or CPM. Genuine conflicts and parser faults are
+  // still inspected and remain actionable.
+  const optionalForecastAbsent=(path:string,value:any)=>path.endsWith('.sourceProductivityForecast')&&
+    value?.state==='missing'&&!(Array.isArray(value?.diagnostics)&&value.diagnostics.length);
   const noDiagnostics:readonly string[]=[];
   const issueStates=new Set(['conflicted','invalid','stale','missing','not_submitted','missing_evidence','missing_information','submitted_unparsed','candidate','provisional','pending_review']);
-  const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
+  // Comparison envelopes retain their own input/reconciliation states. The
+  // separate headcount review does not govern readiness of an hours/capacity
+  // source position; the primary challenge is classified above on its basis.
+  const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','manpowerRequirementComparison','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
   // Large schedule/register projections contain thousands of flat row objects.
   // Most rows have only scalar values plus empty diagnostics/sourceRefs arrays.
   // Recursing into those rows can never discover an issue, so screen them before
@@ -99,12 +108,20 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     for(const key in item){
       if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
       const child=item[key];
+      // Empty arrays and arrays of scalar IDs/dates cannot produce an issue in
+      // the recursive walker. Schedule rows commonly have several such arrays;
+      // preserve inspection of every object-bearing array and every direct signal.
+      if(Array.isArray(child)&&!child.some(value=>value&&typeof value==='object'))continue;
       if(child&&typeof child==='object')return true;
     }
     return false;
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
+    if(optionalForecastAbsent(path,value))return;
+    // An explicitly supplied outstanding advance does not depend on deriving
+    // the original advance from a contract percentage.
+    if(path.endsWith('.advancePaymentPercent')&&d?.position?.currencies?.some((row:any)=>typeof row.advanceBalance?.value==='number'))return;
     visited.add(value);
     if(Array.isArray(value)){
       for(const item of value)if(arrayItemCanContainIssue(item))
@@ -128,14 +145,27 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     }
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
       'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
-    else if(value.state!=='submitted_unparsed'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
+    else if(value.state!=='submitted_unparsed'&&value.applicability!=='stage_not_reached'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
       value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',
       'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs);
-    else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
-      value.consequence??'The value is provisional or awaiting governance; it is not an official approval.',
-      value.action||'Review the source and approve or reject the proposed authority through the governed workflow.',path,'Project controls reviewer',refs);
+    else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) {
+      // An identified contract/register candidate can be used as *reported source*
+      // without inventing a new management approval task. This does not promote
+      // its authority to governed or establish a contractual determination.
+      const explicitDecision=value.approvalRequired===true||
+        value.requiresUserApproval===true||value.decisionRequired===true||
+        diagnostics.some(s=>/(?:APPROVAL_REQUIRED|ADOPTION_REQUIRED|OVERRIDE_PENDING|UNTIL_MAPPED|REQUIRES_MAPPING|UNRESOLVED_AUTHORITY)/.test(s));
+      // A source candidate, a missing provenance field, or generic "pending"
+      // state is not an approval request. Only a concrete selection, override
+      // or required determination can enter the decision queue.
+      // Missing or conflicted source evidence remains separately classified.
+      if(explicitDecision)
+        add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
+          value.consequence??'A management decision, selection or approval remains outstanding; the candidate is not an official approval.',
+          value.action||'Review the source basis and record the decision through the governed workflow.',path,'Project controls reviewer',refs);
+    }
     if(value.population?.exclusions) {
       const missing=value.population.exclusions.filter((e:any)=>/date_missing/.test(e.reason));
       const invalidDates=value.population.exclusions.filter((e:any)=>/^(record_)?date_invalid$|^invalid_date$/.test(e.reason));
@@ -180,7 +210,13 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const explicitBasisReview=integrity?.state==='verified_for_checked_metrics'&&((d?.classificationBasis==='source_total_float'&&d?.independentCpmState==='established')||d?.managementReviewState==='review_required');
   if(explicitBasisReview)add('governance_review','CALCULATION_BASIS_REVIEW','Calculated basis requires review',d.managementReviewReason??'Submitted float and independently recalculated criticality are both available on their stated bases.',
     'Review the calendar, constraints and comparison basis before adopting a management conclusion.','calculationBasis','Project controls reviewer');
-  if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review'].includes(i.kind)))
+  const floatReview=d?.activityFloatReconciliation;
+  if((floatReview?.differenceActivityCount??floatReview?.disputedActivityCount??0)>0&&['established','qualified_scenario'].includes(floatReview.independentCpmState))add('comparison_difference','SUBMITTED_INDEPENDENT_DIFFERENCE','Submitted and calculated activity float differ',
+    (floatReview.differenceActivityCount??floatReview.disputedActivityCount)+' open activities differ in submitted versus calculated float; '+
+    (floatReview.criticalityDifferenceCount??floatReview.disputedActivityCount)+' change criticality classification and '+(floatReview.numericDifferenceActivityCount??0)+' keep the same classification.'+
+    (floatReview.commonOffsetHours!==null&&floatReview.commonOffsetHours!==undefined?' A common '+floatReview.commonOffsetHours+'-hour offset is present across comparable activities; its calendar/definition cause is unverified.':''),
+    'Reconcile the exact working-calendar and float conventions and retain both answers. A numerical difference is not a contractual dispute or automatic approval.','activityFloatReconciliation','CMeng');
+  if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review','comparison_difference'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');
   return summarizeControlIssues(issues);

@@ -24,6 +24,12 @@ function completion(
   );
 }
 
+function elapsedCalendarDays(earlier:string|null|undefined,later:string|null|undefined):number|null{
+  if(!earlier||!later)return null;
+  const a=Date.parse(earlier.slice(0,10)+'T00:00:00Z'),b=Date.parse(later.slice(0,10)+'T00:00:00Z');
+  return Number.isFinite(a)&&Number.isFinite(b)?Math.round((b-a)/86400000):null;
+}
+
 export function buildRevisionTrendProjection(
   revisions: readonly ScheduleRevision[],
   input: {
@@ -54,7 +60,13 @@ export function buildRevisionTrendProjection(
         )
       : null;
 
+    const latestForecast=completion(analytics,"forecast");
+    const earlierPoint=points.at(-1)??null;
     points.push({
+      criticalityBasis:'submitted_total_float',
+      submittedFinishMovementCalendarDays:earlierPoint?elapsedCalendarDays(earlierPoint.forecastCompletionIso,latestForecast):null,
+      reportingIntervalCalendarDays:earlierPoint?elapsedCalendarDays(earlierPoint.dataDateIso,revision.model.dataDateIso):null,
+      sourceRevisionSequenceGap:previous?Math.max(0,revision.sequence-previous.sequence-1):null,
       changeCategories: comparison && previous ? classifyScheduleChanges(comparison.activityChanges,previous.model,revision.model) : null,
       executionActivityCount: analytics.population.executableActivityCount,
       sourceActivityCount: analytics.activityCount,
@@ -94,7 +106,7 @@ export function buildRevisionTrendProjection(
       negativeFloatCount:
         analytics.float.negativeFloatCount,
       forecastCompletionIso:
-        completion(analytics, "forecast"),
+        latestForecast,
       programmeCompletionIso:
         completion(
           analytics,

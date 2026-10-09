@@ -51,6 +51,8 @@ export type PerformancePaymentSeriesBasis =
   | "unknown";
 
 export interface PerformancePaymentInput {
+  sourceStatus?: string;
+  certifiedAmountLabel?: string;
   taxBasis?: "exclusive" | "inclusive" | "unknown";
   paymentId: string;
   periodEnd: string | null;
@@ -58,8 +60,12 @@ export interface PerformancePaymentInput {
   paymentDate: string | null;
   currency: string | null;
   certifiedAmount: number | null;
+  certifiedState?: PerformanceCostMetricInput['state'];
   certifiedAmountBasis: PerformancePaymentSeriesBasis;
   paidAmount: number | null;
+  paidState?: PerformanceCostMetricInput['state'];
+  paidCurrency?: string | null;
+  paidTaxBasis?: "exclusive" | "inclusive" | "unknown";
   paidAmountBasis: PerformancePaymentSeriesBasis;
   sourceRefs: string[];
 }
@@ -234,6 +240,7 @@ export interface CashFlowSourceReadiness {
 }
 
 export interface CashFlowCurrencyPosition {
+  certifiedAmountLabel?: string;
   taxBasis: "exclusive" | "inclusive" | "unknown";
   currency: string;
   entries: CashFlowEntry[];

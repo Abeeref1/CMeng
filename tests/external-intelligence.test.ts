@@ -107,8 +107,17 @@ test('real CPI and Top 20 BOQ remain identical to native Ask; no project mutatio
 });
 
 test('deployed gateway boundary reaches the isolated project worker and rejects internal routes and write credentials',async t=>{
-  const f=fixture(t),old=process.env.CMENG_EXTERNAL_POLICY_JSON,gateway=await createProjectGateway(join(f.root,'gateway'),{maxWorkers:1});
-  t.after(async()=>{if(old===undefined)delete process.env.CMENG_EXTERNAL_POLICY_JSON;else process.env.CMENG_EXTERNAL_POLICY_JSON=old;await gateway.close();});
+  const f=fixture(t),old=process.env.CMENG_EXTERNAL_POLICY_JSON;
+  const oldKey=process.env.CMENG_ASK_AI_API_KEY,oldModel=process.env.CMENG_ASK_AI_MODEL,oldProtocol=process.env.CMENG_ASK_AI_PROTOCOL;
+  process.env.CMENG_ASK_AI_API_KEY='sk-test-'+secret();process.env.CMENG_ASK_AI_MODEL='gpt-5';process.env.CMENG_ASK_AI_PROTOCOL='responses';
+  const gateway=await createProjectGateway(join(f.root,'gateway'),{maxWorkers:1});
+  t.after(async()=>{
+    if(old===undefined)delete process.env.CMENG_EXTERNAL_POLICY_JSON;else process.env.CMENG_EXTERNAL_POLICY_JSON=old;
+    if(oldKey===undefined)delete process.env.CMENG_ASK_AI_API_KEY;else process.env.CMENG_ASK_AI_API_KEY=oldKey;
+    if(oldModel===undefined)delete process.env.CMENG_ASK_AI_MODEL;else process.env.CMENG_ASK_AI_MODEL=oldModel;
+    if(oldProtocol===undefined)delete process.env.CMENG_ASK_AI_PROTOCOL;else process.env.CMENG_ASK_AI_PROTOCOL=oldProtocol;
+    await gateway.close();
+  });
   await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+(gateway.server.address() as any).port;f.policy.publicOrigin=base;process.env.CMENG_EXTERNAL_POLICY_JSON=JSON.stringify(f.policy);
   assert.equal((await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:'A'})})).status,201);
   const call=(path:string,body:any,headers:Record<string,string>={})=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),redirect:'manual'});
@@ -119,10 +128,11 @@ test('deployed gateway boundary reaches the isolated project worker and rejects 
   const response=await call('/external-ai/api/get_project_state',{projectId:'A'},{authorization:'Bearer '+token}),body:any=await response.json();assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.projectId,'A');assert.equal(body.dataDate,null);
   const answer=await call('/external-ai/api/get_project_metric',{projectId:'A',metric:'CPI'},{authorization:'Bearer '+token}),facts:any=await answer.json();assert.equal(answer.status,200,JSON.stringify(facts));assert.equal(facts.llmInvoked,false);assert.equal(facts.items.find((x:any)=>x.kind==='metric'&&x.data.id.includes('.cpi')).data.value,null);
   const denied=await call('/external-ai/api/get_project_state',{projectId:'B'},{authorization:'Bearer '+token});assert.equal(denied.status,403);
-  saveManagedAskSettings(join(f.root,'gateway','ask-ai-provider.json'),'gpt-5-mini','sk-test-'+secret());
-  const outsider=await fetch(base+'/api/projects/A/intelligence/home',{headers:{'x-cmeng-paid-ai':'1'}}),outsideHome:any=await outsider.json();assert.equal(outsideHome.providerConfigured,false,'a forged client header cannot spend the owner key');
+  const outsider=await fetch(base+'/api/projects/A/intelligence/home',{headers:{'x-cmeng-paid-ai':'1'}}),outsideHome:any=await outsider.json();assert.equal(outsideHome.providerConfigured,false,'a forged client header cannot spend a deployment environment API key');
   const activated=await call('/external-ai/activate',{token:f.activation},{origin:base}),cookie=activated.headers.get('set-cookie')!.split(';')[0]!;
-  const owner=await fetch(base+'/api/projects/A/intelligence/home',{headers:{cookie}}),ownerHome:any=await owner.json();assert.equal(ownerHome.providerConfigured,true,'same owner browser can use the configured built-in model');
+  const ownerEnv=await fetch(base+'/api/projects/A/intelligence/home',{headers:{cookie}}),ownerEnvHome:any=await ownerEnv.json();assert.equal(ownerEnvHome.providerConfigured,true,'a verified owner can use the deployment environment model');
+  saveManagedAskSettings(join(f.root,'gateway','ask-ai-provider.json'),'gpt-5-mini','sk-test-'+secret());
+  const owner=await fetch(base+'/api/projects/A/intelligence/home',{headers:{cookie}}),ownerHome:any=await owner.json();assert.equal(ownerHome.providerConfigured,true,'same owner browser can use the managed built-in model');
   const settings=await fetch(base+'/settings/ask-ai',{headers:{cookie}}),settingsHtml=await settings.text();assert.match(settingsHtml,/gpt-5-mini/);assert.doesNotMatch(settingsHtml,/sk-test-/);assert.equal(readManagedAskSettings(join(f.root,'gateway','ask-ai-provider.json'))!.model,'gpt-5-mini');
   const csrf=/name="csrf" value="([^"]+)"/.exec(settingsHtml)![1];assert.equal((await call('/settings/ask-ai',{csrf,model:'gpt-6',apiKey:''},{cookie,origin:base})).status,400);
   const local=await call('/api/projects/A/intelligence/ask',{question:'What is CPI?'},{cookie}),localResult:any=await local.json();assert.equal(local.status,200);assert.equal(localResult.telemetry.aiInvoked,false,'a configured paid model is not called for CPI');
