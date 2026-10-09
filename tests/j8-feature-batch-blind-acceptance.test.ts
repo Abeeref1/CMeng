@@ -603,7 +603,7 @@ for(const batch of pageBatches){
             for(const expected of truth.actions){
               const action=actions.find((row:any)=>row.actionId==='accountability:RFI|'+expected.recordId);
               assert.ok(action,'Dated open RFI missing from management: '+expected.recordId);
-              assert.equal(action.owner,expected.owner);assert.equal(action.dueIso,expected.dueIso);
+              assert.equal(action.owner,expected.owner??'Design Manager','Absent RFI source owner must resolve to the responsible PMC design role');assert.equal(action.dueIso,expected.dueIso);
               assert.ok(action.sourceRefs.length>0,'Management action lost source evidence');
             }
             for(const id of truth.excluded)assert.ok(!actions.some((row:any)=>row.actionId==='accountability:RFI|'+id),
