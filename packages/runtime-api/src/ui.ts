@@ -5231,6 +5231,9 @@ function kpi(label,value,sub=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}
 function evidenceCount(state,value,knownSubset){if(state==="established"&&value!==null&&value!==undefined)return fmt(value);if(typeof knownSubset==="number")return fmt(knownSubset)+" confirmed; full total not confirmed";if(state==="submitted_unparsed")return"Source submitted · count not confirmed";return"Not established"}
 function renderDirector(d){
   if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}
+  if(d.status==="not_established"||!d.schedule||!d.claims||!d.controls||!d.ld){
+    el("director").innerHTML='<div class="card"><h4>Project Director position not established</h4><p>'+escapeHtml(d.reason||"The current programme and required management inputs need confirmation.")+'</p><p>Available project documents remain retained; no zero-value position has been invented.</p></div>';return;
+  }
   const s=d.schedule,c=d.claims,ctrl=d.controls;
   const programmeKpis=planningKpis([
     ["Data Date",s.dataDateIso,"current reporting programme"],
