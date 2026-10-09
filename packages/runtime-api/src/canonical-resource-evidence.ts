@@ -4,6 +4,7 @@ export interface WeeklyResourceCapacityPoint {
   resourceId: string; resourceName: string | null; weekStartIso: string | null;
   resourceClass: string; availableCapacity: number | null; plannedDemand: number | null;
   actualApprovedUsage: number | null; forecastDemand: number | null;
+  sourceAvailableCapacity?:number|null;capacityAuthority?:'approved_source'|'source_unconfirmed';
   unit: string | null; sourceRef: string; receipts: SourceReceipt[];
 }
 export interface ResourceMasterRecord {
@@ -93,11 +94,15 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       usage = null;
     }
     const capacity = n(r,'available capacity'), demand = n(r,'planned demand');
+    const capacityApproved=/^(approved|confirmed|authorised|authorized)$/i.test(
+      cell(r,'capacity approval','approval status','available capacity approval','capacity authority'));
     const valid = !unitConflict && unit !== null && resolvedClass !== 'unknown';
     // Unclassified resources remain visible, but never join a comparable aggregate.
     points.push({ resourceId:id, resourceName:definition?.name ?? (cell(r,'resource name') || null),
       resourceClass:resolvedClass, weekStartIso:dateValue(cell(r,'week start','period start')),
-      availableCapacity:valid && capacity !== null && capacity >= 0 ? capacity : null,
+      sourceAvailableCapacity:valid && capacity !== null && capacity >= 0 ? capacity : null,
+      capacityAuthority:capacityApproved?'approved_source':'source_unconfirmed',
+      availableCapacity:valid && capacityApproved && capacity !== null && capacity >= 0 ? capacity : null,
       plannedDemand:valid && demand !== null && demand >= 0 ? demand : null,
       actualApprovedUsage:valid && usage !== null && usage >= 0 ? usage : null,
       forecastDemand:valid ? n(r,'forecast demand') : null, unit,

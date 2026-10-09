@@ -1855,6 +1855,31 @@ async function route(
     return;
   }
 
+  // Resource capacity confirmations establish a project-approved limit;
+  // submitted P6 rates remain visible but never become limits by inference.
+  const capacityRoute=/^\/api\/projects\/([^/]+)\/resource-capacity\/confirm(?:ations)?$/.exec(url.pathname);
+  if(capacityRoute&&['GET','POST'].includes(req.method??'')){
+    const state=runtimeProjects.get(decodeURIComponent(capacityRoute[1]!));
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    if(req.method==='GET'){json(res,200,{projectId:state.projectId,projectVersion:state.version,rows:state.resourceCapacityConfirmations??[]});return;}
+    const body=await readJsonBody<{resourceId?:string;capacityUnitsPerHour?:number;effectiveFromIso?:string;approvedBy?:string;sourceRef?:string}>(req);
+    const current=projectControlSchedule(state);
+    const stored=current?state.resourcesByRevision.get(current.revision.revisionId):null;
+    const resourceId=String(body.resourceId??'').trim(),approval=String(body.approvedBy??'').trim(),sourceRef=String(body.sourceRef??'').trim(),date=String(body.effectiveFromIso??'').slice(0,10);
+    const amount=body.capacityUnitsPerHour;
+    if(!stored?.resources.some(r=>r.resourceId===resourceId)||typeof amount!=='number'||!Number.isFinite(amount)||amount<0||!approval||!sourceRef||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))){
+      json(res,400,{error:'capacity_confirmation_needs_resource_capacity_effective_date_approver_and_evidence',
+        message:'Confirm a current resource, non-negative approved units per hour, effective date, approving authority and supporting source reference.'});return;
+    }
+    const record={resourceId,sourceRevisionId:current!.revision.revisionId,
+      capacityUnitsPerHour:amount,effectiveFromIso:date,approvedBy:approval,sourceRef,confirmedAt:new Date().toISOString()};
+    state.resourceCapacityConfirmations=[...(state.resourceCapacityConfirmations??[]),record];
+    runtimeProjects.touch(state);
+    json(res,201,{projectId:state.projectId,projectVersion:state.version,record,
+      basis:'Project confirmation for resource capacity, not approval of the submitted P6 rate or a contractual entitlement.'});
+    return;
+  }
+
   const demoMatch =
     /^\/api\/projects\/([^/]+)\/demo$/.exec(
       url.pathname,

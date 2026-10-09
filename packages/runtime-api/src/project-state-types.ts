@@ -441,6 +441,7 @@ export interface ProjectRuntimeState {
   demo: boolean;
   /** Explicitly classified as non-client test data; absent means live for legacy projects. */
   testProject?: boolean;
+  resourceCapacityConfirmations?:Array<{resourceId:string;sourceRevisionId:string;capacityUnitsPerHour:number;effectiveFromIso:string;approvedBy:string;sourceRef:string;confirmedAt:string}>;
   schedules: StoredScheduleRevision[];
   evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<

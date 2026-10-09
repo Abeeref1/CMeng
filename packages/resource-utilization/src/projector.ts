@@ -451,6 +451,7 @@ export function buildResourceUtilizationProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    capacityConfirmations?:Array<{resourceId:string;capacityUnitsPerHour:number;effectiveFromIso:string;approvedBy:string;sourceRef:string}>;
   },
 ): ResourceUtilizationProjection {
   if (
@@ -549,7 +550,12 @@ export function buildResourceUtilizationProjection(
       // Keep those rates in the retained resource source; do not infer overload from them.
       // Only a separately governed and approved capacity source can establish a verdict.
       const sourceRate = canAssessCapacity ? effectiveCapacity(resource, schedule.dataDateIso) : {value:null,effectiveDateIso:null};
-      const capacity = {value:null as number|null,effectiveDateIso:sourceRate.effectiveDateIso};
+      const confirmation=(input.capacityConfirmations??[])
+        .filter(row=>row.resourceId===resource.resourceId&&
+          row.effectiveFromIso<=(schedule.dataDateIso?.slice(0,10)??'9999-12-31'))
+        .sort((a,b)=>b.effectiveFromIso.localeCompare(a.effectiveFromIso))[0]??null;
+      const capacity={value:confirmation?.capacityUnitsPerHour??null,
+        effectiveDateIso:confirmation?.effectiveFromIso??null};
 
       const plannedUtilization = canAssessCapacity
         ? percentage(
@@ -635,6 +641,9 @@ export function buildResourceUtilizationProjection(
 
         capacityUnitsPerHour:
           capacity.value,
+        p6RateUnitsPerHour:sourceRate.value,
+        capacityAuthority:confirmation?'project_confirmed':'not_approved',
+        capacitySourceRef:confirmation?.sourceRef??null,
         capacityEffectiveDateIso:
           capacity.effectiveDateIso,
         plannedUtilizationPercent:
