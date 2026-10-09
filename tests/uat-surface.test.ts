@@ -346,9 +346,24 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
         );
 
         const field=({'master-dashboard':'masterDashboard','command-center':'commandCenter','master-control-programme':'masterControlProgramme'} as Record<string,string>)[key]!;
-        const stable=(value:any):any=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).filter(([name])=>name!=='generatedAt').map(([name,child])=>[name,stable(child)])):value;
-        assert.ok((result.data as any).projectFacts,'Each first-class page must have its shared facts');
-        assert.deepEqual(stable((management as any)[field]),stable(result.data),key+' bundle must contain the complete fact-bound page, not an older producer result');
+        // The combined management transport is bounded; unlike the individual
+        // pages it is not a second full register/report. Compare the actual
+        // authoritative headline fields, not its intentionally paged detail rows.
+        const factAt=(value:any,path:string)=>path.split('.').reduce((current,segment)=>current?.[segment],value);
+        const invariantFacts=[
+          'actions.openCount.value','time.contractualCompletionIso.value',
+          'time.awardedEotDays.value','time.extendedContractCompletionIso.value',
+          'schedule.criticalActivityCount.value','schedule.nearCriticalActivityCount.value',
+          'schedule.negativeFloatActivityCount.value','controls.openRfiCount.value',
+          'controls.overdueRfiCount.value','controls.openNcrCount.value',
+        ];
+        const firstClassFacts=(result.data as any).projectFacts;
+        const bundleFacts=(management as any)[field]?.projectFacts;
+        assert.ok(firstClassFacts,'Each first-class page must have its shared facts');
+        assert.ok(bundleFacts,'Management transport must not erase shared facts as a paging side effect');
+        for(const fact of invariantFacts)
+          assert.deepEqual(factAt(bundleFacts,fact),factAt(firstClassFacts,fact),
+            key+' management transport differs from the first-class page at '+fact);
 
         const jsonReport =
           await fetch(
@@ -380,6 +395,12 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
         assert.equal(
           report.result.key,
           pageApiKey(key),
+        );
+        const reportFacts=(report.result as any).data?.projectFacts;
+        assert.ok(reportFacts,key+' downloaded source report must retain canonical facts');
+        for(const fact of invariantFacts)assert.deepEqual(
+          factAt(reportFacts,fact),factAt(firstClassFacts,fact),
+          key+' downloaded report and on-screen headline disagree at '+fact,
         );
       }
 
