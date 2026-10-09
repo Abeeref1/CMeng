@@ -89,7 +89,7 @@ test('missing contract date stays a review state and single-revision change limi
 
 test('project action notifications ignore late responses after A to B to A and never claim zero on a failed refresh',async()=>{
   const button:any={disabled:false,innerHTML:''},notice:any={textContent:''},nav:any={textContent:''};const pending:Array<(v:any)=>void>=[];
-  const ctx:any={console,owner:'A',projectRequestSeq:1,overview:{projectId:'A'},project:()=>ctx.owner,projectRequestIsCurrent:(id:string,seq:number)=>id===ctx.owner&&seq===ctx.projectRequestSeq,api:()=>new Promise(resolve=>pending.push(resolve)),fmt:String,el:(id:string)=>id==='openProjectActions'?button:id==='projectActionNotification'?notice:id==='projectActionNavCount'?nav:null};
+  const ctx:any={console,owner:'A',projectRequestSeq:1,overview:{projectId:'A'},project:()=>ctx.owner,projectRequestIsCurrent:(id:string,seq:number)=>id===ctx.owner&&seq===ctx.projectRequestSeq,api:()=>new Promise(resolve=>pending.push(resolve)),URLSearchParams,fmt:String,el:(id:string)=>id==='openProjectActions'?button:id==='projectActionNotification'?notice:id==='projectActionNavCount'?nav:null};
   runInNewContext(projectActionsScript,ctx);
   const old=ctx.loadProjectActions();ctx.owner='B';ctx.projectRequestSeq++;ctx.resetProjectActions();ctx.owner='A';ctx.projectRequestSeq++;const latest=ctx.loadProjectActions();
   pending[1]!({projectId:'A',projectVersion:2,actionCount:3,actions:[]});await latest;assert.match(button.innerHTML,/>3</);
