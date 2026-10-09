@@ -34,3 +34,26 @@ test('small source responses are unchanged, and technical detail paths are not a
  assert.equal(isProjectScreenRequest('GET','/api/projects/P/management/command-center'),true);
  assert.equal(isProjectScreenRequest('POST','/api/projects/P/management/command-center'),false);
 });
+
+test('management bundle and first-class pages retain the same canonical facts after paging',()=>{
+ const shared={schemaVersion:'1.0',projectVersion:19,time:{
+   contractualCompletionIso:{value:'2030-03-31',state:'confirmed'},
+   awardedEotDays:{value:26,state:'confirmed'},
+   extendedContractCompletionIso:{value:'2030-04-26',state:'from_register_not_confirmed'}
+ },schedule:{criticalActivityCount:{value:41,state:'confirmed'}},
+ controls:{openRfiCount:{value:53,state:'confirmed'}}};
+ const page={projectionKey:'master_dashboard',projectFacts:shared,rows:Array.from({length:140},(_,i)=>({recordId:'M'+i,owner:'PMC',sourceRef:'register:'+i}))};
+ const command={projectionKey:'command_center',projectFacts:shared,actions:Array.from({length:80},(_,i)=>({recordId:'A'+i,owner:'PMC'}))};
+ const source={projectionKey:'management_surfaces',projectVersion:19,masterDashboard:page,commandCenter:command};
+ const result=pageProjectResponse(source,'/api/projects/X/management-surfaces') as any;
+ assert.ok(Buffer.byteLength(JSON.stringify(result))<=PROJECT_SCREEN_MAX_BYTES);
+ for(const key of ['masterDashboard','commandCenter']){
+   assert.equal(result[key].projectFacts.time.extendedContractCompletionIso.value,'2030-04-26');
+   assert.equal(result[key].projectFacts.schedule.criticalActivityCount.value,41);
+   assert.equal(result[key].projectFacts.controls.openRfiCount.value,53);
+ }
+ assert.equal((pageProjectResponse({data:page},'/api/projects/X/management/master-dashboard') as any).data.projectFacts.time.extendedContractCompletionIso.value,
+   result.masterDashboard.projectFacts.time.extendedContractCompletionIso.value);
+ assert.ok(result.responsePaging.tables.some((row:any)=>row.pointer==='/masterDashboard/rows'&&row.total===140));
+ assert.equal(jsonPointer(source,'/masterDashboard/rows/75/recordId'),'M75','full bundle source remains available for exact pointer download');
+});
