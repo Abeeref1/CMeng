@@ -240,7 +240,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
   const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
   const independentNegativeFloat=independentAggregate(row=>(row.independentTotalFloatHours??0)<0);
-  const authoritativeIndependent=independentEstablished&&floatReview.summary.disputedActivityCount===0&&floatReview.summary.numericDifferenceActivityCount===0;
+  const authoritativeIndependent=independentEstablished&&!!floatReview&&floatReview.summary.disputedActivityCount===0&&floatReview.summary.numericDifferenceActivityCount===0;
   // A qualified or unreconciled CPM remains visible in technical detail, never the headline.
   const canonicalCritical=authoritativeIndependent?independentCritical:submittedCritical;
   const canonicalNearCritical=authoritativeIndependent?independentNearCritical:submittedNearCritical;
