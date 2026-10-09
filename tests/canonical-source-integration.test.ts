@@ -91,7 +91,7 @@ test('ORBIT source: 26 awarded days are not erased by an amendment repeating ori
  const {state,csvDoc}=fixture(t);
  // Establish the original contract independently; an amendment alone must not
  // be assumed to be the unextended contractual completion date.
- state.evidenceDocuments.push({documentId:'ORBIT-BASE',basisState:'active'} as StoredEvidenceDocument);
+ state.evidenceDocuments.push({documentId:'ORBIT-BASE',basisState:'active',uploadedAt:stamp,sourceFilename:'ORBIT-BASE.pdf',category:'contract',documentType:'contract_main',sourceHashSha256:'ORBIT-BASE-SOURCE',diagnostics:[]} as unknown as StoredEvidenceDocument);
  state.contractDocuments.push({documentId:'ORBIT-BASE',role:'main',result:{sections:[{text:'Original Contractual Completion 31 March 2030',startPage:1,sectionKey:'completion',sourceMode:'deterministic'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
  amendment(state);
  csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
