@@ -535,9 +535,9 @@ export function commercialContractControlsForState(
           .length,
       sectionTerms:projectContractSections(state,
         contractTime?.contractualCompletionIso??null,
-        contractTime?.officialAdjustedCompletionIso??null
+        null /* No separately confirmed sectional extension provided */
       ).map(section=>({
-        sectionId:section.sectionId,label:section.label,rate:section.rate,rateBasis:section.rateBasis,
+        sectionId:section.sectionId??'Section not identified',label:section.label,rate:section.rate,rateBasis:section.rateBasis,
         currency:section.currency,capAmount:section.capAmount,capPercent:section.capPercent,
         contractCompletionIso:section.contractCompletionIso,
         extendedCompletionIso:section.extendedCompletionIso,
