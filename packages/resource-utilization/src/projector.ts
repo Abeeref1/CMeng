@@ -545,15 +545,11 @@ export function buildResourceUtilizationProjection(
             assumptions: [],
           };
 
-      const capacity = canAssessCapacity
-        ? effectiveCapacity(
-            resource,
-            schedule.dataDateIso,
-          )
-        : {
-            value: null,
-            effectiveDateIso: null,
-          };
+      // P6 maxUnitsPerHour is a supplied rate, not approval of deployable crew capacity.
+      // Keep those rates in the retained resource source; do not infer overload from them.
+      // Only a separately governed and approved capacity source can establish a verdict.
+      const sourceRate = canAssessCapacity ? effectiveCapacity(resource, schedule.dataDateIso) : {value:null,effectiveDateIso:null};
+      const capacity = {value:null as number|null,effectiveDateIso:sourceRate.effectiveDateIso};
 
       const plannedUtilization = canAssessCapacity
         ? percentage(
@@ -585,7 +581,7 @@ export function buildResourceUtilizationProjection(
           : remainingCapacityGapUnitsPerHour !== null && remainingCapacityGapUnitsPerHour > 0
             ? 'Mobilise, reallocate or resequence this resource before the affected workfront demand peaks.'
             : capacity.value === null
-              ? 'Confirm usable resource capacity before relying on utilization or overload conclusions.'
+              ? 'Obtain an approved capacity basis; P6 rates are retained as source assumptions, not crew limits.'
               : 'Monitor the resource against its remaining-work peak and affected activities.';
 
       return {
