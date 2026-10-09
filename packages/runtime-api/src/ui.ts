@@ -1334,7 +1334,7 @@ function renderQuantityScurveVisual(data){
   const measurement=p.measurementReview;
   const installed=p.installedQuantityStatus;
   const installedSummary=installed?'<div class="notice '+(installed.state==='available'?'info':'warn')+'"><b>Measured installation: '+escapeHtml(humanizeKey(installed.state))+'</b><p>'+escapeHtml(installed.explanation)+'</p></div>':"";
-  const measured=measurement?planningKpis([["Items with dated measurements",measurement.measuredItemCount,"of "+measurement.boqItemCount+" BOQ items"],["Measurement rows needing review",measurement.currentNot establishedRowCount,"through the reporting date"],["Future measurement rows",measurement.futureRowCount,"excluded from current actuals"]])+'<div class="notice info">'+escapeHtml(measurement.basis)+'</div>':"";
+  const measured=measurement?planningKpis([["Items with dated measurements",measurement.measuredItemCount,"of "+measurement.boqItemCount+" BOQ items"],["Measurement rows needing review",measurement.currentUnresolvedRowCount,"through the reporting date"],["Future measurement rows",measurement.futureRowCount,"excluded from current actuals"]])+'<div class="notice info">'+escapeHtml(measurement.basis)+'</div>':"";
   const top=planningKpis([
     ["BOQ items",boqItemCount===null?"Not established":boqItemCount,"quantity basis"],
     ["Programme-linked items",mappedItemCount===null?"Not established":mappedItemCount,"planned quantities; confirmed or scenario links"],
@@ -3065,7 +3065,7 @@ function renderNearCriticalVisual(data){
   const calendarBasis=p.thresholdBasis==="activity_calendar_working_days"||p.nearCriticalThresholdBasis==="activity_working_days";
   const limitValue=calendarBasis&&workingDays!==null?fmt(workingDays)+" working days":p.nearCriticalThresholdHours===null||p.nearCriticalThresholdHours===undefined?"Not established":fmt(p.nearCriticalThresholdHours)+" h";
   const limitSub=calendarBasis?"each activity calendar":"explicit hour threshold";
-  const unresolved=p.unresolvedActivityCount??p.thresholdNot establishedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
+  const unresolved=p.unresolvedActivityCount??p.thresholdUnresolvedActivityCount??Math.max(0,riskRows.filter(r=>r.nearCriticalThresholdHours===null).length);
   const sourceCount=p.sourceReportedNearCriticalLabelCount??p.reconciliation?.sourceReportedCount??null;
   const sourceMatch=p.reconciliation?.sourceLabelReconcilesTo??null;
   const reconciliationText=p.floatRiskWatchlistCount===null
