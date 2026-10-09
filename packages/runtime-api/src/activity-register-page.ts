@@ -21,6 +21,19 @@ export function activityRegisterView(data:any){
  const all=Array.isArray(data?.rows)?data.rows:[],execution=all.filter((r:any)=>!['level_of_effort','wbs_summary'].includes(r.activityType));
  const keys=['activityId','name','activityType','status','criticality','totalFloatHours','nearCriticalThresholdHours','floatRiskWatchlist','finishVarianceDays','openStart','openFinish','isolated'];
  const filterOptions=Object.fromEntries(fields.map(key=>[key,[...new Set(execution.map((r:any)=>key==='floor'?r.floor??r.level:r[key]).filter((v:any)=>v!==null&&v!==undefined&&String(v).trim()))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))]));
+ // Preserve the exact source WBS key for filtering while presenting the
+ // controlled hierarchy/path as the option label. Unnamed codes are qualified.
+ const wbsNames=new Map<string,string>();
+ for(const row of execution){
+   const id=String(row.wbsId??'').trim();if(!id)continue;
+   const path=String(row.wbsPath??row.wbsName??'').trim();
+   const current=wbsNames.get(id);
+   const name=path&&path!==id?path:'WBS reference '+id+' · source name unavailable';
+   if(!current||current.startsWith('WBS reference ')&&!name.startsWith('WBS reference '))wbsNames.set(id,name);
+ }
+ filterOptions.wbsId=[...wbsNames.entries()].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true}))
+   .map(([id,label])=>[id,label]);
+
  return {...data,rows:activityRegisterPage(all,new URLSearchParams('pageSize=50')).rows,
   analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,filterOptions},
   ...(data.scopeClassification?{scopeClassification:{...data.scopeClassification,rows:undefined}}:{})};
