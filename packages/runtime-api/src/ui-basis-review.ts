@@ -1,5 +1,18 @@
 export const basisReviewScript=String.raw`
-function basisTable(heads,rows){return '<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+escapeHtml(v??'Not in the data')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';}
+function basisTable(heads,rows){
+  const cell=(value,column)=>{
+    if(value===null||value===undefined||String(value).trim()==='')return 'Not in source';
+    if(typeof value==='number')return fmtForField(column,value);
+    if(typeof value==='boolean')return value?'Yes':'No';
+    const raw=String(value).trim();
+    if(/^(?:null|undefined)$/i.test(raw))return 'Not in source';
+    if(/\b(owner|responsible party|accountable)\b/i.test(column)&&/^(?:not recorded|not assigned|unknown|unresolved)$/i.test(raw))
+      return pmcDisplayOwner(currentModuleResult?.key||'project controls');
+    return readerText(raw);
+  };
+  return '<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+r.map((v,i)=>'<td>'+escapeHtml(cell(v,String(heads[i]||'')))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+}
 function basisPanel(title,note,body,id){return '<section class="planning-panel"'+(id?' id="'+escapeHtml(id)+'"':'')+'><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(note)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';}
 function commercialSourceState(metric){
   if(metric?.consequence)return metric.consequence;
