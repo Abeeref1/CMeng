@@ -5808,13 +5808,15 @@ async function refresh(bootstrapDemo=true){
     try{renderStatus(overview)}catch{}
     updateActiveProjectShell();
     renderNav();
-    await Promise.allSettled([
-      loadModule(selected),
+    // Show the selected management page before loading secondary project detail.
+    // A slow phase list or evidence request must not hold the first useful screen.
+    await loadModule(selected);
+    if(current())void Promise.allSettled([
       loadEvidence(),
       loadPhaseProgrammes(),
-      loadDirector(projectId)
+      loadDirector(projectId),
+      loadProjectActions()
     ]);
-    if(current())await loadProjectActions();
   }catch(e){
     if(!current())return;
     if(bootstrapDemo&&e.status===404&&projectId==="UAT-DEMO"){
