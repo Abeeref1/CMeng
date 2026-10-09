@@ -1,27 +1,29 @@
 import {retainedAuditSessionKey} from './audit-session-key';
+import {ApplicationAccess,applicationPolicyFromEnvironment,type ApplicationAccessPolicy,type ApplicationPrincipal} from './application-access';
 import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
-import {mkdir} from 'node:fs/promises';
+import {mkdir,statfs} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary} from './registry';
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
-import {ProjectReadCache,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
+import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
-import {randomBytes} from 'node:crypto';
+import {randomBytes,createHmac} from 'node:crypto';
 import {ExternalAccess,filePolicy} from '../../external-intelligence/src/access';
 import {ExternalIntelligenceService} from '../../external-intelligence/src/service';
 import {ExternalHttp} from '../../external-intelligence/src/http';
 import {externalAuthorityMetadata} from '../../external-intelligence/src/authority-metadata';
 import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../external-intelligence/src/types';
-import {readManagedAskSettings} from '../../project-ask/src/settings';
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
-export async function createProjectGateway(root:string,options:{maxWorkers?:number}={}){
+export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
+  await clearDerivedReadCaches(root,release());
+  const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);
@@ -42,10 +44,15 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const backend:ExternalBackend={catalogue:externalAuthorityMetadata,state:(projectId,authorityIds)=>invoke(projectId,{action:'state',authorityIds}),analyse:(projectId,user,plan)=>invoke(projectId,{action:'analyse',user,plan}),retrieve:(projectId,user,session,operation,query,limit)=>invoke(projectId,{action:'retrieve',user,session,operation,query,limit})};
     externalHttp=new ExternalHttp(access,new ExternalIntelligenceService(access,backend),askSettingsPath);return externalHttp;
   }
-  const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??4);
+  const applicationPolicy=options.appPolicy??applicationPolicyFromEnvironment;
+  const applicationAccess=new ApplicationAccess(applicationPolicy,req=>externalController().access.identity(req),()=>externalPolicy()?.publicOrigin??null);
+  const accessMode=()=>{try{return applicationPolicy()?'protected':'public_review';}catch{return 'unavailable';}};
+  const actorHeaders=new WeakMap<IncomingMessage,Record<string,string>>();
+  const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??6);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
   let closing=false,catalogWrites=Promise.resolve();
+  let lastForegroundProjectRequestAt=0;
   const reservations=new Map<string,Promise<Lane>>();
   const waiters=new Set<()=>void>();
   const signal=()=>{for(const wake of waiters)wake();waiters.clear();};
@@ -113,6 +120,31 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
+      // Persist the finished page results on the attached volume while the
+      // full project bundle is already hot in THIS worker. Browser requests
+      // for six concurrent projects can read these without reviving an
+      // evicted worker or rerunning project controls calculations.
+      const routes=[
+        '/api/projects/'+encodeURIComponent(id)+'/overview',
+        '/api/projects/'+encodeURIComponent(id)+'/management/master-dashboard',
+        '/api/projects/'+encodeURIComponent(id)+'/management/command-center',
+        '/api/projects/'+encodeURIComponent(id)+'/management/master-control-programme',
+        '/api/projects/'+encodeURIComponent(id)+'/management/source-quality',
+        '/api/projects/'+encodeURIComponent(id)+'/director-position',
+      ];
+      for(const route of routes){
+        if(closing||updating.get(id))break;
+        const retained=await reads(id).get(release(),summary.version,route);
+        if(retained)continue;
+        try{
+          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
+          if(!page.ok)continue;
+          const bytes=Buffer.from(await page.arrayBuffer());
+          const version=Number(page.headers.get('x-cmeng-project-version'));
+          if(version===summary.version&&bytes.length<=MAX_PROJECT_READ_BYTES)
+            await reads(id).put(release(),version,route,bytes);
+        }catch{/* A warmup failure never changes the retained project position. */}
+      }
     }).catch(error=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}
       console.error('[refreshSummary] project='+id+' version='+entry?.metadata?.version+' failed:',error instanceof Error?error.stack??error.message:String(error));
     }).finally(()=>summaryJobs.delete(id));
@@ -123,10 +155,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const sameVersion=entry.summary?.version===entry.metadata?.version;
     if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
     if(!busy&&sameVersion&&entry.summary){
-      // Keep the last same-project-version facts visible while this release rechecks
-      // the expensive summary. A release cache miss is not project processing and
-      // must never erase the known Data Date or management counts.
-      return {...entry.summary,positionState:'checking',analysisState:'stale',
+      // Keep the last same-project-version position visible while this software
+      // release rechecks it. A release cache miss is a verification state, not a
+      // change in the project's management position.
+      return {...entry.summary,analysisState:'stale',
         analysisError:'Showing the saved project position while CMeng rechecks this release. Project records are not being changed.'};
     }
     return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,
@@ -137,19 +169,25 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
   }
   async function proxy(id:string,req:IncomingMessage,res:ServerResponse,path=req.url??'/'){
-    let allowPaidModel='1';
-    if(/\/intelligence(?:\/|$)/.test(path)){
-      try{if(readManagedAskSettings(askSettingsPath)?.ownerOnly){allowPaidModel='0';try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}}}catch{allowPaidModel='0';}
-    }
+    // Paid CMeng Intelligence is fail-closed at the public gateway. Provider
+    // credentials may come from the managed settings file or deployment
+    // environment, but neither may be spent by an anonymous/browser-forged
+    // request. Deterministic Ask remains available when this header is 0.
+    let allowPaidModel='0';
+    try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}
+
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
     if(mutation){updating.set(id,(updating.get(id)??0)+1);const e=catalog.get(id);if(e)e.summaryRelease=null;await reads(id).invalidate();}
     const uploadId=String(req.headers['x-upload-id']??'');
-    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:req.headers['x-source-filename']??'project package',message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
+    const encodedUploadFilename=String(req.headers['x-source-filename-encoded']??'');
+    let progressFilename=String(req.headers['x-source-filename']??'project package');
+    if(encodedUploadFilename){try{progressFilename=decodeURIComponent(encodedUploadFilename);}catch{progressFilename='project package';}}
+    if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:progressFilename,message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
     let succeeded=false;
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
         if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
-        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
+        const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,...actorHeaders.get(req),host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
           const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
@@ -177,36 +215,48 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     }
   }
   const server=createServer((req,res)=>{void (async()=>{
+    delete req.headers['x-cmeng-verified-actor'];delete req.headers['x-cmeng-verified-actor-signature'];
     const url=new URL(req.url??'/','http://localhost');
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
-    if(req.method==='GET'&&url.pathname==='/api/portfolio'){
-      const visible=[...catalog.values()].filter(e=>!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-'));
+    const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
+    if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
+    if(req.method==='GET'&&(url.pathname==='/api/portfolio'||url.pathname==='/api/test-projects')){
+      const testList=url.pathname==='/api/test-projects';
+      const visible=[...catalog.values()].filter(e=>applicationAccess.visible(principal,e.projectId)&&!e.metadata?.demo&&!e.projectId.toUpperCase().startsWith('PERSISTENCE-SMOKE-')&&(e.metadata?.testProject===true)===testList);
       send(res,200,{portfolioId:'default',generatedAt:new Date().toISOString(),projectCount:visible.length,projects:visible.map(portfolioEntry)});
       return;
     }
     if(req.method==='GET'&&url.pathname==='/api/background-work'){
-      send(res,200,{projects:[...updating].filter(([,n])=>n>0).map(([projectId])=>({projectId,state:'processing'})),uploads:[...progress.values()]});return;
+      send(res,200,{projects:[...updating].filter(([id,n])=>n>0&&applicationAccess.visible(principal,id)).map(([projectId])=>({projectId,state:'processing'})),uploads:[...progress.values()].filter(p=>applicationAccess.visible(principal,p.projectId))});return;
     }
     if(req.method==='POST'&&url.pathname==='/api/projects'){
+      applicationAccess.administrator(principal);
       let body='';for await(const chunk of req){body+=chunk;if(body.length>8192){send(res,413,{error:'request_too_large'});return;}}
-      let id=normalizeProjectCode(JSON.parse(body).projectId??'');if(!id){send(res,400,{error:'project_id_required',message:'Enter a project code.'});return;}
+      const requested=JSON.parse(body) as {projectId?:string;testProject?:boolean};
+      if(requested.testProject!==undefined&&typeof requested.testProject!=='boolean'){send(res,400,{error:'test_project_boolean_required'});return;}
+      let id=normalizeProjectCode(requested.projectId??'');if(!id){send(res,400,{error:'project_id_required',message:'Enter a project code.'});return;}
       const existing=[...catalog.keys()].find(key=>normalizeProjectCode(key)===id);
       if(existing&&catalog.get(existing)?.metadata){send(res,409,{error:'project_code_already_exists',projectId:existing,message:'Project code '+existing+' already exists. Open the existing project instead.'});return;}
       if(existing)id=existing;
       await register(id);
-      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http')},body:JSON.stringify({projectId:id})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
+      const result=await work(id,async port=>{const response=await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json',cookie:req.headers.cookie??'','x-forwarded-proto':String(req.headers['x-forwarded-proto']??'http'),...actorHeaders.get(req)},body:JSON.stringify({projectId:id,testProject:requested.testProject===true})});const cookie=response.headers.get('set-cookie');if(cookie)res.setHeader('set-cookie',cookie);return {status:response.status,body:await response.json()};});send(res,result.status,result.body);return;
     }
     const match=/^\/api\/projects\/([^/]+)(\/.*)?$/.exec(url.pathname);
     if(match){
       const supplied=decodeURIComponent(match[1]!);const id=catalog.has(supplied)?supplied:[...catalog.keys()].find(key=>normalizeProjectCode(key)===normalizeProjectCode(supplied))??normalizeProjectCode(supplied);
       if(!id){send(res,400,{error:'project_id_required'});return;}
+      applicationAccess.project(principal,id,req.method==='POST'&&match[2]==='/intelligence/ask'?'GET':req.method);
+      if(req.method==='POST'&&match[2]==='/purpose')applicationAccess.administrator(principal);
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
-      if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}await register(id);}
+      if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}
+      // A browser request takes priority over background project warm-up.
+      // Retained analyses of unchanged versions stay available from the volume.
+      lastForegroundProjectRequestAt=Date.now();
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
@@ -237,22 +287,27 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       }
       await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);return;
     }
-    if(url.pathname.startsWith('/api/')){await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
+    if(url.pathname.startsWith('/api/')){if(!(req.method==='GET'&&/^\/api\/(?:schedule|commercial|delivery)\/modules$/.test(url.pathname)))applicationAccess.administrator(principal);await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
     send(res,404,{error:'not_found'});
-  })().catch(error=>send(res,400,{error:'request_failed',message:error instanceof Error?error.message:String(error)}));});
+  })().catch(error=>send(res,error.statusCode??400,{error:error.code??'request_failed',message:error instanceof Error?error.message:String(error)}));});
   server.requestTimeout=0;
   // One low-priority summary at a time; leave capacity for interactive projects and uploads.
   let warming=false;
   const warmer=setInterval(()=>{
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
     if(closing||warming)return;
-    // Background portfolio work must not evict a recently used project's expensive
-    // calculation cache. Foreground project requests still use normal LRU capacity.
+    // On a shared six-project dashboard, calculations must already be retained
+    // on the volume. Warm all projects over time, even when worker slots are
+    // occupied, but never evict a busy worker or disturb an active user's
+    // recent read. A 15-minute idle rule previously left 18 of 22 projects
+    // cold after the initial four, causing a repeat 10-35 second first open.
+    if(Date.now()-lastForegroundProjectRequestAt<15000)return;
+    const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
     const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
-      (lanes.has(e.projectId)||lanes.size<maxWorkers||[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>15*60*1000)));
+      (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
     if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
   },2000);warmer.unref();
-  const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 

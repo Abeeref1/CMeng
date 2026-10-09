@@ -43,9 +43,9 @@ export function queryTable(table: AnalysisTable, plan: AnalysisPlan): {table: An
     if(table.columns.some(c=>c.key==='critical')){const unknown=rows.filter(r=>typeof r.critical!=='boolean').length;if(unknown)gaps.push(table.title+': '+unknown+' records have no established critical programme linkage and are excluded.');rows=rows.filter(r=>r.critical===true);}
     else {gaps.push(table.title+': critical programme linkage is not established.');rows=[];}
   }
-  if(plan.issuesOnly){const fields=['issueCount','exceptionCount','headroomCalendarDays','variancePercentagePoints','state','status'];
+  if(plan.issuesOnly){const fields=['issueCount','exceptionCount','headroomCalendarDays','forecastLate','overdueUndelivered','variancePercentagePoints','state','status'];
     if(!fields.some(f=>table.columns.some(c=>c.key===f))){gaps.push(table.title+': no defensible exception classification is available.');rows=[];}
-    else rows=rows.filter(r=>Number(r.issueCount)>0||Number(r.exceptionCount)>0||typeof r.headroomCalendarDays==='number'&&r.headroomCalendarDays<0||typeof r.variancePercentagePoints==='number'&&r.variancePercentagePoints<0||['blocked','conflicting','late','overdue','open','unknown'].includes(String(r.state??r.status)));}
+    else rows=rows.filter(r=>Number(r.issueCount)>0||Number(r.exceptionCount)>0||(['procurement','long-lead'].includes(table.authorityId)?r.forecastLate===true||r.overdueUndelivered===true:typeof r.headroomCalendarDays==='number'&&r.headroomCalendarDays<0)||typeof r.variancePercentagePoints==='number'&&r.variancePercentagePoints<0||['blocked','conflicting','late','overdue','open','unknown'].includes(String(r.state??r.status)));}
   let result:AnalysisTable={...table,rows,excluded:table.excluded+table.rows.length-rows.length};
   for(const dimension of plan.groupBy)if(!table.columns.some(c=>c.key===dimension&&c.dimension))gaps.push(table.title+': grouping by '+label(dimension)+' is not established; the source rows retain their existing scope.');
   result=groupTable(result,plan.groupBy);

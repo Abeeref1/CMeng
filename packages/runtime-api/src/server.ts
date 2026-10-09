@@ -1,13 +1,19 @@
+import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
+import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {phaseProgrammePosition} from './phase-programmes';
 import {deliveryExportResult} from './delivery-projections';
 import {deliveryRequest} from './delivery-api';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {parentPort} from 'node:worker_threads';
 import {sendHttpBody} from './http-response';
+import {isProjectScreenRequest,pageProjectResponse,recordDetailPage} from './response-paging';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
+import {activityRegisterPage,activityRegisterView} from './activity-register-page';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
@@ -55,6 +61,7 @@ import {
   managementSurfaceForProject,
   managementSurfacesForProject,
   moduleForProject,
+  projectActionRegisterForState,
   overviewForProject,
   rerunProject,
 } from "./project-projections";
@@ -108,6 +115,7 @@ import {
 import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
+import {projectFactsForState} from "./project-facts";
 
 const advancedControlKeys=new Set([
   'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
@@ -118,13 +126,19 @@ const advancedControlKeys=new Set([
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
     const schemaDiagnostics: string[] = [];
-    const schemaByDocument =
-      new Map(
-        sourceTables(
+    const parsedTables = sourceTables(
           state.evidenceDocuments,
           schemaDiagnostics,
           {includeHistorical: true},
-        ).map((table) => [
+        );
+    const tablesByDocument = new Map<string, typeof parsedTables>();
+    for (const table of parsedTables) {
+      const tables = tablesByDocument.get(table.document.documentId) ?? [];
+      tables.push(table);
+      tablesByDocument.set(table.document.documentId, tables);
+    }
+    const schemaByDocument =
+      new Map(parsedTables.map((table) => [
           table.document.documentId,
             table,
         ]),
@@ -143,12 +157,27 @@ export function projectDocumentRegister(projectId:string){
             mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
-            classificationReview: documentClassificationForReview(document),
-            readReview:documentReadReview(document,state,schemaByDocument.get(document.documentId)),
+            classificationReview: documentClassificationForReview(document,schemaByDocument.has(document.documentId)?[
+              schemaByDocument.get(document.documentId)!.headers,
+              ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
+            ]:undefined),
+            readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,
               )?.headers ?? [],
+            columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
+              const ignored=new Set(table.recognition?.unknown??[]);
+              const physical=table.intelligence.columns.map(column=>column.rawHeader);
+              return {
+                table:index+1,
+                headerRow:table.recognition?.headerRow??table.intelligence.headerRow,
+                mappedColumns:physical.filter(header=>header&&!ignored.has(header)),
+                ignoredColumns:physical.filter(header=>!header||ignored.has(header)),
+                canonicalColumns:[...table.headers],
+                recognitionState:table.recognition?.recognized===true?'recognized':'review_required',
+              };
+            }),
           })),
     };
 
@@ -325,7 +354,18 @@ function json(
   statusCode: number,
   body: unknown,
 ): void {
-  const payload = JSON.stringify(body);
+  const requestUrl=res.req.url??'';
+  const pathname=new URL(requestUrl,'http://localhost').pathname;
+  const screen=statusCode===200&&isProjectScreenRequest(res.req.method,pathname);
+  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl):body);
+  // The public gateway can only keep a version-safe result after this header
+  // proves which project snapshot was used. Previously it was never sent, so
+  // every visit after worker eviction repeated the complete analysis.
+  const projectMatch=/^\/api\/projects\/([^/]+)/.exec(pathname);
+  if(statusCode===200&&res.req.method==='GET'&&projectMatch){
+    const snapshot=runtimeProjects.get(decodeURIComponent(projectMatch[1]!));
+    if(snapshot)res.setHeader('x-cmeng-project-version',String(snapshot.version));
+  }
   sendHttpBody(res,statusCode, {
     "cache-control": "no-store",
     "content-type":
@@ -427,6 +467,29 @@ function header(
   return typeof value === "string"
     ? value.trim() || null
     : null;
+}
+
+function decodedUploadHeader(
+  req: IncomingMessage,
+  encodedName: string,
+  legacyName: string,
+): string | null {
+  const encoded=header(req,encodedName);
+  if(encoded!==null){
+    try{return decodeURIComponent(encoded);}
+    catch{
+      const error=Object.assign(new Error("UPLOAD_HEADER_ENCODING_INVALID:"+encodedName),{statusCode:400});
+      throw error;
+    }
+  }
+  return header(req,legacyName);
+}
+
+function sourceFilenameHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-filename-encoded","x-source-filename");
+}
+function sourceRelativePathHeader(req:IncomingMessage):string|null {
+  return decodedUploadHeader(req,"x-source-relative-path-encoded","x-source-relative-path");
 }
 
 async function readJsonBody<T>(
@@ -618,6 +681,12 @@ async function route(
               state,
             );
 
+          const projectFacts=projectFactsForState(state);
+          const commandCenter=moduleForProject(projectId,"command-center").data as any;
+          const canonicalManagementActions=Array.isArray(commandCenter?.actions)
+            ?commandCenter.actions
+            :[];
+
           const minimumEvidenceReady =
             programmeSchedules.length >
               0 &&
@@ -696,20 +765,33 @@ async function route(
             calendarRecalculationIso:
               forecastPosition.calendarRecalculationIso,
             officialCompletionIso:
-              director?.schedule
-                .contractualCompletionIso ??
-              null,
-            contractualCompletionState: commercialPosition.foundation.commercialTerms.contractualCompletionDate.state,
-            furtherAdjustedCompletionIso: director?.schedule.officialAdjustedCompletionIso ?? null,
+              projectFacts.time.contractualCompletionIso.value,
+            contractualCompletionState:
+              projectFacts.time.contractualCompletionIso.value===null
+                ?"missing"
+                :projectFacts.time.contractualCompletionIso.complete
+                  ?"established"
+                  :"candidate",
+            furtherAdjustedCompletionIso:
+              projectFacts.time.extendedContractCompletionIso.value,
             programmeMovementDays:
               windowsData
                 ?.projectCompletionMovementDays ??
               null,
             approvedEotDays:
-              director?.claims
-                .officialApprovedEotDays ??
-              null,
+              projectFacts.time.awardedEotDays.value,
             approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
+            extendedContractBasis:projectFacts.time.extendedContractCompletionIso.basis,
+            extendedContractState:projectFacts.time.extendedContractCompletionIso.state,
+            criticalActivityCount:projectFacts.schedule.criticalActivityCount.value,
+            nearCriticalActivityCount:projectFacts.schedule.nearCriticalActivityCount.value,
+            negativeFloatActivityCount:projectFacts.schedule.negativeFloatActivityCount.value,
+            openRfiCount:projectFacts.controls.openRfiCount.value,
+            overdueRfiCount:projectFacts.controls.overdueRfiCount.value,
+            openNcrCount:projectFacts.controls.openNcrCount.value,
+            overdueNcrCount:projectFacts.controls.overdueNcrCount.value,
+            activeBondCount:projectFacts.commercial.activeBondCount.value,
+            expiredBondCount:projectFacts.commercial.expiredBondCount.value,
             claimCount:
               director?.claims
                 .claimCount ??
@@ -719,18 +801,17 @@ async function route(
                 .fullyLinkedClaimCount ??
               null,
             managementActionCount:
-              director
-                ? director
-                    .managementActions
-                    .length
-                : null,
+              projectFacts.actions.openCount.value,
             managementActions:
-              director
-                ?.managementActions ??
-              [],
+              canonicalManagementActions.map((action:any)=>
+                [action.issue,action.requiredAction].filter(Boolean).join(" — ")
+              ),
             commercialCurrencyCount:
-              commercialPosition
-                .currencies.length,
+              projectFacts.commercial.currencies.length,
+            submittedDaysAfterCurrentContract:projectFacts.time.submittedDaysAfterCurrentContract?.value??null,
+            submittedProgrammeCompletionIso:projectFacts.schedule.submittedProgrammeCompletionIso.value,
+            independentDaysAfterCurrentContract:projectFacts.time.independentDaysAfterCurrentContract?.value??null,
+            commercialSummary:projectFacts.commercial.currencies.map(row=>({currency:row.currency,currentContractValue:row.currentContractValue.value,forecastEac:row.forecastEac?.value??null,certifiedUnpaidAmount:row.certifiedUnpaidAmount.value})),
             analysisError: null,
           };
         })
@@ -762,6 +843,7 @@ async function route(
     const body =
       await readJsonBody<{
         projectId?: string;
+        testProject?: boolean;
       }>(req);
     const projectId =
       normalizeProjectCode(
@@ -797,10 +879,14 @@ async function route(
       return;
     }
 
+    if(body.testProject!==undefined&&typeof body.testProject!=='boolean'){
+      json(res,400,{error:'test_project_boolean_required'});return;
+    }
     const state =
       runtimeProjects.getOrCreate(
         projectId,
       );
+    if(body.testProject===true){state.testProject=true;runtimeProjects.touch(state);}
     json(
       res,
       201,
@@ -808,6 +894,7 @@ async function route(
         projectId:
           state.projectId,
         created: true,
+        testProject:state.testProject===true,
         version:
           state.version,
       },
@@ -1138,15 +1225,9 @@ async function route(
     const intent =
       uploadIntent(req);
     const filename =
-      header(
-        req,
-        "x-source-filename",
-      ) ?? "evidence";
+      sourceFilenameHeader(req) ?? "evidence";
     const relativePath =
-      header(
-        req,
-        "x-source-relative-path",
-      ) ?? filename;
+      sourceRelativePathHeader(req) ?? filename;
     const uploadId =
       header(
         req,
@@ -1524,6 +1605,7 @@ async function route(
                 intent,
               preidentified:
                 item.identification,
+              allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
             });
         results.push(result);
         processedCount += 1;
@@ -1694,6 +1776,7 @@ async function route(
             new Date().toISOString(),
           uploadIntent:
             intent,
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     await runtimeProjects.refreshDeferredPdfReads(projectId);
     await runtimeProjects.refreshSpreadsheetRegisters(projectId);
@@ -1758,6 +1841,19 @@ async function route(
     return;
   }
 
+
+  // Explicit project type is a durable user decision, not inferred from names.
+  const projectTypeMatch=/^\/api\/projects\/([^/]+)\/purpose$/.exec(url.pathname);
+  if(req.method==='POST'&&projectTypeMatch){
+    const id=decodeURIComponent(projectTypeMatch[1]!);
+    const target=runtimeProjects.get(id);
+    if(!target){json(res,404,{error:'project_not_found'});return;}
+    const body=await readJsonBody<{testProject?:boolean}>(req);
+    if(typeof body.testProject!=='boolean'){json(res,400,{error:'test_project_boolean_required'});return;}
+    if(target.testProject!==body.testProject){target.testProject=body.testProject;runtimeProjects.touch(target);}
+    json(res,200,{projectId:target.projectId,testProject:target.testProject===true,version:target.version});
+    return;
+  }
 
   const demoMatch =
     /^\/api\/projects\/([^/]+)\/demo$/.exec(
@@ -1832,7 +1928,28 @@ async function route(
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
-    if(req.method==='GET'&&!actionsMatch[2]){const surfaces=managementSurfacesForProject(projectId)!;json(res,200,projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}));return;}
+    if(req.method==='GET'&&!actionsMatch[2]){
+      const workflow=projectActionRegisterForState(state).workflow;
+      if(url.searchParams.has('page')){
+        // Server-side selection ensures the browser receives only the
+        // current action page, not the entire register or its source receipts.
+        const page=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('page')??'0',10)||0));
+        const pageSize=Math.min(25,Math.max(1,Number.parseInt(url.searchParams.get('pageSize')??'25',10)||25));
+        const term=(url.searchParams.get('query')??'').trim().toLowerCase().slice(0,200);
+        const category=url.searchParams.get('category')??'all';
+        const relevant=workflow.actions.filter(action=>
+          (category==='all'||action.category===category)&&
+          (!term||(action.title+' '+action.reason).toLowerCase().includes(term)));
+        const gaps=workflow.information??[];
+        const gapsPage=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('dataGapsPage')??'0',10)||0));
+        json(res,200,{...workflow,actions:relevant.slice(page*pageSize,(page+1)*pageSize),
+          information:gaps.slice(gapsPage*pageSize,(gapsPage+1)*pageSize),
+          page,pageSize,matchedActionCount:relevant.length,hasMoreActions:(page+1)*pageSize<relevant.length,
+          dataGapsTotalCount:gaps.length,dataGapsPage:gapsPage,hasMoreDataGaps:(gapsPage+1)*pageSize<gaps.length});
+        return;
+      }
+      json(res,200,workflow);return;
+    }
     if(req.method==='POST'&&actionsMatch[2]==='confirm-schedule'){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
     if(req.method==='POST'&&actionsMatch[2]==='confirm-contract-completion'){try{
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
@@ -1889,6 +2006,50 @@ async function route(
     return;
   }
 
+  const boqPageMatch=/^\/api\/projects\/([^/]+)\/boq\/page-review$/.exec(url.pathname);
+  if(boqPageMatch){
+    const projectId=decodeURIComponent(boqPageMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'){json(res,200,boqPageReview(state));return;}
+      if(req.method==='POST'){const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqPage(projectId,input);invalidateProject(projectId);json(res,200,result);return;}
+      json(res,405,{error:'page_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'page_review_not_saved',message:error instanceof Error?error.message:String(error)});}
+    return;
+  }
+
+  const boqReviewMatch=/^\/api\/projects\/([^/]+)\/boq\/numeric-review(?:\/source\/([^/]+))?$/.exec(url.pathname);
+  if(boqReviewMatch){
+    const projectId=decodeURIComponent(boqReviewMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    try{
+      if(req.method==='GET'&&boqReviewMatch[2]){
+        const ingestionId=decodeURIComponent(boqReviewMatch[2]),boq=reviewableBoqs(state).find(b=>b.ingestionId===ingestionId);
+        const document=boq&&state.evidenceDocuments.find(d=>d.sourceHashSha256===boq.sourceHashSha256&&(d.linkedArtifactId===ingestionId||d.boqTableRead?.ingestionId===ingestionId));
+        if(!document){json(res,404,{error:'original_source_not_available'});return;}
+        const bytes=readFileSync(document.storedPath);
+        if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('The retained source does not match its recorded identity.');
+        res.writeHead(200,{'Content-Type':document.mediaType,'Content-Length':bytes.length,'Content-Disposition':document.mediaType==='application/pdf'?'inline':'attachment','X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});res.end(bytes);return;
+      }
+      if(req.method==='GET'){json(res,200,boqNumericReview(state));return;}
+      if(req.method==='POST'&&!boqReviewMatch[2]){
+        const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+        const result=runtimeProjects.confirmBoqNumericReadings(projectId,input);invalidateProject(projectId);json(res,200,result);return;
+      }
+      json(res,405,{error:'boq_review_action_not_supported'});
+    }catch(error){invalidateProject(projectId);json(res,409,{error:'boq_review_not_saved',message:error instanceof Error?error.message:String(error)});}
+    return;
+  }
+
+  const tableConfirmationMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/table-confirmations$/.exec(url.pathname);
+  if(req.method==='POST'&&tableConfirmationMatch){try{
+    const projectId=decodeURIComponent(tableConfirmationMatch[1]!),documentId=decodeURIComponent(tableConfirmationMatch[2]!);
+    const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+    const result=await runtimeProjects.confirmTableColumnMeaning(projectId,{...input,documentId});
+    invalidateProject(projectId);json(res,200,result);
+  }catch(error){json(res,409,{error:'table_column_confirmation_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
   const relationshipMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/relationship$/.exec(url.pathname);
   if(req.method==='POST'&&relationshipMatch){try{const projectId=decodeURIComponent(relationshipMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const effect=runtimeProjects.reviewEvidenceRelationship(projectId,{...input,documentId:decodeURIComponent(relationshipMatch[2]!)});invalidateProject(projectId);json(res,200,{projectId,effect});}catch(error){json(res,409,{error:'document_relationship_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
 
@@ -1901,7 +2062,7 @@ async function route(
     try{
       const phaseId=phaseMatch[2]?decodeURIComponent(phaseMatch[2]):null;
       if(req.method==='GET'){json(res,200,phaseId?phaseProgrammePosition(state,phaseId):{projectId,phases:(state.phaseProgrammes??[]).map(p=>phaseProgrammePosition(state,p.phaseId))});return;}
-      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:header(req,'x-source-filename'),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
+      if(req.method==='POST'&&phaseId&&phaseMatch[3]){const result=await runtimeProjects.ingestSchedule({projectId,phaseId,bytes:await readBody(req),mediaType:mediaType(req),sourceFilename:sourceFilenameHeader(req),sourceRelativePath:sourceRelativePathHeader(req),role:header(req,'x-schedule-role'),roleConfirmed:header(req,'x-schedule-role-confirmed')==='1',...(header(req,'x-approval-reference')?{approvalReference:header(req,'x-approval-reference')!}:{}),uploadIntent:uploadIntent(req),uploadedAt:new Date().toISOString()});invalidateProject(projectId);json(res,201,{...result,phaseId,scope:'phase',position:phaseProgrammePosition(state,phaseId)});return;}
       if(req.method==='POST'&&phaseId&&phaseMatch[4]){const effect=runtimeProjects.adoptSchedule(projectId,decodeURIComponent(phaseMatch[4]),phaseId);invalidateProject(projectId);json(res,200,{projectId,phaseId,effect,position:phaseProgrammePosition(state,phaseId)});return;}
       json(res,405,{error:'phase_action_not_supported'});return;
     }catch(error){json(res,409,{error:'phase_programme_not_completed',message:error instanceof Error?error.message:String(error)});return;}
@@ -1933,15 +2094,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             header(
               req,
@@ -2102,12 +2257,72 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      200,
       result,
     );
+    return;
+  }
+
+  // R8: one durable source producer per module, paged on request instead of
+  // sending thousands of rows and diagnostics with every management screen.
+  const detailMatch=/^\/api\/projects\/([^/]+)\/record-page$/.exec(url.pathname);
+  if(req.method==='GET'&&detailMatch){
+    const projectId=decodeURIComponent(detailMatch[1]!);
+    const state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    const rawSource=url.searchParams.get('source')??'';
+    if(rawSource.length>600||!rawSource.startsWith('/api/projects/'+encodeURIComponent(projectId)+'/')){
+      json(res,400,{error:'source_route_not_allowed'});return;
+    }
+    const source=new URL(rawSource,'http://localhost');
+    const pathname=source.pathname;
+    let result:unknown=null;
+    const module=/^\/api\/projects\/[^/]+\/(schedule|commercial|delivery)\/modules\/([^/]+)$/.exec(pathname);
+    const management=/^\/api\/projects\/[^/]+\/management\/([^/]+)$/.exec(pathname);
+    const advanced=/^\/api\/projects\/[^/]+\/advanced\/([^/]+)$/.exec(pathname);
+    if(module){
+      const key=decodeURIComponent(module[2]!);
+      if(module[1]==='commercial'&&!commercialPageModules.some(row=>row.key===resolveModuleKey(key))){
+        json(res,404,{error:'module_not_found'});return;
+      }
+      const value=moduleForProject(projectId,key);
+      result=resolveModuleKey(key)==='activity-analytics'&&source.searchParams.get('view')==='page'
+        ?publicModuleResult({...value,data:activityRegisterView(value.data)},key)
+        :publicModuleResult(value,key);
+    }else if(management){
+      const key=decodeURIComponent(management[1]!);
+      result=publicModuleResult(moduleForProject(projectId,key),key);
+    }else if(advanced&&advancedControlKeys.has(decodeURIComponent(advanced[1]!))){
+      result=moduleForProject(projectId,decodeURIComponent(advanced[1]!));
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents'){
+      result=projectDocumentRegister(projectId);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/actions'){
+      result=projectActionRegisterForState(state).workflow;
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/page-review'){
+      result=boqPageReview(state);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/boq/numeric-review'){
+      result=boqNumericReview(state);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/overview'){
+      result=overviewForProject(projectId);
+    }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/director-position'){
+      result=directorForProject(projectId);
+    }else{
+      json(res,400,{error:'source_route_not_allowed'});return;
+    }
+    const rawExpected=url.searchParams.get('version');
+    const expected=rawExpected===null||rawExpected.trim()===''?null:Number(rawExpected);
+    if(expected!==null&&Number.isInteger(expected)&&expected!==state.version){
+      json(res,409,{error:'project_version_changed',projectVersion:state.version});return;
+    }
+    const pointer=url.searchParams.get('pointer')??'';
+    const offset=Number(url.searchParams.get('offset')??0);
+    const page=recordDetailPage(result,pointer,offset,25,{
+      query:url.searchParams.get('q')??'',
+      status:url.searchParams.get('filter')??'',
+      sort:url.searchParams.get('sort')??'',
+      direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
+    });
+    json(res,200,pageProjectResponse({...page,projectVersion:state.version},rawSource));
     return;
   }
 
@@ -2140,7 +2355,7 @@ async function route(
     }
     if (
       result.status ===
-      "blocked"
+      "blocked" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2166,7 +2381,7 @@ async function route(
     const projectId=decodeURIComponent(advancedReportMatch[1]!),key=decodeURIComponent(advancedReportMatch[2]!),format=advancedReportMatch[3] as 'xlsx'|'json';
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    if(result.status==='blocked'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
+    if(result.status==='blocked'&&format!=='json'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
     const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
@@ -2177,7 +2392,7 @@ async function route(
     const projectId=decodeURIComponent(advancedMatch[1]!),key=decodeURIComponent(advancedMatch[2]!);
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
-    json(res,result.status==='blocked'?409:200,result);
+    json(res,200,result);
     return;
   }
 
@@ -2227,7 +2442,7 @@ async function route(
 
     if (
       result.status ===
-      "blocked" && moduleArea!=="delivery"
+      "blocked" && moduleArea!=="delivery" && format!=="json"
     ) {
       json(res, 409, {
         error:
@@ -2289,11 +2504,12 @@ async function route(
       );
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
-      publicModuleResult(result,key),
+      200,
+      resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='register'
+        ?{...activityRegisterPage((result.data as any)?.rows??[],url.searchParams),projectId,projectVersion:runtimeProjects.get(projectId)?.version??null}
+        :resolveModuleKey(key)==='activity-analytics'&&url.searchParams.get('view')==='page'
+        ?publicModuleResult({...result,data:activityRegisterView(result.data)},key)
+        :publicModuleResult(result,key),
     );
     return;
   }
@@ -2320,15 +2536,9 @@ async function route(
           mediaType:
             mediaType(req),
           sourceFilename:
-            header(
-              req,
-              "x-source-filename",
-            ),
+            sourceFilenameHeader(req),
           sourceRelativePath:
-            header(
-              req,
-              "x-source-relative-path",
-            ),
+            sourceRelativePathHeader(req),
           role:
             (header(
               req,
@@ -2343,6 +2553,7 @@ async function route(
             "other",
           uploadedAt:
             new Date().toISOString(),
+          allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
     invalidateProject(
       projectId,
@@ -2466,10 +2677,7 @@ async function route(
     }
     json(
       res,
-      result.status ===
-        "blocked"
-        ? 409
-        : 200,
+      200,
       publicModuleResult(result,key),
     );
     return;
@@ -2504,23 +2712,24 @@ async function route(
     // different governed position from the individual page endpoints.
     const canonicalManagementPages = {
       masterDashboard:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-dashboard",
         )?.data ??
         surfaces.masterDashboard,
       commandCenter:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "command-center",
         )?.data ??
         surfaces.commandCenter,
       masterControlProgramme:
-        managementSurfaceForProject(
+        moduleForProject(
           projectId,
           "master-control-programme",
         )?.data ??
         surfaces.masterControlProgramme,
+      sourceQuality: moduleForProject(projectId, "source-quality")?.data ?? surfaces.sourceQuality,
     };
     json(
       res,
@@ -2749,7 +2958,7 @@ async function route(
       receivedAt:
         new Date().toISOString(),
       sourceFilename:
-        header(req, "x-source-filename"),
+        sourceFilenameHeader(req),
       documentId:
         header(req, "x-document-id"),
       revisionId:
@@ -2769,10 +2978,7 @@ async function route(
     runtimeProjects.attachBoq(
       result,
       body,
-      header(
-        req,
-        "x-source-filename",
-      ),
+      sourceFilenameHeader(req),
     );
     invalidateProject(
       projectId,
@@ -2866,6 +3072,8 @@ async function route(
         "/api/projects/:projectId/evidence/documents/delete",
       evidenceDelete:
         "/api/projects/:projectId/evidence/documents/:documentId",
+      evidenceTableConfirmation:
+        "/api/projects/:projectId/evidence/documents/:documentId/table-confirmations",
       evidenceRerun:
         "/api/projects/:projectId/evidence/rerun",
       scheduleUpload:

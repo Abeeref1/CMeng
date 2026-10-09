@@ -40,6 +40,8 @@ export interface QuantityActivityMappingCandidate {
 }
 
 export interface QuantityScheduleMappingResult {
+  sourceWbsLinks?:Array<{quantityItemId:string;wbsCode:string|null;wbsId:string|null;activityIds:string[];basis:string;sourceRefs:string[]}>;
+  sourceWbsCoveragePercent?:number|null;
   schemaVersion: "1.0";
   projectId: string | null;
   boqRevisionId: string;

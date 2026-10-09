@@ -17,9 +17,9 @@ function calculateQuantityReview(state:ProjectRuntimeState){
   const sections=[...new Set(items.map(i=>i.section).filter((s):s is string=>!!s))].map(section=>({section,
     itemCount:items.filter(i=>i.section===section).length,
     suggestions:wbs.filter(w=>w.name&&phrase(w.name,section)).map(w=>({wbsId:w.wbsId,name:w.name,sourceRefs:w.sourceRefs}))}));
-  const units=[...new Set(items.map(i=>i.unit??'Unit not stated'))].map(unit=>{const rows=items.filter(i=>(i.unit??'Unit not stated')===unit),known=rows.filter(r=>r.contractQuantity!==null);return {unit,itemCount:rows.length,knownQuantityCount:known.length,quantity:known.length?known.reduce((s,r)=>s+r.contractQuantity!,0):null};});
+  const units=[...new Set(items.map(i=>i.unit??'Unit not stated'))].map(unit=>{const rows=items.filter(i=>(i.unit??'Unit not stated')===unit),known=rows.filter(r=>r.contractQuantity!==null);return {unit,itemCount:rows.length,knownQuantityCount:known.length,quantity:rows.length===1?known[0]?.contractQuantity??null:null};});
   const forecast=sourceProductivityForecastEvidence(state);
-  const forecastUnits=[...new Set(forecast.rows.map(r=>r.unit??'Unit not stated'))].map(unit=>{const rows=forecast.rows.filter(r=>(r.unit??'Unit not stated')===unit),known=rows.filter(r=>r.remainingQuantity!==null);return {unit,rowCount:rows.length,remainingQuantity:known.length?known.reduce((s,r)=>s+r.remainingQuantity!,0):null};});
+  const forecastUnits=[...new Set(forecast.rows.map(r=>r.unit??'Unit not stated'))].map(unit=>{const rows=forecast.rows.filter(r=>(r.unit??'Unit not stated')===unit),known=rows.filter(r=>r.remainingQuantity!==null);return {unit,rowCount:rows.length,remainingQuantity:rows.length===1?known[0]?.remainingQuantity??null:null};});
   const drivers=forecast.rows.filter(r=>forecast.driverWorkPackageIds.includes(r.workPackageId)).map(r=>{
     const values=forecast.rows.filter(v=>v.unit===r.unit&&v.remainingQuantity!==null).map(v=>v.remainingQuantity!).sort((a,b)=>a-b);
     const n=values.length,median=n?(values[Math.floor((n-1)/2)]!+values[Math.floor(n/2)]!)/2:null;
@@ -38,7 +38,7 @@ function calculateQuantityReview(state:ProjectRuntimeState){
     forecast:{completionIso:forecast.completionIso,state:forecast.state,workPackageCount:forecast.workPackageCount,driverCount:drivers.length,drivers,units:forecastUnits,
       explicitActivityLinkCount:forecast.rows.filter(r=>r.linkedActivityId&&model?.activities.some(a=>a.activityId===r.linkedActivityId)).length,
       sameNumberReviewedCount:numberReview.filter(r=>r.schedulePackages.length===1).length,sameNumberDisciplineMatches:numberReview.filter(r=>r.disciplineMatches).length,numberReview},
-    interpretation:'Review the suggested section matches before linking BOQ items to activities. Keep quantities in their own units. Package numbers alone do not prove a match. Provide a table linking productivity work packages, programme activities and BOQ items, and explain unusually large remaining quantities.'};
+    interpretation:'Review the suggested section matches before linking BOQ items to activities. Keep each item quantity separate, including items that share a unit. Package numbers alone do not prove a match. Provide a table linking productivity work packages, programme activities and BOQ items, and explain unusually large remaining quantities.'};
 }
 
 /** Explicit contract-version amounts, independent of cost budget or variation

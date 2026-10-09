@@ -149,11 +149,21 @@ test('8 payment due dates select the term effective at each certificate event',a
 test('10 population cache invalidates for in-place source identity/type changes and isolates consumer lists',async t=>{
  const {store,state}=fixture(t);await schedule(store,'2031-07-01','a.xer');const model=state.schedules[0]!.revision.model;const {activityPopulation}=await import('../packages/schedule-analysis-core/src');const first=activityPopulation(model);first.reporting.memberIds.push('fake');first.activities.length=0;assert.equal(activityPopulation(model).activities.length,1);assert.equal(activityPopulation(model).reporting.memberIds.length,1);model.activities[0]!.activityType='wbs_summary';assert.equal(activityPopulation(model).activities.length,0);model.activities[0]!.activityType='task';model.activities[0]!.activityId='renamed';assert.deepEqual(activityPopulation(model).reporting.memberIds,['renamed']);
 });
-test('3 a newer unadopted update is disclosed and a missing data date cannot become current',async t=>{
- const {store,state}=fixture(t);await schedule(store,'2031-06-01','a.xer');await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(xer('2031-07-01')),mediaType:'text/plain',sourceFilename:'b.xer',uploadedAt:stamp,uploadIntent:'add_update'});
- const {reportingData}=await import('../packages/runtime-api/src/reporting-contract');const data:any=reportingData(state,'independent-forecast',{});assert.equal(data.reportingContract.newerUnadoptedSchedules[0]?.dataDateIso.slice(0,10),'2031-07-01');assert.equal(data.reportingContract.dataDateIso,'2031-06-01');
- const other=store.getOrCreate('NO-DATA-DATE');await store.ingestEvidenceFile({projectId:other.projectId,bytes:Buffer.from(xer('')),mediaType:'text/plain',sourceFilename:'latest-2099.xer',uploadedAt:stamp});assert.equal(projectControlSchedule(other),null);
+test('3 a newer ordinary update becomes submitted-current while a missing data date cannot become current',async t=>{
+ const {store,state}=fixture(t);
+ await schedule(store,'2031-06-01','a.xer');
+ const latest=await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(xer('2031-07-01')),mediaType:'text/plain',sourceFilename:'b.xer',uploadedAt:stamp,uploadIntent:'add_update'});
+ const {reportingData}=await import('../packages/runtime-api/src/reporting-contract');
+ const data:any=reportingData(state,'independent-forecast',{});
+ assert.equal(data.reportingContract.programmeRevisionId,latest.linkedArtifactId);
+ assert.equal(data.reportingContract.dataDateIso,'2031-07-01');
+ assert.equal(data.reportingContract.programmeAuthority.authority,'submitted');
+ assert.equal(data.reportingContract.newerUnadoptedSchedules.length,0);
+ const other=store.getOrCreate('NO-DATA-DATE');
+ await store.ingestEvidenceFile({projectId:other.projectId,bytes:Buffer.from(xer('')),mediaType:'text/plain',sourceFilename:'latest-2099.xer',uploadedAt:stamp});
+ assert.equal(projectControlSchedule(other),null);
 });
+
 test('10 issue inspection retains findings at the end of a 20,000-row register',async()=>{
  const {assessModuleIssues}=await import('../packages/runtime-api/src/module-issues');const rows=Array.from({length:20000},(_,i)=>({id:'A'+i,value:i,details:{state:'established',diagnostics:i===19999?['MALFORMED_SOURCE_DATE']:[]}}));const result=assessModuleIssues({key:'activity-analytics',status:'partial',reason:null,dependencies:[],data:{rows,systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[]}}},{state:'pass',failedCheckIds:[],checkCount:1});assert.ok(result.issues.some(i=>i.kind==='data_quality'&&i.detail.includes('MALFORMED_SOURCE_DATE')));
 });

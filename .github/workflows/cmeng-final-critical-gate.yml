@@ -1,0 +1,41 @@
+name: CMeng Critical Root-Fix Gate
+on:
+  push:
+    branches: [fix/cmeng-final-root-closure-20261009]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cmeng-final-critical-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  critical:
+    name: CPM, shared facts, paging, EOT, mixed delivery
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact candidate
+        run: npm run build
+      - name: Critical regressions (no waived failures)
+        run: |
+          node --test \
+            dist/tests/consultant-response-paging.test.js \
+            dist/tests/delivery-progress-single-producer.test.js \
+            dist/tests/cpm-mixed-calendar-lag.test.js \
+            dist/tests/mixed-calendar-ss-boundary.test.js \
+            dist/tests/delivery-adversarial-scenarios.test.js \
+            dist/tests/canonical-source-integration.test.js
+      - name: Independent mixed-calendar oracle
+        run: |
+          mkdir -p /tmp/cmeng-independent-mixed
+          python3 scripts/independent-mixed-calendar-lag-reference.py /tmp/cmeng-independent-mixed
+          node scripts/compare-independent-cpm.cjs /tmp/cmeng-independent-mixed

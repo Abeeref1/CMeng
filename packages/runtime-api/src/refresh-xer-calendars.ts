@@ -4,7 +4,7 @@ import {canonicalScheduleFromXer} from '../../schedule-analysis-core/src';
 import {parseXerBytes} from '../../xer-parser/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-export const XER_CALENDAR_READER_VERSION='p6-record-separators-v1';
+export const XER_CALENDAR_READER_VERSION='p6-record-separators-v2-dated-reconciliation';
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 
 /** Reread only failed calendar interpretations from the unchanged retained

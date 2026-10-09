@@ -96,7 +96,7 @@ export interface BondControlInput {
     | "expired"
     | "released";
   expiryIso: string | null;
-  amount: number;
+  amount: number | null;
   currency: string;
   sourceRefs: string[];
 }
@@ -141,6 +141,7 @@ export interface PaymentRetentionInput {
     ContractControlMoney;
   retentionReleaseDate:
     string | null;
+  retentionReleaseDueDate?: string | null;
   sourceRefs: string[];
 }
 
@@ -446,6 +447,14 @@ export interface LdScenario {
 }
 
 export interface LiquidatedDamagesProjection {
+  /** Clean extracted clause values are presented as reported source evidence.
+   * Legal applicability, EOT entitlement and LD deduction remain separate. */
+  reportedSourceTerms:{
+    rate:RawLdTermInput['rate'];
+    cap:RawLdTermInput['cap'];
+    rateEvidence:'reported_source_value'|'missing'|'conflicted';
+    capEvidence:'reported_source_value'|'missing'|'conflicted';
+  };
   capabilityKey:
     "liquidated-damages";
   state: CommercialFindingState;
@@ -458,6 +467,7 @@ export interface LiquidatedDamagesProjection {
 }
 
 export interface BondPosition {
+  contractValidity?:ReturnType<typeof import('./security-validity').performanceSecurityValidity>;
   bondId: string;
   kind: BondControlInput["kind"];
   status: BondControlInput["status"];

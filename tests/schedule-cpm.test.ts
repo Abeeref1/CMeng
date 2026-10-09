@@ -160,6 +160,85 @@ test('driving trace keeps parallel ties, omits a non-binding predecessor and pre
   assert.deepEqual(finishLinked.drivingNetwork?.activityIds,['A','B']);assert.equal(finishLinked.drivingNetwork?.relationships[0]?.type,'FF');
 });
 
+test('finish lag landing on a work opening keeps the chronological finish event',()=>{
+  const model=chainModel({activities:[activity('PRE',{remainingDurationHours:18}),activity('POST',{remainingDurationHours:3})],relationships:[{relationshipId:'FF-GAP',predecessorActivityId:'PRE',successorActivityId:'POST',type:'FF',lagHours:-2,external:false,sourceRefs:[],diagnostics:[]}]});
+  const result=calculateCpm(model),pre=result.activities.find(a=>a.activityId==='PRE')!,post=result.activities.find(a=>a.activityId==='POST')!;
+  assert.equal(pre.earlyFinishIso,'2026-01-07T10:00:00.000Z');
+  assert.equal(post.earlyStartIso,'2026-01-06T13:00:00.000Z');
+  assert.equal(post.earlyFinishIso,'2026-01-07T08:00:00.000Z','FF -2h requires the Wednesday opening, not the Tuesday closing that has the same working-time coordinate.');
+  assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),3);
+});
+
+
+test('SF start bound cannot collapse a held FF finish to the prior closing boundary',()=>{
+  const split:CanonicalCalendar={
+    calendarId:'CAL-SPLIT',name:'Split shift',semanticComplete:true,
+    weeklyWorkMinutes:[0,480,480,480,480,480,0],
+    weeklyWorkIntervals:[
+      {dayIndex:1,intervals:[]},
+      ...Array.from({length:5},(_,i)=>({dayIndex:i+2,intervals:[
+        {start:'08:00',finish:'12:00',minutes:240},{start:'13:00',finish:'17:00',minutes:240}
+      ]})),
+      {dayIndex:7,intervals:[]},
+    ],
+    exceptions:[{isoDate:'2026-01-07',nonWorking:true,workIntervals:[]}],
+    standardDayHours:8,standardWeekHours:40,sourceRefs:[]
+  };
+  const a=(id:string,d:number)=>activity(id,{calendarId:'CAL-SPLIT',remainingDurationHours:d,originalDurationHours:d});
+  const rel=(id:string,pre:string,post:string,type:'FS'|'SS'|'FF'|'SF',lagHours:number)=>({
+    relationshipId:id,predecessorActivityId:pre,successorActivityId:post,type,lagHours,external:false,sourceRefs:[],diagnostics:[]
+  });
+  const model=chainModel({dataDateIso:'2026-01-05T08:00:00.000Z',calendars:[split],
+    activities:[a('A0',23),a('A1',12),a('A2',24),a('A3',18),a('A4',19),a('A5',7),a('A6',18),a('A7',22),a('A8',12),a('A9',16)],
+    relationships:[
+      rel('R0','A0','A2','SS',11),rel('R1','A2','A3','FF',14),rel('R2','A3','A4','FF',-1),
+      rel('R3','A1','A5','FF',-2),rel('R4','A1','A6','SF',-3),rel('R5','A2','A6','SF',5),
+      rel('R6','A5','A6','FF',5),rel('R7','A4','A7','FF',-2),rel('R8','A4','A8','SF',16),
+      rel('R9','A5','A8','FS',4),rel('R10','A6','A8','FF',2),rel('R11','A0','A9','FS',9),
+      rel('R12','A6','A9','SF',5),rel('R13','A8','A9','SS',13)
+    ]});
+  const result=calculateCpm(model,{allowElapsedFallback:false,assumeMissingLagZero:false,assumeUnknownRelationshipTypeFs:false});
+  const row=result.activities.find(x=>x.activityId==='A4')!;
+  assert.equal(row.earlyStartIso,'2026-01-09T14:00:00.000Z');
+  assert.equal(row.lateStartIso,row.earlyStartIso);
+  assert.equal(row.earlyFinishIso,'2026-01-14T08:00:00.000Z');
+  assert.equal(row.lateFinishIso,row.earlyFinishIso,'SF start bound must not collapse the held FF finish to Tuesday 17:00.');
+  assert.equal(row.totalFloatHours,0);
+});
+
+test('every activity remains bounded by project finish even when a start link permits its successor to finish first',()=>{
+  for(const type of ['SS','SF'] as const){
+    const model=chainModel({activities:[activity('LONG',{remainingDurationHours:40}),activity('SHORT',{remainingDurationHours:8})],
+      relationships:[{relationshipId:'START-LINK',predecessorActivityId:'LONG',successorActivityId:'SHORT',type,lagHours:0,external:false,sourceRefs:[],diagnostics:[]}]});
+    const result=calculateCpm(model);
+    assert.equal(result.projectFinishIso,'2026-01-09T16:00:00.000Z');
+    assert.equal(result.activities.find(a=>a.activityId==='LONG')?.totalFloatHours,0);
+    assert.ok(result.criticalActivityIds.includes('LONG'));
+    for(const row of result.activities)assert.ok(row.lateFinishIso!<=result.projectFinishIso!,row.activityId+' exceeds the project finish');
+    const required=calculateCpm(model,{requiredFinishIso:'2026-01-08T16:00:00.000Z'});
+    assert.equal(required.activities.find(a=>a.activityId==='LONG')?.totalFloatHours,-8);
+    for(const row of required.activities)assert.ok(row.lateFinishIso!<=required.latePassFinishIso!,row.activityId+' exceeds the required finish');
+  }
+});
+
+test('finish dependencies preserve chronological bounds across a different-calendar nonworking gap',()=>{
+  const elapsed:CanonicalCalendar={...fiveDayCalendar(),calendarId:'ALL',name:'24 hours',standardDayHours:24,standardWeekHours:168,
+    weeklyWorkMinutes:[1440,1440,1440,1440,1440,1440,1440],weeklyWorkIntervals:Array.from({length:7},(_,i)=>({dayIndex:i+1,intervals:[{start:'00:00',finish:'24:00',minutes:1440}]}))};
+  const model=chainModel({dataDateIso:'2026-01-07T00:00:00.000Z',calendars:[elapsed,fiveDayCalendar()],
+    activities:[activity('A100',{calendarId:'ALL',remainingDurationHours:18}),activity('A200',{remainingDurationHours:2})]});
+  model.relationships[0]!.type='FF';
+  const result=calculateCpm(model),pre=result.activities[0]!,post=result.activities[1]!;
+  assert.equal(pre.earlyFinishIso,'2026-01-07T18:00:00.000Z');
+  assert.equal(post.earlyStartIso,'2026-01-07T14:00:00.000Z');
+  assert.equal(post.earlyFinishIso,pre.earlyFinishIso,'FF completion is held to the predecessor event, even after working time ends.');
+  assert.equal(post.lateFinishIso,post.earlyFinishIso);assert.equal(post.totalFloatHours,0);
+  assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),2);
+  assert.equal(result.projectFinishIso,pre.earlyFinishIso);
+  const deadline=calculateCpm(model,{requiredFinishIso:'2026-01-07T15:00:00.000Z'});
+  assert.ok(deadline.activities.every(a=>Date.parse(a.lateFinishIso!)<=Date.parse('2026-01-07T15:00:00.000Z')));
+  assert.ok(deadline.activities[0]!.totalFloatHours!<0);
+});
+
 test('execution CPM excludes LOE and WBS durations and retains the source population',()=>{
   const base=chainModel();
   const expected=calculateCpm(base);
@@ -448,4 +527,35 @@ test("cyclic network is never force-calculated", () => {
         ),
     ),
   );
+});
+
+test('source constraint bounds use the working calendar in both CPM passes',()=>{
+ const run=(type:string,dateIso:string)=>calculateCpm(chainModel({activities:[activity('A',{sourceConstraints:[{type,dateIso}]})],relationships:[]}),{applySourceConstraints:true});
+ for(const type of ['CS_MSO','CS_MSOA','CS_MANDSTART']){
+  const r=run(type,'2026-01-07T08:00:00');assert.equal(r.complete,true,type);
+  assert.equal(r.activities[0]!.earlyStartIso,'2026-01-07T08:00:00.000Z',type);
+  assert.equal(r.projectFinishIso,'2026-01-07T16:00:00.000Z',type);
+ }
+ for(const type of ['CS_MEO','CS_MEOA','CS_MANDFIN']){
+  const r=run(type,'2026-01-07T16:00:00');assert.equal(r.complete,true,type);
+  assert.equal(r.activities[0]!.earlyFinishIso,'2026-01-07T16:00:00.000Z',type);
+ }
+ for(const type of ['CS_MSOB','CS_MEOB']){
+  const date=type==='CS_MSOB'?'2026-01-02T08:00:00':'2026-01-02T16:00:00';
+  const r=run(type,date),row=r.activities[0]!;assert.equal(row.earlyStartIso,'2026-01-05T08:00:00.000Z');
+  assert.equal(row.lateFinishIso,'2026-01-02T16:00:00.000Z');assert.equal(row.totalFloatHours,-8);
+ }
+ const missing=run('CS_MEOA','bad-date');assert.equal(missing.complete,false);assert.equal(missing.activities[0]!.status,'unresolved');
+ const unknown=run('UNSUPPORTED','2026-01-07');assert.equal(unknown.complete,false);
+});
+
+test('ALAP consumes free float without delaying its successor or project finish',()=>{
+ const model=chainModel({activities:[activity('SHORT',{remainingDurationHours:8,sourceConstraints:[{type:'CS_ALAP',dateIso:null}]}),activity('LONG',{remainingDurationHours:24}),activity('END')],relationships:[
+  {relationshipId:'S-E',predecessorActivityId:'SHORT',successorActivityId:'END',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]},
+  {relationshipId:'L-E',predecessorActivityId:'LONG',successorActivityId:'END',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]},
+ ]});
+ const plain=calculateCpm(model),constrained=calculateCpm(model,{applySourceConstraints:true});
+ assert.equal(constrained.complete,true);assert.equal(constrained.projectFinishIso,plain.projectFinishIso);
+ assert.equal(constrained.activities.find(a=>a.activityId==='SHORT')!.earlyStartIso,'2026-01-07T08:00:00.000Z');
+ assert.deepEqual(new Set(constrained.drivingNetwork!.relationships.map(r=>r.relationshipId)),new Set(['S-E','L-E']));
 });

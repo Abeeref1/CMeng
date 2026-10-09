@@ -1,3 +1,4 @@
+import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   stableFingerprint,
@@ -467,6 +468,7 @@ function laborAssignments(
       (
         resource.unitAbbreviation ??
         resource.unitName ??
+        resource.priceTimeUnit ??
         ""
       )
         .trim()
@@ -481,9 +483,7 @@ function laborAssignments(
     }
 
     if (
-      !/^(h|hr|hrs|hour|hours|mh|manhour|manhours|man hour|man hours)$/.test(
-        unit,
-      )
+      !resourceLaborHourEligible(resource)
     ) {
       diagnostics.push(
         "LABOR_UNIT_NOT_HOURS_NOT_USED_FOR_MANPOWER_CALCULATION:" +
