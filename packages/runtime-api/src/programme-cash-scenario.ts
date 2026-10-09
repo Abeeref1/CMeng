@@ -17,7 +17,10 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
    months.push({periodEndIso:new Date(end).toISOString().slice(0,10),days:(end-cursor)/86400000+1});cursor=end+86400000;}
  }
  const round=(value:number)=>Math.round(value*100)/100,totalDays=months.reduce((sum,row)=>sum+row.days,0);
- const groups=position.currencies.flatMap(currency=>{
+ type CashRow={periodEndIso:string;grossValuation:number;netReceipt:number|null;assumedReceiptIso:string|null};
+ type CashGroup={currency:string;remainingGross:number|null;retention:number|null;advanceRecovery:number|null;
+   netReceipts:number|null;rows:CashRow[];certificateCount:number|null;missingInputs:string[];basis:string};
+ const groups:CashGroup[]=position.currencies.flatMap((currency):CashGroup[]=>{
   const current=currency.currentContractValue.value,certified=currency.grossCertifiedAmount.value;
   if(current===null||certified===null||!months.length){
    const knownCertificates=currency.interimCertificateCount.value;
