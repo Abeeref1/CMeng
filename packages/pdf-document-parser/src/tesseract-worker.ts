@@ -3,7 +3,7 @@ import {existsSync,mkdirSync,copyFileSync,renameSync} from 'node:fs';
 import {join,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
-import {createWorker} from 'tesseract.js';
+import {createWorker,PSM} from 'tesseract.js';
 import type {TesseractOcrOptions} from './tesseract-provider';
 
 const options=workerData as TesseractOcrOptions;
@@ -27,7 +27,12 @@ void (async()=>{
   });
   parentPort!.on('message',message=>{
     if(message.type!=='recognize')return;
-    void reader.recognize(Buffer.from(message.image)).then(({data})=>parentPort!.postMessage({type:'result',id:message.id,result:{
+    void (async()=>{
+      // Per-recognition parameters are saved/restored by Tesseract.js, so a
+      // cell reading cannot change a subsequent whole-page request.
+      const recognitionOptions=message.options?{tessedit_pageseg_mode:message.options.segmentation==='line'?PSM.SINGLE_LINE:message.options.segmentation==='word'?PSM.SINGLE_WORD:PSM.SINGLE_BLOCK}:{};
+      return reader.recognize(Buffer.from(message.image),recognitionOptions as Partial<import('tesseract.js').RecognizeOptions> & Partial<import('tesseract.js').WorkerParams>);
+    })().then(({data})=>parentPort!.postMessage({type:'result',id:message.id,result:{
       text:data.text??'',confidence:typeof data.confidence==='number'?data.confidence/100:null,language:languages.join('+'),diagnostics:[],
     }}),error=>parentPort!.postMessage({type:'failed',id:message.id,message:error instanceof Error?error.message:String(error)}));
   });

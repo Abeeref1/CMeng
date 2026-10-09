@@ -23,6 +23,7 @@ import { inferEvidenceCategory, inferDocumentType } from '../packages/runtime-ap
 import { buildEotAssessmentProjection } from '../packages/eot-assessment/src';
 import type { ProjectRuntimeState, StoredEvidenceDocument } from '../packages/runtime-api/src/project-state-types';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 // These fixtures exercise native PDF/text ingestion. OCR providers have separate tests;
@@ -36,7 +37,7 @@ function fixture(t: { after(fn:()=>void): unknown }) {
   const store=new RuntimeProjectStore({dataDir:dir,durable:false});
   const state=store.getOrCreate('CANONICAL');
   state.schedules.push({role:'update',format:'xer',sourceFilename:'renamed.xer',sourceHashSha256:'schedule-hash',uploadedAt:stamp,
-    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:'CANONICAL',source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],calendars:[],diagnostics:[]}}} as unknown as ProjectRuntimeState['schedules'][number]);
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:'CANONICAL',source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as unknown as ProjectRuntimeState['schedules'][number]);
   function csvDoc(text:string,type='resource_register',basis:StoredEvidenceDocument['basisState']='active',familySuffix='') {
     const hash=createHash('sha256').update(text).digest('hex'),id='doc-'+state.evidenceDocuments.length;
     const path=join(dir,id+'.csv');writeFileSync(path,text);
@@ -54,11 +55,64 @@ const weekly='Resource ID,Week Start,Available Capacity,Planned Demand,Actual Ap
 const claims='Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nC1,Access unavailable,2026-08-02,20,5,Submitted';
 const determinations='Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State\nD1,C1,15,2026-07-24,Determined,Engineer,L1,Immutable\nD2,C1,11,2026-08-16,Determined,Engineer,L2,Immutable\nD3,C1,112,2026-09-08,Determined,Engineer,L3,Immutable';
 function amendment(state:ProjectRuntimeState) {
-  const doc={documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'renamed.pdf',sourceHashSha256:'amd-hash',basisState:'additive',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
+  const doc={documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'renamed.pdf',sourceHashSha256:'amd-hash',uploadedAt:stamp,basisState:'additive',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
   state.evidenceDocuments.push(doc);
-  state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030\nEOT Granted 90 calendar days',startPage:1,sectionKey:'preamble',sourceMode:'deterministic'}],pdf:{pages:[{method:'native',pageNumber:2,text:'All contract, BOQ, variation, payment and cost values are stated in AED and are exclusive of VAT unless expressly stated otherwise.'}]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+  state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030\nEOT Granted 90 calendar days',startPage:1,sectionKey:'preamble',sourceMode:'deterministic',sourceSpans:[],kind:'preamble',status:'verified',diagnostics:[]}],pdf:{pages:[{method:'native',pageNumber:2,text:'All contract, BOQ, variation, payment and cost values are stated in AED and are exclusive of VAT unless expressly stated otherwise.'}]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
   state.version++;
 }
+
+test('one project facts snapshot is reused for the whole project version and rebuilds only when the version changes',t=>{
+  const {state,csvDoc}=fixture(t);
+  state.schedules[0]!.revision.model.activities=[
+    {projectId:'CANONICAL',activityId:'A1',nativeId:'1',name:'Critical open activity',wbsId:null,calendarId:null,activityType:'task',status:'in_progress',
+      baselineStartIso:'2026-08-01',baselineFinishIso:'2026-08-20',currentStartIso:'2026-08-01',currentFinishIso:'2026-09-10',actualStartIso:'2026-08-01',actualFinishIso:null,
+      forecastStartIso:'2026-08-01',forecastFinishIso:'2026-09-10',originalDurationHours:80,remainingDurationHours:40,totalFloatHours:0,freeFloatHours:null,percentComplete:50,sourceRefs:[],diagnostics:[]},
+    {projectId:'CANONICAL',activityId:'A2',nativeId:'2',name:'Negative float activity',wbsId:null,calendarId:null,activityType:'task',status:'not_started',
+      baselineStartIso:'2026-08-10',baselineFinishIso:'2026-08-25',currentStartIso:'2026-09-01',currentFinishIso:'2026-09-20',actualStartIso:null,actualFinishIso:null,
+      forecastStartIso:'2026-09-01',forecastFinishIso:'2026-09-20',originalDurationHours:80,remainingDurationHours:80,totalFloatHours:-16,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]},
+  ] as any;
+  csvDoc('RFI ID,Status,Required Response,Raised Date\nR1,Open,2026-08-20,2026-08-01\nR2,Closed,2026-08-10,2026-08-01','rfi_register');
+  csvDoc('NCR ID,Severity,Status,Due Date,Raised Date\nN1,Major,Open,2026-08-25,2026-08-01','quality_ncr_register');
+  const first=projectFactsForState(state),second=projectFactsForState(state);
+  assert.equal(first,second);
+  assert.equal(first.projectVersion,state.version);
+  assert.equal(first.schedule.criticalActivityCount.value,2);
+  assert.equal(first.schedule.negativeFloatActivityCount.value,1);
+  assert.equal(first.controls.openRfiCount.value,1);
+  assert.equal(first.controls.overdueRfiCount.value,1);
+  assert.equal(first.controls.openCriticalMajorNcrCount.value,1);
+  state.version++;
+  const third=projectFactsForState(state);
+  assert.notEqual(third,first);
+  assert.equal(third.projectVersion,state.version);
+});
+
+test('ORBIT source: 26 awarded days are not erased by an amendment repeating original 31 March 2030',t=>{
+ const {state,csvDoc}=fixture(t);
+ // Establish the original contract independently; an amendment alone must not
+ // be assumed to be the unextended contractual completion date.
+ state.evidenceDocuments.push({documentId:'ORBIT-BASE',basisState:'active',uploadedAt:stamp,sourceFilename:'ORBIT-BASE.pdf',category:'contract',documentType:'contract_main',sourceHashSha256:'ORBIT-BASE-SOURCE',diagnostics:[]} as unknown as StoredEvidenceDocument);
+ state.contractDocuments.push({documentId:'ORBIT-BASE',role:'main',result:{sections:[{text:'Original Contractual Completion 31 March 2030',startPage:1,sectionKey:'completion',sourceMode:'deterministic',sourceSpans:[],kind:'preamble',status:'verified',diagnostics:[]}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+ amendment(state);
+ csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
+ const basis=canonicalTimeClaims(state).contractTimeBasis;
+ assert.equal(basis?.overlapResolution,'unresolved','amendment and determination overlap must remain qualified');
+ const {contractCompletionPosition}=require('../packages/runtime-api/src/contract-completion') as typeof import('../packages/runtime-api/src/contract-completion');
+ const originalCandidates=contractCompletionPosition(state,'2026-08-31').candidates;
+ assert.ok(originalCandidates.some(c=>c.role==='main'&&c.date==='2030-03-31'),'original date source candidates: '+JSON.stringify(originalCandidates));
+ const {reportingState}=require('../packages/runtime-api/src/reporting-state') as typeof import('../packages/runtime-api/src/reporting-state');
+ const qualifiedCandidates=contractCompletionPosition(reportingState(state),'2026-08-31').candidates;
+ assert.ok(qualifiedCandidates.some(c=>c.role==='main'&&c.date==='2030-03-31'),'reporting date source candidates: '+JSON.stringify(qualifiedCandidates));
+ const facts=projectFactsForState(state);
+ assert.equal(facts.time.awardedEotDays.value,26);
+ assert.equal(facts.time.extendedContractCompletionIso.value,'2030-04-26',
+   'a repeated original date must not masquerade as extended contractual completion');
+ assert.equal(facts.time.extendedContractCompletionIso.complete,false,
+   'a calculated comparison must never invent amendment certification');
+ assert.ok(facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
+ assert.equal(facts.time.submittedDaysAfterCurrentContract?.value??null,null,
+   'qualified amendment comparison cannot silently establish late days or LD entitlement');
+});
 
 test('civil programme dates accept XER timestamps without inventing a timezone',()=>{
   for(const s of ['2026-08-31','2026-08-31T08:00:00','2026-08-31T08:00:00.000Z','2026-08-31T08:00:00+03:00','31 August 2026'])assert.equal(dateValue(s),'2026-08-31');
@@ -67,6 +121,16 @@ test('civil programme dates accept XER timestamps without inventing a timezone',
 test('missing numeric evidence is not zero; invalid/grouped values fail closed',()=>{
   assert.equal(numberValue(''),null);assert.equal(numberValue('NaN'),null);assert.equal(numberValue('1,00'),null);
   assert.equal(numberValue('0'),0);assert.equal(numberValue('١٬٢٣٤٫٥'),1234.5);assert.equal(sumKnown([1,null]),null);assert.equal(sumKnown([]),null);assert.equal(sumKnown([0]),0);assert.equal(ratio(1,0),null);assert.equal(fact(1,[],'unsupported').state,'candidate');
+});
+test('duplicate canonical headers preserve the readable table but cannot silently select an authoritative field',t=>{
+  const {csvDoc}=fixture(t);
+  const document=csvDoc('Risk Ref,Risk ID,Status\nR-1,R-ALT,Open','risk_register');
+  const diagnostics:string[]=[];
+  const tables=sourceTables([document],diagnostics,{includeHistorical:true});
+  assert.equal(tables.length,1);
+  assert.deepEqual(tables[0]!.headers.filter(header=>header.startsWith('risk id')),['risk id [1]','risk id [2]']);
+  assert.equal(tables[0]!.recognition?.recognized,false);
+  assert.ok(diagnostics.some(item=>item.startsWith('DUPLICATE_NORMALIZED_HEADERS:')));
 });
 test('content schemas distinguish resource capacity and actual registers without filenames',async()=>{
   const a=await identifyEvidenceDocument({bytes:Buffer.from(weekly),sourceFilename:'a.csv',sourceRelativePath:null});
@@ -264,9 +328,15 @@ test('source receipt hashes are checked again when stored bytes change',t=>{
   const {csvDoc}=fixture(t);const d=csvDoc(master);assert.equal(sourceTables([d],[]).length,1);
   writeFileSync(d.storedPath,master+'\nchanged');const diagnostics:string[]=[];assert.equal(sourceTables([d],diagnostics).length,0);assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_HASH_MISMATCH')));
 });
-test('malformed row widths and duplicate normalized headers are not silently repaired',t=>{
+test('malformed row widths are rejected while duplicate semantic headers are retained but fail closed',t=>{
   const {csvDoc}=fixture(t);const a=csvDoc('A,B\n1,2,3'),b=csvDoc('Resource ID,resource_id\n1,2');const d:string[]=[];
-  assert.equal(sourceTables([a,b],d).length,0);assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
+  const tables=sourceTables([a,b],d);
+  assert.equal(tables.length,1);
+  assert.equal(tables[0]!.document.documentId,b.documentId);
+  assert.deepEqual(tables[0]!.headers,['resource id [1]','resource id [2]']);
+  assert.equal(tables[0]!.recognition?.recognized,false);
+  assert.ok(d.some(s=>s.startsWith('CSV_ROW_WIDTH_MISMATCH')));
+  assert.ok(d.some(s=>s.startsWith('DUPLICATE_NORMALIZED_HEADERS')));
 });
 test('resource quantities are partitioned by class and unit; materials never enter utilization',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);csvDoc("Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nE,2026-08-24,30,Approved,equipment_hour");const r=canonicalResources(state);
@@ -850,6 +920,29 @@ test('determination register total, as-of total and future population remain sep
   assert.equal(m.registerDeterminationDays,138);assert.equal(m.effectiveDeterminationDays,26);assert.equal(m.futureDeterminationCount,1);
   assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2030-03-31');assert.equal(m.contractTimeBasis?.incorporatedEotDays,90);assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,null);assert.equal(m.contractTimeBasis?.overlapResolution,'unresolved');
 });
+test('official dated determinations extend an unamended official contract completion without a false overlap gate',t=>{
+  const {state,csvDoc}=fixture(t);
+  csvDoc([
+    'Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority',
+    'D1,C1,5,2026-05-01,Determined,Engineer',
+    'D2,C1,4,2026-06-01,Awarded,Engineer',
+    'D3,C1,4,2026-07-01,Approved,Contract Administrator',
+  ].join('\n'),'delay_eot_claims_register');
+  const doc={documentId:'MAIN-CONTRACT',category:'contract',documentType:'main_contract',sourceFilename:'contract.pdf',sourceHashSha256:'main-contract-hash',basisState:'active',linkedArtifactId:null,diagnostics:[]} as unknown as StoredEvidenceDocument;
+  state.evidenceDocuments.push(doc);
+  state.contractDocuments.push({documentId:doc.documentId,role:'main',result:{sections:[{text:'Contractual Completion 08 September 2027',heading:'Time for Completion',startPage:12,sectionKey:'completion',sourceMode:'deterministic'}],pdf:{pages:[]}}} as unknown as ProjectRuntimeState['contractDocuments'][number]);
+  state.version++;
+  const m=canonicalTimeClaims(state);
+  assert.equal(m.effectiveDeterminationDays,13);
+  assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2027-09-08');
+  assert.equal(m.contractTimeBasis?.officialApprovedEotDays,13);
+  assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,13);
+  assert.equal(m.contractTimeBasis?.overlapResolution,'resolved');
+  const windows={windows:[],diagnostics:[],positiveProgrammeMovementDays:0} as unknown as Parameters<typeof buildEotAssessmentProjection>[0];
+  const delay={projectId:state.projectId,events:[],claims:[],diagnostics:[]} as unknown as Parameters<typeof buildEotAssessmentProjection>[1];
+  const eot=buildEotAssessmentProjection(windows,delay,m.contractTimeBasis!,{generatedAt:stamp,producerVersion:'test'});
+  assert.equal(eot.officialAdjustedCompletionIso,'2027-09-21');
+});
 test('conflicting immutable determination IDs fail closed instead of summing or overwriting',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(determinations+'\nD1,C1,99,2026-07-24,Determined,Engineer,L1,Immutable','delay_eot_claims_register');const m=canonicalTimeClaims(state);
   assert.equal(m.registerDeterminationDays,null);assert.equal(m.effectiveDeterminationDays,null);assert.ok(m.diagnostics.some(s=>s.startsWith('IMMUTABLE_DETERMINATION_CONFLICT')));
@@ -996,7 +1089,7 @@ test('unprovided deductions stay unknown and cannot yield a matched certificate'
 });
 test('net inclusive tax is added only to explicitly exclusive components with a tax amount', t => {
   const p=paymentFixture(t,{'Net Certified':'1122','Net VAT Basis':'Inclusive','Tax Amount':'102','Paid VAT Basis':'Inclusive','Outstanding Amount':'922'});
-  assert.equal(p.reconciliation,'matched');assert.equal(p.calculatedOutstandingAmount.value,922);
+  assert.equal(p.reconciliation,'matched','all five source components are explicitly present and the net VAT amount reconciles');assert.equal(p.componentArithmetic?.state,'matched','reported components can still reconcile on their stated basis');assert.equal(p.calculatedOutstandingAmount.value,922);
 });
 test('a tax-basis transition without tax evidence remains unresolved', t => {
   const p=paymentFixture(t,{'Net VAT Basis':'Inclusive'});assert.equal(p.reconciliation,'unresolved');
@@ -1085,11 +1178,11 @@ test('C2B2 canonical Commercial ingestion distinguishes VO references from stand
 });
 
 
-test('embedded usage cannot become approved actuals without its approved source register',t=>{
+test('embedded usage stays visible as source-register evidence without being promoted to separate approval',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);csvDoc(weekly);const summary=canonicalResources(state);
-  assert.equal(summary.actualAverageToDataDate,null);
-  assert.ok(summary.points.every(row=>row.actualApprovedUsage===null));
-  assert.ok(summary.diagnostics.some(d=>d.startsWith('UNAPPROVED_EMBEDDED_ACTUAL_USAGE_WITHHELD')));
+  assert.equal(summary.actualAverageToDataDate,70);
+  assert.deepEqual(summary.points.map(row=>row.actualApprovedUsage),[80,30]);
+  assert.ok(summary.diagnostics.some(d=>d.startsWith('EMBEDDED_ACTUAL_USAGE_FROM_SOURCE_REGISTER_NOT_SEPARATELY_CONFIRMED')));
 });
 test('weekly actuals stop at Data Date in both resource and manhour views, with same-period plan variance',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);
@@ -1134,12 +1227,18 @@ test('source claim reporting preserves granted and assessed values separately ac
  assert.equal(report.current.claims[0]!.assessedDays,null);assert.ok(report.reported.conflictingRows[0]!.diagnostics.includes('REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER'));
 });
 
-test('certificate source sums retain current and future values without certification or cash authority',t=>{
+test('source-stated certified certificates are visible as dated source facts without treating future amounts as current cash',t=>{
  const {state,csvDoc}=fixture(t);amendment(state);
  csvDoc('Certificate No,Period End,Gross Work,Variations,Retention,Advance Recovery,Net Certified,Currency,VAT Basis,Status\nOTHER-1,2026-08-01,100,20,6,10,104,AED,Exclusive of VAT,Certified\nOTHER-2,2026-09-01,200,10,8,10,192,AED,Exclusive of VAT,Certified','payment_certificate');
  const p=certificateProfile(commercialCanonical(state));const g=p.groups[0]!;
  assert.equal(g.as_of.length,1);assert.equal(g.future.length,1);assert.equal(g.totals!.netCertifiedAmount,104);assert.equal(g.futureTotals!.netCertifiedAmount,192);
- assert.deepEqual(g.certificationUnconfirmedIds,['OTHER-1']);assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.deepEqual(g.certificationUnconfirmedIds,[],'explicit source-certified status is retained, not hidden behind a second manual approval');
+ assert.equal(g.certifiedCount,1);assert.equal(g.certifiedTotals,null,'a certified source row with an unknown amount-series basis cannot be promoted to a summed certificate balance');assert.equal(g.as_of[0]?.value,104,'the individual certified source amount remains visible');
+ assert.deepEqual(g.futureSourceStatusConflictIds,['OTHER-2']);
+ assert.equal(g.cumulativeBasis,'source_row_sum_only');
+ assert.equal(p.groups[0]!.future.length,1,'a future certificate must stay excluded from current cumulative certification');
+ assert.equal(commercialCanonical(state).payments.every(row=>row.amounts.paidAmount.value===null),true,
+   'source-reported certification is not proof of paid cash');
 });
 
 test('individual resource overload survives aggregation below total capacity',t=>{

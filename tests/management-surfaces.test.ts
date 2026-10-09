@@ -198,6 +198,55 @@ function input():
     generatedAt:
       "2026-09-21T19:00:00.000Z",
     director: director(),
+    projectFacts: {
+      schemaVersion:"1.0",projectId:"MGMT-UAT",projectVersion:1,dataDateIso:"2026-09-21",
+      actions:{openCount:{value:3,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},recordCount:{value:2,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},reviewCount:{value:1,state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]}},
+      schedule:{
+        dataDateIso:{value:"2026-09-21",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedProgrammeCompletionIso:{value:"2030-05-01",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        floatBasis:"independent_cpm",
+        criticalActivityCount:{value:12,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        nearCriticalActivityCount:{value:8,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        negativeFloatActivityCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedCriticalActivityCount:{value:11,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedNearCriticalActivityCount:{value:7,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        submittedNegativeFloatActivityCount:{value:2,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        independentCriticalActivityCount:{value:12,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        independentNearCriticalActivityCount:{value:8,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        independentNegativeFloatActivityCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        delayedExecutionActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        delayedOpenActivityCount:{value:5,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      time:{
+        contractualCompletionIso:{value:"2030-03-31",state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        awardedEotDays:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        extendedContractCompletionIso:{value:"2030-03-31",state:"calculated_with_stated_basis",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      controls:{
+        openRfiCount:{value:4,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        overdueRfiCount:{value:2,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openNcrCount:{value:3,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        overdueNcrCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openCriticalMajorNcrCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        openRiskCount:{value:null,state:"missing",complete:false,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      claims:{
+        eventDateMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        noticeDateMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        noticeRequirementMissingCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+      },
+      commercial:{
+        variationRecordCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        approvedVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        pendingVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        rejectedVariationCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        activeBondCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        expiredBondCount:{value:1,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        activeInsuranceCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        expiredInsuranceCount:{value:0,state:"confirmed",complete:true,basis:"test",sourceRefs:[],diagnostics:[]},
+        currencies:[],
+      },
+    },
     consistency: {state: "pass", checkCount: 3, failedCheckIds: [], scope: "Test checked metrics"},
     modules: [
       {
@@ -418,7 +467,7 @@ test("management surfaces stay evidence-safe and do not invent authority", () =>
 });
 
 
-test("management dashboard uses defensibility wording for claim linkage", () => {
+test("management dashboard describes record linkage without asserting entitlement", () => {
   const result =
     buildManagementSurfaces(
       input(),
@@ -432,11 +481,11 @@ test("management dashboard uses defensibility wording for claim linkage", () => 
       );
   assert.equal(
     linkage?.label,
-    "Fully defensible claim chain",
+    "Claims linked to events and activities",
   );
   assert.equal(
     linkage?.basis,
-    "Full chain: claim → event → activity",
+    "Record linkage only: claim → event → activity. Notice timing, causation, assessed days and entitlement are separate checks.",
   );
   assert.equal(
     linkage?.value,
@@ -491,6 +540,7 @@ test("management date ladder and gap categories propagate from shared evidence w
   source.director!.schedule.criticalCount = 9; source.director!.schedule.nearCriticalCount = 13;
   source.director!.controls.riskEvidenceState = "established"; source.director!.controls.openRiskCount = 17;
   source.negativeFloatCount = 0;
+  source.projectFacts.schedule.negativeFloatActivityCount.value = 0;
   source.evidenceGaps.push({key: "current-programme", label: "Current programme", state: "established", action: "Upload programme", owningModule: "schedule-analytics"},
     {key: "board-publication", label: "Board publication", state: "missing", action: "Review before publishing", owningModule: "pmo-analysis"});
   const result = buildManagementSurfaces(source);
@@ -502,6 +552,7 @@ test("management date ladder and gap categories propagate from shared evidence w
   assert.equal(result.commandCenter.programmePosition.find(m => m.key === "submitted-vs-contract")?.value, 31);
   for (const key of ["critical-activities", "near-critical", "open-risk"]) assert.equal(result.masterDashboard.metrics.find(m => m.key === key)?.health, "unavailable");
   source.negativeFloatCount = 2;
+  source.projectFacts.schedule.negativeFloatActivityCount.value = 2;
   assert.equal(buildManagementSurfaces(source).masterDashboard.metrics.find(m => m.key === "critical-activities")?.health, "attention");
   assert.match(result.commandCenter.alerts.find(a => a.alertId === "evidence-gap:board-publication")!.consequence, /cannot be finalized until/);
   assert.equal(result.commandCenter.alerts.find(a => a.alertId === "overdue-rfi")?.owningModule, "documents");

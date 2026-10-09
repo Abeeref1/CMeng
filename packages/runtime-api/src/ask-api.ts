@@ -112,6 +112,6 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
       return true;
     }
     throw new AskError(404,'ask_action_not_found','This Ask CMeng action is not available.');
-  }catch(error){const e=error instanceof AskError?error:null;json(res,e?.status??500,{error:e?.code??'analysis_unavailable',message:e?.message??'This analysis could not be prepared. Project records have not been changed.'});}
+  }catch(error){const e=error instanceof AskError?error:null;if(!e)console.error('[ask] analysis failed',error instanceof Error?error.stack:error);json(res,e?.status??500,{error:e?.code??'analysis_unavailable',message:e?.message??'This analysis could not be prepared. Project records have not been changed.'});}
   return true;
 }

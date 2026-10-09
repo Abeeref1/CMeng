@@ -33,7 +33,14 @@ const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
  const before=performance.now(),html=context.deliveryObjectDetail(module.data.riskBasis),evidenceRenderMs=performance.now()-before;
  assert.equal(records.records.length,21200);
  const result={scope:'Synthetic 21,200 Delivery candidates, 30,000 BOQ items and 500 risks; source preparation excluded',sourceRows:specs.reduce((n,s)=>n+s[2],0),firstProjectionMs,recordReadsMs:recordReads,evidenceRenderMs,evidenceHtmlBytes:Buffer.byteLength(html),recordCount:records.records.length,recordFingerprint:hash(records),canonicalFingerprint:hash(module),peakRssMiB:process.resourceUsage().maxRSS/1024,targetMs:5000};
- if(session){const profile=await new Promise((r,j)=>session.post('Profiler.stop',(e,p)=>e?j(e):r(p.profile)));fs.writeFileSync(process.env.CMENG_DELIVERY_PROFILE,JSON.stringify(profile));session.disconnect();}
+ if(session){const profile=await new Promise((r,j)=>session.post('Profiler.stop',(e,p)=>e?j(e):r(p.profile)));fs.writeFileSync(process.env.CMENG_DELIVERY_PROFILE,JSON.stringify(profile));
+  // Attribute real sampled CPU time to named functions and source lines so
+  // engineers repair the measured bottleneck, not guesses or larger thresholds.
+  const nodes=(profile.nodes||[]).filter(node=>(node.hitCount||0)>0)
+    .map(node=>({name:node.callFrame?.functionName||'(anonymous)',file:node.callFrame?.url||'',line:(node.callFrame?.lineNumber??-1)+1,samples:node.hitCount}))
+    .sort((a,b)=>b.samples-a.samples).slice(0,22);
+  console.log(JSON.stringify({scope:'DELIVERY_CPU_HOTSPOTS',profilePath:process.env.CMENG_DELIVERY_PROFILE,topSelfSamples:nodes}));
+  session.disconnect();}
  console.log(JSON.stringify(result,null,2));if(process.env.CMENG_DELIVERY_BENCHMARK_OUTPUT)fs.writeFileSync(process.env.CMENG_DELIVERY_BENCHMARK_OUTPUT,JSON.stringify(result,null,2));
  assert.ok(firstProjectionMs<=result.targetMs&&recordReads.every(ms=>ms<=result.targetMs),'Large Delivery calculation or record read exceeded five seconds');
  assert.ok(result.evidenceHtmlBytes<50000,'Collapsed evidence must not render the full source population');
