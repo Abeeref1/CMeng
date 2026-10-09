@@ -97,6 +97,12 @@ test('ORBIT source: 26 awarded days are not erased by an amendment repeating ori
  csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD-ORBIT,C-ORBIT,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
  const basis=canonicalTimeClaims(state).contractTimeBasis;
  assert.equal(basis?.overlapResolution,'unresolved','amendment and determination overlap must remain qualified');
+ const {contractCompletionPosition}=require('../packages/runtime-api/src/contract-completion') as typeof import('../packages/runtime-api/src/contract-completion');
+ const originalCandidates=contractCompletionPosition(state,'2026-08-31').candidates;
+ assert.ok(originalCandidates.some(c=>c.role==='main'&&c.date==='2030-03-31'),'original date source candidates: '+JSON.stringify(originalCandidates));
+ const {reportingState}=require('../packages/runtime-api/src/reporting-state') as typeof import('../packages/runtime-api/src/reporting-state');
+ const qualifiedCandidates=contractCompletionPosition(reportingState(state),'2026-08-31').candidates;
+ assert.ok(qualifiedCandidates.some(c=>c.role==='main'&&c.date==='2030-03-31'),'reporting date source candidates: '+JSON.stringify(qualifiedCandidates));
  const facts=projectFactsForState(state);
  assert.equal(facts.time.awardedEotDays.value,26);
  assert.equal(facts.time.extendedContractCompletionIso.value,'2030-04-26',
