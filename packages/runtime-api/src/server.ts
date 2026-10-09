@@ -1,3 +1,4 @@
+import {projectControlSchedule} from './canonical-time-claims';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
@@ -1867,7 +1868,7 @@ async function route(
     const stored=current?state.resourcesByRevision.get(current.revision.revisionId):null;
     const resourceId=String(body.resourceId??'').trim(),approval=String(body.approvedBy??'').trim(),sourceRef=String(body.sourceRef??'').trim(),date=String(body.effectiveFromIso??'').slice(0,10);
     const amount=body.capacityUnitsPerHour;
-    if(!stored?.resources.some(r=>r.resourceId===resourceId)||typeof amount!=='number'||!Number.isFinite(amount)||amount<0||!approval||!sourceRef||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))){
+    if(!stored?.resources.some(r=>r.resourceId===resourceId)||typeof amount!=='number'||!Number.isFinite(amount)||amount<0||!approval||!sourceRef||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))){
       json(res,400,{error:'capacity_confirmation_needs_resource_capacity_effective_date_approver_and_evidence',
         message:'Confirm a current resource, non-negative approved units per hour, effective date, approving authority and supporting source reference.'});return;
     }
