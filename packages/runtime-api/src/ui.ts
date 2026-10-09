@@ -2228,7 +2228,7 @@ function renderPmoVisual(data){
     managementPanel('Cost and cash position','The supporting commercial currency population is not established on this brief. Do not infer a zero from missing evidence.',
       '<p>Current contract, EAC, CPI and certified unpaid require the applicable currency and source-period evidence.</p>'+managementModuleLink('cost-forecast','Open Cost Forecast'));
   return '<section class="planning-view management-view">'+
-    (data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+
+    (data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis,data):renderCompletionPosition(data.completionPosition))+
     briefCommercial+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
 }
 function renderProgrammeQuality(q){
