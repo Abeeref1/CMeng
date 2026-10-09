@@ -116,6 +116,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const routes=[...new Set([
       prefix+'/overview',
       prefix+'/management/master-dashboard',
+      prefix+'/management/cross-domain-accountability',
+      prefix+'/schedule/modules/lookahead-schedule',
+      prefix+'/commercial/modules/contract-particulars-bonds',
       prefix+'/director-position',
       prefix+'/management-surfaces',
       prefix+'/actions',
