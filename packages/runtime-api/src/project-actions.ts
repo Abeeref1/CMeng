@@ -198,7 +198,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // Once a contractual completion date has been explicitly governed, stale
     // missing-only findings must not recreate the same confirmation action.
     // A later genuine source conflict/review remains visible and actionable.
-    const sourcedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso??contractCompletionPosition(state).value;
+    const sourcedContractDate=state.controls.contractTimeBasis?.contractualCompletionIso??contractCompletionPosition(state,projectControlSchedule(state)?.revision.model.dataDateIso??null).value;
     if(group.key==='contract-completion'&&sourcedContractDate&&issues.every(issue=>issue.kind==='missing_information'))continue;
     const pushMatter=(subset:ControlIssue[],suffix='')=>{
       if(!subset.length)return;
