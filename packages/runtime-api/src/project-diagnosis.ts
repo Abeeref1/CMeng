@@ -44,8 +44,10 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const forecast=data(modules,'independent-forecast'),analytics=data(modules,'activity-analytics');
  const forecastPublished=forecast?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecast);
  const headlineCompletion=forecast?.completionPosition&&!forecastPublished
-   ?{...forecast.completionPosition,independentFinishIso:null,calculationState:'unresolved',
-     reason:'Independent recalculation remains in technical detail because reconciliation checks have not passed.'}
+   ?{...forecast.completionPosition,independentFinishIso:null,differenceElapsedDays:null,
+     differenceRows:[],calculationState:'unresolved',
+     interpretation:'Independent CPM/calendar calculation failed reconciliation. No recalculated finish or day difference is presented as a management position.',
+     reason:'Independent recalculation has not passed the required source-calendar and duration checks. Source submitted finish remains visible; technical defects are retained only in the engineering review.'}
    :forecast?.completionPosition??null;
  const rows:ActivityAnalyticsRow[]=(analytics?.rows??[]).filter((r:ActivityAnalyticsRow)=>!['wbs_summary','level_of_effort'].includes(r.activityType));
  const byId=new Map(rows.map(r=>[r.activityId,r])),sourceById=new Map(model.activities.map(r=>[r.activityId,r]));
