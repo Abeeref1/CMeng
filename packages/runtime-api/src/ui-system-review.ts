@@ -14,25 +14,29 @@ function renderPositionVerdict(data,includeGeneral=false){
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
-  // Presentation-only normalization. Never alter source records, code identifiers or stored values.
-  const readable=readerReference(value)
-    .replace(/\b([a-z][a-z0-9_]*)_register\s+status\s*=\s*([a-z][a-z0-9_-]*)\b/gi,(_,name,status)=>name.replaceAll('_',' ')+' register status: '+status.replaceAll('_',' '))
-    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
-    .replace(/\b(?:[0-9a-f]{28,64})\b/gi,'Source record (reference in details)')
-    .replace(/\b(?:null|undefined)\b/gi,'Not established')
-    .replace(/\bUnresolved\b/gi,'Needs confirmation');
-  return humanizeIsoText(readable).replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' '))
-    .replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+ const raw=readerReference(value);
+ // Preserve source text in saved data. Apply the shared PMC terms only to display.
+ const labelled=raw.replace(/\b(?:SOURCE_CONFLICT|DATA_CONFLICT|conflicting records|sources disagree|registers disagree)\b/gi,'Records disagree')
+   .replace(/\b(?:missing source value|not recorded|unresolved|not established|undefined|null)\b/gi,'Not in source')
+   .replace(/\b([a-z][a-z0-9_]*)_register\s+status\s*=\s*([a-z][a-z0-9_-]*)\b/gi,
+     (_,name,status)=>name.replaceAll('_',' ')+' register: '+status.replaceAll('_',' '))
+   .replace(/\b(?:_register status\s*=|register status\s*=)\s*/gi,'Register status: ');
+ return humanizeIsoText(labelled)
+   .replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' '))
+   .replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
 }
 function readerReference(value){
-  let text=String(value??'');
-  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
-  for(const [id,label] of Object.entries(labels).sort((a,b)=>b[0].length-a[0].length))text=text.split(id).join(label);
-  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document')
-    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision')
-    .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
-    .replace(/:clause:[^\s;,]+/g,' · source section').replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
-    .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
+ let text=String(value??'');
+ const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
+ for(const [id,label] of Object.entries(labels).sort((a,b)=>b[0].length-a[0].length))
+   text=text.split(id).join(label);
+ return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document (record reference in details)')
+   .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision (source reference in details)')
+   .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
+   .replace(/\b[0-9a-f]{28,64}\b/gi,'Source record (reference in details)')
+   .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
+   .replace(/:clause:[^\s;,]+/g,' · source section').replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
+   .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
 }
 function readerAuditAction(value){
   const text=String(value??'');
