@@ -72,10 +72,14 @@ test('explicit Live/Test classification persists, survives restart and partition
     const testRecord=await post('/api/projects',{projectId:'TEST-F59',testProject:true});
     assert.equal(live.status,201,JSON.stringify(live));
     assert.equal(testRecord.status,201,JSON.stringify(testRecord));
+    const qaFixture=await post('/api/projects',{projectId:'QA-F59',testProject:false});
+    assert.equal(qaFixture.status,201,JSON.stringify(qaFixture));
     const getProjects=async(path:string)=>{const response=await fetch(base+path);assert.equal(response.status,200,path);return response.json() as Promise<{projects:Array<{projectId:string;testProject?:boolean}>}>;};
     let p=await getProjects('/api/portfolio'),tests=await getProjects('/api/test-projects');
     assert.ok(p.projects.some(r=>r.projectId==='LIVE-F59'));assert.ok(!p.projects.some(r=>r.projectId==='TEST-F59'));
     assert.ok(tests.projects.some(r=>r.projectId==='TEST-F59'));assert.ok(!tests.projects.some(r=>r.projectId==='LIVE-F59'));
+    assert.ok(tests.projects.some(r=>r.projectId==='QA-F59'),'QA namespace fixture belongs to test projects');
+    assert.ok(!p.projects.some(r=>r.projectId==='QA-F59'),'QA namespace must not inflate live client totals');
     const moved=await post('/api/projects/TEST-F59/purpose',{testProject:false});assert.equal(moved.status,200,JSON.stringify(moved));
     p=await getProjects('/api/portfolio');tests=await getProjects('/api/test-projects');
     assert.ok(p.projects.some(r=>r.projectId==='TEST-F59'));assert.ok(!tests.projects.some(r=>r.projectId==='TEST-F59'));
