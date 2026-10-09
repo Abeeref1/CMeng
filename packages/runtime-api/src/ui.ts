@@ -2242,22 +2242,23 @@ function renderMovementConcentration(m,fallback){
 }
 function activityFloatReviewHtml(row){
   if(!row.floatReconciliationState)return '';
-  const disputed=row.floatReconciliationState==='material_difference'||row.floatReconciliationState==='numeric_difference';
+  const disputed=row.floatReconciliationState==='material_difference';
   const independent=row.independentTotalFloatHours==null?'Not established':fmt(row.independentTotalFloatHours)+' h · '+planningStateLabel(row.independentCriticality);
   return '<br><span class="state-pill '+(disputed?'review':row.floatReconciliationState==='matched'?'ready':'neutral')+'">'+escapeHtml(row.floatReviewLabel)+'</span><br><span class="muted">Submitted: '+escapeHtml(row.submittedTotalFloatHours==null?'Unresolved':fmt(row.submittedTotalFloatHours)+' h · '+planningStateLabel(row.submittedCriticality))+'<br>CMeng CPM: '+escapeHtml(independent)+'</span>';
 }
 const floatReviewStore=new Map();let floatReviewSequence=0;
 function renderFloatReviewRows(id,page=0){
   const review=floatReviewStore.get(id),target=el(id+'Rows');if(!review||!target)return;
-  const pages=Math.max(1,Math.ceil(review.rows.length/50));page=Math.max(0,Math.min(page,pages-1));
-  const rows=review.rows.slice(page*50,page*50+50).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(r.submittedTotalFloatHours==null?'Missing':fmt(r.submittedTotalFloatHours)+' h')+'</td><td>'+escapeHtml(r.independentTotalFloatHours==null?'Missing':fmt(r.independentTotalFloatHours)+' h')+'</td><td>'+escapeHtml(r.floatReviewLabel)+'</td></tr>').join('');
+  const all=[...(review.rows||[]),...(review.numericAuditRows||[])];
+  const pages=Math.max(1,Math.ceil(all.length/50));page=Math.max(0,Math.min(page,pages-1));
+  const rows=all.slice(page*50,page*50+50).map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(r.submittedTotalFloatHours==null?'Missing':fmt(r.submittedTotalFloatHours)+' h')+'</td><td>'+escapeHtml(r.independentTotalFloatHours==null?'Missing':fmt(r.independentTotalFloatHours)+' h')+'</td><td>'+escapeHtml(r.floatReviewLabel)+'</td></tr>').join('');
   target.innerHTML='<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted float</th><th>Calculated float</th><th>Review</th></tr></thead><tbody>'+rows+'</tbody></table></div><button class="btn small" '+(page===0?'disabled':'')+' onclick="renderFloatReviewRows(\''+id+'\','+(page-1)+')">Previous</button> '+(page+1)+' / '+pages+' <button class="btn small" '+(page===pages-1?'disabled':'')+' onclick="renderFloatReviewRows(\''+id+'\','+(page+1)+')">Next</button>';
 }
 function renderActivityFloatReconciliation(review){
-  if(!review||!Array.isArray(review.rows)||!review.rows.length)return '';
+  if(!review||!Array.isArray(review.rows)||!(review.rows.length||(review.numericAuditRows||[]).length))return '';
   const id='floatReview'+(++floatReviewSequence);floatReviewStore.set(id,review);
   if(floatReviewStore.size>20)floatReviewStore.delete(floatReviewStore.keys().next().value);
-  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Float comparison · '+fmt(review.differenceActivityCount??review.disputedActivityCount??0)+' differ · '+fmt(review.unresolvedActivityCount||0)+' need calculation inputs</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
+  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Planner detail: float reconciliation · '+fmt(review.differenceActivityCount??review.disputedActivityCount??0)+' class differences · '+fmt(review.numericDifferenceActivityCount||0)+' numeric differences</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
 }
 function activityReviewRowHtml(a){
   return '<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
@@ -5219,7 +5220,7 @@ function renderDirector(d){
     '<div class="scalar"><b>Expiring bonds</b><span>'+escapeHtml(evidenceCount(ctrl.bondEvidenceState,ctrl.expiringBondCount30Days))+'</span></div>'+
     '<div class="scalar"><b>Open risks</b><span>'+escapeHtml(evidenceCount(ctrl.riskEvidenceState,ctrl.openRiskCount))+'</span></div>'+
     '</div></div></div>';
-  el("director").innerHTML=renderActivityFloatReconciliation(d.activityFloatReconciliation)+html;
+  el("director").innerHTML=html+renderActivityFloatReconciliation(d.activityFloatReconciliation);
   applyPmcDisplayOwners(el('director'),'project controls');
 }
 function renderStatus(o){
