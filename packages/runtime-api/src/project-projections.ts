@@ -7670,9 +7670,20 @@ function resolveProjectModuleCandidate(
       ?weeklyResourceCapacityEvidence(resourceDocs,{dataDateIso:model.dataDateIso})
       :null;
     const weeksById=new Map<string,NonNullable<typeof dated>['points']>();
+    const normalizeTrade=(name:string)=>String(name??'').normalize('NFKC').toLowerCase()
+      .replace(/\b(labour|labor)\b/g,'labour').replace(/\b(electricians)\b/g,'electrician')
+      .replace(/\b(plumbers)\b/g,'plumber').replace(/\b(carpenters)\b/g,'carpenter')
+      .replace(/\b(?:crew|trade|resource|resources|manpower|workforce)\b/g,'')
+      .replace(/[^a-z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+    const tradeIds=new Map<string,Set<string>>();
     for(const point of dated?.points??[]){
       const list=weeksById.get(point.resourceId)??[];
       list.push(point);weeksById.set(point.resourceId,list);
+      const normalized=normalizeTrade(point.resourceName??'');
+      if(normalized){
+        const ids=tradeIds.get(normalized)??new Set<string>();
+        ids.add(point.resourceId);tradeIds.set(normalized,ids);
+      }
     }
     const dataDate=model.dataDateIso?.slice(0,10)??null;
     const endDate=dataDate&&Number.isFinite(Date.parse(dataDate))?
@@ -7681,13 +7692,31 @@ function resolveProjectModuleCandidate(
       rows.length&&rows.every(row=>typeof row[key]==='number'&&Number.isFinite(row[key]))
         ?rows.reduce((total,row)=>total+(row[key]??0),0):null;
     output.sourceResourceTrades=[...groups.values()].map(g=>{
-      const matching=(weeksById.get(g.resourceId)??[]).filter(p=>!g.unit||!p.unit||g.unit===p.unit);
+      const sourceMatch=weeksById.get(g.resourceId)??[];
+      const possibleNames=tradeIds.get(normalizeTrade(g.trade))??new Set<string>();
+      // A trade-name match is accepted only when unique. Ambiguous names are
+      // never used to merge independent crew/capacity populations.
+      const uniqueNameId=possibleNames.size===1?[...possibleNames][0]!:null;
+      const matchingId=sourceMatch.length?g.resourceId:uniqueNameId;
+      const unitsComparable=(a:string|null,b:string|null)=>{
+        const normalize=(unit:string)=>unit.toLowerCase().replace(/[^a-z0-9]/g,'')
+          .replace('labour','labor').replace('hours','hour');
+        return !a||!b||normalize(a)===normalize(b);
+      };
+      const matching=(matchingId?weeksById.get(matchingId)??[]:[]).filter(p=>unitsComparable(g.unit,p.unit));
+      const matchBasis=sourceMatch.length?'Exact source resource ID':
+        uniqueNameId&&matching.length?'Unique matching trade name':
+        possibleNames.size>1?'Trade name matches multiple register IDs; reconciliation required':
+        'No comparable resource register record';
       const forward=matching.filter(p=>p.weekStartIso&&dataDate&&endDate
         &&p.weekStartIso.slice(0,10)>=dataDate&&p.weekStartIso.slice(0,10)<=endDate);
       const history=matching.filter(p=>p.weekStartIso&&dataDate&&p.weekStartIso.slice(0,10)<=dataDate);
       return {resourceId:g.resourceId,trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
         remainingUnits:g.known===g.count?g.remaining:null,
-        registerLinkedByExactId:matching.length>0,
+        registerLinkedByExactId:sourceMatch.length>0&&matching.length>0,
+        registerLinkedByTradeName:sourceMatch.length===0&&uniqueNameId!==null&&matching.length>0,
+        registerMatchBasis:matchBasis,
+        matchedRegisterResourceId:matching.length?matchingId:null,
         registerPeriodCount:forward.length,
         registerPlannedDemand:sumKnown(forward,'plannedDemand'),
         registerAvailableCapacity:sumKnown(forward,'availableCapacity'),
@@ -7695,8 +7724,8 @@ function resolveProjectModuleCandidate(
         registerEvidenceState:dated?.state??'not_found',
         registerSourceRefs:[...new Set(matching.map(row=>row.sourceRef))].slice(0,12),
         basis:matching.length?
-          'Exact resource-ID match to dated resource-capacity register. P6 demand, source capacity and actual usage are separate; no crew overload verdict without approved comparable capacity.':
-          'Submitted P6 labor assignment only; no exact resource-register match or approved crew capacity.'};
+          matchBasis+'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.':
+          matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
   }
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
