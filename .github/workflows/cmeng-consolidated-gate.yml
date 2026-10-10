@@ -1,0 +1,70 @@
+name: CMeng Consolidated Shared Fix Gate
+on:
+  push:
+    branches: ['fix/cmeng-consolidated-20261011-2158']
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply source-preserving shared changes against exact live base
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'e775ce77671d44a44a10512dc9e5cc64ced7ae57'
+          mkdir -p /tmp/cmeng-consolidated
+          cat scripts/consolidated-patch.1 scripts/consolidated-patch.2 scripts/consolidated-patch.3 scripts/consolidated-patch.4 | base64 -d | xz -d > /tmp/cmeng-consolidated/changes.patch
+          echo '970393f936dfa8601bd44c2a91fe02e5eaa33c038d5df783fdd602357e0ed1d2  /tmp/cmeng-consolidated/changes.patch' | sha256sum -c -
+          git apply --check --unidiff-zero /tmp/cmeng-consolidated/changes.patch
+          git apply --unidiff-zero /tmp/cmeng-consolidated/changes.patch
+      - name: Install application and browser dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Build assembled browser and retained source-preservation checks
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run typecheck
+          node scripts/check-assembled-browser.cjs
+          node --test dist/tests/shared-decision-closure.test.js dist/tests/hour-one-shared.test.js dist/tests/round-two-population-contract.test.js dist/tests/round-one-shared.test.js dist/tests/system-shared-rules.test.js dist/tests/accountability-unassigned.test.js dist/tests/consultant-response-paging.test.js dist/tests/fact-provenance-paging.test.js dist/tests/procurement-float-consistency.test.js dist/tests/project-read-cache.test.js dist/tests/project-fact-consumers.test.js dist/tests/resource-utilization.test.js dist/tests/runtime-commercial-c1.test.js dist/tests/universal-reporting-contract.test.js | tee /tmp/cmeng-consolidated/preservation.log
+      - name: Retain current largest project report without changing records
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            const r=await fetch('https://cmeng-main-production.up.railway.app/api/projects/UPTOWN-100/management/master-dashboard/report.json',{signal:AbortSignal.timeout(120000)});
+            if(!r.ok)throw Error('Largest report HTTP '+r.status);
+            const d=await r.json(),v=d.result??d;
+            if((v.data?.projectFacts?.projectId??v.data?.projectId)!=='UPTOWN-100')throw Error('Largest source identity mismatch');
+            fs.writeFileSync('/tmp/cmeng-consolidated/largest-dashboard.json',JSON.stringify(d));
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+      - name: Open every demo page and largest dashboard in actual Chromium
+        run: |
+          set -euo pipefail
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then npx playwright install chromium; export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"; fi
+          CMENG_LARGEST_REPORT=/tmp/cmeng-consolidated/largest-dashboard.json CMENG_REQUIRE_LARGEST=1 CMENG_FAST_GATE_REPORT=/tmp/cmeng-consolidated/fast-gate.json node scripts/fast-release-gate.cjs
+      - name: Publish exactly the tested shared-rule source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages tests
+          git commit -m 'Shared decision producers: retained commercial facts, WBS scope fallback, dated quantity and area progress, monthly EVM, float erosion, contract deadlines and version-cached reconciliation'
+          git push origin HEAD:refs/heads/fix/cmeng-consolidated-validated-20261011-2158
+          git rev-parse HEAD > /tmp/cmeng-consolidated/validated-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-consolidated-${{ github.run_id }}
+          path: /tmp/cmeng-consolidated/
+          retention-days: 3
