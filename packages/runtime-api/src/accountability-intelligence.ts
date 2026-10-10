@@ -177,14 +177,14 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
     const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
   }
-  const actions=[...buckets.entries()].map(([key,members],index)=>{
+  const actions=[...buckets.entries()].map(([key,members])=>{
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
     const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
     const sourceCount=members.length;
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
     return {...first,
-      actionId:'accountability-owner-group:'+index,
+      actionId:'accountability-owner-group:'+encodeURIComponent(key),
       recordKey:'accountability-owner-group:'+key,
       issue:sourceCount+' '+(cleanup?'register clean-up':'open control')+' record'+(sourceCount===1?'':'s')+' · '+(first.owningModule??'project control'),
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
@@ -193,8 +193,18 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
       sourceRefs:references.slice(0,50),owner,
     };
   });
+  // Stable group identity derives only from owner, owning register and state.
+  // Adding a separate record cannot renumber existing groups or change their IDs.
+  const ownerGroups=[...buckets.entries()].map(([key,members])=>{
+    const [owner,register,stateKey]=key.split('|');
+    const priority=(members.some(m=>m.severity==='critical')?'critical':members.some(m=>m.severity==='high')?'high':members.some(m=>m.severity==='medium')?'medium':'low');
+    return {groupId:'accountability-owner-group:'+encodeURIComponent(key),key,owner,register,state:stateKey,
+      memberActionIds:members.map(m=>m.actionId),count:members.length,
+      earliestDueIso:members.map(m=>m.dueIso).filter((d):d is string=>!!d).sort()[0]??null,
+      topPriority:priority};
+  });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActionCount:recordActions.length,
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActions,ownerGroups,recordActionCount:recordActions.length,
     managementPosition:recordActions.length
       ?recordActions.length+' underlying control records are organised into '+actions.length+' accountable owner/register action groups; '+owned+' groups have an accountable role'+(unassigned?' and '+unassigned+' still need ownership.':'.')
       :'No actionable ownership chain is established from the current open/overdue records.',
