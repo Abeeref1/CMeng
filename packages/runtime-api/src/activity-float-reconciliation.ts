@@ -41,7 +41,7 @@ export function activityFloatReconciliation(model:CanonicalScheduleModel,forecas
   disputedActivityCount:classificationsDiffer.length,
   criticalityDifferenceCount:classificationsDiffer.length,
   numericDifferenceActivityCount:numericOnly.length,
-  differenceActivityCount:classificationsDiffer.length,
+  differenceActivityCount:classificationsDiffer.length+numericOnly.length,
   numericAuditRows:numericOnly,
   commonOffsetHours,
   unresolvedActivityCount:comparableRows.filter(row=>!['matched','material_difference'].includes(row.floatReconciliationState)).length,
