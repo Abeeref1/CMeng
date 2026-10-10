@@ -195,7 +195,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
   const heldCommercial=commercialCanonical(state);
-  const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String((b as any).type??(b as any).bondType??'')+' '+b.bondId));
+  const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String(b.kind??(b as any).type??(b as any).bondType??'')+' '+b.bondId));
   const dataDate=projectControlSchedule(state)?.revision.model.dataDateIso?.slice(0,10)??null;
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);

@@ -34,7 +34,8 @@ function deliveryTable(id,title,rows,columns){
  const pointers={deliveryMain:'/data/rows',deliveryScheduleLongLead:'/data/scheduleLongLeadCandidates',
   deliverySystems:'/data/systems',deliveryBoqCurrency:'/data/boqIntelligence/currencies',
   deliveryBoq:'/data/boqIntelligence/rows',derivedRisks:'/data/derivedRiskCandidates'};
- const pointer=pointers[id]??null;
+ const origin=typeof responseListPopulation==='function'?responseListPopulation(rows):null;
+ const pointer=origin?.pointer??pointers[id]??null;
  const info=pointer?deliveryResponsePaging?.tables?.find(table=>table.kind==='array'&&table.pointer===pointer):null;
  const server=info?{source:deliveryResponsePaging.source,pointer,total:info.total,matched:info.total,
    version:deliveryResponsePaging.projectVersion,request:0,timer:null}:null;
@@ -73,6 +74,7 @@ async function deliveryLoadServerPage(id,page){
    const response=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
    if(project()!==owner||ticket!==t.server.request||deliveryTables[id]!==t)return;
    if(!Array.isArray(response.rows))throw new Error('Source records were not returned');
+   if(response.sourceLabels&&currentModuleResult?.data)Object.assign(currentModuleResult.data.sourceLabels??={},response.sourceLabels);
    t.rows=response.rows;t.page=Math.floor(response.offset/25);t.server.matched=response.total;
    t.server.total=response.sourceTotal??t.server.total;refreshDeliveryTable(id);
  }catch(error){
@@ -104,6 +106,7 @@ function deliveryColumns(key){
 }
 const deliveryPointerToken=s=>String(s).replace(/~/g,'~0').replace(/\//g,'~1');
 function deliveryDetailNode(label,value,pointer=null){
+ if(Array.isArray(value)&&typeof responseListPopulation==='function')pointer=responseListPopulation(value)?.pointer??pointer;
  const info=Array.isArray(value)&&pointer?deliveryResponsePaging?.tables?.find(row=>row.kind==='array'&&row.pointer===pointer):null;
   const server=info?{source:deliveryResponsePaging.source,pointer,total:info.total,matched:info.total,
     version:deliveryResponsePaging.projectVersion,request:0,timer:null}:null;
@@ -151,6 +154,7 @@ async function deliveryLoadEvidenceServerPage(id,page){
   const response=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
   if(!deliveryEvidenceOwned(view)||deliveryDetailViews[id]!==view||ticket!==view.server.request)return;
   if(!Array.isArray(response.rows))throw new Error('Source evidence page not returned');
+  if(response.sourceLabels&&typeof currentModuleResult!=='undefined'&&currentModuleResult?.data)Object.assign(currentModuleResult.data.sourceLabels||(currentModuleResult.data.sourceLabels={}),response.sourceLabels);
   view.value=response.rows;view.page=Math.floor(response.offset/25);view.server.matched=response.total;
   view.server.total=response.sourceTotal??view.server.total;refreshDeliveryEvidence(id);
  }catch(error){

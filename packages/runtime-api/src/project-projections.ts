@@ -18,7 +18,7 @@ import {nearCriticalScreening} from './near-critical-screening';
 import {resolveModuleKey} from './registry';
 import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
-import {suppliedBoqFigures} from './boq-source';
+import {suppliedBoqFigures,resolveBoqSource} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
@@ -2706,7 +2706,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "pmo-analysis",
         {
           ...pmoAnalysis,
-          quantities:{...pmoAnalysis.quantities,installedQuantityStatus:(quantityResult.data as any).installedQuantityStatus},
+          quantities:{...pmoAnalysis.quantities,installedQuantityStatus:(quantityResult.data as any).installedQuantityStatus,programmeMapping:(quantityResult.data as any).programmeMapping},
           programmeBaselineCompletionIso:
             scheduleAnalytics.result
               .completionBases.find(
@@ -3586,7 +3586,7 @@ const quantityModuleCache = new WeakMap<ProjectRuntimeState, { version: number; 
 function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRuntimeState["schedules"][number]["revision"]["model"], generatedAt: string): ModuleRuntimeResult {
   const cached = quantityModuleCache.get(state);
   if (cached?.version === state.version) return cached.result;
-  const quantities = state.quantities;
+  const quantities = resolveBoqSource(state,model.sourceRevisionId).quantities;
   if (!quantities) return available("quantity-scurve", {
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
@@ -3599,7 +3599,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     diagnostics: ["BOQ_QUANTITY_BASIS_NOT_ESTABLISHED"],
   }, ["BOQ"], "partial", "BOQ quantities have not been established.");
   const sameRevision = quantities.scheduleRevisionId === model.sourceRevisionId;
-  const inferredMapping = sameRevision ? quantityMappingForState(state, model) : null;
+  const inferredMapping = quantityMappingForState(state, model);
   const scenario = sameRevision && quantities.allocations.length === 0 && (inferredMapping?.selectedScenarioLinks.length ?? 0) > 0;
   const allocations = !sameRevision ? [] : scenario ? inferredMapping!.selectedScenarioLinks.filter(link => link.allocatedQuantity !== null).map(link => ({
     allocationId: "scenario-" + link.candidateId, quantityItemId: link.quantityItemId, activityId: link.activityId,
@@ -3613,6 +3613,7 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   const mappedItemIds = new Set(allocations.filter(allocation => itemIds.has(allocation.quantityItemId)
     && activityIds.has(allocation.activityId) && Number.isFinite(allocation.allocatedQuantity)
     && allocation.allocatedQuantity >= 0).map(allocation => allocation.quantityItemId));
+  const approvedItemIds=new Set((sameRevision?quantities.allocations:[]).filter(row=>itemIds.has(row.quantityItemId)&&activityIds.has(row.activityId)&&Number.isFinite(row.allocatedQuantity)&&row.allocatedQuantity>=0).map(row=>row.quantityItemId));
   const mappingBasis = !sameRevision ? "revision_mismatch" : scenario ? "candidate_scenario" : quantities.allocations.length ? "governed" : "missing";
   const series = projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
     actualAuthority: "measured_installed_quantities",
@@ -3639,13 +3640,17 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     knownQuantityItemCount: quantities.items.filter(item => item.contractQuantity !== null && Number.isFinite(item.contractQuantity) && item.contractQuantity >= 0).length,
     allocatedItemCount: mappedItemIds.size,
     allocationScope:"programme_links_only",
-    programmeMapping:{state:scenario?"partial":projection.allocationState,basis:mappingBasis,allocatedItemCount:mappedItemIds.size,itemLinkCoveragePercent:quantities.items.length?mappedItemIds.size/quantities.items.length*100:null},
+    programmeMapping:{state:scenario?"partial":projection.allocationState,basis:mappingBasis,allocatedItemCount:mappedItemIds.size,
+      sourceLinkedItemCount:new Set([...mappedItemIds,...(inferredMapping?.sourceWbsLinks??[]).filter(row=>row.wbsId&&row.activityIds.length).map(row=>row.quantityItemId)]).size,
+      itemLinkCoveragePercent:quantities.items.length?new Set([...mappedItemIds,...(inferredMapping?.sourceWbsLinks??[]).filter(row=>row.wbsId&&row.activityIds.length).map(row=>row.quantityItemId)]).size/quantities.items.length*100:null,
+      plannedQuantityAllocationCoveragePercent:quantities.items.length?mappedItemIds.size/quantities.items.length*100:null,
+      scopeBasis:'Unique source WBS codes and recorded allocations; scope links are not a quantity-distribution approval'},
     installedQuantityStatus,
     unmappedItemCount: quantities.items.length-mappedItemIds.size,
     partiallyAllocatedItemCount: projection.partiallyAllocatedItemIds.length,
     overAllocatedItemCount: projection.overAllocatedItemIds.length,
     itemLinkCoveragePercent: quantities.items.length ? new Set([...mappedItemIds,...(inferredMapping?.sourceWbsLinks??[]).filter(row=>row.wbsId&&row.activityIds.length).map(row=>row.quantityItemId)]).size / quantities.items.length * 100 : null,
-    approvedAllocationCoveragePercent:quantities.items.length?mappedItemIds.size/quantities.items.length*100:null,
+    approvedAllocationCoveragePercent:quantities.items.length?approvedItemIds.size/quantities.items.length*100:null,
     itemLinkCoverageBasis:'Unique source WBS relationships plus approved activity allocations. WBS relationships identify scope, not quantity distribution or approval.',
     sourceWbsLinks:inferredMapping?.sourceWbsLinks??[],
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
@@ -7624,7 +7629,7 @@ function resolveProjectModuleCandidate(
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
         rows:(()=>{const classification=scheduleScopeClassification(model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),
-          wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,
+          wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,plot:scope?.plot??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,
           phase:scope?.phase??null,section:scope?.section??null,chainage:scope?.chainage??null,discipline:scope?.discipline??null,trade:scope?.trade??null,system:scope?.system??null,package:scope?.package??null,cbs:scope?.cbs??null,contractor:scope?.contractor??null,subcontractor:scope?.subcontractor??null};});})(),
         scopeClassification:scheduleScopeClassification(model),
         counts: activityAnalyticsCounts(data.rows ?? []),

@@ -18,7 +18,8 @@ export function activityRegisterPage(source:readonly any[],query:URLSearchParams
 /** Browser view: first register page plus chart inputs and full filter options.
  * Full rows remain available from the paged register and report endpoints. */
 export function activityRegisterView(data:any){
- const all=Array.isArray(data?.rows)?data.rows:[],execution=all.filter((r:any)=>!['level_of_effort','wbs_summary'].includes(r.activityType));
+ const classified=new Map<string,any>((data?.scopeClassification?.rows??[]).map((r:any)=>[r.activityId,r]));
+ const all=(Array.isArray(data?.rows)?data.rows:[]).map((row:any)=>({...classified.get(row.activityId),...Object.fromEntries(Object.entries(row).filter(([key,value])=>value!==null&&value!==undefined||!classified.get(row.activityId)?.[key]))})),execution=all.filter((r:any)=>!['level_of_effort','wbs_summary'].includes(r.activityType));
  const keys=['activityId','name','activityType','status','criticality','totalFloatHours','nearCriticalThresholdHours','floatRiskWatchlist','finishVarianceDays','openStart','openFinish','isolated'];
  const filterOptions=Object.fromEntries(fields.map(key=>[key,[...new Set(execution.map((r:any)=>key==='floor'?r.floor??r.level:r[key]).filter((v:any)=>v!==null&&v!==undefined&&String(v).trim()))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))]));
  // Preserve the exact source WBS key for filtering while presenting the

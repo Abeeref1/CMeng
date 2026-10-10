@@ -1,3 +1,4 @@
+import {boqProgrammeLinks} from './boq-programme-links';
 import {cachedIndependentForecast} from './forecast-cache';
 import {procurementTiming,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
@@ -246,6 +247,8 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const [itemId,packages] of packagesByItem){const item=items.get(itemId);const allocated=sumKnown(packages.map(p=>p.links.boqAllocations.find(a=>a.boqItemId===itemId)?.quantity??null));if(item?.contractQuantity!==null&&item?.contractQuantity!==undefined&&allocated!==null&&allocated>item.contractQuantity)add('SCOPE_ALLOCATIONS_ABOVE_BOQ',null,'Package allocations exceed BOQ item '+itemId+'.','Review the governed split quantities.');}
  const mapped=new Set(byKind('package').flatMap(p=>p.links.boqItemIds));
  const activityByItem=new Map<string,string[]>();for(const a of quantities?.allocations??[]){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
+ const sharedBoqLinks=model?boqProgrammeLinks(state,model):null;
+ for(const row of sharedBoqLinks?.rows??[])if(row.activityIds.length)activityByItem.set(row.itemId,[...new Set([...(activityByItem.get(row.itemId)??[]),...row.activityIds])]);
  const workfrontsByItem=new Map<string,DeliveryRecord[]>();for(const r of byKind('workfront'))for(const id of r.links.boqItemIds){const rows=workfrontsByItem.get(id)??[];rows.push(r);workfrontsByItem.set(id,rows);}
  const boqRows=(controlledBoq?supplied.rows:[]).map(i=>{const packages=packagesByItem.get(i.itemId)??[],workfronts=workfrontsByItem.get(i.itemId)??[],scope=[...packages,...workfronts];return {...i,
   procurementPackageIds:packages.map(p=>p.recordId),workfrontIds:workfronts.map(p=>p.recordId),

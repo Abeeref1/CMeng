@@ -1010,21 +1010,38 @@ function readerSourceValue(metric){
  for(const value of alternatives)if((typeof value==="number"&&Number.isFinite(value))||(typeof value==="string"&&value.trim().length))return value;
  return null;
 }
-function responseListPopulation(records){
- const result=typeof currentModuleResult==='undefined'?null:currentModuleResult;
- const seen=new Set();let pointer=null;
- const visit=(value,path)=>{if(pointer!==null||!value||typeof value!=='object'||seen.has(value))return;seen.add(value);if(value===records){pointer=path;return;}if(Array.isArray(value)){for(let i=0;i<value.length;i++)visit(value[i],path+'/'+i);}else for(const [key,v]of Object.entries(value)){if(key==='sourceLabels'||key==='responsePaging')continue;visit(v,path+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1'));}};
- if(result)visit(result,'');
- const meta=pointer===null?null:result?.responsePaging?.tables?.find(t=>t.kind==='array'&&t.pointer===pointer);
- return {total:meta?.total??records.length,pointer,source:meta?result.responsePaging.source:null,shown:records.length};
+let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();
+function indexResponsePopulations(result){
+ if(!result||responsePopulationRoot===result)return;
+ responsePopulationRoot=result;responsePopulationIndex=new WeakMap();responseRowPopulationIndex=new WeakMap();
+ const descriptors=new Map((result.responsePaging?.tables||[]).filter(t=>t.kind==='array').map(t=>[t.pointer,t]));
+ const seen=new Set();
+ const walk=(value,pointer)=>{if(!value||typeof value!=='object'||seen.has(value))return;seen.add(value);
+  if(Array.isArray(value)){
+   const descriptor=descriptors.get(pointer),population={total:descriptor?.total??value.length,pointer,source:result.responsePaging?.source??null,offset:0,shown:value.length};
+   responsePopulationIndex.set(value,population);
+   for(const row of value)if(row&&typeof row==='object'&&!responseRowPopulationIndex.has(row))responseRowPopulationIndex.set(row,population);
+   value.forEach((row,index)=>walk(row,pointer+'/'+index));
+  }else for(const[key,child]of Object.entries(value))if(key!=='sourceLabels'&&key!=='responsePaging')walk(child,pointer+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1'));
+ };
+ walk(result,'');
 }
-function renderRecordTable(records){
-  const population=responseListPopulation(records);
+function responseListPopulation(records,explicit=null){
+ if(explicit)return {...explicit,shown:records.length};
+ const result=typeof currentModuleResult==='undefined'?null:currentModuleResult;
+ indexResponsePopulations(result);
+ const exact=responsePopulationIndex.get(records);if(exact)return exact;
+ const origins=records.filter(r=>r&&typeof r==='object').map(r=>responseRowPopulationIndex.get(r));
+ if(origins.length&&origins.every(p=>p&&p.pointer===origins[0]?.pointer))return {...origins[0],shown:records.length};
+ return {total:records.length,pointer:null,source:null,offset:0,shown:records.length};
+}
+function renderRecordTable(records,sourcePopulation=null){
+  const population=responseListPopulation(records,sourcePopulation);
   const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,25);
   if(!rows.length)return"";
   const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)).slice(0,24);
   if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
-  return '<p class="source-population">Showing 1–'+rows.length+' of '+population.total+(population.total>rows.length?'. Further records are available in Additional source records or the full export.':'.')+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
+  return '<p class="source-population">Showing '+((population.offset||0)+1)+'–'+((population.offset||0)+rows.length)+' of '+population.total+(population.total>rows.length?'. Further records are available in Additional source records or the full export.':'.')+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
@@ -2216,7 +2233,7 @@ function renderPmoVisual(data){
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
     ]],
     ["Delivery",[
-      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Not established"],["Measured installation",p.quantities.installedQuantityStatus?humanizeKey(p.quantities.installedQuantityStatus.state):"Not established"],["Programme links for planned quantities",planningStateLabel(p.quantities.allocationState)]
+      ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Not established"],["Measured installation",p.quantities.installedQuantityStatus?humanizeKey(p.quantities.installedQuantityStatus.state):"Not established"],["BOQ items linked to programme scope",data.boqProgrammeLinks?.coveragePercent!=null?fmt(data.boqProgrammeLinks.linkedItemCount)+" / "+fmt(data.boqProgrammeLinks.itemCount)+" · "+fmt(data.boqProgrammeLinks.coveragePercent)+"%":p.quantities.programmeMapping?.itemLinkCoveragePercent!=null?fmt(p.quantities.programmeMapping.itemLinkCoveragePercent)+"% · "+(p.quantities.programmeMapping.scopeBasis||"Source WBS relationships"):"No unique source WBS relationship established"],["Quantity distribution for planned curves",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
       ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",amendmentEotManagementDisplay(p.claims.incorporatedEotDays,data.projectFacts?.time)],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
@@ -2226,14 +2243,14 @@ function renderPmoVisual(data){
   // S-22: show the existing commercial facts on the management brief.
   // CPI is not reconstructed from incomplete sources, and an absent EAC is
   // never fabricated from the contract sum or from a zero.
-  const commercialFacts=data.projectFacts?.commercial?.currencies||[];
+  const commercialFacts=data.briefCommercialPosition?.currencies||data.projectFacts?.commercial?.currencies||[];
   const costSources=data.visualControl?.commercial?.cost||[];
   const briefCommercial=commercialFacts.length?
     managementPanel('Commercial position · same Data Date and currency',
       'Current contract, EAC and certified unpaid are distinct positions. CPI appears only when the source calculation is available; no amount changes the programme finish or contract authority.',
       commercialFacts.map(row=>{
         const associated=costSources.find(item=>item.currency===row.currency)||{};
-        return '<section class="planning-panel"><h4>'+escapeHtml(row.currency)+'</h4>'+
+        return '<section class="planning-panel"><h4>'+escapeHtml(row.currency)+(row.taxBasis?' · '+escapeHtml(humanizeKey(row.taxBasis))+' tax basis':'')+'</h4>'+
           planningKpis([
             ['Current contract',row.currentContractValue?.value??'Not established',row.currency],
             ['EAC',row.forecastEac?.value??'Not established',(row.forecastEac?.state==='confirmed'?'Source reported':'Candidate or unavailable')+' · '+row.currency],
@@ -5188,7 +5205,7 @@ function renderStructuredSections(data){
   const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs"]);
   const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!isScalarValue(value));
   return complex.map(([key,value])=>{
-    const count=Array.isArray(value)?value.length:null;
+    const count=Array.isArray(value)?responseListPopulation(value).total:null;
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0,key)+'</div></section>';
   }).join("");
 }
@@ -5280,6 +5297,10 @@ function observeProjectDisplay(){
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  const mapping=result.data?.boqProgrammeLinks;
+  if(mapping&&['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'].includes(result.legacyKey||result.key)){
+   container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+fmt(mapping.coveragePercent)+'%</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p>'+managementModuleLink('quantity-scurve','Review BOQ programme links')+'</div></section>');
+  }
   const paged=result.responsePaging;
   if(paged?.tables?.length){
     const tables=paged.tables.filter(table=>table.total>table.shown||table.kind==='text');
@@ -5293,14 +5314,16 @@ function renderModuleResult(result){
       container.querySelectorAll('[data-paged-detail]').forEach(button=>button.onclick=async()=>{
         const index=Number(button.dataset.pagedDetail),entry=tables[index],target=container.querySelector('[data-paged-target="'+index+'"]');
         if(!entry||!target)return;
-        const offset=Number(button.dataset.detailOffset||0);
+        const offset=Number(button.dataset.detailOffset||0),sourceProject=project(),sourceSequence=projectRequestSeq;
         button.disabled=true;button.textContent='Loading source records…';
         try{
           const query=new URLSearchParams({source:paged.source,pointer:entry.pointer,offset:String(offset),...(typeof paged.projectVersion==='number'?{version:String(paged.projectVersion)}:{})});
           const details=await api('/api/projects/'+encodeURIComponent(project())+'/record-page?'+query);
+          if(project()!==sourceProject||projectRequestSeq!==sourceSequence||!target.isConnected)return;
+          if(details.sourceLabels&&currentModuleResult?.data)Object.assign(currentModuleResult.data.sourceLabels??={},details.sourceLabels);
           const rows=details.rows||[];
           const content=details.kind==='text'?'<p>'+escapeHtml(details.text||'')+'</p>':
-            rows.length?renderRecordTable(rows.map(value=>typeof value==='object'&&value!==null?value:{value})):'<p>No further source records.</p>';
+            rows.length?renderRecordTable(rows.map(value=>typeof value==='object'&&value!==null?value:{value}),{total:details.total,offset:details.offset,pointer:entry.pointer,source:paged.source}):'<p>No further source records.</p>';
           target.insertAdjacentHTML('beforeend',content);
           if(details.hasMore){button.dataset.detailOffset=String(offset+(details.kind==='text'?8192:25));button.disabled=false;button.textContent='Next 25 source records';}
           else{button.textContent='All records in this group shown';button.disabled=true;}

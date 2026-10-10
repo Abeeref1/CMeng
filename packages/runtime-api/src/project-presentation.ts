@@ -18,5 +18,8 @@ export function projectSourceLabels(state:ProjectRuntimeState):Record<string,str
   for(const record of deliveryRecords(state).records){
     if(record.reference)labels[record.recordId]=record.reference;
   }
+  const retainItem=(item:any)=>{const number=String(item.itemNumber??'').trim();if(!number)return;for(const id of [item.itemId,item.quantityItemId])if(id)labels[id]=number;};
+  for(const boq of [...(state.boqRevisions??[]),state.boq])for(const item of boq?.canonicalItems??[])retainItem(item);
+  for(const item of state.quantities?.items??[])retainItem(item);
   cache.set(state,{version:state.version,labels});return labels;
 }

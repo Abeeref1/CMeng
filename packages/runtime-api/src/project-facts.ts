@@ -1,3 +1,4 @@
+import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
 import {aggregateCount} from '../../truth-kernel/src';
 import {buildScheduleAnalyticsProjection} from '../../schedule-analytics/src';
@@ -572,9 +573,22 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
     bound.projectDiagnosis={...bound.projectDiagnosis,actionRegister:{total:register.actions.length,actions:register.actions.slice(0,5)}};
   }
   const currentModel=projectControlSchedule(state)?.revision.model;
-  const terminalMilestones=(currentModel?.activities??[]).filter(a=>['milestone','finish_milestone'].includes(a.activityType)&&
-    (/completion|complete.*works|handover|taking.over/i.test(a.name??'')||
-      a.currentFinishIso?.slice(0,10)===(bound.projectFacts as any)?.schedule?.submittedProgrammeCompletionIso?.value?.slice(0,10)));
-  const completionMilestoneConstraints=terminalMilestones.flatMap(a=>(a.sourceConstraints??[]).map(c=>({activityReference:a.activityId,activityName:a.name,type:c.type,dateIso:c.dateIso??null,basis:'Constraint retained from the submitted completion milestone; not a contract amendment'})));
-  return {...result,data:{...bound,completionMilestoneConstraints,sourceLabels:projectSourceLabels(state)}};
+  const successors=new Set((currentModel?.relationships??[]).filter(r=>!r.external).map(r=>r.predecessorActivityId));
+  const submitted=(bound.projectFacts as any)?.schedule?.submittedProgrammeCompletionIso?.value;
+  const finishes=(currentModel?.activities??[]).flatMap(a=>[a.currentFinishIso,a.forecastFinishIso].filter((d):d is string=>!!d)).sort();
+  const finish=(submitted??finishes.at(-1))?.slice(0,10)??null;
+  const terminalMilestones=(currentModel?.activities??[]).filter(a=>
+    (['milestone','finish_milestone','start_milestone'].includes(a.activityType)&&/completion|complete.*works|handover|taking.over/i.test(a.name??''))||
+    (!successors.has(a.activityId)&&[a.currentFinishIso,a.forecastFinishIso,...(a.sourceConstraints??[]).map(c=>c.dateIso)].some(d=>!!d&&!!finish&&d.slice(0,10)===finish)));
+  const completionMilestoneConstraints=terminalMilestones.flatMap(a=>(a.sourceConstraints??[]).map(c=>({activityReference:a.activityId,activityName:a.name,type:c.type,dateIso:c.dateIso??null,basis:'Constraint retained from the submitted completion activity; not a contract amendment'})));
+  const commercial= result.key==='pmo-analysis'?commercialPositionForState(state):null;
+  const currencyFacts=(bound.projectFacts as any)?.commercial?.currencies??[];
+  const briefCommercialPosition=commercial?{currencies:[
+    ...(commercial.performance?.costControl?.positions??[]).map(p=>{const source=(commercial.costBasisReview??[]).find(r=>r.currency===p.currency&&r.taxBasis===p.taxBasis);const base=currencyFacts.find((r:any)=>r.currency===p.currency)??{currency:p.currency};return {...base,taxBasis:p.taxBasis,asOf:(p as any).asOf??source?.asOf??null,
+      forecastEac:p.sourceEac?.value!==null&&p.sourceEac?.value!==undefined?p.sourceEac:source?.sourceEac!==null&&source?.sourceEac!==undefined?fact(source.sourceEac,'Reported EAC from the same cost source and tax basis','from_register_not_confirmed'):base.forecastEac,
+      cpi:p.cpi?.value!==null&&p.cpi?.value!==undefined?p.cpi:source?.cpi!==null&&source?.cpi!==undefined?fact(source.cpi,'EV / AC from the same cost source and tax basis','calculated_with_stated_basis'):base.cpi};}),
+    ...currencyFacts.filter((r:any)=>!(commercial.performance?.costControl?.positions??[]).some(p=>p.currency===r.currency))]}:undefined;
+  const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
+  const linked=currentModel&&relevant.includes(result.key)?boqProgrammeLinks(state,currentModel):undefined;
+  return {...result,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),sourceLabels:projectSourceLabels(state)}};
 }

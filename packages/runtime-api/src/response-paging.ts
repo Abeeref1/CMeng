@@ -33,7 +33,7 @@ export function jsonPointer(root:unknown,pointer:string):unknown {
 }
 const bytes=(value:unknown)=>Buffer.byteLength(JSON.stringify(value),'utf8');
 const TABLE_NAME=/(?:rows|records|register|entries|activities|actions|findings|documents|claims|notices|rfis|ncrs|issues|payments|variations|evidence|sources|lineItems|assets|quantities|bonds|insurances|links|details)$/i;
-const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination']);
+const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination','filterOptions','filterDomains','activitySummary','boqProgrammeLinks','briefCommercialPosition','completionConstraints']);
 type PageBudget={rows:number;keys:number;text:number;depth:number};
 const FACT_BUDGET:PageBudget={rows:10,keys:85,text:800,depth:9};
 const PAGE_BUDGETS:PageBudget[]=[
@@ -117,7 +117,7 @@ export function pageProjectResponse(
  const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),factPointer):null;
  // Chart series, time histories and milestone decision populations are not
  // display-register pages. Their full data must reach the visualisation.
- const screenKey=String(item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
+ const screenKey=String(item?.legacyKey??item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
  const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
@@ -142,14 +142,13 @@ export function pageProjectResponse(
   // fact snapshot can have hundreds of nested arrays; allowing it to consume
   // every slot leaves visible BOQ, evidence and action lists stuck at 25 rows.
   // This is only a response metadata budget; it does not modify source data.
-  const factSlots=Math.min(72,sharedFactPages.length);
+  const factSlots=sharedFactPages.length;
   const tables:PageTable[]=[...sharedFactPages.slice(0,factSlots)];
   let additionalTables=Math.max(0,sharedFactPages.length-factSlots),changed=sharedFactPages.length>0;
   const seen=new Set<object>();
   const record=(entry:PageTable)=>{
-   changed=true;
-   if(tables.length<180)tables.push(entry);
-   else additionalTables++;
+   if(entry.shown<entry.total)changed=true;
+   tables.push(entry);
   };
   const visit=(value:any,pointer:string,key:string,depth:number):any=>{
    if(value===null||value===undefined||typeof value==='number'||typeof value==='boolean')return value;
@@ -162,6 +161,7 @@ export function pageProjectResponse(
    }
    if(typeof value!=='object')return String(value);
    if(key==='projectFacts')return normalizedFacts;
+   if(key==='filterOptions'||key==='filterDomains'||key==='activitySummary')return value;
    if(key==='sourceLabels'){changed=true;return {};}
    if(seen.has(value))return {detailAvailable:true};
    if(depth>budget.depth){
@@ -176,7 +176,7 @@ export function pageProjectResponse(
      // altering the stored source order or declaring the preview complete.
      const candidate=table&&milestoneRows(pointer)?[...value].sort(priorityMilestoneOrder):value;
      const shown=table?Math.min(milestoneRows(pointer)?Math.max(12,budget.rows):budget.rows,value.length):value.length;
-     if(shown<value.length)record({pointer,total:value.length,shown,kind:'array'});
+     if(table||shown<value.length)record({pointer,total:value.length,shown,kind:'array'});
      const rows=candidate.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
      seen.delete(value);return rows;
    }

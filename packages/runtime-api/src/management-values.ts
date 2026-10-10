@@ -44,7 +44,9 @@ export function managementValue(input:unknown,unit=''):string {
 export function managementText(input:unknown):string {
  if(input===null||input===undefined)return 'Not in source';
  return String(input)
+  .replace(/\bdue\s*=\s*/gi,'Due: ')
   .replace(/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,match=>managementDate(match))
+  .replace(/T([0-2]\d:[0-5]\d)(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?(?=$|[\s;,)])/g,' · $1')
   .replace(/(^|[\s=:(])([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{3,})(?=$|[\s%,;:)])/g,(_,prefix,value)=>prefix+managementNumber(Number(value.replaceAll(',',''))))
   .replace(/(?:\b(?:[a-z][a-z0-9_]*_)?register|_register)\s+status\s*=\s*([a-z][a-z0-9 _-]*?)(?=[,;\n]|$)/gi,(_,value)=>'Status: '+value.trim().replaceAll('_',' ').replace(/^./,(s:string)=>s.toUpperCase()))
   .replace(/\b(?:null|undefined|NaN)\b/g,'Not in source')

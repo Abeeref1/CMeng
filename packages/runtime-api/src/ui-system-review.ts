@@ -29,7 +29,7 @@ function readerReference(value){
  let text=String(value??'');
  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
  if(Object.hasOwn(labels,text))return labels[text];
- text=text.replace(/(?:evidence-document:)?(?:delivery:[a-f0-9]{8,64}|(?:schedrev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>labels[id]??labels[id.replace(/^evidence-document:/,'')]??id);
+ text=text.replace(/(?:evidence-document:)?(?:delivery:[a-f0-9]{8,64}|(?:boqitem|quantityitem|schedrev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>labels[id]??labels[id.replace(/^evidence-document:/,'')]??id);
  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document (record reference in details)')
    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision (source reference in details)')
    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
