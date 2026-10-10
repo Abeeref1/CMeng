@@ -205,7 +205,8 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
     const sort=String(filter?.sort??'').trim().slice(0,80);
     const safeSort=sort&&!sort.split('.').some(part=>['__proto__','constructor','prototype'].includes(part))?sort:'';
     let matched=query||status?value.filter(row=>{
-      if(status&&String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase()!==status)return false;
+      const rowStatus=String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase();
+      if(status&&(status==='__open__'?rowStatus==='completed':status==='__completed__'?rowStatus!=='completed':rowStatus!==status))return false;
       return !query||JSON.stringify(row).toLowerCase().includes(query);
     }):value;
     if(safeSort){
