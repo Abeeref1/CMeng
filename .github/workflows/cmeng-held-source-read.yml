@@ -1,0 +1,43 @@
+name: CMeng Held Source Read
+on:
+  push:
+    branches: [diagnostic/cmeng-held-source-20261011]
+    paths: [.github/workflows/cmeng-held-source-read.yml]
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read existing project reports without modifying records
+        shell: bash
+        run: |
+          mkdir -p /tmp/cmeng-source
+          node <<'NODE'
+          const fs=require('node:fs');
+          const base='https://cmeng-main-production.up.railway.app';
+          const out='/tmp/cmeng-source';
+          const health=awaitJson('/health');
+          async function awaitJson(path){const r=await fetch(base+path,{signal:AbortSignal.timeout(60000)});if(!r.ok)throw Error(r.status+' '+path);return r.json();}
+          (async()=>{
+            const h=await health;fs.writeFileSync(out+'/health.json',JSON.stringify(h));
+            const inv=await awaitJson('/api/portfolio');fs.writeFileSync(out+'/portfolio.json',JSON.stringify(inv));
+            const projects=inv.projects||[];
+            const routes=[['brief','schedule/modules/pmo-analysis'],['quantities','schedule/modules/quantity-scurve'],['payments','commercial/modules/commercial-payment-register'],['evm','commercial/modules/evm-performance'],['claims','schedule/modules/notices-claims'],['delay','schedule/modules/delay-claims']];
+            const status=[];let i=0;
+            async function work(){while(i<projects.length){const p=projects[i++],id=p.projectId;if(!id)continue;const dir=out+'/'+encodeURIComponent(id);fs.mkdirSync(dir,{recursive:true});for(const[name,route]of routes){const path='/api/projects/'+encodeURIComponent(id)+'/'+route+'/report.json';try{const d=await awaitJson(path);fs.writeFileSync(dir+'/'+name+'.json',JSON.stringify(d));status.push({projectId:id,name,ok:true});}catch(e){status.push({projectId:id,name,ok:false,error:String(e)});}}}}
+            await Promise.all([work(),work()]);
+            fs.writeFileSync(out+'/status.json',JSON.stringify(status));
+            console.log(JSON.stringify({release:h.release,projects:projects.length,success:status.filter(s=>s.ok).length,failures:status.filter(s=>!s.ok)}));
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-held-source-${{ github.run_id }}
+          path: /tmp/cmeng-source
+          retention-days: 3
