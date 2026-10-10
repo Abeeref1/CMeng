@@ -280,8 +280,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.match(
     html,
-    /Promise\.allSettled\(\[\s*loadModule\(selected\),\s*loadEvidence\(\)/,
-    "project refresh must load the specialist module independently from the document register",
+    /await loadModule\(selected\);\s*if\(current\(\)\)void Promise\.allSettled\(\[\s*loadEvidence\(\)/,
+    "project refresh must load the selected page before non-blocking documents and management detail",
   );
   assert.match(
     html,

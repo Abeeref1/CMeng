@@ -45,6 +45,9 @@ function harness() {
   const finish=async(projectId:string,count=7)=>{
     next('/overview',projectId).resolve(overview(projectId,count));await tick();
     next('/command-center',projectId).resolve({key:'command-center',data:{projectId}});
+    // The agreed load order renders the selected page first. Secondary requests
+    // are started only after that module resolves, without blocking the page.
+    await tick();
     next('/documents',projectId).resolve({documentCount:0,documents:[]});
     next('/phases',projectId).resolve({phases:[]});
     next('/director-position',projectId).resolve({projectId});await tick();

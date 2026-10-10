@@ -2,7 +2,7 @@ name: CMeng Verify
 
 on:
   push:
-    branches: [main, fix/cmeng-shared-governance-20261009]
+    branches: [main, 'fix/**']
   pull_request:
     branches: [main]
 
