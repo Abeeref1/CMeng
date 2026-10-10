@@ -101,6 +101,17 @@ export function pageProjectResponse(
      rank(a)-rank(b)||Number(Boolean(b?.negativeFloat))-Number(Boolean(a?.negativeFloat))||
      Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
  };
+ const fullMilestoneRows=screenKey==='milestones'&&Array.isArray(item?.data?.rows)?item.data.rows as any[]:null;
+ const milestoneFullCounts=fullMilestoneRows?{
+  sourceRows:fullMilestoneRows.length,
+  openCount:fullMilestoneRows.filter(r=>r.status!=='completed').length,
+  completedCount:fullMilestoneRows.filter(r=>r.status==='completed').length,
+  overdueOpenCount:fullMilestoneRows.filter(r=>r.status!=='completed'&&r.dueState==='overdue').length,
+  openLateBaselineCount:fullMilestoneRows.filter(r=>r.status!=='completed'&&typeof r.varianceDays==='number'&&r.varianceDays>0).length,
+  completedLateBaselineCount:fullMilestoneRows.filter(r=>r.status==='completed'&&r.movementBasis==='actual_vs_baseline'&&typeof r.varianceDays==='number'&&r.varianceDays>0).length,
+  priorityCounts:Object.fromEntries(['critical','high','watch','normal'].map(key=>[key,fullMilestoneRows.filter(r=>r.status!=='completed'&&r.managementPriority===key).length])),
+  fullPopulation:true,
+ }:null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
@@ -153,6 +164,7 @@ export function pageProjectResponse(
    seen.delete(value);return result;
   };
   const projection=visit(body,'','',0);
+  if(milestoneFullCounts&&(projection as any)?.data)(projection as any).data.milestoneFullCounts=milestoneFullCounts;
   if(!projection||Array.isArray(projection)||typeof projection!=='object')return projection;
   // If there are no paged tables and no canonical facts to normalize, the
   // original small payload must retain exact source identity.
