@@ -148,9 +148,9 @@ test('Milestone source totals and open/completed browse pages never depend on a 
  assert.equal(full.openLateBaselineCount,sourceRows.filter(r=>r.status!=='completed'&&r.varianceDays>0).length);
  assert.equal(full.completedLateBaselineCount,10);
  assert.equal(Object.values(full.priorityCounts).reduce((sum:number,count:any)=>sum+Number(count),0),290);
- const firstOpen=recordDetailPage(source,'/data/rows',0,25,{status:'__open__'});
- const finalOpen=recordDetailPage(source,'/data/rows',275,25,{status:'__open__'});
- const completed=recordDetailPage(source,'/data/rows',25,25,{status:'__completed__'});
+ const firstOpen=recordDetailPage(source,'/data/rows',0,25,{status:'__open__'}) as any;
+ const finalOpen=recordDetailPage(source,'/data/rows',275,25,{status:'__open__'}) as any;
+ const completed=recordDetailPage(source,'/data/rows',25,25,{status:'__completed__'}) as any;
  assert.equal(firstOpen.total,290);assert.equal(finalOpen.rows.length,15);
  assert.ok((firstOpen.rows as any[]).every(r=>r.status!=='completed'));
  assert.equal(completed.total,50);assert.ok((completed.rows as any[]).every(r=>r.status==='completed'));
