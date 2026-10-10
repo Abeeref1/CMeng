@@ -5167,21 +5167,56 @@ function pmcDisplayOwner(domain){
  if(/quality|ncr|inspection/.test(area))return 'PMC Quality Manager — individual not designated';
  if(/procurement|material|supplier/.test(area))return 'PMC Procurement Manager — individual not designated';
  if(/claim|eot|notice|contract/.test(area))return 'PMC Contracts Manager — individual not designated';
- if(/payment|commercial|security|bond|cost|cash/.test(area))return 'PMC Commercial Manager — individual not designated';
+ if(/payment|commercial|security|bond|cost|cash|variation|certificate|instruction|retention/.test(area))return 'PMC Commercial Manager — individual not designated';
  if(/hse|safety|permit/.test(area))return 'PMC HSE Manager — individual not designated';
  if(/construction|delivery|resource|interface|site/.test(area))return 'PMC Construction Manager — individual not designated';
  if(/programme|schedule|activity|planning|float/.test(area))return 'PMC Planning Engineer — individual not designated';
  return 'PMC Project Controls Manager — individual not designated';
 }
 function applyPmcDisplayOwners(root,defaultDomain){
- if(!root)return;
- root.querySelectorAll('td,th,dt,dd,span,small,p,b,strong,.value-chip,.action-owner,.currency-code').forEach(node=>{
-   if(node.children.length||!/^\\s*(Not assigned|Unassigned|Not recorded|Owner not assigned)\\s*$/i.test(node.textContent||''))return;
-   const heading=node.closest('.planning-panel,.card,.data-section,.action,.project-action')?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
-   node.textContent=pmcDisplayOwner(heading);
-   node.title='Accountable PMC role fallback; no named source owner is recorded';
+ if(!root||typeof root.querySelectorAll!=='function')return;
+ // Missing source individuals receive the accountable PMC role, never a
+ // fabricated person. Non-owner columns keep their actual source state.
+ const missing=value=>/^\s*(?:Not assigned|Unassigned|Not recorded|Owner not assigned|Owner not recorded|Unknown owner|Not in source)\s*$/i.test(String(value||''));
+ root.querySelectorAll('table').forEach(table=>{
+   const headings=[...table.querySelectorAll('thead th')].map(th=>String(th.textContent||'').trim().toLowerCase());
+   const ownerColumns=headings.flatMap((heading,i)=>/\b(?:owner|responsible party|accountable party|accountable owner)\b/i.test(heading)?[i]:[]);
+   if(!ownerColumns.length)return;
+   table.querySelectorAll('tbody tr').forEach(tr=>{
+     const cells=[...tr.children].filter(cell=>cell.tagName==='TD');
+     for(const i of ownerColumns){
+       const cell=cells[i];if(!cell||!missing(cell.textContent))continue;
+       const section=table.closest('.planning-panel,.card,.data-section,.action,.project-action');
+       const area=section?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
+       cell.textContent=pmcDisplayOwner(area);
+       cell.title='Accountable PMC role; individual source owner not designated';
+     }
+   });
+ });
+ root.querySelectorAll('.action-owner,[data-owner-fallback]').forEach(node=>{
+   if(!missing(node.textContent))return;
+   node.textContent=pmcDisplayOwner(defaultDomain||'project controls');
+   node.title='Accountable PMC role; individual source owner not designated';
  });
 }
+function applyProjectDisplayText(root){
+ if(!root||typeof document==='undefined'||typeof document.createTreeWalker!=='function')return;
+ // Readable screen text only; keep source values, references, paths and exports.
+ const walker=document.createTreeWalker(root,4);
+ const updates=[];
+ let node;
+ while((node=walker.nextNode())){
+   if(node.parentElement?.closest('script,style,code,pre,textarea,input,select,option,a[href^="/api/"]'))continue;
+   const source=String(node.nodeValue||'');
+   if(!source||source.length>15000)continue;
+   const cleaned=humanizeIsoText(source)
+     .replace(/\bundefined calendar days\b/gi,'Calendar-day difference not established')
+     .replace(/\b([A-Za-z]+)_register status=/g,(_,kind)=>kind.replace(/_/g,' ')+' register status: ');
+   if(source!==cleaned)updates.push([node,cleaned]);
+ }
+ for(const [node,cleaned] of updates)node.nodeValue=cleaned;
+}
+
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -5219,6 +5254,7 @@ function renderModuleResult(result){
     container.insertAdjacentHTML('afterbegin','<div class="notice info"><b>Extended completion comparison · '+escapeHtml(planningShortDate(timeFact.value))+'</b><p>Amendment overlap to confirm'+(award!==null?' · '+fmt(award)+' awarded EOT days':'')+'. The source figures are retained; this is not an additional certified EOT or a basis for liquidated damages.</p></div>');
   }
   applyPmcDisplayOwners(container,result.key);
+  applyProjectDisplayText(container);
   const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
   if(missing.length){
     container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
