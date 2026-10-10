@@ -10,7 +10,7 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
  const scenarioDates=[...new Set(((position.contractControls as any)?.liquidatedDamages?.scenarios??[])
   .map((item:any)=>item?.forecastCompletion?.value)
   .filter((value:unknown):value is string=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}/.test(value)))];
- const scenarioFinish= !submittedProgrammeFinishIso&&scenarioDates.length===1?scenarioDates[0]:null;
+ const scenarioFinish:string|null= !submittedProgrammeFinishIso&&scenarioDates.length===1?String(scenarioDates[0]):null;
  const finishIso=(submittedProgrammeFinishIso??scenarioFinish)?.slice(0,10)??null;
  const start=dataDateIso?Date.parse(dataDateIso.slice(0,10)+'T00:00:00Z')+86400000:NaN;
  const finish=finishIso?Date.parse(finishIso+'T00:00:00Z'):NaN;
