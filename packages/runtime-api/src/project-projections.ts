@@ -7639,7 +7639,7 @@ function resolveProjectModuleCandidate(
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
     const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
     result.data=attachActivityFloatReconciliation(result.data,review);
-    if(review.summary.differenceActivityCount){
+    if(review.summary.criticalityDifferenceCount){
       result.status='partial';result.professionalState='review_required';
       const offset=review.summary.commonOffsetHours;
       result.reason=[result.reason,review.summary.differenceActivityCount+' open activities have submitted versus independently calculated float differences ('+
