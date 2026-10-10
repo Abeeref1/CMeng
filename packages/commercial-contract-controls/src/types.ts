@@ -96,7 +96,7 @@ export interface BondControlInput {
     | "expired"
     | "released";
   expiryIso: string | null;
-  amount: number;
+  amount: number | null;
   currency: string;
   sourceRefs: string[];
 }
@@ -141,6 +141,7 @@ export interface PaymentRetentionInput {
     ContractControlMoney;
   retentionReleaseDate:
     string | null;
+  retentionReleaseDueDate?: string | null;
   sourceRefs: string[];
 }
 
@@ -235,6 +236,7 @@ export interface ContractControlsInput {
     CommercialFinding<string>;
   insuranceRequirementCount: number;
   ldTerms: RawLdTermInput | null;
+  sectionTerms?: SectionLdTermInput[];
   contractValues:
     ContractValuePositionInput[];
   ldTime: LdTimePositionInput;
@@ -422,6 +424,18 @@ export interface ContractObligationsProjection {
   diagnostics: string[];
 }
 
+export interface SectionLdTermInput {
+  sectionId:string;label:string;rate:number|null;rateBasis:string;
+  currency:string|null;capAmount:number|null;capPercent:number|null;
+  contractCompletionIso:string|null;extendedCompletionIso:string|null;
+  programmeCompletionIso:string|null;milestoneId:string|null;sourceRefs:string[];
+}
+export interface SectionLdScenario extends SectionLdTermInput {
+  contractualDueDateIso:string|null;
+  forecastCompletionIso:string|null;
+  lateDays:number|null;uncappedExposure:number|null;cappedExposure:number|null;
+  status:'scenario'|'unavailable';missingInputs:string[];basis:string;
+}
 export interface LdScenario {
   scenario:
     | "no_eot"
@@ -446,6 +460,14 @@ export interface LdScenario {
 }
 
 export interface LiquidatedDamagesProjection {
+  /** Clean extracted clause values are presented as reported source evidence.
+   * Legal applicability, EOT entitlement and LD deduction remain separate. */
+  reportedSourceTerms:{
+    rate:RawLdTermInput['rate'];
+    cap:RawLdTermInput['cap'];
+    rateEvidence:'reported_source_value'|'missing'|'conflicted';
+    capEvidence:'reported_source_value'|'missing'|'conflicted';
+  };
   capabilityKey:
     "liquidated-damages";
   state: CommercialFindingState;
@@ -454,10 +476,12 @@ export interface LiquidatedDamagesProjection {
   capState:
     CommercialFindingState;
   scenarios: LdScenario[];
+  sectionScenarios: SectionLdScenario[];
   diagnostics: string[];
 }
 
 export interface BondPosition {
+  contractValidity?:ReturnType<typeof import('./security-validity').performanceSecurityValidity>;
   bondId: string;
   kind: BondControlInput["kind"];
   status: BondControlInput["status"];

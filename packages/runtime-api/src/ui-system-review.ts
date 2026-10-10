@@ -14,7 +14,137 @@ function renderPositionVerdict(data,includeGeneral=false){
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
-  return String(value||'').replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' ')).replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+ const raw=readerReference(value);
+ // Preserve source text in saved data. Apply the shared PMC terms only to display.
+ const labelled=raw.replace(/\b(?:SOURCE_CONFLICT|DATA_CONFLICT|conflicting records|sources disagree|registers disagree)\b/gi,'Records disagree')
+   .replace(/\b(?:missing source value|not recorded|unresolved|not established|undefined|null)\b/gi,'Not in source')
+   .replace(/\b([a-z][a-z0-9_]*)_register\s+status\s*=\s*([a-z][a-z0-9_-]*)\b/gi,
+     (_,name,status)=>name.replaceAll('_',' ')+' register: '+status.replaceAll('_',' '))
+   .replace(/\b(?:_register status\s*=|register status\s*=)\s*/gi,'Register status: ');
+ return humanizeIsoText(labelled)
+   .replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' '))
+   .replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?::[^;\n]*)?/g,code=>code.split(':').map(part=>part.replaceAll('_',' ').toLowerCase()).join(' · '));
+}
+function readerReference(value){
+ let text=String(value??'');
+ const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
+ for(const [id,label] of Object.entries(labels).sort((a,b)=>b[0].length-a[0].length))
+   text=text.split(id).join(label);
+ return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document (record reference in details)')
+   .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision (source reference in details)')
+   .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
+   .replace(/\b[0-9a-f]{28,64}\b/gi,'Source record (reference in details)')
+   .replace(/(?:audit-request|source-manifest|rerun-receipt):[^\s;,]+/g,'Retained project history')
+   .replace(/:clause:[^\s;,]+/g,' · source section').replace(/:row:(\d+)/g,' · row $1').replace(/:page:(\d+)/g,' · page $1')
+   .replace(/\bdata\.(?:[\w]+(?:\[\*?\d*\])?\.?)+/g,path=>path.split('.').at(-1).replace(/\[.*\]/g,'').replace(/([a-z])([A-Z])/g,'$1 $2'));
+}
+function readerAuditAction(value){
+  const text=String(value??'');
+  if(/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(text)){
+    const verb=text.startsWith('GET ')?'Viewed':text.startsWith('DELETE ')?'Removed':'Updated';
+    const subject=/evidence|upload/.test(text)?'project documents':/schedule|programme/.test(text)?'programme records':/review|confirm|adopt/.test(text)?'review decision':'project records';
+    return verb+' '+subject;
+  }
+  return readerText(text);
+}
+function renderProgrammeCashScenario(scenario){
+ if(!scenario?.groups?.length)return '';
+ return '<section class="planning-panel"><h4>Future receipts · programme planning scenario</h4>'+
+ scenario.groups.map(group=>planningKpis([
+  ['Remaining gross work',group.remainingGross,group.currency],
+  ['Future retention',group.retention,group.currency],
+  ['Advance recovery',group.advanceRecovery,group.currency],
+  ['Indicative net receipts',group.netReceipts,group.currency]
+ ])+(group.rows?.length?
+  experienceDisclosure('Monthly assumed receipts · '+group.currency,
+    basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>
+      [planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),
+       row.assumedReceiptIso?planningShortDate(row.assumedReceiptIso):'Payment period not in source'])),
+    'Straight-line scenario through '+planningShortDate(scenario.programmeFinishIso)):
+  '<p><b>Receipts scenario cannot yet be priced.</b> '+escapeHtml(group.certificateCount??'Recorded')+
+  ' payment certificates retained. Source inputs required: '+escapeHtml((group.missingInputs||[]).join('; ')||'Confirm comparable contract, certification and submitted programme dates')+
+  '. Existing payments and unpaid certificates remain separately visible; no unsupported amount is converted into zero.</p>'
+ )).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
+}
+function renderContractSections(data){
+ const facts=data?.projectFacts;
+ const sections=facts?.contractSections||[];
+ if(!sections.length)return '';
+ const controls=data?.position?.contractControls?.liquidatedDamages??data?.focus?.liquidatedDamages??null;
+ const reported=controls?.sectionScenarios||[];
+ const bySection=new Map(reported.map(row=>[String(row.sectionId),row]));
+ const dateDiff=(due,finish)=>{
+   if(!due||!finish)return null;
+   const a=Date.parse(String(due).slice(0,10)+'T00:00:00Z'),b=Date.parse(String(finish).slice(0,10)+'T00:00:00Z');
+   return Number.isFinite(a)&&Number.isFinite(b)?Math.max(0,Math.round((b-a)/86400000)):null;
+ };
+ const result=sections.map(section=>{
+   const matching=bySection.get(String(section.sectionId));
+   const due=matching?.contractualDueDateIso??section.extendedCompletionIso??section.contractCompletionIso??null;
+   const finish=matching?.forecastCompletionIso??section.programmeCompletionIso??null;
+   const basis=section.rateBasis;
+   const days=dateDiff(due,finish);
+   const perDay=typeof section.rate==='number'&&Number.isFinite(section.rate)
+     ?basis==='fixed_amount_per_day'?section.rate:basis==='fixed_amount_per_week'?section.rate/7:null:null;
+   const uncapped=days!==null&&perDay!==null?Math.round(days*perDay*100)/100:null;
+   const capped=uncapped!==null&&typeof section.capAmount==='number'
+     ?Math.min(uncapped,section.capAmount):null;
+   const reason=!due?'Section contractual completion date not in source':
+     !finish?'Submitted sectional programme milestone not linked':
+     perDay===null?'Section damages rate or day basis is not established':
+     uncapped!==null&&capped===null?'Uncapped scenario only; valid monetary cap basis not established':
+     'Section-only scenario, not assessed entitlement or deducted damages';
+   return {section,due,finish,days,uncapped,capped,reason};
+ });
+ const body=result.map(({section,due,finish,days,uncapped,capped,reason})=>
+  '<tr><td><b>'+escapeHtml(section.label||('Section '+section.sectionId))+'</b>'+
+   ((section.completionDependsOnSectionIds||[]).length?'<br><small>Completion depends on section '+escapeHtml(section.completionDependsOnSectionIds.join(', '))+'</small>':'')+'</td>'+
+  '<td>'+escapeHtml(section.milestoneId||'No matching source completion milestone')+'</td>'+
+  '<td>'+escapeHtml(due?planningShortDate(due):'Not in source')+'</td>'+
+  '<td>'+escapeHtml(finish?planningShortDate(finish):'Not in source')+'</td>'+
+  '<td>'+escapeHtml(section.rate===null?'Not in source':fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis==='fixed_amount_per_week'?'week':'day'))+'</td>'+
+  '<td>'+escapeHtml(days===null?'Not calculated':fmt(days)+' calendar days')+'</td>'+
+  '<td>'+escapeHtml(uncapped===null?'Not calculated':fmt(uncapped)+' '+(section.currency||''))+'</td>'+
+  '<td>'+escapeHtml(capped===null?'Not calculated · cap basis missing':fmt(capped)+' '+(section.currency||''))+'</td>'+
+  '<td>'+escapeHtml(reason)+'</td></tr>').join('');
+ return '<section class="planning-panel"><h4>Delay damages by contract section — one source-based position</h4>'+
+   '<p>Every section retains its own rate, completion date, programme milestone, cap and source qualifications. No whole-project LD figure replaces these sectional positions. Calculations are scenarios, never certified deductions.</p>'+
+   '<div class="table-wrap"><table><thead><tr><th>Section</th><th>Programme milestone</th><th>Contract date with applicable award</th><th>Submitted finish</th><th>Section rate</th><th>Late days</th><th>Uncapped scenario</th><th>Capped scenario</th><th>Control</th></tr></thead><tbody>'+body+'</tbody></table></div></section>';
+}
+function renderRegisterContractQueries(data){
+ const currencies=data?.projectFacts?.commercial?.currencies||[];
+ const metrics=[
+  ['Variations / approvals','approvedVariationAmount'],
+  ['Pending variations','pendingVariationAmount'],
+  ['Gross certificates','grossCertifiedAmount'],
+  ['Payments','paidAmount'],
+  ['Claims register','claimedAmount'],
+  ['Assessed claims','assessedClaimAmount']
+ ];
+ const exceptions=[];
+ for(const row of currencies){
+  const sum=row.currentContractValue?.value;
+  if(typeof sum!=='number'||!Number.isFinite(sum)||sum<0)continue;
+  for(const [name,key] of metrics){
+    const fact=row[key],value=fact?.value;
+    if(typeof value!=='number'||!Number.isFinite(value)||value<=sum+0.01)continue;
+    exceptions.push({currency:row.currency,name,total:value,current:sum,difference:value-sum,
+      basis:fact?.basis||'Source population/period basis must be checked'});
+  }
+ }
+ if(!exceptions.length)return '';
+ const table=basisTable(['Register / measure','Currency','Recorded amount','Current contract','Exceeds by','Source basis to verify'],
+   exceptions.map(row=>[row.name,row.currency,row.total,row.current,row.difference,row.basis]));
+ return '<section class="planning-panel attention"><h4>Contract sum versus source register totals — query required</h4>'+
+  '<p>One currency at a time. These source figures exceed the recorded current contract and require reconciliation of scope, duplicates, reporting period and contract authority. CMeng does not silently reduce the source amount or treat the comparison as proof of invalid records.</p>'+table+'</section>';
+}
+function renderClaimPipeline(data){
+  const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
+  return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
+    ['Claims',p.recordCount,'Identities evidenced by the Data Date'],['Claimed days',p.claimedDays,'From register'],
+    ['Assessed days',p.assessedDays,'Register assessments; includes unconfirmed decisions'],['Awarded EOT',facts.time.awardedEotDays.value,'Dated awards'],
+    ['Pending claims',p.pendingCount,'Submitted or under review'],['Pending assessed days',p.pendingAssessedDays,'Scenario input; not awarded']
+  ])+(p.pendingScenarioCompletionIso?'<p>If all pending assessed days are awarded without overlap, completion moves to <b>'+escapeHtml(planningShortDate(p.pendingScenarioCompletionIso))+'</b>.</p>':'')+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div></details>':'')+'</section>';
 }
 function uniqueReportingPopulations(populations){
   const groups=new Map();
@@ -23,7 +153,7 @@ function uniqueReportingPopulations(populations){
     const old=groups.get(label);
     if(!old)groups.set(label,{...p});
     else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount||old.dateBasis!==p.dateBasis){
-      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Unresolved: reporting groups disagree; review the full calculation data.'});
+      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
     }
   }
   return [...groups.values()];
@@ -92,7 +222,15 @@ function readerIssue(i){
   if(!action&&i.action==='Correct or govern the specific source record, then rerun the same validation.')action='Check the records listed below, correct the inconsistent details and repeat the check.';
   if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
-  return {title:readerText(title),action:readerText(action),owner:'Not assigned',assignTo:String(i.owner==='Project evidence owner'?'Document Owner':i.owner||'Project Controls').replace(/\s*\(assign a person\)/gi,'')};
+  const moduleKeys=(i.moduleKeys??[]).map(value=>String(value).toLowerCase()).join(' ');
+  const accountableRole=/procure|long-lead|material/.test(moduleKeys)?'Procurement Manager':
+    /design|rfi|interface/.test(moduleKeys)?'Design Manager':
+    /quality|ncr|hse/.test(moduleKeys)?'QA/QC Manager':
+    /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
+    /commercial|payment|contract|claim|bond|cash|cost|retention|advance|certificate|security/.test(moduleKeys)?'Commercial Manager':
+    'Project Controls Manager';
+  const owner=String(i.owner&&i.owner!=='Project evidence owner'?i.owner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
+  return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
 }
 function renderSourceQuality(data){
   const rows=items=>items.length?'<div class="source-request-list">'+items.map(i=>{const r=readerIssue(i);return '<details class="source-request"><summary><b>'+escapeHtml(r.title)+'</b><span class="request-meta">'+fmt((i.sourceRefs||[]).length)+' references · '+fmt(i.moduleKeys.length)+' affected pages</span></summary><p><b>Next step:</b> '+escapeHtml(r.action)+'</p><p><b>Owner:</b> '+escapeHtml(r.owner)+'</p><p><b>Assign to:</b> '+escapeHtml(r.assignTo)+'</p><p>'+i.moduleKeys.map(k=>managementModuleLink(k,names[k]||k)).join(' ')+'</p><details><summary>Original finding and document references</summary><p>'+escapeHtml(i.summary)+'</p><p>'+escapeHtml(i.detail)+'</p><p>'+escapeHtml(i.action)+'</p>'+((i.sourceRefs||[]).length?'<ul>'+i.sourceRefs.map(r=>'<li>'+escapeHtml(r)+'</li>').join('')+'</ul>':'')+'</details></details>';}).join('')+'</div>':'<p>None identified in the listed checks.</p>';
@@ -103,15 +241,14 @@ function renderSourceQuality(data){
   return '<section class="source-quality-page"><div id="projectActionPanel">'+(typeof renderProjectActionList==='function'?renderProjectActionList():'')+'</div><details class="management-detail"><summary>Supporting findings, source references and system checks</summary><p>The action list above is the place to complete your decisions. Identical requests are counted once; all record references remain available. These details retain the original checks and source references.</p><div class="source-quality-counts">'+[['Information items',data.sourceIssues],['System failures',data.systemFailures],['Reviews / approvals',data.reviewActions],['Checks pending',data.pendingChecks]].map(([label,items])=>'<div>'+label+'<b>'+fmt(items?.length||0)+'</b></div>').join('')+'</div>'+(data.systemFailures?.length?failures:experienceDisclosure('System checks',failures,'No failures in the listed checks'))+managementPanel('Information and actions','Open an item to see what to provide, who should act and which pages it affects.',groups.map(([label,kind])=>{const items=(data.sourceIssues||[]).filter(i=>i.kind===kind);return experienceDisclosure(label,rows(items),fmt(items.length)+' items');}).join(''))+dateDetail+experienceDisclosure('Reviews and approvals',rows(data.reviewActions||[]),fmt(data.reviewActions?.length||0)+' items')+experienceDisclosure('Figures compared across pages',basisTable(['Measure','Result','Page values'],(data.pageValueChecks||[]).map(c=>[c.metric,humanizeKey(c.state),c.values.map(v=>(names[v.page]||v.page)+': '+(typeof v.value==='object'?JSON.stringify(v.value).slice(0,200)+' (full value in data download)':v.value)).join(' · ')])),'Results and value previews; full records in data download')+experienceDisclosure('Calculation checks',rows(data.pendingChecks||[])+(data.coverage||[]).map(r=>'<details><summary>'+escapeHtml(names[r.key]||r.key)+' · '+escapeHtml(humanizeKey(r.state))+' · '+fmt(r.checks.length)+' checks</summary>'+basisTable(['Measure','Expected','Actual','Result'],r.checks.map(c=>[c.metric,JSON.stringify(c.expected),JSON.stringify(c.actual),c.passed?'Passed':'Failed']))+'</details>').join(''),'Checks completed and work still pending')+experienceDisclosure('Project documents',basisTable(['Document','Type','Status','Uploaded'],(data.documents||[]).map(d=>[d.name,humanizeKey(d.type),humanizeKey(d.state),formatDocumentTime(d.uploadedAt)])),fmt(data.documents?.length||0)+' documents')+'</details></section>';
 }
 function renderDashboardDecisions(data){
-  const recordIds=new Set((data.operationalReporting?.actions||[]).map(r=>r.recordId));
-  const decisions=(data.decisions||[]).filter(d=>!recordIds.has(d.recordId)&&![...recordIds].some(id=>id&&String(d.title||d.label||d.action||d.description).includes(id)));
-  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,6).map(d=>'<article><b>'+escapeHtml(d.title||d.label||d.action||d.description)+'</b><small>Owner: '+escapeHtml(d.accountableOwner||'Not assigned')+' · Due: '+escapeHtml((d.dueDate||d.dueIso)?planningShortDate(d.dueDate||d.dueIso):'Date needed')+'</small><div>'+managementModuleLink(d.owningModule||'command-center','Review decision')+'</div></article>').join('')+'</div>':'<p>No decision has been recorded. Assign the outstanding document requests and delivery actions below.</p>';
-  return managementPanel('Decisions required','Confirm the decision, assign an owner and set a due date.',body+(decisions.length>6?managementModuleLink('command-center','All '+decisions.length+' decisions'):''),true);
+  const decisions=(data.actions||[]).filter(row=>row.recordKey?.startsWith('review|'));
+  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.requiredAction))+'</p>'+managementModuleLink('source-quality','Open the pre-filled review action')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
+  return managementPanel('Source decisions',fmt(decisions.length)+' source reviews within the shared project action list.',body);
 }
 function renderDashboardExceptions(data){
-  const actions=data.deliveryExceptions?.actions||data.operationalReporting?.actions||[];
-  const table=rows=>basisTable(['Record','Priority','Age at reporting date','Overdue','Owner','Due','Action'],rows.map(r=>[r.recordId,r.priority,r.ageDays==null?'Raised date needed':r.ageDays+' d',r.overdueDays==null?'Due date needed':r.overdueDays+' d',r.owner||'Not assigned',r.dueIso?planningShortDate(r.dueIso):'Not set',r.action]));
-  return managementPanel('Delivery exceptions requiring action','Critical items appear first, then the most overdue and oldest. Assign any missing owner or due date.',actions.length?table(actions.slice(0,5))+experienceDisclosure('All '+fmt(actions.length)+' action records',table(actions),'Complete delivery exceptions'):'<p>No confirmed delivery exceptions in the checked records. Open Look-Ahead for the activity review.</p>',true);
+  const actions=data.actions||[];
+  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?fmt(row.priorityBasis.linkedFloatHours)+' h float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),row.dueIso?planningShortDate(row.dueIso):'Not set',readerText(row.requiredAction)]));
+  return managementPanel('Priority project actions',fmt(actions.length)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+fmt(actions.length)+' project actions'):'<p>No current project actions are identified.</p>',true);
 }
 function renderDashboardScheduleExceptions(data){
   const p=data.scheduleExceptions;if(!p)return managementPanel('Activities needing attention','Schedule status','<p>Adopt a programme in Documents to see missed starts, overdue finishes and critical activities.</p>',true);

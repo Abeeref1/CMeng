@@ -27,7 +27,7 @@ test('classification keeps failed software checks separate from missing, invalid
   ['data_quality',input({focus:{date:{state:'invalid',value:null,diagnostics:['INVALID_DATE'],sourceRefs:['DOC-C:row:3']}}})],
   ['missing_information',input({focus:{permit:{state:'missing',value:null}}})],
   ['comparison_difference',input({challenge:{reconciliationState:'material_difference'}})],
-  ['governance_review',input({focus:{amendment:{state:'candidate',value:'2035-12-31'}}})],
+  ['governance_review',input({focus:{amendment:{state:'candidate',value:'2035-12-31',decisionRequired:true}}})],
   ['verification_pending',input({focus:{payment:{state:'submitted_unparsed',value:null,sourceRefs:['DOC-D:page:1']}}})],
  ] as const;
  for (const [kind,result] of cases){
@@ -36,6 +36,8 @@ test('classification keeps failed software checks separate from missing, invalid
   assert.ok(assessment.issues.every(i=>i.owner&&i.action&&i.evidencePaths.length));
  }
  assert.equal(assessModuleIssues(input(),pass).primaryKind,'checked');
+ assert.equal(assessModuleIssues(input({focus:{amendment:{state:'candidate',value:'2035-12-31'}}}),pass).primaryKind,'checked',
+   'F28 a source candidate does not create an approval action without an explicit decision requirement');
 });
 test('submitted but uninterpreted sources and missing CMeng comparisons belong to CMeng, not the contractor',()=>{
  const r=assessModuleIssues(input({focus:{register:{state:'submitted_unparsed',value:null}},challenge:{reconciliationState:'independent_unavailable'}}),pass);
@@ -106,4 +108,14 @@ test('one source conflict keeps all projection paths; different documents and ro
  assert.equal(summary.issues[0]!.sourceRefs.length,2);
  const distinct=assessModuleIssues(input({amount:{state:'conflicted',sourceRefs:['document:row:1']},currency:{state:'conflicted',sourceRefs:['document:row:1']}}),pass);
  assert.equal(distinct.counts.source_conflict,2,'same row does not establish that different unresolved facts have the same cause');
+});
+
+test('large flat schedule populations retain late direct and nested evidence findings',()=>{
+ const rows:any[]=Array.from({length:20000},(_,i)=>({activityId:'A'+i,predecessorIds:i?['A'+(i-1)]:[],successorIds:[],labels:['work'],diagnostics:[],sourceRefs:[]}));
+ rows[19998]!.diagnostics=['INVALID_DATE'];rows[19998]!.sourceRefs=['original:row:19999'];
+ rows[19999]!.review=[[],['ordinary scalar'],{state:'conflicted',sourceRefs:['original:row:20000']}];
+ const r=assessModuleIssues(input({rows}),pass);
+ assert.equal(r.counts.data_quality,1);assert.equal(r.counts.source_conflict,1);assert.equal(r.counts.missing_information,0);
+ assert.deepEqual(r.issues.find(i=>i.kind==='data_quality')!.sourceRefs,['original:row:19999']);
+ assert.deepEqual(r.issues.find(i=>i.kind==='source_conflict')!.sourceRefs,['original:row:20000']);
 });

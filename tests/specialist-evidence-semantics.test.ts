@@ -7,6 +7,7 @@ import type {
 import {
   createCmengServer,
 } from "../packages/runtime-api/src/server";
+import {canonicalHeader,inferTableSemanticRoute,prepareRegisterRows} from "../packages/truth-kernel/src";
 
 async function withServer(
   fn: (
@@ -116,6 +117,42 @@ async function uploadSchedule(
     await response.text(),
   );
 }
+
+test("header-first routing recognizes permit registers and common wide EVM histories",()=>{
+  const permit=[
+    ['Permit No','Authority','Status','Submission Date','Issue Date','Expiry Date','Required By','Responsible'],
+    ['PER-01','Civil Defence','Issued','2026-07-01','2026-07-10','2027-07-10','2026-06-30','MEP Manager'],
+  ];
+  const permitRoute=inferTableSemanticRoute(permit,'supporting_document');
+  assert.equal(permitRoute?.documentType,'permit_register');
+  const preparedPermit=prepareRegisterRows(permit,'permit_register');
+  assert.ok(preparedPermit.headers.includes('permit id'));
+  assert.ok(preparedPermit.headers.includes('owner'));
+  assert.equal(preparedPermit.rows[0]?.[preparedPermit.headers.indexOf('submitted date')],'2026-07-01');
+
+  const evm=[
+    ['Date','PV','EV','AC','BAC','EAC','Currency'],
+    ['2026-06-30','100','90','95','1000','1100','QAR'],
+    ['2026-07-31','200','180','195','1000','1090','QAR'],
+  ];
+  const evmRoute=inferTableSemanticRoute(evm,'supporting_document');
+  assert.equal(evmRoute?.documentType,'cost_evm_report');
+  const preparedEvm=prepareRegisterRows(evm,'cost_evm_report');
+  for(const header of ['date','pv','ev','ac','bac','eac','currency'])assert.ok(preparedEvm.headers.includes(header),header);
+});
+
+test("known reviewed register columns are canonicalized instead of silently dropped",()=>{
+  const rows=[[
+    'Claim ID','Awareness Date','Responsibility Claimed','Impact (1-5)','Score','Last Reviewed','Action Due Date',
+    'Actual Approved Usage','WBS Code','Instrument','Responsible'
+  ],[
+    'C1','2026-01-01','Employer','4','16','2026-08-01','2026-08-15','75','WBS-01','Performance Bond','Project Manager'
+  ]];
+  const prepared=prepareRegisterRows(rows,'delay_eot_claims_register');
+  for(const expected of ['claim id','awareness date','responsibility','impact','score','last reviewed','due date','actual approved usage','wbs code','bond type','owner'])
+    assert.ok(prepared.headers.includes(expected),expected);
+  assert.equal(canonicalHeader('Responsible'),'owner');
+});
 
 test("Progress Position does not relabel schedule progress as certified physical progress", async () => {
   await withServer(

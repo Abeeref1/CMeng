@@ -14,6 +14,10 @@ import type {
   LdRateCandidate,
 } from "./types";
 
+const currencyCodes = new Set(Intl.supportedValuesOf("currency"));
+const isCurrencyCode = (value: string): boolean =>
+  currencyCodes.has(value.trim().toUpperCase());
+
 function refs(
   section: ContractSection,
 ): string[] {
@@ -31,6 +35,9 @@ function refs(
 function cleanNumber(
   value: string,
 ): number | null {
+  // A punctuation-only match must never become Number("") === 0.
+  // Preserve explicit zeros, decimals and correctly grouped thousands.
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(value)) return null;
   const number = Number(
     value.replace(/,/g, ""),
   );
@@ -91,7 +98,7 @@ function rateCandidates(
           : match[1]!;
       const unit = match[3]!.toLowerCase();
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       const basis =
         unit.includes("week")
           ? "fixed_amount_per_week" as const
@@ -114,6 +121,9 @@ function rateCandidates(
           match.index,
           match[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -156,6 +166,9 @@ function rateCandidates(
         percentMatch.index,
         percentMatch[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -197,6 +210,9 @@ function capCandidates(
         match.index,
         match[0].length,
       ),
+      sectionKey: section.sectionKey,
+      sectionIdentifier: section.identifier,
+      sectionHeading: section.heading,
     });
   }
 
@@ -218,7 +234,7 @@ function capCandidates(
           ? fixed[2]!
           : fixed[1]!;
       const amount = cleanNumber(amountText);
-      if (amount === null) continue;
+      if (amount === null || !isCurrencyCode(currencyCode)) continue;
       out.push({
         candidateId:
           "ld-cap-" +
@@ -238,6 +254,9 @@ function capCandidates(
           fixed.index,
           fixed[0].length,
         ),
+        sectionKey: section.sectionKey,
+        sectionIdentifier: section.identifier,
+        sectionHeading: section.heading,
       });
     }
   }
@@ -251,6 +270,7 @@ function uniqueRates(
   const seen = new Set<string>();
   return values.filter((value) => {
     const key = [
+      value.sectionKey?.startsWith('contract-section:') ? value.sectionKey : '',
       value.basis,
       value.amount,
       value.currency,
@@ -268,6 +288,7 @@ function uniqueCaps(
   const seen = new Set<string>();
   return values.filter((value) => {
     const key = [
+      value.sectionKey?.startsWith('contract-section:') ? value.sectionKey : '',
       value.basis,
       value.amount,
       value.currency,
@@ -282,7 +303,7 @@ function uniqueCaps(
 export function extractContractLdTerms(
   contract: ContractDocumentResult,
 ): ContractLdTerms {
-  const eligible =
+  let eligible =
     contract.sections.filter(
       (section) =>
         /liquidated\s+damages|delay\s+damages|damages\s+for\s+delay/i.test(
@@ -293,17 +314,65 @@ export function extractContractLdTerms(
         ),
     );
 
+  // Contract-data tables can be split into separate parser sections. Read each
+  // explicitly labelled sectional damages row from the retained native page,
+  // keeping its scope and cap together rather than treating different sections
+  // as competing rates for the same works.
+  const pages=contract.pdf?.pages.filter(page=>page.method==='native')??[];
+  const whole=pages.map(page=>page.text).join('\n');
+  const scoped:ContractSection[]=[];
+  for(const page of pages){
+    const starts=[...page.text.matchAll(/\bSection\s+(\d+)\s+(?:Delay|Liquidated)\s+Damages\b/gi)];
+    for(const match of starts){
+      const start=match.index!,next=page.text.slice(start+match[0].length).search(/\n[ \t]*Section\s+\d+\b|\bContract Agreement\b|\bCONDITIONS OF CONTRACT\b/i);
+      const text=page.text.slice(start,next<0?page.text.length:start+match[0].length+next).trim();
+      const id=match[1]!;
+      const parenthetical=new RegExp('\\bSection\\s+'+id+'\\s*\\(([^)]+)\\)','i').exec(whole)?.[1];
+      const headingPattern=new RegExp('(?:^|\\n)[ \\t]*Section\\s+'+id+'[ \\t]+(?!Time\\b|Delay\\b|Liquidated\\b)([^\\n]+)','i');
+      const label=(parenthetical??headingPattern.exec(whole)?.[1]??'Section '+id).replace(/\s+/g,' ').trim();
+      const template=contract.sections.find(section=>section.startPage===page.pageNumber)??contract.sections[0];
+      if(template)scoped.push({...template,sectionKey:'contract-section:'+id,identifier:id,heading:label,text,startPage:page.pageNumber,
+        sourceSpans:[{...template.sourceSpans[0]!,sourceKind:'pdf_page',sourceIndex:page.pageNumber,start,end:start+text.length}]});
+    }
+  }
+  if(scoped.length)eligible=scoped;
+
   const rates = uniqueRates(
     eligible.flatMap(rateCandidates),
   );
-  const caps = uniqueCaps(
+  let caps = uniqueCaps(
     eligible.flatMap(capCandidates),
   );
 
+  const overallWorksPattern =
+    /(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project|completion)|project\s+completion|completion\s+of\s+(?:the\s+)?works/i;
+  const overallRateCandidates = rates.filter((rate) =>
+    overallWorksPattern.test(
+      [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.textSnippet].join(" "),
+    ),
+  );
+  const sectionalRateSet = rates.length > 1 && new Set(rates.map((rate) =>
+    [rate.sectionIdentifier ?? "", rate.sectionHeading ?? "", rate.sectionKey ?? ""].join("|")
+  )).size > 1;
+  const selectedRate =
+    rates.length === 1
+      ? rates[0]!
+      : overallRateCandidates.length === 1
+        ? overallRateCandidates[0]!
+        : null;
+  if(selectedRate&&scoped.length){
+    const section=scoped.find(row=>row.sectionKey===selectedRate.sectionKey)!;
+    const explicit=/cap(?:ped)?\s+(?:at|to)[^\n]*?\(\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)\s*\)/i.exec(section.text.replace(/\s+/g,' '));
+    const amount=explicit?cleanNumber(explicit[2]!):null;
+    caps=amount!==null&&explicit&&isCurrencyCode(explicit[1]!)?[{
+      candidateId:'ld-cap-'+stableFingerprint({section:section.sectionKey,amount}).slice(0,20),basis:'fixed_amount',amount,currency:explicit[1]!.toUpperCase(),percent:null,
+      sourceRefs:refs(section),textSnippet:section.text,sectionKey:section.sectionKey,sectionIdentifier:section.identifier,sectionHeading:section.heading,
+    }]:caps.filter(cap=>cap.sectionKey===selectedRate.sectionKey);
+  }
   const rateState =
     rates.length === 0
       ? "missing"
-      : rates.length === 1
+      : selectedRate
         ? "candidate"
         : "conflicted";
   const capState =
@@ -318,7 +387,7 @@ export function extractContractLdTerms(
     capState,
     rate:
       rateState === "candidate"
-        ? rates[0]!
+        ? selectedRate
         : null,
     cap:
       capState === "candidate"
@@ -332,6 +401,12 @@ export function extractContractLdTerms(
         : [
             "LD_EXTRACTION_FROM_PARTIAL_CONTRACT_SEMANTICS",
           ]),
+      ...(sectionalRateSet
+        ? ["LD_SECTIONAL_RATES_RETAINED:" + rates.length]
+        : []),
+      ...(selectedRate && rates.length > 1
+        ? ["LD_OVERALL_WORKS_RATE_SELECTED_FROM_SECTIONAL_RATES"]
+        : []),
       ...(rateState === "conflicted"
         ? ["LD_RATE_CONFLICT_REQUIRES_REVIEW"]
         : []),
@@ -431,7 +506,7 @@ function contractValueCandidates(
       if (
         amount === null ||
         amount < 0 ||
-        currencyCode.length !== 3
+        !isCurrencyCode(currencyCode)
       ) {
         continue;
       }

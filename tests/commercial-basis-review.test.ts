@@ -21,6 +21,21 @@ const variation=(id:string,value:number|null,date:string|null,currency='AED'):Co
 const foundationInput=(sections:CommercialFoundationInput['contractSections']=[]):CommercialFoundationInput=>({projectId:'NEW-PORT',generatedAt:'2028-04-30',dataDateIso:'2028-04-30',contractValue:null,contractValueCandidates:[],variations:[],contractTimeBasis:null,ldTerms:null,contractSections:sections,amendments:[],costMetrics:[],payments:[]});
 const amounts=():PaymentStageRecord['amounts']=>({applicationAmount:money(null),engineerAssessedAmount:money(null),employerCertifiedAmount:money(null),grossWork:money(800),grossCertifiedAmount:money(null),variations:money(200),variationCertifiedAmount:money(null),retentionDeduction:money(70),advanceRecovery:money(100),otherDeduction:money(null),taxAmount:money(null),netCertifiedAmount:money(830),paidAmount:money(null),outstandingAmount:money(null)});
 const sourceRow={receipt,cells:{},raw:{}} as unknown as SourceRow;
+test('Stage 1 distinguishes incremental cash series from cumulative allocation to one certificate',()=>{
+ const a=amounts();a.paidAmount=money(500);a.outstandingAmount=money(330);
+ const row={...sourceRow,cells:{'paid amount basis':'incremental','paid allocation basis':'certificate cumulative',
+   'payment source status':'Posted','payment date':'2028-04-25','payment reference':'PAY-X'}};
+ assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,330);
+ const noAllocation={...row,cells:{...row.cells,'paid allocation basis':''}};
+ assert.equal(reconcilePaymentEvidence(noAllocation,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ for(const change of [{'payment date':'2028-05-01'},{'payment date':''},{'payment source status':'Candidate'},{'payment reference':''}]){
+   assert.equal(reconcilePaymentEvidence({...row,cells:{...row.cells,...change}},a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ }
+ a.paidAmount.taxBasis='unknown';assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ a.paidAmount.taxBasis='exclusive';a.paidAmount.state='candidate';
+ assert.equal(reconcilePaymentEvidence(row,a,'2028-04-30').calculatedOutstandingAmount.value,null);
+ assert.equal(a.paidAmount.value,500,'withholding arithmetic must retain the submitted cash amount');
+});
 
 test('source read status survives missing fields, currency partitions and reporting exclusions in every project',()=>{
   const input:CommercialControlInput={projectId:'UNRELATED-HARBOUR',generatedAt:'2028-04-30',contractValue:{amount:900,currency:'AED',sourceRefs:[]},variations:[],invoices:[],retentions:[],bonds:[],claimCommercials:[],contractTimeBasis:null,commercialEvidenceSubmitted:true,paymentEvidenceSubmitted:true,variationEvidenceSubmitted:true,bondEvidenceSubmitted:true,claimEvidenceSubmitted:true};
@@ -91,7 +106,13 @@ test('certificate source sums and observed rate are separate from certification 
   assert.ok(commercialIntegrityChecks('payments',position).some(c=>!c.passed&&c.metric==='certificate_current_cutoff:AED:exclusive'));
   const snapshots=[{currency:'AED',taxBasis:'exclusive',asOf:'2028-04-30',state:'official' as const,values:{bac:10000,pv:3000,ev:2700,ac:2500},receipts:[receipt],diagnostics:[]}];
   const review=costBasisReview(ledger({payments:l.payments,costPosition:snapshots}),certificateProfile(l))[0]!;
-  assert.equal(review.earnedPercentOfBudget,27);assert.equal(review.spi,.9);assert.equal(review.actualCostToCertificateRatio,2500/830);
+  assert.equal(review.earnedPercentOfBudget,27);assert.equal(review.spi,.9);
+  assert.equal(review.certificateDate,'2028-04-15');
+  assert.equal(review.certificateDateMatches,false);
+  assert.equal(review.actualCostToCertificateRatio,null,'Project Data Date must not be substituted for the latest certificate-period cutoff');
+  const aligned=costBasisReview(ledger({payments:l.payments,costPosition:[{...snapshots[0]!,asOf:'2028-04-15'}]}),certificateProfile(l))[0]!;
+  assert.equal(aligned.certificateDateMatches,true);
+  assert.equal(aligned.actualCostToCertificateRatio,null,'net cash receivables are not an actual-cost efficiency denominator');assert.match(aligned.actualCostComparisonBasis,/earned value/);
   assert.equal(costBasisReview(ledger({costPosition:[{...snapshots[0]!,asOf:'2028-03-31'}]}),certificateProfile(l))[0]!.actualCostToCertificateRatio,null);
 });
 
@@ -128,4 +149,13 @@ test('one dated variation conflict does not become one conflict per propagated c
   const r=assessModuleIssues(result,{state:'pass',failedCheckIds:[],checkCount:0});
   assert.equal(r.counts.source_conflict,1);assert.match(r.issues.find(i=>i.kind==='source_conflict')!.detail,/difference 60/);
   assert.ok(r.issues.find(i=>i.kind==='source_conflict')!.evidencePaths.length>1);
+});
+
+
+test('current cost review chooses the latest dated position per currency and retains history separately',()=>{
+ const snapshot=(asOf:string,currency='AED')=>({currency,taxBasis:'exclusive',asOf,state:'official' as const,values:{bac:10000,pv:3000,ev:2700,ac:2500,eac:11000},receipts:[receipt],diagnostics:[]});
+ const l=ledger({costPosition:[snapshot('2028-03-31'),snapshot('2028-04-30'),snapshot('2028-05-31'),snapshot('2028-04-15','USD')]});
+ const rows=costBasisReview(l,certificateProfile(l),[{currency:'AED',currentContractValue:{value:12000}}]);
+ assert.equal(rows.length,2);assert.equal(rows[0]!.asOf,'2028-04-30');assert.equal(rows[0]!.eacVsCurrentContract,-1000);
+ assert.equal(l.costPosition.length,4,'history and future observations remain available');
 });

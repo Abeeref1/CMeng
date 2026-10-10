@@ -60,7 +60,7 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
    ]
  };
  const html=runInNewContext(script+';renderProgressBreakdownVisual(data)',{
-   data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2)
+   data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2),pmcDisplayOwner:()=> 'PMC Project Controls Manager'
  });
  for(const label of ['By WBS','By WBS Level','By Zone','By Level','By Work Front','By CBS'])assert.match(html,new RegExp(label));
  assert.match(html,/data-progress-filter/);
@@ -127,7 +127,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
  assert.match(html,/Next: Review/);
 });
 
-test('Forecast review suppresses probability dates in every chart, not only the lower cards',()=>{
+test('An incomplete probability calculation suppresses dates in every chart, not only the lower cards',()=>{
  const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
  const html=runInNewContext(script+';renderForecastVisual(data)',{
@@ -140,13 +140,29 @@ test('Forecast review suppresses probability dates in every chart, not only the 
  assert.ok(!/2034|2035|2036/.test(html));assert.match(html,/P50, P80 and P90 are withheld/);
 });
 
+test('An available probability calculation remains visible while forecast reconciliation needs review',()=>{
+ const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
+ const bars:any[][]=[];
+ const html=runInNewContext(script+';renderForecastVisual(data)',{
+  data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,managementReviewState:'review_required',probabilistic:{status:'available',p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
+  projectionFor:(v:any)=>v,renderCompletionPosition:()=>'',experienceDisclosure:(_t:string,b:string)=>b,planningKpis:()=>'',escapeHtml:String,fmt:String,humanizeKey:String,planningDateLadder:()=>'',
+  renderVisualPanel:(_t:any,_s:any,body:any)=>body,renderVisualBars:(rows:any[])=>{bars.push(rows);return '';},renderWaterfallChart:(rows:any[])=>{bars.push(rows);return '';},
+ });
+ assert.ok(bars[0]!.every(r=>!/P50|P80|P90/.test(r.label)));
+ assert.equal(typeof bars[1]!.find(r=>r.label==='P80 vs CMeng CPM').value,'number');
+ assert.match(html,/2034/);assert.match(html,/2035/);assert.match(html,/2036/);assert.ok(!html.includes('P50, P80 and P90 are withheld'));assert.match(html,/assumptions/);
+});
+
 test('Milestone chart retains priority exceptions and represents repeated watch movement once',()=>{
  const script=functions(['planningMilestoneTimeline','planningDateMs','planningShortDate']);
  const rows=[{activityId:'critical',managementPriority:'critical',totalFloatHours:-10},...Array.from({length:8},(_,i)=>({activityId:'watch'+i,managementPriority:'watch',totalFloatHours:300}))].map(r=>({...r,status:'not_started',name:r.activityId,varianceDays:181,baselineDateIso:'2030-01-01',currentDateIso:'2030-07-01'}));
- const html=runInNewContext(script+';planningMilestoneTimeline(p)',{p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
+ const html=runInNewContext(script+';planningMilestoneTimeline(p,"2030-08-01")',{p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
  assert.match(html,/Representative of 8 watch milestones/);assert.match(html,/2 priority representatives from 9 open milestones/);assert.match(html,/critical/);
  assert.equal((html.match(/class="milestone-date-row"/g)||[]).length,2);
  assert.equal(rows.length,9,'source population is untouched');
+ assert.match(html,/Contract including awarded EOT/);
+ const lines=[...html.matchAll(/class="date-contract"[^>]*left:([\d.]+)%/g)];assert.equal(lines.length,2);
+ assert.ok(lines.every(line=>Number(line[1])>0&&Number(line[1])<100),'contract dates beyond the last forecast remain on the chart axis');
 });
 
 
