@@ -39,6 +39,12 @@ const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
   "access",
 ];
 
+// These immutable dimension values contain no activity or project identity.
+// Sharing absent-evidence descriptors avoids allocating eight identical objects
+// for every activity. Source-backed descriptors and relationship receipts remain
+// specific to the activity, and source changes rebuild the projection normally.
+const absentDimensions=new Map<ReadinessDimensionKey,ReadinessDimension>(READINESS_KEYS.map(key=>[key,Object.freeze({key,state:"unknown" as const,sourceRefs:Object.freeze([]) as unknown as string[],note:null})]));
+
 /** Preserve the source record type when several registers feed one readiness dimension. */
 export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]) {
   const groups = new Map<string, { activities: Set<string>; records: Set<string>; recordIds: Set<string> }>();
@@ -103,7 +109,8 @@ export function readinessForActivity(
       }
 
       const evidence = externalEvidence?.[key];
-      if (!evidence || evidence.state === "ready" && evidence.sourceRefs.length === 0) {
+      if (!evidence) return absentDimensions.get(key)!;
+      if (evidence.state === "ready" && evidence.sourceRefs.length === 0) {
         return {
           key,
           state: "unknown" as const,

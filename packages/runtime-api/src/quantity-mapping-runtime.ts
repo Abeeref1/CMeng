@@ -44,10 +44,10 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
       const sectionKeys=[...new Set([item.section,original?.section,...sourceRows.map(r=>cell(r,'section','section name','bill section','work section','work package','package'))].map(sectionName).filter(Boolean))];
       const exactSections=[item.section,original?.section].map(normalized).filter(Boolean);
       const sectionMatches=[...new Map([...sectionKeys.flatMap(section=>wbsByName.get(section)??[]),...exactSections.flatMap(section=>wbsByCode.get(section)??[])].map(node=>[node.wbsId,node])).values()];
-      const selected=codes.length>1?null:explicit.length===1?explicit[0]!:!code&&sectionMatches.length===1?sectionMatches[0]!:null;
+      const selected=codes.length>1?null:explicit.length===1?explicit[0]!:explicit.length===0&&sectionMatches.length===1?sectionMatches[0]!:null;
       const under=(id:string|null)=>{const seen=new Set<string>();while(id&&!seen.has(id)){if(id===selected?.wbsId)return true;seen.add(id);id=wbs.get(id)?.parentWbsId??null;}return false;};
       return {quantityItemId:item.quantityItemId,wbsCode:code,wbsId:selected?.wbsId??null,activityIds:selected?activitiesByWbs.get(selected.wbsId)??[]:[],
-        basis:explicit.length===1?'Source WBS code matches the programme':selected?'Source BOQ section matches one programme WBS name; quantity allocation remains separate':codes.length>1?'Conflicting source WBS codes':'WBS relationship is missing or does not resolve uniquely',
+        basis:explicit.length===1?'Source WBS code matches the programme':selected?'Source BOQ section matches one programme WBS name'+(code?'; supplied code '+code+' has no exact programme match':'')+'; quantity allocation remains separate':codes.length>1?'Conflicting source WBS codes':'WBS relationship is missing or does not resolve uniquely',
         sourceRefs:sourceRows.map(r=>'evidence-document:'+r.receipt.documentId+':'+r.receipt.locator)};
     });
     result.sourceWbsCoveragePercent=result.sourceWbsLinks.length?result.sourceWbsLinks.filter(r=>r.wbsId).length/result.sourceWbsLinks.length*100:null;

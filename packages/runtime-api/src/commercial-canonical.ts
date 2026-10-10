@@ -191,11 +191,12 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push({documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'}); }}
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
- const bondTables=tables.filter(t=>has(t,'bond id','bond type'));
+ const bondTables=tables.filter(t=>has(t,'bond id')&&(has(t,'bond type')||has(t,'type')));
  const refreshedBondDocuments=new Set(bondTables.map(t=>t.document.documentId));
  const bonds:BondRecord[]=state.controls.bonds.filter(row=>!row.sourceRefs.some(ref=>[...refreshedBondDocuments].some(id=>ref.startsWith('evidence-document:'+id+':'))));
  for(const t of bondTables)for(const r of t.rows){
-  const instrument=cell(r,'bond type'),bondId=cell(r,'bond id');
+  const instrument=cell(r,'bond type','type'),bondId=cell(r,'bond id');
+  if(!bondId||!instrument)continue;
   if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+bondId))continue;
   const expiryIso=dateValue(cell(r,'expiry date','expiration date','valid until'));
   const rawStatus=cell(r,'status');
@@ -247,9 +248,17 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     paymentId:cell(r,'payment id','certificate no','ipc')||null,
    });
   }
-  if(has(t,'certificate no','net certified'))for(const r of t.rows){
+  if(has(t,'certificate no')&&amountHeader(t.headers,'net certified'))for(const r of t.rows){
    const asOf=dateValue(cell(r,'period end')),currency=cell(r,'currency')||inheritedCurrency;
-   const amounts=Object.fromEntries(moneyNames.map(k=>[k,money(r,cell(r,...paymentHeaders[k]),k,currency,asOf)])) as PaymentStageRecord['amounts'];
+   // Currency-qualified headers carry real source values; they are not missing
+   // columns. A conflicting row/header currency remains an explicit conflict.
+   const amounts=Object.fromEntries(moneyNames.map(k=>{
+    const header=amountHeader(t.headers,...paymentHeaders[k]);
+    const amount=moneyFromHeader(r,header,k,currency,asOf);
+    const explicit=cell(r,'currency').toUpperCase(),inHeader=headerCurrency(header);
+    if(explicit&&inHeader&&explicit!==inHeader){amount.value=null;amount.state='conflicted';diagnostics.push('PAYMENT_CURRENCY_CONFLICT:'+r.receipt.documentId+':'+r.receipt.locator+':'+k);}
+    return [k,amount];
+   })) as PaymentStageRecord['amounts'];
    if(!cell(r,'currency')&&currency) for(const a of Object.values(amounts)) a.receipts.push(...currencyReceipts.filter((v,i,all)=>all.findIndex(x=>x.documentId===v.documentId)===i));
    const reconciliation = reconcilePaymentEvidence(r, amounts, dataDateIso);
    const explicitCertifiedBasis=paymentSeriesBasis(cell(r,'certified amount basis','net certified basis','certificate amount basis'));
@@ -359,8 +368,8 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     receipt:r.receipt
    });
   }
-  if(has(t,'bond id','bond type','status')&&!has(t,'policy id'))for(const r of t.rows){
-   const instrument=cell(r,'bond type');
+  if(has(t,'bond id','status')&&(has(t,'bond type')||has(t,'type'))&&!has(t,'policy id'))for(const r of t.rows){
+   const instrument=cell(r,'bond type','type');
    if(!/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+cell(r,'bond id')))continue;
    const coverageHeader=amountHeader(t.headers,'coverage amount','insured amount','policy limit','bond amount','guarantee amount','amount');
    const inceptionDate=dateValue(cell(r,'inception date','start date','effective date','valid from'));

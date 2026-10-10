@@ -52,7 +52,7 @@ export function scheduleCriticalityFacts(state:ProjectRuntimeState,providedFloat
   const submittedNegativeFloat=aggregateCount(openRows,row=>row.totalFloatHours===null?null:row.totalFloatHours<0);
 
   const independentForecast=cachedIndependentForecast(model,'project-version:'+state.version);
-  const review=independentForecast?activityFloatReconciliation(model,independentForecast,config):null;
+  const review=independentForecast?activityFloatReconciliation(model,independentForecast,config,state.version):null;
   const check=independentForecast?buildForecastReconciliationGate({forecast:independentForecast,model,requiredFinishIso:null}):null;
   const comparable=review?[...review.byActivityId.values()].filter(row=>row.floatReconciliationState!=='not_applicable_completed'):[];
   const independentAggregate=(predicate:(row:(typeof comparable)[number])=>boolean):Aggregate=>{

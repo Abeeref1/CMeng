@@ -121,8 +121,10 @@ function experienceBrief(key,data){
     note='Hours compare resource use with plan. They do not measure productivity without installed output.';
   }else if(key==='quantity-scurve'){
     add('BOQ items',d.boqItemCount,'Source quantities');add('Items with dated measurements',d.installedQuantityStatus?.measuredItemCount,'Through the reporting date');
-    add('Programme-linked items',d.allocatedItemCount,d.mappingBasis==='candidate_scenario'?'Suggested links; review required':'Programme links for planned quantities');
-    add('Programme-link coverage',d.itemLinkCoveragePercent,'Does not measure installation coverage','%');
+    const scope=data.boqProgrammeLinks||d.boqProgrammeLinks;
+    add('Programme scope-linked items',scope?.linkedItemCount,'Exact WBS code or unique source section relationship; no invented quantity split');
+    add('Programme scope-link coverage',scope?.coveragePercent,scope?.basis||'Full source BOQ population; missing relationships remain explicit','%');
+    add('Time-distributed quantity allocations',d.allocatedItemCount,d.mappingBasis==='candidate_scenario'?'Scenario allocations; review required':'Recorded quantity splits needed for planned quantity curves');
     note=d.installedQuantityStatus?.explanation||'Programme links and dated installed measurements are separate facts.';
     if(d.allocationState!=='complete'||d.mappingBasis!=='governed')review='Planned quantity curves require confirmed BOQ-to-activity links. This mapping review does not remove available measured installations.';
   }else if(key==='progress-breakdown'){

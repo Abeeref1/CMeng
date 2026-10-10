@@ -71,7 +71,7 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
  assert.match(answer.answer,/Overdue RFIs: 1 \(confirmed\)/);
  assert.match(answer.answer,/Open risks: Not established/);
  assert.ok(answer.managementActions.some(action=>action.includes('NCR N1')));
- assert.ok(answer.managementActions.some(action=>action.includes('RFI R1')&&action.includes('2031-04-10')));
+ assert.ok(answer.managementActions.some(action=>action.includes('RFI R1')&&action.includes('Apr 10, 2031')));
  assert.ok(!answer.managementActions.some(action=>action.includes('NCR N3')),'future records cannot enter current actions');
  const forecastAnswer=answerProjectQuestion(state.projectId,'What drives the completion forecast?')!;
  assert.ok(!forecastAnswer.managementActions.some(action=>action.includes('NCR')),'forecast answers use forecast evidence actions');
@@ -572,7 +572,10 @@ test('date headers and populated dates work across registers; empty and absent c
  const quality=moduleForProject(state.projectId,'source-quality').data as any;
  assert.ok(quality.registerDateReview.rows.every((r:any)=>r.missingPercent===0));
  assert.equal(operationalReporting(state).actions.find((r:any)=>r.recordId==='R1')?.linkedActivityId,'WORK');
- assert.ok(d.actions.some((a:any)=>a.recordKey?.toLowerCase().includes('r1')),'the source-linked RFI must remain visible in the canonical management action register');
+ // S-44: source records remain reachable, but cannot inflate the group headline.
+ const actionOwner=moduleForProject(state.projectId,'cross-domain-accountability').data as any;
+ assert.ok(actionOwner.recordActions.some((a:any)=>a.recordKey?.toLowerCase().includes('r1')),'the source-linked RFI remains in the full source action register');
+ assert.ok(actionOwner.ownerGroups.some((a:any)=>(a.memberActionIds??[]).some((id:string)=>actionOwner.recordActions.some((r:any)=>r.actionId===id&&r.recordKey?.toLowerCase().includes('r1')))),'the RFI must be reachable from a management group');
  const look=moduleForProject(state.projectId,'lookahead-schedule').data as any;
  assert.equal(look.rows[0].readiness.dimensions.find((r:any)=>r.key==='quality').state,'blocked','real activity reference joins through to readiness');
  const second=fixture(t);

@@ -1,7 +1,7 @@
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runInNewContext } from 'node:vm';
+import { runInNewContext } from './browser-context';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 
 const script = cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)?.[1];
@@ -37,7 +37,8 @@ test('payment view keeps reported and calculated balances visible without doing 
 });
 test('payment view preserves a missing calculated balance rather than deriving it from Paid status',()=>{
   const html=ledgerHtml(sourceRow(null,null,'missing'));
-  assert.match(html,/Not established/);assert.doesNotMatch(html,/<b>820<\/b>/);
+  // S-40: typed missing source stays missing, never computed from Paid status.
+  assert.match(html,/Not in source/);assert.doesNotMatch(html,/<b>820<\/b>/);
   assert.match(html,/source figures, not verified receipt count/);
 });
 test('payment evidence references are escaped rather than executed as markup',()=>{

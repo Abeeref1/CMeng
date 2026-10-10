@@ -460,6 +460,7 @@ export interface LdScenario {
 }
 
 export interface LiquidatedDamagesProjection {
+  decisionRequired?: boolean;
   /** Clean extracted clause values are presented as reported source evidence.
    * Legal applicability, EOT entitlement and LD deduction remain separate. */
   reportedSourceTerms:{

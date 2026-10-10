@@ -3,7 +3,15 @@ import type {IndependentForecastProjection} from '../../independent-forecast/src
 
 /** Submitted classifications remain source assertions. Every comparison retains
  * the activity identity and both answers; an aggregate count cannot clear a row. */
-export function activityFloatReconciliation(model:CanonicalScheduleModel,forecast:IndependentForecastProjection,config:ScheduleAnalysisConfig){
+const reviewsByVersion=new WeakMap<CanonicalScheduleModel,{version:number;forecast:IndependentForecastProjection;configKey:string;value:any}>();
+export function activityFloatReconciliation(model:CanonicalScheduleModel,forecast:IndependentForecastProjection,config:ScheduleAnalysisConfig,sourceVersion?:number){
+ const configKey=JSON.stringify(config),prior=reviewsByVersion.get(model);
+ if(sourceVersion!==undefined&&prior?.version===sourceVersion&&prior.forecast===forecast&&prior.configKey===configKey)return prior.value as ReturnType<typeof buildActivityFloatReconciliation>;
+ const value=buildActivityFloatReconciliation(model,forecast,config);
+ if(sourceVersion!==undefined)reviewsByVersion.set(model,{version:sourceVersion,forecast,configKey,value});
+ return value;
+}
+function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:IndependentForecastProjection,config:ScheduleAnalysisConfig){
  const revisionMatches=forecast.sourceRevisionId===model.sourceRevisionId;
  const deterministic=forecast.complete&&forecast.origin==='deterministic_source_calendar'&&revisionMatches;
  const qualifiedScenario=forecast.complete&&forecast.origin==='scenario_with_assumptions'&&revisionMatches;
@@ -57,14 +65,35 @@ export function activityFloatReconciliation(model:CanonicalScheduleModel,forecas
   toleranceHours:0.000001,rows:comparableRows.filter(row=>row.floatReconciliationState!=='matched')}};
 }
 
+// The reconciliation projection is immutable for a source version. Reuse its
+// transformed subtrees across module views; unchanged source-only subtrees keep
+// their identity instead of being deeply copied for every page.
+const attachedTrees=new WeakMap<object,WeakMap<object,any>>();
 export function attachActivityFloatReconciliation<T>(data:T,review:ReturnType<typeof activityFloatReconciliation>):T&{activityFloatReconciliation:typeof review.summary}{
+ const memo=attachedTrees.get(review)??new WeakMap<object,any>();attachedTrees.set(review,memo);
  const visit=(value:any):any=>{
-  if(Array.isArray(value))return value.map(visit);
   if(!value||typeof value!=='object')return value;
-  const result=Object.fromEntries(Object.entries(value).map(([key,child])=>[key,visit(child)]));
+  if(memo.has(value))return memo.get(value);
+  // Set the unmodified source before descending, containing accidental cycles.
+  memo.set(value,value);
+  if(Array.isArray(value)){
+   let result:any[]=value;
+   for(let i=0;i<value.length;i++){
+    const original=value[i];if(!original||typeof original!=='object')continue;
+    const child=visit(original);
+    if(child!==original){if(result===value)result=value.slice();result[i]=child;}
+   }
+   memo.set(value,result);return result;
+  }
+  let result=value;
+  for(const key of Object.keys(value)){
+   const original=value[key];if(!original||typeof original!=='object')continue;
+   const child=visit(original);
+   if(child!==original){if(result===value)result={...value};result[key]=child;}
+  }
   const row=typeof value.activityId==='string'?review.byActivityId.get(value.activityId):undefined;
-  if(row&&('criticality' in value||'totalFloatHours' in value)&&(!value.sourceRevisionId||value.sourceRevisionId===row.sourceRevisionId))return {...result,...row};
-  return result;
+  if(row&&('criticality' in value||'totalFloatHours' in value)&&(!value.sourceRevisionId||value.sourceRevisionId===row.sourceRevisionId))result={...result,...row};
+  memo.set(value,result);return result;
  };
  const result={...data} as any;
  for(const key of ['rows','watchlistRows','criticalRows','negativeFloatRows','priorityRows','managementRows','boundaryAudit'])if(result[key])result[key]=visit(result[key]);

@@ -33,7 +33,7 @@ test('S-30 milestone view separates overdue open dates, baseline-late and comple
   assert.match(script,/completedAfterBaseline=.*status==='completed'/);
   assert.match(script,/Completed · live float not applicable/);
   assert.match(script,/Not applicable · completed/);
-  assert.match(script,/complete unaltered population is available in the page export/);
+  assert.match(script,/Download the unaltered register to inspect all entries/);
 });
 test('commercial figure tooltips explain the qualification without internal codes',()=>{
  const title=runInNewContext(functions(['humanizeKey','commercialFindingTitle'])+';commercialFindingTitle({diagnostics:["LD_EXPOSURE_IS_SCENARIO_NOT_AWARD_OR_ACCRUAL"]})',{commercialSourceState:()=> 'Needs review'});
@@ -132,11 +132,11 @@ test('cash and physical progress summaries keep known zero distinct from missing
     ...common,data:{position:{foundation:{paymentRegister:{recordCount:3}},performance:{cashFlow:{currencies:[{currency:'EUR',paidIncome:{value:0},actualExpenditure:{value:null},netCashPosition:{value:null},sourceReadiness:{netCashReady:false}}]}}}}
   });
   assert.equal(cash.facts[0].display,'0 EUR');
-  assert.equal(cash.facts[1].display,'Unresolved');
-  assert.equal(cash.facts[2].display,'Unresolved');
+  assert.equal(cash.facts[1].display,'Not established');
+  assert.equal(cash.facts[2].display,'Not established');
   const progress=runInNewContext(briefFunctions+';experienceBrief("progress-report",data)',{...common,data:{progressBases:{baselinePlanned:{valuePercent:32},currentSchedule:{valuePercent:30},scheduleSnapshot:{valuePercent:0},physical:{valuePercent:null}}}});
   assert.equal(progress.facts[2].display,'0 %');
-  assert.equal(progress.facts[3].display,'Unresolved');
+  assert.equal(progress.facts[3].display,'Not established');
   assert.match(progress.review,/Measured physical progress is unavailable/);
 });
 
@@ -152,11 +152,13 @@ test('cost summaries preserve partial authority and never aggregate multiple cur
 
 const certificateFunctions=functions(['certificateMoney','experienceCertificateGroups','experienceCertificateChart','experienceCertificatePanels','experienceDisclosure']);
 test('quantity summaries distinguish measured installation from missing or complete programme mapping',()=>{
- const data={boqItemCount:12,allocatedItemCount:0,itemLinkCoveragePercent:0,allocationState:'missing',mappingBasis:'missing',actualAuthority:'measured_installed_quantities',
+ const data={boqItemCount:12,allocatedItemCount:0,itemLinkCoveragePercent:0,allocationState:'missing',mappingBasis:'missing',actualAuthority:'measured_installed_quantities',boqProgrammeLinks:{itemCount:12,linkedItemCount:12,coveragePercent:100,basis:'Unique source section name'},
   installedQuantityStatus:{state:'available',measuredItemCount:12,explanation:'Dated installed quantities are available for 12 of 12 BOQ items. Programme links are a separate requirement for planned curves.'}};
  const result=runInNewContext(briefFunctions+';experienceBrief("quantity-scurve",data)',{...common,data});
  assert.equal(result.facts.find((x:any)=>x.label==='Items with dated measurements').value,12);
- assert.equal(result.facts.find((x:any)=>x.label==='Programme-linked items').value,0);
+ assert.equal(result.facts.find((x:any)=>x.label==='Programme scope-linked items').value,12);
+ assert.equal(result.facts.find((x:any)=>x.label==='Time-distributed quantity allocations').value,0,'scope matching must not invent quantity allocations');
+ assert.equal(result.facts.find((x:any)=>x.label==='Programme scope-link coverage').value,100);
  assert.match(result.note,/Dated installed quantities are available/);
  const mapped=runInNewContext(briefFunctions+';experienceBrief("quantity-scurve",data)',{...common,data:{...data,allocationState:'complete',mappingBasis:'governed',allocatedItemCount:12,itemLinkCoveragePercent:100}});
  assert.equal(mapped.review,'','complete governed mapping must not trigger the old established/complete mismatch');
@@ -332,7 +334,7 @@ test('an obsolete view request cannot replace the current page with an error',as
 test('management elapsed-calendar wording is readable while CPI and exact engineering values remain untouched',()=>{
  const values=runInNewContext(functions(['fmtManagementDayCount'])+
    ';[fmtManagementDayCount(-0.25),fmtManagementDayCount(0.25),fmtManagementDayCount(1),fmtManagementDayCount(15),fmtManagementDayCount(null)]',{});
- assert.deepEqual(Array.from(values),['less than one day','less than one day','1 day','15 days','Unresolved']);
+ assert.deepEqual(Array.from(values),['less than one day','less than one day','1 day','15 days','Not established']);
  assert.match(script,/fmtManagementDayCount\(comparisonDays\)/,'portfolio uses the same elapsed-day presentation rule');
  assert.match(script,/maximumFractionDigits:2/,'exact engineering and financial precision is retained');
 });
@@ -444,7 +446,7 @@ test('delivery leadership summaries use the BOQ assessment and preserve unresolv
  const brief=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data});
  assert.deepEqual(Array.from(brief.facts,(f:any)=>f.value),[160,14,null,1]);assert.match(brief.note,/Challenge required/);assert.ok(!JSON.stringify(brief).includes('2099'));
  const missing=runInNewContext(briefFunctions+';experienceBrief("challenge-contract",data)',{...common,data:{boqFeasibility:{overallStatus:'Unable to assess',rows:[],activityChecks:[],requiredLaborHours:null,programmePc:{movementDays:null},reason:'Productivity evidence is missing.'}}});
- assert.ok(missing.facts.every((f:any)=>f.display==='Unresolved'));assert.match(missing.review,/Productivity evidence/);
+ assert.ok(missing.facts.every((f:any)=>f.display==='Not established'));assert.match(missing.review,/Productivity evidence/);
 });
 
 test('supplied BOQ rows are visible, searchable and pageable without schedule or productivity',()=>{
@@ -452,18 +454,18 @@ test('supplied BOQ rows are visible, searchable and pageable without schedule or
  const code=functions(['renderSuppliedBoqRows','renderSuppliedBoq']);
  const first=runInNewContext(code+';renderSuppliedBoq(boq)',{...common,boq});
  assert.match(first,/Supplied BOQ figures/);assert.match(first,/Supplied concrete 0/);assert.match(first,/<td>0<\/td><td>0<\/td><td>0<\/td>/);
- assert.match(first,/Unresolved: not read from BOQ/);assert.match(first,/Items 1–100 of 102/);assert.doesNotMatch(first,/Supplied concrete 101/);
+ assert.match(first,/Not established from BOQ/);assert.match(first,/Items 1–100 of 102/);assert.doesNotMatch(first,/Supplied concrete 101/);
  const second=runInNewContext(code+';renderSuppliedBoqRows(boq,1)',{...common,boq});
  assert.match(second,/Supplied concrete 101/);assert.match(second,/Items 101–102 of 102/);
  const found=runInNewContext(code+';renderSuppliedBoqRows(boq,0,"concrete 101")',{...common,boq});
- assert.match(found,/Items 1–1 of 1 matching items/);assert.match(found,/Supplied concrete 101/);
+ assert.match(found,/Items 1–1 of 1 matching source items/);assert.match(found,/Supplied concrete 101/);
  const content={innerHTML:''};
  runInNewContext(code+';'+functions(['renderDeliveryChallenge'])+';renderDeliveryChallenge({suppliedBoq:boq},"Schedule missing","blocked")',{
   ...common,boq,el:()=>content,renderModuleBasis:()=>'',renderRoleContent:(_key:any,_data:any,html:any)=>html,
   planningKpis:()=>'',renderBasisReviews:()=>'',experienceReviewSummary:()=>'',renderModuleReadiness:()=>'',
  });
- assert.match(content.innerHTML,/Supplied concrete 0/);assert.match(content.innerHTML,/Manpower and duration check: Unable to assess/);
- assert.ok(content.innerHTML.indexOf('Unable to assess')<content.innerHTML.indexOf('Supplied BOQ figures'),
+ assert.match(content.innerHTML,/Supplied concrete 0/);assert.match(content.innerHTML,/What is available and what is missing/);
+ assert.ok(content.innerHTML.indexOf('What is available and what is missing')<content.innerHTML.indexOf('Supplied BOQ figures'),
    'Challenge position must lead; source BOQ remains searchable supporting evidence below.');
 });
 
@@ -520,7 +522,7 @@ test('reader references name source documents and rows while retaining the under
  assert.equal(runInNewContext(run+";readerReference('evidence-document:evidence_123456abcdef:row:12')",{currentModuleResult}),'Claims.csv · row 12');
  assert.equal(runInNewContext(run+";readerAuditAction('POST /api/projects/P/schedule/revisions/schedrev_123456abcdef/adopt')",{currentModuleResult}),'Updated programme records');
  assert.equal(currentModuleResult.data.sourceLabels['schedrev_123456abcdef'],'Update02.xer');
- assert.equal(runInNewContext(run+";readerText('evidence_123456abcdef:clause:cycle:1:2#3 · Delay damages')",{currentModuleResult}),'Source document · source section · Delay damages');
+ assert.equal(runInNewContext(run+";readerText('evidence_123456abcdef:clause:cycle:1:2#3 · Delay damages')",{currentModuleResult}),'Claims.csv · source section · Delay damages');
 });
 
 test('dashboard date comparisons retain the current contract basis after awarded EOT',()=>{

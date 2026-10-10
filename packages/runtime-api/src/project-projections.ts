@@ -7646,7 +7646,7 @@ function resolveProjectModuleCandidate(
     (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
   }
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
-    const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig);
+    const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig,state.version);
     result.data=attachActivityFloatReconciliation(result.data,review);
     if(review.summary.criticalityDifferenceCount){
       result.status='partial';result.professionalState='review_required';
@@ -7788,6 +7788,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
         sharedModel,
         cachedIndependentForecast(sharedModel,bundle.generatedAt),
         sharedControlBasis.analysisConfig,
+        scoped.version,
       );
     }
     const result=resolveProjectModuleCandidate(
@@ -7926,12 +7927,12 @@ export function moduleForProject(
     'forecast-history','independent-forecast','windows-analysis'
   ]);
   if(programmePages.has(key)&&!projectControlSchedule(state)){
-    return {key,status:'partial',reason:'Current programme not established. The project exists and its source documents are retained.',
+    return finalize({key,status:'partial',reason:'Current programme not established. The project exists and its source documents are retained.',
       dependencies:['Current adopted programme with a Data Date'],
       data:{projectId:state.projectId,projectVersion:state.version,programmeState:'no_programme',
         managementPosition:'No current programme. Supply or adopt a dated programme to calculate schedule findings.',
         availability:{state:'unavailable',missingInput:'Current adopted programme with a Data Date'},
-        rows:[],metrics:[],sourcePreserved:true}};
+        rows:[],metrics:[],sourcePreserved:true}});
   }
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
@@ -7978,7 +7979,7 @@ export function directorForProject(
   const data=buildBundle(state).director;
   if(!data)return null;
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
-  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig)):data;
+  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig,scoped.version)):data;
   const register=projectActionRegisterForState(state);
   const reviewed={...reviewedBase,managementActions:register.actions.map(a=>{
     const kind=a.recordKey?.split('|')[0],label=kind==='ncr'?'NCR':kind==='rfi'?'RFI':null;

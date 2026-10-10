@@ -51,7 +51,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??6);
   const explicitlyParallel=Number(process.env.CMENG_PROJECT_CONCURRENT_LANES??0);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured,undefined,explicitlyParallel);
-  const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
+  const readStores=new Map<string,ProjectReadCache>();
+  const reads=(id:string)=>{let cache=readStores.get(id);if(!cache)cache=new ProjectReadCache(projectDirectory(root,id));readStores.delete(id);readStores.set(id,cache);while(readStores.size>16)readStores.delete(readStores.keys().next().value!);return cache;};
   let closing=false,catalogWrites=Promise.resolve();
   let lastForegroundProjectRequestAt=0;
   const reservations=new Map<string,Promise<Lane>>();
@@ -173,19 +174,24 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(existing?.summaryRelease===release()&&existing.summary?.version===existing.metadata?.version)return;
     summaryAttempts.set(id,Date.now());
     const task=work(id,async port=>{
+      // Fill the small, source-versioned owner position BEFORE the wider
+      // portfolio analysis. Foreground Accountability can use this result while
+      // other specialist projections are still being prepared in the worker.
+      const entry=catalog.get(id);if(!entry)return;
+      const version=entry.metadata?.version;
+      const priorityRoute='/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability';
+      if(typeof version==='number'&&!(await reads(id).get(release(),version,priorityRoute))){
+        const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(20000)});
+        if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
+          if(Number(ownerPage.headers.get('x-cmeng-project-version'))===version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0))
+            await reads(id).put(release(),version,priorityRoute,bytes);
+        }
+      }
       const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');
       if(!response.ok)throw new Error('PROJECT_SUMMARY_UNAVAILABLE');
       const body=await response.json() as {projects:Record<string,any>[]};const summary=body.projects.find(p=>p.projectId===id);
-      const entry=catalog.get(id);if(!entry||!summary)return;
+      if(!summary)return;
       if(entry.metadata&&entry.metadata.version!==summary.version)return;
-      const priorityRoute='/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability';
-      if(!(await reads(id).get(release(),summary.version,priorityRoute))){
-        const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(20000)});
-        if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
-          if(Number(ownerPage.headers.get('x-cmeng-project-version'))===summary.version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===summary.version)
-            await reads(id).put(release(),summary.version,priorityRoute,bytes);
-        }
-      }
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});

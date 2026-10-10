@@ -1,3 +1,5 @@
+import {managementDate} from './management-values';
+import {operationalReporting} from './reporting-state';
 import {titleForModule} from "./registry";
 import {runtimeProjects} from "./project-state";
 import {projectFactsForState,type ProjectFact} from "./project-facts";
@@ -279,6 +281,7 @@ function sharedHeadlineFacts(projectId:string,question:string):AnswerFact[] {
    put('controls.overdueNcrCount','Overdue NCRs',snapshot.controls.overdueNcrCount);
    put('controls.openCriticalMajorNcrCount','Open major/critical NCRs',snapshot.controls.openCriticalMajorNcrCount);
  }
+ if(/risk/.test(q))put('controls.openRiskCount','Open risks',snapshot.controls.openRiskCount);
  if(/bond|securit|insurance|expir/.test(q)){
    for(const name of ['activeBondCount','expiredBondCount','activeInsuranceCount','expiredInsuranceCount'] as const)
      put('commercial.'+name,name.replace(/([A-Z])/g,' $1'),snapshot.commercial[name]);
@@ -459,10 +462,18 @@ export function answerProjectQuestion(
   // Pure headline questions should not expand every specialist source register.
   // Detailed activity lists and causal "why" questions keep the domain path.
   if(exact.length>0&&!/which|list|show all|each|activities|activity ids|driving path|cause|why|breakdown|by zone|by wbs/i.test(question)){
+    // Current operational follow-ups come from the same dated lifecycle producer
+    // as the counts. A summary need not rebuild every specialist module, and it
+    // must not discard an actionable NCR/RFI already held at the Data Date.
+    const state=runtimeProjects.get(projectId);
+    const actions=state&&/\bncrs?\b|\brfis?\b|non.?conformance|request.*information/i.test(question)
+      ?operationalReporting(state).actions.filter(row=>row.type==='NCR'?/\bncrs?\b|non.?conformance/i.test(question):/\brfis?\b|request.*information/i.test(question))
+        .slice(0,25).map(row=>row.type+' '+row.recordId+': '+row.action+(row.dueIso?' Due: '+managementDate(row.dueIso)+'.':'')+(row.owner?' Owner: '+row.owner+'.':''))
+      :[];
     return {projectId,question,generatedAt:new Date().toISOString(),
       engine:'cmeng_canonical_project_facts_v1',modelBacked:false,authority:'advisory_only',
       answer:summarizeFacts(exact),relevantModules:[],facts:exact,reportingContexts:[],
-      managementActions:[],sources:['Canonical shared project facts'],
+      managementActions:actions,sources:['Canonical shared project facts'],
       suggestedQuestions:['Which activities are critical?','What source data supports the EOT?'],
       governance:'The identical project-version facts are used in portfolio, management pages and Ask. Qualified source values are not deemed official determinations.'};
   }

@@ -29,7 +29,7 @@ function readerReference(value){
  let text=String(value??'');
  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
  if(Object.hasOwn(labels,text))return labels[text];
- text=text.replace(/(?:evidence-document:)?(?:delivery:[a-f0-9]{8,64}|(?:boqitem|quantityitem|schedrev|population|rev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>labels[id]??labels[id.replace(/^evidence-document:/,'')]??id);
+ text=text.replace(/(?:evidence-document:)?(?:(?:delivery|population):[a-f0-9]{8,64}|(?:boqitem|quantityitem|schedrev|population|rev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>labels[id]??labels[id.replace(/^evidence-document:/,'')]??labels['evidence-document:'+id]??id);
  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document (record reference in details)')
    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision (source reference in details)')
    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
@@ -113,6 +113,7 @@ function renderRegisterContractQueries(data){
   }
  }
  if(!exceptions.length)return '';
+ if(typeof currentModuleResult!=='undefined'&&currentModuleResult?.key!=='commercial-overview')return '<p class="contract-total-review"><b>'+fmt(exceptions.length)+' register totals exceed the contract sum.</b> '+managementModuleLink('commercial-overview','Review amounts, source basis and required reconciliation')+'</p>';
  const table=basisTable(['Register / measure','Currency','Recorded amount','Current contract','Exceeds by','Source basis to verify'],
    exceptions.map(row=>[row.name,row.currency,row.total,row.current,row.difference,row.basis]));
  return '<section class="planning-panel attention"><h4>Contract sum versus source register totals — query required</h4>'+

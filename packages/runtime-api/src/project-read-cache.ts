@@ -45,20 +45,35 @@ export function cacheableProjectRead(method:string|undefined,path:string){
  * version. They survive worker eviction, never substitute an older position,
  * and contain no cookies or per-request identity headers. */
 export class ProjectReadCache {
+  private readonly memory=new Map<string,Buffer>();
+  private memoryBytes=0;
+  private remember(key:string,body:Buffer){
+    const limit=Math.min(this.maxBytes,4*1024*1024);
+    if(body.length>limit)return;
+    const old=this.memory.get(key);if(old)this.memoryBytes-=old.length;
+    this.memory.delete(key);this.memory.set(key,body);this.memoryBytes+=body.length;
+    while(this.memoryBytes>limit&&this.memory.size){const first=this.memory.keys().next().value!;const value=this.memory.get(first)!;this.memory.delete(first);this.memoryBytes-=value.length;}
+  }
   constructor(private readonly directory:string,private readonly maxBytes=DEFAULT_CACHE_BYTES){}
   private file(release:string,version:number,path:string){
     const key=createHash('sha256').update(JSON.stringify([release,version,path])).digest('hex');
     return join(this.directory,'.analysis-reads',key+'.json');
   }
   async get(release:string,version:number,path:string):Promise<Buffer|null>{
+    const key=this.file(release,version,path),hit=this.memory.get(key);
+    if(hit){this.memory.delete(key);this.memory.set(key,hit);return Buffer.from(hit);}
     try{
-      const stored=await readFile(this.file(release,version,path));
-      return stored.subarray(0,COMPRESSED_MAGIC.length).equals(COMPRESSED_MAGIC)
+      const stored=await readFile(key);
+      const body=stored.subarray(0,COMPRESSED_MAGIC.length).equals(COMPRESSED_MAGIC)
         ?await gunzipAsync(stored.subarray(COMPRESSED_MAGIC.length)):stored;
+      this.remember(key,body);return Buffer.from(body);
     }catch{return null;}
   }
   async put(release:string,version:number,path:string,body:Buffer){
     if(body.length>MAX_PROJECT_READ_BYTES)return;
+    // Exact release, project version and route identity prevents stale reuse.
+    // A small bounded hot set avoids filesystem/zip work on every navigation.
+    this.remember(this.file(release,version,path),Buffer.from(body));
     const stored=body.length>4096?Buffer.concat([COMPRESSED_MAGIC,await gzipAsync(body,{level:3})]):body;
     if(stored.length>this.maxBytes)return;
     const file=this.file(release,version,path),temporary=file+'.'+randomUUID()+'.tmp';
@@ -76,5 +91,5 @@ export class ProjectReadCache {
     }
     catch{await rm(temporary,{force:true}).catch(()=>{});}
   }
-  async invalidate(){await rm(join(this.directory,'.analysis-reads'),{recursive:true,force:true}).catch(()=>{});}
+  async invalidate(){this.memory.clear();this.memoryBytes=0;await rm(join(this.directory,'.analysis-reads'),{recursive:true,force:true}).catch(()=>{});}
 }

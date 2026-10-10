@@ -67,7 +67,7 @@ test('empty movement renderers explain unresolved populations without a zero cou
   for(const name of ['renderMovementConcentration','renderRevisionMovementConcentration']) {
     const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text===name)!.getText(source);
     const html=runInNewContext(fn+';'+name+'(data,[])',{data:{distribution:numericDistribution([]),maximumDays:null,maximumRows:[]}});
-    assert.match(html,/Activities sharing maximum: Unresolved/);
+    assert.match(html,/Activities sharing maximum: Not established/);
     assert.doesNotMatch(html,/Unresolved%|0 activities|0 at the maximum/);
   }
 });

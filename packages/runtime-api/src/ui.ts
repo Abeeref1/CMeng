@@ -1,3 +1,4 @@
+import {decisionFactsScript} from './ui-decision-facts';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
@@ -440,6 +441,7 @@ ${experienceScript}
 ${answerFirstScript}
 ${projectDiagnosisScript}
 ${systemReviewScript}
+${decisionFactsScript}
 ${projectActionsScript}
 ${boqNumericReviewScript}
 ${boqPageReviewScript}
@@ -1388,8 +1390,9 @@ function renderQuantityScurveVisual(data){
   const measured=measurement?planningKpis([["Items with dated measurements",measurement.measuredItemCount,"of "+measurement.boqItemCount+" BOQ items"],["Measurement rows needing review",measurement.currentUnresolvedRowCount,"through the reporting date"],["Future measurement rows",measurement.futureRowCount,"excluded from current actuals"]])+'<div class="notice info">'+escapeHtml(measurement.basis)+'</div>':"";
   const top=planningKpis([
     ["BOQ items",boqItemCount===null?"Not established":boqItemCount,"quantity basis"],
-    ["Programme-linked items",mappedItemCount===null?"Not established":mappedItemCount,"planned quantities; confirmed or scenario links"],
-    ["Programme-link coverage",itemLinkCoverage===null?"Not established":fmt(itemLinkCoverage)+"%","separate from installed measurements"],
+    ["Programme scope-linked items",data.boqProgrammeLinks?.linkedItemCount??"Not established","exact WBS code or unique section relationship"],
+    ["Programme scope-link coverage",data.boqProgrammeLinks?.coveragePercent??"Not established","percent of the full source BOQ population; quantity splits remain separate"],
+    ["Time-distributed quantity allocations",mappedItemCount===null?"Not established":mappedItemCount,"recorded quantity splits; scope associations are not allocations"],
     ["BOQ to WBS coverage",p.inferredMapping?.sourceWbsCoveragePercent==null?"Missing":fmt(p.inferredMapping.sourceWbsCoveragePercent)+"%","Explicit code or uniquely matched section; quantity allocation is separate"],
     ["Mapping basis",mappingLabel,""],
     ["Item curves",populationKnown?p.series.length:null,"different items are never added merely because their units match"],
@@ -2188,7 +2191,7 @@ function amendmentEotManagementDisplay(value,timeFacts){
 }
 function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
-  if(!p.schedule||!p.progress||!p.forecast)return"";
+  if(!p.schedule||!p.progress||!p.forecast)return renderManagementCommercialFacts(data)+(data.completionMilestoneConstraints?.length?basisTable(['Completion activity','Constraint','Date'],data.completionMilestoneConstraints.map(r=>[r.activityName||r.activityReference,r.typeLabel||r.type,planningShortDate(r.dateIso)])):'');
   const cpmReady=data.projectFacts?.time?.independentDaysAfterCurrentContract?.value!=null;
   const variance=cpmReady&&typeof p.forecast.varianceDays==="number"?p.forecast.varianceDays:null;
   const known=data.knownScheduleCounts||{};
@@ -2244,26 +2247,7 @@ function renderPmoVisual(data){
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
   const detail=kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section>';
-  // S-22: show the existing commercial facts on the management brief.
-  // CPI is not reconstructed from incomplete sources, and an absent EAC is
-  // never fabricated from the contract sum or from a zero.
-  const commercialFacts=data.briefCommercialPosition?.currencies||data.projectFacts?.commercial?.currencies||[];
-  const costSources=data.visualControl?.commercial?.cost||[];
-  const briefCommercial=commercialFacts.length?
-    managementPanel('Commercial position · same Data Date and currency',
-      'Current contract, EAC and certified unpaid are distinct positions. CPI appears only when the source calculation is available; no amount changes the programme finish or contract authority.',
-      commercialFacts.map(row=>{
-        const associated=costSources.find(item=>item.currency===row.currency)||{};
-        return '<section class="planning-panel"><h4>'+escapeHtml(row.currency)+(row.taxBasis?' · '+escapeHtml(humanizeKey(row.taxBasis))+' tax basis':'')+'</h4>'+
-          planningKpis([
-            ['Current contract',row.currentContractValue?.value??'Not established',row.currency],
-            ['EAC',row.forecastEac?.value??'Not established',(row.forecastEac?.state==='confirmed'?'Source reported':'Candidate or unavailable')+' · '+row.currency],
-            ['Certified unpaid',row.certifiedUnpaidAmount?.value??'Not established',row.currency+' · certified less paid, not applied certificates'],
-            ['CPI',row.cpi??associated.cpi??{value:null,valueState:'not_in_source'},'Cost performance ratio; no cross-currency estimate']
-          ])+(row.eacScenarios?.length?basisTable(['EAC scenario method','Amount','Basis'],row.eacScenarios.map(s=>[s.methodology??s.key??'Source cost forecast scenario',s.value?.value,s.value?.basis??'Scenario; not an approved forecast'])):'')+'</section>';
-      }).join('')+managementModuleLink('cost-forecast' ,'Review full Cost Forecast / CPI basis'),true):
-    managementPanel('Cost and cash position','The supporting commercial currency population is not established on this brief. Do not infer a zero from missing evidence.',
-      '<p>Current contract, EAC, CPI and certified unpaid require the applicable currency and source-period evidence.</p>'+managementModuleLink('cost-forecast','Open Cost Forecast'));
+  const briefCommercial=renderManagementCommercialFacts(data);
   return '<section class="planning-view management-view">'+
     (data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis,data):renderCompletionPosition(data.completionPosition))+
     briefCommercial+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
@@ -5305,10 +5289,14 @@ function observeProjectDisplay(){
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  const decisions=renderDecisionAnalysis(result.legacyKey||result.key,result.data);
+  if(decisions)container.insertAdjacentHTML('beforeend',decisions);
   if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button></div>');
   const mapping=result.data?.boqProgrammeLinks;
-  if(mapping&&['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'].includes(result.legacyKey||result.key)){
-   container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+fmt(mapping.coveragePercent)+'%</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p>'+managementModuleLink('quantity-scurve','Review BOQ programme links')+'</div></section>');
+  if(mapping){
+   const text=fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+(mapping.coveragePercent==null?'Coverage not calculable':fmt(mapping.coveragePercent)+'%');
+   if((result.legacyKey||result.key)==='quantity-scurve')container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+escapeHtml(text)+'</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p></div></section>');
+   else container.insertAdjacentHTML('beforeend','<p><b>BOQ programme coverage:</b> '+escapeHtml(text)+' · '+managementModuleLink('quantity-scurve','Review scope links and source basis')+'</p>');
   }
   const paged=result.responsePaging;
   if(paged?.tables?.length){
@@ -5402,12 +5390,11 @@ function renderModuleResultBody(result){
   const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
-  const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
+  const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
   const primaryView=(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
-  const floatReview=['activity-analytics','near-critical','independent-forecast'].includes(result.key)
-    ?renderActivityFloatReconciliation(data.activityFloatReconciliation):'';
+  const floatReview=result.key==='independent-forecast'?renderActivityFloatReconciliation(data.activityFloatReconciliation):['activity-analytics','near-critical'].includes(result.key)?'<p>'+managementModuleLink('independent-forecast','Review submitted and calculated float, classifications and exact source evidence')+'</p>':'';
 
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
@@ -5415,7 +5402,7 @@ function renderModuleResultBody(result){
   const context=renderModuleBasis(data,false,true);
   const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
   const progressBreakdown=result.key==='progress-breakdown';
-  const supporting=progressBreakdown?'':experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications");
+  const supporting=progressBreakdown?'':result.key==='source-quality'?experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+sourceBasis,"Dates, records and calculation qualifications"):'<p class="module-evidence-link">'+escapeHtml(moduleName)+' evidence and qualifications · '+managementModuleLink('source-quality','Open the shared source review')+'</p>'+(result.key==='notices-claims'?renderClaimsReporting(data.claimsReporting,result.key):'');
   const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
   el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
     (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+
@@ -6430,7 +6417,7 @@ function moduleReportSemanticModel(data){
   return {metrics,sections};
 }
 function moduleReportSemanticHtml(model){
-  const display=value=>value===null||value===undefined?"Not established":String(value);
+  const display=value=>value===null||value===undefined?"Not established":typeof value==="number"?managementNumber(value):readerText(value);
   let html='<section class="planning-panel report-semantic-section" data-report-authority="summary"><h3>Key facts</h3><div class="report-semantic-metrics">';
   for(const metric of model.metrics)html+='<div class="report-config-row report-semantic-metric" data-report-metric="'+escapeHtml(metric.id)+'"><b>'+escapeHtml(metric.label)+'</b><span>'+escapeHtml(display(metric.value))+'</span></div>';
   html+='</div></section>';

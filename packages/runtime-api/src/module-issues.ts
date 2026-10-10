@@ -134,7 +134,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(path.endsWith('.advancePaymentPercent')&&d?.position?.currencies?.some((row:any)=>typeof row.advanceBalance?.value==='number'))return;
     visited.add(value);
     if(Array.isArray(value)){
-      for(const item of value)if(arrayItemCanContainIssue(item))
+      for(const item of value)if(item&&typeof item==='object'&&!visited.has(item)&&arrayItemCanContainIssue(item))
         walk(item,path+'['+(typeof item.topic==='string'?'topic='+item.topic:typeof item.basis==='string'?'basis='+item.basis:'*')+']',depth+1);
       return;
     }

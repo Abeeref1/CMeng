@@ -8,6 +8,7 @@ import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import {bindProjectFacts,projectFactConsumerMismatches} from '../packages/runtime-api/src/project-fact-consumers';
+import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import {experienceScript} from '../packages/runtime-api/src/ui-experience';
 
 const script=createSourceFile('experience.js',experienceScript,ScriptTarget.Latest,true);
@@ -58,20 +59,23 @@ test('fact wiring leaves historical and filtered counts intact and updates only 
 });
 
 
-test('deterministic independent CPM governs management criticality while submitted float remains separately visible',()=>{
+test('deterministic independent CPM governs only a reconciled calendar and classification basis',()=>{
   const state=loadCertifiedDemoProject('INDEPENDENT-FLOAT-FACTS-'+randomUUID());
   const model=state.schedules.at(-1)!.revision.model;
-  for(const activity of model.activities)if(activity.status!=='completed')activity.totalFloatHours=800;
-  state.version++;
+  const template=model.activities.find(a=>a.status!=='completed')!;
+  Object.assign(model,{dataDateIso:'2030-01-01T00:00:00Z',relationships:[],calendars:[{...ELAPSED_24H_CALENDAR,calendarId:'C'}],activities:[{...template,activityId:'WORK',calendarId:'C',status:'not_started',activityType:'task',currentStartIso:'2030-01-01T00:00:00Z',currentFinishIso:'2030-01-02T00:00:00Z',forecastStartIso:null,forecastFinishIso:null,actualStartIso:null,actualFinishIso:null,remainingDurationHours:24,originalDurationHours:24,totalFloatHours:0,sourceConstraints:[],diagnostics:[]}]});state.version++;
   const facts=projectFactsForState(state);
   assert.equal(facts.schedule.floatBasis,'independent_cpm');
-  assert.equal(facts.schedule.submittedCriticalActivityCount.value,0);
-  assert.notEqual(facts.schedule.independentCriticalActivityCount.value,null);
-  assert.ok((facts.schedule.independentCriticalActivityCount.value??0)>0);
-  assert.equal(facts.schedule.criticalActivityCount.value,facts.schedule.independentCriticalActivityCount.value);
-  assert.notEqual(facts.schedule.criticalActivityCount.value,facts.schedule.submittedCriticalActivityCount.value);
-  const pmo=bindProjectFacts('pmo-analysis',{schedule:{criticalCount:0,nearCriticalCount:0,negativeFloatCount:0,criticalityBasis:'source_total_float'},forecast:{}},facts);
-  assert.equal(pmo.schedule.criticalCount,facts.schedule.independentCriticalActivityCount.value);
-  assert.equal(pmo.schedule.criticalityBasis,'independent_cpm');
+  assert.equal(facts.schedule.independentCriticalActivityCount.value,1);
+  assert.equal(facts.schedule.criticalActivityCount.value,1);
+  const pmo=bindProjectFacts('pmo-analysis',{schedule:{criticalCount:999,nearCriticalCount:999,negativeFloatCount:999,criticalityBasis:'source_total_float'},forecast:{}},facts);
+  assert.equal(pmo.schedule.criticalCount,1);assert.equal(pmo.schedule.criticalityBasis,'independent_cpm');
   assert.equal(projectFactConsumerMismatches(pmo).length,0);
+  // S-38: a material class disagreement must not replace the submitted headline.
+  model.activities[0]!.totalFloatHours=800;state.version++;
+  const disputed=projectFactsForState(state);
+  assert.equal(disputed.schedule.floatBasis,'source_total_float');
+  assert.equal(disputed.schedule.submittedCriticalActivityCount.value,0);
+  assert.equal(disputed.schedule.independentCriticalActivityCount.value,1);
+  assert.equal(disputed.schedule.criticalActivityCount.value,0);
 });

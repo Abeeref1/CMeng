@@ -513,11 +513,12 @@ test("C1 exposes real Commercial routes, evidence-driven status and portfolio in
       );
       assert.equal(
         item.partialModules,
-        7,
+        18,
+        'S-22: financial facts remain available on programme-less analytical pages.',
       );
       assert.equal(
         item.blockedModules,
-        22,
+        11,
       );
     },
   );

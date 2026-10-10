@@ -1,3 +1,4 @@
+import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
 import {aggregateCount} from '../../truth-kernel/src';
@@ -519,8 +520,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       securityValidity:securityValidityReview(scoped,commercial.sourceLedger?.bonds??[],submittedFinish?.dateIso??null),
       currencies:commercial.currencies.map(row=>({
         currency:row.currency,
-        forecastEac:(()=>{const positions=commercial.costBasisReview?.filter(p=>p.currency===row.currency)??[];return fact(positions.length===1?positions[0]!.sourceEac:null,'Latest EAC in the cost register, with currency and tax basis retained.','from_register_not_confirmed',positions.length===1);})(),
-        cpi:(()=>{const positions=commercial.costBasisReview?.filter(p=>p.currency===row.currency)??[];return fact(positions.length===1?positions[0]!.cpi:null,'EV / AC from the same currency, tax basis and reporting period.','calculated_with_stated_basis',positions.length===1);})(),
+        forecastEac:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.forecastEac??{value:null,state:'missing',sourceRefs:[]},'Latest source EAC in its reporting period, currency and tax basis.');})(),
+        cpi:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.cpi??{value:null,state:'missing',sourceRefs:[]},'EV / AC from the same reporting period, currency and tax basis.');})(),
         pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
         grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
         netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),
@@ -572,36 +573,12 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
     const register=projectActionRegisterForState(state);
     bound.projectDiagnosis={...bound.projectDiagnosis,actionRegister:{total:register.actions.length,actions:register.actions.slice(0,5)}};
   }
-  const currentModel=projectControlSchedule(reportingState(state))?.revision.model;
-  const successors=new Set((currentModel?.relationships??[]).filter(r=>!r.external).map(r=>r.predecessorActivityId));
-  const submitted=(bound.projectFacts as any)?.schedule?.submittedProgrammeCompletionIso?.value;
-  const finishes=(currentModel?.activities??[]).flatMap(a=>[a.currentFinishIso,a.forecastFinishIso].filter((d):d is string=>!!d)).sort();
-  const finish=(submitted??finishes.at(-1))?.slice(0,10)??null;
-  const terminalMilestones=(currentModel?.activities??[]).filter(a=>
-    (['milestone','finish_milestone','start_milestone'].includes(a.activityType)&&/completion|complete.*works|handover|taking.over/i.test(a.name??''))||
-    (!successors.has(a.activityId)&&[a.currentFinishIso,a.forecastFinishIso,...(a.sourceConstraints??[]).map(c=>c.dateIso)].some(d=>!!d&&!!finish&&d.slice(0,10)===finish)));
-  const completionMilestoneConstraints=terminalMilestones.flatMap(a=>(a.sourceConstraints??[]).map(c=>({activityReference:a.activityId,activityName:a.name,type:c.type,dateIso:c.dateIso??null,basis:'Constraint retained from the submitted completion activity; not a contract amendment'})));
-  const commercial= result.key==='pmo-analysis'?commercialPositionForState(state):null;
-  const currencyFacts=(bound.projectFacts as any)?.commercial?.currencies??[];
-  const briefCommercialPosition=commercial?{currencies:(()=>{
-    const performance=commercial.performance?.costControl?.positions??[];
-    const sources=commercial.costBasisReview??[];
-    const keys=[...new Set([...performance,...sources].map(row=>JSON.stringify([row.currency,row.taxBasis])))];
-    const result=keys.map(key=>{
-      const [currency,taxBasis]=JSON.parse(key) as [string,string];
-      const candidates=performance.filter(row=>row.currency===currency&&row.taxBasis===taxBasis).sort((a,b)=>a.asOf.localeCompare(b.asOf));
-      const p=candidates.at(-1);
-      const source=sources.filter(row=>row.currency===currency&&row.taxBasis===taxBasis).sort((a,b)=>a.asOf.localeCompare(b.asOf)).at(-1);
-      const base=currencyFacts.find((row:any)=>row.currency===currency)??{currency};
-      const costSource=p?.sourceEac?.value!=null?p.sourceEac:source?.sourceEac!=null?fact(source.sourceEac,'Reported EAC from the cost register for this date, currency and tax basis','from_register_not_confirmed'):null;
-      const cpi=p?.cpi?.value!=null?p.cpi:source?.cpi!=null?fact(source.cpi,'Earned value / actual cost from the same source period and tax basis','calculated_with_stated_basis'):null;
-      const scenarios=(p?.eacScenarios??[]).filter(row=>row.value?.value!=null);
-      return {...base,currency,taxBasis,asOf:p?.asOf??source?.asOf??null,forecastEac:costSource??base.forecastEac,
-        cpi:cpi??base.cpi,eacScenarios:scenarios,sourceRefs:p?.sourceRefs??[]};
-    });
-    return [...result,...currencyFacts.filter((row:any)=>!result.some(r=>r.currency===row.currency))];
-  })()}:undefined;
+  const scoped=reportingState(state),decisions=projectDecisionFacts(scoped);
+  const key=result.key;
+  const completionMilestoneConstraints=decisions.completionConstraints;
+  const briefCommercialPosition=key==='pmo-analysis'?{currencies:decisions.commercialSummary}:undefined;
   const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
-  const linked=currentModel&&relevant.includes(result.key)?boqProgrammeLinks(state,currentModel):undefined;
-  return {...result,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),sourceLabels:projectSourceLabels(state)}};
+  const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
+  const decisionAnalysis=decisionAnalysisForModule(scoped,key);
+  return {...result,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

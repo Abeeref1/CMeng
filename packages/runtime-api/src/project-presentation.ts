@@ -22,7 +22,12 @@ export function projectSourceLabels(state:ProjectRuntimeState):Record<string,str
     if(record.reference)labels[record.recordId]=record.reference;
   }
   const retainItem=(item:any)=>{const number=String(item.itemNumber??'').trim();if(!number)return;for(const id of [item.itemId,item.quantityItemId])if(id)labels[id]=number;};
-  for(const boq of [...(state.boqRevisions??[]),state.boq])for(const item of boq?.canonicalItems??[])retainItem(item);
+  for(const boq of [...(state.boqRevisions??[]),state.boq]){
+    const source=boq as any;
+    const label=source?.sourceFilename??source?.evidenceReceipt?.sourceFilename??source?.filename??'Bill of quantities revision';
+    for(const id of [source?.evidenceReceipt?.revisionId,source?.revisionId])if(id)labels[id]=label;
+    for(const item of boq?.canonicalItems??[])retainItem(item);
+  }
   for(const item of state.quantities?.items??[])retainItem(item);
   const resolved=resolveBoqSource(state,state.schedules?.at(-1)?.revision.revisionId??'');
   for(const item of resolved.boq?.canonicalItems??[])retainItem(item);

@@ -54,14 +54,16 @@ test('criticality is governed once without diagnosis-to-actions-to-facts recursi
  assert.ok(['independent_cpm','source_total_float','missing'].includes(governed.floatBasis));
 });
 
-test('XER alone establishes a tied driving network, WBS pressure and a no-change finish without contract or quantities',async t=>{
+test('XER alone retains a tied driving network and WBS pressure but withholds an unreconciled headline finish',async t=>{
  const f=await fixture(t),d=f.full();
  assert.equal(d.executionActivityCount,5);assert.equal(d.relationshipCount,4);assert.equal(d.calendarCount,1);
  assert.equal(d.network.state,'calculated');assert.deepEqual(new Set(d.network.rows.map((r:any)=>r.activityId)),new Set(['A','ALT','B','C']));
  assert.equal(d.network.relationships.length,3);assert.ok(!d.network.relationships.some((r:any)=>r.predecessorActivityId==='SLACK'));
- assert.equal(d.completion.independentFinishIso,'2030-01-04T16:00:00.000Z');assert.equal(d.completion.contractualFinishIso,null);
+ assert.equal(d.completion.independentFinishIso,null,'S-38: failed reconciliation cannot publish an independent headline finish');
+ assert.equal(d.completion.submittedFinishIso,'2030-01-04T16:00:00');assert.equal(d.completion.contractualFinishIso,null);
  assert.equal(d.counts.negativeFloat.value,2);assert.equal(d.counts.baselineSlippage.knownCount,null);assert.equal(d.revision.state,'unavailable');
- assert.equal(d.wbsRows.find((r:any)=>r.wbs==='Structure').drivingCount,2);assert.match(d.noChangeOutlook,/2030-01-04/);
+ assert.equal(d.wbsRows.find((r:any)=>r.wbs==='Structure').drivingCount,2);assert.match(d.noChangeOutlook,/submitted finish remains/);
+ assert.doesNotMatch(d.noChangeOutlook,/calculation finishes/);
  const path=await f.ask('Show me the critical path');assert.equal(path.sections[0]!.tables[0]!.id,'critical-path.network');assert.equal(path.sections[0]!.tables[0]!.rows.length,4);assert.match(path.narrative[0]!.text,/A → B|ALT → B/);
  const all=await f.ask('show full path',path);assert.equal(all.sections[0]!.tables[0]!.rows.length,4);assert.equal(all.plan.limit,null);
  for(const [q,authority] of [['Which WBS has most schedule pressure?','project-diagnosis'],['What happens if nothing changes?','project-diagnosis'],['What are the top 10 things I need to act on?','command-center']] as const){const answer=await f.ask(q);assert.equal(answer.plan.authorities[0],authority,q+': '+answer.plan.authorities.join(','));assert.doesNotMatch(answer.narrative[0]!.text,/Open relevant page|Existing .*producer/);}

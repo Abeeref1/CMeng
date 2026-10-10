@@ -7,7 +7,7 @@ export function responseSourceLabels(catalogue:Record<string,string>|undefined,v
  const identify=(input:any):void=>{
   if(!input||typeof input!=='object'||scanned.has(input))return;scanned.add(input);
   if(Array.isArray(input)){input.forEach(identify);return;}
-  const identities=[['populationId',input.name??input.populationName],['revisionId',input.label??input.revisionName??input.sourceFilename],['itemId',input.itemNumber],['quantityItemId',input.itemNumber]];
+  const identities=[['populationId',input.name??input.populationName??({execution_control:'Execution activities',source_records:'Source activity records',unfinished_execution:'Remaining execution activities'} as Record<string,string>)[String(input.basis)]],['revisionId',input.label??input.revisionName??input.sourceFilename],['itemId',input.itemNumber],['quantityItemId',input.itemNumber]];
   for(const[id,label]of identities)if(typeof input[id]==='string'&&typeof label==='string'&&label.trim())catalogue![input[id]]=label.trim();
   for(const[key,child]of Object.entries(input))if(key!=='sourceLabels')identify(child);
  };

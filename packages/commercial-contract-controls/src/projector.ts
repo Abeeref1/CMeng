@@ -1753,6 +1753,7 @@ function liquidatedDamages(
         : "partial",
     rateState,
     capState,
+    decisionRequired:rateState==='candidate'||capState==='candidate',
     scenarios,
     sectionScenarios,
     diagnostics: [
