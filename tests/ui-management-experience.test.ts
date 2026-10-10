@@ -10,12 +10,21 @@ import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
 function functions(names:string[]) {
-  names=[...new Set([...names,...(names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis"].includes(n))?["readerText","readerReference","uniqueReportingPopulations"]:[]),...(names.includes("projectCard")?["fmtManagementDayCount"]:[])])];
+  // Pull the real helpers out of the complete, assembled browser script.
+  // Missing transitive helpers must fail the harness rather than be mocked away.
+  const reader=names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis","renderSourceQuality","experienceSourceContext"].includes(n));
+  names=[...new Set([...names,
+    ...(reader?["readerText","readerReference","uniqueReportingPopulations"]:[]),
+    ...(reader||names.includes("readerText")?["humanizeIsoText"]:[]),
+    ...(names.some(n=>["experienceBrief","experienceValue","experienceRoleContent"].includes(n))?["fmtForField"]:[]),
+    ...(names.some(n=>["renderSuppliedBoqRows","renderSuppliedBoq"].includes(n))?["suppliedBoqPaging"]:[]),
+    ...(names.includes("projectCard")?["fmtManagementDayCount"]:[])
+  ])];
   const selected=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&names.includes(n.name.text));
-  assert.equal(selected.length,names.length);
+  assert.equal(selected.length,names.length,"all called helpers must exist in the assembled browser script");
   return selected.map(n=>n.getText(source)).join('\n');
 }
-const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String};
+const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String,SCREEN_STATUS_LABELS:STATUS_LABELS,currentModuleResult:null};
 const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
 test('S-30 milestone view separates overdue open dates, baseline-late and completed historical milestones',()=>{
   assert.match(script,/Late milestone commitments — active versus history/);
