@@ -1,0 +1,81 @@
+name: CMeng Live System Walk
+on:
+  push:
+    branches: ['audit/cmeng-system-live-20261010']
+    paths: ['.github/workflows/cmeng-live-system-walk.yml']
+permissions:
+  contents: read
+jobs:
+  read_only_walk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Walk the exact deployed release without changing any source
+        run: |
+          mkdir -p /tmp/cmeng-live-walk
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then npx playwright install chromium; export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"; fi
+          node <<'NODE'
+          const fs=require('node:fs'),{chromium}=require('playwright');
+          const base='https://cmeng-main-production.up.railway.app',expected='b655d979577d156de2409d99de0aaa47f7a6a839';
+          const dir='/tmp/cmeng-live-walk',out={expected,started:new Date().toISOString(),cold:[],projects:[],errors:[],passed:false};
+          const get=async path=>{const start=performance.now(),r=await fetch(base+path,{signal:AbortSignal.timeout(120000)});const text=await r.text();let body;try{body=JSON.parse(text)}catch{body={message:text.slice(0,100)}}return {status:r.status,ms:performance.now()-start,bytes:Buffer.byteLength(text),body};};
+          (async()=>{
+            let health;
+            for(let n=0;n<36;n++){health=await get('/health');if(health.body.release===expected)break;await new Promise(r=>setTimeout(r,5000));}
+            if(health.body.release!==expected)throw Error('Wrong live release '+health.body.release);
+            out.health=health.body;
+            out.cold=await Promise.all(['UPTOWN-100','ORBIT-JED-PLH-P3','DMM-HDC-P2','JBL-GAUC-EPC1'].map(async id=>{
+              const r=await get('/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability');
+              return {projectId:id,status:r.status,ms:r.ms,bytes:r.bytes,recordActions:r.body.data?.recordActionCount,groups:r.body.data?.ownerGroups?.length,error:r.status===200?null:r.body};
+            }));
+            fs.writeFileSync(dir+'/cold-accountability.json',JSON.stringify(out.cold,null,2));
+            console.log('COLD',JSON.stringify(out.cold));
+            const live=(await get('/api/portfolio')).body.projects||[],tests=(await get('/api/test-projects')).body.projects||[];
+            const projects=[...new Map([...live,...tests].map(p=>[p.projectId,p])).values()];
+            if(projects.length!==22)throw Error('Expected 22 projects, got '+projects.length);
+            projects.sort((a,b)=>Number(b.projectId==='UPTOWN-100')-Number(a.projectId==='UPTOWN-100'));
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CMENG_CHROMIUM,args:['--no-sandbox','--disable-dev-shm-usage']});
+            try{
+              let index=0;
+              const worker=async()=>{let entry;while(entry=projects[index++]){
+                const id=entry.projectId,context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
+                page.on('pageerror',e=>errors.push(String(e)));const result={projectId:id,pages:[],errors:[]};
+                try{
+                  await page.goto(base,{waitUntil:'domcontentloaded',timeout:120000});
+                  await page.waitForFunction(()=>typeof openProject==='function',{timeout:60000});
+                  await page.evaluate(async id=>{await openProject(id);setAppView('project');},id);
+                  const opened=await page.evaluate(()=>({id:overview?.projectId,sha:overview?.releaseCommitSha,keys:[...new Set([...Object.keys(names)])]}));
+                  if(opened.id!==id)throw Error('Project failed to open '+id);
+                  if(opened.sha&&opened.sha!==expected)throw Error('Wrong page release '+opened.sha);
+                  const keys=await page.evaluate(()=>[...new Set(Object.values(groups).flat())]);
+                  const allKeys=[...new Set([...keys,'master-dashboard','command-center','master-control-programme','cross-domain-accountability','source-quality'])];
+                  for(const key of allKeys){
+                    const start=performance.now(),n=errors.length;
+                    const data=await page.evaluate(async key=>{await loadModule(key);const root=document.getElementById('moduleContent');const text=root?.innerText||'';return {key,selected:currentModuleResult?.key,text,head:text.slice(0,1200),sourceSha:overview?.releaseCommitSha,bytes:currentModuleResult?new TextEncoder().encode(JSON.stringify(currentModuleResult)).length:0};},key);
+                    const rawIds=data.text.match(/\b(?:schedrev|evidence|record|doc)_[0-9a-f-]{8,}\b|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g)||[];
+                    const item={key,selected:data.selected,ms:performance.now()-start,bytes:data.bytes,loaded:data.selected===key&&data.text.length>10&&!/Unable to load|Try this view again|SCREEN_FACTS_EXCEED_RESPONSE_BUDGET/.test(data.text)&&errors.length===n,isoDates:(data.text.match(/\b\d{4}-\d{2}-\d{2}\b/g)||[]).length,timestamps:(data.text.match(/\b\d{4}-\d{2}-\d{2}T/g)||[]).length,rawIds:rawIds.length,longDecimals:(data.text.match(/\b\d+\.\d{5,}\b/g)||[]).length,nullUndefined:(data.text.match(/\b(?:null|undefined)\b/gi)||[]).length,registerStatus:(data.text.match(/_register\s+status\s*=/gi)||[]).length,unresolved:(data.text.match(/\bUnresolved\b/g)||[]).length,head:data.head,errors:errors.slice(n)};
+                    result.pages.push(item);
+                    fs.appendFileSync(dir+'/page-text.jsonl',JSON.stringify({projectId:id,key,text:data.text})+'\n');
+                    if(!item.loaded)console.log('LOAD_FAILURE',id,key,item.errors,item.head.slice(0,200));
+                  }
+                  result.errors=errors;
+                  console.log('PROJECT',id,result.pages.length,'LOAD_FAILURES',result.pages.filter(p=>!p.loaded).length);
+                }catch(e){result.errors.push(String(e));}finally{await context.close();out.projects.push(result);fs.writeFileSync(dir+'/walk.json',JSON.stringify(out,null,2));}
+              }};
+              await Promise.all([worker(),worker(),worker(),worker()]);
+            }finally{await browser.close();}
+            out.passed=out.projects.length===22&&out.projects.every(p=>p.errors.length===0&&p.pages.length>=58&&p.pages.every(r=>r.loaded))&&out.cold.every(r=>r.status===200);
+          })().catch(e=>out.errors.push(String(e))).finally(()=>{out.finished=new Date().toISOString();fs.writeFileSync(dir+'/walk.json',JSON.stringify(out,null,2));console.log('POSTDEPLOY',JSON.stringify({passed:out.passed,projects:out.projects.length,pages:out.projects.reduce((s,p)=>s+p.pages.length,0),errors:out.errors}));if(!out.passed)process.exitCode=1;});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-live-system-walk-${{ github.run_id }}
+          path: /tmp/cmeng-live-walk/
+          retention-days: 1
