@@ -96,7 +96,7 @@ export function pageProjectResponse(
  );
  const priorityMilestoneOrder=(a:any,b:any)=>{
    const rank=(r:any)=>r?.managementPriority==='critical'?0:r?.managementPriority==='high'?1:r?.managementPriority==='watch'?2:3;
-   return Number(b?.status==='completed')-Number(a?.status==='completed')||
+   return Number(a?.status==='completed')-Number(b?.status==='completed')||
      Number(Boolean(b?.terminalMilestone))-Number(Boolean(a?.terminalMilestone))||
      rank(a)-rank(b)||Number(Boolean(b?.negativeFloat))-Number(Boolean(a?.negativeFloat))||
      Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
