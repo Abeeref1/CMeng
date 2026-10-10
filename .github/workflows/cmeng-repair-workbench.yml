@@ -1,0 +1,54 @@
+name: CMeng Repair Workbench
+on:
+  push:
+    branches: ['fix/cmeng-verify-recovery-20261010']
+    paths: ['.github/workflows/cmeng-repair-workbench.yml']
+permissions:
+  contents: read
+jobs:
+  workbench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare exact dependency environment
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Build source and record result
+        run: |
+          mkdir -p /tmp/cmeng-workbench
+          npm run build > /tmp/cmeng-workbench/build.log 2>&1 || echo BUILD_FAILED > /tmp/cmeng-workbench/build-failed
+          git rev-parse HEAD > /tmp/cmeng-workbench/source-commit.txt
+      - name: Retain read-only largest-project response for transport regression
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            const base='https://cmeng-main-production.up.railway.app';
+            const get=async path=>{const r=await fetch(base+path,{signal:AbortSignal.timeout(120000)});if(!r.ok)throw Error(path+' HTTP '+r.status);return r.json();};
+            const health=await get('/health');
+            const portfolio=await get('/api/portfolio');
+            fs.writeFileSync('/tmp/cmeng-workbench/live-inventory.json',JSON.stringify({health,portfolio},null,2));
+            console.log('Portfolio projects',portfolio.projects?.length);
+            const id='ORBIT-JED-PLH-P3';
+            const path='/api/projects/'+encodeURIComponent(id)+'/management/master-dashboard/report.json';
+            try {const raw=await get(path);fs.writeFileSync('/tmp/cmeng-workbench/largest-dashboard.json',JSON.stringify(raw));console.log('Largest dashboard retained',JSON.stringify(raw).length);}
+            catch(error){console.log('Largest dashboard read failed:',String(error));fs.writeFileSync('/tmp/cmeng-workbench/largest-read-error.txt',String(error));}
+          })().catch(e=>{console.log(String(e));fs.writeFileSync('/tmp/cmeng-workbench/live-read-error.txt',String(e));});
+          NODE
+      - name: Package source and installed runtime dependencies without credentials
+        run: |
+          git ls-files -z > /tmp/cmeng-files
+          tar --null -T /tmp/cmeng-files -czf /tmp/cmeng-workbench/source.tgz
+          tar -czf /tmp/cmeng-workbench/dependencies.tgz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-repair-workbench-${{ github.sha }}
+          path: /tmp/cmeng-workbench/
+          retention-days: 1
