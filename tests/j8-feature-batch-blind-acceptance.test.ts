@@ -1,3 +1,4 @@
+import {pmcRoleOwner} from '../packages/runtime-api/src/action-priority';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -599,11 +600,11 @@ for(const batch of pageBatches){
           if(batch.id==='F1-MANAGEMENT'&&['cross-domain-accountability','command-center'].includes(page.key)){
             const truth=(project as any).managementTruth;
             assert.ok(truth,'Management source expectations must be frozen before testing');
-            const actions=page.key==='command-center'?result.body.data.accountability.actions:result.body.data.actions;
+            const actions=page.key==='command-center'?result.body.data.accountability.recordActions:result.body.data.recordActions;
             for(const expected of truth.actions){
               const action=actions.find((row:any)=>row.actionId==='accountability:RFI|'+expected.recordId);
               assert.ok(action,'Dated open RFI missing from management: '+expected.recordId);
-              assert.equal(action.owner,expected.owner??'Design Manager','Absent RFI source owner must resolve to the responsible PMC design role');assert.equal(action.dueIso,expected.dueIso);
+              assert.equal(action.owner,expected.owner??pmcRoleOwner('rfi'),'Absent RFI source owner must resolve to the responsible PMC design role');assert.equal(action.dueIso,expected.dueIso);
               assert.ok(action.sourceRefs.length>0,'Management action lost source evidence');
             }
             for(const id of truth.excluded)assert.ok(!actions.some((row:any)=>row.actionId==='accountability:RFI|'+id),

@@ -293,24 +293,14 @@ export function resolveWorkingCalendar(
   };
 }
 
-export function parseScheduleInstant(
-  value: string | null,
-): number | null {
-  if (!value) return null;
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const parsed = Date.parse(
-      value + "T00:00:00Z",
-    );
-    return Number.isFinite(parsed)
-      ? parsed
-      : null;
-  }
-
-  const parsed = parseScheduleTime(value);
-  return Number.isFinite(parsed)
-    ? parsed
-    : null;
+const instantParseMemo=new Map<string,number|null>();
+export function parseScheduleInstant(value:string|null):number|null {
+ if(!value)return null;
+ if(instantParseMemo.has(value))return instantParseMemo.get(value)!;
+ const parsed=/^\d{4}-\d{2}-\d{2}$/.test(value)?Date.parse(value+'T00:00:00Z'):parseScheduleTime(value);
+ const result=Number.isFinite(parsed)?parsed:null;
+ if(instantParseMemo.size>=32768)instantParseMemo.clear();
+ instantParseMemo.set(value,result);return result;
 }
 
 export function isoInstant(

@@ -1,3 +1,4 @@
+import {milestonePopulation} from './milestone-population';
 /** Project screen responses have a strict uncompressed size budget. Original
  * source data stays in the versioned project/module producers and in exports.
  * Only the browser projection is paged; details can be requested by JSON pointer.
@@ -54,7 +55,12 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
 /** Project facts are shared canonical authority, not a visible table.
  * Never silently remove contract sections, evidence qualifications or other
  * fact groups. Screen tables alone are eligible for paging. */
+const factProjectionCache=new WeakMap<object,{projection:unknown;pages:PageTable[]}>();
 function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPointer:string):unknown {
+ const cached=value&&typeof value==='object'?factProjectionCache.get(value):undefined;
+ if(cached){cached.pages.forEach(page=>record({...page,pointer:rootPointer+page.pointer}));return cached.projection;}
+ const relativePages:PageTable[]=[];
+ const retainPage=(page:PageTable)=>{relativePages.push(page);record({...page,pointer:rootPointer+page.pointer});};
  // Fact values, states, units, qualifications and contract sections are not
  // table previews. Only long provenance/identity collections can be deferred.
  // A fixed rule keeps the same canonical facts on every page at every budget.
@@ -66,7 +72,7 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPo
   seen.add(input);
   if(Array.isArray(input)){
    const shown=evidenceList.test(key)?Math.min(input.length,PROJECT_TABLE_PAGE_SIZE):input.length;
-   if(shown<input.length)record({pointer,total:input.length,shown,kind:'array'});
+   if(shown<input.length)retainPage({pointer,total:input.length,shown,kind:'array'});
    const result=input.slice(0,shown).map((item:any,index:number)=>walk(item,pointer+'/'+index,''));
    seen.delete(input);return result;
   }
@@ -74,7 +80,9 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPo
   for(const [field,item] of Object.entries(input))output[field]=walk(item,pointer+'/'+token(field),field);
   seen.delete(input);return output;
  };
- return walk(value,rootPointer,'projectFacts');
+ const projection=walk(value,'','projectFacts');
+ if(value&&typeof value==='object')factProjectionCache.set(value,{projection,pages:relativePages});
+ return projection;
 }
 
 function projectFactsOf(body:unknown):unknown {
@@ -110,7 +118,8 @@ export function pageProjectResponse(
  const screenKey=String(item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
  const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
-   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints)$/i.test(key)
+   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
+   ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
  );
  const priorityMilestoneOrder=(a:any,b:any)=>{
@@ -121,16 +130,7 @@ export function pageProjectResponse(
      Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
  };
  const fullMilestoneRows=screenKey==='milestones'&&Array.isArray(item?.data?.rows)?item.data.rows as any[]:null;
- const milestoneFullCounts=fullMilestoneRows?{
-  sourceRows:fullMilestoneRows.length,
-  openCount:fullMilestoneRows.filter(r=>r.status!=='completed').length,
-  completedCount:fullMilestoneRows.filter(r=>r.status==='completed').length,
-  overdueOpenCount:fullMilestoneRows.filter(r=>r.status!=='completed'&&r.dueState==='overdue').length,
-  openLateBaselineCount:fullMilestoneRows.filter(r=>r.status!=='completed'&&typeof r.varianceDays==='number'&&r.varianceDays>0).length,
-  completedLateBaselineCount:fullMilestoneRows.filter(r=>r.status==='completed'&&r.movementBasis==='actual_vs_baseline'&&typeof r.varianceDays==='number'&&r.varianceDays>0).length,
-  priorityCounts:Object.fromEntries(['critical','high','watch','normal'].map(key=>[key,fullMilestoneRows.filter(r=>r.status!=='completed'&&r.managementPriority===key).length])),
-  fullPopulation:true,
- }:null;
+ const milestoneFullCounts=fullMilestoneRows?milestonePopulation(fullMilestoneRows):null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
@@ -187,7 +187,7 @@ export function pageProjectResponse(
   if(!projection||Array.isArray(projection)||typeof projection!=='object')return projection;
   // If there are no paged tables and no canonical facts to normalize, the
   // original small payload must retain exact source identity.
-  if(!changed&&!facts)return body;
+  if(!changed&&!facts&&!milestoneFullCounts)return body;
   const paging:ResponsePaging={
    source,pageSize:25,projectVersion,tables,additionalTables,responseBytes:0,sourcePreserved:true,
   };
@@ -212,7 +212,7 @@ export function pageProjectResponse(
  return final;
 }
 export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25,filter?:{
- query?:string;status?:string;sort?:string;direction?:'asc'|'desc';
+ query?:string;status?:string;groupKey?:string;sort?:string;direction?:'asc'|'desc';
 }){
 
   const value=jsonPointer(root,pointer);
@@ -223,7 +223,9 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
     const status=String(filter?.status??'').trim().toLowerCase().slice(0,80);
     const sort=String(filter?.sort??'').trim().slice(0,80);
     const safeSort=sort&&!sort.split('.').some(part=>['__proto__','constructor','prototype'].includes(part))?sort:'';
-    let matched=query||status?value.filter(row=>{
+    const groupKey=typeof filter?.groupKey==='string'?filter.groupKey:null;
+    let matched=query||status||groupKey?value.filter(row=>{
+      if(groupKey&&(row as any)?.ownerGroupKey!==groupKey)return false;
       const rowStatus=String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase();
       if(status&&(status==='__open__'?rowStatus==='completed':status==='__completed__'?rowStatus!=='completed':rowStatus!==status))return false;
       return !query||JSON.stringify(row).toLowerCase().includes(query);

@@ -4,8 +4,9 @@ import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 /** Preserve any named source owner; otherwise assign an accountable PMC discipline. */
 export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=null):string {
  const owner=typeof sourceOwner==='string'?sourceOwner.trim():'';
- if(owner&&!/^(not assigned|unassigned|unknown|not supplied|tbd|na|n-a|n_a|-)$/i.test(owner))return owner;
+ if(owner&&!/^(not assigned|not recorded|not in source|not established|unassigned|unknown|not supplied|null|undefined|tbd|n\/?a|n-a|n_a|—|-)$/i.test(owner))return owner;
  const scope=domain.toLowerCase();
+ if(/risk/.test(scope))return 'PMC Risk Manager — individual not designated';
  if(/rfi|design|submittal/.test(scope))return 'PMC Design Manager — individual not designated';
  if(/ncr|quality|inspection/.test(scope))return 'PMC Quality Manager — individual not designated';
  if(/procurement|material|purchase|supplier/.test(scope))return 'PMC Procurement Manager — individual not designated';

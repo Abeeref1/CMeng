@@ -23,7 +23,7 @@ test('R1 delivered source status does not raise false late-package action; open 
  assert.equal(delivered.actualDelivery,null);
  assert.equal(delivered.forecastLate,false);
  assert.equal(open.forecastLate,true);
- const actions=crossDomainAccountability(state).actions;
+ const actions=crossDomainAccountability(state).recordActions;
  assert.ok(!actions.some(a=>a.recordKey==='procurement|pkg-0073'));
  assert.ok(actions.some(a=>a.recordKey==='procurement|pkg-open'));
  assert.equal(packages.length,2);

@@ -1,6 +1,6 @@
 import {canonicalHeader,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
-import {operationalReporting,claimsReporting} from './reporting-state';
+import {operationalReporting,claimsReporting,reportingState} from './reporting-state';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
@@ -16,7 +16,16 @@ export interface AccountabilityDetail {
   dimension:Dimension;value:string;domain:string;recordId:string;reference:string|null;issue:string;dueDate:string|null;overdueDays:number|null;
   activityIds:string[];sourceRefs:string[];authority:'confirmed_record'|'programme_scope';
 }
+const accountabilityCache=new WeakMap<ProjectRuntimeState,{version:number;result:ReturnType<typeof buildCrossDomainAccountability>}>();
 export function crossDomainAccountability(state:ProjectRuntimeState){
+ state=reportingState(state);
+ const cached=accountabilityCache.get(state);
+ if(cached?.version===state.version)return cached.result;
+ const result=buildCrossDomainAccountability(state);
+ accountabilityCache.set(state,{version:state.version,result});
+ return result;
+}
+function buildCrossDomainAccountability(state:ProjectRuntimeState){
   const dataDateIso=projectDataDate(state),delivery=deliveryPosition(state),recordById=new Map(delivery.records.map(r=>[r.recordId,r]));
   const packageById=new Map(delivery.packageRows.map(row=>[row.recordId,row]));
   const operations=operationalReporting(state),details:AccountabilityDetail[]=[];
@@ -176,6 +185,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const cleanup=(action.consequence??'').startsWith('All linked activities are complete.');
     const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
     const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
+    (action as ManagementAction&{ownerGroupKey:string}).ownerGroupKey=key;
   }
   const actions=[...buckets.entries()].map(([key,members])=>{
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
@@ -185,6 +195,7 @@ export function crossDomainAccountability(state:ProjectRuntimeState){
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
     return {...first,
       actionId:'accountability-owner-group:'+encodeURIComponent(key),
+      dueIso:members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null,
       recordKey:'accountability-owner-group:'+key,
       issue:sourceCount+' '+(cleanup?'register clean-up':'open control')+' record'+(sourceCount===1?'':'s')+' · '+(first.owningModule??'project control'),
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,

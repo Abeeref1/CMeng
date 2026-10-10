@@ -1,7 +1,8 @@
+import {runInNewContext} from './browser-context';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { runInNewContext, createContext, runInContext } from 'node:vm';
+import {createContext, runInContext} from 'node:vm';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration, isCallExpression, isIdentifier, forEachChild, Node } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';

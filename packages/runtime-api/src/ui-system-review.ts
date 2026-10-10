@@ -17,9 +17,9 @@ function readerText(value){
  const raw=readerReference(value);
  // Preserve source text in saved data. Apply the shared PMC terms only to display.
  const labelled=raw.replace(/\b(?:SOURCE_CONFLICT|DATA_CONFLICT|conflicting records|sources disagree|registers disagree)\b/gi,'Records disagree')
-   .replace(/\b(?:missing source value|not recorded|unresolved|not established|undefined|null)\b/gi,'Not in source')
+
    .replace(/\b([a-z][a-z0-9_]*)_register\s+status\s*=\s*([a-z][a-z0-9_-]*)\b/gi,
-     (_,name,status)=>name.replaceAll('_',' ')+' register: '+status.replaceAll('_',' '))
+     (_,name,status)=>name.replaceAll('_',' ')+' · Status: '+status.replaceAll('_',' ').replace(/^./,s=>s.toUpperCase()))
    .replace(/\b(?:_register status\s*=|register status\s*=)\s*/gi,'Register status: ');
  return humanizeIsoText(labelled)
    .replace(/\b[A-Z]{3,}(?::[A-Z0-9_-]+)+\b/g,code=>code.toLowerCase().replaceAll(':',' · ').replaceAll('_',' '))
@@ -48,14 +48,15 @@ function readerAuditAction(value){
   return readerText(text);
 }
 function renderProgrammeCashScenario(scenario){
- if(!scenario?.groups?.length)return '';
+ if(!scenario?.groups?.length)return scenario?'<p>Future receipts cannot be calculated. Missing: '+escapeHtml((scenario.missingInputs||[]).join('; '))+'</p>':'';
  return '<section class="planning-panel"><h4>Future receipts · programme planning scenario</h4>'+
  scenario.groups.map(group=>planningKpis([
   ['Remaining gross work',group.remainingGross,group.currency],
   ['Future retention',group.retention,group.currency],
   ['Advance recovery',group.advanceRecovery,group.currency],
   ['Indicative net receipts',group.netReceipts,group.currency]
- ])+(group.rows?.length?
+ ])+(group.missingInputs?.length?'<p>Missing inputs: '+escapeHtml(group.missingInputs.join('; '))+'. Gross and net scenarios remain separate.</p>':'')+(group.rows?.length?
+  (typeof renderLineChart==='function'?renderLineChart(group.curvePoints||group.rows.map(row=>({dateIso:row.periodEndIso,grossValuation:row.grossValuation,netReceipt:row.netReceipt})),[{key:'grossValuation',label:'Gross valuation scenario',color:'#506579'},{key:'netReceipt',label:'Net receipt scenario',color:'#2c7a57'}],null,{title:'Forward receipts · '+group.currency,unit:group.currency,dataDateIso:scenario.dataDateIso}):'')+
   experienceDisclosure('Monthly assumed receipts · '+group.currency,
     basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>
       [planningShortDate(row.periodEndIso),fmt(row.grossValuation),fmt(row.netReceipt),
@@ -70,31 +71,10 @@ function renderContractSections(data){
  const facts=data?.projectFacts;
  const sections=facts?.contractSections||[];
  if(!sections.length)return '';
- const controls=data?.position?.contractControls?.liquidatedDamages??data?.focus?.liquidatedDamages??null;
- const reported=controls?.sectionScenarios||[];
- const bySection=new Map(reported.map(row=>[String(row.sectionId),row]));
- const dateDiff=(due,finish)=>{
-   if(!due||!finish)return null;
-   const a=Date.parse(String(due).slice(0,10)+'T00:00:00Z'),b=Date.parse(String(finish).slice(0,10)+'T00:00:00Z');
-   return Number.isFinite(a)&&Number.isFinite(b)?Math.max(0,Math.round((b-a)/86400000)):null;
- };
  const result=sections.map(section=>{
-   const matching=bySection.get(String(section.sectionId));
-   const due=matching?.contractualDueDateIso??section.extendedCompletionIso??section.contractCompletionIso??null;
-   const finish=matching?.forecastCompletionIso??section.programmeCompletionIso??null;
-   const basis=section.rateBasis;
-   const days=dateDiff(due,finish);
-   const perDay=typeof section.rate==='number'&&Number.isFinite(section.rate)
-     ?basis==='fixed_amount_per_day'?section.rate:basis==='fixed_amount_per_week'?section.rate/7:null:null;
-   const uncapped=days!==null&&perDay!==null?Math.round(days*perDay*100)/100:null;
-   const capped=uncapped!==null&&typeof section.capAmount==='number'
-     ?Math.min(uncapped,section.capAmount):null;
-   const reason=!due?'Section contractual completion date not in source':
-     !finish?'Submitted sectional programme milestone not linked':
-     perDay===null?'Section damages rate or day basis is not established':
-     uncapped!==null&&capped===null?'Uncapped scenario only; valid monetary cap basis not established':
-     'Section-only scenario, not assessed entitlement or deducted damages';
-   return {section,due,finish,days,uncapped,capped,reason};
+   const value=section.scenario;
+   return {section,due:value?.dueIso??null,finish:value?.finishIso??null,days:value?.lateDays??null,uncapped:value?.uncapped??null,capped:value?.capped??null,
+    reason:value?.missingInputs?.length?'Missing: '+value.missingInputs.join('; '):value?.basis||'Section scenario has not been calculated from the current sources'};
  });
  const body=result.map(({section,due,finish,days,uncapped,capped,reason})=>
   '<tr><td><b>'+escapeHtml(section.label||('Section '+section.sectionId))+'</b>'+

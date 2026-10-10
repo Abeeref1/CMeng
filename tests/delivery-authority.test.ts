@@ -64,7 +64,7 @@ test('RFI and NCR close-out follows every linked activity without hiding the ope
  assert.deepEqual(design.programmeFollowUp.closeoutRows.map((r:any)=>r.reference),['R-DONE']);assert.equal(design.rows[0].reference,'R-LIVE');
  assert.equal(design.rows[0].programmeContext.linkedFloatHours,-24);assert.equal(quality.programmeFollowUp.closeoutCount,1);assert.equal(quality.rows[0].reference,'N-LIVE');
  assert.equal(design.rows.find((r:any)=>r.reference==='R-DONE').currentStatus,'open','completed programme work does not close the source RFI');
- const actions=crossDomainAccountability(f.state).actions;
+ const actions=crossDomainAccountability(f.state).recordActions;
  for(const ref of ['r-done','n-done']){const action=actions.find(a=>a.recordKey?.endsWith('|'+ref))!;assert.equal(action.severity,'low');assert.match(action.requiredAction,/close-out decision/);assert.doesNotMatch(action.requiredAction,/downstream release|recovery date/);}
  assert.equal(JSON.stringify(f.state.controls),before,'the classification is read-only');
  const map=new Map(model.activities.map(a=>[a.activityId,a]));
@@ -375,8 +375,8 @@ test('UI pagination, filtering, sorting and chart labels preserve zero and unava
 
 test('Delivery display preserves exact record references and quantities while formatting dates and risk states',()=>{
  const context:any={escapeHtml:(x:any)=>String(x)};runInNewContext(deliveryScript()+';globalThis.show=deliveryValue;',context);
- assert.equal(context.show(1450000000),'1,450,000,000');assert.equal(context.show(0.0001),'0.0001');assert.equal(context.show(-50),'-50');
- assert.equal(context.show('2026-08-31'),'31 Aug 2026');assert.equal(context.show('2031-09-30T08:00:00Z'),'30 Sept 2031 08:00 UTC');
+ assert.equal(context.show(1450000000),'1,450,000,000');assert.equal(context.show(0.0001),'<0.01');assert.equal(context.show(-50),'-50');
+ assert.equal(context.show('2026-08-31'),'Aug 31, 2026');assert.equal(context.show('2031-09-30T08:00:00Z'),'Sep 30, 2031');
  assert.equal(context.show('2026-02-31'),'2026-02-31');assert.equal(context.show('S03_2026-08-31.xer'),'S03_2026-08-31.xer');assert.equal(context.show('001200'),'001200');
  const rows=[{riskId:'R1',status:'open'},{riskId:'R2',status:'closed'}];
  assert.deepEqual(Array.from(context.deliveryFiltered({rows,query:'',filter:'open',sort:null}), (r:any)=>r.riskId),['R1']);

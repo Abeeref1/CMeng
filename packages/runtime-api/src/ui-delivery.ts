@@ -1,19 +1,20 @@
+import {managementNumber,managementDate} from './management-values';
 import {commonDeliveryFields,deliveryFields} from '../../delivery-core/src/fields';
 import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-core/src/types';
 import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
-export function deliveryScript():string{return `const deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
+export function deliveryScript():string{return `${managementNumber.toString()}\n${managementDate.toString()}\nconst deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
 function deliveryValue(v){
  if(v===null||v===undefined||v===''||typeof v==='string'&&/^(?:undefined|null|nan)$/i.test(v.trim()))return deliveryUnknownText;
- if(typeof v==='number')return Number.isFinite(v)?deliveryNumberFormat.format(v):deliveryUnknownText;
+ if(typeof v==='number')return managementNumber(v);
  if(typeof v==='boolean')return v?'Yes':'No';
  if(Array.isArray(v))return v.length?v.map(x=>deliveryValue(typeof x==='object'?(x?.reference||x?.stage||x?.recordId||'Record'):x)).join('; '):'None in this set';
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
  const s=String(v),match=s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/);
- if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return deliveryDateFormat.format(at)+(match[2]?' '+match[2]+(match[3]==='Z'?' UTC':match[3]?' '+match[3]:''):'');}
+ if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return managementDate(match[1]);}
  if(typeof readerText==='function')return readerText(s);
  if(typeof humanizeIsoText==='function')return humanizeIsoText(s);
  // Delivery can render independently in a specialist/report context. Do not
@@ -21,7 +22,7 @@ function deliveryValue(v){
  return s.replace(/\b\d{4}-\d{2}-\d{2}\b/g,date=>{
    const at=new Date(date+'T00:00:00Z');
    return Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===date
-     ?deliveryDateFormat.format(at):date;
+     ?managementDate(date):date;
  });
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));

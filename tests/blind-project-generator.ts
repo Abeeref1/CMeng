@@ -970,7 +970,7 @@ export async function generateProgressFeatureBlindProject(seed:string,index=0):P
       if(w<=0)actual.push([id,week,String(Math.max(0,planned+h.int(-25,30))),'Approved','labor_hour']);
     }
   }
-  docs.push(shuffledCsvDocument(h,'Weekly_Resource_Capacity_'+h.int(10,999)+'.csv','resources',['Resource ID','Week Start','Available Capacity','Planned Demand','Forecast Demand','Unit','Class'],weekly));
+  docs.push(shuffledCsvDocument(h,'Weekly_Resource_Capacity_'+h.int(10,999)+'.csv','resources',['Resource ID','Week Start','Available Capacity','Planned Demand','Forecast Demand','Unit','Class','Capacity Approval'],weekly.map(row=>[...row,'Approved'])));
   docs.push(shuffledCsvDocument(h,'Approved_Resource_Usage_'+h.int(10,999)+'.csv','resources',['Resource ID','Week Start','Actual Approved Usage','Source Status','Unit'],actual));
   return {seed,projectId,projectName,language,currency,dataDateIso,scenario:'complete',documents:h.shuffle(docs),
     truth:{scheduleActivities:activityCount,payments:null,variations:null,risks:null,claims:null,procurement:null,quality:null,

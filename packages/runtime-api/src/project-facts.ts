@@ -1,3 +1,4 @@
+import {managementValueState,type ManagementValueState} from './management-values';
 import {aggregateCount} from '../../truth-kernel/src';
 import {buildScheduleAnalyticsProjection} from '../../schedule-analytics/src';
 import {commercialPositionForState} from './commercial-runtime';
@@ -25,6 +26,7 @@ export type ProjectFactState =
 
 export interface ProjectFact<T> {
   value:T|null;
+  valueState?:ManagementValueState;
   state:ProjectFactState;
   complete:boolean;
   basis:string;
@@ -125,7 +127,8 @@ function fact<T>(
   sourceRefs:string[]=[],
   diagnostics:string[]=[],
 ):ProjectFact<T>{
-  return {value,state:value===null?'missing':state,complete:value===null?false:complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
+  const valueState:ManagementValueState=value!==null?managementValueState(value):diagnostics.some(d=>/CONFLICT|DISAGREE/.test(d))?'records_disagree':diagnostics.some(d=>/WITHHELD|SUPPRESS|QUARANTIN|CPM.*FAIL|RECONCILIATION.*FAIL/.test(d))?'withheld':diagnostics.some(d=>/NOT_CALCUL|INVALID/.test(d))?'not_calculable':'not_in_source';
+  return {value,valueState,state:value===null?'missing':state,complete:value===null?false:complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
 }
 
 function aggregateFact(

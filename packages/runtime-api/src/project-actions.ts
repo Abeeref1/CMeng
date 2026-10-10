@@ -1,3 +1,4 @@
+import {commercialCanonical} from './commercial-canonical';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
@@ -193,6 +194,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
     if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
+  const heldCommercial=commercialCanonical(state);
+  const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String((b as any).type??(b as any).bondType??'')+' '+b.bondId));
+  const dataDate=projectControlSchedule(state)?.revision.model.dataDateIso?.slice(0,10)??null;
+  const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
+   !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
   const information:ProjectAction[]=[];
   for(const {group,issues} of groups.values()){
     // Once a contractual completion date has been explicitly governed, stale
@@ -211,9 +217,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const sourceFiles=[...new Set(refs.flatMap(ref=>state.evidenceDocuments
         .filter(doc=>ref.includes(doc.documentId)).map(doc=>doc.sourceFilename)))];
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
-      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>({
-        field:issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file,owner
-      })):undefined;
+      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>{
+        const subject=[issue.summary,...(issue.evidencePaths??[])].join(' ');
+        const advance=/advance.?payment.?bond|advance.?payment.?security/i.test(subject)&&heldAdvanceBonds.length>0;
+        const certified=/certified.?progress/i.test(subject)&&heldCertificates.length>0;
+        return {field:advance?'Advance-payment bond is held; confirm only the contractual requirement not stated in its source':
+          certified?'Dated certificates are held; the comparable certified-progress denominator or area allocation is not established':
+          issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file:advance?heldAdvanceBonds.map(b=>b.bondId).join('; '):file,owner};
+      }):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
@@ -239,7 +250,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const programme=projectControlSchedule(state),model=programme?.revision.model;
   const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));
   const dataGaps=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
-  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,
+  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,heldEvidence:{advanceBondCount:heldAdvanceBonds.length,datedCertificateCount:heldCertificates.length},
     analysis:{state:model?'analysed':state.schedules.length?'programme_selection_needed':'no_programme',activityCount:model?.activities.length??null,dataDateIso:model?.dataDateIso??null,sourceFilename:programme?.sourceFilename??null},
     systemCheckCount:systemItems.length,scope:'One matter per underlying information or decision group. Affected pages and all original findings are retained inside each matter. Missing optional domains are shown separately as coverage information. Decisions refresh from the current project records.'};
 }

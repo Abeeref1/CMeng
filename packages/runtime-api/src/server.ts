@@ -2378,6 +2378,7 @@ async function route(
     const page=recordDetailPage(result,pointer,offset,25,{
       query:url.searchParams.get('q')??'',
       status:url.searchParams.get('filter')??url.searchParams.get('status')??'',
+      groupKey:url.searchParams.get('group')??'',
       sort:url.searchParams.get('sort')??'',
       direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
     });

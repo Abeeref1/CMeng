@@ -1,3 +1,5 @@
+import {attachMilestonePopulation} from './milestone-population';
+import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
@@ -5397,9 +5399,7 @@ function independentForecastReviewReason(
     reviewLimit
   ) {
     return (
-      "Independent forecast differs from the submitted finish by " +
-      Math.round(Math.abs(variance)).toLocaleString("en-US") +
-      " days. Reconcile calendars, remaining durations, logic and constraints before treating the independent date as a management forecast."
+      "Independent forecast is withheld from management comparison because its calendar and programme reconciliation checks have not passed. Review calendars, remaining durations, logic and constraints; the submitted finish remains visible."
     );
   }
 
@@ -7627,6 +7627,7 @@ function resolveProjectModuleCandidate(
       } : {}),
     };
   }
+  if(key==='milestones'&&result.data)result.data=attachMilestonePopulation(result.data);
   if(key==='milestones'&&controlBasis.state!=='official'){
     result.status='partial';
     result.professionalState='review_required';
@@ -7728,6 +7729,7 @@ function resolveProjectModuleCandidate(
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
   }
+  if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     const interpretation=sharedInterpretation??buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
@@ -7849,7 +7851,7 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   const independentFloatById=new Map<string,number|null>(
     independentRanking?forecast.activities.map((row:any)=>[String(row.activityId),typeof row.independentTotalFloatHours==='number'?row.independentTotalFloatHours:null]):[],
   );
-  const recordActions=consolidateScheduleChains(recordPosition.actions,model);
+  const recordActions=consolidateScheduleChains(recordPosition.recordActions,model);
   const actions=prioritizeActions(
     [...recordActions,...reviewRows],
     model,
@@ -7868,6 +7870,7 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
     recordPosition};
 }
 export function projectActionRegisterForState(state:ProjectRuntimeState){
+  state=reportingState(state);
   const cached=projectActionCache.get(state);if(cached?.version===state.version)return cached.value;
   const value=buildProjectActionRegister(state);projectActionCache.set(state,{version:state.version,value});return value;
 }

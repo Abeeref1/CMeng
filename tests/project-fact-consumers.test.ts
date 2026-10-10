@@ -1,7 +1,8 @@
+import {runInNewContext} from './browser-context';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {runInNewContext} from 'node:vm';
+
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';

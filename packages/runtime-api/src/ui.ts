@@ -1,3 +1,5 @@
+import {managementValueState,managementNumber,managementDate,managementValue} from './management-values';
+import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
@@ -512,14 +514,19 @@ const projectUploadJobs=new Map();
 let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
+${managementValueState.toString()}
+${managementNumber.toString()}
+${managementDate.toString()}
+${managementValue.toString()}
+${pmcRoleOwner.toString()}
 const fmt=v=>{
  if(v===null||v===undefined)return "Not in source";
- if(typeof v==='number')return Number.isFinite(v)?new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(2))):"Not established";
+ if(typeof v==='number')return managementNumber(v);
  if(typeof v==='string'&&/^[+-]?[0-9]+[.][0-9]{3,}$/.test(v.trim()))
   return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v));
  const value=String(v).trim();
  if(/^(?:null|undefined)$/i.test(value))return "Not established";
- if(/^unresolved$/i.test(value))return "Needs confirmation";
+ 
  return humanizeIsoText(value);
 };
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
@@ -537,7 +544,7 @@ function fmtForField(key,value){
     /(?:percent|percentage|pct|utilization|utilisation)/.test(k)?1:
     /(?:amount|money|price|cost|paid|unpaid|certified|currencyvalue|retention|budget|contractvalue|balance)/.test(k)?0:
     /(?:daycount|days|age|durationdays|remainingdays|latedays|earlydays)/.test(k)?0:2;
-  return new Intl.NumberFormat(undefined,{minimumFractionDigits:/^(cpi|spi)$/.test(k)?2:0,maximumFractionDigits:fraction}).format(value);
+  return managementNumber(value,fraction);
 }
 
 const fmtExecutive=v=>{
@@ -1143,6 +1150,7 @@ function renderCommercialMetricBars(row,fields){
   return renderVisualBars(items,row?.currency||"");
 }
 function renderLineChart(points,series,yMaxHint=null,options={}){
+  points=Array.isArray(points)?points:[];series=Array.isArray(series)?series:[];
   if(points.length===1){const point=points[0];return '<div class="notice info"><b>Single observation · trend not confirmed</b><p>'+escapeHtml(planningShortDate(point.dateIso||point.asOf))+'</p>'+series.filter(item=>typeof point[item.key]==='number').map(item=>'<div class="currency-line"><span>'+escapeHtml(item.label)+'</span><strong>'+escapeHtml(fmt(point[item.key])+(options.unit?' '+options.unit:''))+'</strong></div>').join('')+'</div>';}
 
   series=series.filter(item=>Array.isArray(points)&&points.some(point=>typeof point?.[item.key]==="number"&&Number.isFinite(point[item.key])));
@@ -1736,12 +1744,8 @@ function planningDateMs(value){
   const n=Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?$/.test(text)?text+"Z":text);
   return Number.isFinite(n)?n:null;
 }
-function planningShortDate(value){
-  if(!value)return "Not established: date not established";
-  const at=planningDateMs(value);
-  if(at===null)return String(value);
-  return new Intl.DateTimeFormat(undefined,{day:"2-digit",month:"short",year:"numeric",timeZone:"UTC"}).format(new Date(at));
-}
+function planningShortDate(value){return managementDate(value);}
+
 function planningDaysBetween(a,b){
   const am=planningDateMs(a),bm=planningDateMs(b);
   if(am===null||bm===null)return null;
@@ -1777,18 +1781,14 @@ function planningStateLabel(value){
   return labels[key]||humanizeKey(key);
 }
 function planningKpis(items){
-  const unavailable=item=>{const value=item[1];return value===null||value===undefined||/^(Not |—|Suppressed|Missing|Mapping not|Not established|Unavailable)/i.test(String(value));};
-  const available=items.filter(item=>!unavailable(item)),missing=items.filter(unavailable);
-  const card=item=>{const label=item[0],value=item[1],sub=item[2]||"",tone=item[3]||"";return '<div class="planning-kpi '+escapeHtml(tone)+'"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(value===null||value===undefined?"Not available":fmt(value))+'</strong>'+(sub?'<small>'+escapeHtml(sub)+'</small>':'')+'</div>';};
-  // Available facts always lead. If nothing is available, show a small sample of
-  // unresolved measures so the page still explains what is missing.
-  const primary=available.length?available:missing.slice(0,4);
-  const remainingMissing=available.length?missing:missing.slice(4);
-  const names=remainingMissing.slice(0,4).map(item=>item[0]);
-  const labelPreview=names.length?' · '+names.map(escapeHtml).join('; ')+(remainingMissing.length>names.length?' · +'+(remainingMissing.length-names.length)+' more':''):'';
-  const more=remainingMissing.length?'<details class="planning-missing-kpis"><summary>'+remainingMissing.length+' additional measure'+(remainingMissing.length===1?' needs':'s need')+' more information'+labelPreview+'</summary><div class="planning-missing-grid">'+remainingMissing.map(item=>'<div><b>'+escapeHtml(item[0])+'</b><span>'+escapeHtml(item[2]||'Not available from the current Project information.')+'</span></div>').join("")+'</div></details>':'';
-  return '<div class="planning-kpi-grid">'+primary.map(card).join("")+'</div>'+more;
+  const state=item=>managementValueState(item[1]);
+  const available=items.filter(item=>state(item)==='value'),missing=items.filter(item=>state(item)!=='value');
+  const card=item=>'<div class="planning-kpi '+escapeHtml(item[3]||'')+'"><span>'+escapeHtml(item[0])+'</span><strong>'+escapeHtml(managementValue(item[1]))+'</strong>'+(item[2]?'<small>'+escapeHtml(humanizeIsoText(item[2]))+'</small>':'')+'</div>';
+  const primary=available.length?available:missing.slice(0,4),rest=available.length?missing:missing.slice(4);
+  const more=rest.length?'<details class="planning-missing-kpis"><summary>'+rest.length+' additional measure'+(rest.length===1?' needs':'s need')+' more information</summary><div class="planning-missing-grid">'+rest.map(card).join('')+'</div></details>':'';
+  return '<div class="planning-kpi-grid">'+primary.map(card).join('')+'</div>'+more;
 }
+
 function planningStatusBand(items){
   const known=(items||[]).filter(item=>typeof item[1]==="number"&&Number.isFinite(item[1])&&item[1]>=0);
   const total=known.reduce((sum,item)=>sum+item[1],0);
@@ -2158,7 +2158,8 @@ function amendmentEotManagementDisplay(value,timeFacts){
  if(typeof value==='number'&&Number.isFinite(value))return fmt(value)+' days';
  const wording=Array.isArray(timeFacts?.amendmentEotStatements)?timeFacts.amendmentEotStatements:[];
  const statements=wording.map(row=>String(row?.statement||'').trim()).filter(Boolean);
- return statements.length?statements.join(' · '):'Amendment incorporation duration not stated numerically; source wording to be reviewed';
+ const award=timeFacts?.awardedEotDays?.value;
+ return statements.length?statements.join(' · '):(typeof award==='number'?managementNumber(award)+' days awarded in the determination register · ':'')+'amendment text not found';
 }
 function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
@@ -3014,12 +3015,12 @@ function renderMilestonesVisual(data){
   const partialSource=!!full&&p.rows.length<full.sourceRows;
   const dd=planningDateMs(p.dataDateIso);
   const due30=p.due30Count;
-  const slippedOpen=aggregateCount(p.rows,r=>r.status==='completed'?false:r.status==='unknown'||r.varianceDays==null?null:r.varianceDays>0).value;
+  const slippedOpen=full?.openLateBaselineCount??null;
   const criticalCount=p.criticalMilestoneCount;
   const nearCriticalCount=p.nearCriticalMilestoneCount;
   const negativeFloatCount=p.negativeFloatMilestoneCount;
   const movements=p.rows.map(r=>r.varianceDays).filter(v=>typeof v==="number");
-  const largest=movements.length?Math.max(...movements):null;
+  const largest=full?.largestMovementDays??(movements.length?Math.max(...movements):null);
   const urgentDates=p.lateOpenCount==null||due30==null?null:p.lateOpenCount+due30;
   const priorityRows=[...p.rows].filter(r=>r.status!=="completed").sort((a,b)=>planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0)));
   const topPriority=priorityRows[0]||null;
@@ -3052,7 +3053,7 @@ function renderMilestonesVisual(data){
     topPriority?{title:"Highest-priority milestone",text:topPriority.activityId+" · "+(topPriority.name||"")+" · "+planningShortDate(topPriority.currentDateIso),value:topPriority.managementPriority?humanizeKey(topPriority.managementPriority):undefined,tone:topPriority.managementPriority==="critical"?"danger":"watch"}:null
   ]);
 const movementClusters=new Map();
-  p.rows.filter(row=>row.status!=="completed").forEach(row=>{const value=typeof row.varianceDays==="number"?Number(row.varianceDays.toFixed(6)):null;if(value===null)return;movementClusters.set(value,(movementClusters.get(value)||0)+1)});
+  (full?.movementClusters||[]).forEach(row=>movementClusters.set(row.days,row.count));
   const dominantMovement=[...movementClusters.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
   const repeatedMovementWarning=dominantMovement&&dominantMovement[0]!==0&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.openCount)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.openCount))+' open milestones share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this repeated pattern requires investigation; it does not establish a common cause or '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
   const movementGroups='<section class="planning-panel"><div class="planning-panel-head"><h4>Milestone movement & criticality</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Movement vs baseline</th><th>Open milestones</th><th>Share of open population</th></tr></thead><tbody>'+[...movementClusters.entries()].sort((a,b)=>b[1]-a[1]).map(([value,count])=>'<tr><td>'+escapeHtml((value>0?'+':'')+fmt(value)+' d')+'</td><td>'+escapeHtml(fmt(count))+'</td><td>'+escapeHtml(fmt(count/Math.max(1,p.openCount)*100)+'%')+'</td></tr>').join('')+'</tbody></table></div><p>Equal date movements do not prove a shared cause. Completed milestones are excluded from these groups.</p></div></section>';
@@ -3154,7 +3155,7 @@ const movementClusters=new Map();
   const timelinePanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Priority milestone dates on a common calendar axis after the management action table.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>';
   const supportPanels='<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Priority watchlist</h4><p>Supporting urgency and source-float view.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>';
-  const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(full?.sourceRows??p.rows.length))+' milestones; '+(partialSource?'This is a preview only, not a complete source list. ':'')+'The complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
+  const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(full?.sourceRows??p.rows.length))+' milestones; '+(partialSource?'This is a preview only, not a complete source list. ':'')+'The complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Milestone preview · browse complete source lists above</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
   const sourceLists='<section class="planning-panel primary"><div class="planning-panel-head"><h4>Complete milestone source lists</h4><p>Browse every open and completed milestone separately. The server filters the complete source register before paging.</p></div><div class="planning-panel-body">'+
     '<details><summary>Open milestones · '+fmt(full?.openCount??p.openCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;open&quot;,0)">Browse open milestones</button><div id="milestoneSourceOpen"></div></details>'+
     '<details><summary>Completed milestones · '+fmt(full?.completedCount??p.completedCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;completed&quot;,0)">Browse completed milestones</button><div id="milestoneSourceCompleted"></div></details></div></section>';
@@ -3178,8 +3179,8 @@ async function loadMilestoneSourcePage(mode,page){
     }
     if(project()!==owner||seq!==projectRequestSeq||currentModuleResult!==result||!node.isConnected)return;
     if(!Array.isArray(data.rows))throw new Error('Missing milestone rows');
-    const body=data.rows.map(r=>'<tr><td><b>'+escapeHtml(r.activityId||'Milestone')+'</b><small>'+escapeHtml(r.name||'')+'</small></td><td>'+escapeHtml(planningShortDate(r.status==='completed'?r.actualDateIso||r.currentDateIso:r.currentDateIso))+'</td><td>'+escapeHtml(humanizeKey(r.status||'unknown'))+'</td><td>'+escapeHtml(humanizeKey(r.managementPriority||'not_established'))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'Not established':fmt(r.totalFloatHours)+' h')+'</td></tr>').join('');
-    node.innerHTML='<p>Showing '+(data.total?data.offset+1:0)+'–'+Math.min(data.offset+data.rows.length,data.total)+' of '+data.total+' '+escapeHtml(mode)+' source milestones.</p><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Date</th><th>Status</th><th>Priority</th><th>Source float</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
+    const body=data.rows.map(r=>'<tr><td><b>'+escapeHtml(r.activityId||'Milestone')+'</b><small>'+escapeHtml(r.name||'')+'</small></td><td>'+escapeHtml(planningShortDate(r.status==='completed'?r.actualDateIso||r.currentDateIso:r.currentDateIso))+'</td><td>'+escapeHtml(humanizeKey(r.status||'unknown'))+'</td><td>'+escapeHtml(humanizeKey(r.managementPriority||'not_established'))+'</td><td>'+escapeHtml(r.status==='completed'?'Not applicable · completed':r.totalFloatHours==null?'Not established':fmt(r.totalFloatHours)+' h')+'</td><td>'+escapeHtml(typeof r.varianceDays==='number'?fmt(Math.max(0,r.varianceDays))+' days':'Baseline date not in source')+'</td></tr>').join('');
+    node.innerHTML='<p>Showing '+(data.total?data.offset+1:0)+'–'+Math.min(data.offset+data.rows.length,data.total)+' of '+data.total+' '+escapeHtml(mode)+' source milestones.</p><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Date</th><th>Status</th><th>Priority</th><th>Source float</th><th>Days late against baseline</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
       '<div class="actions"><button '+(at===0?'disabled ':'')+'onclick="loadMilestoneSourcePage(&quot;'+mode+'&quot;,'+(page-1)+')">Previous</button><button '+(data.hasMore?'':'disabled ')+'onclick="loadMilestoneSourcePage(&quot;'+mode+'&quot;,'+(page+1)+')">Next</button></div>';
   }catch(e){if(project()===owner&&seq===projectRequestSeq&&currentModuleResult===result)node.textContent='Milestone source page unavailable. Try again.';}
 }
@@ -5027,6 +5028,27 @@ async function accountabilityLoadDetails(page){
    const label=el('accountabilityDetailsCount');if(label)label.textContent='Source page unavailable — retry; total is unchanged';
  }
 }
+let accountabilityGroupSequence=0;
+async function loadAccountabilityGroup(encodedKey,page=0){
+ const key=decodeURIComponent(encodedKey),owner=project(),seq=projectRequestSeq,request=++accountabilityGroupSequence,result=currentModuleResult;
+ const target=el('accountabilityGroupMembers');if(!target||!result)return;
+ target.textContent='Loading underlying action records…';
+ try{
+  const source=result.responsePaging?.source||'/api/projects/'+encodeURIComponent(owner)+'/management/cross-domain-accountability';
+  const params=new URLSearchParams({source,pointer:'/data/recordActions',group:key,offset:String(Math.max(0,page)*25),limit:'25'});
+  if(Number.isInteger(result.responsePaging?.projectVersion??result.data?.projectVersion))params.set('version',String(result.responsePaging?.projectVersion??result.data.projectVersion));
+  const data=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
+  if(project()!==owner||seq!==projectRequestSeq||request!==accountabilityGroupSequence||currentModuleResult!==result)return;
+  if(!Array.isArray(data.rows))throw new Error('Source action rows unavailable');
+  const rows=data.rows.map(row=>'<tr><td>'+escapeHtml(readerText(row.issue))+'</td><td>'+escapeHtml(pmcDisplayOwner(row.owningModule,row.owner))+'</td><td>'+escapeHtml(planningShortDate(row.dueIso))+'</td><td>'+escapeHtml(readerText(row.consequence||''))+'</td><td>'+escapeHtml(readerText(row.requiredAction))+'</td></tr>').join('');
+  target.innerHTML='<p>Showing '+(data.total?data.offset+1:0)+'–'+Math.min(data.offset+data.rows.length,data.total)+' of '+data.total+' member actions.</p><div class="table-wrap"><table><thead><tr><th>Source action</th><th>Owner</th><th>Due</th><th>Consequence</th><th>Required action</th></tr></thead><tbody>'+rows+'</tbody></table></div><button '+(page===0?'disabled ':'')+'onclick="loadAccountabilityGroup(&quot;'+encodedKey+'&quot;,'+(page-1)+')">Previous</button><button '+(!data.hasMore?'disabled ':'')+'onclick="loadAccountabilityGroup(&quot;'+encodedKey+'&quot;,'+(page+1)+')">Next</button>';
+ }catch(error){if(project()===owner&&request===accountabilityGroupSequence)target.textContent='Action records could not load. Reopen the group to retry.';}
+}
+function accountabilityOwnerGroups(data){
+ const groups=data.ownerGroups||[];
+ const rows=groups.map(group=>'<tr><td>'+escapeHtml(group.owner)+'</td><td>'+escapeHtml(names[group.register]||humanizeKey(group.register))+'</td><td>'+escapeHtml(humanizeKey(group.state))+'</td><td>'+fmt(group.count)+'</td><td>'+escapeHtml(planningShortDate(group.earliestDueIso))+'</td><td>'+escapeHtml(humanizeKey(group.topPriority))+'</td><td><button onclick="loadAccountabilityGroup(&quot;'+encodeURIComponent(group.key)+'&quot;,0)">Open all members</button></td></tr>').join('');
+ return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>Accountable owner and register groups</h4><p>Each group retains a stable identity and every source action. Counts and earliest due dates use all member records.</p></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Owner</th><th>Register</th><th>State</th><th>Records</th><th>Earliest due</th><th>Priority</th><th>Members</th></tr></thead><tbody>'+rows+'</tbody></table></div><div id="accountabilityGroupMembers"></div></div></section>';
+}
 function renderAccountabilityVisual(data){
  const p=projectionFor(data,"cross_domain_accountability");if(!p)return "";
  const paging=currentModuleResult?.responsePaging||null;
@@ -5041,10 +5063,10 @@ function renderAccountabilityVisual(data){
  const detail=(p.details||[]).map(accountabilityDetailRow).join('');
  const primary=actions.length?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue & consequence</th><th>Affected scope</th><th>Accountable party</th><th>Due</th><th>Required action</th></tr></thead><tbody>'+actionRows+'</tbody></table></div>':'<div class="notice info">No actionable ownership chain is established from the current open records.</div>';
  const ownerPositions=(p.rows||[]).filter(row=>row.dimension==='owner');
- const ownerFirst=ownerPositions.length?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Actions by accountable owner · '+fmt(ownerPositions.length)+' owners</h4><p>Owner workload is the first decision. Record details remain accessible below.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Accountable party</th><th>Open records</th><th>Overdue</th><th>Domains</th><th>Linked activities</th></tr></thead><tbody>'+
+ const concentrationOwner=ownerPositions.length?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Actions by accountable owner · '+fmt(ownerPositions.length)+' owners</h4><p>Owner workload is the first decision. Record details remain accessible below.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Accountable party</th><th>Open records</th><th>Overdue</th><th>Domains</th><th>Linked activities</th></tr></thead><tbody>'+
    ownerPositions.map(row=>'<tr><td><b>'+escapeHtml(row.value||pmcDisplayOwner('project controls'))+'</b></td><td>'+fmt(row.openIssueCount)+'</td><td>'+fmt(row.overdueCount)+'</td><td>'+fmt(row.domainCount)+'</td><td>'+fmt(row.affectedActivityCount)+'</td></tr>').join('')+'</tbody></table></div></div></section>':'';
  const concentration=rows?'<div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Open / pressure</th><th>Domains</th><th>Overdue</th><th>Open NCR</th><th>Overdue RFI</th><th>Late package</th><th>Risk</th><th>Affected activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No supporting concentration roll-up is available.</p>';
- return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div>'+ownerFirst+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 accountability follow-ups · '+fmt(p.recordActionCount??p.actionCount??(currentModuleResult?.responsePaging?.tables||[]).find(t=>t.pointer==='/data/actions')?.total??actions.length)+' underlying record actions</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Actions by source register and accountable owner · '+fmt(ownerGroups.length)+' groups</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Register</th><th>Owner</th><th>Actions</th></tr></thead><tbody>'+ownerGroupRows+'</tbody></table></div></div></details><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt(detailTotal)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody id="accountabilityDetailsBody">'+detail+'</tbody></table></div>'+(accountabilityDetailsView?'<div class="delivery-toolbar"><button class="btn small" id="accountabilityDetailsPrev" disabled onclick="accountabilityLoadDetails(accountabilityDetailsView.page-1)">Previous</button><span id="accountabilityDetailsCount">Records 1–'+fmt((p.details||[]).length)+' of '+fmt(detailTotal)+'</span><button class="btn small" id="accountabilityDetailsNext" '+((p.details||[]).length>=detailTotal?'disabled':'')+' onclick="accountabilityLoadDetails(accountabilityDetailsView.page+1)">Next</button></div>':'')+'<p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
+ return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div>'+accountabilityOwnerGroups(p)+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 accountability follow-ups · '+fmt(p.recordActionCount??p.actionCount??(currentModuleResult?.responsePaging?.tables||[]).find(t=>t.pointer==='/data/actions')?.total??actions.length)+' underlying record actions</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Actions by source register and accountable owner · '+fmt(ownerGroups.length)+' groups</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Register</th><th>Owner</th><th>Actions</th></tr></thead><tbody>'+ownerGroupRows+'</tbody></table></div></div></details><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt(detailTotal)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th></tr></thead><tbody id="accountabilityDetailsBody">'+detail+'</tbody></table></div>'+(accountabilityDetailsView?'<div class="delivery-toolbar"><button class="btn small" id="accountabilityDetailsPrev" disabled onclick="accountabilityLoadDetails(accountabilityDetailsView.page-1)">Previous</button><span id="accountabilityDetailsCount">Records 1–'+fmt((p.details||[]).length)+' of '+fmt(detailTotal)+'</span><button class="btn small" id="accountabilityDetailsNext" '+((p.details||[]).length>=detailTotal?'disabled':'')+' onclick="accountabilityLoadDetails(accountabilityDetailsView.page+1)">Next</button></div>':'')+'<p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
 }
 function renderSpecializedModule(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
@@ -5195,18 +5217,8 @@ function bindAdvancedControls(parentKey){
     }catch(e){const d=e.data||{};host.innerHTML='<div class="notice warn"><b>'+escapeHtml(label)+' is not established.</b><p>'+escapeHtml(d.reason||d.message||e.message||"The current project evidence does not support this analysis.")+'</p></div>';}
   });
 }
-function pmcDisplayOwner(domain){
- const area=String(domain||'').toLowerCase();
- if(/design|rfi|submittal/.test(area))return 'PMC Design Manager — individual not designated';
- if(/quality|ncr|inspection/.test(area))return 'PMC Quality Manager — individual not designated';
- if(/procurement|material|supplier/.test(area))return 'PMC Procurement Manager — individual not designated';
- if(/claim|eot|notice|contract/.test(area))return 'PMC Contracts Manager — individual not designated';
- if(/payment|commercial|security|bond|cost|cash|variation|certificate|instruction|retention/.test(area))return 'PMC Commercial Manager — individual not designated';
- if(/hse|safety|permit/.test(area))return 'PMC HSE Manager — individual not designated';
- if(/construction|delivery|resource|interface|site/.test(area))return 'PMC Construction Manager — individual not designated';
- if(/programme|schedule|activity|planning|float/.test(area))return 'PMC Planning Engineer — individual not designated';
- return 'PMC Project Controls Manager — individual not designated';
-}
+function pmcDisplayOwner(domain,owner=null){return pmcRoleOwner(domain,owner);}
+
 function applyPmcDisplayOwners(root,defaultDomain){
  if(!root||typeof root.querySelectorAll!=='function')return;
  // Missing source individuals receive the accountable PMC role, never a
@@ -5346,7 +5358,7 @@ function renderModuleResultBody(result){
   const sourceBasis=result.key==='progress-breakdown'?'':renderBasisReviews(data,result.key);
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(['master-dashboard','command-center','pmo-analysis','master-control-programme','milestones','contract-particulars-bonds','liquidated-damages','eot-assessment'].includes(result.key)?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
+  const primaryView=(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
   const floatReview=['activity-analytics','near-critical','independent-forecast'].includes(result.key)
     ?renderActivityFloatReconciliation(data.activityFloatReconciliation):'';
 
@@ -5358,7 +5370,8 @@ function renderModuleResultBody(result){
   const progressBreakdown=result.key==='progress-breakdown';
   const supporting=progressBreakdown?'':experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+renderClaimsReporting(data.claimsReporting,result.key)+sourceBasis,"Dates, records and calculation qualifications");
   const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
-  el("moduleContent").innerHTML=context+floatReview+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+    (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     supporting+review;
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);

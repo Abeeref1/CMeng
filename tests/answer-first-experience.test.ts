@@ -1,6 +1,7 @@
+import {runInNewContext} from './browser-context';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runInNewContext} from 'node:vm';
+
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import {completionPosition} from '../packages/runtime-api/src/completion-position';
 import {positionVerdict} from '../packages/runtime-api/src/position-review';

@@ -51,7 +51,7 @@ function fixture(t: { after(fn:()=>void): unknown }) {
   return {dir,store,state,csvDoc};
 }
 const master='Resource ID,Resource UID,Resource Name,Class,Unit,Utilization Applicable\nL,1,Labour,Labor,labor_hour,Yes\nE,2,Crane,Equipment,equipment_hour,Yes\nM,3,Concrete,Material,m3,No';
-const weekly='Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nL,2026-08-24,100,120,80,labor_hour\nE,2026-08-24,50,40,30,equipment_hour\nM,2026-08-24,1000,200,150,m3';
+const weekly='Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit,Capacity Approval\nL,2026-08-24,100,120,80,labor_hour,Approved\nE,2026-08-24,50,40,30,equipment_hour,Approved\nM,2026-08-24,1000,200,150,m3,Approved';
 const claims='Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nC1,Access unavailable,2026-08-02,20,5,Submitted';
 const determinations='Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Source Letter,Governance State\nD1,C1,15,2026-07-24,Determined,Engineer,L1,Immutable\nD2,C1,11,2026-08-16,Determined,Engineer,L2,Immutable\nD3,C1,112,2026-09-08,Determined,Engineer,L3,Immutable';
 function amendment(state:ProjectRuntimeState) {
@@ -1186,7 +1186,7 @@ test('embedded usage stays visible as source-register evidence without being pro
 });
 test('weekly actuals stop at Data Date in both resource and manhour views, with same-period plan variance',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(master);
-  csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nL,2026-08-24,100,120,80,labor_hour\nL,2026-09-07,100,150,50,labor_hour');
+  csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit,Capacity Approval\nL,2026-08-24,100,120,80,labor_hour,Approved\nL,2026-09-07,100,150,50,labor_hour,Approved');
   csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nL,2026-09-07,50,Approved,labor_hour');
   const resources=canonicalResourceModule(state,'resource-utilization')!.data as any;
   const hours=canonicalResourceModule(state,'manhour-scurve')!.data as any;
@@ -1199,7 +1199,7 @@ test('weekly actuals stop at Data Date in both resource and manhour views, with 
 
 test('resource-week overload position stops at the Data Date and remains distinct from resources ever overloaded',t=>{
  const {state,csvDoc}=fixture(t);
- csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Unit,Class\nL,2026-08-24,100,110,labor_hour,Labor\nL,2026-08-31,100,90,labor_hour,Labor\nL,2026-09-07,100,200,labor_hour,Labor');
+ csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Unit,Class,Capacity Approval\nL,2026-08-24,100,110,labor_hour,Labor,Approved\nL,2026-08-31,100,90,labor_hour,Labor,Approved\nL,2026-09-07,100,200,labor_hour,Labor,Approved');
  csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,120,Approved,labor_hour\nL,2026-08-31,80,Approved,labor_hour\nL,2026-09-07,300,Approved,labor_hour');
  const r=canonicalResources(state);assert.deepEqual(r.capacityChecksToDataDate?.actual,{comparableCount:2,exceededCount:1,resourceCount:1});
  assert.deepEqual(r.capacityChecksToDataDate?.planned,{comparableCount:2,exceededCount:1,resourceCount:1});assert.equal(r.overloadedRowCount,2);
@@ -1243,7 +1243,7 @@ test('source-stated certified certificates are visible as dated source facts wit
 
 test('individual resource overload survives aggregation below total capacity',t=>{
  const {state,csvDoc}=fixture(t);csvDoc('Resource ID,Resource Name,Class,Unit,Utilization Applicable\nA,Trade A,Labor,labor_hour,Yes\nB,Trade B,Labor,labor_hour,Yes');
- csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit\nA,2026-08-24,100,150,120,labor_hour\nB,2026-08-24,100,10,10,labor_hour','resource_register','active',':capacity');
+ csvDoc('Resource ID,Week Start,Available Capacity,Planned Demand,Actual Approved Usage,Unit,Capacity Approval\nA,2026-08-24,100,150,120,labor_hour,Approved\nB,2026-08-24,100,10,10,labor_hour,Approved','resource_register','active',':capacity');
  csvDoc('Resource ID,Week Start,Actual Approved Usage,Unit,Source Status\nA,2026-08-24,120,labor_hour,Approved\nB,2026-08-24,10,labor_hour,Approved','resource_register','active',':approved');
  const p=canonicalResourceModule(state,'resource-utilization')!.data as any;
  const w=p.basisComparison.capacityExceptionTrend[0];assert.equal(w.plannedExceeded,1);assert.equal(w.actualExceeded,1);assert.equal(w.comparableCount,2);
