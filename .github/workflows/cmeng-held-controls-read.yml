@@ -17,16 +17,48 @@ jobs:
         shell: bash
         run: |
           mkdir -p /tmp/cmeng-controls
-          node <<'NODE'
-          const fs=require('node:fs'),out='/tmp/cmeng-controls',base='https://cmeng-main-production.up.railway.app';
-          async function read(path){const r=await fetch(base+path,{signal:AbortSignal.timeout(75000)});if(!r.ok)throw Error(r.status+' '+path);return r.json();}
-          (async()=>{const health=await read('/health');fs.writeFileSync(out+'/health.json',JSON.stringify(health));const inventory=await read('/api/portfolio');fs.writeFileSync(out+'/portfolio.json',JSON.stringify(inventory));const projects=inventory.projects||[];let i=0;const status=[];
-          const routes=[['payments','commercial/modules/payments'],['cost','commercial/modules/cost-forecast'],['wbs','schedule/modules/wbs-progress']];
-          async function worker(){while(i<projects.length){const p=projects[i++],id=p.projectId;if(!id)continue;const dir=out+'/'+encodeURIComponent(id);fs.mkdirSync(dir,{recursive:true});for(const[name,route]of routes){try{const data=await read('/api/projects/'+encodeURIComponent(id)+'/'+route+'/report.json');fs.writeFileSync(dir+'/'+name+'.json',JSON.stringify(data));status.push({projectId:id,name,ok:true});}catch(e){status.push({projectId:id,name,ok:false,error:String(e)});}}}
-          await Promise.all([worker(),worker()]);const largest=projects.slice().sort((a,b)=>(b.schedule?.activityCount??b.activityCount??0)-(a.schedule?.activityCount??a.activityCount??0))[0];
-          try{const data=await read('/api/projects/UPTOWN-100/management/master-dashboard/report.json');fs.writeFileSync(out+'/largest-dashboard.json',JSON.stringify(data));}catch(e){status.push({name:'largest-dashboard',ok:false,error:String(e)});}
-          fs.writeFileSync(out+'/status.json',JSON.stringify(status));console.log(JSON.stringify({release:health.release,projects:projects.length,success:status.filter(s=>s.ok).length,failures:status.filter(s=>!s.ok)}));})().catch(e=>{console.error(e);process.exitCode=1;});
+          cat > /tmp/capture.cjs <<'NODE'
+          const fs=require('node:fs');
+          const out='/tmp/cmeng-controls',base='https://cmeng-main-production.up.railway.app';
+          async function read(path){
+            const r=await fetch(base+path,{signal:AbortSignal.timeout(75000)});
+            if(!r.ok)throw Error(r.status+' '+path);
+            return r.json();
+          }
+          (async()=>{
+            const health=await read('/health');
+            fs.writeFileSync(out+'/health.json',JSON.stringify(health));
+            const inventory=await read('/api/portfolio');
+            fs.writeFileSync(out+'/portfolio.json',JSON.stringify(inventory));
+            const projects=inventory.projects||[],status=[];
+            let i=0;
+            const routes=[['payments','commercial/modules/payments'],['cost','commercial/modules/cost-forecast'],['wbs','schedule/modules/wbs-progress']];
+            async function worker(){
+              while(i<projects.length){
+                const p=projects[i++],id=p.projectId;
+                if(!id)continue;
+                const dir=out+'/'+encodeURIComponent(id);
+                fs.mkdirSync(dir,{recursive:true});
+                for(const[name,route]of routes){
+                  try{
+                    const data=await read('/api/projects/'+encodeURIComponent(id)+'/'+route+'/report.json');
+                    fs.writeFileSync(dir+'/'+name+'.json',JSON.stringify(data));
+                    status.push({projectId:id,name,ok:true});
+                  }catch(e){status.push({projectId:id,name,ok:false,error:String(e)});}
+                }
+              }
+            }
+            await Promise.all([worker(),worker()]);
+            try{
+              const data=await read('/api/projects/UPTOWN-100/management/master-dashboard/report.json');
+              fs.writeFileSync(out+'/largest-dashboard.json',JSON.stringify(data));
+            }catch(e){status.push({name:'largest-dashboard',ok:false,error:String(e)});}
+            fs.writeFileSync(out+'/status.json',JSON.stringify(status));
+            console.log(JSON.stringify({release:health.release,projects:projects.length,success:status.filter(s=>s.ok).length,failures:status.filter(s=>!s.ok)}));
+          })().catch(e=>{console.error(e);process.exitCode=1;});
           NODE
+          node --check /tmp/capture.cjs
+          node /tmp/capture.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
