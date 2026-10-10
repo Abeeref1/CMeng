@@ -1,0 +1,70 @@
+name: CMeng Cache and Contract Parity Gate
+on:
+  push:
+    branches: ['fix/cmeng-cache-closure-20261011-2222']
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply checked delta to exact live source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 'd0aac7e96229914ecbccf12c203f5b4afecb8c6a'
+          mkdir -p /tmp/cmeng-cache-closure
+          base64 -d scripts/cache-closure.patch.b64 | xz -d > /tmp/cmeng-cache-closure/changes.patch
+          echo '5ca05840f0bf97b965e50e14adf7041ddb9d943e8703eb93babed6e4486fd48f  /tmp/cmeng-cache-closure/changes.patch' | sha256sum -c -
+          git apply --check --unidiff-zero /tmp/cmeng-cache-closure/changes.patch
+          git apply --unidiff-zero /tmp/cmeng-cache-closure/changes.patch
+      - name: Install application and browser dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Build and run unchanged topology, calculation and gateway preservation checks
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run typecheck
+          node scripts/check-assembled-browser.cjs
+          node --test dist/tests/project-gateway-preservation.test.js dist/tests/shared-decision-closure.test.js dist/tests/system-root-causes.test.js dist/tests/schedule-analysis-core.test.js dist/tests/schedule-cpm.test.js dist/tests/cpm-shared-topology.test.js dist/tests/activity-population.test.js dist/tests/project-read-cache.test.js dist/tests/activity-float-reconciliation.test.js | tee /tmp/cmeng-cache-closure/preservation.log
+      - name: Read largest existing project report without writes
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            const r=await fetch('https://cmeng-main-production.up.railway.app/api/projects/UPTOWN-100/management/master-dashboard/report.json',{signal:AbortSignal.timeout(120000)});
+            if(!r.ok)throw Error('Largest report HTTP '+r.status);
+            const d=await r.json(),v=d.result??d;
+            if((v.data?.projectFacts?.projectId??v.data?.projectId)!=='UPTOWN-100')throw Error('Largest source identity mismatch');
+            fs.writeFileSync('/tmp/cmeng-cache-closure/largest-dashboard.json',JSON.stringify(d));
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          NODE
+      - name: Actual browser start, every demo page and largest dashboard
+        run: |
+          set -euo pipefail
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then npx playwright install chromium; export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"; fi
+          CMENG_LARGEST_REPORT=/tmp/cmeng-cache-closure/largest-dashboard.json CMENG_REQUIRE_LARGEST=1 CMENG_FAST_GATE_REPORT=/tmp/cmeng-cache-closure/fast-gate.json node scripts/fast-release-gate.cjs
+      - name: Publish only the exact checked application source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages tests
+          git commit -m 'Shared gateway parity and immutable calculation indexes: remove repeated topology, crew and UTC work without changing source values or release thresholds'
+          git push origin HEAD:refs/heads/fix/cmeng-cache-closure-validated-20261011-2222
+          git rev-parse HEAD > /tmp/cmeng-cache-closure/validated-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-cache-closure-${{ github.run_id }}
+          path: /tmp/cmeng-cache-closure/
+          retention-days: 3
