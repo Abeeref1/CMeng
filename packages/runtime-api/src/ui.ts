@@ -3010,6 +3010,8 @@ function renderProgressBreakdownVisual(data){
 function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
   if(!Array.isArray(p.rows))return"";
+  const full=p.milestoneFullCounts||null;
+  const partialSource=!!full&&p.rows.length<full.sourceRows;
   const dd=planningDateMs(p.dataDateIso);
   const due30=p.due30Count;
   const slippedOpen=aggregateCount(p.rows,r=>r.status==='completed'?false:r.status==='unknown'||r.varianceDays==null?null:r.varianceDays>0).value;
@@ -3069,8 +3071,8 @@ const movementClusters=new Map();
   const priorityBand=planningStatusBand([
     ["Critical",p.criticalPriorityCount??priorityRows.filter(r=>r.managementPriority==="critical").length,"danger"],
     ["High",p.highPriorityCount??priorityRows.filter(r=>r.managementPriority==="high").length,"warning"],
-    ["Watch",priorityRows.filter(r=>r.managementPriority==="watch").length,"accent"],
-    ["Normal",priorityRows.filter(r=>r.managementPriority==="normal").length,"neutral"]
+    ["Watch",full?.priorityCounts?.watch??priorityRows.filter(r=>r.managementPriority==="watch").length,"accent"],
+    ["Normal",full?.priorityCounts?.normal??priorityRows.filter(r=>r.managementPriority==="normal").length,"neutral"]
   ]);
   const detail=[...p.rows].sort((a,b)=>{
     const ac=a.status==="completed"?1:0,bc=b.status==="completed"?1:0;
@@ -3135,14 +3137,14 @@ const movementClusters=new Map();
   const lateMilestones=managementPanel('Late milestone commitments — active versus history',
     'Past-due open commitments require intervention; baseline slippage is a separate comparison. Completed milestones are historic actuals and have no live float exposure.',
     planningKpis([
-      ['Open milestones past their current finish',openOverdueMilestones.length,'not completed at the reporting Data Date'],
-      ['Open milestones later than baseline',openBaselineLate.length,'current versus controlled baseline; overlaps overdue population'],
-      ['Completed after baseline',completedAfterBaseline.length,'historical actual completion; not live float pressure']
+      ['Open milestones past their current finish',p.lateOpenCount??(full?.overdueOpenCount??'Not established'),'not completed at the reporting Data Date'],
+      ['Open milestones later than baseline',full?.openLateBaselineCount??openBaselineLate.length,'current versus controlled baseline; overlaps overdue population'],
+      ['Completed after baseline',full?.completedLateBaselineCount??completedAfterBaseline.length,'historical actual completion; not live float pressure']
     ])+
-    (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):'<p>No current open milestone finish date is overdue.</p>')+
+    (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):((full?.overdueOpenCount??0)>0?'<p>Open overdue milestones exist in the full source population but are outside this preview. Download the complete register.</p>':'<p>No current open milestone finish date is overdue in the checked population.</p>'))+
     (openBaselineLate.length?'<details><summary>Open milestones later than baseline · '+fmt(openBaselineLate.length)+'</summary>'+basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openBaselineLate,50,'baseline'))+'</details>':'')+
     (completedAfterBaseline.length?'<details><summary>Historical completions later than baseline · '+fmt(completedAfterBaseline.length)+'</summary>'+basisTable(['Milestone','Baseline date','Actual completion','Movement','Historical classification'],rowDetail(completedAfterBaseline,30,'completed'))+'</details>':'')+
-    '<p>Displayed source lists are limited to the first 50 open and 30 historical milestones; the complete unaltered population is available in the page export.</p>',true);
+    '<p>Displayed source lists are limited to the first 50 open and 30 historical milestones; counts are calculated across the full source population. Download the unaltered register to inspect all entries.</p>',true);
   const managementControl=managementPanel("Milestones requiring management control","Milestone authority, baseline, current position, forecast, movement, float, driver, recorded owner and required action. Contractual/client authority is not inferred from a programme activity name.",controlRows?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Authority</th><th>Baseline</th><th>Current</th><th>Forecast</th><th>Movement</th><th>Float</th><th>Driver</th><th>Owner</th><th>Action</th></tr></thead><tbody>'+controlRows+'</tbody></table></div>':'<div class="notice info">No open milestone currently requires ranked management action.</div>',true);
   const analytics=experienceDisclosure(
     "Milestone analytics & source-float detail",
@@ -3152,8 +3154,8 @@ const movementClusters=new Map();
   const timelinePanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Milestone timeline</h4><p>Priority milestone dates on a common calendar axis after the management action table.</p></div></div><div class="planning-panel-body">'+timeline+'</div></section>';
   const supportPanels='<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Priority watchlist</h4><p>Supporting urgency and source-float view.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>';
-  const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(p.rows.length))+' milestones; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
-  return '<section class="planning-view milestone-view">'+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+registerPanel+'</section>';
+  const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(full?.sourceRows??p.rows.length))+' milestones; '+(partialSource?'This is a preview only, not a complete source list. ':'')+'The complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
+  return '<section class="planning-view milestone-view">'+(partialSource?'<div class="notice warn"><b>Milestone register preview only.</b> Showing '+fmt(p.rows.length)+' of '+fmt(full.sourceRows)+' source milestones. All headline totals use full server counts; lists on this screen are not complete. Download the register for all open and completed records.</div>':'')+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+registerPanel+'</section>';
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
