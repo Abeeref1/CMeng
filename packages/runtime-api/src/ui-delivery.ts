@@ -18,7 +18,7 @@ function deliveryValue(v){
  if(typeof humanizeIsoText==='function')return humanizeIsoText(s);
  // Delivery can render independently in a specialist/report context. Do not
  // require the management page to have installed a global presentation helper.
- return s.replace(/\\b\\d{4}-\\d{2}-\\d{2}\\b/g,date=>{
+ return s.replace(/\b\d{4}-\d{2}-\d{2}\b/g,date=>{
    const at=new Date(date+'T00:00:00Z');
    return Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===date
      ?deliveryDateFormat.format(at):date;
