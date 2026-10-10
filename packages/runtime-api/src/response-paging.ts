@@ -88,7 +88,7 @@ export function pageProjectResponse(
  const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),factPointer):null;
  // Chart series, time histories and milestone decision populations are not
  // display-register pages. Their full data must reach the visualisation.
- const screenKey=String(item?.key??item?.data?.projectionKey??source.split('?')[0].split('/').pop()??'').toLowerCase();
+ const screenKey=String(item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
  const neverPageArray=(key:string,pointer:string)=>(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints)$/i.test(key)
    ||(pointer.endsWith('/rows')&&(screenKey==='milestones'||pointer.includes('/milestones/')))
