@@ -1633,7 +1633,7 @@ function cashFlow(
         (payment) =>
           reportingScope(payment.periodEnd??payment.paymentDate,input.dataDateIso)==='as_of',
       );
-    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis&&(Boolean(p.certificationDate)||! /application|applied|submitted|draft|pending certif/i.test(p.sourceStatus??'')));
+    const certifiedPayments=payments.filter(p=>p.currency===currency&&(p.taxBasis??'unknown')===taxBasis&&(!/application|applied|submitted|draft|pending certif/i.test(p.sourceStatus??'')));
     const paidPayments=payments.filter(p=>paidCurrency(p)===currency&&paidTax(p)===taxBasis);
 
     const addPaymentSeries = (

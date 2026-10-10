@@ -30,7 +30,7 @@ export function certificateProfile(ledger:CanonicalCommercialModel){
       // Unknown series basis permits an explicitly labelled arithmetic sum, never a certified cumulative balance.
       const summable=!duplicateIds&&!cumulative&&Boolean(currency)&&taxBasis!=='unknown';
       const totals=summable?total(asOf):null,futureTotals=summable?total(future):null;
-      const certified=asOf.filter(row=>row.certificationConfirmedByDataDate&&!/application|submitted/i.test(row.sourceStatus??''));
+      const certified=asOf.filter(row=>row.certificationConfirmedByDataDate&&!/application|applied|submitted|draft|pending certification/i.test(row.sourceStatus??''));
       const certifiedTotals=summable&&incremental?total(certified):null;
       return {currency,taxBasis,as_of:asOf,future,undated,population:partition.population,totals,futureTotals,certifiedTotals,certifiedCount:certified.length,
         cumulativeBasis:!summable?'not_aggregable':incremental?'incremental_confirmed':'source_row_sum_only',

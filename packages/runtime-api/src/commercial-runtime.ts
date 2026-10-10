@@ -1,3 +1,4 @@
+import {sourceCommercialEvidence} from './source-commercial-evidence';
 import {certificateProfile} from "./certificate-profile";
 import {programmeCashScenario} from './programme-cash-scenario';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -227,6 +228,7 @@ export function commercialPositionForState(
     currency.currentContractValue={...currency.currentContractValue,state:'candidate',diagnostics:[...currency.currentContractValue.diagnostics,...diagnostics]};
   }
   position.costBasisReview=costBasisReview(ledger,position.certificateProfile,position.currencies);
+  Object.assign(position,sourceCommercialEvidence(state,ledger,position,sourceCommercialCutoff));
   position.contractNoticeRules=[...contractNoticeRules(state),...contractNoticeRules(state,'detailed_claim')];
   position.foundation.commercialTerms.noticeVersions=position.contractNoticeRules;
   const scheduleModel=projectControlSchedule(state)?.revision.model??null;

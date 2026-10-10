@@ -39,7 +39,25 @@ function computeDeliveryFeasibility(state:ProjectRuntimeState) {
   const resourceModel=state.resourcesByRevision.get(current.revision.revisionId),resourceById=new Map(resourceModel?.resources.map(row=>[row.resourceId,row])??[]);
   const laborAssignments=(resourceModel?.assignments??[]).filter(row=>{const resource=row.resourceId?resourceById.get(row.resourceId):null;return Boolean(resource&&resourceLaborHourEligible(resource));});
   const programmeChecks={remainingLaborHours:laborAssignments.length&&laborAssignments.every(row=>typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits))?laborAssignments.reduce((sum,row)=>sum+row.remainingUnits!,0):null,calendarActivityCount:model.activities.filter(row=>row.status!=='completed'&&resolveWorkingCalendar(row.calendarId,model.calendars,false)).length,crewScenarios:plotCrewScenarios(model),basis:'Submitted remaining labour-hour budget and source-calendar crew sensitivities. They do not establish a quantity-driven productivity forecast.'};
-  return {...analysis,programmeChecks,programmePc:{baseline:from,current:to,baselineRevisionId:baseline?.revision.revisionId??null,currentRevisionId:current.revision.revisionId,movementDays:comparable?Number(((Date.parse(to.dateIso!)-Date.parse(from.dateIso!))/86400000).toFixed(6)):null,state:comparable?'established':'unresolved',reason:comparable?'Same explicit Programme PC activity in the adopted baseline and current programme; movement does not establish causation or EOT.':!baseline?'An adopted baseline is not established.':!from.dateIso?from.reason:!to.dateIso?to.reason:'Confirm that baseline and current Programme PC refer to the same milestone.'}};
+  const finishes=model.activities.filter(a=>a.status!=='completed').flatMap(a=>a.forecastFinishIso??a.currentFinishIso??[]).sort();
+  const target=to.dateIso??finishes.at(-1)??null;
+  const days=cutoff&&target?Math.max(0,(Date.parse(target.slice(0,10))-Date.parse(cutoff))/86400000):null;
+  const calculatedSequences=programmeChecks.crewScenarios.filter(s=>s.state==='calculated');
+  const dailyHours=programmeChecks.remainingLaborHours!==null&&days!==null&&days>0?programmeChecks.remainingLaborHours/days:null;
+  const assumptions=[
+    'Retain the submitted remaining labour budget; it is not a verified quantity/productivity allowance.',
+    'Use the submitted programme finish as a planning target, not as a contractual completion determination.',
+    ...(dailyHours!==null?['Spread remaining labour hours uniformly over calendar days; working-day and shift capacity require the actual resource calendar.']:[]),
+    ...calculatedSequences.map(s=>s.assumption),
+  ];
+  const missingInputs=[programmeChecks.remainingLaborHours===null?'Complete remaining labour hours by trade':null,!target?'A dated submitted programme finish':null,
+    'Approved crew availability, shifts and production rates for a capacity verdict'].filter((v):v is string=>v!==null);
+  const feasibilityPosition={state:dailyHours!==null||calculatedSequences.length?'conditional_scenario':'inputs_incomplete',
+    answer:dailyHours!==null?'The submitted labour budget requires '+dailyHours.toFixed(2)+' labour hours per calendar day to the submitted finish. Crew capacity must meet this rate.':calculatedSequences.length?calculatedSequences.length+' source-calendar crew sequences are calculable; their conditional finish effects are shown below.':'A numeric crew-capacity verdict is not established from the supplied hours, calendars and crew data.',
+    targetFinishIso:target,calendarDaysAvailable:days,requiredLaborHoursPerCalendarDay:dailyHours,
+    calculatedSequenceCount:calculatedSequences.length,assumptions,missingInputs,
+    capacityVerdict:'Not determined without approved crew capacity in a comparable unit and period',authority:'scenario'};
+  return {...analysis,feasibilityPosition,programmeChecks,programmePc:{baseline:from,current:to,baselineRevisionId:baseline?.revision.revisionId??null,currentRevisionId:current.revision.revisionId,movementDays:comparable?Number(((Date.parse(to.dateIso!)-Date.parse(from.dateIso!))/86400000).toFixed(6)):null,state:comparable?'established':'unresolved',reason:comparable?'Same explicit Programme PC activity in the adopted baseline and current programme; movement does not establish causation or EOT.':!baseline?'An adopted baseline is not established.':!from.dateIso?from.reason:!to.dateIso?to.reason:'Confirm that baseline and current Programme PC refer to the same milestone.'}};
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof computeDeliveryFeasibility>}>();
 export function deliveryFeasibilityForState(state:ProjectRuntimeState){

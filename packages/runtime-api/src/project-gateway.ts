@@ -178,6 +178,14 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const body=await response.json() as {projects:Record<string,any>[]};const summary=body.projects.find(p=>p.projectId===id);
       const entry=catalog.get(id);if(!entry||!summary)return;
       if(entry.metadata&&entry.metadata.version!==summary.version)return;
+      const priorityRoute='/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability';
+      if(!(await reads(id).get(release(),summary.version,priorityRoute))){
+        const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(20000)});
+        if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
+          if(Number(ownerPage.headers.get('x-cmeng-project-version'))===summary.version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===summary.version)
+            await reads(id).put(release(),summary.version,priorityRoute,bytes);
+        }
+      }
       entry.summary=summary;entry.summaryRelease=release();
       summaryFailures.delete(id);
       await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});

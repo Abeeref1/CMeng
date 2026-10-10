@@ -79,11 +79,11 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
   const hasRasterBoq=(d:ProjectRuntimeState['evidenceDocuments'][number])=>Boolean(d.sourceHashSha256&&d.boqTableRead&&d.boqTableRead.sourceHashSha256===d.sourceHashSha256&&d.boqTableRead.structuredTableFound);
   const artifactId=(d:ProjectRuntimeState['evidenceDocuments'][number])=>hasRasterBoq(d)?d.boqTableRead!.ingestionId:d.linkedArtifactId;
   const adopted=(d:ProjectRuntimeState['evidenceDocuments'][number])=>d.documentType==='boq'&&['active','additive'].includes(d.basisState);
-  const documents=state.evidenceDocuments.filter(d=>['active','additive','candidate'].includes(d.basisState)&&(d.documentType==='boq'||hasRasterBoq(d)));
+  const documents=(state.evidenceDocuments??[]).filter(d=>['active','additive','candidate'].includes(d.basisState)&&(d.documentType==='boq'||hasRasterBoq(d)));
   const rejected=documents.filter(d=>documentClassificationForReview(d).documentType!=='boq');
   const usable=documents.filter(d=>!rejected.includes(d));
   const invalidIds=new Set(rejected.map(artifactId));
-  const recordedDocuments=state.evidenceDocuments.filter(d=>artifactId(d)===state.boq?.ingestionId);
+  const recordedDocuments=(state.evidenceDocuments??[]).filter(d=>artifactId(d)===state.boq?.ingestionId);
   const hasEstablished=usable.some(adopted);
   const validCurrent=state.boq&&!invalidIds.has(state.boq.ingestionId)&&(recordedDocuments.length
     ? recordedDocuments.some(d=>usable.includes(d)&&(!hasEstablished||adopted(d)))

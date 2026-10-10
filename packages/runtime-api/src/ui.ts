@@ -873,6 +873,10 @@ function renderDeliveryChallenge(data,reason,status){
     ["Activity feasibility checks",(f.activityChecks||[]).length||"Not established","current activity checks"],
     ["Labour evidence",data.sourceLaborEvidence?"Available":"Not established","source hours remain evidence; not inferred headcount"]
   ]);
+  const feasibility=f.feasibilityPosition;
+  const feasibilityAnswer=feasibility?managementPanel('Feasibility · source-based planning scenario',feasibility.answer,
+   (feasibility.requiredLaborHoursPerCalendarDay!==null?planningKpis([['Required labour per calendar day',feasibility.requiredLaborHoursPerCalendarDay,'hours · uniform planning assumption'],['Calendar days to submitted finish',feasibility.calendarDaysAvailable,'source date interval']]):'')+
+   '<p><b>Assumptions:</b> '+escapeHtml(feasibility.assumptions.join(' '))+'</p><p><b>Exact inputs still required:</b> '+escapeHtml(feasibility.missingInputs.join('; '))+'</p><p>'+escapeHtml(feasibility.capacityVerdict)+'</p>',true):'';
   const pc=f.programmeChecks;
   const programmeChecks=pc?managementPanel('Available programme checks',pc.basis,planningKpis([['Remaining labour hours',pc.remainingLaborHours==null?'Missing':fmt(pc.remainingLaborHours)+' h','submitted assignment budget'],['Remaining activities with calendars',pc.calendarActivityCount,'source working-time basis']])+(pc.crewScenarios||[]).map(row=>'<p><b>'+escapeHtml(row.subject)+'</b> · '+fmt(row.sourceWorkingDays)+' source working days across the sequence. '+escapeHtml(row.currentPosition)+' '+escapeHtml(row.targetPosition)+' '+(row.possibleDaysRecovered===null?'':fmt(row.possibleDaysRecovered)+' calendar days of conditional local saving.')+'</p>').join(''),true):'';
   const challengeActive=availability?availability.state==="active":Boolean(data?.deliveryChallenge&&(f.activityChecks||[]).length>0);
@@ -891,7 +895,7 @@ function renderDeliveryChallenge(data,reason,status){
       (assessedItems.length?'<p>Supported item quantities and labour rates are retained for drill-down; missing item records do not erase them.</p>':'')
     ,true):'';
   if(!challengeActive){
-    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p><b>Manpower and duration check: Unable to assess.</b> '+escapeHtml(availability?.reason||f.reason||"Delivery-challenge prerequisites are incomplete.")+'</p></div>'+sourceKpis+programmeChecks+partialFeasibility+
+    const compact='<section class="planning-view contract-challenge-view"><div class="notice info"><b>Challenge the Contract is not yet fully assessable.</b><p>'+escapeHtml(feasibility?.answer||availability?.reason||f.reason||"The item-level quantity and productivity inputs are incomplete.")+'</p></div>'+feasibilityAnswer+sourceKpis+programmeChecks+partialFeasibility+
       '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What is available and what is missing</h4><p>Each check uses the evidence it needs. Quantity-driven crew sizing still requires item-level links and productivity; programme and measured-quantity checks remain available.</p></div></div><div class="planning-panel-body">'+prereqTable+'</div></section></section>';
     el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,compact,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
     return true;
@@ -2256,8 +2260,8 @@ function renderPmoVisual(data){
             ['EAC',row.forecastEac?.value??'Not established',(row.forecastEac?.state==='confirmed'?'Source reported':'Candidate or unavailable')+' · '+row.currency],
             ['Certified unpaid',row.certifiedUnpaidAmount?.value??'Not established',row.currency+' · certified less paid, not applied certificates'],
             ['CPI',row.cpi??associated.cpi??{value:null,valueState:'not_in_source'},'Cost performance ratio; no cross-currency estimate']
-          ])+'</section>';
-      }).join('')+managementModuleLink('cost-forecast','Review full Cost Forecast / CPI basis'),true):
+          ])+(row.eacScenarios?.length?basisTable(['EAC scenario method','Amount','Basis'],row.eacScenarios.map(s=>[s.methodology??s.key??'Source cost forecast scenario',s.value?.value,s.value?.basis??'Scenario; not an approved forecast'])):'')+'</section>';
+      }).join('')+managementModuleLink('cost-forecast' ,'Review full Cost Forecast / CPI basis'),true):
     managementPanel('Cost and cash position','The supporting commercial currency population is not established on this brief. Do not infer a zero from missing evidence.',
       '<p>Current contract, EAC, CPI and certified unpaid require the applicable currency and source-period evidence.</p>'+managementModuleLink('cost-forecast','Open Cost Forecast'));
   return '<section class="planning-view management-view">'+
@@ -4385,6 +4389,10 @@ function renderCommercialVisual(key,data){
       '</section>';
   }
   if(key==="payments"){
+    const linkage=position.paymentLinkage;
+    const linkageHtml=linkage?managementPanel('Payment-to-certificate linkage',linkage.basis,
+      planningKpis([['Payments matched to certificates',linkage.linked,'of '+fmt(linkage.total)+' dated source payments'],['Payment linkage',linkage.coveragePercent,'% · exact reference and compatible dates']])+
+      basisTable(['Payment reference','Certificate','Payment date','Match','Basis'],linkage.rows.map(r=>[r.reference,r.certificateReference||r.certificateNumber,planningShortDate(r.paymentDate),humanizeKey(r.state),r.basis])),true):'';
     const paymentTiming=foundation?.paymentRegister;
     const paymentTimingHtml=paymentTiming?planningKpis([
       ['Paid late',paymentTiming.slaCounts?.paidLate??'Missing','certificates with a dated payment after the due date'],
@@ -4395,7 +4403,7 @@ function renderCommercialVisual(key,data){
       ['Date evidence incomplete',paymentTiming.slaCounts?.notEstablished??'Missing','includes applications awaiting certification']
     ]):'';
     return '<section class="planning-view commercial-view payments-enterprise">'+temporalWarning+
-      commercialSummaryPanel('Payment Value Position by Currency','Certified, paid, unpaid, retention and advance positions share one dated commercial position.')+paymentTimingHtml+
+      commercialSummaryPanel('Payment Value Position by Currency','Certified, paid, unpaid, retention and advance positions share one dated commercial position.')+paymentTimingHtml+linkageHtml+
       experienceDisclosure('Source periods and applications',experienceCertificatePanels(position)+temporalScope,'Includes applications awaiting certification; excluded from certified totals')+
       experienceDisclosure('Payment dates and lifecycle',foundationDetail,'Application, assessment, certification and receipt evidence')+
       experienceDisclosure('Certificate and payment source records',detail+ledgerDetail,'Components, balances and excluded periods')+
@@ -5297,6 +5305,7 @@ function observeProjectDisplay(){
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button></div>');
   const mapping=result.data?.boqProgrammeLinks;
   if(mapping&&['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'].includes(result.legacyKey||result.key)){
    container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+fmt(mapping.coveragePercent)+'%</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p>'+managementModuleLink('quantity-scurve','Review BOQ programme links')+'</div></section>');

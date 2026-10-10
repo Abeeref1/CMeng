@@ -50,7 +50,11 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
    return {periodEndIso:month.periodEndIso,grossValuation:gross,netReceipt,
     assumedReceiptIso:paymentDays===null?null:new Date(Date.parse(month.periodEndIso+'T00:00:00Z')+paymentDays*86400000).toISOString().slice(0,10)};
   });
-  return [{currency:currency.currency,remainingGross,retention,advanceRecovery,netReceipts:net,rows,curvePoints:rows.map(row=>({dateIso:row.periodEndIso,grossValuation:row.grossValuation,netReceipt:row.netReceipt})),
+  return [{currency:currency.currency,remainingGross,retention,advanceRecovery,netReceipts:net,rows,curvePoints:(()=>{
+     const dates=[...new Set([dataDateIso?.slice(0,10),finishIso,...rows.flatMap(r=>[r.periodEndIso,r.assumedReceiptIso])].filter((d):d is string=>!!d&&(!finishIso||d<=finishIso)))].sort();
+     return dates.map(dateIso=>({dateIso,grossValuation:round(rows.filter(r=>r.periodEndIso<=dateIso).reduce((sum,r)=>sum+r.grossValuation,0)),
+       netReceipt:net===null||paymentDays===null?null:round(rows.filter(r=>r.assumedReceiptIso&&r.assumedReceiptIso<=dateIso).reduce((sum,r)=>sum+(r.netReceipt??0),0))}));
+   })(),
     certificateCount:currency.interimCertificateCount?.value??null,
     missingInputs:[retentionPercent===null?'Contract retention percentage':null,advance===null?'Remaining advance recovery balance':null,paymentDays===null?'Contract payment period':null].filter((v):v is string=>v!==null),
     basis:'Straight-line source-qualified future receipts, not actual cash.'}];

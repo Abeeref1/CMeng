@@ -60,9 +60,11 @@ function progressBasis(
   input: {
     asOfIso?: string | null;
     coveragePercent?: number | null;
+    basis?: string;
   } = {},
 ): ProgressBasisValue {
   return {
+    ...(input.basis?{basis:input.basis}:{}),
     valuePercent,
     state:
       valuePercent === null
@@ -311,7 +313,7 @@ export function buildProgressReportProjection(
         authority: headlineSelected.basis.authority,
         basis: headlineSelected.key === "schedule_snapshot"
           ? "Submitted activity percentage-complete snapshot; not certified physical progress."
-          : "Best available achieved-progress evidence; current planned phasing remains a separate comparator.",
+          : headlineSelected.basis.basis??"Best available achieved-progress evidence; current planned phasing remains a separate comparator.",
       }
     : {
         key: "missing" as const,

@@ -1,3 +1,4 @@
+import {sourceProgressEvidence} from './source-progress-evidence';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
 import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
@@ -1514,9 +1515,7 @@ function buildBundle(
       lookAhead,
       progressScurve,
       independentForecast,
-      progressEvidence:
-        state.controls
-          .progressEvidence,
+      progressEvidence: sourceProgressEvidence(state),
     });
   modules.set(
     "progress-report",
@@ -6317,9 +6316,7 @@ function buildSpecialistModuleFast(
         progressScurve,
         independentForecast:
           sourceForecast,
-        progressEvidence:
-          state.controls
-            .progressEvidence,
+        progressEvidence: sourceProgressEvidence(state),
       });
     const externalProgressEstablished =
       projection.progressBases

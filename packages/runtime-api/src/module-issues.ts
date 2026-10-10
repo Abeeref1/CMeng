@@ -119,6 +119,16 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
     if(optionalForecastAbsent(path,value))return;
+    if(path.endsWith('.advancePaymentBondRequirement')&&value.state==='missing'){
+      const held=d?.position?.heldEvidence?.advancePaymentBonds??d?.heldEvidence?.advancePaymentBonds;
+      if(held?.count>0){
+        add('governance_review','HELD_INSTRUMENT_REQUIREMENT_REVIEW','Review contractual security cover',
+          held.count+' advance-payment instrument(s) are already held. Their existence is established; the required contractual cover is not stated in the extracted clause.',
+          'Compare the held instruments with the original advance-security clause; do not request the register again.',path,'Project controls reviewer',
+          (held.rows??[]).flatMap((r:any)=>r.sourceRefs??[r.bondId]).filter((v:any)=>typeof v==='string'));
+        return;
+      }
+    }
     // An explicitly supplied outstanding advance does not depend on deriving
     // the original advance from a contract percentage.
     if(path.endsWith('.advancePaymentPercent')&&d?.position?.currencies?.some((row:any)=>typeof row.advanceBalance?.value==='number'))return;

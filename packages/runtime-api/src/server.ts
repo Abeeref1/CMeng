@@ -116,6 +116,7 @@ import {
 import {
   projectScheduleControlBasis,
 } from "./schedule-control-basis";
+import {resolveBoqSource} from './boq-source';
 import {projectFactsForState} from "./project-facts";
 
 const advancedControlKeys=new Set([
@@ -1865,12 +1866,19 @@ async function route(
     const state=runtimeProjects.get(decodeURIComponent(boqLinkRoute[1]!));
     if(!state){json(res,404,{error:'project_not_found'});return;}
     if(req.method==='GET'){
+      const programme=projectControlSchedule(state),boq=programme?resolveBoqSource(state,programme.revision.revisionId).quantities:state.quantities;
+      const query=String(url.searchParams.get('q')??'').trim().toLowerCase(),kind=url.searchParams.get('kind')??'items';
+      const offset=Math.max(0,Math.floor(Number(url.searchParams.get('offset')??0)||0));
+      const options=kind==='activities'?(programme?.revision.model.activities??[]).map(a=>({id:a.activityId,label:[a.activityId,a.name].filter(Boolean).join(' · ')})):
+        (boq?.items??[]).map(i=>({id:i.quantityItemId,label:[i.itemNumber??'Item number not supplied',i.description,i.unit].filter(Boolean).join(' · ')}));
+      const matches=options.filter(o=>!query||o.label.toLowerCase().includes(query));
       json(res,200,{projectId:state.projectId,projectVersion:state.version,state:'candidate',
+        options:matches.slice(offset,offset+50),total:matches.length,offset,hasMore:offset+50<matches.length,
         rows:state.boqActivityLinkCandidates??[],basis:'Review candidates only; BOQ quantities, EVM and programme allocations are unchanged.'});
       return;
     }
     const body=await readJsonBody<{quantityItemId?:string;activityId?:string;proposedBy?:string;sourceRef?:string;reason?:string}>(req);
-    const current=projectControlSchedule(state),boq=state.quantities;
+    const current=projectControlSchedule(state),boq=current?resolveBoqSource(state,current.revision.revisionId).quantities:state.quantities;
     const quantityItemId=String(body.quantityItemId??'').trim(),activityId=String(body.activityId??'').trim();
     const proposedBy=String(body.proposedBy??'').trim(),sourceRef=String(body.sourceRef??'').trim(),reason=String(body.reason??'').trim();
     if(!current||!boq||!boq.items.some(item=>item.quantityItemId===quantityItemId)||
