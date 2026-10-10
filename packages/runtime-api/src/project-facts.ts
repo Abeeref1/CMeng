@@ -579,6 +579,9 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const briefCommercialPosition=key==='pmo-analysis'?{currencies:decisions.commercialSummary}:undefined;
   const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
-  const decisionAnalysis=decisionAnalysisForModule(scoped,key);
-  return {...result,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
+  // The fast worker path and the direct route share the same bound action
+  // position, including the explanation sent before transport paging.
+  const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
+  return {...result,reason,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

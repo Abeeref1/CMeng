@@ -104,7 +104,7 @@ export function buildActivityAnalyticsProjection(
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
   const logic =
-    buildScheduleActivityLogicIndex(model);
+    buildScheduleActivityLogicIndex(model,true);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
 
   const rows: ActivityAnalyticsRow[] =
@@ -112,9 +112,9 @@ export function buildActivityAnalyticsProjection(
       const entry =
         logic.byActivityId[activity.activityId];
       const predecessors =
-        entry?.predecessorIds ?? [];
+        [...(entry?.predecessorIds ?? [])];
       const successors =
-        entry?.successorIds ?? [];
+        [...(entry?.successorIds ?? [])];
       const dates=dateExceptions(activity);
       const variance=finishVarianceDays(activity);
 

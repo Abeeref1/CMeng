@@ -84,6 +84,7 @@ const activityLogicIndexCache=new WeakMap<CanonicalScheduleModel,{
  * isolated copy so one consumer cannot mutate another view's topology. */
 export function buildScheduleActivityLogicIndex(
   model:CanonicalScheduleModel,
+  sharedReadonly=false,
 ):ScheduleActivityLogicIndex {
   let cached=activityLogicIndexCache.get(model);
   const valid=!!cached
@@ -108,8 +109,17 @@ export function buildScheduleActivityLogicIndex(
       })),
       value:calculateScheduleActivityLogicIndex(model),
     };
+    // Internal read-only consumers can share topology rather than allocate four
+    // copies of every relationship array. Public/default callers keep isolated
+    // mutable copies, and in-place source edits still invalidate the cache.
+    for(const entry of Object.values(cached.value.byActivityId)){
+      Object.freeze(entry.predecessorIds);Object.freeze(entry.successorIds);
+      Object.freeze(entry.incomingRelationshipIds);Object.freeze(entry.outgoingRelationshipIds);Object.freeze(entry);
+    }
+    Object.freeze(cached.value.byActivityId);Object.freeze(cached.value.brokenRelationshipIds);Object.freeze(cached.value);
     activityLogicIndexCache.set(model,cached);
   }
+  if(sharedReadonly)return cached!.value;
   return {
     byActivityId:Object.fromEntries(Object.entries(cached!.value.byActivityId).map(([id,entry])=>[id,{
       ...entry,

@@ -1,3 +1,4 @@
+import {scheduleScopeClassification} from './schedule-scope-classification';
 import {refreshResourceSourceFields} from './resource-source-refresh';
 import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {commercialPositionForState} from './commercial-runtime';
@@ -44,7 +45,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const unresolvedChecks=feasibilityChecks.filter(r=>r.scheduleState==='unresolved');
   const crewEligibleChecks=feasibilityChecks.filter(check=>check.scheduleState==='exceeds'&&typeof check.requiredAveragePeople==='number'&&typeof check.submittedPeople==='number'&&check.requiredAveragePeople>check.submittedPeople&&!!check.submittedFinishIso);
   const governedResequencingWorkfronts=delivery.records.filter(r=>r.kind==='workfront'&&['governed','verified'].includes(r.state)&&['yes','true','permitted','allowed'].includes(String(r.fields['resequencing permitted']??r.fields['parallel execution permitted']??'').trim().toLowerCase()));
-  const scenarios:RecoveryScenario[]=programme?plotCrewScenarios(programme):[];
+  const scenarios:RecoveryScenario[]=programme?plotCrewScenarios(programme,new Map(scheduleScopeClassification(programme).rows.map(r=>[r.activityId,r.plot]))):[];
   for(const check of feasibilityChecks){
     if(check.scheduleState!=='exceeds'||typeof check.requiredAveragePeople!=='number'||typeof check.submittedPeople!=='number'||check.requiredAveragePeople<=check.submittedPeople||!check.submittedFinishIso)continue;
     const additional=Math.max(1,Math.ceil(check.requiredAveragePeople-check.submittedPeople)),recoverable=dayDiff(check.productionFinishIso,check.submittedFinishIso);

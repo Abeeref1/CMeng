@@ -303,12 +303,17 @@ export function parseScheduleInstant(value:string|null):number|null {
  instantParseMemo.set(value,result);return result;
 }
 
+const isoInstantMemo=new Map<number,string>();
 export function isoInstant(
   ms: number | null,
 ): string | null {
-  return ms === null
-    ? null
-    : new Date(ms).toISOString();
+  if(ms===null)return null;
+  const cached=isoInstantMemo.get(ms);if(cached!==undefined)return cached;
+  // A UTC instant has one representation irrespective of project or revision.
+  // Keep the original invalid-instant exception rather than caching a fallback.
+  const value=new Date(ms).toISOString();
+  if(isoInstantMemo.size>=32768)isoInstantMemo.clear();
+  isoInstantMemo.set(ms,value);return value;
 }
 
 export function nextWorkingInstant(

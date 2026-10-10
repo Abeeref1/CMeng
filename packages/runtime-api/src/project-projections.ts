@@ -7807,9 +7807,10 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
     modules: candidates, director: bundle.director, boardReport: bundle.boardReport});
   const p4=profiling?performance.now():0;
   const readinessProfile:Array<{key:string;ms:number}>=[];
+  const issueScan={eligibility:new WeakMap<object,boolean>()};
   const modules = new Map([...candidates].map(([key, result]) => {
     const t=profiling?performance.now():0;
-    const ready=enforceModuleReadiness(result, consistency);
+    const ready=enforceModuleReadiness(result, consistency,issueScan);
     if(profiling)readinessProfile.push({key,ms:performance.now()-t});
     return [key,ready] as const;
   }));

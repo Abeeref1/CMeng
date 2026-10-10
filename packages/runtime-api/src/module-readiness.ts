@@ -2,7 +2,7 @@ import {withPositionVerdict} from './position-review';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
-import { assessModuleIssues } from './module-issues';
+import { assessModuleIssues, type IssueScanContext } from './module-issues';
 import {comparisonRequirement} from './comparison-requirement';
 
 const NON_BLOCKING_REVIEW_CODES = new Set([
@@ -24,9 +24,10 @@ export function enforceModuleReadiness(
   result: ModuleRuntimeResult,
   consistency: Pick<CrossModuleCertification, 'state' | 'failedCheckIds' | 'checkCount'> &
     Partial<Pick<CrossModuleCertification,'checks'>>,
+  scanContext?:IssueScanContext,
 ): ModuleRuntimeResult {
   const scopedConsistency = consistencyForModule(consistency, result.key);
-  const issueAssessment = assessModuleIssues(result, consistency);
+  const issueAssessment = assessModuleIssues(result, consistency,scanContext);
   const data = result.data as any;
   if (!data || typeof data !== 'object') {
     return {...result, issueAssessment};

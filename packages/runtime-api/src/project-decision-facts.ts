@@ -257,7 +257,7 @@ function buildRegisterChecks(commercial:any,ledger:any,quantities:any){
 
 /** A substantive decision table has one home. Other pages link to that home.
  * This shared ownership applies to every project and every export. */
-export function decisionAnalysisForModule(state:ProjectRuntimeState,key:string){
+export function decisionAnalysisForModule(state:ProjectRuntimeState,key:string,projection?:unknown){
  const d=projectDecisionFacts(state);
  const basis={dataDateIso:d.dataDateIso,sourceVersion:d.projectVersion};
  switch(key){
@@ -268,7 +268,22 @@ export function decisionAnalysisForModule(state:ProjectRuntimeState,key:string){
   case 'progress-breakdown':return {...basis,kind:'area_progress',areas:d.quantities.areas,areaCount:d.quantities.areas.length};
   case 'progress-scurve':return {...basis,kind:'monthly_evm',series:d.monthlyEvm};
   case 'notices-claims':return {...basis,kind:'detailed_claims',claimChecks:d.claimChecks};
-  case 'windows-analysis':return {...basis,kind:'long_windows',claimChecks:{...d.claimChecks,rows:d.claimChecks.rows.filter(r=>r.windowStartIso||r.windowEndIso),windowCount:d.claimChecks.rows.filter(r=>r.windowStartIso||r.windowEndIso).length}};
+  case 'windows-analysis':{
+   const value=projection&&typeof projection==='object'?projection as Record<string,any>:{};
+   const source=value.windows??value.result?.windows;
+   const fromProgramme=Array.isArray(source)?source.map((w:any,index:number)=>{
+    const start=date(w.windowStartIso),end=date(w.windowEndIso),longWindow=start&&end?end>monthDate(start,3):null;
+    return {claimReference:'Programme analysis window '+(w.sequence??index+1),windowId:w.windowId??null,
+      windowStartIso:start,windowEndIso:end,windowCalendarDays:days(start,end),longWindow,
+      warning:longWindow?'Delay window exceeds three calendar months; subdivide the analysis or justify the longer window.':null,
+      missingInputs:[!start?'Window start date':null,!end?'Window end date':null].filter(Boolean),
+      sourceRefs:[w.fromRevisionId,w.toRevisionId].filter(Boolean),
+      basis:'The actual from/to programme interval already used by Windows Analysis; no replacement window or entitlement is inferred.'};
+   }):[];
+   const registered=d.claimChecks.rows.filter(r=>r.windowStartIso||r.windowEndIso);
+   const rows=[...fromProgramme,...registered];
+   return {...basis,kind:'long_windows',claimChecks:{...d.claimChecks,rows,windowCount:rows.length,longWindowCount:rows.filter(r=>r.longWindow).length}};
+  }
   case 'payments':return {...basis,kind:'payment_due',paymentChecks:d.paymentChecks};
   case 'commercial-overview':return {...basis,kind:'register_reconciliation',registerValueChecks:d.registerValueChecks};
   default:return null;

@@ -104,3 +104,18 @@ test('Decision-list paging is based on full rows and exposes all records with ex
 test('Decision caches reuse the exact version but invalidate on a new source version',t=>{
  const {state}=fixture(t);const a=projectDecisionFacts(state);assert.equal(projectDecisionFacts(state),a);assert.equal(a.completionConstraints,a.completionConstraints);state.version++;assert.notEqual(projectDecisionFacts(state),a);
 });
+
+
+test('Window screening uses actual programme intervals as well as dated claim register windows',t=>{
+ const {state}=fixture(t);
+ const input={windows:[
+  {windowId:'W1',sequence:1,windowStartIso:'2026-01-31',windowEndIso:'2026-04-30',fromRevisionId:'R1',toRevisionId:'R2'},
+  {windowId:'W2',sequence:2,windowStartIso:'2026-04-30',windowEndIso:'2026-08-01',fromRevisionId:'R2',toRevisionId:'R3'},
+  {windowId:'W3',sequence:3,windowStartIso:null,windowEndIso:'2026-09-01',fromRevisionId:'R3',toRevisionId:'R4'}
+ ]};
+ const before=JSON.stringify(input),result:any=decisionAnalysisForModule(state,'windows-analysis',input);
+ assert.equal(result.claimChecks.rows[0].longWindow,false,'exactly three calendar months is not over three months');
+ assert.equal(result.claimChecks.rows[1].longWindow,true);assert.match(result.claimChecks.rows[1].warning,/exceeds three calendar months/);
+ assert.equal(result.claimChecks.rows[2].longWindow,null);assert.deepEqual(result.claimChecks.rows[2].missingInputs,['Window start date']);
+ assert.equal(result.claimChecks.windowCount,3);assert.equal(JSON.stringify(input),before,'original analysis intervals are retained');
+});

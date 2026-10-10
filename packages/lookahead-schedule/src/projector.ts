@@ -285,7 +285,7 @@ export function buildLookAheadProjection(
         windowDays * 86_400_000;
 
   const logic =
-    buildScheduleActivityLogicIndex(model);
+    buildScheduleActivityLogicIndex(model,true);
 
   const activityById = new Map(model.activities.map(activity => [activity.activityId, activity]));
   const incoming = new Map<string, CanonicalScheduleRelationship[]>();
@@ -375,9 +375,9 @@ export function buildLookAheadProjection(
       missedPlannedStart: missedStart,
       finishOverdue: isOverdue,
       predecessorIds:
-        activityLogic?.predecessorIds ?? [],
+        [...(activityLogic?.predecessorIds ?? [])],
       successorIds:
-        activityLogic?.successorIds ?? [],
+        [...(activityLogic?.successorIds ?? [])],
       readiness: readinessForActivity(
         model,
         activity,

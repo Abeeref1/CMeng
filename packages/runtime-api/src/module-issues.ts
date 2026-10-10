@@ -9,7 +9,8 @@ type Consistency = Pick<CrossModuleCertification,'state'|'failedCheckIds'|'check
 
 /** Classification uses evidence states and failed checks, never a project name,
  * desired result, record count or traffic-light colour. */
-export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Consistency) {
+export type IssueScanContext={eligibility:WeakMap<object,boolean>};
+export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Consistency,scanContext?:IssueScanContext) {
   const scopedConsistency=consistencyForModule(consistency,result.key);
   const d=result.data as any, issues:ControlIssue[]=[];
   const variationGroups=d?.position?.variationBasisReview?.groups??[];
@@ -101,7 +102,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // constructing paths/entering the recursive walker. This is semantics-preserving:
   // every row with a direct issue signal or any non-excluded nested object still
   // follows the exact existing inspection path.
-  const arrayItemCanContainIssue=(item:any)=>{
+  const inspectArrayItem=(item:any)=>{
     if(!item||typeof item!=='object')return false;
     if(Array.isArray(item))return item.length>0;
     if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
@@ -115,6 +116,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       if(child&&typeof child==='object')return true;
     }
     return false;
+  };
+  // A resolution batch visits immutable shared source subtrees in several
+  // modules. Memoise only issue eligibility within that batch, never findings
+  // or their owning paths, so no module can lose its own diagnostic context.
+  const arrayItemCanContainIssue=(item:any)=>{
+    if(!item||typeof item!=='object')return false;
+    const hit=scanContext?.eligibility.get(item);if(hit!==undefined)return hit;
+    const answer=inspectArrayItem(item);scanContext?.eligibility.set(item,answer);return answer;
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value))return;

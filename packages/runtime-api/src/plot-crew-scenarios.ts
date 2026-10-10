@@ -6,25 +6,29 @@ import type {RecoveryScenario} from './recovery-acceleration';
 /** Conditional crew sensitivity: retain source logic and identify exactly which
  * cross-plot FS links are assumed to represent one shared crew. It is a local
  * option for review, not an amendment of the programme or proven project gain. */
-export function plotCrewScenarios(model:CanonicalScheduleModel):RecoveryScenario[]{
+export function plotCrewScenarios(model:CanonicalScheduleModel,plots?:ReadonlyMap<string,string|null>):RecoveryScenario[]{
  if(!model.dataDateIso)return [];
  const activities=new Map(model.activities.map(a=>[a.activityId,a]));
- const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:classifyScheduleActivity(model,a).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\s*\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').replace(/[-–:]\s*$/,'').trim().toLowerCase()}]));
+ // One immutable lookup per projection, not one complete WBS map per task.
+ const wbsNodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
+ const incomingSource=new Map<string,typeof model.relationships>();
+ for(const relation of model.relationships){const rows=incomingSource.get(relation.successorActivityId)??[];rows.push(relation);incomingSource.set(relation.successorActivityId,rows);}
+ const members=new Map(model.activities.filter(a=>a.status!=='completed'&&a.activityType==='task').map(a=>[a.activityId,{a,plot:plots?.has(a.activityId)?plots.get(a.activityId)!:classifyScheduleActivity(model,a,wbsNodes).plot,work:(a.name??'').replace(/\bplot\s*[-:#]?\s*[a-z]?\s*\d+[a-z]?\b/gi,' ').replace(/\s+/g,' ').replace(/[-–:]\s*$/,'').trim().toLowerCase()}]));
  const links=model.relationships.filter(r=>{const p=members.get(r.predecessorActivityId),s=members.get(r.successorActivityId);return !r.external&&r.type==='FS'&&r.lagHours===0&&p?.plot&&s?.plot&&p.plot!==s.plot&&p.work&&p.work===s.work;});
  const incoming=new Map<string,typeof links>(),outgoing=new Map<string,typeof links>();
- for(const r of links){incoming.set(r.successorActivityId,[...(incoming.get(r.successorActivityId)??[]),r]);outgoing.set(r.predecessorActivityId,[...(outgoing.get(r.predecessorActivityId)??[]),r]);}
+ for(const r of links){const ins=incoming.get(r.successorActivityId)??[],outs=outgoing.get(r.predecessorActivityId)??[];ins.push(r);outs.push(r);incoming.set(r.successorActivityId,ins);outgoing.set(r.predecessorActivityId,outs);}
  const scenarios:RecoveryScenario[]=[];
  for(const start of members.values()){
   if(incoming.has(start.a.activityId)||!outgoing.has(start.a.activityId))continue;
-  const chain=[start.a],removed:string[]=[];let current=start.a.activityId;
-  while(outgoing.get(current)?.length===1){const link=outgoing.get(current)![0]!;if(incoming.get(link.successorActivityId)?.length!==1||chain.some(a=>a.activityId===link.successorActivityId))break;chain.push(members.get(link.successorActivityId)!.a);removed.push(link.relationshipId);current=link.successorActivityId;}
+  const chain=[start.a],removed:string[]=[],chainIds=new Set([start.a.activityId]);let current=start.a.activityId;
+  while(outgoing.get(current)?.length===1){const link=outgoing.get(current)![0]!;if(incoming.get(link.successorActivityId)?.length!==1||chainIds.has(link.successorActivityId))break;chain.push(members.get(link.successorActivityId)!.a);chainIds.add(link.successorActivityId);removed.push(link.relationshipId);current=link.successorActivityId;}
   if(chain.length<2)continue;
-  const ids=new Set(chain.map(a=>a.activityId));
+  const ids=chainIds,removedSet=new Set(removed);
   const release=new Map<string,number>();let valid=true;
   for(const a of chain){
    let ready=Date.parse(model.dataDateIso);
    if(!resolveWorkingCalendar(a.calendarId,model.calendars,false)||a.remainingDurationHours===null||a.remainingDurationHours<0||(a.sourceConstraints?.length??0)>0){valid=false;break;}
-   for(const r of model.relationships.filter(r=>r.successorActivityId===a.activityId&&!removed.includes(r.relationshipId))){
+   for(const r of (incomingSource.get(a.activityId)??[]).filter(r=>!removedSet.has(r.relationshipId))){
     const predecessor=activities.get(r.predecessorActivityId),finish=predecessor?.actualFinishIso??predecessor?.forecastFinishIso??predecessor?.currentFinishIso;
     if(r.external||ids.has(r.predecessorActivityId)||r.type!=='FS'||r.lagHours!==0||!finish){valid=false;break;}
     ready=Math.max(ready,Date.parse(finish));
