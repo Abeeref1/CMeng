@@ -3155,7 +3155,33 @@ const movementClusters=new Map();
   const supportPanels='<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Priority watchlist</h4><p>Supporting urgency and source-float view.</p></div></div><div class="planning-panel-body">'+priorityBoard+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management alerts</h4><p>Exceptions requiring intervention or protection.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div>'+
     '<div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone status</h4><p>Completed, open and overdue commitments.</p></div></div><div class="planning-panel-body">'+statusBand+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Management priority</h4><p>Open milestones grouped by required level of attention.</p></div></div><div class="planning-panel-body">'+priorityBand+'</div></section></div>';
   const registerPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Milestone control register</h4><p>Source activity names are descriptive and do not establish contractual authority. Current/actual dates, baseline movement and source-float classifications remain separate. Showing '+escapeHtml(fmt(Math.min(500,p.rows.length)))+' of '+escapeHtml(fmt(full?.sourceRows??p.rows.length))+' milestones; '+(partialSource?'This is a preview only, not a complete source list. ':'')+'The complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the complete milestone register</summary><div class="table-wrap"><table><thead><tr><th>Priority</th><th>Milestone / WBS</th><th>Status</th><th>Criticality</th><th>Baseline</th><th>Current / actual</th><th>Vs baseline d</th><th>Total float h</th><th>Flags</th><th>Required attention</th></tr></thead><tbody>'+detail+'</tbody></table></div></details></div></section>';
-  return '<section class="planning-view milestone-view">'+(partialSource?'<div class="notice warn"><b>Milestone register preview only.</b> Showing '+fmt(p.rows.length)+' of '+fmt(full.sourceRows)+' source milestones. All headline totals use full server counts; lists on this screen are not complete. Download the register for all open and completed records.</div>':'')+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+registerPanel+'</section>';
+  const sourceLists='<section class="planning-panel primary"><div class="planning-panel-head"><h4>Complete milestone source lists</h4><p>Browse every open and completed milestone separately. The server filters the complete source register before paging.</p></div><div class="planning-panel-body">'+
+    '<details><summary>Open milestones · '+fmt(full?.openCount??p.openCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;open&quot;,0)">Browse open milestones</button><div id="milestoneSourceOpen"></div></details>'+
+    '<details><summary>Completed milestones · '+fmt(full?.completedCount??p.completedCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;completed&quot;,0)">Browse completed milestones</button><div id="milestoneSourceCompleted"></div></details></div></section>';
+  return '<section class="planning-view milestone-view">'+(partialSource?'<div class="notice warn"><b>Milestone register preview only.</b> Showing '+fmt(p.rows.length)+' of '+fmt(full.sourceRows)+' source milestones. All headline totals use full server counts; lists on this screen are not complete. Download the register for all open and completed records.</div>':'')+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+sourceLists+registerPanel+'</section>';
+}
+async function loadMilestoneSourcePage(mode,page){
+  if(mode!=='open'&&mode!=='completed')return;
+  const node=el(mode==='open'?'milestoneSourceOpen':'milestoneSourceCompleted'),result=currentModuleResult,owner=project(),seq=projectRequestSeq;
+  if(!node||result?.key!=='milestones')return;
+  const source=result.responsePaging?.source,at=Math.max(0,Math.floor(Number(page)||0))*25;
+  node.textContent='Loading source milestones…';
+  try{
+    let data;
+    if(source){
+      const params=new URLSearchParams({source,pointer:'/data/rows',offset:String(at),limit:'25',status:mode==='open'?'__open__':'__completed__'});
+      if(Number.isInteger(result.responsePaging?.projectVersion))params.set('version',String(result.responsePaging.projectVersion));
+      data=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
+    }else{
+      const all=(result.data?.rows||[]).filter(r=>mode==='completed'?r.status==='completed':r.status!=='completed');
+      data={rows:all.slice(at,at+25),offset:at,total:all.length,hasMore:at+25<all.length};
+    }
+    if(project()!==owner||seq!==projectRequestSeq||currentModuleResult!==result||!node.isConnected)return;
+    if(!Array.isArray(data.rows))throw new Error('Missing milestone rows');
+    const body=data.rows.map(r=>'<tr><td><b>'+escapeHtml(r.activityId||'Milestone')+'</b><small>'+escapeHtml(r.name||'')+'</small></td><td>'+escapeHtml(planningShortDate(r.status==='completed'?r.actualDateIso||r.currentDateIso:r.currentDateIso))+'</td><td>'+escapeHtml(humanizeKey(r.status||'unknown'))+'</td><td>'+escapeHtml(humanizeKey(r.managementPriority||'not_established'))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'Not established':fmt(r.totalFloatHours)+' h')+'</td></tr>').join('');
+    node.innerHTML='<p>Showing '+(data.total?data.offset+1:0)+'–'+Math.min(data.offset+data.rows.length,data.total)+' of '+data.total+' '+escapeHtml(mode)+' source milestones.</p><div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Date</th><th>Status</th><th>Priority</th><th>Source float</th></tr></thead><tbody>'+body+'</tbody></table></div>'+
+      '<div class="actions"><button '+(at===0?'disabled ':'')+'onclick="loadMilestoneSourcePage(&quot;'+mode+'&quot;,'+(page-1)+')">Previous</button><button '+(data.hasMore?'':'disabled ')+'onclick="loadMilestoneSourcePage(&quot;'+mode+'&quot;,'+(page+1)+')">Next</button></div>';
+  }catch(e){if(project()===owner&&seq===projectRequestSeq&&currentModuleResult===result)node.textContent='Milestone source page unavailable. Try again.';}
 }
 function renderNearCriticalVisual(data){
   const p=projectionFor(data,"near_critical");
