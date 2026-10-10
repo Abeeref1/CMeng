@@ -1,0 +1,63 @@
+name: CMeng Exact Live Browser Check
+on:
+  push:
+    branches: [diagnostic/cmeng-held-source-20261011]
+    paths: [.github/workflows/cmeng-live-browser-check.yml]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser driver only
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Read-only exact-release live browser check
+        shell: bash
+        run: |
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then npx playwright install chromium; export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"; fi
+          node <<'NODE'
+          const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=require('playwright');
+          const base='https://cmeng-main-production.up.railway.app',sha='fe8db4660f67fc1e23991bf61c861a2904dc85b1';
+          const out={expectedRelease:sha,observedRelease:null,pages:[],errors:[],passed:false};
+          (async()=>{
+            for(let i=0;i<12;i++){
+              const r=await fetch(base+'/health',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+              if(r.ok){const h=await r.json();out.observedRelease=h.release;if(h.release===sha)break;}
+              await new Promise(r=>setTimeout(r,5000));
+            }
+            assert.equal(out.observedRelease,sha,'exact live release must match');
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CMENG_CHROMIUM,args:['--no-sandbox','--disable-dev-shm-usage']});
+            try{
+              const page=await browser.newPage();page.setDefaultTimeout(60000);
+              page.on('pageerror',e=>out.errors.push(String(e)));
+              await page.goto(base,{waitUntil:'domcontentloaded',timeout:90000});
+              await page.waitForFunction(()=>typeof openProject==='function'&&typeof loadModule==='function');
+              for(const [projectId,keys] of [['UPTOWN-100',['master-dashboard','cross-domain-accountability']],['QAT-VLC1',['pmo-analysis','progress-scurve','payments']]]){
+                await page.evaluate(async id=>{await openProject(id);setAppView('project');},projectId);
+                for(const key of keys){
+                  const before=out.errors.length,t=Date.now();
+                  const result=await page.evaluate(async key=>{
+                    await loadModule(key);
+                    return {key,actualKey:currentModuleResult?.key,projectId:project(),title:document.getElementById('moduleTitle')?.textContent||'',text:document.getElementById('moduleContent')?.innerText||''};
+                  },key);
+                  result.elapsedMs=Date.now()-t;
+                  result.passed=result.actualKey===key&&result.projectId===projectId&&result.text.length>50&&!/Unable to load|SCREEN_FACTS_EXCEED_RESPONSE_BUDGET|Try this view again/.test(result.text)&&out.errors.length===before;
+                  out.pages.push(result);
+                }
+              }
+              out.passed=out.errors.length===0&&out.pages.length===5&&out.pages.every(p=>p.passed);
+              assert.ok(out.passed,'A live page check failed; inspect captured page text');
+            }finally{await browser.close();}
+          })().catch(e=>{out.errors.push(String(e));process.exitCode=1;}).finally(()=>{fs.writeFileSync('live-browser-check.json',JSON.stringify(out,null,2));console.log(JSON.stringify({...out,pages:out.pages.map(({text,...p})=>({...p,textLength:text.length}))}));});
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-exact-live-browser-${{ github.run_id }}
+          path: live-browser-check.json
+          retention-days: 3
