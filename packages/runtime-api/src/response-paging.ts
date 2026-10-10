@@ -89,10 +89,18 @@ export function pageProjectResponse(
  // Chart series, time histories and milestone decision populations are not
  // display-register pages. Their full data must reach the visualisation.
  const screenKey=String(item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
- const neverPageArray=(key:string,pointer:string)=>(
+ const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
+ const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints)$/i.test(key)
-   ||(pointer.endsWith('/rows')&&(screenKey==='milestones'||pointer.includes('/milestones/')))
+   ||(milestoneRows(pointer)&&value.length<=160)
  );
+ const priorityMilestoneOrder=(a:any,b:any)=>{
+   const rank=(r:any)=>r?.managementPriority==='critical'?0:r?.managementPriority==='high'?1:r?.managementPriority==='watch'?2:3;
+   return Number(b?.status==='completed')-Number(a?.status==='completed')||
+     Number(Boolean(b?.terminalMilestone))-Number(Boolean(a?.terminalMilestone))||
+     rank(a)-rank(b)||Number(Boolean(b?.negativeFloat))-Number(Boolean(a?.negativeFloat))||
+     Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
+ };
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
@@ -129,10 +137,13 @@ export function pageProjectResponse(
    }
    seen.add(value);
    if(Array.isArray(value)){
-     const table=!neverPageArray(key,pointer)&&(TABLE_NAME.test(key)||value.length>100);
-     const shown=table?Math.min(budget.rows,value.length):value.length;
+     const table=!neverPageArray(key,pointer,value)&&(TABLE_NAME.test(key)||value.length>100);
+     // Select priority milestone representatives from ALL source rows, without
+     // altering the stored source order or declaring the preview complete.
+     const candidate=table&&milestoneRows(pointer)?[...value].sort(priorityMilestoneOrder):value;
+     const shown=table?Math.min(milestoneRows(pointer)?Math.max(12,budget.rows):budget.rows,value.length):value.length;
      if(shown<value.length)record({pointer,total:value.length,shown,kind:'array'});
-     const rows=value.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
+     const rows=candidate.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
      seen.delete(value);return rows;
    }
    const names=Object.keys(value),ordered=chosenKeys(value,budget.keys);
