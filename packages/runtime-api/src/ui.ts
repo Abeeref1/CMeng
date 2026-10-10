@@ -2154,6 +2154,12 @@ function planningFinishPeriodBars(rows){
   return renderPeriods(entries.slice(0,8))+(entries.length>8?experienceDisclosure('All finish periods',renderPeriods(entries),'All '+fmt(entries.length)+' monthly groups'): '');
 }
 
+function amendmentEotManagementDisplay(value,timeFacts){
+ if(typeof value==='number'&&Number.isFinite(value))return fmt(value)+' days';
+ const wording=Array.isArray(timeFacts?.amendmentEotStatements)?timeFacts.amendmentEotStatements:[];
+ const statements=wording.map(row=>String(row?.statement||'').trim()).filter(Boolean);
+ return statements.length?statements.join(' · '):'Amendment incorporation duration not stated numerically; source wording to be reviewed';
+}
 function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
   if(!p.schedule||!p.progress||!p.forecast)return"";
@@ -2208,7 +2214,7 @@ function renderPmoVisual(data){
       ["Assigned resources",p.resources.assignedResourceCount],["Capacity field coverage · supplied resource-week rows",p.resources.weeklyCapacityCoveragePercent===null?"—":fmt(p.resources.weeklyCapacityCoveragePercent)+"%"],["Actual overloads through DD",p.resources.capacityChecksToDataDate?fmt(p.resources.capacityChecksToDataDate.actual.exceededCount)+" / "+fmt(p.resources.capacityChecksToDataDate.actual.comparableCount)+" resource-weeks":"Not established"],["Measured installation",p.quantities.installedQuantityStatus?humanizeKey(p.quantities.installedQuantityStatus.state):"Not established"],["Programme links for planned quantities",planningStateLabel(p.quantities.allocationState)]
     ]],
     ["Claims & time",[
-      ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",fmt(p.claims.incorporatedEotDays)+" days"],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
+      ["Delay events",p.claims.eventCount],["Claims",p.claims.claimCount],["Recalculated window movement",fmt(p.claims.grossPositiveAnalyticalMovementDays)+" days · "+(p.claims.windowMovementTrace||[]).map(w=>fmt(w.calculatedDays)).join(" + ")],["Net submitted finish movement",fmt(p.claims.netSubmittedFinishMovementDays)+" days"],["Effective approved determinations at Data Date",fmt(p.claims.effectiveDeterminationDays)+" days"],["EOT incorporated in amendment",amendmentEotManagementDisplay(p.claims.incorporatedEotDays,data.projectFacts?.time)],["Determination register total",fmt(p.claims.registerDeterminationDays)+" days"]
     ]]
   ].map(group=>'<div class="domain-card"><h5>'+escapeHtml(group[0])+'</h5>'+group[1].map(m=>metricLine(m[0],m[1])).join("")+'</div>').join("")+'</div>';
   const detail=kpis+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish-date position</h4><p>Controlled baseline, submitted finish date and any independently calculated, approved or scenario finish dates.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel attention"><div class="planning-panel-head"><div><h4>What needs attention</h4><p>Items that can change the current programme position.</p></div></div><div class="planning-panel-body">'+attention+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Schedule coverage is field coverage, not physical progress. Gross and net time movements have different bases; their difference is not proven overlap.</p></div></div><div class="planning-panel-body">'+health+'</div></section>';
