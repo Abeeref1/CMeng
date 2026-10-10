@@ -131,3 +131,28 @@ test('S-51 milestone decisions cannot turn into a false all-clear when critical 
  assert.equal(p.data.rows.filter((r:any)=>r.status!=='completed'&&r.negativeFloat).length,15);
  assert.equal(p.data.criticalPriorityCount,15);
 });
+
+test('Milestone source totals and open/completed browse pages never depend on a 25-row preview',()=>{
+ const sourceRows=Array.from({length:340},(_,i)=>({
+   activityId:'MS-'+i,name:'Milestone '+i,managementPriority:i%4===0?'critical':i%4===1?'high':i%4===2?'watch':'normal',
+   status:i<50?'completed':'not_started',dueState:i%3===0?'overdue':'future',
+   varianceDays:i%5===0?10:0,movementBasis:'actual_vs_baseline',sourceRefs:['SCHEDULE-'+i],summary:'Evidence '.repeat(15)
+ }));
+ const source={key:'milestones',data:{projectId:'P',projectionKey:'milestones',milestoneCount:340,openCount:290,completedCount:50,rows:sourceRows}};
+ const page=pageProjectResponse(source,'/api/projects/P/schedule/modules/milestones',50000) as any;
+ assert.ok(page.responsePaging?.sourcePreserved,'the large register must be paged without altering source');
+ assert.ok(page.data.rows.length<sourceRows.length,'the page preview must remain bounded');
+ const full=page.data.milestoneFullCounts;
+ assert.equal(full.sourceRows,340);assert.equal(full.openCount,290);assert.equal(full.completedCount,50);
+ assert.equal(full.overdueOpenCount,sourceRows.filter(r=>r.status!=='completed'&&r.dueState==='overdue').length);
+ assert.equal(full.openLateBaselineCount,sourceRows.filter(r=>r.status!=='completed'&&r.varianceDays>0).length);
+ assert.equal(full.completedLateBaselineCount,10);
+ assert.equal(Object.values(full.priorityCounts).reduce((sum:number,count:any)=>sum+Number(count),0),290);
+ const firstOpen=recordDetailPage(source,'/data/rows',0,25,{status:'__open__'});
+ const finalOpen=recordDetailPage(source,'/data/rows',275,25,{status:'__open__'});
+ const completed=recordDetailPage(source,'/data/rows',25,25,{status:'__completed__'});
+ assert.equal(firstOpen.total,290);assert.equal(finalOpen.rows.length,15);
+ assert.ok((firstOpen.rows as any[]).every(r=>r.status!=='completed'));
+ assert.equal(completed.total,50);assert.ok((completed.rows as any[]).every(r=>r.status==='completed'));
+ assert.equal(source.data.rows.length,340,'paging never mutates the full source population');
+});
