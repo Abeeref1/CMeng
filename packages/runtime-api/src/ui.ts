@@ -1388,13 +1388,14 @@ function renderLookAheadVisual(data){
   if(!Array.isArray(p.rows))return"";
   const forwardRows=Array.isArray(p.forwardWindowRows)?p.forwardWindowRows:p.rows.filter(row=>row.classification!=="overdue"&&row.classification!=="missed_start"&&row.finishOverdue!==true&&row.missedPlannedStart!==true);
   const backlogRows=Array.isArray(p.overdueBacklogRows)?p.overdueBacklogRows:p.rows.filter(row=>row.classification==="overdue"||row.classification==="missed_start"||row.finishOverdue===true||row.missedPlannedStart===true);
-  const inWindow=forwardRows.length;
+  const inWindow=typeof p.forwardWindowCount==='number'?p.forwardWindowCount:forwardRows.length;
+  const backlogCount=typeof p.overdueBacklogCount==='number'?p.overdueBacklogCount:backlogRows.length;
   const kpis=planningKpis([
     ["At risk · linked evidence",p.atRiskCount??'Not established',"linked readiness evidence needs confirmation","warning"],
     ["No known linked blocker",p.noKnownLinkedBlockerCount??'Not established',"no blocker found; readiness is not certified"],
     ["Forward look-ahead",p.windowDays+" calendar days",planningShortDate(p.dataDateIso)+" → "+planningShortDate(p.windowEndIso)],
     ["Forward activities",inWindow,"current / upcoming work only"],
-    ["Overdue backlog",backlogRows.length,"separate from the forward window","danger"],["Missed planned starts",p.missedStartCount,"overdue-start backlog; may also be finish overdue","warning"],
+    ["Overdue backlog",backlogCount,"separate from the forward window","danger"],["Missed planned starts",p.missedStartCount,"overdue-start backlog; may also be finish overdue","warning"],
     ["Readiness confirmed",p.readyCount,"evidence complete; other activities may have missing records","success"],
     ["Activities with evidence gaps",p.evidenceGapActivityCount,"includes blocked activities","warning"],["Blocked with evidence gaps",p.blockedWithEvidenceGapCount,"Also included in the blocked count","warning"],["Blocker occurrences",p.blockerOccurrenceCount,"may include several per activity","warning"],
     ["Known blocker",p.blockedCount,"at least one explicit blocker","danger"]
@@ -1406,6 +1407,9 @@ function renderLookAheadVisual(data){
     '<div class="table-wrap"><table><thead><tr><th>Trade / source ID</th><th>Look-ahead activities</th><th>P6 remaining units</th><th>Resource register match</th><th>Forward resource weeks</th><th>Registered demand</th><th>Source capacity</th><th>Actual use to DD</th><th>Control</th></tr></thead><tbody>'+
     trades.map(r=>'<tr><td><b>'+escapeHtml(r.trade)+'</b><br><small>'+escapeHtml(r.resourceId||'Source ID not supplied')+'</small></td><td>'+fmt(r.activityIds.length)+'</td><td>'+escapeHtml(r.remainingUnits===null?'Not established':fmt(r.remainingUnits)+' '+(r.unit||'units'))+'</td><td>'+escapeHtml(r.registerMatchBasis||'No comparable resource register record')+'</td><td>'+fmt(r.registerPeriodCount??0)+'</td><td>'+escapeHtml(r.registerPlannedDemand===null?'Not established':fmt(r.registerPlannedDemand)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerAvailableCapacity===null?'Not established':fmt(r.registerAvailableCapacity)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerActualToDate===null?'Not established':fmt(r.registerActualToDate)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.basis)+'</td></tr>').join('')+'</tbody></table></div>'):'';
   const timeline=planningLookAheadTimeline({...p,rows:forwardRows});
+  const lookAheadPopulationNote=forwardRows.length<inWindow
+    ?'<div class="notice info">Showing '+escapeHtml(fmt(forwardRows.length))+' initial forward activities of '+escapeHtml(fmt(inWindow))+' in the current source population. Totals and readiness counts are calculated on the full programme, not the visible rows. Continue in the complete activity register.</div>':'';
+
   const dimensions=["predecessor","procurement_material","design_submittal","permit","resource","quality","commercial","risk","access"];
   const labels={predecessor:"Predecessors",procurement_material:"Materials",design_submittal:"Design / RFIs / Submittals",permit:"Permit",resource:"Resources",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
   const watch=[...forwardRows].sort((a,b)=>{
