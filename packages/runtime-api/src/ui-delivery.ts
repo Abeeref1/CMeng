@@ -14,7 +14,15 @@ function deliveryValue(v){
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
  const s=String(v),match=s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/);
  if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return deliveryDateFormat.format(at)+(match[2]?' '+match[2]+(match[3]==='Z'?' UTC':match[3]?' '+match[3]:''):'');}
- return typeof readerText==='function'?readerText(s):humanizeIsoText(s);
+ if(typeof readerText==='function')return readerText(s);
+ if(typeof humanizeIsoText==='function')return humanizeIsoText(s);
+ // Delivery can render independently in a specialist/report context. Do not
+ // require the management page to have installed a global presentation helper.
+ return s.replace(/\\b\\d{4}-\\d{2}-\\d{2}\\b/g,date=>{
+   const at=new Date(date+'T00:00:00Z');
+   return Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===date
+     ?deliveryDateFormat.format(at):date;
+ });
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
 const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:deliveryUnknownText,conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
