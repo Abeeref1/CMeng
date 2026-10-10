@@ -167,9 +167,15 @@ function buildDelivery(state:ProjectRuntimeState){
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readinessByRecord.get(r.recordId),receipts:r.receipts};
  }).sort((a,b)=>Number(a.deliveredAtDataDate||a.deliveredStatusOnly)-Number(b.deliveredAtDataDate||b.deliveredStatusOnly)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||Number(b.drivingPath)-Number(a.drivingPath)||(a.needDate??'9999').localeCompare(b.needDate??'9999'));
  for(const packageRow of packageRows){
-  const gate=readinessByRecord.get(packageRow.recordId);if(!gate||packageRow.deliveredAtDataDate||packageRow.deliveredStatusOnly)continue;
-  if(!packageRow.registerCleanup&&(packageRow.overdueUndelivered||packageRow.forecastLate&&packageRow.drivingPath))gate.state='blocked';
-  else if(!packageRow.registerCleanup&&packageRow.forecastLate&&gate.state!=='blocked')gate.state='at_risk';
+  const gate=readinessByRecord.get(packageRow.recordId);if(!gate)continue;
+  const raw=String(packageRow.sourceStatus??'').trim().toLowerCase();
+  const blockers=gate.state==='blocked'||/^(blocked|rejected|failed|on hold)$/.test(raw)||
+    !packageRow.registerCleanup&&(packageRow.overdueUndelivered||packageRow.forecastLate&&packageRow.drivingPath);
+  const ready=packageRow.deliveredAtDataDate||packageRow.deliveredStatusOnly||/^(ready|available|accepted)$/.test(raw)||gate.state==='ready';
+  gate.state=blockers?'blocked':ready?'ready':'at_risk';
+  Object.assign(gate,{classificationBasis:'Observed register status, linked gates and dates at the Data Date; register completeness is a separate qualification',
+    missingInputs:[...(!packageRow.needDate?['Required-on-site or linked programme need date']:[]),...(!packageRow.forecastDelivery&&!ready?['Forecast delivery date']:[])],
+    populationConfirmed:gate.population.state==='established'});
  }
  const scheduleWbs=model?.wbs??[];
  const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));

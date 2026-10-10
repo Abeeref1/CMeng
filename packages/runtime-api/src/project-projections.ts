@@ -1,3 +1,4 @@
+import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
 import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
@@ -86,7 +87,7 @@ import {
 } from "../../eot-assessment/src";
 import {
   buildForecastHistoryProjection,
-  forecastSnapshotFromProjection,
+  forecastSnapshotFromProjection as rawForecastSnapshot,
 } from "../../forecast-history/src";
 import {
   buildIndependentForecastProjection,
@@ -1664,6 +1665,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         "forecast-" +
           stored.revision
             .revisionId,
+        stored.revision.model,
       ),
     );
 
@@ -3642,7 +3644,10 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     unmappedItemCount: quantities.items.length-mappedItemIds.size,
     partiallyAllocatedItemCount: projection.partiallyAllocatedItemIds.length,
     overAllocatedItemCount: projection.overAllocatedItemIds.length,
-    itemLinkCoveragePercent: quantities.items.length ? mappedItemIds.size / quantities.items.length * 100 : null,
+    itemLinkCoveragePercent: quantities.items.length ? new Set([...mappedItemIds,...(inferredMapping?.sourceWbsLinks??[]).filter(row=>row.wbsId&&row.activityIds.length).map(row=>row.quantityItemId)]).size / quantities.items.length * 100 : null,
+    approvedAllocationCoveragePercent:quantities.items.length?mappedItemIds.size/quantities.items.length*100:null,
+    itemLinkCoverageBasis:'Unique source WBS relationships plus approved activity allocations. WBS relationships identify scope, not quantity distribution or approval.',
+    sourceWbsLinks:inferredMapping?.sourceWbsLinks??[],
     unmappedKnownQuantityItemIds: projection.unmappedItemIds,
     unmappedItemIds: quantities.items.filter(item => !mappedItemIds.has(item.quantityItemId)).map(item => item.quantityItemId),
     actualAuthority: "measured_installed_quantities", actualIndependentOfScheduleMapping: true, measurementReview:quantities.measurementReview??null,
@@ -6185,6 +6190,7 @@ function buildSpecialistModuleFast(
             "forecast-" +
               stored.revision
                 .revisionId,
+            stored.revision.model,
           );
         },
       );
@@ -7704,9 +7710,10 @@ function resolveProjectModuleCandidate(
           .replace('labour','labor').replace('hours','hour');
         return !a||!b||normalize(a)===normalize(b);
       };
-      const matching=(matchingId?weeksById.get(matchingId)??[]:[]).filter(p=>unitsComparable(g.unit,p.unit));
+      const identityMatches=matchingId?weeksById.get(matchingId)??[]:[];
+      const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit));
       const matchBasis=sourceMatch.length?'Exact source resource ID':
-        uniqueNameId&&matching.length?'Unique matching trade name':
+        uniqueNameId&&identityMatches.length?'Unique matching trade name':
         possibleNames.size>1?'Trade name matches multiple register IDs; reconciliation required':
         'No comparable resource register record';
       const forward=matching.filter(p=>p.weekStartIso&&dataDate&&endDate
@@ -7714,16 +7721,17 @@ function resolveProjectModuleCandidate(
       const history=matching.filter(p=>p.weekStartIso&&dataDate&&p.weekStartIso.slice(0,10)<=dataDate);
       return {resourceId:g.resourceId,trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
         remainingUnits:g.known===g.count?g.remaining:null,
-        registerLinkedByExactId:sourceMatch.length>0&&matching.length>0,
-        registerLinkedByTradeName:sourceMatch.length===0&&uniqueNameId!==null&&matching.length>0,
+        registerLinkedByExactId:sourceMatch.length>0,
+        registerLinkedByTradeName:sourceMatch.length===0&&uniqueNameId!==null&&identityMatches.length>0,
+        capacityUnitsComparable:matching.length>0,
         registerMatchBasis:matchBasis,
-        matchedRegisterResourceId:matching.length?matchingId:null,
+        matchedRegisterResourceId:identityMatches.length?matchingId:null,
         registerPeriodCount:forward.length,
         registerPlannedDemand:sumKnown(forward,'plannedDemand'),
         registerAvailableCapacity:sumKnown(forward,'availableCapacity'),
         registerActualToDate:sumKnown(history,'actualApprovedUsage'),
         registerEvidenceState:dated?.state??'not_found',
-        registerSourceRefs:[...new Set(matching.map(row=>row.sourceRef))].slice(0,12),
+        registerSourceRefs:[...new Set(identityMatches.map(row=>row.sourceRef))].slice(0,12),
         basis:matching.length?
           matchBasis+'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.':
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
@@ -7831,6 +7839,18 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
 
+/** History and the live forecast share one hard publication gate. */
+export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawForecastSnapshot>[0],snapshotId:string,model:Parameters<typeof buildForecastReconciliationGate>[0]['model']){
+  const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null});
+  return {...rawForecastSnapshot(forecast,snapshotId),
+    independentForecastCompletionIso:gate.usable?forecast.independentForecastCompletionIso:null,
+    calculationState:gate.usable?'calculated_with_stated_assumption':'withheld',
+    calculationReason:gate.reason,
+    calculationChecks:gate.checks,
+    // Raw result is audit evidence, never a published history date or difference.
+    calculationEvidence:{rawRecalculatedFinishIso:forecast.independentForecastCompletionIso}};
+}
+
 const projectActionCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildProjectActionRegister>}>();
 function buildProjectActionRegister(state:ProjectRuntimeState){
   // Resolve raw owning projections before facts are attached. This producer never
@@ -7851,22 +7871,22 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   const independentFloatById=new Map<string,number|null>(
     independentRanking?forecast.activities.map((row:any)=>[String(row.activityId),typeof row.independentTotalFloatHours==='number'?row.independentTotalFloatHours:null]):[],
   );
-  const recordActions=consolidateScheduleChains(recordPosition.recordActions,model);
+  const recordActions=recordPosition.recordActions;
   const actions=prioritizeActions(
-    [...recordActions,...reviewRows],
+    [...recordPosition.actions,...reviewRows],
     model,
     forecast?.drivingNetwork?.activityIds??[],
     independentRanking?'independent_cpm':'source_total_float',
     independentRanking?independentFloatById:undefined,
   );
   const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
-    id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:1,
+    id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:recordPosition.ownerGroups.find(g=>g.groupId===a.actionId)?.count??1,
     owner:pmcRoleOwner(a.owningModule??a.recordKey??'project controls',a.owner??a.organisation),dueIso:a.dueIso,priorityBasis:a.priorityBasis,
     resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
     target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
   });
-  return {actions,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
-    workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One ranked project action register. Record follow-up, source corrections and confirmations share one count; supporting information is separate.'},
+  return {actions,recordActions,ownerGroups:recordPosition.ownerGroups,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
+    workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One grouped project decision register. Each owner/register/state group counts once; every source action is retained inside its group. Source-review decisions remain separate.'},
     recordPosition};
 }
 export function projectActionRegisterForState(state:ProjectRuntimeState){
@@ -7913,7 +7933,7 @@ export function moduleForProject(
   }
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
-  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),managementPosition:register.actions.length+' project actions: '+register.recordActionCount+' record follow-ups and '+register.reviewActionCount+' source reviews or confirmations. Ownership concentrations below cover the source records.'}})));}
+  if (key==='cross-domain-accountability') {const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);return finalize(withPositionVerdict(attachReportingContract(scoped,{...result,status:register.actions.length?'partial':result.status,data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),managementPosition:register.actions.length+' grouped actions: '+register.recordPosition.actions.length+' owner/register groups covering '+register.recordActionCount+' source records, plus '+register.reviewActionCount+' source reviews or confirmations.'}})));}
   if (isDeliveryPage(key)) {
     const scoped=reportingState(state),result=deliveryModule(scoped,key);
     const deliveryData=result.data as any;

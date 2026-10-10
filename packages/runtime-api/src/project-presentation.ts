@@ -1,3 +1,4 @@
+import {deliveryRecords} from './delivery-records';
 import type {ProjectRuntimeState} from './project-state-types';
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;labels:Record<string,string>}>();
@@ -13,6 +14,9 @@ export function projectSourceLabels(state:ProjectRuntimeState):Record<string,str
   }
   for(const schedule of state.schedules??[]){
     labels[schedule.revision.revisionId]=schedule.sourceFilename??schedule.revision.label??'Programme revision';
+  }
+  for(const record of deliveryRecords(state).records){
+    if(record.reference)labels[record.recordId]=record.reference;
   }
   cache.set(state,{version:state.version,labels});return labels;
 }

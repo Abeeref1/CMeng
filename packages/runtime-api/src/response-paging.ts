@@ -1,3 +1,4 @@
+import {responseSourceLabels} from './response-labels';
 import {milestonePopulation} from './milestone-population';
 /** Project screen responses have a strict uncompressed size budget. Original
  * source data stays in the versioned project/module producers and in exports.
@@ -107,6 +108,7 @@ export function pageProjectResponse(
  const facts=projectFactsOf(body);
  const sharedFactPages:PageTable[]=[];
  const item=body as any;
+ const sourceLabelCatalogue=item?.data?.sourceLabels??item?.sourceLabels??item?.masterDashboard?.sourceLabels??{};
  const factPointer=item?.data?.projectFacts?'/data/projectFacts':
    item?.projectFacts?'/projectFacts':item?.masterDashboard?.projectFacts?'/masterDashboard/projectFacts':
    item?.commandCenter?.projectFacts?'/commandCenter/projectFacts':
@@ -121,6 +123,7 @@ export function pageProjectResponse(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
+   ||(screenKey==='activity-analytics'&&pointer==='/data/rows'&&!!item?.data?.activitySummary&&value.length<=50)
  );
  const priorityMilestoneOrder=(a:any,b:any)=>{
    const rank=(r:any)=>r?.managementPriority==='critical'?0:r?.managementPriority==='high'?1:r?.managementPriority==='watch'?2:3;
@@ -159,6 +162,7 @@ export function pageProjectResponse(
    }
    if(typeof value!=='object')return String(value);
    if(key==='projectFacts')return normalizedFacts;
+   if(key==='sourceLabels'){changed=true;return {};}
    if(seen.has(value))return {detailAvailable:true};
    if(depth>budget.depth){
      record({pointer,total:Array.isArray(value)?value.length:Object.keys(value).length,shown:0,
@@ -183,6 +187,9 @@ export function pageProjectResponse(
    seen.delete(value);return result;
   };
   const projection=visit(body,'','',0);
+  const displayLabels=responseSourceLabels(sourceLabelCatalogue,projection);
+  if(projection?.data&&typeof projection.data==='object')projection.data.sourceLabels=displayLabels;
+  else if(projection&&typeof projection==='object'){for(const value of Object.values(projection))if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'sourceLabels'))(value as any).sourceLabels=displayLabels;}
   if(milestoneFullCounts&&(projection as any)?.data)(projection as any).data.milestoneFullCounts=milestoneFullCounts;
   if(!projection||Array.isArray(projection)||typeof projection!=='object')return projection;
   // If there are no paged tables and no canonical facts to normalize, the
@@ -239,7 +246,7 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
       });
     }
     return {pointer,kind:'array',offset:at,total:matched.length,sourceTotal:value.length,
-      rows:matched.slice(at,at+size),hasMore:at+size<matched.length};
+      rows:matched.slice(at,at+size),sourceLabels:responseSourceLabels((root as any)?.data?.sourceLabels??(root as any)?.sourceLabels,matched.slice(at,at+size)),hasMore:at+size<matched.length};
   }
   if(typeof value==='string')return {pointer,kind:'text',offset:at,total:value.length,text:value.slice(at,at+8192),hasMore:at+8192<value.length};
   if(value&&typeof value==='object'){

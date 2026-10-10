@@ -79,6 +79,7 @@ function renderProjectBrief(d,data=null){
  const timeQualified=facts.extendedContractCompletionIso?.complete===false;
  const timing=planningKpis([
    ['Original contract date',original?planningShortDate(original):'Not in source','Contract source date'],
+   ['Awarded EOT',managementValue(facts.awardedEotDays,'days'),'Dated determination register; amendment incorporation remains separate'],
    ['Contract date with awarded EOT',extended?planningShortDate(extended):'Not in source','Source-based extended commitment'],
    ['Submitted programme finish',submitted?planningShortDate(submitted):'Not in source','Current source programme'],
    ['Days late against extended contract',typeof lateDays==='number'?
@@ -90,8 +91,10 @@ function renderProjectBrief(d,data=null){
    amendments.map(item=>'<p><b>'+escapeHtml(readerReference(item.documentId))+'</b> · '+escapeHtml(item.statement)+
      '<br><small>'+escapeHtml(item.basis)+'</small></p>').join('')+'</section>':
    '<p>No applicable amendment text is recorded; this does not assert zero awarded days.</p>';
- const timeHtml='<section class="diagnosis-section"><h4>Contract-time position and awarded extension</h4>'+
-   timing+amendmentWording+'</section>';
+ const constraints=data?.completionMilestoneConstraints||[];
+ const constraintNames={CS_MSO:'Start on',CS_MEO:'Finish on',CS_MEOB:'Finish on or before',CS_MEOA:'Finish on or after',CS_MANDSTART:'Mandatory start',CS_MANDFIN:'Mandatory finish'};
+ const constraintHtml=constraints.length?'<p><b>Completion milestone constraints:</b> '+constraints.map(r=>escapeHtml(r.activityReference+' · '+(r.activityName||'')+' · '+(constraintNames[r.type]||r.type)+' · '+planningShortDate(r.dateIso))).join('; ')+'. These source restrictions do not amend the contractual completion.</p>':'<p><b>Completion milestone constraint:</b> No dated constraint is recorded on the identified completion milestone.</p>';
+ const timeHtml='<section class="diagnosis-section"><h4>Contract-time position and awarded extension</h4>'+timing+amendmentWording+constraintHtml+'</section>';
  const driversHtml=drivers.length?'<div class="table-wrap"><table><thead><tr><th>Driver WBS / workfront</th><th>Pressure</th><th>Driving</th><th>Critical</th><th>Negative float</th><th>Lowest float</th></tr></thead><tbody>'+drivers.map(r=>'<tr><td><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / ')||'Project scope')+'</b></td><td>'+escapeHtml(fmt(r.pressureCount||0))+'</td><td>'+escapeHtml(fmt(r.drivingCount||0))+'</td><td>'+escapeHtml(fmt(r.criticalCount||0))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount||0))+'</td><td>'+escapeHtml(r.worstFloatHours==null?'—':fmt(r.worstFloatHours)+' h')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No concentrated schedule pressure is established from the readable programme fields.</p>';
  const milestoneHtml=milestones.length?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Current date</th><th>Float</th><th>Exposure</th><th>Action</th></tr></thead><tbody>'+milestones.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso||r.currentDateIso))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'—':fmt(r.totalFloatHours)+' h')+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(r.reason||r.priority||'Monitor'):String(r.reason||r.priority||'Monitor').toLowerCase().replaceAll('_',' '))+'</td><td>'+escapeHtml(r.action||'Confirm the milestone protection action.')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No priority milestone exposure is established from the current programme evidence.</p>';
  const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b><br><span class="muted">'+escapeHtml((r.activityIds||[r.activityId]).filter(Boolean).slice(0,5).join('; '))+(r.wbs?' · '+escapeHtml(String(r.wbs).split(' / ').slice(-3).join(' / ')):'')+'</span><br>'+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';

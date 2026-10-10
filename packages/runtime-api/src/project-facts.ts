@@ -100,6 +100,7 @@ export interface ProjectFactsSnapshot {
       originalContractValue:ProjectFact<number>;
       currentContractValue:ProjectFact<number>;
       forecastEac?:ProjectFact<number>;
+      cpi?:ProjectFact<number>;
       approvedVariationAmount:ProjectFact<number>;
       pendingVariationAmount:ProjectFact<number>;
       grossCertifiedAmount:ProjectFact<number>;
@@ -322,8 +323,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       return {documentId:doc.documentId,
         statement:phrase?'Amendment states: "'+phrase.wording!.replace(/\s+/g,' ').trim()+'"':
           fragments.length
-            ?'No explicit EOT statement identified in the extracted amendment wording; this is not evidence of a zero-day award.'
-            :'Amendment text has not been read; EOT wording cannot be determined.',
+            ?'amendment text not found: no explicit EOT statement identified in the extracted wording; the determination-register award remains separate.'
+            :'amendment text not found; the determination-register award remains separate.',
         sourceRefs,
         basis:phrase?'Quoted extracted source text; not an independent award determination':
           fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete'};
@@ -334,7 +335,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     projectId:state.projectId,
     projectVersion:state.version,
     dataDateIso,
-    actions:{openCount:fact(actionRegister.actions.length,'Distinct record follow-ups and source-review decisions from the shared project action register.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
+    actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
@@ -518,6 +519,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       currencies:commercial.currencies.map(row=>({
         currency:row.currency,
         forecastEac:(()=>{const positions=commercial.costBasisReview?.filter(p=>p.currency===row.currency)??[];return fact(positions.length===1?positions[0]!.sourceEac:null,'Latest EAC in the cost register, with currency and tax basis retained.','from_register_not_confirmed',positions.length===1);})(),
+        cpi:(()=>{const positions=commercial.costBasisReview?.filter(p=>p.currency===row.currency)??[];return fact(positions.length===1?positions[0]!.cpi:null,'EV / AC from the same currency, tax basis and reporting period.','calculated_with_stated_basis',positions.length===1);})(),
         pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
         grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
         netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),
@@ -569,5 +571,10 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
     const register=projectActionRegisterForState(state);
     bound.projectDiagnosis={...bound.projectDiagnosis,actionRegister:{total:register.actions.length,actions:register.actions.slice(0,5)}};
   }
-  return {...result,data:{...bound,sourceLabels:projectSourceLabels(state)}};
+  const currentModel=projectControlSchedule(state)?.revision.model;
+  const terminalMilestones=(currentModel?.activities??[]).filter(a=>['milestone','finish_milestone'].includes(a.activityType)&&
+    (/completion|complete.*works|handover|taking.over/i.test(a.name??'')||
+      a.currentFinishIso?.slice(0,10)===(bound.projectFacts as any)?.schedule?.submittedProgrammeCompletionIso?.value?.slice(0,10)));
+  const completionMilestoneConstraints=terminalMilestones.flatMap(a=>(a.sourceConstraints??[]).map(c=>({activityReference:a.activityId,activityName:a.name,type:c.type,dateIso:c.dateIso??null,basis:'Constraint retained from the submitted completion milestone; not a contract amendment'})));
+  return {...result,data:{...bound,completionMilestoneConstraints,sourceLabels:projectSourceLabels(state)}};
 }

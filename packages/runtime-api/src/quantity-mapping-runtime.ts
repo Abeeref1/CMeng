@@ -18,23 +18,28 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
   if (cached?.version === state.version && cached.quantities === state.quantities && cached.schedule === schedule) {
     return cached.result;
   }
-  const result = state.quantities ? buildQuantityScheduleMapping(state.quantities, schedule) : null;
-  if(result&&state.quantities&&Array.isArray(state.evidenceDocuments)){
+  const quantities=resolveBoqSource(state,schedule.sourceRevisionId).quantities??state.quantities;
+  const result = quantities ? buildQuantityScheduleMapping(quantities, schedule) : null;
+  if(result&&quantities&&Array.isArray(state.evidenceDocuments)){
     const source=resolveBoqSource(state,schedule.sourceRevisionId).boq;
     const tables=governedTables(state.evidenceDocuments.filter(d=>d.sourceHashSha256===source?.sourceHashSha256),[]);
     const normalized=(s:string|null|undefined)=>String(s??'').trim().replace(/\s+/g,' ').toLowerCase();
     const rows=tables.flatMap(t=>t.rows),byItem=new Map<string,typeof rows>();
     for(const row of rows){const key=normalized(cell(row,'item no','item number','boq item','boq item id'));if(!key)continue;const group=byItem.get(key)??[];group.push(row);byItem.set(key,group);}
     const wbs=new Map(schedule.wbs.map(w=>[w.wbsId,w]));
-    result.sourceWbsLinks=state.quantities.items.map(item=>{
+    const activitiesByWbs=new Map<string,string[]>();
+    for(const activity of schedule.activities){let id=activity.wbsId;const seen=new Set<string>();while(id&&!seen.has(id)){seen.add(id);const list=activitiesByWbs.get(id)??[];list.push(activity.activityId);activitiesByWbs.set(id,list);id=wbs.get(id)?.parentWbsId??null;}}
+    const wbsByCode=new Map<string,typeof schedule.wbs>();
+    for(const node of schedule.wbs)for(const value of new Set([node.wbsId,node.code,node.name].map(normalized).filter(Boolean))){const list=wbsByCode.get(value)??[];list.push(node);wbsByCode.set(value,list);}
+    result.sourceWbsLinks=quantities.items.map(item=>{
       const sourceRows=byItem.get(normalized(item.itemNumber))??[];
       const codes=[...new Set(sourceRows.map(r=>cell(r,'wbs code','wbs id','wbs')).filter(Boolean))];
       const code=codes.length===1?codes[0]!:null;
-      const explicit=code?schedule.wbs.filter(w=>[w.wbsId,w.code,w.name].some(v=>normalized(v)===normalized(code))):[];
+      const explicit=code?wbsByCode.get(normalized(code))??[]:[];
       const section=normalized(item.section),sectionMatches=section?schedule.wbs.filter(w=>normalized(w.name)===section):[];
       const selected=explicit.length===1?explicit[0]!:explicit.length===0&&sectionMatches.length===1?sectionMatches[0]!:null;
       const under=(id:string|null)=>{const seen=new Set<string>();while(id&&!seen.has(id)){if(id===selected?.wbsId)return true;seen.add(id);id=wbs.get(id)?.parentWbsId??null;}return false;};
-      return {quantityItemId:item.quantityItemId,wbsCode:code,wbsId:selected?.wbsId??null,activityIds:selected?schedule.activities.filter(a=>under(a.wbsId)).map(a=>a.activityId):[],
+      return {quantityItemId:item.quantityItemId,wbsCode:code,wbsId:selected?.wbsId??null,activityIds:selected?activitiesByWbs.get(selected.wbsId)??[]:[],
         basis:explicit.length===1?'Source WBS code matches the programme':selected?'Source BOQ section matches one programme WBS name; quantity allocation remains separate':codes.length>1?'Conflicting source WBS codes':'WBS relationship is missing or does not resolve uniquely',
         sourceRefs:sourceRows.map(r=>'evidence-document:'+r.receipt.documentId+':'+r.receipt.locator)};
     });

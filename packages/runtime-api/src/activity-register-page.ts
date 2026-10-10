@@ -1,4 +1,4 @@
-const fields=['wbsId','zone','floor','tower','building','area','workFront','phase','section','chainage','discipline','trade','system','package','cbs','contractor','subcontractor','status','criticality'];
+const fields=['wbsId','zone','floor','tower','building','area','plot','location','workFront','phase','section','chainage','discipline','trade','system','package','cbs','contractor','subcontractor','status','criticality'];
 export function activityRegisterPage(source:readonly any[],query:URLSearchParams){
  const all=source.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType));
  const text=(query.get('q')??'').trim().toLowerCase(),condition=query.get('condition');
@@ -34,7 +34,11 @@ export function activityRegisterView(data:any){
  filterOptions.wbsId=[...wbsNames.entries()].sort((a,b)=>a[1].localeCompare(b[1],undefined,{numeric:true}))
    .map(([id,label])=>[id,label]);
 
+ const statusCounts:Record<string,number>={completed:0,in_progress:0,not_started:0,unknown:0};
+ const criticalityCounts:Record<string,number>={critical:0,near_critical:0,noncritical:0,unknown:0};
+ let openLogicCount=0;
+ for(const row of execution){const status=Object.hasOwn(statusCounts,row.status)?row.status:'unknown';statusCounts[status]=(statusCounts[status]??0)+1;if(row.status!=='completed'){const kind=Object.hasOwn(criticalityCounts,row.criticality)?row.criticality:'unknown';criticalityCounts[kind]=(criticalityCounts[kind]??0)+1;}if(row.openStart||row.openFinish||row.isolated)openLogicCount++;}
  return {...data,rows:activityRegisterPage(all,new URLSearchParams('pageSize=50')).rows,
-  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,filterOptions},
+  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,statusCounts,criticalityCounts,openLogicCount,filterOptions},
   ...(data.scopeClassification?{scopeClassification:{...data.scopeClassification,rows:undefined}}:{})};
 }

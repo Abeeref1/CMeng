@@ -98,7 +98,7 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const section=pick('Section',[/\bsection\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i]);
   const chainage=pick('Chainage',[/\b(?:chainage|ch)\s*[-:#]?\s*(\d+\+\d+(?:\.\d+)?)\b/i]);
   const trade=pick('Trade',[/\btrade\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
-  const system=pick('System',[/\bsystem\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
+  const system=pick('System',[/\bsystem\b\s*[-:#]?\s*([a-z]*\d+[a-z0-9_.\/-]*)\b/i,/\bsystem\b\s*[-:#]\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
   const packageValue=pick('Package',[/\bpackage\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bpkg\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
   const cbs=pick('CBS',[/\bcbs\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bcost\s*code\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
   const subcontractor=pick('Subcontractor',[/\bsubcontractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);

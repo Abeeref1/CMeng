@@ -25,9 +25,12 @@ export function attachLookaheadResourceLinks(projection:any):void {
   if(item.key!=='resource')continue;
   const linked=forward.filter((row:any)=>byActivity.has(row.activityId));
   item.linkedActivityCount=linked.length;
+  (item as any).identityKnownCount=linked.length;
+  (item as any).identityCoveragePercent=forward.length?linked.length/forward.length*100:null;
   item.linkedSourceRecordCount=new Set(linked.flatMap((row:any)=>(row.readiness?.dimensions??[]).find((d:any)=>d.key==='resource')?.sourceRefs??[])).size;
   item.unresolvedLinkedActivityCount=linked.filter((row:any)=>(row.readiness?.dimensions??[]).some((d:any)=>d.key==='resource'&&d.state==='unknown')).length;
  }
  projection.resourceLinkedActivityCount=byActivity.size;
+ projection.resourceIdentityCoverage={linkedActivityCount:byActivity.size,denominator:forward.length,basis:'Source register identity linked by unique trade or exact ID; no capacity approval inferred'};
  projection.resourceLinkBasis='Unique trade-name or exact-ID evidence; not capacity approval';
 }

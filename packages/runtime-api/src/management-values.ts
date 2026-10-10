@@ -39,3 +39,14 @@ export function managementValue(input:unknown,unit=''):string {
  const display=typeof value==='number'?managementNumber(value):typeof value==='boolean'?(value?'Yes':'No'):String(value);
  return display+(unit?' '+unit:'');
 }
+
+/** Formatting of source-backed narrative text, not a substitute for missing facts. */
+export function managementText(input:unknown):string {
+ if(input===null||input===undefined)return 'Not in source';
+ return String(input)
+  .replace(/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,match=>managementDate(match))
+  .replace(/(^|[\s=:(])([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{3,})(?=$|[\s%,;:)])/g,(_,prefix,value)=>prefix+managementNumber(Number(value.replaceAll(',',''))))
+  .replace(/(?:\b(?:[a-z][a-z0-9_]*_)?register|_register)\s+status\s*=\s*([a-z][a-z0-9 _-]*?)(?=[,;\n]|$)/gi,(_,value)=>'Status: '+value.trim().replaceAll('_',' ').replace(/^./,(s:string)=>s.toUpperCase()))
+  .replace(/\b(?:null|undefined|NaN)\b/g,'Not in source')
+  .replace(/\b(Not in source|Not established|Not calculable|Withheld|Records disagree)(?:\s+(?:calendar|working))?\s+(?:days?|d|hours?|h|%)\b/gi,'$1');
+}

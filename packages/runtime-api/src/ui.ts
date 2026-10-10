@@ -1,4 +1,4 @@
-import {managementValueState,managementNumber,managementDate,managementValue} from './management-values';
+import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
@@ -518,6 +518,7 @@ ${managementValueState.toString()}
 ${managementNumber.toString()}
 ${managementDate.toString()}
 ${managementValue.toString()}
+${managementText.toString()}
 ${pmcRoleOwner.toString()}
 const fmt=v=>{
  if(v===null||v===undefined)return "Not in source";
@@ -527,7 +528,7 @@ const fmt=v=>{
  const value=String(v).trim();
  if(/^(?:null|undefined)$/i.test(value))return "Not established";
  
- return humanizeIsoText(value);
+ return managementText(value);
 };
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
 function fmtForField(key,value){
@@ -605,9 +606,10 @@ function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnica
 
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
 async function api(path,opts={}){
+  const sourceProject=typeof project==='function'?project():null,sourceSeq=projectRequestSeq;
   const controller=(!opts.method||opts.method==="GET")&&typeof AbortController!=="undefined"?new AbortController():null;
   const timeout=controller?setTimeout(()=>controller.abort(),60000):null;
-  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");if(opts.method&&!["GET","HEAD"].includes(opts.method)&&path.startsWith("/api/projects/"+encodeURIComponent(project())+"/")&&!path.includes("/intelligence/")&&typeof loadProjectActions==="function"){setTimeout(()=>{if(overview)void loadProjectActions();},0);}return data;}
+  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");if(opts.method&&!["GET","HEAD"].includes(opts.method)&&path.startsWith("/api/projects/"+encodeURIComponent(project())+"/")&&!path.includes("/intelligence/")&&typeof loadProjectActions==="function"){setTimeout(()=>{if(overview)void loadProjectActions();},0);}if(data.sourceLabels&&project()===sourceProject&&sourceSeq===projectRequestSeq&&path.startsWith('/api/projects/'+encodeURIComponent(sourceProject)+'/')&&currentModuleResult?.data){currentModuleResult.data.sourceLabels={...currentModuleResult.data.sourceLabels,...data.sourceLabels};}return data;}
   catch(error){if(controller?.signal.aborted)throw new Error("The connection took too long. Your documents remain saved. Try opening the project again.");throw error;}
   finally{if(timeout!==null)clearTimeout(timeout);}
 }
@@ -624,15 +626,8 @@ function humanBytes(value){
   while(n>=1024&&index<units.length-1){n/=1024;index+=1}
   return (index===0?Math.round(n):n.toFixed(n>=100?0:n>=10?1:2))+" "+units[index];
 }
-function formatDocumentTime(value){
-  if(!value)return "—";
-  const date=new Date(value);
-  if(Number.isNaN(date.getTime()))return String(value);
-  return new Intl.DateTimeFormat(undefined,{
-    year:"numeric",month:"short",day:"2-digit",
-    hour:"2-digit",minute:"2-digit",second:"2-digit"
-  }).format(date);
-}
+function formatDocumentTime(value){return managementDate(value);}
+
 function uploadId(){
   return window.crypto?.randomUUID
     ? window.crypto.randomUUID()
@@ -1015,12 +1010,21 @@ function readerSourceValue(metric){
  for(const value of alternatives)if((typeof value==="number"&&Number.isFinite(value))||(typeof value==="string"&&value.trim().length))return value;
  return null;
 }
+function responseListPopulation(records){
+ const result=typeof currentModuleResult==='undefined'?null:currentModuleResult;
+ const seen=new Set();let pointer=null;
+ const visit=(value,path)=>{if(pointer!==null||!value||typeof value!=='object'||seen.has(value))return;seen.add(value);if(value===records){pointer=path;return;}if(Array.isArray(value)){for(let i=0;i<value.length;i++)visit(value[i],path+'/'+i);}else for(const [key,v]of Object.entries(value)){if(key==='sourceLabels'||key==='responsePaging')continue;visit(v,path+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1'));}};
+ if(result)visit(result,'');
+ const meta=pointer===null?null:result?.responsePaging?.tables?.find(t=>t.kind==='array'&&t.pointer===pointer);
+ return {total:meta?.total??records.length,pointer,source:meta?result.responsePaging.source:null,shown:records.length};
+}
 function renderRecordTable(records){
+  const population=responseListPopulation(records);
   const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,25);
   if(!rows.length)return"";
   const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)).slice(0,24);
   if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
-  return '<div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
+  return '<p class="source-population">Showing 1–'+rows.length+' of '+population.total+(population.total>rows.length?'. Further records are available in Additional source records or the full export.':'.')+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
@@ -1408,7 +1412,7 @@ function renderLookAheadVisual(data){
     ["Activities with evidence gaps",p.evidenceGapActivityCount,"includes blocked activities","warning"],["Blocked with evidence gaps",p.blockedWithEvidenceGapCount,"Also included in the blocked count","warning"],["Blocker occurrences",p.blockerOccurrenceCount,"may include several per activity","warning"],
     ["Known blocker",p.blockedCount,"at least one explicit blocker","danger"]
   ]);
-  const coverageHtml=experienceDisclosure("Readiness evidence coverage",moduleBarList((p.readinessCoverage||[]).map(row=>({label:humanizeKey(row.key)+" · "+fmt(row.knownCount)+" known / "+fmt(row.denominator)+" · "+fmt(row.linkedActivityCount??0)+" linked activities / "+fmt(row.linkedSourceRecordCount??0)+" records",value:row.coveragePercent})),"accent","%"),"Linked records can still have unresolved timing or status");
+  const coverageHtml=experienceDisclosure("Readiness evidence coverage",moduleBarList((p.readinessCoverage||[]).map(row=>({label:humanizeKey(row.key)+" · "+fmt(row.identityKnownCount??row.knownCount)+(row.key==="resource"?" source identities linked / ":" known / ")+fmt(row.denominator)+" · "+fmt(row.linkedActivityCount??0)+" linked activities / "+fmt(row.linkedSourceRecordCount??0)+" records",value:row.identityCoveragePercent??row.coveragePercent})),"accent","%"),"Linked records can still have unresolved timing or status");
   const trades=p.sourceResourceTrades||[];
   const tradesPanel=trades.length?managementPanel('Resources supporting the look-ahead',
     'Labour assignments are reconciled by exact resource ID first, then by one unambiguous matching trade name when the register IDs differ. Demand, approved capacity and actual use remain separate.',
@@ -1728,7 +1732,7 @@ function renderEotVisual(data){
   ]);
   const labels=p.revisionLabels||{},rows=p.windowCandidates.map(w=>'<tr><td><b>'+escapeHtml(readableWindow(w.windowId,labels))+'</b></td><td>'+escapeHtml(w.positiveProgrammeMovementDays==null?"—":fmt(w.positiveProgrammeMovementDays))+'</td><td>'+escapeHtml(humanizeKey(w.programmeMovementBasis))+'</td><td>'+escapeHtml(w.analyticalTimeImpactCandidateDays===null?"Not established":fmt(w.analyticalTimeImpactCandidateDays))+'</td><td>'+escapeHtml(humanizeKey(w.state))+'</td><td>'+escapeHtml(w.state==="review"?"Not established":fmt(w.includedCandidateDays))+'</td><td>'+escapeHtml((w.reasons||[]).map(managementReason).join("; ")||"—")+'</td></tr>').join("");
   const recon=p.timeBasisReconciliation;
-  const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",recon.incorporatedEotDays===null?"Not established":fmt(recon.incorporatedEotDays)+" d","already inside revised completion"],["Full determination register",recon.registerDeterminationDays===null?"Not established":fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"Not established":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Not established":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
+  const reconciliation=recon?'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Amendment and determination reconciliation</h4><p>As-of date: '+escapeHtml(planningShortDate(recon.dataDateIso))+'.</p></div></div><div class="planning-panel-body">'+planningKpis([["EOT incorporated in amendment",amendmentEotManagementDisplay(recon.incorporatedEotDays,data.projectFacts?.time),"already inside revised completion"],["Full determination register",recon.registerDeterminationDays===null?"Not established":fmt(recon.registerDeterminationDays)+" d",(recon.registerDeterminationCount===null||recon.registerDeterminationCount===undefined?"population not stated":fmt(recon.registerDeterminationCount)+" immutable determination(s)")],["Determinations by Data Date",recon.effectiveDeterminationCount===null||recon.effectiveDeterminationCount===undefined?"Not established":fmt(recon.effectiveDeterminationCount),"cutoff-controlled population"],["Additional approved EOT",recon.additionalApprovedEotDays===null?"Not established":fmt(recon.additionalApprovedEotDays)+" d","never register total plus amendment"]])+'<div class="notice warn">'+(recon.overlapResolution==="unresolved"?"Amendment incorporation has not been reconciled to the determination register. No additional days are applied to the revised contractual completion.":"Additional awards have an explicit incorporation reconciliation.")+'</div></div></section>':"";
   return '<section class="planning-view eot-view">'+kpis+reconciliation+programmeContextHtml+evidenceChainHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Entitlement requirements</h4><p>Known time facts are shown first. Schedule movement is not an EOT time-impact assessment. Entitlement is assessed separately through Event → Activity → Causation → Notice → Concurrency → Determination.</p></div></div><div class="planning-panel-body">'+entitlementGate+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window assessment</h4><p>Review-state windows do not display a false zero entitlement.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Window</th><th>Observed movement d</th><th>Movement basis</th><th>Time-impact candidate d</th><th>State</th><th>Included days</th><th>Reason</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function visualSection(title,description,badge,body){
@@ -2159,7 +2163,7 @@ function amendmentEotManagementDisplay(value,timeFacts){
  const wording=Array.isArray(timeFacts?.amendmentEotStatements)?timeFacts.amendmentEotStatements:[];
  const statements=wording.map(row=>String(row?.statement||'').trim()).filter(Boolean);
  const award=timeFacts?.awardedEotDays?.value;
- return statements.length?statements.join(' · '):(typeof award==='number'?managementNumber(award)+' days awarded in the determination register · ':'')+'amendment text not found';
+ return (typeof award==='number'&&Number.isFinite(award)?managementNumber(award)+' days awarded in the determination register · ':'')+(statements.length?statements.join(' · '):'amendment text not found');
 }
 function renderPmoVisual(data){
   const p=projectionFor(data,"pmo_analysis");
@@ -2234,7 +2238,7 @@ function renderPmoVisual(data){
             ['Current contract',row.currentContractValue?.value??'Not established',row.currency],
             ['EAC',row.forecastEac?.value??'Not established',(row.forecastEac?.state==='confirmed'?'Source reported':'Candidate or unavailable')+' · '+row.currency],
             ['Certified unpaid',row.certifiedUnpaidAmount?.value??'Not established',row.currency+' · certified less paid, not applied certificates'],
-            ['CPI',associated.cpi??'Not established','Cost performance ratio; no cross-currency estimate']
+            ['CPI',row.cpi??associated.cpi??{value:null,valueState:'not_in_source'},'Cost performance ratio; no cross-currency estimate']
           ])+'</section>';
       }).join('')+managementModuleLink('cost-forecast','Review full Cost Forecast / CPI basis'),true):
     managementPanel('Cost and cash position','The supporting commercial currency population is not established on this brief. Do not infer a zero from missing evidence.',
@@ -2345,14 +2349,14 @@ async function filterActivityReview(page=0){
   if((currentModuleResult?.legacyKey||currentModuleResult?.key)!=="activity-analytics")return;
   const body=el('activityFilterBody'),count=el('activityFilterCount'),owner=project(),request=++activityReviewRequest;if(!body)return;
   const params=new URLSearchParams({view:'register',page:String(page),pageSize:'50',q:activityFilterValue('activityFilterSearch'),condition:activityFilterValue('activityFilterCondition')});
-  const fields={Wbs:'wbsId',Zone:'zone',Floor:'floor',Tower:'tower',Building:'building',Area:'area',WorkFront:'workFront',Phase:'phase',Section:'section',Chainage:'chainage',Discipline:'discipline',Trade:'trade',System:'system',Package:'package',Cbs:'cbs',Contractor:'contractor',Subcontractor:'subcontractor',Status:'status',Criticality:'criticality'};
+  const fields={Wbs:'wbsId',Zone:'zone',Floor:'floor',Tower:'tower',Building:'building',Area:'area',Plot:'plot',Location:'location',WorkFront:'workFront',Phase:'phase',Section:'section',Chainage:'chainage',Discipline:'discipline',Trade:'trade',System:'system',Package:'package',Cbs:'cbs',Contractor:'contractor',Subcontractor:'subcontractor',Status:'status',Criticality:'criticality'};
   Object.entries(fields).forEach(([id,key])=>{const value=activityFilterValue('activityFilter'+id);if(value)params.set(key,value);});
   try{
     const result=await api('/api/projects/'+encodeURIComponent(owner)+'/schedule/modules/activity-analytics?'+params);
     if(request!==activityReviewRequest||project()!==owner||el('activityFilterBody')!==body)return;
     activityReviewPage=result.page;
     body.innerHTML=result.rows.map(activityReviewRowHtml).join('')||'<tr><td colspan="13">No activities match the selected filters.</td></tr>';
-    if(count)count.textContent=fmt(result.matchingCount)+' of '+fmt(result.totalCount)+' execution activities · page '+(result.page+1)+' / '+result.pageCount;
+    if(count)count.textContent='Showing '+(result.matchingCount?result.page*result.pageSize+1:0)+'–'+Math.min(result.page*result.pageSize+result.rows.length,result.matchingCount)+' of '+fmt(result.matchingCount)+' matching execution activities · '+fmt(result.totalCount)+' total · page '+(result.page+1)+' / '+result.pageCount;
     if(el('activityPrevious'))el('activityPrevious').disabled=result.page===0;
     if(el('activityNext'))el('activityNext').disabled=result.page+1>=result.pageCount;
     saveActivityFilters();
@@ -2369,19 +2373,19 @@ function renderActivityAnalyticsVisual(data){
   const allRows=p.analysisRows||p.rows;
   const executionRows=allRows.filter(row=>!["level_of_effort","wbs_summary"].includes(row.activityType));
   const unfinishedRows=executionRows.filter(r=>r.status!=='completed');
-  const status={completed:0,in_progress:0,not_started:0,unknown:0};
-  executionRows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
-  const criticalKnown=unfinishedRows.filter(r=>r.criticality==="critical").length;
+  const status=p.activitySummary?.statusCounts?{...p.activitySummary.statusCounts}:{completed:0,in_progress:0,not_started:0,unknown:0};
+  if(!p.activitySummary?.statusCounts)executionRows.forEach(r=>{status[r.status]=(status[r.status]||0)+1});
+  const criticalKnown=p.activitySummary?.criticalityCounts?.critical??unfinishedRows.filter(r=>r.criticality==="critical").length;
   const critical=p.counts?p.counts.critical.value:aggregateCount(unfinishedRows,r=>r.totalFloatHours==null?null:r.criticality==="critical").value;
-  const nearKnown=unfinishedRows.filter(r=>r.criticality==="near_critical").length;
+  const nearKnown=p.activitySummary?.criticalityCounts?.near_critical??unfinishedRows.filter(r=>r.criticality==="near_critical").length;
   const near=p.counts?p.counts.nearCritical.value:aggregateCount(unfinishedRows,r=>r.criticality==="unknown"||r.criticality==null||r.floatRiskWatchlist===null?null:r.criticality==="near_critical").value;
-  const unknownCriticality=unfinishedRows.filter(r=>r.criticality==="unknown").length;
-  const noncritical=unfinishedRows.filter(r=>r.criticality==="noncritical").length;
+  const unknownCriticality=p.activitySummary?.criticalityCounts?.unknown??unfinishedRows.filter(r=>r.criticality==="unknown").length;
+  const noncritical=p.activitySummary?.criticalityCounts?.noncritical??unfinishedRows.filter(r=>r.criticality==="noncritical").length;
   const floatRisk=p.counts?p.counts.floatRisk.value:aggregateCount(unfinishedRows,r=>r.floatRiskWatchlist).value;
   const late=p.counts?p.counts.late.value:aggregateCount(unfinishedRows,r=>typeof r.finishVarianceDays==="number"?r.finishVarianceDays>0:null).value;
-  const openLogic=executionRows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
+  const openLogic=p.activitySummary?.openLogicCount??executionRows.filter(r=>r.openStart||r.openFinish||r.isolated).length;
   const kpis=planningKpis([
-    ["Execution activities",executionRows.length,"detail population for filtering and drill-down"],["Source records retained",allRows.length,"full auditable register"],["Excluded execution types",allRows.length-executionRows.length,"LOE and WBS summaries retained outside execution analysis"],
+    ["Execution activities",p.activitySummary?.executionCount??executionRows.length,"full server population for filtering and drill-down"],["Source records retained",p.activitySummary?.sourceRecordCount??allRows.length,"full auditable register"],["Excluded execution types",(p.activitySummary?.sourceRecordCount??allRows.length)-(p.activitySummary?.executionCount??executionRows.length),"LOE and WBS summaries retained outside execution analysis"],
     ["Completed",status.completed,"activities","success"],
     ["In progress",status.in_progress,"activities","accent"],
     ["Critical",critical,"activities","danger"],
@@ -2421,7 +2425,7 @@ function renderActivityAnalyticsVisual(data){
   const floors=p.activitySummary?.filterOptions?.floor||[...new Set(executionRows.map(r=>r.floor??r.level).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
   const filterPanel='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Filter activities</h4><p>Filter the full execution population by schedule status and source/source-derived project scope. Unclassified activities remain visible when no scope filter is selected.</p></div><b id="activityFilterCount">'+fmt(executionRows.length)+' of '+fmt(executionRows.length)+' execution activities</b></div><div class="planning-panel-body"><div class="scope-filter-grid">'+
     '<label>Search<input id="activityFilterSearch" placeholder="Activity ID, name, WBS, zone…" oninput="filterActivityReview()"></label>'+
-    select("activityFilterWbs","WBS","wbsId")+select("activityFilterZone","Zone","zone")+select("activityFilterFloor","Floor / level","floor",floors)+select("activityFilterTower","Tower","tower")+select("activityFilterBuilding","Building","building")+select("activityFilterArea","Area","area")+select("activityFilterWorkFront","Work front","workFront")+
+    select("activityFilterWbs","WBS","wbsId")+select("activityFilterZone","Zone","zone")+select("activityFilterFloor","Floor / level","floor",floors)+select("activityFilterTower","Tower","tower")+select("activityFilterBuilding","Building","building")+select("activityFilterArea","Area","area")+select("activityFilterPlot","Plot","plot")+select("activityFilterLocation","Location","location")+select("activityFilterWorkFront","Work front","workFront")+
     select("activityFilterPhase","Phase","phase")+select("activityFilterSection","Section","section")+select("activityFilterChainage","Chainage","chainage")+select("activityFilterDiscipline","Discipline","discipline")+select("activityFilterTrade","Trade","trade")+select("activityFilterSystem","System","system")+select("activityFilterPackage","Package","package")+select("activityFilterCbs","CBS","cbs")+select("activityFilterContractor","Contractor","contractor")+select("activityFilterSubcontractor","Subcontractor","subcontractor")+
     select("activityFilterStatus","Status","status")+select("activityFilterCriticality","Criticality","criticality")+
     select("activityFilterCondition","Schedule condition","",[["delayed","Delayed / schedule pressure"],["missed_start","Missed start"],["overdue_finish","Overdue finish"],["negative_float","Negative float"],["zero_float","Zero float"],["float_risk","Float-risk watchlist"],["open_logic","Open / isolated logic"]])+
@@ -2856,7 +2860,7 @@ function renderCommercialCapabilityVisual(key,data){
       ["Clauses",clauses.length,amendments.length+" amendments"]
     ])+head("Commercial terms & amendments","Contract terms remain dated and source-backed. Provisional or conflicting terms do not become current facts.")+
       table(["Clause","Heading","Role","State","Page"],clauses.map(r=>'<tr><td>'+escapeHtml(r.identifier||"Not numbered")+'</td><td>'+escapeHtml(r.heading||"")+'</td><td>'+escapeHtml(r.documentRole||"")+'</td><td>'+escapeHtml(humanizeKey(r.governanceState))+'</td><td>'+escapeHtml(r.startPage??"—")+'</td></tr>'),"No contract clauses are established.")+
-      '<details class="source-scope"><summary>Amendments · '+fmt(amendments.length)+'</summary>'+table(["Document","Effective","Completion","EOT incorporated","State"],amendments.map(r=>'<tr><td>'+escapeHtml(r.documentId)+'</td><td>'+escapeHtml(planningShortDate(r.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(r.completionIso))+'</td><td>'+escapeHtml(r.incorporatedEotDays===null?"Not established":fmt(r.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(r.state))+'</td></tr>'),"No amendments are established.")+'</details></div></section></section>';
+      '<details class="source-scope"><summary>Amendments · '+fmt(amendments.length)+'</summary>'+table(["Document","Effective","Completion","EOT incorporated","State"],amendments.map(r=>'<tr><td>'+escapeHtml(r.documentId)+'</td><td>'+escapeHtml(planningShortDate(r.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(r.completionIso))+'</td><td>'+escapeHtml(amendmentEotManagementDisplay(r.incorporatedEotDays,data.projectFacts?.time))+'</td><td>'+escapeHtml(humanizeKey(r.state))+'</td></tr>'),"No amendments are established.")+'</details></div></section></section>';
   }
   if(key==="cost-register"){
     const rows=data.rows||[];
@@ -3252,7 +3256,7 @@ function renderNearCriticalVisual(data){
   const reconciliation='<div class="notice '+(sourceMatch==="float_risk_watchlist"||sourceMatch==="strict_near_critical"?"good":"warn")+'"><b>Submitted label versus the float rules:</b> '+escapeHtml(reconciliationText)+'</div>';
   return '<section class="planning-view nearcritical-view">'+coverageHeadline+basis+managementControl+
     '<details class="source-scope"><summary>Float analytics & classification detail</summary><div class="planning-panel-body">'+kpis+exceptionsPanel+reconciliation+floatConcentrationWarning+distributionSummary(p.floatDistribution,'hours','All execution activity float values')+'</div></details>'+
-    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the disclosed screening basis using each activity calendar. A CMeng policy threshold is never presented as a client-approved project rule.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>This band runs from the disclosed critical boundary to the near-critical limit. Critical and negative-float exceptions are listed above. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'The full screening count is unresolved for '+escapeHtml(fmt(unresolved))+' activities because float values or working-calendar inputs are missing. Any listed rows are the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(riskRows.length))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Current float h</th><th>Previous float h</th><th>Float erosion h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+    '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Float-risk distribution</h4><p>Submitted total float is classified against the disclosed screening basis using each activity calendar. A CMeng policy threshold is never presented as a client-approved project rule.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>This band runs from the disclosed critical boundary to the near-critical limit. Critical and negative-float exceptions are listed above. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'The full screening count is unresolved for '+escapeHtml(fmt(unresolved))+' activities because float values or working-calendar inputs are missing. Any listed rows are the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(p.floatRiskWatchlistCount??responseListPopulation(p.watchlistRows||p.rows||[]).total))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Current float h</th><th>Previous float h</th><th>Float erosion h</th><th>Threshold h</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
@@ -3393,7 +3397,7 @@ function renderCommercialLedgerVisual(data,scoped=false){
     const group=(label,list,scope)=>'<details class="source-scope"><summary>'+escapeHtml(label)+' · '+String(list.length)+' source records</summary>'+renderCommercialLedgerVisual({...p,rows:list,scope,summary:{effectiveRecordCount:scope==="as_of"?list.length:0}},true)+'</details>';
     return renderCommercialLedgerVisual({...p,rows:current,scope:"as_of",summary:{...p.summary,effectiveRecordCount:current.length}},true)+group("After Data Date, excluded from current totals",future,"future")+group("Date not confirmed, excluded from current totals",undated,"undated");
   }
-  const num=v=>v===null||v===undefined?"Not established":new Intl.NumberFormat(undefined,{maximumFractionDigits:6}).format(v);
+  const num=v=>managementValue(v);
   const amount=a=>a?'<b>'+escapeHtml(num(a.value))+'</b>'+(a.value===null?"":' <small>'+escapeHtml(a.currency||"Currency unresolved")+'</small>'):"Not established";
   const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
   const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
@@ -3417,7 +3421,7 @@ function renderCommercialLedgerVisual(data,scoped=false){
     content=planningKpis([["Source variations",rows.length,"no duplicate addition to current contract"],["Approved by Data Date",rows.filter(r=>/^approved$/i.test(r.status)&&r.approvalDate&&p.dataDateIso&&r.approvalDate<=p.dataDateIso).length,"dated approved source records"]])+panel("Variation register","Approved variation values are not added again to a current contract value or BAC that already includes them.",table(["Variation","Description","Approval date","Status","Approved amount","Tax basis","Authority","Evidence"],rows.map(r=>[escapeHtml(r.variationId),escapeHtml(r.description),period(r.approvalDate),escapeHtml(r.status),amount(r.approvedAmount),escapeHtml(r.approvedAmount.taxBasis),escapeHtml(r.authority||"Not stated"),evidence([r.receipt])])));
   } else if(key==="commercial-amendments"){
     const s=p.summary||{};
-    content=planningKpis([["Revised contract finish",planningShortDate(s.revisedCompletion),"applicable amendment"],["EOT incorporated",num(s.incorporatedEotDays)+" d","already inside revised completion"],["Determination register",num(s.determinationRegisterDays)+" d","all register dates"],["Determinations by Data Date",num(s.effectiveDeterminationDays)+" d","not automatically additional EOT"]])+panel("Contract amendments","Completion is not extended twice for the same award. Additional EOT stays unresolved until incorporation is reconciled.",table(["Effective date","Revised completion","Incorporated EOT","Basis","Evidence"],rows.map(r=>[period(r.effectiveDate),period(r.completionIso),escapeHtml(num(r.incorporatedEotDays)+" days"),escapeHtml(r.state),evidence([r.receipt])])));
+    content=planningKpis([["Revised contract finish",planningShortDate(s.revisedCompletion),"applicable amendment"],["EOT incorporated",amendmentEotManagementDisplay(s.incorporatedEotDays,{awardedEotDays:{value:s.effectiveDeterminationDays??s.determinationRegisterDays}}),"already inside revised completion"],["Determination register",managementValue(s.determinationRegisterDays,"days"),"all register dates"],["Determinations by Data Date",managementValue(s.effectiveDeterminationDays,"days"),"not automatically additional EOT"]])+panel("Contract amendments","Completion is not extended twice for the same award. Additional EOT stays unresolved until incorporation is reconciled.",table(["Effective date","Revised completion","Incorporated EOT","Basis","Evidence"],rows.map(r=>[period(r.effectiveDate),period(r.completionIso),escapeHtml(amendmentEotManagementDisplay(r.incorporatedEotDays,{awardedEotDays:{value:s.effectiveDeterminationDays??s.determinationRegisterDays}})),escapeHtml(r.state),evidence([r.receipt])])));
     const d=p.determinations||[];content+=panel("Engineer determination register","Source awards remain immutable. Rows dated after the Data Date are not part of the as-of position.",table(["Determination","Claim","Date","Awarded days","Authority","State","Supersedes","Evidence"],d.map(r=>[escapeHtml(r.determinationId),escapeHtml(r.claimId),period(r.determinationDate),escapeHtml(num(r.awardedDays)),escapeHtml(r.authority),escapeHtml(humanizeKey(r.state)),escapeHtml(r.supersedes||"None stated"),evidence([r.receipt])])));
   } else {
     content=panel("Commercial reconciliation","Source comparisons do not substitute for approval workflows, allocations or receipts.",table(["Record","Reporting period","State","Findings","Evidence"],rows.map(r=>[escapeHtml(r.paymentId||r.currency||"Source"),period(r.asOf),escapeHtml(humanizeKey(r.state)),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.receipts||[r.receipt].filter(Boolean))])))+'<div class="notice warn">'+escapeHtml((p.summary?.gaps||[]).join(" "))+'</div>';
@@ -3529,7 +3533,7 @@ function renderCommercialVisual(key,data){
       });
       const cbsRows=(foundation.cbsBreakdown?.nodes||[]).slice(0,100).map(node=>'<tr><td><b>'+escapeHtml(node.costCode)+'</b></td><td>'+escapeHtml(node.description||"")+'</td><td>'+escapeHtml(node.parentCostCode||"Root")+'</td><td>'+escapeHtml((node.childCostCodes||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.wbsIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.boqItemIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.paymentIds||[]).join(", ")||"—")+'</td></tr>');
       foundationDetail=
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Showing '+escapeHtml(fmt(costRows.length))+' of '+escapeHtml(fmt((foundation.costRegister?.rows||[]).length))+' rows; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Cost Register</h4><p>CBS/WBS/currency/tax/date/source authority remain explicit. Showing '+escapeHtml(fmt(costRows.length))+' of '+escapeHtml(fmt(responseListPopulation(foundation.costRegister?.rows||[]).total))+' rows; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Cost records",countPosition(foundation.costRegister?.state,foundation.costRegister?.recordCount,"records"),"Cost register, grouped by record"],
           ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not established":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
@@ -3538,7 +3542,7 @@ function renderCommercialVisual(key,data){
         ])+
         table(["Cost code","Description","Parent","WBS","Currency","Tax basis","Current metrics","State"],costRows,"No cost-register source metrics are established.")+
         '</div></section>'+
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Cost breakdown, WBS/BOQ/payment links and amounts by currency. Showing '+escapeHtml(fmt(cbsRows.length))+' of '+escapeHtml(fmt((foundation.cbsBreakdown?.nodes||[]).length))+' nodes; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Cost breakdown, WBS/BOQ/payment links and amounts by currency. Showing '+escapeHtml(fmt(cbsRows.length))+' of '+escapeHtml(fmt(responseListPopulation(foundation.cbsBreakdown?.nodes||[]).total))+' nodes; the complete population is available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
         table(["CBS","Description","Parent","Children","WBS","BOQ links","Payment links"],cbsRows,"No CBS hierarchy is established.")+
         '</div></section>';
     }
@@ -3615,7 +3619,7 @@ function renderCommercialVisual(key,data){
     }
     if(key==="contract-particulars-bonds"){
       const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+fmt(row.occurrenceCount??1)+" source sections</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
-      const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(row.incorporatedEotDays===null?"Not established":fmt(row.incorporatedEotDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
+      const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(amendmentEotManagementDisplay(row.incorporatedEotDays,data.projectFacts?.time))+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are Separate from the current programme.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Contract currency",findingValue(terms.contractCurrency),findingMeta(terms.contractCurrency)],
@@ -5247,20 +5251,30 @@ function applyPmcDisplayOwners(root,defaultDomain){
 }
 function applyProjectDisplayText(root){
  if(!root||typeof document==='undefined'||typeof document.createTreeWalker!=='function')return;
- // Readable screen text only; keep source values, references, paths and exports.
- const walker=document.createTreeWalker(root,4);
- const updates=[];
- let node;
+ const walker=document.createTreeWalker(root,4),updates=[];let node;
  while((node=walker.nextNode())){
-   if(node.parentElement?.closest('script,style,code,pre,textarea,input,select,option,a[href^="/api/"]'))continue;
-   const source=String(node.nodeValue||'');
-   if(!source||source.length>15000)continue;
-   const cleaned=humanizeIsoText(source)
-     .replace(/\bundefined calendar days\b/gi,'Calendar-day difference not established')
-     .replace(/\b([A-Za-z]+)_register status=/g,(_,kind)=>kind.replace(/_/g,' ')+' register status: ');
+   if(node.parentElement?.closest('script,style,code,pre,textarea,input,[data-source-raw]'))continue;
+   const source=String(node.nodeValue||'');if(!source.trim())continue;
+   const readable=typeof readerReference==='function'?readerReference(source):source;
+   const cleaned=managementText(readable);
    if(source!==cleaned)updates.push([node,cleaned]);
  }
  for(const [node,cleaned] of updates)node.nodeValue=cleaned;
+}
+// One presentation rule also covers asynchronously loaded groups, drawers,
+// portfolio cards and source-page results without changing API/source values.
+let projectDisplayObserver=null;
+function observeProjectDisplay(){
+ if(typeof MutationObserver==='undefined'||typeof document==='undefined'||projectDisplayObserver)return;
+ projectDisplayObserver=new MutationObserver(records=>{
+  const roots=new Set();
+  for(const record of records){
+   if(record.type==='characterData'){if(record.target.parentElement)roots.add(record.target.parentElement);}
+   else for(const node of record.addedNodes)if(node.nodeType===1)roots.add(node);else if(node.parentElement)roots.add(node.parentElement);
+  }
+  for(const root of roots)applyProjectDisplayText(root);
+ });
+ projectDisplayObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
 }
 
 function renderModuleResult(result){
@@ -5301,6 +5315,7 @@ function renderModuleResult(result){
   }
   applyPmcDisplayOwners(container,result.key);
   applyProjectDisplayText(container);
+  observeProjectDisplay();
   const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
   if(missing.length){
     container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
