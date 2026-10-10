@@ -2377,7 +2377,7 @@ async function route(
     const offset=Number(url.searchParams.get('offset')??0);
     const page=recordDetailPage(result,pointer,offset,25,{
       query:url.searchParams.get('q')??'',
-      status:url.searchParams.get('filter')??'',
+      status:url.searchParams.get('filter')??url.searchParams.get('status')??'',
       sort:url.searchParams.get('sort')??'',
       direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
     });

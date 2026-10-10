@@ -54,8 +54,27 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
 /** Project facts are shared canonical authority, not a visible table.
  * Never silently remove contract sections, evidence qualifications or other
  * fact groups. Screen tables alone are eligible for paging. */
-function compactFactSnapshot(value:unknown,_record:(entry:PageTable)=>void,_rootPointer:string):unknown {
- return value;
+function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPointer:string):unknown {
+ // Fact values, states, units, qualifications and contract sections are not
+ // table previews. Only long provenance/identity collections can be deferred.
+ // A fixed rule keeps the same canonical facts on every page at every budget.
+ const evidenceList=/(?:sourceRefs|sourceReferences|memberIds|memberActionIds|activityIds|relationshipIds|recordIds|documentIds|receiptIds|checkIds|affectedActivityIds|missingBaselineActivityIds|missingActualFinishActivityIds|unknownLagRelationshipIds|finishActivityIds)$/i;
+ const seen=new Set<object>();
+ const walk=(input:any,pointer:string,key:string):any=>{
+  if(input===null||typeof input!=='object')return input;
+  if(seen.has(input))return input;
+  seen.add(input);
+  if(Array.isArray(input)){
+   const shown=evidenceList.test(key)?Math.min(input.length,PROJECT_TABLE_PAGE_SIZE):input.length;
+   if(shown<input.length)record({pointer,total:input.length,shown,kind:'array'});
+   const result=input.slice(0,shown).map((item:any,index:number)=>walk(item,pointer+'/'+index,''));
+   seen.delete(input);return result;
+  }
+  const output:Record<string,unknown>={};
+  for(const [field,item] of Object.entries(input))output[field]=walk(item,pointer+'/'+token(field),field);
+  seen.delete(input);return output;
+ };
+ return walk(value,rootPointer,'projectFacts');
 }
 
 function projectFactsOf(body:unknown):unknown {
@@ -185,10 +204,10 @@ export function pageProjectResponse(
      tables:[{pointer:'',total:Object.keys(input).length,shown:0,kind:'object' as const}],
      additionalTables:0,responseBytes:0,sourcePreserved:true as const},
  };
- // Fail with an explicit warning rather than inventing shortened numbers.
- // Never erase canonical facts to fit the transport budget. An oversized
- // business answer must be a visible transport failure, never a false all-clear.
- if(bytes(final)>maxBytes)throw new Error('SCREEN_FACTS_EXCEED_RESPONSE_BUDGET');
+ // Do not turn a page into HTTP 400 because its provenance grew. The fixed
+ // fact projection above pages long evidence collections without losing facts.
+ // If a genuine scalar/qualification core still exceeds the screen target,
+ // retain it and expose the measured size for the release gate to reject.
  final.responsePaging.responseBytes=bytes(final);
  return final;
 }
