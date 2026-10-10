@@ -88,7 +88,7 @@ test('S-49 visible registers retain paging metadata even when nested facts excee
  const source={projectVersion:22,data:{projectFacts:{deep:{rows:nested}},
    rows:Array.from({length:127},(_,i)=>({recordId:'RECORD-'+i,amount:i+0.25}))}};
  const projected=pageProjectResponse(source,'/api/projects/P/delivery/modules/delivery-control') as any;
- assert.ok(projected.responsePaging.additionalTables>0,'The fact snapshot must exceed its reserved metadata');
+ assert.deepEqual(projected.data.projectFacts,source.data.projectFacts,'no canonical fact group or nested evidence is removed');
  assert.ok(projected.responsePaging.tables.some((t:any)=>t.pointer==='/data/rows'&&t.total===127),
    'The visible register must have its full 127-row paging pointer, not only 25 rows');
  assert.equal(projected.data.rows.length,25);
@@ -96,4 +96,38 @@ test('S-49 visible registers retain paging metadata even when nested facts excee
  assert.equal(remaining.kind,'array');
  assert.ok(Array.isArray(remaining.rows));
  assert.equal(remaining.rows![0].recordId,'RECORD-100');
+});
+
+test('S-51 project facts retain every section and qualified authority after paging',()=>{
+ const facts={projectVersion:8,time:{awardedEotDays:{value:13}},contractSections:[
+  {section:'1',ldPerDay:35000,completionIso:'2030-01-01'}, {section:'2',ldPerDay:15000,completionIso:'2030-02-01'}
+ ],programmeQuality:{reconciliation:'review_required'},securityValidity:{bond:{expiryIso:'2031-01-01'}},
+  deep:{rows:Array.from({length:42},(_,i)=>({recordId:'FACT-'+i,amount:i}))}};
+ const input={key:'liquidated-damages',projectVersion:8,data:{projectFacts:facts,rows:Array.from({length:210},(_,i)=>({recordId:'LD-'+i,note:'Source detail '.repeat(30)}))}};
+ const rendered=pageProjectResponse(input,'/api/projects/A/commercial/modules/liquidated-damages') as any;
+ assert.deepEqual(rendered.data.projectFacts,facts);
+ assert.equal(rendered.data.projectFacts.contractSections.length,2);
+ assert.equal(rendered.data.projectFacts.deep.rows.length,42);
+ assert.equal(rendered.data.rows.length,25);
+ assert.equal(rendered.responsePaging.tables.find((t:any)=>t.pointer==='/data/rows')?.total,210);
+});
+
+test('S-51 full chart histories survive while large visible registers remain paged',()=>{
+ for(const [key,field,count] of [['progress-scurve','points',290],['manhour-scurve','points',3567],['resource-utilization','weeklyTotals',204]] as const){
+  const source={key,projectVersion:99,data:{projectionKey:key, [field]:Array.from({length:count},(_,i)=>({dateIso:'2030-01-01',planned:i/100,actual:i/150})),
+    rows:Array.from({length:600},(_,i)=>({recordId:'RESOURCE-'+i,source:'A',unit:'labor_hour',capacity:5}))}};
+  const page=pageProjectResponse(source,'/api/projects/A/schedule/modules/'+key) as any;
+  assert.equal(page.data[field].length,count,key+' must not end at row 25');
+  assert.equal(page.data.rows.length,25,key+' visible register is paged');
+  assert.equal(page.responsePaging.tables.find((t:any)=>t.pointer==='/data/rows')?.total,600);
+ }
+});
+
+test('S-51 milestone decisions cannot turn into a false all-clear when critical rows occur after 25',()=>{
+ const rows=Array.from({length:160},(_,i)=>({activityId:'M-'+i,status:i<130?'completed':'not_started',criticality:i>=145?'critical':'positive_float',negativeFloat:i>=145,managementPriority:i>=145?'critical':'normal',currentDateIso:'2030-01-01',baselineDateIso:'2029-12-01',daysFromDataDate:2}));
+ const source={key:'milestones',projectVersion:55,data:{projectionKey:'milestones',rows,openCount:30,criticalPriorityCount:15,completedCount:130}};
+ const p=pageProjectResponse(source,'/api/projects/A/schedule/modules/milestones') as any;
+ assert.equal(p.data.rows.length,160,'whole milestone decision population must remain available to ranking and timeline');
+ assert.equal(p.data.rows.filter((r:any)=>r.status!=='completed'&&r.negativeFloat).length,15);
+ assert.equal(p.data.criticalPriorityCount,15);
 });
