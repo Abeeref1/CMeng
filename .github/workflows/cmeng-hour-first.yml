@@ -1,0 +1,64 @@
+name: CMeng Hour One First Release
+on:
+  push:
+    branches: ['fix/cmeng-hour-first-20261010-1833']
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact-base shared repair
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '1c4d89bf5a3d5e0d57a658160627f3fa7e580a0e'
+          mkdir -p /tmp/hour-first
+          cat scripts/hour-first-patch.1 scripts/hour-first-patch.2 scripts/hour-first-patch.3 | base64 -d | xz -d > /tmp/hour-first/changes.patch
+          echo '3de97c9150c6df5ea43d3711cf130c0bb53d7f61db2bb4aedcbeb2230daea1f3  /tmp/hour-first/changes.patch' | sha256sum -c -
+          git apply --check --unidiff-zero /tmp/hour-first/changes.patch
+          git apply --unidiff-zero /tmp/hour-first/changes.patch
+      - name: Install build and browser dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Build and preservation checks
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run typecheck
+          node scripts/check-assembled-browser.cjs
+          node --test dist/tests/hour-one-shared.test.js dist/tests/round-two-population-contract.test.js dist/tests/round-one-shared.test.js dist/tests/system-shared-rules.test.js dist/tests/accountability-unassigned.test.js dist/tests/consultant-response-paging.test.js dist/tests/fact-provenance-paging.test.js dist/tests/procurement-float-consistency.test.js | tee /tmp/hour-first/targeted.log
+      - name: Capture current largest source report without edits
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{const r=await fetch('https://cmeng-main-production.up.railway.app/api/projects/UPTOWN-100/management/master-dashboard/report.json',{signal:AbortSignal.timeout(120000)});if(!r.ok)throw Error('Largest report HTTP '+r.status);const d=await r.json(),v=d.result??d;if((v.data?.projectFacts?.projectId??v.data?.projectId)!=='UPTOWN-100')throw Error('Source identity mismatch');fs.writeFileSync('/tmp/hour-first/largest-dashboard.json',JSON.stringify(d));})().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+      - name: Open every demo page and largest dashboard
+        run: |
+          set -euo pipefail
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then npx playwright install chromium; export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"; fi
+          CMENG_LARGEST_REPORT=/tmp/hour-first/largest-dashboard.json CMENG_REQUIRE_LARGEST=1 CMENG_FAST_GATE_REPORT=/tmp/hour-first/fast-gate.json node scripts/fast-release-gate.cjs
+      - name: Publish the actual tested source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages tests
+          git commit -m 'Shared source evidence, certificate linkage, full denominators, source-qualified brief, priority owner cache and conditional feasibility with working BOQ link route'
+          git push origin HEAD:refs/heads/fix/cmeng-hour-first-validated-20261010-1833
+          git rev-parse HEAD > /tmp/hour-first/validated-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-hour-first-${{ github.run_id }}
+          path: /tmp/hour-first/
+          retention-days: 3
