@@ -49,7 +49,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const accessMode=()=>{try{return applicationPolicy()?'protected':'public_review';}catch{return 'unavailable';}};
   const actorHeaders=new WeakMap<IncomingMessage,Record<string,string>>();
   const configured=options.maxWorkers??Number(process.env.CMENG_PROJECT_WORKERS??6);
-  const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured);
+  const explicitlyParallel=Number(process.env.CMENG_PROJECT_CONCURRENT_LANES??0);
+  const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured,undefined,explicitlyParallel);
   const reads=(id:string)=>new ProjectReadCache(projectDirectory(root,id));
   let closing=false,catalogWrites=Promise.resolve();
   let lastForegroundProjectRequestAt=0;
