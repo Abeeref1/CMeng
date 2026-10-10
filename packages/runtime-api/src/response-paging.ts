@@ -91,7 +91,7 @@ export function pageProjectResponse(
  const screenKey=String(item?.key??item?.data?.projectionKey??source.split('?')[0].split('/').pop()??'').toLowerCase();
  const neverPageArray=(key:string,pointer:string)=>(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints)$/i.test(key)
-   ||(/(?:^|\\/)rows$/.test(pointer)&&(screenKey==='milestones'||/(?:^|\\/)milestones(?:\\/data)?\\/rows$/.test(pointer)))
+   ||(pointer.endsWith('/rows')&&(screenKey==='milestones'||pointer.includes('/milestones/')))
  );
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
