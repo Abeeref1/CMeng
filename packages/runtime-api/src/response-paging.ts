@@ -51,43 +51,11 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
  * screen, independent of how large the surrounding specialist module is.
  * Original registers, receipts and full source facts remain in producers and
  * downloadable reports, and are retrievable on demand. */
-function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPointer:string):unknown {
- const seen=new Set<object>();
- const walk=(v:any,key:string,pointer:string,depth:number):any=>{
-  if(v===null||typeof v!=='object'){
-   if(typeof v==='string'&&v.length>FACT_BUDGET.text){
-    record({pointer,total:v.length,shown:FACT_BUDGET.text,kind:'text'});
-    return v.slice(0,FACT_BUDGET.text)+'…';
-   }
-   return v;
-  }
-  if(seen.has(v))return {detailAvailable:true};
-  if(depth>FACT_BUDGET.depth){
-   record({pointer,total:Array.isArray(v)?v.length:Object.keys(v).length,shown:0,
-    kind:Array.isArray(v)?'array':'object'});
-   return Array.isArray(v)?[]:{detailAvailable:true};
-  }
-  seen.add(v);
-  if(Array.isArray(v)){
-   const shown=Math.min(v.length,FACT_BUDGET.rows);
-   if(shown<v.length)record({pointer,total:v.length,shown,kind:'array'});
-   const result=v.slice(0,shown).map((item:any,i:number)=>walk(item,'',pointer+'/'+i,depth+1));
-   seen.delete(v);return result;
-  }
-  const names=Object.keys(v),keys=chosenKeys(v,FACT_BUDGET.keys);
-  const shown=keys.filter(k=>!['programmeQuality','contractSections','securityValidity'].includes(k));
-  if(shown.length<names.length)record({pointer,total:names.length,shown:shown.length,kind:'object'});
-  // Omitted canonical groups are addressable by the same source pointers as
-  // the unpaged JSON export, rather than disappearing silently from the app.
-  for(const field of keys.filter(k=>!shown.includes(k)))record({
-   pointer:pointer+'/'+token(field),total:Array.isArray(v[field])?v[field].length:typeof v[field]==='object'&&v[field]!==null?Object.keys(v[field]).length:1,
-   shown:0,kind:Array.isArray(v[field])?'array':'object',
-  });
-  const result:Record<string,unknown>={};
-  for(const field of shown)result[field]=walk(v[field],field,pointer+'/'+token(field),depth+1);
-  seen.delete(v);return result;
- };
- return walk(value,'projectFacts',rootPointer,0);
+/** Project facts are shared canonical authority, not a visible table.
+ * Never silently remove contract sections, evidence qualifications or other
+ * fact groups. Screen tables alone are eligible for paging. */
+function compactFactSnapshot(value:unknown,_record:(entry:PageTable)=>void,_rootPointer:string):unknown {
+ return value;
 }
 
 function projectFactsOf(body:unknown):unknown {
@@ -118,6 +86,13 @@ export function pageProjectResponse(
    item?.masterControlProgramme?.projectFacts?'/masterControlProgramme/projectFacts':
    '/sourceQuality/projectFacts';
  const normalizedFacts=facts?compactFactSnapshot(facts,entry=>sharedFactPages.push(entry),factPointer):null;
+ // Chart series, time histories and milestone decision populations are not
+ // display-register pages. Their full data must reach the visualisation.
+ const screenKey=String(item?.key??item?.data?.projectionKey??source.split('?')[0].split('/').pop()??'').toLowerCase();
+ const neverPageArray=(key:string,pointer:string)=>(
+   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints)$/i.test(key)
+   ||(/(?:^|\\/)rows$/.test(pointer)&&(screenKey==='milestones'||/(?:^|\\/)milestones(?:\\/data)?\\/rows$/.test(pointer)))
+ );
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
@@ -154,7 +129,7 @@ export function pageProjectResponse(
    }
    seen.add(value);
    if(Array.isArray(value)){
-     const table=TABLE_NAME.test(key)||value.length>100;
+     const table=!neverPageArray(key,pointer)&&(TABLE_NAME.test(key)||value.length>100);
      const shown=table?Math.min(budget.rows,value.length):value.length;
      if(shown<value.length)record({pointer,total:value.length,shown,kind:'array'});
      const rows=value.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
@@ -188,7 +163,9 @@ export function pageProjectResponse(
      additionalTables:0,responseBytes:0,sourcePreserved:true as const},
  };
  // Fail with an explicit warning rather than inventing shortened numbers.
- if(bytes(final)>maxBytes)final.data.projectFacts=null;
+ // Never erase canonical facts to fit the transport budget. An oversized
+ // business answer must be a visible transport failure, never a false all-clear.
+ if(bytes(final)>maxBytes)throw new Error('SCREEN_FACTS_EXCEED_RESPONSE_BUDGET');
  final.responsePaging.responseBytes=bytes(final);
  return final;
 }
