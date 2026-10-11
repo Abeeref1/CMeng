@@ -16,6 +16,13 @@ for(let revision=0;revision<3;revision++){
  state.schedules.push({role:revision?'update':'baseline',format:'xer',sourceFilename:id+'.xer',sourceHashSha256:id,uploadedAt:'2031-04-01',revision:{revisionId:id,label:id,sequence:revision+1,effectiveAt:model.dataDateIso,model}});
 }
 runtimeProjects.touch(state);
+const accountabilityProjectIds=Array.from({length:4},(_,projectIndex)=>{
+ const id='ACCOUNTABILITY-SCALE-'+(projectIndex+1),accountabilityState=runtimeProjects.getOrCreate(id);
+ const activities=Array.from({length:5000},(_,i)=>({projectId:id,activityId:'ACC-'+projectIndex+'-'+i,nativeId:String(i),name:'Accountability work '+i,wbsId:'AW'+Math.floor(i/100),calendarId:'C',activityType:'task',status:'not_started',baselineStartIso:'2031-01-01',baselineFinishIso:'2031-02-01',currentStartIso:'2031-01-01',currentFinishIso:'2031-03-01',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:24,remainingDurationHours:24,totalFloatHours:-8,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]}));
+ const model={projectId:id,source:'xer',sourceRevisionId:'ACC-REV-'+projectIndex,dataDateIso:'2031-04-01',activities,relationships:[],wbs:Array.from({length:50},(_,i)=>({wbsId:'AW'+i,name:'Accountability Package '+i,parentWbsId:null,sourceRefs:[]})),calendars:[{...ELAPSED_24H_CALENDAR,calendarId:'C'}],diagnostics:[]};
+ accountabilityState.schedules.push({role:'update',format:'xer',sourceFilename:'accountability-'+projectIndex+'.xer',sourceHashSha256:'accountability-'+projectIndex,uploadedAt:'2031-04-01',revision:{revisionId:'ACC-REV-'+projectIndex,label:'Accountability '+(projectIndex+1),sequence:1,effectiveAt:'2031-04-01',model}});
+ accountabilityState.testProject=true;runtimeProjects.touch(accountabilityState);return id;
+});
 (async()=>{
  const started=performance.now();const port=18000+Math.floor(Math.random()*10000);const env={...process.env,PORT:String(port),HOST:'127.0.0.1',CMENG_PROFILE_PERF:'1'};
  const child=spawn(process.execPath,['dist/packages/runtime-api/src/project-gateway.js'],{cwd:process.cwd(),env,stdio:['ignore','pipe','pipe']});let log='',errors='';
@@ -52,14 +59,28 @@ runtimeProjects.touch(state);
     assert.ok(first.data?.positionVerdict,'20,000-activity dashboard contains resolved analysis');
     firstDashboardMs=performance.now()-firstStart;uploadToReadyMs=performance.now()-uploadStart;sampleMemory();
   }finally{clearInterval(sampler);}
+  const accountabilityStart=performance.now();
+  const accountabilityConcurrent=await Promise.all(accountabilityProjectIds.map(async accountabilityProjectId=>{
+    const started=performance.now();
+    const response=await fetch(base+'/api/projects/'+accountabilityProjectId+'/management/cross-domain-accountability',{signal:AbortSignal.timeout(30000)});
+    const body=await response.json();
+    const elapsedMs=performance.now()-started;
+    assert.equal(response.status,200,'Accountability HTTP '+accountabilityProjectId);
+    assert.equal(body.data?.projectId,accountabilityProjectId,'Accountability project identity '+accountabilityProjectId);
+    assert.ok((body.data?.recordActionCount??0)>0,'Accountability retains the full source-record denominator '+accountabilityProjectId);
+    return {projectId:accountabilityProjectId,elapsedMs,recordActionCount:body.data.recordActionCount,ownerGroupCount:body.data.actions?.length??null};
+  }));
+  const accountabilityWallMs=performance.now()-accountabilityStart;
+  const accountabilityMaxMs=Math.max(...accountabilityConcurrent.map(row=>row.elapsedMs));
+  const accountabilityPassed=accountabilityMaxMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityWallMs<=COLD_DASHBOARD_TARGET_MS;
   const profileLines=log.split('\n');
   const profileEvents=profileLines.filter(line=>line.includes('"event":"project_resolution_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const managementProfileEvents=profileLines.filter(line=>line.includes('"event":"management_surface_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const bundleProfileEvents=profileLines.filter(line=>line.includes('"event":"project_bundle_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const diagnosisProfileEvents=profileLines.filter(line=>line.includes('"event":"project_diagnosis_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
-  const result={scope:'Fresh server, actual HTTP upload and first calculated dashboard',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},profileEvents,managementProfileEvents,bundleProfileEvents,diagnosisProfileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS};
+  const result={scope:'Fresh server, actual HTTP upload, first calculated dashboard and four concurrent Accountability projects',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},accountabilityConcurrency:{projectCount:accountabilityProjectIds.length,activityCountPerProject:5000,wallMs:accountabilityWallMs,maxProjectMs:accountabilityMaxMs,rows:accountabilityConcurrent,passed:accountabilityPassed},profileEvents,managementProfileEvents,bundleProfileEvents,diagnosisProfileEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityPassed};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
-  assert.ok(result.passed,'Cold workflow, upload-to-ready or first-dashboard target exceeded');
+  assert.ok(result.passed,'Cold workflow, upload-to-ready, first-dashboard or four-project Accountability target exceeded');
  }finally{
   if(child.exitCode===null&&child.signalCode===null){
     child.kill();
