@@ -128,7 +128,9 @@ test('deployed gateway boundary reaches the isolated project worker and rejects 
   const response=await call('/external-ai/api/get_project_state',{projectId:'A'},{authorization:'Bearer '+token}),body:any=await response.json();assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.projectId,'A');assert.equal(body.dataDate,null);
   const answer=await call('/external-ai/api/get_project_metric',{projectId:'A',metric:'CPI'},{authorization:'Bearer '+token}),facts:any=await answer.json();assert.equal(answer.status,200,JSON.stringify(facts));assert.equal(facts.llmInvoked,false);assert.equal(facts.items.find((x:any)=>x.kind==='metric'&&x.data.id.includes('.cpi')).data.value,null);
   const denied=await call('/external-ai/api/get_project_state',{projectId:'B'},{authorization:'Bearer '+token});assert.equal(denied.status,403);
-  const outsider=await fetch(base+'/api/projects/A/intelligence/home',{headers:{'x-cmeng-paid-ai':'1'}}),outsideHome:any=await outsider.json();assert.equal(outsideHome.providerConfigured,false,'a forged client header cannot spend a deployment environment API key');
+  const outsider=await fetch(base+'/api/projects/A/intelligence/home',{headers:{'x-cmeng-paid-ai':'1'}}),outsideHome:any=await outsider.json();
+  assert.equal(outsideHome.providerConfigured,true,'provider configuration is reported independently of caller permission');
+  assert.equal(outsideHome.providerPermittedForSession,false,'a forged client header cannot spend a deployment environment API key');
   const activated=await call('/external-ai/activate',{token:f.activation},{origin:base}),cookie=activated.headers.get('set-cookie')!.split(';')[0]!;
   const ownerEnv=await fetch(base+'/api/projects/A/intelligence/home',{headers:{cookie}}),ownerEnvHome:any=await ownerEnv.json();assert.equal(ownerEnvHome.providerConfigured,true,'a verified owner can use the deployment environment model');
   saveManagedAskSettings(join(f.root,'gateway','ask-ai-provider.json'),'gpt-5-mini','sk-test-'+secret());
