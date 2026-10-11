@@ -68,21 +68,6 @@ export function managementVisualControl(
   for(const row of independent.activities??[])if(!cpmById.has(row.activityId))cpmById.set(row.activityId,row);
   const drivingSet=new Set(drivingIds);
   const networkMilestones=new Set(independent.drivingNetwork?.finishActivityIds??[]);
-  const drivingActivities=drivingIds.map((activityId:string)=>{
-    const scheduleRow=activityById.get(activityId) as any;
-    const cpmRow=cpmById.get(activityId);
-    return {
-      activityId,
-      name:scheduleRow?.name??activityId,
-      wbs:scheduleRow?.wbsPath??scheduleRow?.wbsId??null,
-      currentFinishIso:scheduleRow?.currentFinishIso??scheduleRow?.forecastFinishIso??null,
-      independentFinishIso:cpmRow?.independentEarlyFinishIso??null,
-      sourceFloatHours:scheduleRow?.totalFloatHours??null,
-      movementDays:cpmRow?.finishVarianceDays??null,
-      status:scheduleRow?.status??null,
-    };
-  });
-
   const driverGroupsMap=new Map<string,{
     wbs:string;activityIds:string[];activityNames:string[];currentFinishes:string[];
     lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
@@ -107,8 +92,25 @@ export function managementVisualControl(
     const label=String(p.package??''),rows=boqCandidatesByWbs.get(label)??[];
     rows.push(label);boqCandidatesByWbs.set(label,rows);
   }
-  for(const row of drivingActivities){
+  // Build the retained driving rows and their management groups in the same
+  // traversal. This preserves every driving activity while avoiding a second
+  // 20k-row pass and an intermediate full-network transformation.
+  const drivingActivities:any[]=[];
+  for(const activityId of drivingIds){
+    const scheduleRow=activityById.get(activityId) as any,cpmRow=cpmById.get(activityId);
+    const row={
+      activityId,
+      name:scheduleRow?.name??activityId,
+      wbs:scheduleRow?.wbsPath??scheduleRow?.wbsId??null,
+      currentFinishIso:scheduleRow?.currentFinishIso??scheduleRow?.forecastFinishIso??null,
+      independentFinishIso:cpmRow?.independentEarlyFinishIso??null,
+      sourceFloatHours:scheduleRow?.totalFloatHours??null,
+      movementDays:cpmRow?.finishVarianceDays??null,
+      status:scheduleRow?.status??null,
+    };
+    drivingActivities.push(row);
     const wbs=String(row.wbs??'Unclassified driving scope');
+    const isNew=!driverGroupsMap.has(wbs);
     const group=driverGroupsMap.get(wbs)??{
       wbs,activityIds:[],activityNames:[],currentFinishes:[],lowestFloatHours:null,milestoneIds:[],packageCandidates:[]
     };
@@ -117,14 +119,10 @@ export function managementVisualControl(
     if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
     if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
     const localMilestones=milestoneByActivity.get(row.activityId)??[];
-    if(!driverGroupsMap.has(wbs)){
-      // Preserve source-order precedence when the first activity establishes a
-      // group. Network finish milestones are shared by all rows in that group.
+    if(isNew){
       const first=[...networkMilestoneRows,...localMilestones].sort((a,b)=>a.ordinal-b.ordinal);
       group.milestoneIds.push(...first.map(m=>m.id));
     }else{
-      // The global entries were already attached. Only local milestones can
-      // add to the group's unique display population.
       group.milestoneIds.push(...localMilestones.filter(m=>!networkMilestones.has(m.id)).map(m=>m.id));
     }
     group.packageCandidates.push(...(packageCandidatesByActivity.get(row.activityId)??[]));
@@ -145,11 +143,12 @@ export function managementVisualControl(
       :'Completion-driving scope is established; a downstream milestone link is not established from the available programme evidence.',
   })).sort((a,b)=>(a.lowestFloatHours??Number.MAX_SAFE_INTEGER)-(b.lowestFloatHours??Number.MAX_SAFE_INTEGER)||b.activityCount-a.activityCount||a.wbs.localeCompare(b.wbs));
 
-  const delayed=activityRows.filter((row:any)=>row.status!=='completed'&&!['level_of_effort','wbs_summary'].includes(row.activityType)&&(
-    row.scheduleDelayed===true||(typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)
-  ));
+  let delayedActivityCount=0;
   const wbsMap=new Map<string,{label:string;count:number;critical:number;negativeFloat:number;maxMovementDays:number|null}>();
-  for(const row of delayed){
+  for(const row of activityRows){
+    if(row.status==='completed'||['level_of_effort','wbs_summary'].includes(row.activityType)||
+      !(row.scheduleDelayed===true||(typeof row.finishVarianceDays==='number'&&row.finishVarianceDays>0)))continue;
+    delayedActivityCount++;
     const label=String(row.wbsPath??row.wbsId??'Unclassified WBS');
     const current=wbsMap.get(label)??{label,count:0,critical:0,negativeFloat:0,maxMovementDays:null};
     current.count++;
@@ -351,7 +350,7 @@ export function managementVisualControl(
       finishActivityIds:independent.drivingNetwork?.finishActivityIds??[],
       drivingActivities,
       priorityGroups,
-      delayedActivityCount:delayed.length,
+      delayedActivityCount,
       delayedWbs,
       criticalCount:activity.counts?.critical?.value??null,
       nearCriticalCount:activity.counts?.nearCritical?.value??null,
