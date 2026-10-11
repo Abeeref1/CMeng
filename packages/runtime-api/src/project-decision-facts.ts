@@ -5,6 +5,8 @@ import {commercialPositionForState} from './commercial-runtime';
 import {resolveBoqSource} from './boq-source';
 import {withInstalledMeasurements} from './installed-measurements';
 import {boqProgrammeLinks} from './boq-programme-links';
+import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
+import {canonicalHeader} from '../../truth-kernel/src';
 
 /** Management decisions derived once per source version. Screens and exports
  * consume these same results; no renderer reconstructs an engineering answer. */
@@ -46,7 +48,7 @@ function buildDecisionFacts(state:ProjectRuntimeState){
   get claimChecks(){return once('claims',()=>buildClaimChecks(sourceRows(),cutoff));},
   get paymentChecks(){return once('paymentChecks',()=>buildPaymentChecks(commercial(),cutoff));},
   get monthlyEvm(){return once('evm',()=>buildMonthlyEvm(commercial(),cutoff));},
-  get registerValueChecks(){return once('registerChecks',()=>buildRegisterChecks(commercial(),commercial().sourceLedger??{},quantities()));},
+  get registerValueChecks(){return once('registerChecks',()=>buildRegisterChecks(commercial(),commercial().sourceLedger??{},quantities(),procurementSourceTotals(state)));},
   sourceBasis:'Retained dated source records and current programme. Calculated planning scenarios do not adopt sources, establish contractual entitlement or infer absent inputs.'};
 }
 function buildMonthlyEvm(commercial:any,cutoff:string|null){
@@ -266,11 +268,31 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
   basis:'Applications are not certifications. Due dates are the same contract-version-aware dates used in the issued payment register; no trigger or working-day calendar is inferred.'};
 }
 
+/** Active package rows remain individual source records, never invented
+ * procurement budgets. A subtotal is comparable only within its stated
+ * currency and never certifies completeness or tax-basis reconciliation. */
+type ProcurementComparisonRow={currency:string|null;amount:number|null;sourceRefs:string[];recordId:string};
+function procurementSourceTotals(state:ProjectRuntimeState):ProcurementComparisonRow[]{
+ const records=deliveryRecords(state).records.filter(r=>r.kind==='package'&&deliveryCurrentRecord(r));
+ return records.map(r=>{
+  const read=(...names:string[]):string=>{
+   for(const name of names){const v=r.fields[canonicalHeader(name)];if(v!==undefined&&v!==null&&String(v).trim())return String(v).trim();}
+   return '';
+  };
+  const iso=read('currency').toUpperCase();
+  const currency=/^[A-Z]{3}$/.test(iso)?iso:null;
+  const raw=read('package value','package amount','amount','value');
+  const amount=raw?numberValue(raw):null;
+  return {currency,amount,recordId:r.recordId,
+   sourceRefs:r.receipts.map(receipt=>'evidence-document:'+receipt.documentId+':'+receipt.locator)};
+ });
+}
+
 /** Source-qualified commercial comparison, whether or not an exception exists.
  * Consumers keep the exceptions in rows exactly as before. The supporting
  * checkedRows show which comparable source populations were actually examined;
  * absent amounts do not become zero and different currencies never combine. */
-export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any){
+export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any,procurement:ProcurementComparisonRow[]=[]){
  const exceptions:any[]=[],checkedRows:any[]=[];
  for(const currency of commercial.currencies??[]){
   const contract=valueOf(currency.currentContractValue);
@@ -287,18 +309,28 @@ export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any){
    // Aggregate counts retain full source provenance without repeating 30,000
    // item references in every screen/report's five-row control summary.
    refs:boq.slice(0,12).flatMap((r:any)=>r.sourceRefs??[]),count:boq.length});
+  const sourcePackages=procurement.filter(p=>p.currency===currency.currency);
+  const measuredPackages=sourcePackages.filter(p=>p.amount!==null&&p.sourceRefs.length>0);
+  const pkgSourceCount=sourcePackages.length;
+  if(measuredPackages.length)series.push({name:'Procurement package register · sourced subtotal',
+   total:measuredPackages.reduce((sum,p)=>sum+p.amount!,0),
+   refs:measuredPackages.slice(0,12).flatMap(p=>p.sourceRefs),
+   count:pkgSourceCount});
   for(const entry of series){
    if(entry.total===null||!Number.isFinite(entry.total))continue;
    const gap=entry.total-contract,above=gap>0.01;
    const row={register:entry.name,currency:currency.currency,registerTotal:entry.total,
     currentContractValue:contract,excess:above?gap:0,
     comparisonDifference:gap,
-    state:above?'query_required':'within_qualified_contract_comparison',
+    state:above?'query_required':entry.name.startsWith('Procurement package register')?'provisional_scope_comparison':'within_qualified_contract_comparison',
     contractAuthorityState:currency.currentContractValue?.state??'not_established',
     sourceRecordCount:entry.count,
     sourceRefs:[...new Set(entry.refs)].slice(0,12),
     basis:'Same-currency arithmetic check of the retained source total against the current contract sum. Verify cumulative/incremental basis, tax and scope separately; this is not a certification of entitlement.',
-    action:above?'Reconcile the source scope, series basis, duplicate records, tax and currency before relying on the excess.':'No above-contract arithmetic exception identified for this retained amount; source authority and reconciliation remain qualified.'};
+    action:above?'Reconcile the source scope, series basis, duplicate records, tax and currency before relying on the excess.':
+     entry.name.startsWith('Procurement package register')
+       ?'Compare the sourced package subtotal with the current contract, then verify package coverage, omissions, duplicate scopes and tax basis before concluding the procurement register is complete.'
+       :'No above-contract arithmetic exception identified for this retained amount; source authority and reconciliation remain qualified.'};
    checkedRows.push(row);
    if(above)exceptions.push(row);
   }
