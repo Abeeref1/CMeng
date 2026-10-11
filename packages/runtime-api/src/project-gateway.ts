@@ -138,8 +138,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
       // A foreground user always gets the next per-project worker turn.
       // Never keep a single worker turn during the entire cache warm-up.
-      while(!closing&&Date.now()-lastForegroundProjectRequestAt<15000){
-        await new Promise<void>(resolve=>setTimeout(resolve,1000));
+      while(!closing&&Date.now()-lastForegroundProjectRequestAt<3000){
+        await new Promise<void>(resolve=>setTimeout(resolve,250));
         if((updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
       }
       if(closing)return;
@@ -147,7 +147,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       try{
         await work(id,async port=>{
           if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version||
-            Date.now()-lastForegroundProjectRequestAt<15000)return;
+            Date.now()-lastForegroundProjectRequestAt<3000)return;
           const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
           if(!page.ok)return;
           const bytes=Buffer.from(await page.arrayBuffer());
@@ -183,10 +183,16 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const version=entry.metadata?.version;
       const priorityRoute='/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability';
       if(typeof version==='number'&&!(await reads(id).get(release(),version,priorityRoute))){
-        const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(20000)});
-        if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
-          if(Number(ownerPage.headers.get('x-cmeng-project-version'))===version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0))
-            await reads(id).put(release(),version,priorityRoute,bytes);
+        // The optional priority screen may be expensive on a large project.
+        // Never let its timeout prevent portfolio refresh or all other warm-ups.
+        try{
+          const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(15000)});
+          if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
+            if(Number(ownerPage.headers.get('x-cmeng-project-version'))===version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0))
+              await reads(id).put(release(),version,priorityRoute,bytes);
+          }
+        }catch(error){
+          console.warn('[project-warmup] priority page deferred for '+id+': '+String(error));
         }
       }
       const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');
@@ -209,16 +215,17 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const busy=(updating.get(entry.projectId)??0)>0;
     const sameVersion=entry.summary?.version===entry.metadata?.version;
     if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
-    if(!busy&&sameVersion&&entry.summary){
-      // Keep the last same-project-version position visible while this software
-      // release rechecks it. A release cache miss is a verification state, not a
-      // change in the project's management position.
-      return {...entry.summary,analysisState:'stale',
-        analysisError:'Showing the saved project position while CMeng rechecks this release. Project records are not being changed.'};
+    const refreshFailed=summaryFailures.get(entry.projectId)===entry.metadata?.version&&!summaryJobs.has(entry.projectId);
+    if(!busy&&sameVersion&&entry.summary&&!refreshFailed){
+      // Previous figures are provisional ONLY while this release is due for
+      // recalculation. Clear them immediately on failure; never claim they
+      // were established by the current implementation.
+      return {...entry.summary,positionState:'updating',analysisState:'updating',
+        analysisError:'Updating management calculations. Previous figures are displayed temporarily and must not be treated as current until the update finishes.'};
     }
     return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,
       positionState:busy?'updating':'checking',analysisState:busy?'processing':'unresolved',
-      analysisError:busy?'Documents are being processed. The project position will update when finished.':'The project position has not yet been calculated for this release. Saved project metadata remains visible.',
+      analysisError:refreshFailed?'The latest calculation could not be completed. Previous figures are withheld until the project is recalculated.':busy?'Documents are being processed. The project position will update when finished.':'The project position has not yet been calculated for this release. Saved project metadata remains visible.',
       forecastCompletionIso:null,officialCompletionIso:null,furtherAdjustedCompletionIso:null,programmeMovementDays:null,
       approvedEotDays:null,claimCount:null,fullyLinkedClaimCount:null,managementActionCount:null,commercialCurrencyCount:null,
       readyModules:null,partialModules:null,blockedModules:null,managementActions:[]};
@@ -352,20 +359,19 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   server.requestTimeout=0;
   // One low-priority summary at a time; leave capacity for interactive projects and uploads.
   let warming=false;
-  const warmer=setInterval(()=>{
+  const warmSweep=()=>{
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
     if(closing||warming)return;
-    // On a shared six-project dashboard, calculations must already be retained
-    // on the volume. Warm all projects over time, even when worker slots are
-    // occupied, but never evict a busy worker or disturb an active user's
-    // recent read. A 15-minute idle rule previously left 18 of 22 projects
-    // cold after the initial four, causing a repeat 10-35 second first open.
-    if(Date.now()-lastForegroundProjectRequestAt<15000)return;
+    // Start recalculating ALL projects immediately after a release, not only
+    // after an idle interval. Reserve the foreground's occupied workers and
+    // prepare one background project at a time without changing its sources.
     const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
     const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
       (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
     if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
-  },2000);warmer.unref();
+  };
+  const warmer=setInterval(warmSweep,2000);warmer.unref();
+  setImmediate(warmSweep);
   const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
