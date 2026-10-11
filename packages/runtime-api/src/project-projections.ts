@@ -2428,6 +2428,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         deliveryChallenge,
         contractIntelligence:
           challengeContract,
+        independentForecastState:
+          independentForecastReviewReason(independentForecast)
+            ? "review_required"
+            : "calculated",
+        independentForecastReviewReason:
+          independentForecastReviewReason(independentForecast),
         contractValueEvidence: {
           governed:
             state.controls
@@ -7779,6 +7785,7 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
       descriptor.key==='progress-report'||
       descriptor.key==='progress-scurve'||
       descriptor.key==='progress-breakdown'||
+      descriptor.key==='challenge-contract'||
       descriptor.key==='variance-trends'||
       descriptor.key==='resource-utilization'||
       descriptor.key==='manhour-scurve'||
