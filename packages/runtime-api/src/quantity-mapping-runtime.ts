@@ -8,7 +8,7 @@ import {resolveBoqSource} from './boq-source';
  * Codes are not matched by similarity, suffix, activity title or number order.
  * Multiple matching WBS nodes remain ambiguous, never auto-selected. */
 export const wbsSeparatorKey=(value:string|null|undefined)=>String(value??'').normalize('NFKC')
- .trim().toLowerCase().replace(/[\\s_\\\\/-]+/g,'.').replace(/\\.+/g,'.').replace(/^\\.|\\.$/g,'');
+ .trim().toLowerCase().replace(/[\s_\\\/-]+/g,'.').replace(/\.+/g,'.').replace(/^\.|\.$/g,'');
 export function indexWbsSeparatorCodes(nodes:CanonicalScheduleModel['wbs']){
  const index=new Map<string,CanonicalScheduleModel['wbs']>();
  for(const node of nodes)for(const key of new Set([node.wbsId,node.code].map(wbsSeparatorKey).filter(Boolean))){
