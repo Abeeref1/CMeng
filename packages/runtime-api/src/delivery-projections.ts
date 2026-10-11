@@ -455,7 +455,19 @@ function buildDelivery(state:ProjectRuntimeState){
   lifecycleExamples:lifecycleExamples.map(t=>({...t,state:'example_requires_adoption',weights:null})),
   authorityScope:'Delivery consumes the controlled BOQ, programme, progress and commercial/claims authorities. Procurement exposure does not establish EOT or causation.'};
 }
-export function deliveryPosition(state:ProjectRuntimeState){const prior=cache.get(state);if(prior?.version===state.version)return prior.value;const value=buildDelivery(state);cache.set(state,{version:state.version,value});return value;}
+/** Raw controls and their dated reporting view must share one calculated
+ * Delivery position. Using the source object as a WeakMap key made the first
+ * Look-Ahead and first Management/Visual view construct the same full register
+ * independently, including its forecast. The reporting view retains the
+ * complete original source rows and applies the same project Data Date. */
+export function deliveryPosition(state:ProjectRuntimeState){
+ const scoped=reportingState(state);
+ const prior=cache.get(scoped);
+ if(prior?.version===scoped.version)return prior.value;
+ const value=buildDelivery(scoped);
+ cache.set(scoped,{version:scoped.version,value});
+ return value;
+}
 const deliverySourceDomain=(key:string):ManagementSourceDomain|null=>
  ['delivery-control','procurement-packages','material-tracking','long-lead','procurement-scurves','delivery-suppliers','procurement-readiness'].includes(key)?'procurement':
  key==='delivery-submittals'?'submittal':
