@@ -115,7 +115,7 @@ function buildProgrammeTrends(state:ProjectRuntimeState,model:any,cutoff:string|
   population:riskRows.length,projectedCriticalCount:riskRows.filter((r:any)=>r.state==='erosion_scenario').length};
 }
 
-function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null){
+function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null,itemCurrency:string|null){
  const entries=new Map<string,{amount:number;date:string;basis:'incremental'|'cumulative'|'unknown';sourceRefs:string[]}>();let conflicted=false;
  for(const r of rows){
   const number=cell(r,'certificate no','certificate number','ipc'),d=date(cell(r,'certification date','certificate date'));
@@ -170,7 +170,7 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const areaCandidates=[...new Set(sourceRows.map(r=>cell(r,'plot','area','zone','location','workfront')).filter(Boolean))];
   const area=areaCandidates.length===1?areaCandidates[0]!:item.section??null;
   const installedValue=installed!==null&&rate!==null?installed*rate:null;
-  const itemCertification=certifiedValueFromRows(sourceRows,cutoff),certifiedValue=itemCertification.value;
+  const itemCertification=certifiedValueFromRows(sourceRows,cutoff,currency),certifiedValue=itemCertification.value;
   return {itemId:item.quantityItemId,itemNumber:item.itemNumber,description:item.description,unit:item.unit,area,areaBasis:areaCandidates.length===1?'Explicit measurement/BOQ area':'BOQ section; no finer area allocation inferred',currency,
    contractQuantity:contract,installedQuantity:installed,installedPercent:contract!==null&&contract>0&&installed!==null?100*installed/contract:null,
    periodInstalledQuantity:period,periodStartIso:date(prior?.asOfIso),periodEndIso:date(now?.asOfIso),
