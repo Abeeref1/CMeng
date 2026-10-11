@@ -1113,16 +1113,20 @@ function buildBundle(
   );
 
   measureBundle('activity_analytics');
+  const independentForecast = cachedIndependentForecast(model, generatedAt);
+  measureBundle('lookahead_independent_forecast');
+  const lookAheadDrivingIds=independentForecast.drivingNetwork?.activityIds??[];
+  const lookAheadReadiness=lookAheadReadinessWithProcurement(state,lookAheadDrivingIds);
+  measureBundle('lookahead_readiness_evidence');
   const lookAhead =
     buildLookAheadProjection(
       model,
       {
-        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
+        drivingActivityIds:lookAheadDrivingIds,
         generatedAt,
         producerVersion:
           versions.lookAhead,
-        readinessEvidence:
-          lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
+        readinessEvidence:lookAheadReadiness,
       },
     );
   modules.set(
@@ -1367,7 +1371,6 @@ function buildBundle(
   );
 
   measureBundle('progress_breakdown_projection');
-  const independentForecast = cachedIndependentForecast(model, generatedAt);
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
   const forecastControl =
