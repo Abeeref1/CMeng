@@ -29,7 +29,17 @@ function readerReference(value){
  let text=String(value??'');
  const labels=typeof currentModuleResult==='undefined'?{}:currentModuleResult?.data?.sourceLabels||{};
  if(Object.hasOwn(labels,text))return labels[text];
- text=text.replace(/(?:evidence-document:)?(?:(?:delivery|population):[a-f0-9]{8,64}|(?:boqitem|quantityitem|schedrev|population|rev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>labels[id]??labels[id.replace(/^evidence-document:/,'')]??labels['evidence-document:'+id]??id);
+ text=text.replace(/(?:evidence-document:)?(?:(?:delivery|population):[a-f0-9]{8,64}|(?:boqitem|quantityitem|schedrev|population|rev|evidence|doc)_[a-z0-9_-]+)|\b[0-9a-f]{8}-[0-9a-f-]{27,36}\b/gi,id=>{
+   const mapped=labels[id]??labels[id.replace(/^evidence-document:/,'')]??labels['evidence-document:'+id];
+   if(mapped)return mapped;
+   const bare=id.replace(/^evidence-document:/,'');
+   if(/^schedrev_|^rev_/i.test(bare))return 'Programme revision (source reference in details)';
+   if(/^(?:boqitem|quantityitem)_/i.test(bare))return 'BOQ item (source reference in details)';
+   if(/^population[:_]/i.test(bare))return 'Reporting population (source reference in details)';
+   if(/^delivery:/i.test(bare))return 'Source record (reference in details)';
+   if(/^(?:evidence|doc)_/i.test(bare))return 'Source document (record reference in details)';
+   return 'Source record (reference in details)';
+  });
  return text.replace(/(?:evidence-document:)?(?:doc|evidence)_[a-f0-9-]{8,}/gi,'Source document (record reference in details)')
    .replace(/schedrev_[a-f0-9-]{8,}/gi,'Programme revision (source reference in details)')
    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,'Source record (reference in details)')
