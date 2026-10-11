@@ -3,6 +3,8 @@ import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {cell,governedTables} from '../../truth-kernel/src';
 import {resolveBoqSource} from './boq-source';
+import {reportingState} from './reporting-state';
+import {projectControlSchedule} from './canonical-time-claims';
 
 /** Resolve only punctuation/space variants of *explicit* WBS identifiers.
  * Codes are not matched by similarity, suffix, activity title or number order.
@@ -28,6 +30,15 @@ const mappings = new WeakMap<ProjectRuntimeState, {
 /** All pages in one project version share the same mapping calculation. Source
  * changes advance the version; replacing either model also invalidates reuse. */
 export function quantityMappingForState(state: ProjectRuntimeState, schedule: CanonicalScheduleModel) {
+  // The raw state and its read-only Data-Date view previously scored every
+  // BOQ/activity pair twice. Current-programme consumers now share the same
+  // governed view, source revision, quantities and exact versioned result.
+  // Non-current revisions keep their own original calculation authority.
+  const scoped=reportingState(state);
+  const current=projectControlSchedule(scoped)?.revision.model;
+  if(current&&current.projectId===schedule.projectId&&current.sourceRevisionId===schedule.sourceRevisionId){
+    state=scoped;schedule=current;
+  }
   const cached = mappings.get(state);
   if (cached?.version === state.version && cached.quantities === state.quantities && cached.schedule === schedule) {
     return cached.result;
