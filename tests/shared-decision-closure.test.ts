@@ -140,6 +140,17 @@ test('Decision-list paging is based on full rows and exposes all records with ex
  const result=runInNewContext(funcs('decisionTable')+';decisionTable',ctx)('erosion',p.data.decisionAnalysis.trends.rows,'/data/decisionAnalysis/trends/rows',251);assert.match(result,/251/);assert.match(result,/ACT-0/);assert.doesNotMatch(result,/ACT-250/);assert.match(result,/loadDecisionPage/);
 });
 
+test('S-07 substantive decision tables have one owning page and are not repeated on neighbouring pages',t=>{
+ const {state}=fixture(t);
+ const owners=new Map([
+  ['quantity-scurve','measured_productivity'],['progress-breakdown','area_progress'],['progress-scurve','monthly_evm'],
+  ['notices-claims','detailed_claims'],['payments','payment_due'],['commercial-overview','register_reconciliation'],
+  ['near-critical','float_erosion'],['variance-trends','finish_slip']
+ ]);
+ for(const [key,kind] of owners)assert.equal((decisionAnalysisForModule(state,key) as any)?.kind,kind,key);
+ for(const key of ['progress-report','cost-forecast','commercial-claims-notices','schedule-analytics','activity-analytics'])
+   assert.equal(decisionAnalysisForModule(state,key),null,key+' must link to the owning decision page rather than repeat its block');
+});
 test('Decision caches reuse the exact version but invalidate on a new source version',t=>{
  const {state}=fixture(t);const a=projectDecisionFacts(state);assert.equal(projectDecisionFacts(state),a);assert.equal(a.completionConstraints,a.completionConstraints);state.version++;assert.notEqual(projectDecisionFacts(state),a);
 });
