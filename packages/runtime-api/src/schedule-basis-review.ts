@@ -66,7 +66,13 @@ function calculateReview(model:CanonicalScheduleModel,forecast:IndependentForeca
 
 /** Original-duration edits, not elapsed delay or entitlement. Ambiguous matches
  * and unknown durations remain excluded and are explicitly counted. */
+const durationReviewCache=new WeakMap<CanonicalScheduleModel,WeakMap<CanonicalScheduleModel,ReturnType<typeof calculateDurationEditReview>>>();
 export function durationEditReview(before:CanonicalScheduleModel,after:CanonicalScheduleModel){
+  let byAfter=durationReviewCache.get(before);if(!byAfter){byAfter=new WeakMap();durationReviewCache.set(before,byAfter);}
+  const cached=byAfter.get(after);if(cached)return cached;
+  const value=calculateDurationEditReview(before,after);byAfter.set(after,value);return value;
+}
+function calculateDurationEditReview(before:CanonicalScheduleModel,after:CanonicalScheduleModel){
   const old=before.activities.filter(isProgressActivity),now=after.activities.filter(isProgressActivity);
   const identity=resolveRevisionActivityCorrespondence(old,now),oldMap=new Map(old.map(a=>[a.activityId,a])),nowMap=new Map(now.map(a=>[a.activityId,a]));
   const matches=identity.matches.map(m=>({before:oldMap.get(m.fromActivityId)!,after:nowMap.get(m.toActivityId)!}));
@@ -74,12 +80,18 @@ export function durationEditReview(before:CanonicalScheduleModel,after:Canonical
   const comparable=matches.filter(r=>r.before.originalDurationHours!==null&&r.after.originalDurationHours!==null);
   const changes=comparable.map(r=>({activityId:r.after.activityId,wbsId:r.after.wbsId,deltaHours:r.after.originalDurationHours!-r.before.originalDurationHours!,
     standardDayHours:after.calendars.find(c=>c.calendarId===r.after.calendarId)?.standardDayHours??null}));
-  const distribution=[...new Set(changes.map(r=>r.deltaHours))].map(deltaHours=>({deltaHours,count:changes.filter(r=>r.deltaHours===deltaHours).length})).sort((a,b)=>b.count-a.count);
-  const packages=after.wbs.flatMap(w=>{const m=comparable.filter(r=>r.after.wbsId===w.wbsId),a=added.filter(r=>r.wbsId===w.wbsId);if(!m.length&&!a.length)return [];
-    const hours=[...new Set([...m.map(r=>before.calendars.find(c=>c.calendarId===r.before.calendarId)?.standardDayHours),...m.map(r=>after.calendars.find(c=>c.calendarId===r.after.calendarId)?.standardDayHours),...a.map(r=>after.calendars.find(c=>c.calendarId===r.calendarId)?.standardDayHours)])];
+  const distributionCounts=new Map<number,number>();for(const row of changes)distributionCounts.set(row.deltaHours,(distributionCounts.get(row.deltaHours)??0)+1);
+  const distribution=[...distributionCounts].map(([deltaHours,count])=>({deltaHours,count})).sort((a,b)=>b.count-a.count);
+  const comparableByWbs=new Map<string,typeof comparable>(),addedByWbs=new Map<string,typeof added>();
+  for(const row of comparable)if(row.after.wbsId){const list=comparableByWbs.get(row.after.wbsId)??[];list.push(row);comparableByWbs.set(row.after.wbsId,list);}
+  for(const row of added)if(row.wbsId){const list=addedByWbs.get(row.wbsId)??[];list.push(row);addedByWbs.set(row.wbsId,list);}
+  const beforeCalendarHours=new Map(before.calendars.map(c=>[c.calendarId,c.standardDayHours]));
+  const afterCalendarHours=new Map(after.calendars.map(c=>[c.calendarId,c.standardDayHours]));
+  const packages=after.wbs.flatMap(w=>{const m=comparableByWbs.get(w.wbsId)??[],a=addedByWbs.get(w.wbsId)??[];if(!m.length&&!a.length)return [];
+    const hours=[...new Set([...m.map(r=>beforeCalendarHours.get(r.before.calendarId??'')),...m.map(r=>afterCalendarHours.get(r.after.calendarId??'')),...a.map(r=>afterCalendarHours.get(r.calendarId??''))])];
     const day=hours.length===1&&hours[0]&&hours[0]>0?hours[0]:null;
-    const baselineHours=m.reduce((s,r)=>s+r.before.originalDurationHours!,0),existingHours=m.reduce((s,r)=>s+r.after.originalDurationHours!,0);
-    const addedHours=a.every(r=>r.originalDurationHours!==null)?a.reduce((s,r)=>s+r.originalDurationHours!,0):null;
+    const baselineHours=m.reduce((sum,r)=>sum+r.before.originalDurationHours!,0),existingHours=m.reduce((sum,r)=>sum+r.after.originalDurationHours!,0);
+    const addedHours=a.every(r=>r.originalDurationHours!==null)?a.reduce((sum,r)=>sum+r.originalDurationHours!,0):null;
     return [{wbsId:w.wbsId,name:w.name,matchedCount:m.length,addedCount:a.length,changedExistingCount:m.filter(r=>r.before.originalDurationHours!==r.after.originalDurationHours).length,
       baselineHours,existingChangeHours:existingHours-baselineHours,addedHours,standardDayHours:day,
       baselineDurationDays:day?baselineHours/day:null,currentDurationDays:day&&addedHours!==null?(existingHours+addedHours)/day:null,
