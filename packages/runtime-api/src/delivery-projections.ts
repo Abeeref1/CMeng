@@ -346,7 +346,11 @@ function buildDelivery(state:ProjectRuntimeState){
  const workfrontBaseline=state.schedules.filter(r=>['baseline','revised_baseline'].includes(r.role)
    &&isAdoptedProgrammeRevision(state,r)&&isOnDate(r.revision.model.dataDateIso?.slice(0,10)??null,dataDateIso))
    .sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1)?.revision.model??null;
- const workfrontConfig={baselineModel:workfrontBaseline,readinessEvidence:state.controls.readinessEvidence,
+ const baselineSourceIds=new Set(workfrontBaseline?.activities.map(row=>row.activityId)??[]);
+ const currentSourceIds=new Set(model?.activities.map(row=>row.activityId)??[]);
+ const sameIds=!!workfrontBaseline&&!!model&&baselineSourceIds.size===workfrontBaseline.activities.length&&currentSourceIds.size===model.activities.length&&model.activities.every(row=>!!row.activityId&&baselineSourceIds.has(row.activityId));
+ const sharedExactBaselineIds=sameIds?new Map(model!.activities.map(row=>[row.activityId,row.activityId])):undefined;
+ const workfrontConfig={baselineModel:workfrontBaseline,sharedExactBaselineIds,readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
