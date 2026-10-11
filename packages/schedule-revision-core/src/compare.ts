@@ -450,6 +450,28 @@ function calculateRevisionActivityCorrespondence(
     }
   }
 
+  // Controlled workfronts and portfolio scopes are often a strict subset of
+  // the current programme. If every target has an unambiguous identical ID,
+  // the existing first-priority activity_id identity rule yields exactly
+  // these matches; avoid rebuilding three global fallback indexes per group.
+  if(toActivities.length>0&&fromActivities.length>=toActivities.length){
+    const fromIds=new Set<string>();
+    let uniqueFrom=true;
+    for(const row of fromActivities){if(!row.activityId||fromIds.has(row.activityId)){uniqueFrom=false;break;}fromIds.add(row.activityId);}
+    if(uniqueFrom){
+      const seenTo=new Set<string>();
+      let allExact=true;
+      for(const row of toActivities){
+        if(!row.activityId||seenTo.has(row.activityId)||!fromIds.has(row.activityId)){allExact=false;break;}
+        seenTo.add(row.activityId);
+      }
+      if(allExact)return {matches:toActivities.map(row=>({
+        fromActivityId:row.activityId,toActivityId:row.activityId,
+        method:'activity_id' as const,confidence:1,
+      })),ambiguousFrom:new Set<string>(),ambiguousTo:new Set<string>()};
+    }
+  }
+
   const matches:
     ActivityIdentityMatch[] =
     [];
