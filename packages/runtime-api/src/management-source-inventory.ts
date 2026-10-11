@@ -38,7 +38,9 @@ const definitions:Array<{domain:ManagementSourceDomain;label:string;pattern:RegE
   {domain:'contract',label:'Contract / amendments',pattern:/contract|amendment|particular.?conditions|commercial.?terms|employer.?requirements|\brfp\b|\bitt\b/i},
 ];
 
-const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof build>}>();
+// Inventory is derived solely from this immutable version's source documents.
+// Raw and Data-Date reporting views reuse exactly the same document array.
+const cache=new WeakMap<ProjectRuntimeState['evidenceDocuments'],{version:number;value:ReturnType<typeof build>}>();
 
 function build(state:ProjectRuntimeState){
   const documents=state.evidenceDocuments.filter(document=>document.basisState!=='superseded');
@@ -134,6 +136,6 @@ function build(state:ProjectRuntimeState){
 }
 
 export function managementSourceInventory(state:ProjectRuntimeState){
-  const prior=cache.get(state);if(prior?.version===state.version)return prior.value;
-  const value=build(state);cache.set(state,{version:state.version,value});return value;
+  const prior=cache.get(state.evidenceDocuments);if(prior?.version===state.version)return prior.value;
+  const value=build(state);cache.set(state.evidenceDocuments,{version:state.version,value});return value;
 }
