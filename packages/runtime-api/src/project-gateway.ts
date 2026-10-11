@@ -216,6 +216,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       // separately and only while there is no foreground navigation.
       schedulePageWarmup(id,summary.version);
     }).catch(error=>{const entry=catalog.get(id);if(entry){entry.summaryRelease=null;summaryFailures.set(id,entry.metadata?.version);}
+      // The timed-out summary cannot be treated as ready. The idle sweep will
+      // retry the same unchanged project after its existing bounded backoff;
+      // it never turns a failed calculation into a fabricated zero.
       console.error('[refreshSummary] project='+id+' version='+entry?.metadata?.version+' failed:',error instanceof Error?error.stack??error.message:String(error));
     }).finally(()=>summaryJobs.delete(id));
     summaryJobs.set(id,task);return task;
@@ -225,12 +228,14 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const sameVersion=entry.summary?.version===entry.metadata?.version;
     if(!busy&&entry.summaryRelease===calculationRelease()&&sameVersion)return entry.summary;
     const refreshFailed=summaryFailures.has(entry.projectId)&&summaryFailures.get(entry.projectId)===entry.metadata?.version&&!summaryJobs.has(entry.projectId);
-    if(!busy&&sameVersion&&entry.summary&&!refreshFailed){
-      // Previous figures are provisional ONLY while this release is due for
-      // recalculation. Clear them immediately on failure; never claim they
-      // were established by the current implementation.
+    if(!busy&&sameVersion&&entry.summary){
+      // A timeout must not erase the last valid source-version snapshot.
+      // The old calculated values remain explicitly provisional until this
+      // content-addressed calculation version finishes successfully.
       return {...entry.summary,positionState:'updating',analysisState:'updating',
-        analysisError:'Updating management calculations. Previous figures are displayed temporarily and must not be treated as current until the update finishes.'};
+        analysisError:refreshFailed
+          ?'Updating: the latest refresh timed out. Previous figures are temporarily shown for reference, not as the current verified calculation. Background retry remains scheduled.'
+          :'Updating management calculations. Previous figures are displayed temporarily and must not be treated as current until the update finishes.'};
     }
     return {...entry.metadata,evidenceDocumentCount:busy?null:entry.metadata?.evidenceDocumentCount??null,revisionCount:busy?null:entry.metadata?.revisionCount??null,projectId:entry.projectId,
       positionState:busy?'updating':'checking',analysisState:busy?'processing':'unresolved',
