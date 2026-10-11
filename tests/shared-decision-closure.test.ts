@@ -93,6 +93,21 @@ test('Measured productivity never substitutes schedule progress or mixes unquali
  assert.equal(projectDecisionFacts(state).quantities.areas[0]!.certifiedValue,null,'whole-project certification never allocated to areas');
 });
 
+test('S-32 keeps BOQ item progress, productivity and installed-versus-certified value on explicit source evidence only',t=>{
+ const {state,csv}=fixture(t),model=state.schedules.at(-1)!.revision.model;model.dataDateIso='2026-08-31';
+ const q=state.quantities!,item=q.items[0]!;item.section='Earthworks';item.contractQuantity=100;q.installedSnapshots=[];
+ const priced=state.boq!.canonicalItems.find(r=>r.itemId===item.quantityItemId)!;priced.rate=10;priced.quantity=100;priced.currency='QAR';
+ for(const a of model.activities)if(a.activityId==='A200'){a.currentFinishIso='2026-09-30';a.forecastFinishIso='2026-09-30';}
+ csv('installed_measurement_register','Item No,Unit,Section,Measurement Date,Cumulative Installed Qty,Labour Hours Per Unit,Actual Labour Hours,Period Start,Period End,Area\n'+item.itemNumber+','+item.unit+',Earthworks,2026-07-31,20,2,10,2026-06-30,2026-07-31,Plot 01\n'+item.itemNumber+','+item.unit+',Earthworks,2026-08-31,50,2,15,2026-07-31,2026-08-31,Plot 01');
+ csv('payment_certificates','Certificate No,Certification Date,Item No,Unit,Section,Area,Certified Value,Certified Amount Basis,Currency,Status\nIPC-ITEM-1,2026-08-20,'+item.itemNumber+','+item.unit+',Earthworks,Plot 01,400,incremental,QAR,Certified');
+ const row=projectDecisionFacts(state).quantities.items[0]!;
+ assert.equal(row.installedPercent,50);assert.equal(row.periodProgressPercent,30);assert.equal(row.earnedHours,100);assert.equal(row.periodEarnedHours,60);
+ assert.equal(row.actualHours,15);assert.equal(row.productivityPerActualHour,2);assert.equal(row.installedValue,500);assert.equal(row.certifiedValue,400);assert.equal(row.installedAgainstCertified,100);
+ assert.ok(row.requiredRatePerCalendarDay!==null);assert.doesNotMatch(row.basis,/allocated to items/i);
+ const analysis:any=decisionAnalysisForModule(state,'quantity-scurve');assert.equal(analysis.kind,'measured_productivity');assert.equal(analysis.quantities.items[0].certifiedValue,400);
+ assert.match(script,/Period earned hours/);assert.match(script,/Installed less certified/);
+});
+
 test('Decision-list paging is based on full rows and exposes all records with exact totals',()=>{
  const source:any={key:'near-critical',data:{decisionAnalysis:{kind:'float_erosion',trends:{rows:Array.from({length:251},(_,i)=>({activityReference:'ACT-'+i,currentFloatHours:i+1,turnsCriticalByIso:'2027-01-31'}))}}}};
  const p:any=pageProjectResponse(source,'/api/projects/P/schedule/modules/near-critical');assert.equal(p.responsePaging.tables.find((t:any)=>t.pointer==='/data/decisionAnalysis/trends/rows').total,251);
