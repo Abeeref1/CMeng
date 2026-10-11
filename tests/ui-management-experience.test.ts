@@ -56,6 +56,24 @@ test('portfolio compares the displayed calculated finish with the current contra
  assert.match(render(p),/11 days after current contract/);assert.doesNotMatch(render(p),/136 days before/);
  assert.match(render({...p,forecastCompletionIso:'2043-10-01',forecastLabel:'Productivity forecast'}),/Submitted programme 2043-04-17: 136 days before current contract/);
 });
+test('client-facing controls do not expose implementation language',()=>{
+  const html=cmengUatHtml();
+  const banned=[
+    'AI provider configured',
+    'owner activation',
+    'bounded source shortlist',
+    'Candidate relationship saved',
+    'Save link candidate',
+    'Candidate only — not an approved allocation',
+    'Cross-module consistency',
+    'Management forecast reconciliation gate',
+    'Source candidate',
+    'Programme recalculation · candidate',
+    'Recalculation vs contract · candidate'
+  ];
+  for(const phrase of banned) assert.equal(html.toLowerCase().includes(phrase.toLowerCase()),false,phrase);
+});
+
 test('S-45 module keys always render as reader-facing page names',()=>{
  const label=runInNewContext(functions(['humanizeKey'])+';humanizeKey',{});
  assert.equal(label('pmo-analysis'),'Management Brief');
