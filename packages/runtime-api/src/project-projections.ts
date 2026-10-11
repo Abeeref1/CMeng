@@ -596,7 +596,7 @@ function previousComparableFloatBasis(
  * the actual mutation timestamp; the latest stored upload is a legacy fallback.
  * This never changes engineering figures, contract dates or approval state. */
 function calculationSnapshotTime(state:ProjectRuntimeState):string {
-  const audited=state.auditHistory?.findLast(event=>event.projectVersion===state.version)?.occurredAt;
+  const audited=state.auditHistory?.slice().reverse().find(event=>event.projectVersion===state.version)?.occurredAt;
   if(audited)return audited;
   if(state.lastRerunReceipt?.projectVersion===state.version)return state.lastRerunReceipt.generatedAt;
   const sourceTimes=[
