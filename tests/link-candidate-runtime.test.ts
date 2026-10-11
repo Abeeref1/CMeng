@@ -11,6 +11,7 @@ import {linkCandidatesRequest,linkDataset} from '../packages/runtime-api/src/lin
 import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {assessLinkProposal,reviewLink,type LinkInput} from '../packages/runtime-api/src/link-candidate-core';
+import {sourceCommercialEvidence} from '../packages/runtime-api/src/source-commercial-evidence';
 
 test('Candidate API denies anonymous spending; owner proposal requires explicit review and does not change BOQ figures',async t=>{
  const state=loadCertifiedDemoProject('TEST-LINK-'+randomUUID()),id=state.projectId;
@@ -39,6 +40,20 @@ test('Candidate API denies anonymous spending; owner proposal requires explicit 
  const revoked=await post('/review',{id:proposal.rows[0].id,expectedVersion:state.version,decision:'reject',confirmed:true,reviewer:'Independent test reviewer'});assert.equal(revoked.status,200,await revoked.text());assert.equal(state.linkCandidateReviews!.find(r=>r.id===proposal.rows[0].id)!.state,'rejected');
 });
 
+test('S-21 confirmed payment-to-certificate relationship raises linkage coverage without changing money',()=>{
+ const state=loadCertifiedDemoProject('PAY-LINK-'+randomUUID());state.evidenceDocuments=[];
+ const money=(value:number|null)=>({value,currency:'AED',taxBasis:'exclusive',sourceRefs:[]});
+ const certificate={paymentId:'IPC-03',periodEnd:'2026-07-31',sourceStatus:'Certified',certificationDate:'2026-08-01',paymentDate:null,paymentReference:null,receipt:{documentId:'certdoc',locator:'row:1'},amounts:{netCertifiedAmount:money(100),grossCertifiedAmount:money(100),employerCertifiedAmount:money(null),paidAmount:money(null)}};
+ const receipt={paymentId:'BANK-42',periodEnd:null,sourceStatus:'Paid',certificationDate:null,paymentDate:'2026-08-20',paymentReference:'Bank transfer 42',receipt:{documentId:'paydoc',locator:'row:2'},amounts:{netCertifiedAmount:money(null),grossCertifiedAmount:money(null),employerCertifiedAmount:money(null),paidAmount:money(100)}};
+ const ledger={payments:[certificate,receipt],bonds:[]};
+ const before=JSON.stringify(ledger);
+ state.linkCandidateReviews=[{id:'reviewed-payment-link',kind:'payment_certificate',state:'confirmed',basisVersion:state.version,sourceId:'paydoc:row:2',targetId:'certdoc:row:1'} as any];
+ const position:any={certificateProfile:{groups:[]},currencies:[]};
+ const result=sourceCommercialEvidence(state,ledger,position,'2026-08-31');
+ assert.equal(result.paymentLinkage.total,1);assert.equal(result.paymentLinkage.linked,1);assert.equal(result.paymentLinkage.coveragePercent,100);
+ assert.equal(result.paymentLinkage.rows[0]!.certificateReference,'IPC-03');assert.match(result.paymentLinkage.rows[0]!.basis,/user-confirmed certificate relationship/);
+ assert.equal(JSON.stringify(ledger),before,'link review never changes source money');
+});
 test('Candidate approval, reviewer and source references survive store reload without source modifications',t=>{
  const dir=mkdtempSync(join(tmpdir(),'cmeng-link-restore-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false}),state=store.getOrCreate('LINK-RESTORE');
