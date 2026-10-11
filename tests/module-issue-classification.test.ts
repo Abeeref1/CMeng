@@ -119,3 +119,26 @@ test('large flat schedule populations retain late direct and nested evidence fin
  assert.deepEqual(r.issues.find(i=>i.kind==='data_quality')!.sourceRefs,['original:row:19999']);
  assert.deepEqual(r.issues.find(i=>i.kind==='source_conflict')!.sourceRefs,['original:row:20000']);
 });
+
+test('S-13 established certified financial progress is never requested again as missing project source',()=>{
+ const certified=83.0831731116081;
+ const item={metric:'certified_progress_percent',label:'Certified progress',
+   reconciliationState:'independent_unavailable',consequence:'Independent physical quantity comparison not established.',
+   action:'Provide certified source again',
+   submitted:{state:'submitted',value:certified,sourceRefs:['CERTIFIED:QAR']},
+   independent:{diagnostics:['COMPARISON_INPUT_REQUIRED:Independent certified quantity basis needed.'],sourceRefs:[]}};
+ const held=assessModuleIssues({...input({progressBases:{certified:{valuePercent:certified}},
+   challenge:{reconciliationState:'independent_unavailable',items:[item]}}),key:'progress-report'},pass);
+ const comparison=held.issues.find(i=>i.evidencePaths.includes('challenge.items.certified_progress_percent'));
+ assert.ok(comparison);
+ assert.equal(comparison!.owner,'CMeng');
+ assert.equal(comparison!.kind,'verification_pending');
+ assert.equal(comparison!.code,'CERTIFIED_PROGRESS_INDEPENDENT_VERIFICATION');
+ assert.deepEqual(comparison!.sourceRefs,['CERTIFIED:QAR']);
+ assert.ok(!held.issues.some(i=>i.code==='INDEPENDENT_COMPARISON_INPUT'),
+   'No duplicate evidence upload is requested when certified source is already held');
+ const unsourced=assessModuleIssues({...input({progressBases:{certified:{valuePercent:null}},
+   challenge:{reconciliationState:'independent_unavailable',items:[{...item,submitted:{state:'not_submitted',value:null,sourceRefs:[]}}]}}),key:'progress-report'},pass);
+ assert.equal(unsourced.issues.find(i=>i.code==='INDEPENDENT_COMPARISON_INPUT')?.owner,'Project evidence owner',
+   'Genuinely absent certified source still requests the missing evidence');
+});
