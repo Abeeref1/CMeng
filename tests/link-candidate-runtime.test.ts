@@ -96,7 +96,6 @@ test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ti
   const expected=activities.map(activity=>{
    const wbsNode=wbs.find(x=>x.wbsId===activity.wbsId)!;
    const af={name:norm(activity.name),names:tokens(activity.name),wbs:tokens(wbsNode.wbsId+' '+wbsNode.name),codes:codes(activity.activityId+' '+activity.wbsId+' '+wbsNode.wbsId+' '+wbsNode.name)};
-   const escaped=activity.activityId.replace(/[.*+?^$()|[\\]\\\\]/g,'\\\\$&');
    const explicit=new RegExp('(^|[^A-Za-z0-9_.-])'+escaped+'([^A-Za-z0-9_.-]|$)','i').test(corpus);
    let value=0;
    if(explicit)value=.99;
