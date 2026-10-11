@@ -1,3 +1,4 @@
+import {performance} from 'node:perf_hooks';
 import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -191,6 +192,9 @@ function projectedCount(
 }
 
 export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnapshot{
+  const profile=process.env.CMENG_PROFILE_PERF?.trim()==='1',profileStart=profile?performance.now():0;
+  const marks:Array<{part:string;ms:number}>=[];let markAt=profileStart;
+  const mark=(part:string)=>{if(!profile)return;const now=performance.now();marks.push({part,ms:now-markAt});markAt=now;};
   // Facts are reporting facts. Cache them on the canonical read-only reporting
   // view so callers that start from persisted state and callers already working
   // on that view share one exact snapshot for the same project version.
@@ -233,6 +237,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const submittedFinish=schedule?.result.completionBases.find(row=>row.basis==='forecast')
     ??schedule?.result.completionBases.find(row=>row.basis==='programme')
     ??null;
+  mark('schedule_facts');
 
   const operations=operationalReporting(scoped);
   const permitRows=deliveryPosition(scoped).permitRows;
@@ -241,6 +246,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     row.status==='open'&&row.dueIso&&operations.dataDateIso&&row.dueIso<operations.dataDateIso
   ).length;
   const openRiskKnown=operations.risk.state==='missing'?null:operations.risk.current.filter((row:any)=>row.status==='open').length;
+  mark('operations_delivery');
 
   const commercial=commercialPositionForState(
     scoped,
@@ -258,6 +264,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
   const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
+  mark('commercial_claims_time');
   // An adjustment identical to the original completion is not an extension.
   // Some source amendments echo the original date while a separate dated EOT
   // award exists. Retain both facts and present the calendared comparison
@@ -332,7 +339,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         basis:phrase?'Quoted extracted source text; not an independent award determination':
           fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete'};
     });
+  mark('contract_text_and_time');
   const actionRegister=projectActionRegisterForState(state);
+  mark('action_register');
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
     projectId:state.projectId,
@@ -563,6 +572,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
   };
 
+  mark('assemble_facts');
+  if(profile)process.stdout.write(JSON.stringify({event:'project_facts_profile',projectId:state.projectId,marks,totalMs:performance.now()-profileStart})+'\n');
   cache.set(state,{version:state.version,value});
   return value;
 }
