@@ -10,6 +10,8 @@ import {commercialPositionForState} from '../packages/runtime-api/src/commercial
 import {sourceProgressEvidence} from '../packages/runtime-api/src/source-progress-evidence';
 import {projectDecisionFacts,decisionAnalysisForModule,buildRegisterChecks} from '../packages/runtime-api/src/project-decision-facts';
 import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links';
+import {quantityModelFromBoq} from '../packages/runtime-api/src/boq-source';
+import {ingestBoq} from '../packages/boq-ingestion/src';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -93,13 +95,14 @@ test('Measured productivity never substitutes schedule progress or mixes unquali
  assert.equal(projectDecisionFacts(state).quantities.areas[0]!.certifiedValue,null,'whole-project certification never allocated to areas');
 });
 
-test('S-32 keeps BOQ item progress, productivity and installed-versus-certified value on explicit source evidence only',t=>{
+test('S-32 keeps BOQ item progress, productivity and installed-versus-certified value on explicit source evidence only',async t=>{
  const {state,csv}=fixture(t),model=state.schedules.at(-1)!.revision.model;model.dataDateIso='2026-08-31';
- const q=state.quantities!,item=q.items[0]!;item.section='Earthworks';item.contractQuantity=100;q.installedSnapshots=[];
- const priced=state.boq!.canonicalItems.find(r=>r.itemId===item.quantityItemId)!;priced.rate=10;priced.quantity=100;priced.currency='QAR';
+ const boq=await ingestBoq({projectId:state.projectId,bytes:Buffer.from('Item,Section,Description,Unit,Qty,Rate,Amount,Currency\n1.1,Earthworks,Concrete,m3,100,10,1000,QAR'),verifiedMediaType:'text/csv',sourceFilename:'priced-boq.csv',receivedAt:'2026-08-01T00:00:00.000Z'});
+ state.boq=boq;state.boqRevisions=[boq];state.quantities=quantityModelFromBoq(boq,model.sourceRevisionId,null);
+ const q=state.quantities!,item=q.items[0]!;q.installedSnapshots=[];q.allocations=[{allocationId:'S32-A200',quantityItemId:item.quantityItemId,activityId:'A200',allocatedQuantity:100,sourceRefs:[{source:'governed_mapping',locator:'S32:A200'}]}];state.version++;
  for(const a of model.activities)if(a.activityId==='A200'){a.currentFinishIso='2026-09-30';a.forecastFinishIso='2026-09-30';}
- csv('installed_measurement_register','Item No,Unit,Section,Measurement Date,Cumulative Installed Qty,Labour Hours Per Unit,Actual Labour Hours,Period Start,Period End,Area\n'+item.itemNumber+','+item.unit+',Earthworks,2026-07-31,20,2,10,2026-06-30,2026-07-31,Plot 01\n'+item.itemNumber+','+item.unit+',Earthworks,2026-08-31,50,2,15,2026-07-31,2026-08-31,Plot 01');
- csv('payment_certificates','Certificate No,Certification Date,Item No,Unit,Section,Area,Certified Value,Certified Amount Basis,Currency,Status\nIPC-ITEM-1,2026-08-20,'+item.itemNumber+','+item.unit+',Earthworks,Plot 01,400,incremental,QAR,Certified');
+ csv('installed_measurement_register','Item No,Unit,Section,Measurement Date,Cumulative Installed Qty,Labour Hours Per Unit,Actual Labour Hours,Period Start,Period End,Area\n1.1,m3,Earthworks,2026-07-31,20,2,10,2026-06-30,2026-07-31,Plot 01\n1.1,m3,Earthworks,2026-08-31,50,2,15,2026-07-31,2026-08-31,Plot 01');
+ csv('payment_certificates','Certificate No,Certification Date,Item No,Unit,Section,Area,Certified Value,Certified Amount Basis,Currency,Status\nIPC-ITEM-1,2026-08-20,1.1,m3,Earthworks,Plot 01,400,incremental,QAR,Certified');
  const row=projectDecisionFacts(state).quantities.items[0]!;
  assert.equal(row.installedPercent,50);assert.equal(row.periodProgressPercent,30);assert.equal(row.earnedHours,100);assert.equal(row.periodEarnedHours,60);
  assert.equal(row.actualHours,15);assert.equal(row.productivityPerActualHour,2);assert.equal(row.installedValue,500);assert.equal(row.certifiedValue,400);assert.equal(row.installedAgainstCertified,100);
