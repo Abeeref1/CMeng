@@ -215,7 +215,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const busy=(updating.get(entry.projectId)??0)>0;
     const sameVersion=entry.summary?.version===entry.metadata?.version;
     if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
-    const refreshFailed=summaryFailures.get(entry.projectId)===entry.metadata?.version&&!summaryJobs.has(entry.projectId);
+    const refreshFailed=summaryFailures.has(entry.projectId)&&summaryFailures.get(entry.projectId)===entry.metadata?.version&&!summaryJobs.has(entry.projectId);
     if(!busy&&sameVersion&&entry.summary&&!refreshFailed){
       // Previous figures are provisional ONLY while this release is due for
       // recalculation. Clear them immediately on failure; never claim they
