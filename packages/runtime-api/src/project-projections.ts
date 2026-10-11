@@ -172,6 +172,15 @@ import {
 function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
   const retained=state.controls.readinessEvidence;
   if(drivingIds.length===0)return retained;
+  // With no retained evidence document and no Delivery state, there is no
+  // possible source-backed procurement package to add as a readiness blocker.
+  // Avoid constructing the full Delivery engine for schedule-only projects.
+  const deliveryState=state.delivery;
+  const hasDeliveryState=Boolean(
+    deliveryState?.manual?.length||deliveryState?.decisions?.length||
+    deliveryState?.populations?.length||deliveryState?.mappings?.length
+  );
+  if(!hasDeliveryState&&state.evidenceDocuments.length===0)return retained;
   const driving=new Set(drivingIds);
   const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
   for(const pkg of deliveryPosition(state).packageRows){
