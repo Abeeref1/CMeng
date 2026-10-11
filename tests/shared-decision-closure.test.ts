@@ -8,7 +8,7 @@ import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project
 import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
 import {commercialPositionForState} from '../packages/runtime-api/src/commercial-runtime';
 import {sourceProgressEvidence} from '../packages/runtime-api/src/source-progress-evidence';
-import {projectDecisionFacts,decisionAnalysisForModule} from '../packages/runtime-api/src/project-decision-facts';
+import {projectDecisionFacts,decisionAnalysisForModule,buildRegisterChecks} from '../packages/runtime-api/src/project-decision-facts';
 import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
@@ -108,6 +108,30 @@ test('S-32 keeps BOQ item progress, productivity and installed-versus-certified 
  assert.match(script,/Period earned hours/);assert.match(script,/Installed less certified/);
 });
 
+test('S-34 payment due dates use explicit lifecycle authority and applications never become certificates',t=>{
+ const {state,csv}=fixture(t);state.schedules.at(-1)!.revision.model.dataDateIso='2026-08-31';
+ csv('payment_certificates','Certificate No,Period End,Certificate Date,Payment Due Date,Actual Payment Date,Net Certified QAR,Amount Paid QAR,Tax Basis,Status,Certified Amount Basis,Paid Amount Basis\nIPC-DUE,2026-06-30,2026-07-01,2026-07-31,2026-08-02,100,100,exclusive,Paid,incremental,incremental\nIPC-APP,2026-07-31,,2026-08-31,,200,0,exclusive,Applied,incremental,incremental');
+ const p=projectDecisionFacts(state).paymentChecks,paid=p.rows.find((r:any)=>r.certificateReference==='IPC-DUE')!,application=p.rows.find((r:any)=>r.certificateReference==='IPC-APP')!;
+ assert.equal(paid.contractDueDateIso,'2026-07-31');assert.equal(paid.state,'paid_late');assert.equal(paid.daysLate,2);assert.match(paid.basis,/explicit source due date/);
+ assert.equal(application.state,'application_not_certified');assert.equal(application.includedInCertifiedTotals,false);assert.equal(p.appliedExcludedCount,1);
+ assert.match(p.basis,/Applications are not certifications/);
+});
+
+test('S-35 every comparable same-currency register total is checked against current contract and every excess is queried',()=>{
+ const fact=(value:number|null,state='established')=>({value,state,sourceRefs:value===null?[]:['SOURCE']});
+ const commercial={currencies:[
+  {currency:'QAR',currentContractValue:fact(1000,'official'),grossCertifiedAmount:fact(1200),netCertifiedAmount:fact(900),paidAmount:fact(800),pendingVariationAmount:fact(null)},
+  {currency:'USD',currentContractValue:fact(2000,'official'),grossCertifiedAmount:fact(1500),netCertifiedAmount:fact(null),paidAmount:fact(null),pendingVariationAmount:fact(null)}
+ ]};
+ const quantities={items:[{currency:'QAR',contractValue:1100,sourceRefs:['BOQ:1']},{currency:'USD',contractValue:1800,sourceRefs:['BOQ:2']} ]};
+ const checks=buildRegisterChecks(commercial,{},quantities);
+ const qarGross=checks.checkedRows.find((r:any)=>r.currency==='QAR'&&r.register==='Gross issued certificates')!,qarBoq=checks.checkedRows.find((r:any)=>r.currency==='QAR'&&r.register==='Priced BOQ items')!;
+ assert.equal(qarGross.state,'query_required');assert.equal(qarGross.excess,200);assert.equal(qarBoq.state,'query_required');assert.equal(qarBoq.excess,100);
+ assert.ok(checks.checkedRows.some((r:any)=>r.currency==='QAR'&&r.register==='Net issued certificates'&&r.state==='within_qualified_contract_comparison'));
+ assert.equal(checks.rows.length,2,'only actual above-contract exceptions are in the exception list');
+ assert.ok(checks.rows.every((r:any)=>r.action.includes('Reconcile the source scope')));
+ assert.equal(checks.checkedRows.some((r:any)=>r.register==='Pending variations'),false,'missing totals are not converted to zero');
+});
 test('Decision-list paging is based on full rows and exposes all records with exact totals',()=>{
  const source:any={key:'near-critical',data:{decisionAnalysis:{kind:'float_erosion',trends:{rows:Array.from({length:251},(_,i)=>({activityReference:'ACT-'+i,currentFloatHours:i+1,turnsCriticalByIso:'2027-01-31'}))}}}};
  const p:any=pageProjectResponse(source,'/api/projects/P/schedule/modules/near-critical');assert.equal(p.responsePaging.tables.find((t:any)=>t.pointer==='/data/decisionAnalysis/trends/rows').total,251);
