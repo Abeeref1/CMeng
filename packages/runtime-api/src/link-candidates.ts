@@ -61,9 +61,15 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
    const kind=(url.searchParams.get('kind')??'boq_activity') as LinkKind;if(!['boq_activity','payment_certificate'].includes(kind))throw Error('LINK_KIND_INVALID');
    const data=linkDataset(state,kind),q=(url.searchParams.get('q')??'').trim().toLowerCase(),offset=Math.max(0,Number(url.searchParams.get('offset'))||0);
    const sources=data.sources.filter(r=>!q||(r.reference+' '+r.description).toLowerCase().includes(q));
+   const sourceOffset=Math.max(0,Math.floor(Number(url.searchParams.get('sourceOffset'))||0));
+   const sourcePageSize=50;
+   const reviewedSources=new Set((state.linkCandidateReviews??[]).filter(r=>r.kind===kind&&r.basisVersion===state.version).map(r=>r.sourceId));
    const all=(state.linkCandidateReviews??[]).filter(r=>r.kind===kind),rows=all.slice(offset,offset+25).map(r=>({...r,current:r.basisVersion===state.version}));
    send(res,200,{projectId:id,projectVersion:state.version,kind,...configuredProviderState(),providerPermittedForSession:allowed,
-    sourceCount:data.sources.length,sourceMatchCount:sources.length,targetCount:data.targets.length,sourceOptions:sources.slice(0,50),rows,total:all.length,offset,hasMore:offset+25<all.length,
+    sourceCount:data.sources.length,sourceMatchCount:sources.length,targetCount:data.targets.length,
+    sourceOptions:sources.slice(sourceOffset,sourceOffset+sourcePageSize),sourceOffset,sourcePageSize,sourceHasMore:sourceOffset+sourcePageSize<sources.length,
+    reviewedSourceCount:reviewedSources.size,sourceNotYetProposedCount:Math.max(0,data.sources.length-reviewedSources.size),
+    rows,total:all.length,offset,hasMore:offset+25<all.length,
     candidateCount:all.filter(r=>r.state==='candidate'&&r.basisVersion===state.version).length,confirmedCount:all.filter(r=>r.state==='confirmed'&&r.basisVersion===state.version).length,
     basis:'AI proposes existing source relationships only. Rules validate identity, reporting date and money basis. A person must confirm each relationship; quantities and paid amounts are never created or allocated by AI.'});return true;
   }
@@ -81,11 +87,16 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
   if(!allowed){send(res,403,{error:'paid_ai_owner_permission_required',message:'Activate owner access to request paid AI proposals. Existing deterministic links remain available.'});return true;}
   const kind=input.kind as LinkKind;if(!['boq_activity','payment_certificate'].includes(kind))throw Error('LINK_KIND_INVALID');
   const dataset=linkDataset(state,kind),source=dataset.sources.find(r=>r.id===input.sourceId);if(!source)throw Error('LINK_SOURCE_NOT_FOUND');
-  const cutoff=projectDataDate(state)?.slice(0,10)??null,ranked=shortlistLinks(kind,source,dataset.targets,cutoff);
+  const cutoff=projectDataDate(state)?.slice(0,10)??null;
+  const targetOffset=Number(input.targetOffset??0);
+  if(!Number.isSafeInteger(targetOffset)||targetOffset<0)throw Error('LINK_TARGET_OFFSET_INVALID');
+  const ranked=shortlistLinks(kind,source,dataset.targets,cutoff,20,targetOffset);
   if(!ranked.targets.length){send(res,422,{error:'no_compatible_source_candidates',message:'Existing source records do not establish a compatible target. Check dates, currency and issued certification; AI cannot supply missing facts.'});return true;}
   const requestHash=linkHash({kind,projectId:id,dataDateIso:cutoff,source,targets:ranked.targets}),version=state.version;
   const current=(state.linkCandidateReviews??[]).filter(r=>r.requestHash===requestHash&&r.basisVersion===version);
-  if(current.length){send(res,200,{projectVersion:version,rows:current,cacheHit:true,aiInvoked:false});return true;}
+  if(current.length){send(res,200,{projectVersion:version,rows:current,cacheHit:true,aiInvoked:false,
+    eligibleTargetCount:ranked.eligibleCount,targetsOffered:ranked.targets.length,targetOffset,
+    hasMoreTargets:ranked.hasMore,nextTargetOffset:Math.min(targetOffset+ranked.targets.length,ranked.eligibleCount)});return true;}
   if((state.linkCandidateReviews??[]).length>=2000)throw Error('LINK_REVIEW_CAPACITY_REACHED');
   const lock=id+':'+requestHash;if(inflight.has(lock)){send(res,409,{error:'matching_request_in_progress'});return true;}
   const model=configuredAskModel();if(!model){send(res,503,{error:'provider_not_configured'});return true;}
@@ -98,7 +109,9 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
    if(state.version!==version){send(res,409,{error:'project_changed_during_matching'});return true;}
    const rows=assessLinkProposal(context,proposal).map(r=>({...r,id:prior.length?r.id+'-'+version:r.id}));
    if(rows.length){state.linkCandidateReviews=[...(state.linkCandidateReviews??[]).map(r=>r.basisVersion===version?{...r,basisVersion:version+1}:r),...rows];runtimeProjects.touch(state);}
-   send(res,200,{projectVersion:state.version,rows,aiInvoked:prior.length===0,cacheHit:prior.length>0,eligibleTargetCount:ranked.eligibleCount,targetsOffered:ranked.targets.length,automaticallyApproved:false,quantitiesChanged:false,amountsChanged:false});
+   send(res,200,{projectVersion:state.version,rows,aiInvoked:prior.length===0,cacheHit:prior.length>0,eligibleTargetCount:ranked.eligibleCount,targetsOffered:ranked.targets.length,targetOffset,
+    hasMoreTargets:ranked.hasMore,nextTargetOffset:Math.min(targetOffset+ranked.targets.length,ranked.eligibleCount),
+    automaticallyApproved:false,quantitiesChanged:false,amountsChanged:false});
   }finally{inflight.delete(lock);}
   return true;
  }catch(error){const message=error instanceof Error?error.message:'LINK_MATCHING_FAILED';const safe=/^(LINK_|MODEL_|PAYMENT_)/.test(message)?message:'LINK_MATCHING_FAILED';send(res,400,{error:safe,message:'The relationship was not approved. Original project records remain unchanged.'});return true;}
