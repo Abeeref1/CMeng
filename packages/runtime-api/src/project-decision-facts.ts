@@ -240,19 +240,45 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
   basis:'Applications are not certifications. Due dates are the same contract-version-aware dates used in the issued payment register; no trigger or working-day calendar is inferred.'};
 }
 
-function buildRegisterChecks(commercial:any,ledger:any,quantities:any){
- const output:any[]=[];for(const currency of commercial.currencies??[]){const contract=valueOf(currency.currentContractValue);if(contract===null||contract<=0)continue;
-  const series:Array<[string,number|null,string[]]>=[];
-  series.push(['Gross issued certificates',valueOf(currency.grossCertifiedAmount),currency.grossCertifiedAmount?.sourceRefs??[]]);
-  series.push(['Net issued certificates',valueOf(currency.netCertifiedAmount),currency.netCertifiedAmount?.sourceRefs??[]]);
-  series.push(['Paid receipts',valueOf(currency.paidAmount),currency.paidAmount?.sourceRefs??[]]);
-  series.push(['Pending variations',valueOf(currency.pendingVariationAmount),currency.pendingVariationAmount?.sourceRefs??[]]);
-  const boq=quantities.items.filter((r:any)=>r.currency===currency.currency&&r.contractValue!==null);
-  if(boq.length)series.push(['Priced BOQ items',boq.reduce((s:number,r:any)=>s+r.contractValue,0),boq.flatMap((r:any)=>r.sourceRefs)]);
-  for(const[name,total,refs]of series)if(total!==null&&total>contract)output.push({register:name,currency:currency.currency,registerTotal:total,currentContractValue:contract,excess:total-contract,
-   state:'query_required',action:'Reconcile the scope, cumulative versus incremental basis, duplicate records, tax and currency before relying on this total.',sourceRefs:[...new Set(refs)],basis:'The register total exceeds the current contract sum in the same currency. This is a reconciliation query, not a finding of overpayment or entitlement.'});
+/** Source-qualified commercial comparison, whether or not an exception exists.
+ * Consumers keep the exceptions in rows exactly as before. The supporting
+ * checkedRows show which comparable source populations were actually examined;
+ * absent amounts do not become zero and different currencies never combine. */
+export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any){
+ const exceptions:any[]=[],checkedRows:any[]=[];
+ for(const currency of commercial.currencies??[]){
+  const contract=valueOf(currency.currentContractValue);
+  if(contract===null||contract<=0)continue;
+  const series:Array<{name:string;total:number|null;refs:string[];count:number|null}>=[
+   {name:'Gross issued certificates',total:valueOf(currency.grossCertifiedAmount),refs:currency.grossCertifiedAmount?.sourceRefs??[],count:null},
+   {name:'Net issued certificates',total:valueOf(currency.netCertifiedAmount),refs:currency.netCertifiedAmount?.sourceRefs??[],count:null},
+   {name:'Paid receipts',total:valueOf(currency.paidAmount),refs:currency.paidAmount?.sourceRefs??[],count:null},
+   {name:'Pending variations',total:valueOf(currency.pendingVariationAmount),refs:currency.pendingVariationAmount?.sourceRefs??[],count:null},
+  ];
+  const boq=(quantities?.items??[]).filter((r:any)=>r.currency===currency.currency&&r.contractValue!==null&&Number.isFinite(r.contractValue));
+  if(boq.length)series.push({name:'Priced BOQ items',
+   total:boq.reduce((sum:number,r:any)=>sum+r.contractValue,0),
+   // Aggregate counts retain full source provenance without repeating 30,000
+   // item references in every screen/report's five-row control summary.
+   refs:boq.slice(0,12).flatMap((r:any)=>r.sourceRefs??[]),count:boq.length});
+  for(const entry of series){
+   if(entry.total===null||!Number.isFinite(entry.total))continue;
+   const gap=entry.total-contract,above=gap>0.01;
+   const row={register:entry.name,currency:currency.currency,registerTotal:entry.total,
+    currentContractValue:contract,excess:above?gap:0,
+    comparisonDifference:gap,
+    state:above?'query_required':'within_qualified_contract_comparison',
+    contractAuthorityState:currency.currentContractValue?.state??'not_established',
+    sourceRecordCount:entry.count,
+    sourceRefs:[...new Set(entry.refs)].slice(0,12),
+    basis:'Same-currency arithmetic check of the retained source total against the current contract sum. Verify cumulative/incremental basis, tax and scope separately; this is not a certification of entitlement.',
+    action:above?'Reconcile the source scope, series basis, duplicate records, tax and currency before relying on the excess.':'No above-contract arithmetic exception identified for this retained amount; source authority and reconciliation remain qualified.'};
+   checkedRows.push(row);
+   if(above)exceptions.push(row);
+  }
  }
- return {rows:output,count:output.length};
+ return {rows:exceptions,count:exceptions.length,checkedRows,checkedCount:checkedRows.length,
+  basis:'Full comparable source totals, including those without exceptions. Missing amounts and incomparable currencies are not reported as zero.'};
 }
 
 /** A substantive decision table has one home. Other pages link to that home.
