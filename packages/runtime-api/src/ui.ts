@@ -940,6 +940,7 @@ function resourceUnitLabel(unit){
 }
 function humanizeKey(key){
   const sharedLabels=${JSON.stringify(STATUS_LABELS)};if(sharedLabels[key])return sharedLabels[key];
+  const moduleLabels=${JSON.stringify(Object.fromEntries(moduleRegistry.map(m=>[m.key,m.title])))};if(moduleLabels[key])return moduleLabels[key];
   const diagnosticLabels=${JSON.stringify(MANAGEMENT_DIAGNOSTIC_LABELS)};
   const diagnosticKey=String(key??"").split(":")[0];if(diagnosticLabels[diagnosticKey])return diagnosticLabels[diagnosticKey];
   const labels={PARALLEL_ASSESSMENT_VALUES_DIFFER:"Claim assessments disagree",REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER:"Reported determination is absent from the award register",labor_hour:"Labor hours",equipment_hour:"Equipment hours",rfi_register:"RFI",design_deliverables:"Design deliverable",submittal_register:"Submittal",governed:"Confirmed",established:"Confirmed",candidate:"Needs review",not_established:"Not established",not_applicable:"Not applicable",quarantined:"Source evidence under review",not_submitted:"Not provided",submitted_unparsed:"Provided; not read",independent_cpm:"Calendar calculation",source_forecast:"Submitted forecast",event_date_missing:"Event / awareness date missing",requirement_missing:"Notice rule missing"};
