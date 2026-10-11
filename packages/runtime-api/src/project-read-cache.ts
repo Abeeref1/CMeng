@@ -21,10 +21,10 @@ export async function clearDerivedReadCaches(root:string,currentRelease?:string)
     const cacheDirectory=join(directory,'.analysis-reads');
     const cachedRelease=await readFile(join(cacheDirectory,'release'),'utf8').catch(()=>null);
     // Keep other releases' disposable calculations for safe rollback. Every
-    // lookup uses an exact release + project version + page key, so old
-    // results cannot be served as new facts. Bound storage per project and
-    // remove only very old, orphaned cache entries.
-    const expiry=Number.NEGATIVE_INFINITY; // Retain source-version results across restarts and deployments.
+    // Every authoritative read is scoped to its release, project revision
+    // and route. Older calculations may remain on disk for safe rollback,
+    // but never satisfy a different release's request.
+    const expiry=Number.NEGATIVE_INFINITY; // Retain rollback candidates; writes enforce the per-project byte cap.
     for(const name of await readdir(cacheDirectory).catch(()=>[])){
       if(!name.endsWith('.json'))continue;
       const file=join(cacheDirectory,name);
@@ -56,9 +56,10 @@ export class ProjectReadCache {
   }
   constructor(private readonly directory:string,private readonly maxBytes=DEFAULT_CACHE_BYTES){}
   private file(release:string,version:number,path:string){
-    // Keep an exact source-version cache across deployments; project-directory isolation
-    // and source version prevent sharing results between unrelated projects.
-    const key=createHash('sha256').update(JSON.stringify([version,path])).digest('hex');
+    // A saved result belongs to both the exact calculation implementation and
+    // the retained project revision. Deploying changed calculation code must
+    // never turn a previous release's response into an authoritative current answer.
+    const key=createHash('sha256').update(JSON.stringify([release,version,path])).digest('hex');
     return join(this.directory,'.analysis-reads',key+'.json');
   }
   async get(release:string,version:number,path:string):Promise<Buffer|null>{
