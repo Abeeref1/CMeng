@@ -1,4 +1,5 @@
 import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
+import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
 import {aggregateCount} from '../../truth-kernel/src';
@@ -580,8 +581,11 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
+  // The primary WBS management table and the measured-area panel consume
+  // one authoritative source value, only for unique exact-name associations.
+  const shown=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...bound,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }
