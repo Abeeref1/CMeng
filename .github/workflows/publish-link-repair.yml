@@ -1,0 +1,54 @@
+name: Publish recovered guarded link repair
+on:
+  push:
+    branches: ['repair/cmeng-guarded-linking-20261011']
+permissions:
+  contents: write
+concurrency:
+  group: cmeng-publish-guarded-link-repair
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Apply exact saved integration changes
+        run: |
+          test "$(git hash-object scripts/cmeng-link-integration.patch)" = 8193dcb04a04b07234a1c188627e1e745623fe17
+          git apply --check --unidiff-zero scripts/cmeng-link-integration.patch
+          git apply --unidiff-zero scripts/cmeng-link-integration.patch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run build && node scripts/check-assembled-browser.cjs
+      - name: Run unchanged renderer and new guarded-link tests
+        run: node --test dist/tests/register-contract-reconciliation.test.js dist/tests/wbs-source-separator-links.test.js dist/tests/record-link-review.test.js dist/tests/decision-analysis-paging.test.js
+      - name: Install browser test runtime without changing dependency manifests
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Fast demo browser release check
+        run: |
+          export CMENG_CHROMIUM="$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")"
+          CMENG_FAST_GATE_REPORT=/tmp/cmeng-fast-gate.json node scripts/fast-release-gate.cjs
+      - name: Commit only the tested source integration
+        run: |
+          git config user.name 'CMeng engineering'
+          git config user.email 'engineering@users.noreply.github.com'
+          git add packages/project-ask/src/provider.ts packages/runtime-api/src/ask-api.ts packages/runtime-api/src/boq-programme-links.ts packages/runtime-api/src/project-state-types.ts packages/runtime-api/src/response-paging.ts packages/runtime-api/src/server.ts packages/runtime-api/src/source-commercial-evidence.ts packages/runtime-api/src/ui-basis-review.ts packages/runtime-api/src/ui.ts
+          git diff --cached --check
+          git commit -m 'Integrate guarded BOQ/activity and receipt/certificate review; preserve decision answers and provider permission separation'
+          git push origin HEAD:refs/heads/repair/cmeng-guarded-linking-20261011
+          git rev-parse HEAD > /tmp/cmeng-published-source.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guarded-link-publish-${{ github.run_id }}
+          path: |
+            /tmp/cmeng-fast-gate.json
+            /tmp/cmeng-published-source.txt
+          retention-days: 7

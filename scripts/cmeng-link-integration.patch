@@ -1,0 +1,120 @@
+diff --git a/packages/project-ask/src/provider.ts b/packages/project-ask/src/provider.ts
+index bcd3c7e..5ba5dbd 100644
+--- a/packages/project-ask/src/provider.ts
++++ b/packages/project-ask/src/provider.ts
+@@ -136,0 +137,11 @@ export function configuredAskModel(){let managed;try{managed=readManagedAskSetti
++
++/** Configuration and caller permission are different states. No credentials are returned. */
++export function askProviderConfiguration():{configured:boolean;model:string|null;protocol:string|null}{
++ try{const managed=readManagedAskSettings(process.env.CMENG_ASK_AI_CONFIG_FILE);
++  const model=managed?.model??process.env.CMENG_ASK_AI_MODEL??null;
++  const protocol=managed?'responses':process.env.CMENG_ASK_AI_PROTOCOL??'responses';
++  const credentialPresent=Boolean(managed?.apiKey??process.env.CMENG_ASK_AI_API_KEY);
++  const endpointPresent=!managed&&Boolean(process.env.CMENG_ASK_AI_BASE_URL);
++  return {configured:Boolean(model&&(credentialPresent||endpointPresent)&&['responses','chat-completions'].includes(protocol)),model,protocol};
++ }catch{return {configured:false,model:null,protocol:null};}
++}
+diff --git a/packages/runtime-api/src/ask-api.ts b/packages/runtime-api/src/ask-api.ts
+index 76b0f88..9fa13bb 100644
+--- a/packages/runtime-api/src/ask-api.ts
++++ b/packages/runtime-api/src/ask-api.ts
+@@ -12 +12 @@ import {runtimeProjects} from './project-state';
+-import {configuredAskModel} from '../../project-ask/src/provider';
++import {configuredAskModel,askProviderConfiguration} from '../../project-ask/src/provider';
+@@ -46 +46 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
+-      json(res,200,{scope,authorities,suggestions,views:await engine.store.views(projectId,user),providerConfigured:model!==null});return true;
++      json(res,200,{scope,authorities,suggestions,views:await engine.store.views(projectId,user),providerConfigured:askProviderConfiguration().configured,providerAllowed:model!==null});return true;
+diff --git a/packages/runtime-api/src/boq-programme-links.ts b/packages/runtime-api/src/boq-programme-links.ts
+index fbb365b..34e1f49 100644
+--- a/packages/runtime-api/src/boq-programme-links.ts
++++ b/packages/runtime-api/src/boq-programme-links.ts
+@@ -0,0 +1,2 @@
++import {activeConfirmedLinks} from './record-link-review';
++import {boqReviewContext} from './boq-link-context';
+@@ -12,0 +15,3 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
++ const reviewed=(state.recordLinkReview?.candidates?.some(row=>row.kind==='boq_activity')?activeConfirmedLinks(state.recordLinkReview,boqReviewContext(state,model)):[]);
++ const reviewedItems=new Set<string>();
++ for(const link of reviewed){const group=links.get(link.sourceId)??new Set<string>();group.add(link.targetId);links.set(link.sourceId,group);reviewedItems.add(link.sourceId);}
+@@ -14 +19 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
+- const rows=(quantity?.items??[]).map(item=>({itemId:item.quantityItemId,itemNumber:item.itemNumber,activityIds:[...(links.get(item.quantityItemId)??[])],basis:approved.has(item.quantityItemId)?'Recorded activity allocation':sourceLinks.get(item.quantityItemId)?.basis??'No unique source code relationship'}));
++ const rows=(quantity?.items??[]).map(item=>({itemId:item.quantityItemId,itemNumber:item.itemNumber,activityIds:[...(links.get(item.quantityItemId)??[])],basis:approved.has(item.quantityItemId)?'Recorded activity allocation':reviewedItems.has(item.quantityItemId)?'Verified-user confirmed relationship; no quantity or cost allocated':sourceLinks.get(item.quantityItemId)?.basis??'No unique source code relationship'}));
+@@ -16 +21 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
+- const value={itemCount:quantity?rows.length:null,linkedItemCount:quantity?linkedItemCount:null,coveragePercent:rows.length?linkedItemCount/rows.length*100:null,approvedAllocatedItemCount:quantity?approved.size:null,rows,
++ const value={itemCount:quantity?rows.length:null,linkedItemCount:quantity?linkedItemCount:null,coveragePercent:rows.length?linkedItemCount/rows.length*100:null,approvedAllocatedItemCount:quantity?approved.size:null,confirmedRelationshipItemCount:quantity?reviewedItems.size:null,rows,
+diff --git a/packages/runtime-api/src/project-state-types.ts b/packages/runtime-api/src/project-state-types.ts
+index bc41cc9..5829d9d 100644
+--- a/packages/runtime-api/src/project-state-types.ts
++++ b/packages/runtime-api/src/project-state-types.ts
+@@ -443,0 +444 @@ export interface ProjectRuntimeState {
++  recordLinkReview?:import('./record-link-review').RecordLinkReview;
+diff --git a/packages/runtime-api/src/response-paging.ts b/packages/runtime-api/src/response-paging.ts
+index aca4141..e9e8b1d 100644
+--- a/packages/runtime-api/src/response-paging.ts
++++ b/packages/runtime-api/src/response-paging.ts
+@@ -36 +36 @@ const TABLE_NAME=/(?:rows|records|register|entries|activities|actions|findings|d
+-const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination','filterOptions','filterDomains','activitySummary','boqProgrammeLinks','briefCommercialPosition','completionConstraints','completionMilestoneConstraints','paymentLinkage','heldEvidence','deliveryFeasibility','controlMetrics']);
++const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination','filterOptions','filterDomains','activitySummary','decisionAnalysis','positionVerdict','managementPosition','boqProgrammeLinks','briefCommercialPosition','completionConstraints','completionMilestoneConstraints','paymentLinkage','heldEvidence','deliveryFeasibility','controlMetrics']);
+diff --git a/packages/runtime-api/src/server.ts b/packages/runtime-api/src/server.ts
+index 82258a4..c4cf4b3 100644
+--- a/packages/runtime-api/src/server.ts
++++ b/packages/runtime-api/src/server.ts
+@@ -906,0 +907,2 @@ async function route(
++  if(/^\/api\/projects\/[^/]+\/link-review(?:\/|$)/.test(url.pathname)){const {linkReviewRequest}=await import('./link-review-api');if(await linkReviewRequest(req,res,url))return;}
++
+diff --git a/packages/runtime-api/src/source-commercial-evidence.ts b/packages/runtime-api/src/source-commercial-evidence.ts
+index 2f0b917..2a8a28c 100644
+--- a/packages/runtime-api/src/source-commercial-evidence.ts
++++ b/packages/runtime-api/src/source-commercial-evidence.ts
+@@ -1,0 +2 @@ import {cell,dateValue,numberValue,governedTables} from '../../truth-kernel/src'
++import {linkHash,linkRecordId,activeConfirmedLinks,type LinkContext,type LinkRecord} from './record-link-review';
+@@ -15 +16 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
+- type PaymentLink={reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'future';certificateReference:string|null;basis:string;sourceRefs:string[]};
++ type PaymentLink={sourceId:string;certificateId:string|null;reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'future'|'confirmed';certificateReference:string|null;confirmedCertificateReferences?:string[];basis:string;sourceRefs:string[]};
+@@ -26 +27 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
+-  links.push({reference,certificateNumber,certificateDate,paymentDate,amount,currency,state,
++  links.push({sourceId:linkRecordId('receipt',[reference,certificateNumber,paymentDate],sourceRefs),certificateId:state==='linked'?linkRecordId('certificate',[unique[0].paymentId,unique[0].certificationDate],refs(unique[0])):null,reference,certificateNumber,certificateDate,paymentDate,amount,currency,state,
+@@ -37 +38,2 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
+-   if(!number||paid===null||!paymentDate)continue;
++   if(paid===null)continue;
++   if(!number&&!cell(row,'payment reference','receipt reference','transaction no')&&!paymentDate)continue;
+@@ -47 +49,12 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
+- const eligible=links.filter(r=>r.state!=='future'),linked=eligible.filter(r=>r.state==='linked').length;
++ const certificateRows:LinkRecord[]=certificates.map((row:any)=>({id:linkRecordId('certificate',[row.paymentId,row.certificationDate],refs(row)),reference:row.paymentId,label:row.paymentId,text:row.paymentId+' '+row.sourceStatus,sourceRefs:refs(row),date:validDate(row.certificationDate),currency:row.amounts?.netCertifiedAmount?.currency??row.amounts?.grossCertifiedAmount?.currency??null,amount:row.amounts?.netCertifiedAmount?.value??row.amounts?.grossCertifiedAmount?.value??null}));
++ const receiptRows:LinkRecord[]=links.filter(row=>row.state!=='future').map(row=>({id:row.sourceId,reference:row.reference||row.certificateNumber||row.sourceRefs[0]||'Payment reference not supplied',label:row.reference||row.certificateNumber||'Payment reference not supplied',text:[row.reference,row.certificateNumber].filter(Boolean).join(' '),sourceRefs:row.sourceRefs,date:row.paymentDate,currency:row.currency,amount:row.amount}));
++ const basisHash=linkHash([state.projectId,'payment_certificate',cutoff,receiptRows,certificateRows]);
++ const linkContext:LinkContext={kind:'payment_certificate',basisHash,sources:receiptRows,targets:certificateRows,basis:'Existing receipts and issued certificates. A confirmed relationship does not allocate or change cash.'};
++ for(const confirmed of activeConfirmedLinks(state.recordLinkReview,linkContext)){
++  const row=links.find(item=>item.sourceId===confirmed.sourceId),certificate=certificateRows.find(item=>item.id===confirmed.targetId);
++  if(row&&certificate){
++   (row.confirmedCertificateReferences??=[]).push(certificate.reference);
++   if(row.state!=='linked')Object.assign(row,{state:'confirmed',certificateId:row.confirmedCertificateReferences.length===1?certificate.id:null,certificateReference:row.confirmedCertificateReferences.join('; '),basis:'Relationship confirmed by a verified user against source evidence; cash allocation remains separate.'});
++  }
++ }
++ const eligible=links.filter(r=>r.state!=='future'),linked=eligible.filter(r=>r.state==='linked'||r.state==='confirmed').length;
+@@ -55,2 +68,6 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
+- return {paymentLinkage:{total:eligible.length,linked,unlinked:eligible.length-linked,coveragePercent:eligible.length?linked/eligible.length*100:null,rows:links,
+-   basis:'Dated actual-payment records linked by certificate business reference, date and currency. Unpaid applications are not actual receipts.'},
++ const paymentLinkage={total:eligible.length,linked,unlinked:eligible.length-linked,coveragePercent:eligible.length?linked/eligible.length*100:null,rows:links,
++   basis:'Dated actual-payment records linked by certificate business reference, date and currency or verified-user relationship review. A relationship does not establish cash allocation. Unpaid applications are not actual receipts.'};
++ // Keep full matching inputs available internally, not copied into every page
++ // or export. The paginated review endpoint exposes their actual population.
++ Object.defineProperty(paymentLinkage,'linkContext',{value:linkContext,enumerable:false});
++ return {paymentLinkage,
+diff --git a/packages/runtime-api/src/ui-basis-review.ts b/packages/runtime-api/src/ui-basis-review.ts
+index 2864fe5..588fa94 100644
+--- a/packages/runtime-api/src/ui-basis-review.ts
++++ b/packages/runtime-api/src/ui-basis-review.ts
+@@ -99 +99 @@ async function openBoqLinkEditor(){
+- panel.innerHTML='<h4>Create BOQ links</h4><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
++ panel.innerHTML='<h4>Create BOQ links</h4><button class="btn" onclick="openRecordLinkReview(\'boq_activity\')">Review suggested relationships</button><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
+@@ -117 +117 @@ function renderBasisReviews(data,key){
+-  let html='';
++  let html=typeof linkReviewToolbar==='function'?linkReviewToolbar(key):'';
+diff --git a/packages/runtime-api/src/ui.ts b/packages/runtime-api/src/ui.ts
+index 4e93973..6fc5cf7 100644
+--- a/packages/runtime-api/src/ui.ts
++++ b/packages/runtime-api/src/ui.ts
+@@ -17,0 +18 @@ import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-re
++import {linkReviewScript} from './ui-link-review';
+@@ -448,0 +450 @@ ${basisReviewScript}
++${linkReviewScript}
