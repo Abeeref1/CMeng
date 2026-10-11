@@ -5,7 +5,7 @@
 export function bindMeasuredAreasToWbs<T extends Record<string, any>>(projection:T,analysis:unknown):T {
   const a=analysis as {kind?:string;areas?:Array<Record<string,any>>}|null;
   if(a?.kind!=='area_progress'||!Array.isArray(a.areas)||!Array.isArray(projection.dimensionViews))return projection;
-  const name=(s:unknown)=>String(s??'').normalize('NFKC').trim().replace(/\\s+/g,' ').toLowerCase();
+  const name=(s:unknown)=>String(s??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
   const views=projection.dimensionViews as Array<{dimension:string;rows?:Array<Record<string,any>>}>;
   const wbs=views.find(view=>view.dimension==='wbs');
   if(!wbs||!Array.isArray(wbs.rows))return projection;
