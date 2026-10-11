@@ -41,11 +41,22 @@ test('worker gateway preserves all module, management, source and audit results 
     await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
     const worker='http://127.0.0.1:'+(gateway.server.address() as AddressInfo).port;
     const paths=['/overview','/phases','/evidence/documents','/schedule/revisions','/director-position','/board-report','/board-report/history?includeReport=true','/management-surfaces',...moduleRegistry.map(m=>m.area==='management'?'/management/'+m.key:'/'+m.area+'/modules/'+m.key),'/schedule/modules/quantity-scurve/report.json'];
+    const firstOverview=await Promise.all([base,worker].map(async url=>{
+      const response=await fetch(url+'/api/projects/PRESERVE/overview');
+      return {status:response.status,body:await response.json()};
+    }));
     for(const path of paths){
       const replies=await Promise.all([base,worker].map(async url=>{const response=await fetch(url+'/api/projects/PRESERVE'+path);return {status:response.status,body:await response.json()};}));
       assert.ok(replies[0]!.status===200||path.startsWith('/delivery/')&&replies[0]!.status===409,path+' must return the actual project position, including Delivery blocked without governed records');
       assert.deepEqual(comparable(replies[1]),comparable(replies[0]),path+' must retain exact values, states, dates and retained source identities');
     }
+    const afterSpecialists=await Promise.all([base,worker].map(async url=>{
+      const response=await fetch(url+'/api/projects/PRESERVE/overview');
+      return {status:response.status,body:await response.json()};
+    }));
+    for(let i=0;i<2;i++)assert.deepEqual(comparable(afterSpecialists[i]),comparable(firstOverview[i]),
+      'The same retained project overview must not change merely because specialist pages warmed in this worker');
+
     const before=JSON.parse(await readFile(join(original,'cmeng-project-state.json'),'utf8')).projects[0];
     const after=JSON.parse(await readFile(join(projectDirectory(isolated,'PRESERVE'),'cmeng-project-state.json'),'utf8')).projects[0];
     assert.deepEqual(comparable(after),comparable(before),'complete retained state, controls, evidence and audit history must be unchanged');
