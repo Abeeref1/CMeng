@@ -115,9 +115,12 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // lane across every management page. That blocks foreground project navigation.
   let warmPageTail:Promise<void>=Promise.resolve();
   const scheduledWarmups=new Set<string>();
-  async function warmProjectPages(id:string,version:number){
+  const pendingSecondaryWarmups=new Map<string,number>();
+  let secondaryWarmupActive=false;
+  async function warmProjectPages(id:string,version:number,phase:'priority'|'secondary'){
     const prefix='/api/projects/'+encodeURIComponent(id);
-    const routes=[...new Set([
+    const priorityRoutes=[prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/overview'];
+    const allRoutes=[...new Set([
       prefix+'/overview',
       prefix+'/management/master-dashboard',
       prefix+'/management/cross-domain-accountability',
@@ -134,6 +137,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         prefix+'/management/'+page.key:
         prefix+'/'+page.area+'/modules/'+page.key),
     ])];
+    // Prepare the three owner-facing pages across the entire portfolio before
+    // spending worker capacity on the complete specialist library of one project.
+    const routes=phase==='priority'?priorityRoutes:allRoutes.filter(route=>!priorityRoutes.includes(route));
     for(const route of routes){
       if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
       // A foreground user always gets the next per-project worker turn.
@@ -164,10 +170,24 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(scheduledWarmups.has(key))return;
     scheduledWarmups.add(key);
     // Bounded to one background project at a time, regardless of portfolio size.
-    const task=warmPageTail.catch(()=>{}).then(()=>warmProjectPages(id,version))
+    const task=warmPageTail.catch(()=>{}).then(()=>warmProjectPages(id,version,'priority'))
       .catch(error=>console.warn('[project-warmup] '+id+': '+String(error)))
-      .finally(()=>scheduledWarmups.delete(key));
+      .finally(()=>{scheduledWarmups.delete(key);if(!closing&&catalog.get(id)?.metadata?.version===version)pendingSecondaryWarmups.set(id,version);});
     warmPageTail=task;
+  }
+  function scheduleSecondaryWarmup(){
+    if(closing||secondaryWarmupActive||scheduledWarmups.size||summaryJobs.size||activeSummaryWarmups)return;
+    // Do not let one project monopolize all its pages while another project
+    // still needs its first Accountability and Master Dashboard calculations.
+    if([...catalog.values()].some(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!summaryFailures.has(e.projectId)))return;
+    const next=pendingSecondaryWarmups.entries().next().value as [string,number]|undefined;
+    if(!next)return;
+    const [id,version]=next;pendingSecondaryWarmups.delete(id);
+    if(catalog.get(id)?.metadata?.version!==version||(updating.get(id)??0)>0)return;
+    secondaryWarmupActive=true;
+    void warmProjectPages(id,version,'secondary')
+      .catch(error=>console.warn('[project-warmup-secondary] '+id+': '+String(error)))
+      .finally(()=>{secondaryWarmupActive=false;});
   }
   async function refreshSummary(id:string){
     if(closing)return;
@@ -357,12 +377,23 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
     const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!updating.get(e.projectId)&&!summaryJobs.has(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
       (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
-    if(!entry)return;
+    if(!entry){scheduleSecondaryWarmup();return;}
     activeSummaryWarmups++;
     void refreshSummary(entry.projectId).finally(()=>{activeSummaryWarmups--;});
   };
   const warmer=setInterval(warmSweep,2000);warmer.unref();
-  // Do not wait for browser inactivity or the next polling interval to start.
+  // Prepare one existing project worker before declaring the gateway ready:
+  // no imported records are altered, and this avoids making the first browser
+  // request pay for loading/parsing a full project snapshot. Remaining workers
+  // and calculation-versioned pages warm incrementally without blocking health.
+  const firstProject=[...catalog.values()].find(e=>e.metadata&&!e.metadata.demo)?.projectId;
+  if(firstProject){
+    let startupTimer:NodeJS.Timeout|undefined;
+    const workerReady=work(firstProject,async()=>{}).catch(error=>console.warn('[project-worker-prime] '+firstProject+': '+String(error)));
+    await Promise.race([workerReady,new Promise<void>(resolve=>{startupTimer=setTimeout(resolve,8000);})]);
+    if(startupTimer)clearTimeout(startupTimer);
+  }
+  // The full portfolio remains accessible even if another project's warmup fails.
   setImmediate(warmSweep);
   const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
