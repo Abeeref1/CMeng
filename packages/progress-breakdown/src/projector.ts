@@ -122,7 +122,7 @@ function buildRow(
   };
 }
 
-export function buildProgressBreakdownProjection(
+function buildProgressBreakdownProjectionImpl(
   model: CanonicalScheduleModel,
   input: {
     generatedAt: string;
@@ -143,7 +143,8 @@ export function buildProgressBreakdownProjection(
       }>;
     } | null;
   },
-): ProgressBreakdownProjection {
+  deliveryOnly=false,
+): ProgressBreakdownProjection | Pick<ProgressBreakdownProjection,'rows'|'overallSummary'> {
   const config =
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
@@ -302,6 +303,15 @@ export function buildProgressBreakdownProjection(
         b.activityCount - a.activityCount ||
         naturalCompare(a.wbsId, b.wbsId),
     );
+
+  if(deliveryOnly){
+    // Delivery consumes the exact WBS rows and scope summary, not the
+    // specialist's six additional dimension/hierarchy views. The specialist
+    // continues using the complete original producer unchanged.
+    const scopeActivities=model.activities.filter(isExecutionActivity);
+    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config),scopeActivities);
+    return {rows,overallSummary};
+  }
 
   // Ancestor rollups are a separate population from direct assignments. Each
   // activity contributes once to each ancestor and once to the project total.
@@ -524,4 +534,18 @@ export function buildProgressBreakdownProjection(
     baselinePlanAvailable: Boolean(input.baselineModel) && hierarchyRows.some(row=>typeof row.baselinePlannedPercent==="number"),
     controlledBaselineAvailable: Boolean(input.baselineModel),
   };
+}
+
+/** Same WBS/activity equations; retains the complete specialist projection. */
+export function buildProgressBreakdownProjection(
+ model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjectionImpl>[1],
+):ProgressBreakdownProjection{
+ return buildProgressBreakdownProjectionImpl(model,input,false) as ProgressBreakdownProjection;
+}
+/** Delivery-only consumer uses the same exact WBS rows and overall result.
+ * No source activities, evidence, scoring or specialist content are dropped. */
+export function buildDeliveryWorkfrontBreakdown(
+ model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjectionImpl>[1],
+):Pick<ProgressBreakdownProjection,'rows'|'overallSummary'>{
+ return buildProgressBreakdownProjectionImpl(model,input,true);
 }
