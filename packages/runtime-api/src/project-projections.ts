@@ -7945,17 +7945,13 @@ export function moduleForProject(
   if (key==='delivery-interfaces') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,deliveryExportResult(scoped,interfaceModule(scoped)))));}
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {
-    const scoped=reportingState(state),result=accountabilityModule(scoped),position=result.data as ReturnType<typeof crossDomainAccountability>;
-    // Accountability owns source-record responsibility. Project Review owns
-    // source confirmations/reviews. Do not build the full certified module
-    // suite merely to duplicate those review actions on this page.
-    const actions=position.actions;
+    const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);
     return finalize(withPositionVerdict(attachReportingContract(scoped,{
       ...result,
-      status:actions.length?'partial':result.status,
-      data:{...position,actions,actionCount:actions.length,
-        ownerRegisterGroups:groupActionsByOwnerRegister(actions),
-        managementPosition:actions.length+' accountable owner/register groups covering '+position.recordActionCount+' source records. Source confirmations and evidence reviews remain in Project Review.'}
+      status:register.actions.length?'partial':result.status,
+      data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,
+        ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),
+        managementPosition:register.actions.length+' canonical project actions: '+register.recordPosition.actions.length+' owner/register groups covering '+register.recordActionCount+' source records, plus '+register.reviewActionCount+' source reviews or confirmations.'}
     })));
   }
   if (isDeliveryPage(key)) {
