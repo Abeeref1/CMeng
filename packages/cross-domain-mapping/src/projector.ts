@@ -425,9 +425,8 @@ export function buildQuantityScheduleMapping(
   };
   const sectionHitCache=new Map<string,Hits>();
   const candidatesFor=(item:CanonicalQuantityItem,features:ItemFeatures)=>{
-    const found=new Set<CanonicalScheduleActivity>();
     const nameHits=countPosting(descriptions,features.descriptionTokens);
-    for(const activity of nameHits.keys())found.add(activity);
+    const found=new Set<CanonicalScheduleActivity>(nameHits.keys());
     const collect=(posting:Posting,keys:Iterable<string>)=>{
       for(const key of keys)for(const activity of posting.get(key)??[])found.add(activity);
     };
@@ -448,15 +447,15 @@ export function buildQuantityScheduleMapping(
     // Section and code matches alone may reach 0.34; either alone cannot.
     for(const activity of codeHits.keys())if(sectionHits.has(activity))found.add(activity);
     const corpus=features.corpus;
+    const explicitMatches=new Set<CanonicalScheduleActivity>();
     for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
-      const activity=explicit.get(token);if(activity)found.add(activity);
+      const activity=explicit.get(token);if(activity){found.add(activity);if(featuresByActivity.get(activity)!.explicitId?.test(corpus))explicitMatches.add(activity);}
     }
-    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(corpus))found.add(activity);
-    return {found,nameHits,sectionHits,codeHits};
+    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(corpus)){found.add(activity);explicitMatches.add(activity);}
+    return {found,nameHits,sectionHits,codeHits,explicitMatches};
   };
   const fastScore=(item:ItemFeatures,activity:ActivityFeatures,
     descriptionHits:number,sectionHits:number,codeHits:number):number=>{
-    if(activity.explicitId?.test(item.corpus))return 0.99;
     const similarity=(n:number,a:number,b:number)=>n&&a&&b?n/(a+b-n):0;
     const description=similarity(descriptionHits,item.descriptionTokens.size,activity.nameTokens.size);
     let value=description>0?Math.min(0.62,description*0.72):0;
@@ -487,12 +486,17 @@ export function buildQuantityScheduleMapping(
 
     const features = itemFeatures(item);
     const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
-    const {found,nameHits,sectionHits,codeHits}=candidatesFor(item,features);
+    const {found,nameHits,sectionHits,codeHits,explicitMatches}=candidatesFor(item,features);
     for (const activity of found) {
       scoredPairCount += 1;
       const activityFeature=featuresByActivity.get(activity)!;
-      const confidence=Number(fastScore(features,activityFeature,
-        nameHits.get(activity)??0,sectionHits.get(activity)??0,codeHits.get(activity)??0).toFixed(4));
+      const rawConfidence=explicitMatches.has(activity)?0.99:fastScore(features,activityFeature,
+        nameHits.get(activity)??0,sectionHits.get(activity)??0,codeHits.get(activity)??0);
+      // Lossless upper-bound test: a result below the current fifth place
+      // even after rounding can never change the retained top-five.
+      if(top.length===5&&rawConfidence<top[4]!.confidence-0.0001)continue;
+      if(rawConfidence<0.33994)continue;
+      const confidence=Number(rawConfidence.toFixed(4));
       if (confidence < 0.34) continue;
       // This is the same stable confidence/Activity-ID sort and top five as
       // before. Do not fingerprint or copy source evidence for discarded rows.
