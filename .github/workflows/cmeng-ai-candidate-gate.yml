@@ -24,21 +24,7 @@ jobs:
           echo '1fb5159ff7bbe1a8687ce2b49ce3712f000b2ca1d9b998c30654a9e6b05b6dd1  /tmp/cmeng-candidate-evidence/changes.patch' | sha256sum -c -
           git apply --check /tmp/cmeng-candidate-evidence/changes.patch
           git apply /tmp/cmeng-candidate-evidence/changes.patch
-          python - <<'PY'
-          from pathlib import Path
-          path=Path('packages/runtime-api/src/project-state.ts')
-          source=path.read_text()
-          old="""        scheduleAuthorityVersion: 'explicit-adoption-v1',
-        version: 1,
-"""
-          new="""        scheduleAuthorityVersion: 'explicit-adoption-v1',
-        sourceIntegrationVersion: 'canonical-source-v7',
-        version: 1,
-"""
-          if old not in source:
-              raise SystemExit('fresh-project source integration initializer not found')
-          path.write_text(source.replace(old,new,1))
-          PY
+          python -c "from pathlib import Path; p=Path('packages/runtime-api/src/project-state.ts'); s=p.read_text(); old=\"        scheduleAuthorityVersion: 'explicit-adoption-v1',\\n        version: 1,\\n\"; new=\"        scheduleAuthorityVersion: 'explicit-adoption-v1',\\n        sourceIntegrationVersion: 'canonical-source-v7',\\n        version: 1,\\n\"; assert old in s, 'fresh-project source integration initializer not found'; p.write_text(s.replace(old,new,1))"
       - name: Install application and browser dependencies
         run: |
           npm install --ignore-scripts --no-audit --no-fund
