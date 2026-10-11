@@ -115,6 +115,28 @@ function buildProgrammeTrends(state:ProjectRuntimeState,model:any,cutoff:string|
   population:riskRows.length,projectedCriticalCount:riskRows.filter((r:any)=>r.state==='erosion_scenario').length};
 }
 
+function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null){
+ const entries=new Map<string,{amount:number;date:string;basis:'incremental'|'cumulative'|'unknown';sourceRefs:string[]}>();let conflicted=false;
+ for(const r of rows){
+  const number=cell(r,'certificate no','certificate number','ipc'),d=date(cell(r,'certification date','certificate date'));
+  const amount=numberValue(cell(r,'certified value','certified amount','gross certified','gross certified amount'));
+  const status=norm(cell(r,'status','certificate status','source status'));
+  if(!number||!d||amount===null||(cutoff&&d>cutoff)||/applied|application|draft|submitted/.test(status))continue;
+  const raw=norm(cell(r,'certified amount basis','amount basis','series basis','basis'));
+  const basis:'incremental'|'cumulative'|'unknown'=/cumulative|to date|to-date/.test(raw)?'cumulative':/incremental|period|this month|this certificate/.test(raw)?'incremental':'unknown';
+  const key=norm(number)+'|'+d,prior=entries.get(key),sourceRefs=rowRefs(r);
+  if(prior&&(prior.amount!==amount||prior.basis!==basis)){conflicted=true;continue;}
+  if(prior)prior.sourceRefs.push(...sourceRefs);else entries.set(key,{amount,date:d,basis,sourceRefs:[...sourceRefs]});
+ }
+ const values=[...entries.values()].sort((a,b)=>a.date.localeCompare(b.date));
+ if(conflicted||!values.length)return {value:null as number|null,sourceRefs:values.flatMap(v=>v.sourceRefs),state:conflicted?'records_disagree':'not_in_source'};
+ if(values.length===1)return {value:values[0]!.amount,sourceRefs:values[0]!.sourceRefs,state:'value'};
+ const bases=new Set(values.map(v=>v.basis));
+ const value=bases.size===1&&bases.has('incremental')?values.reduce((sum,v)=>sum+v.amount,0):
+  bases.size===1&&bases.has('cumulative')?values.at(-1)!.amount:null;
+ return {value,sourceRefs:values.flatMap(v=>v.sourceRefs),state:value===null?'not_calculable':'value'};
+}
+
 function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:string|null,rows:SourceRow[],commercial:any,links:any){
  const source=resolveBoqSource(state,model?.sourceRevisionId??''),q=withInstalledMeasurements(state,source.quantities,cutoff);
  const priced=new Map((source.boq?.canonicalItems??[]).map(r=>[r.itemId,r]));
