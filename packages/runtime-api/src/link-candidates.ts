@@ -65,7 +65,7 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
    send(res,200,{projectId:id,projectVersion:state.version,kind,...configuredProviderState(),providerPermittedForSession:allowed,
     sourceCount:data.sources.length,sourceMatchCount:sources.length,targetCount:data.targets.length,sourceOptions:sources.slice(0,50),rows,total:all.length,offset,hasMore:offset+25<all.length,
     candidateCount:all.filter(r=>r.state==='candidate'&&r.basisVersion===state.version).length,confirmedCount:all.filter(r=>r.state==='confirmed'&&r.basisVersion===state.version).length,
-    basis:'AI proposes existing source relationships only. Rules validate identity, reporting date and money basis. A person must confirm each relationship; quantities and paid amounts are never created or allocated by AI.'});return true;
+    basis:'CMeng compares the existing project information and suggests possible links for review. Every link must be accepted by a reviewer. Quantities, amounts, dates and approvals are not changed by a suggestion.'});return true;
   }
   if(req.method!=='POST'||!match[2]){send(res,405,{error:'method_not_allowed'});return true;}
   const input=await readInput(req);
@@ -81,11 +81,12 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
   if(!allowed){send(res,403,{error:'paid_ai_owner_permission_required',message:'Activate owner access to request paid AI proposals. Existing deterministic links remain available.'});return true;}
   const kind=input.kind as LinkKind;if(!['boq_activity','payment_certificate'].includes(kind))throw Error('LINK_KIND_INVALID');
   const dataset=linkDataset(state,kind),source=dataset.sources.find(r=>r.id===input.sourceId);if(!source)throw Error('LINK_SOURCE_NOT_FOUND');
-  const cutoff=projectDataDate(state)?.slice(0,10)??null,ranked=shortlistLinks(kind,source,dataset.targets,cutoff);
-  if(!ranked.targets.length){send(res,422,{error:'no_compatible_source_candidates',message:'Existing source records do not establish a compatible target. Check dates, currency and issued certification; AI cannot supply missing facts.'});return true;}
-  const requestHash=linkHash({kind,projectId:id,dataDateIso:cutoff,source,targets:ranked.targets}),version=state.version;
+  const cutoff=projectDataDate(state)?.slice(0,10)??null,matchOffset=Math.max(0,Number.isSafeInteger(input.matchOffset)?input.matchOffset:0),ranked=shortlistLinks(kind,source,dataset.targets,cutoff,50,matchOffset);
+  if(!ranked.targets.length){send(res,422,{error:'no_compatible_source_candidates',message:ranked.eligibleCount?'No further eligible matches remain for this record.':'The available project information does not establish a compatible match.'});return true;}
+  const version=state.version,populationHash=linkHash({kind,projectId:id,version,dataDateIso:cutoff,sourceId:source.id,targetIds:dataset.targets.map(t=>t.id)}),requestHash=linkHash({populationHash,offset:ranked.offset,targetIds:ranked.targets.map(t=>t.id)});
   const current=(state.linkCandidateReviews??[]).filter(r=>r.requestHash===requestHash&&r.basisVersion===version);
-  if(current.length){send(res,200,{projectVersion:version,rows:current,cacheHit:true,aiInvoked:false});return true;}
+  const batchMeta={eligibleTargetCount:ranked.eligibleCount,screenedTargetCount:ranked.screenedCount,batchOffset:ranked.offset,targetsReviewedThisBatch:ranked.targets.length,remainingEligibleTargets:Math.max(0,ranked.eligibleCount-ranked.offset-ranked.targets.length),nextOffset:ranked.nextOffset};
+  if(current.length){send(res,200,{projectVersion:version,rows:current,cacheHit:true,aiInvoked:false,...batchMeta});return true;}
   if((state.linkCandidateReviews??[]).length>=2000)throw Error('LINK_REVIEW_CAPACITY_REACHED');
   const lock=id+':'+requestHash;if(inflight.has(lock)){send(res,409,{error:'matching_request_in_progress'});return true;}
   const model=configuredAskModel();if(!model){send(res,503,{error:'provider_not_configured'});return true;}
@@ -98,7 +99,7 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
    if(state.version!==version){send(res,409,{error:'project_changed_during_matching'});return true;}
    const rows=assessLinkProposal(context,proposal).map(r=>({...r,id:prior.length?r.id+'-'+version:r.id}));
    if(rows.length){state.linkCandidateReviews=[...(state.linkCandidateReviews??[]).map(r=>r.basisVersion===version?{...r,basisVersion:version+1}:r),...rows];runtimeProjects.touch(state);}
-   send(res,200,{projectVersion:state.version,rows,aiInvoked:prior.length===0,cacheHit:prior.length>0,eligibleTargetCount:ranked.eligibleCount,targetsOffered:ranked.targets.length,automaticallyApproved:false,quantitiesChanged:false,amountsChanged:false});
+   send(res,200,{projectVersion:state.version,rows,aiInvoked:prior.length===0,cacheHit:prior.length>0,...batchMeta,automaticallyApproved:false,quantitiesChanged:false,amountsChanged:false});
   }finally{inflight.delete(lock);}
   return true;
  }catch(error){const message=error instanceof Error?error.message:'LINK_MATCHING_FAILED';const safe=/^(LINK_|MODEL_|PAYMENT_)/.test(message)?message:'LINK_MATCHING_FAILED';send(res,400,{error:safe,message:'The relationship was not approved. Original project records remain unchanged.'});return true;}
