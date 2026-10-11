@@ -24,7 +24,7 @@ export async function clearDerivedReadCaches(root:string,currentRelease?:string)
     // lookup uses an exact release + project version + page key, so old
     // results cannot be served as new facts. Bound storage per project and
     // remove only very old, orphaned cache entries.
-    const expiry=Date.now()-7*24*60*60*1000;
+    const expiry=Number.NEGATIVE_INFINITY; // Retain source-version results across restarts and deployments.
     for(const name of await readdir(cacheDirectory).catch(()=>[])){
       if(!name.endsWith('.json'))continue;
       const file=join(cacheDirectory,name);
@@ -56,7 +56,9 @@ export class ProjectReadCache {
   }
   constructor(private readonly directory:string,private readonly maxBytes=DEFAULT_CACHE_BYTES){}
   private file(release:string,version:number,path:string){
-    const key=createHash('sha256').update(JSON.stringify([release,version,path])).digest('hex');
+    // Keep an exact source-version cache across deployments; project-directory isolation
+    // and source version prevent sharing results between unrelated projects.
+    const key=createHash('sha256').update(JSON.stringify([version,path])).digest('hex');
     return join(this.directory,'.analysis-reads',key+'.json');
   }
   async get(release:string,version:number,path:string):Promise<Buffer|null>{
