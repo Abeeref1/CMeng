@@ -35,7 +35,7 @@ test('worker gateway preserves all module, management, source and audit results 
   const script=`(async()=>{const {runtimeProjects}=require(${JSON.stringify(join(__dirname,'../packages/runtime-api/src/project-state.js'))});for(const method of ['refreshScheduleControlBasisAssertions','refreshSpreadsheetRegisters','refreshHseReports','refreshCorrespondenceNarratives','refreshDeferredPdfReads'])await runtimeProjects[method]();const server=require(${JSON.stringify(join(__dirname,'../packages/runtime-api/src/server.js'))}).createCmengServer();server.listen(0,'127.0.0.1',()=>console.log('PORT='+server.address().port));})().catch(e=>{console.error(e);process.exit(1)});`;
   const originalEnv:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:original,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:''};delete originalEnv.RAILWAY_VOLUME_MOUNT_PATH;
   const child=spawn(process.execPath,['-e',script],{env:originalEnv,stdio:['ignore','pipe','pipe']});
-  const gateway=await createProjectGateway(isolated);
+  const gateway=await createProjectGateway(isolated,{workerExecArgv:['--require='+clock]});
   try{
     const base=await new Promise<string>((resolve,reject)=>{let logs='';const timer=setTimeout(()=>reject(new Error('Original server startup timeout: '+logs)),30000);child.stdout.on('data',d=>{logs+=d;const port=/PORT=(\d+)/.exec(logs)?.[1];if(port){clearTimeout(timer);resolve('http://127.0.0.1:'+port);}});child.stderr.on('data',d=>{logs+=d;});child.once('exit',()=>{clearTimeout(timer);reject(new Error(logs));});});
     await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));
