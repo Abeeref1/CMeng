@@ -7906,7 +7906,39 @@ export function projectActionRegisterForState(state:ProjectRuntimeState){
   const value=buildProjectActionRegister(state);projectActionCache.set(state,{version:state.version,value});return value;
 }
 
-export function moduleForProject(
+/** Publish one coherent read-only module result per retained source revision.
+ * Screen and downloadable report must read the SAME completed source facts,
+ * including report provenance/generation stamps, rather than recalculating
+ * a second version of the answer for an unchanged project.
+ * This is bounded, worker-local and invalidated by state identity/version.
+ * Persistent gateway reads retain their independent exact-release protection. */
+const publishedModuleResponses = new WeakMap<ProjectRuntimeState,{
+  version:number; results:Map<string,ModuleRuntimeResult>
+}>();
+export function moduleForProject(projectId:string,key:string):ModuleRuntimeResult {
+  const state=runtimeProjects.get(projectId),canonical=resolveModuleKey(key);
+  if(!state)return moduleForProjectUncached(projectId,canonical);
+  let entry=publishedModuleResponses.get(state);
+  if(!entry||entry.version!==state.version){
+    entry={version:state.version,results:new Map()};
+    publishedModuleResponses.set(state,entry);
+  }
+  const existing=entry.results.get(canonical);
+  if(existing){
+    entry.results.delete(canonical);
+    entry.results.set(canonical,existing);
+    return existing;
+  }
+  const result=moduleForProjectUncached(projectId,canonical);
+  if(runtimeProjects.get(projectId)===state&&state.version===entry.version){
+    entry.results.set(canonical,result);
+    // Only finished per-project positions remain in memory. Long source
+    // registers are paged independently; never truncate any source result.
+    while(entry.results.size>8)entry.results.delete(entry.results.keys().next().value!);
+  }
+  return result;
+}
+function moduleForProjectUncached(
   projectId: string,
   key: string,
 ): ModuleRuntimeResult {
