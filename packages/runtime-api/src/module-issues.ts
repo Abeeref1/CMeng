@@ -126,6 +126,15 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(!item||typeof item!=='object')return false;
     if(Array.isArray(item))return item.length>0;
     if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
+    // Activity Review contains tens of thousands of flat schedule rows. When a
+    // row has no diagnostic/state signal and no nested review object, every
+    // remaining field is scalar or a scalar-ID list and cannot produce an issue.
+    // Keep diagnostic/nested rows on the normal walker so late findings are
+    // still discovered anywhere in the full population.
+    if(result.key==='activity-analytics'&&typeof item.activityId==='string'){
+      const nestedReviewKeys=['review','challenge','readiness','population','position','result','basis'];
+      if(!nestedReviewKeys.some(key=>item[key]&&typeof item[key]==='object'))return false;
+    }
     for(const key in item){
       if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
       const child=item[key];
