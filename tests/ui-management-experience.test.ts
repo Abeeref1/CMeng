@@ -56,6 +56,15 @@ test('portfolio compares the displayed calculated finish with the current contra
  assert.match(render(p),/11 days after current contract/);assert.doesNotMatch(render(p),/136 days before/);
  assert.match(render({...p,forecastCompletionIso:'2043-10-01',forecastLabel:'Productivity forecast'}),/Submitted programme 2043-04-17: 136 days before current contract/);
 });
+test('S-45 module keys always render as reader-facing page names',()=>{
+ const label=runInNewContext(functions(['humanizeKey'])+';humanizeKey',{});
+ assert.equal(label('pmo-analysis'),'Management Brief');
+ assert.equal(label('cross-domain-accountability'),'Accountability');
+ assert.equal(label('contract-particulars-bonds'),'Contract Particulars & Bonds');
+ assert.equal(label('near-critical'),'Near-Critical & Float Risk');
+ assert.equal(label('lookahead-schedule'),'Look-Ahead');
+});
+
 test('documents label a submitted-current programme as usable without demanding adoption',()=>{
  const label=runInNewContext(functions(['documentUseLabel'])+';documentUseLabel',{humanizeKey:String});
  for(const method of ['submitted_update','legacy_retained']){
