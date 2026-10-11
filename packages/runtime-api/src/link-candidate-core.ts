@@ -47,10 +47,12 @@ export function reviewLink(rows:LinkCandidate[],id:string,version:number,review:
  if(review.decision==='confirm'&&record.kind==='payment_certificate'&&rows.some(r=>r.id!==id&&r.kind===record.kind&&r.sourceId===record.sourceId&&r.state==='confirmed'&&r.basisVersion===version))throw Error('PAYMENT_ALREADY_LINKED');
  return rows.map(r=>({...r,...(r.basisVersion===version?{basisVersion:version+1}:{}),...(r.id===id?{state:review.decision==='confirm'?'confirmed' as const:'rejected' as const,reviewedAt:new Date().toISOString(),reviewedBy:review.reviewer.trim(),reviewActor:review.actor}:{})}));
 }
-export function shortlistLinks(kind:LinkKind,source:LinkEntity,targets:LinkEntity[],cutoff:string|null,limit=20){
+export function shortlistLinks(kind:LinkKind,source:LinkEntity,targets:LinkEntity[],cutoff:string|null,limit=20,offset=0){
  const words=(v:string)=>new Set(norm(v).split(/[^\p{L}\p{N}]+/u).filter(x=>x.length>1));
  const sw=words(source.reference+' '+source.description+' '+(source.area??''));
  const eligible=targets.filter(t=>!compatibleLink(kind,source,t,cutoff));
  const ranked=eligible.map(t=>{const ts=words(t.reference+' '+t.description+' '+(t.area??''));let score=0;for(const w of sw)if(ts.has(w))score++;return{entity:t,score};}).sort((a,b)=>b.score-a.score||a.entity.id.localeCompare(b.entity.id));
- return {eligibleCount:eligible.length,targets:ranked.slice(0,Math.min(20,limit)).map(r=>r.entity)};
+ const start=Number.isSafeInteger(offset)&&offset>=0?offset:0;
+  const size=Number.isSafeInteger(limit)&&limit>0?Math.min(20,limit):20;
+  return {eligibleCount:eligible.length,offset:start,hasMore:start+size<eligible.length,targets:ranked.slice(start,start+size).map(r=>r.entity)};
 }
