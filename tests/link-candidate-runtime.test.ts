@@ -86,9 +86,9 @@ test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ti
  const quantities={...originalQuantities,items,allocations:[],installedSnapshots:[]};
  const actual=buildQuantityScheduleMapping(quantities,schedule);
  const stop=new Set('the and for with from into work works system systems supply installation install provide including complete all of to in on at by or a an as per item package'.split(' '));
- const norm=(value:string|null|undefined)=>String(value??'').normalize('NFKC').toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').replace(/\\s+/g,' ').trim();
+ const norm=(value:string|null|undefined)=>String(value??'').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').replace(/\s+/g,' ').trim();
  const tokens=(v:string|null|undefined)=>new Set(norm(v).split(' ').filter(x=>x.length>=2&&!stop.has(x)));
- const codes=(v:string)=>new Set(v.toUpperCase().match(/[A-Z]{1,8}-?\\d{1,8}|\\d{2,}/g)??[]);
+ const codes=(v:string)=>new Set(v.toUpperCase().match(/[A-Z]{1,8}-?\d{1,8}|\d{2,}/g)??[]);
  const jaccard=(a:Set<string>,b:Set<string>)=>{if(!a.size||!b.size)return 0;let n=0;for(const k of a)if(b.has(k))n++;return n/(a.size+b.size-n);};
  for(const item of items){
   const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
