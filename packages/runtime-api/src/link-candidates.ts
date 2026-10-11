@@ -83,7 +83,7 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
   const dataset=linkDataset(state,kind),source=dataset.sources.find(r=>r.id===input.sourceId);if(!source)throw Error('LINK_SOURCE_NOT_FOUND');
   const cutoff=projectDataDate(state)?.slice(0,10)??null,matchOffset=Math.max(0,Number.isSafeInteger(input.matchOffset)?input.matchOffset:0),ranked=shortlistLinks(kind,source,dataset.targets,cutoff,50,matchOffset);
   if(!ranked.targets.length){send(res,422,{error:'no_compatible_source_candidates',message:ranked.eligibleCount?'No further eligible matches remain for this record.':'The available project information does not establish a compatible match.'});return true;}
-  const version=state.version,populationHash=linkHash({kind,projectId:id,version,dataDateIso:cutoff,sourceId:source.id,targetIds:dataset.targets.map(t=>t.id)}),requestHash=linkHash({populationHash,offset:ranked.offset,targetIds:ranked.targets.map(t=>t.id)});
+  const version=state.version,populationHash=linkHash({kind,projectId:id,dataDateIso:cutoff,sourceId:source.id,targetIds:dataset.targets.map(t=>t.id)}),requestHash=linkHash({populationHash,offset:ranked.offset,targetIds:ranked.targets.map(t=>t.id)});
   const current=(state.linkCandidateReviews??[]).filter(r=>r.requestHash===requestHash&&r.basisVersion===version);
   const batchMeta={eligibleTargetCount:ranked.eligibleCount,screenedTargetCount:ranked.screenedCount,batchOffset:ranked.offset,targetsReviewedThisBatch:ranked.targets.length,remainingEligibleTargets:Math.max(0,ranked.eligibleCount-ranked.offset-ranked.targets.length),nextOffset:ranked.nextOffset};
   if(current.length){send(res,200,{projectVersion:version,rows:current,cacheHit:true,aiInvoked:false,...batchMeta});return true;}
