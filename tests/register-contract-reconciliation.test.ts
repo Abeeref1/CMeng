@@ -31,7 +31,7 @@ test('S-35 exceptions remain and preserve the actual amount and currency',()=>{
 });
 test('S-35 visible decision displays examined sources when exception count is zero',()=>{
  const review=buildRegisterChecks({currencies:[currency('QAR',100,80,null,null,null)]},{},{items:[]});
- const html=runInNewContext(decisionFactsScript+"\\nrenderDecisionAnalysis('commercial-overview',{decisionAnalysis:{kind:'register_reconciliation',registerValueChecks:input}});",{
+ const html=runInNewContext(decisionFactsScript+"\nrenderDecisionAnalysis('commercial-overview',{decisionAnalysis:{kind:'register_reconciliation',registerValueChecks:input}});",{
   input:review,
   planningKpis:(rows:any)=>JSON.stringify(rows),
   escapeHtml:(x:any)=>String(x),
