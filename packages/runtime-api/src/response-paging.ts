@@ -33,7 +33,7 @@ export function jsonPointer(root:unknown,pointer:string):unknown {
 }
 const bytes=(value:unknown)=>Buffer.byteLength(JSON.stringify(value),'utf8');
 const TABLE_NAME=/(?:rows|records|register|entries|activities|actions|findings|documents|claims|notices|rfis|ncrs|issues|payments|variations|evidence|sources|lineItems|assets|quantities|bonds|insurances|links|details)$/i;
-const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination','filterOptions','filterDomains','activitySummary','boqProgrammeLinks','briefCommercialPosition','completionConstraints','completionMilestoneConstraints','paymentLinkage','heldEvidence','deliveryFeasibility','controlMetrics']);
+const PRIORITY_FIELDS=new Set(['key','status','reason','projectId','projectVersion','projectFacts','data','metrics','counts','summary','position','time','controls','schedule','commercial','actions','claims','reportingContract','dataDateIso','issueAssessment','completionPosition','forecastTaxonomy','focus','pagination','filterOptions','filterDomains','activitySummary','decisionAnalysis','positionVerdict','managementPosition','boqProgrammeLinks','briefCommercialPosition','completionConstraints','completionMilestoneConstraints','paymentLinkage','heldEvidence','deliveryFeasibility','controlMetrics']);
 type PageBudget={rows:number;keys:number;text:number;depth:number};
 const FACT_BUDGET:PageBudget={rows:10,keys:85,text:800,depth:9};
 const PAGE_BUDGETS:PageBudget[]=[

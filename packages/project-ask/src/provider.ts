@@ -134,3 +134,14 @@ export function validateNarrative(output:any,result:AnalysisResult,items:Evidenc
   });
 }
 export function configuredAskModel(){let managed;try{managed=readManagedAskSettings(process.env.CMENG_ASK_AI_CONFIG_FILE);}catch{return null;}const key=managed?.apiKey??process.env.CMENG_ASK_AI_API_KEY??'',model=managed?.model??process.env.CMENG_ASK_AI_MODEL,baseUrl=managed?undefined:process.env.CMENG_ASK_AI_BASE_URL,protocol=managed?'responses':process.env.CMENG_ASK_AI_PROTOCOL??'responses';if(protocol==='none'||!model||!key&&!baseUrl)return null;if(!['responses','chat-completions'].includes(protocol))return null;return new OpenAiAskModel(key,model,fetch,configuredModelLimits(),{...(baseUrl?{baseUrl}:{}),protocol:protocol as 'responses'|'chat-completions'});}
+
+/** Configuration and caller permission are different states. No credentials are returned. */
+export function askProviderConfiguration():{configured:boolean;model:string|null;protocol:string|null}{
+ try{const managed=readManagedAskSettings(process.env.CMENG_ASK_AI_CONFIG_FILE);
+  const model=managed?.model??process.env.CMENG_ASK_AI_MODEL??null;
+  const protocol=managed?'responses':process.env.CMENG_ASK_AI_PROTOCOL??'responses';
+  const credentialPresent=Boolean(managed?.apiKey??process.env.CMENG_ASK_AI_API_KEY);
+  const endpointPresent=!managed&&Boolean(process.env.CMENG_ASK_AI_BASE_URL);
+  return {configured:Boolean(model&&(credentialPresent||endpointPresent)&&['responses','chat-completions'].includes(protocol)),model,protocol};
+ }catch{return {configured:false,model:null,protocol:null};}
+}

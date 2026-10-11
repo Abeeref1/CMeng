@@ -1,3 +1,5 @@
+import {activeConfirmedLinks} from './record-link-review';
+import {boqReviewContext} from './boq-link-context';
 import type {ProjectRuntimeState} from './project-state-types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import {quantityMappingForState} from './quantity-mapping-runtime';
@@ -10,10 +12,13 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
  for(const link of mapping?.sourceWbsLinks??[])if(link.wbsId)for(const activityId of link.activityIds){const group=links.get(link.quantityItemId)??new Set<string>();group.add(activityId);links.set(link.quantityItemId,group);}
  const approved=new Set<string>();
  if(quantity?.scheduleRevisionId===model.sourceRevisionId)for(const link of quantity.allocations)if(activityIds.has(link.activityId)){approved.add(link.quantityItemId);const group=links.get(link.quantityItemId)??new Set<string>();group.add(link.activityId);links.set(link.quantityItemId,group);}
+ const reviewed=(state.recordLinkReview?.candidates?.some(row=>row.kind==='boq_activity')?activeConfirmedLinks(state.recordLinkReview,boqReviewContext(state,model)):[]);
+ const reviewedItems=new Set<string>();
+ for(const link of reviewed){const group=links.get(link.sourceId)??new Set<string>();group.add(link.targetId);links.set(link.sourceId,group);reviewedItems.add(link.sourceId);}
  const sourceLinks=new Map((mapping?.sourceWbsLinks??[]).map(row=>[row.quantityItemId,row]));
- const rows=(quantity?.items??[]).map(item=>({itemId:item.quantityItemId,itemNumber:item.itemNumber,activityIds:[...(links.get(item.quantityItemId)??[])],basis:approved.has(item.quantityItemId)?'Recorded activity allocation':sourceLinks.get(item.quantityItemId)?.basis??'No unique source code relationship'}));
+ const rows=(quantity?.items??[]).map(item=>({itemId:item.quantityItemId,itemNumber:item.itemNumber,activityIds:[...(links.get(item.quantityItemId)??[])],basis:approved.has(item.quantityItemId)?'Recorded activity allocation':reviewedItems.has(item.quantityItemId)?'Verified-user confirmed relationship; no quantity or cost allocated':sourceLinks.get(item.quantityItemId)?.basis??'No unique source code relationship'}));
  const linkedItemCount=rows.filter(r=>r.activityIds.length).length;
- const value={itemCount:quantity?rows.length:null,linkedItemCount:quantity?linkedItemCount:null,coveragePercent:rows.length?linkedItemCount/rows.length*100:null,approvedAllocatedItemCount:quantity?approved.size:null,rows,
+ const value={itemCount:quantity?rows.length:null,linkedItemCount:quantity?linkedItemCount:null,coveragePercent:rows.length?linkedItemCount/rows.length*100:null,approvedAllocatedItemCount:quantity?approved.size:null,confirmedRelationshipItemCount:quantity?reviewedItems.size:null,rows,
  basis:'Complete BOQ population. Links use exact source WBS codes or a unique source section match to the current programme, plus recorded activity allocations. A WBS scope association is not an approved quantity split.'};
  cache.set(state,{version:state.version,model,value});return value;
 }

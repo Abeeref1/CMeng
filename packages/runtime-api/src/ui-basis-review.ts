@@ -96,7 +96,7 @@ function renderBoqCandidateLinkPanel(mapping){
 async function openBoqLinkEditor(){
  const id='boqLinkEditor',old=document.getElementById(id);if(old)old.remove();
  const panel=document.createElement('section');panel.id=id;panel.className='planning-panel primary';
- panel.innerHTML='<h4>Create BOQ links</h4><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
+ panel.innerHTML='<h4>Create BOQ links</h4><button class="btn" onclick="openRecordLinkReview(\'boq_activity\')">Review suggested relationships</button><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
  el('moduleContent').prepend(panel);panel.scrollIntoView({block:'start'});
  const owner=project();let itemTicket=0,activityTicket=0;
  async function choices(kind,query){
@@ -114,7 +114,7 @@ async function openBoqLinkEditor(){
  await Promise.all([choices('items',''),choices('activities','')]);
 }
 function renderBasisReviews(data,key){
-  let html='';
+  let html=typeof linkReviewToolbar==='function'?linkReviewToolbar(key):'';
   if(key==='contract-particulars-bonds'&&data.projectFacts?.time){
     const time=data.projectFacts.time,statements=time.amendmentEotStatements||[];
     const timePosition=planningKpis([

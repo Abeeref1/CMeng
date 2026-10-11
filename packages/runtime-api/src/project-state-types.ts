@@ -441,6 +441,7 @@ export interface ProjectRuntimeState {
   demo: boolean;
   /** Explicitly classified as non-client test data; absent means live for legacy projects. */
   testProject?: boolean;
+  recordLinkReview?:import('./record-link-review').RecordLinkReview;
   boqActivityLinkCandidates?:Array<{
     quantityItemId:string;activityId:string;sourceRevisionId:string;boqRevisionId:string;
     proposedBy:string;sourceRef:string;reason:string;proposedAt:string;state:'candidate';

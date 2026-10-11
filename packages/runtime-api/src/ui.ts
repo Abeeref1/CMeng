@@ -15,6 +15,7 @@ import {STATUS_LABELS} from './position-review';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
 import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-review';
+import {linkReviewScript} from './ui-link-review';
 import {basisReviewScript} from './ui-basis-review';
 import { experienceStyles, experienceScript } from './ui-experience';
 
@@ -446,6 +447,7 @@ ${projectActionsScript}
 ${boqNumericReviewScript}
 ${boqPageReviewScript}
 ${basisReviewScript}
+${linkReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},

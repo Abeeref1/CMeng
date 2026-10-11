@@ -904,6 +904,8 @@ async function route(
     return;
   }
 
+  if(/^\/api\/projects\/[^/]+\/link-review(?:\/|$)/.test(url.pathname)){const {linkReviewRequest}=await import('./link-review-api');if(await linkReviewRequest(req,res,url))return;}
+
   if(/^\/api\/projects\/[^/]+\/intelligence(?:\/|$)/.test(url.pathname)){const {askAiRequest}=await import('./ask-api');if(await askAiRequest(req,res,url))return;}
 
   if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}
