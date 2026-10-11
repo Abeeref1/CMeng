@@ -26,7 +26,7 @@ function decisionDisplay(value,key){
 }
 function decisionPointer(root,pointer){let value=root;for(const k of pointer.split('/').slice(1))value=value?.[k.replace(/~1/g,'/').replace(/~0/g,'~')];return value;}
 function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
- const cols=decisionColumns[kind]||[],meta=currentModuleResult?.responsePaging;
+ const cols=decisionColumns[kind]||[],meta=typeof currentModuleResult==='undefined'?null:currentModuleResult?.responsePaging;
  const entry=meta?.tables?.find(t=>t.pointer===pointer&&t.kind==='array');
  const size=pageData?.total??entry?.total??total;
  const at=pageData?.offset??offset,available=pageData?.rows??rows??[],visible=available.slice(0,25);
