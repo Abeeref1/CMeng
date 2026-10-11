@@ -9111,7 +9111,7 @@ export function overviewForProject(
           ?.independentFinishIso ??
         null,
       metrics:executiveMetrics.filter(metric=>metric.value!==null&&metric.value!==undefined).slice(0,10),
-      commercialByCurrency:(projectFacts?.commercial.currencies??[]).slice(0,8).map(row=>({currency:row.currency})),
+      commercialByCurrency:(projectFacts?.commercial.currencies??[]).slice(0,8).map((row:any)=>({currency:row.currency})),
       decisions:executiveDecisions,
     },
   };
