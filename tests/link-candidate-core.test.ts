@@ -17,4 +17,13 @@ for(const [label,mutate] of [
 test('Reject invented IDs, invented numeric fields, bad source refs and low confidence',()=>{for(const change of [(p:any)=>p.matches[0].targetId='invented',(p:any)=>p.matches[0].amount=12,(p:any)=>p.matches[0].sourceRefs=['made up'],(p:any)=>p.matches[0].confidence=.89,(p:any)=>p.requestHash='wrong']){const p=proposal();change(p);assert.equal(assessLinkProposal(context(),p).length,0);}});
 test('Reject stale confirmation and retain rejection history',()=>{const rows=assessLinkProposal(context(),proposal());assert.throws(()=>reviewLink(rows,rows[0]!.id,9,{decision:'confirm',confirmed:true,reviewer:'Person',actor:'owner'}),/LINK_SOURCE_CHANGED/);const rejected=reviewLink(rows,rows[0]!.id,3,{decision:'reject',confirmed:true,reviewer:'Person',actor:'owner'});assert.equal(rejected[0]!.state,'rejected');});
 test('BOQ confidence is a proposal, not an approved quantity split',()=>{const c=context();c.kind='boq_activity';c.source.unit='m3';c.targets[0]!.unit='m2';assert.equal(assessLinkProposal(c,proposal()).length,0);c.targets[0]!.unit=null;const rows=assessLinkProposal(c,proposal());assert.equal(rows[0]!.state,'candidate');assert.ok(!('quantity' in rows[0]!));});
-test('The shortlist is bounded and its full eligible denominator remains visible',()=>{const c=context(),targets=Array.from({length:1000},(_,i)=>({...c.targets[0]!,id:'c'+i}));const found=shortlistLinks(c.kind,c.source,targets,c.dataDateIso);assert.equal(found.eligibleCount,1000);assert.equal(found.targets.length,20);});
+test('The shortlist is bounded and its full eligible denominator remains visible',()=>{const c=context(),targets=Array.from({length:1000},(_,i)=>({...c.targets[0]!,id:'c'+i}));const found=shortlistLinks(c.kind,c.source,targets,c.dataDateIso);assert.equal(found.eligibleCount,1000);assert.equal(found.targets.length,20);
+ const second=shortlistLinks(c.kind,c.source,targets,c.dataDateIso,20,20);
+ const final=shortlistLinks(c.kind,c.source,targets,c.dataDateIso,20,980);
+ assert.equal(second.eligibleCount,1000);
+ assert.equal(second.targets.length,20);
+ assert.equal(final.targets.length,20);
+ assert.equal(final.hasMore,false);
+ assert.equal(second.hasMore,true);
+ assert.equal(new Set([...found.targets,...second.targets,...final.targets].map(t=>t.id)).size,60,
+  'Target windows must be disjoint and reach the final source activity, not silently stop after 20');});
