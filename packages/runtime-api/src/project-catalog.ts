@@ -1,12 +1,24 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename,rm} from 'node:fs/promises';
 import {join} from 'node:path';
-import {statSync,writeFileSync,renameSync,rmSync} from 'node:fs';
+import {statSync,writeFileSync,renameSync,rmSync,readFileSync} from 'node:fs';
 import {isProgrammeScheduleRevision} from './project-identity';
 import type {ProjectRuntimeState} from './project-state-types';
 import {readSnapshotJson,writeSnapshotJson} from './snapshot-json';
 
 export const release=()=>process.env.RAILWAY_GIT_COMMIT_SHA??process.env.GIT_COMMIT_SHA??'local';
+/** Exact calculation-source fingerprint produced by the build, independent of
+ * interface-only deployments. Fall back to the exact Git release if missing:
+ * missing evidence MUST NOT accidentally reuse old calculation results. */
+let retainedCalculationFingerprint:string|null=null;
+export function calculationRelease(){
+  if(retainedCalculationFingerprint)return retainedCalculationFingerprint;
+  try{
+    const value=readFileSync(join(__dirname,'../../../calculation-fingerprint.txt'),'utf8').trim();
+    if(/^[a-f0-9]{64}$/.test(value))return retainedCalculationFingerprint='calc:'+value;
+  }catch{/* Build manifest unavailable; release-specific isolation is safer. */}
+  return release();
+}
 export const projectDirectory=(root:string,id:string)=>join(root,'projects',createHash('sha256').update(id).digest('hex'));
 export async function atomicJson(path:string,value:unknown){
   const temporary=path+'.'+randomUUID()+'.tmp';

@@ -10,7 +10,7 @@ import {mkdir,statfs} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry} from './registry';
 import {normalizeProjectCode} from './project-identity';
-import {loadProjectCatalog,projectDirectory,atomicJson,release,type CatalogEntry} from './project-catalog';
+import {loadProjectCatalog,projectDirectory,atomicJson,release,calculationRelease,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
 import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
@@ -24,7 +24,7 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[]}={}){
-  await clearDerivedReadCaches(root,release());
+  await clearDerivedReadCaches(root,calculationRelease());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
@@ -143,7 +143,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if((updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version)return;
       }
       if(closing)return;
-      if(await reads(id).get(release(),version,route))continue;
+      if(await reads(id).get(calculationRelease(),version,route))continue;
       try{
         await work(id,async port=>{
           if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version||
@@ -154,7 +154,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           const responseVersion=Number(page.headers.get('x-cmeng-project-version'));
           if(responseVersion===version&&catalog.get(id)?.metadata?.version===version&&
             !(updating.get(id)??0)&&bytes.length<=MAX_PROJECT_READ_BYTES)
-            await reads(id).put(release(),version,route,bytes);
+            await reads(id).put(calculationRelease(),version,route,bytes);
         });
       }catch{/* Background warming never blocks an interactive request. */}
     }
@@ -173,36 +173,24 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(closing)return;
     if(summaryJobs.has(id))return summaryJobs.get(id);
     const existing=catalog.get(id);
-    if(existing?.summaryRelease===release()&&existing.summary?.version===existing.metadata?.version)return;
+    if(existing?.summaryRelease===calculationRelease()&&existing.summary?.version===existing.metadata?.version)return;
     summaryAttempts.set(id,Date.now());
     const task=work(id,async port=>{
       // Fill the small, source-versioned owner position BEFORE the wider
       // portfolio analysis. Foreground Accountability can use this result while
       // other specialist projections are still being prepared in the worker.
       const entry=catalog.get(id);if(!entry)return;
-      const version=entry.metadata?.version;
-      const priorityRoute='/api/projects/'+encodeURIComponent(id)+'/management/cross-domain-accountability';
-      if(typeof version==='number'&&!(await reads(id).get(release(),version,priorityRoute))){
-        // The optional priority screen may be expensive on a large project.
-        // Never let its timeout prevent portfolio refresh or all other warm-ups.
-        try{
-          const ownerPage=await fetch('http://127.0.0.1:'+port+priorityRoute,{signal:AbortSignal.timeout(15000)});
-          if(ownerPage.ok){const bytes=Buffer.from(await ownerPage.arrayBuffer());
-            if(Number(ownerPage.headers.get('x-cmeng-project-version'))===version&&bytes.length<=MAX_PROJECT_READ_BYTES&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0))
-              await reads(id).put(release(),version,priorityRoute,bytes);
-          }
-        }catch(error){
-          console.warn('[project-warmup] priority page deferred for '+id+': '+String(error));
-        }
-      }
+      // Never delay the portfolio position behind an optional specialist page.
+      // Once the source-version summary is saved, the low-priority page
+      // warmer will prepare Accountability and other modules independently.
       const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');
       if(!response.ok)throw new Error('PROJECT_SUMMARY_UNAVAILABLE');
       const body=await response.json() as {projects:Record<string,any>[]};const summary=body.projects.find(p=>p.projectId===id);
       if(!summary)return;
       if(entry.metadata&&entry.metadata.version!==summary.version)return;
-      entry.summary=summary;entry.summaryRelease=release();
+      entry.summary=summary;entry.summaryRelease=calculationRelease();
       summaryFailures.delete(id);
-      await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:release(),summary});
+      await atomicJson(join(projectDirectory(root,id),'portfolio.json'),{release:calculationRelease(),summary});
       // Publish the source-versioned portfolio first. Every control page is warmed
       // separately and only while there is no foreground navigation.
       schedulePageWarmup(id,summary.version);
@@ -214,7 +202,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   function portfolioEntry(entry:CatalogEntry){
     const busy=(updating.get(entry.projectId)??0)>0;
     const sameVersion=entry.summary?.version===entry.metadata?.version;
-    if(!busy&&entry.summaryRelease===release()&&sameVersion)return entry.summary;
+    if(!busy&&entry.summaryRelease===calculationRelease()&&sameVersion)return entry.summary;
     const refreshFailed=summaryFailures.has(entry.projectId)&&summaryFailures.get(entry.projectId)===entry.metadata?.version&&!summaryJobs.has(entry.projectId);
     if(!busy&&sameVersion&&entry.summary&&!refreshFailed){
       // Previous figures are provisional ONLY while this release is due for
@@ -261,7 +249,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
               const key=id+'::'+uploadId,prior=progress.get(key);
               if(prior?.state!=='complete'&&prior?.state!=='failed')progress.set(key,{...prior,state:succeeded?'complete':'failed',percent:succeeded?100:prior?.percent??0,message:succeeded?'File processed · check Documents for the reading result':'The upload could not finish. Check the document register before retrying.',updatedAt:new Date().toISOString()});
             }
-            if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(release(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
+            if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(calculationRelease(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
             else resolve();
           });forwardHttpBody(res,incoming);
         });
@@ -282,7 +270,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,release())}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -326,7 +314,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
-        const cached=await reads(id).get(release(),version,projectPath);
+        const cached=await reads(id).get(calculationRelease(),version,projectPath);
         if(cached&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0)){
           sendHttpBody(res,200,{'content-type':'application/json','cache-control':'no-store','x-cmeng-project-version':String(version)},cached);return;
         }
@@ -340,7 +328,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
             send(res,202,{projectId:id,processing:true,documentCount:null,documents:[],message:'Updating the document register. The saved files will appear here as soon as processing finishes.'});return;
           }
         }
-        if(match[2]==='/overview'&&!entry.metadata?.demo&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==release()||entry.summary?.version!==entry.metadata?.version)){
+        if(match[2]==='/overview'&&!entry.metadata?.demo&&((updating.get(id)??0)>0||summaryJobs.has(id)||entry.summaryRelease!==calculationRelease()||entry.summary?.version!==entry.metadata?.version)){
           const recentFailure=!updating.get(id)&&!summaryJobs.has(id)&&summaryFailures.has(id)&&summaryFailures.get(id)===entry.metadata?.version&&Date.now()-(summaryAttempts.get(id)??0)<60000;
           if(!recentFailure){
             if(!(updating.get(id)??0)&&!summaryJobs.has(id))void refreshSummary(id);
@@ -358,19 +346,23 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   })().catch(error=>send(res,error.statusCode??400,{error:error.code??'request_failed',message:error instanceof Error?error.message:String(error)}));});
   server.requestTimeout=0;
   // One low-priority summary at a time; leave capacity for interactive projects and uploads.
-  let warming=false;
+  // Prepare up to three distinct projects concurrently, but always leave at
+  // least one project worker available for foreground navigation. This removes
+  // the former one-at-a-time 22-project cold-start queue.
+  let activeSummaryWarmups=0;
+  const maxSummaryWarmups=Math.max(1,Math.min(3,maxWorkers-1));
   const warmSweep=()=>{
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
-    if(closing||warming)return;
-    // Start recalculating ALL projects immediately after a release, not only
-    // after an idle interval. Reserve the foreground's occupied workers and
-    // prepare one background project at a time without changing its sources.
+    if(closing||activeSummaryWarmups>=maxSummaryWarmups)return;
     const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
-    const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==release()&&!updating.get(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
+    const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!updating.get(e.projectId)&&!summaryJobs.has(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
       (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
-    if(entry){warming=true;void refreshSummary(entry.projectId).finally(()=>{warming=false;});}
+    if(!entry)return;
+    activeSummaryWarmups++;
+    void refreshSummary(entry.projectId).finally(()=>{activeSummaryWarmups--;});
   };
   const warmer=setInterval(warmSweep,2000);warmer.unref();
+  // Do not wait for browser inactivity or the next polling interval to start.
   setImmediate(warmSweep);
   const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
