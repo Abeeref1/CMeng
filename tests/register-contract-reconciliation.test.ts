@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {buildRegisterChecks} from '../packages/runtime-api/src/project-decision-facts';
 import {decisionFactsScript} from '../packages/runtime-api/src/ui-decision-facts';
+import {systemReviewScript} from '../packages/runtime-api/src/ui-system-review';
 
 const fact=(value:number|null,state='established')=>({value,state,sourceRefs:value===null?[]:['source:row:1']});
 const currency=(code:string,contract:number|null,gross:number|null,net:number|null,paid:number|null,pending:number|null)=>({
@@ -31,13 +32,21 @@ test('S-35 exceptions remain and preserve the actual amount and currency',()=>{
 });
 test('S-35 visible decision displays examined sources when exception count is zero',()=>{
  const review=buildRegisterChecks({currencies:[currency('QAR',100,80,null,null,null)]},{},{items:[]});
- const html=runInNewContext(decisionFactsScript+"\nrenderDecisionAnalysis('commercial-overview',{decisionAnalysis:{kind:'register_reconciliation',registerValueChecks:input}});",{
+ // Render the actual assembled helpers, not a mocked decisionPanel which
+ // gets overwritten by decisionFactsScript and hides missing dependencies.
+ const html=runInNewContext(systemReviewScript+"\n"+decisionFactsScript+
+  "\nrenderDecisionAnalysis('commercial-overview',{decisionAnalysis:{kind:'register_reconciliation',registerValueChecks:input}});",{
   input:review,
   planningKpis:(rows:any)=>JSON.stringify(rows),
   escapeHtml:(x:any)=>String(x),
-  decisionPanel:(title:string,_basis:string,kind:string,rows:any[])=>'TABLE:'+kind+':'+rows.length+':'+title,
+  humanizeIsoText:(x:any)=>String(x),
+  managementNumber:(x:any)=>String(x),
+  managementValue:(x:any)=>String(x),
   managementModuleLink:()=>''
  });
- assert.match(String(html),/TABLE:registerReviews:1/);
- assert.doesNotMatch(String(html),/TABLE:registers:/,'No false exception table is emitted');
+ assert.match(String(html),/id="decision-registerReviews"/,'All examined registers must be visible');
+ assert.match(String(html),/Gross issued certificates/,'Actual examined source is rendered');
+ assert.match(String(html),/QAR/,'Source currency must be visible');
+ assert.match(String(html),/80/,'Actual retained gross amount must remain visible');
+ assert.doesNotMatch(String(html),/id="decision-registers"/,'No false exception table is emitted');
 });
