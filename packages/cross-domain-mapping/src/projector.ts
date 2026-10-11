@@ -413,26 +413,60 @@ export function buildQuantityScheduleMapping(
     for(const token of features.codes)index(codes,token,a);
     const name=features.name;if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
   }
-  const sectionMatchCache=new Map<string,Set<CanonicalScheduleActivity>>();
+  // Inverted evidence postings: count exact shared tokens once per source
+  // item rather than performing three Set intersections for every candidate.
+  // No potentially matchable WBS/trade/area or keyword candidate is discarded.
+  type Hits=Map<CanonicalScheduleActivity,number>;
+  const countPosting=(posting:Posting,keys:Iterable<string>):Hits=>{
+    const hits:Hits=new Map();
+    for(const key of keys)for(const activity of posting.get(key)??[])
+      hits.set(activity,(hits.get(activity)??0)+1);
+    return hits;
+  };
+  const sectionHitCache=new Map<string,Hits>();
   const candidatesFor=(item:CanonicalQuantityItem,features:ItemFeatures)=>{
     const found=new Set<CanonicalScheduleActivity>();
-    const collect=(map:Posting,keys:Iterable<string>,target=found)=>{for(const key of keys)for(const a of map.get(key)??[])target.add(a);};
-    collect(descriptions,features.descriptionTokens);
+    const nameHits=countPosting(descriptions,features.descriptionTokens);
+    for(const activity of nameHits.keys())found.add(activity);
+    const collect=(posting:Posting,keys:Iterable<string>)=>{
+      for(const key of keys)for(const activity of posting.get(key)??[])found.add(activity);
+    };
     const description=features.description;
-    if(description.length>=5){collect(nameGrams,[description.slice(0,5)]);collect(namePrefixes,grams(description));}
-    const codeMatches=new Set<CanonicalScheduleActivity>();
-    const corpus=features.corpus;
-    collect(codes,features.codes,codeMatches);
-    // Section or code evidence alone cannot reach the 0.34 candidate threshold.
-    if(codeMatches.size){
-      const sectionKey=item.section??'';
-      let sectionMatches=sectionMatchCache.get(sectionKey);
-      if(!sectionMatches){sectionMatches=new Set();collect(sections,features.sectionTokens,sectionMatches);sectionMatchCache.set(sectionKey,sectionMatches);}
-      for(const a of codeMatches)if(sectionMatches.has(a))found.add(a);
+    if(description.length>=5){
+      collect(nameGrams,[description.slice(0,5)]);
+      collect(namePrefixes,grams(description));
     }
-    for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){const a=explicit.get(token);if(a)found.add(a);}
-    for(const a of unusualIds)if(featuresByActivity.get(a)!.explicitId?.test(corpus))found.add(a);
-    return [...found];
+    const codeHits=countPosting(codes,features.codes);
+    const sectionKey=item.section??'';
+    let sectionHits=sectionHitCache.get(sectionKey);
+    if(!sectionHits){
+      sectionHits=countPosting(sections,features.sectionTokens);
+      sectionHitCache.set(sectionKey,sectionHits);
+      // Bound the index to source sections actually being screened now.
+      while(sectionHitCache.size>48)sectionHitCache.delete(sectionHitCache.keys().next().value!);
+    }
+    // Section and code matches alone may reach 0.34; either alone cannot.
+    for(const activity of codeHits.keys())if(sectionHits.has(activity))found.add(activity);
+    const corpus=features.corpus;
+    for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
+      const activity=explicit.get(token);if(activity)found.add(activity);
+    }
+    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(corpus))found.add(activity);
+    return {found,nameHits,sectionHits,codeHits};
+  };
+  const fastScore=(item:ItemFeatures,activity:ActivityFeatures,
+    descriptionHits:number,sectionHits:number,codeHits:number):number=>{
+    if(activity.explicitId?.test(item.corpus))return 0.99;
+    const similarity=(n:number,a:number,b:number)=>n&&a&&b?n/(a+b-n):0;
+    const description=similarity(descriptionHits,item.descriptionTokens.size,activity.nameTokens.size);
+    let value=description>0?Math.min(0.62,description*0.72):0;
+    if(item.description.length>=5&&activity.name.length>=5&&
+      (item.description.includes(activity.name)||activity.name.includes(item.description)))value+=0.23;
+    const section=similarity(sectionHits,item.sectionTokens.size,activity.wbsTokens.size);
+    if(section>0)value+=Math.min(0.24,section*0.30);
+    const code=similarity(codeHits,item.codes.size,activity.codes.size);
+    if(code>0)value+=Math.min(0.18,code*0.22);
+    return Math.min(0.97,value);
   };
 
   for (const item of quantities.items) {
@@ -453,9 +487,12 @@ export function buildQuantityScheduleMapping(
 
     const features = itemFeatures(item);
     const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
-    for (const activity of candidatesFor(item, features)) {
+    const {found,nameHits,sectionHits,codeHits}=candidatesFor(item,features);
+    for (const activity of found) {
       scoredPairCount += 1;
-      const confidence = Number(score(features, featuresByActivity.get(activity)!, false).value.toFixed(4));
+      const activityFeature=featuresByActivity.get(activity)!;
+      const confidence=Number(fastScore(features,activityFeature,
+        nameHits.get(activity)??0,sectionHits.get(activity)??0,codeHits.get(activity)??0).toFixed(4));
       if (confidence < 0.34) continue;
       // This is the same stable confidence/Activity-ID sort and top five as
       // before. Do not fingerprint or copy source evidence for discarded rows.
