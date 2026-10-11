@@ -385,13 +385,20 @@ export function calculateCpm(
     string,
     ActivityContext
   >();
+  // Calendar resolution is invariant for a calendar ID within one CPM run.
+  // Large P6 programmes commonly assign thousands of activities to the same
+  // handful of calendars; resolving the same calendar for every activity adds
+  // repeated linear scans without changing any schedule result.
+  const calendarResolutionCache=new Map<string,ReturnType<typeof resolveWorkingCalendar>>();
+  const calendarFor=(calendarId:string|null)=>{
+    const key=calendarId??'__MISSING__';
+    if(calendarResolutionCache.has(key))return calendarResolutionCache.get(key)!;
+    const value=resolveWorkingCalendar(calendarId,model.calendars,config.allowElapsedFallback);
+    calendarResolutionCache.set(key,value);return value;
+  };
 
   for (const activity of model.activities) {
-    const calendar = resolveWorkingCalendar(
-      activity.calendarId,
-      model.calendars,
-      config.allowElapsedFallback,
-    );
+    const calendar = calendarFor(activity.calendarId);
 
     if (!calendar) {
       contexts.set(activity.activityId, {
