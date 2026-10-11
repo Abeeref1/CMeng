@@ -1010,6 +1010,7 @@ function renderComplexCell(value,key=""){
   if(Array.isArray(value)&&value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
   return '<details class="cell-details"><summary>Open detail</summary><div style="padding:8px 0">'+renderStructuredValue(value,1)+'</div></details>';
 }
+function readerPresentationTechnicalField(key){return /^(?:projectFacts?|projectFactBindings?|schemaVersion|valueState|calculatedWithStatedBasis|calculated_with_stated_basis|producerVersion|projectionKey|sourceManifestId|dependencyReceipts|evidenceReceiptIds|fingerprint|sourceHashSha256)$/i.test(String(key));}
 function readerTechnicalField(key){
   return /^(?:id|recordId|documentId|sourceRefs?|sourceReferenceIds?|sourceHash(?:Sha256)?|fingerprint|evidenceRefs?|evidenceReceiptIds?|diagnostics|dependencyReceipts|sourceManifestId|sourcePath|storedPath|cacheKey|debug|nativeId|recordIds|filePath|internalCode|internalId|sourceLocator|receiptId|parserDiagnostics)$/i.test(String(key));
 }
@@ -1046,15 +1047,16 @@ function responseListPopulation(records,explicit=null){
 }
 function renderRecordTable(records,sourcePopulation=null){
   const population=responseListPopulation(records,sourcePopulation);
-  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,25);
+  const rows=records.filter(x=>x&&typeof x==="object"&&!Array.isArray(x)).slice(0,20);
   if(!rows.length)return"";
-  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)).slice(0,24);
+  const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)&&!readerPresentationTechnicalField(key)).slice(0,24);
   if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
   return '<p class="source-population">Showing '+((population.offset||0)+1)+'–'+((population.offset||0)+rows.length)+' of '+population.total+(population.total>rows.length?'. Further records are available in Additional source records or the full export.':'.')+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
 function renderStructuredValue(value,depth=0,key=''){
+  if(readerPresentationTechnicalField(key))return '';
   if(readerTechnicalField(key))return '<div class="muted">Source references retained in the original file and downloadable record.</div>';
   if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.prototype.hasOwnProperty.call(value,'value')&&(value.value===null||value.value===undefined)){
     const reported=readerSourceValue(value);
@@ -1070,8 +1072,8 @@ function renderStructuredValue(value,depth=0,key=''){
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
-  const scalars=entries.filter(([k,v])=>!readerTechnicalField(k)&&isScalarValue(v));
-  const complex=entries.filter(([k,v])=>!readerTechnicalField(k)&&!isScalarValue(v));
+  const scalars=entries.filter(([k,v])=>!readerTechnicalField(k)&&!readerPresentationTechnicalField(k)&&isScalarValue(v));
+  const complex=entries.filter(([k,v])=>!readerTechnicalField(k)&&!readerPresentationTechnicalField(k)&&!isScalarValue(v));
   let html=scalars.length?'<div class="scalar-grid">'+scalars.map(([key,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(key))+'</b><span>'+escapeHtml(fmtForField(key,v))+'</span></div>').join("")+'</div>':"";
   if(depth>=2&&complex.length){
     html+='<div class="muted" style="margin-top:8px">Additional supporting records are retained with the project documents.</div>';
@@ -1460,7 +1462,7 @@ function renderLookAheadVisual(data){
     const map=new Map((row.readiness?.dimensions||[]).map(d=>[d.key,d]));
     const hasLinkedEvidence=(row.readiness?.dimensions||[]).some(dim=>dim.key!=="predecessor"&&(dim.sourceRefs||[]).length>0);
     const overall=row.readiness?.state==="blocked"?"Blocked":row.readiness?.state==="ready"?"Ready":row.readiness?.state==="conditional"&&hasLinkedEvidence?"At risk": "No known linked blocker";
-    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td><td>'+escapeHtml(typeof row.totalFloatHours==='number'?fmt(row.totalFloatHours)+' h':'Missing')+'<br>'+escapeHtml(row.drivingPath===true?'Driving completion':row.drivingPath===false?'Outside driving path':'Path not calculated')+'</td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><details class="readiness-reason"><summary aria-label="'+escapeHtml(row.activityId+' '+labels[key]+' '+planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"Ready":state==="blocked"?"Blocked":state==="not_applicable"?"N/A":dim?.sourceRefs?.length?"Dates / status need review":"No known blocker")+'</summary><p>'+escapeHtml(dim?.note||'No supporting readiness record for this dimension; absence is not proof of readiness')+'</p>'+((dim?.records||[]).length?'<ul>'+dim.records.map(r=>'<li><b>'+escapeHtml(r.recordId||r.documentType)+'</b> · '+escapeHtml(humanizeKey(r.documentType))+' · '+escapeHtml(planningStateLabel(r.state))+' · '+escapeHtml(r.note)+(r.owner?' · Owner: '+escapeHtml(r.owner):'')+'</li>').join('')+'</ul>':'')+'</details></td>'}).join("")+'</tr>';
+    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td><td>'+escapeHtml(typeof row.totalFloatHours==='number'?fmt(row.totalFloatHours)+' h':'Missing')+'<br>'+escapeHtml(row.drivingPath===true?'Driving completion':row.drivingPath===false?'Outside driving path':'Path not calculated')+'</td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><details class="readiness-reason"><summary aria-label="'+escapeHtml(row.activityId+' '+labels[key]+' '+planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"Ready":state==="blocked"?"Blocked":state==="not_applicable"?"N/A":dim?.sourceRefs?.length?"Dates / status need review":"No known blocker")+'</summary><p>'+escapeHtml(dim?.note||'No linked readiness record')+'</p>'+((dim?.records||[]).length?'<ul>'+dim.records.map(r=>'<li><b>'+escapeHtml(r.recordId||r.documentType)+'</b> · '+escapeHtml(humanizeKey(r.documentType))+' · '+escapeHtml(planningStateLabel(r.state))+' · '+escapeHtml(r.note)+(r.owner?' · Owner: '+escapeHtml(r.owner):'')+'</li>').join('')+'</ul>':'')+'</details></td>'}).join("")+'</tr>';
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["At risk",p.atRiskCount??p.conditionalCount,"warning"],["No known linked blocker",p.noKnownLinkedBlockerCount??0,"neutral"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.blockerTypes);
@@ -5020,7 +5022,7 @@ function renderInterfaceIntelligenceVisual(data){
 }
 let accountabilityDetailsView=null,accountabilityDetailsTicket=0;
 function accountabilityDetailRow(r){
- return '<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td>'+escapeHtml(r.value||'PMC role, individual not designated')+'</td><td>'+escapeHtml(r.domain)+'</td><td><b>'+escapeHtml(r.reference||r.recordId||'Record')+'</b></td><td>'+escapeHtml(r.issue)+'</td><td>'+escapeHtml(r.dueDate?planningShortDate(r.dueDate):'Not established')+'</td><td>'+escapeHtml(r.overdueDays===null?'Not established':fmt(r.overdueDays)+' d')+'</td><td>'+escapeHtml((r.activityIds||[]).join('; ')||'Not linked')+'</td></tr>';
+ return '<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td>'+escapeHtml(r.value||'PMC role')+'</td><td>'+escapeHtml(r.domain)+'</td><td><b>'+escapeHtml(r.reference||r.recordId||'Record')+'</b></td><td>'+escapeHtml(r.issue)+'</td><td>'+escapeHtml(r.dueDate?planningShortDate(r.dueDate):'Not established')+'</td><td>'+escapeHtml(r.overdueDays===null?'Not established':fmt(r.overdueDays)+' d')+'</td><td>'+escapeHtml((r.activityIds||[]).join('; ')||'Not linked')+'</td></tr>';
 }
 async function accountabilityLoadDetails(page){
  const state=accountabilityDetailsView,owner=project(),ticket=++accountabilityDetailsTicket;
@@ -5197,8 +5199,8 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
 }
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
-  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs"]);
-  const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!isScalarValue(value));
+  const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs","projectFacts","schemaVersion","valueState","calculatedWithStatedBasis","calculated_with_stated_basis"]);
+  const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!readerPresentationTechnicalField(key)&&!isScalarValue(value));
   return complex.map(([key,value])=>{
     const count=Array.isArray(value)?responseListPopulation(value).total:null;
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0,key)+'</div></section>';
@@ -5391,7 +5393,7 @@ function renderModuleResultBody(result){
   const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
-  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
+  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)&&!readerPresentationTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
   const structured=specialized?"":renderStructuredSections(data);
   const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
   const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
