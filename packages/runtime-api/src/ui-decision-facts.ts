@@ -25,6 +25,7 @@ function decisionDisplay(value,key){
  return readerText(value);
 }
 function decisionPointer(root,pointer){let value=root;for(const k of pointer.split('/').slice(1))value=value?.[k.replace(/~1/g,'/').replace(/~0/g,'~')];return value;}
+function decisionNumber(value){return typeof managementNumber==='function'?managementNumber(value):String(value);}
 function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
  const cols=decisionColumns[kind]||[],meta=typeof currentModuleResult==='undefined'?null:currentModuleResult?.responsePaging;
  const entry=meta?.tables?.find(t=>t.pointer===pointer&&t.kind==='array');
@@ -32,7 +33,7 @@ function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
  const at=pageData?.offset??offset,available=pageData?.rows??rows??[],visible=available.slice(0,25);
  const start=visible.length?at+1:0,end=at+visible.length;
  const hasMore=pageData?Boolean(pageData.hasMore):typeof size==='number'&&end<size;
- const caption='Showing '+managementNumber(start)+'–'+managementNumber(end)+' of '+(typeof size==='number'?managementNumber(size):'total not established');
+ const caption='Showing '+decisionNumber(start)+'–'+decisionNumber(end)+' of '+(typeof size==='number'?decisionNumber(size):'total not established');
  const body=visible.map(row=>'<tr>'+cols.map(([label,key])=>'<td>'+escapeHtml(decisionDisplay(row[key],key))+'</td>').join('')+'</tr>').join('');
  return '<p class="decision-population">'+escapeHtml(caption)+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(([label])=>'<th>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable dated records were found in this source population.</td></tr>')+'</tbody></table></div><div class="actions">'+
   '<button class="btn small" '+(at===0?'disabled ':'')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+Math.max(0,at-25)+')">Previous records</button>'+
