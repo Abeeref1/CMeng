@@ -18,12 +18,17 @@ export function managementVisualControl(
   commercial:CommercialControlPosition,
   precomputedManagementContext?:ReturnType<typeof projectManagementContext>,
 ){
+  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const started=profiling?performance.now():0;
   const sourceInventory=managementSourceInventory(state);
+  const inventoryDone=profiling?performance.now():0;
   const managementContext=precomputedManagementContext??projectManagementContext(state,modules,commercial);
+  const contextDone=profiling?performance.now():0;
   const procurementSource=sourceInventory.domains.find(row=>row.domain==='procurement')??null;
   const sourceLongLeadCount=procurementSource?.signals.longLeadMarkedCount??null;
   const scheduleLongLead=managementContext.schedule?.longLeadEvidence??[];
   const boqScope=boqScopeIntelligence(state);
+  const boqDone=profiling?performance.now():0;
   const countFact=(key:string,label:string,value:number,basis:string,authority:ManagementFactView<number>['authority'],state:ManagementFactView<number>['state']):ManagementFactView<number>=>{
     const populationState:PopulationAuthority['state']=state==='official'?'established':state==='partial'?'partial':state==='candidate'?'candidate':state==='quarantined'?'quarantined':state==='conflicted'?'conflicted':'missing';
     return managementFactView({
@@ -60,6 +65,7 @@ export function managementVisualControl(
 
   const activityRows=Array.isArray(activity.rows)?activity.rows:[];
   const delivery=deliveryPosition(state);
+  const deliveryDone=profiling?performance.now():0;
   const activityById=new Map(activityRows.map((row:any)=>[row.activityId,row]));
   const drivingIds=Array.isArray(independent.drivingNetwork?.activityIds)?independent.drivingNetwork.activityIds:[];
   // A wide driving network can contain every activity. Build reusable indexes
@@ -120,8 +126,14 @@ export function managementVisualControl(
     if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
     const localMilestones=milestoneByActivity.get(row.activityId)??[];
     if(isNew){
-      const first=[...networkMilestoneRows,...localMilestones].sort((a,b)=>a.ordinal-b.ordinal);
-      group.milestoneIds.push(...first.map(m=>m.id));
+      // Both inputs are already in source order. Merge without sorting the
+      // entire milestone network again for every distinct driving WBS.
+      let ni=0,li=0;
+      while(ni<networkMilestoneRows.length||li<localMilestones.length){
+        const fromNetwork=li>=localMilestones.length||ni<networkMilestoneRows.length&&networkMilestoneRows[ni]!.ordinal<=localMilestones[li]!.ordinal;
+        const next=fromNetwork?networkMilestoneRows[ni++]!:localMilestones[li++]!;
+        group.milestoneIds.push(next.id);
+      }
     }else{
       group.milestoneIds.push(...localMilestones.filter(m=>!networkMilestones.has(m.id)).map(m=>m.id));
     }
@@ -341,7 +353,7 @@ export function managementVisualControl(
     resources:pick(resourceCandidates),
   };
 
-  return {
+  const result={
     schemaVersion:'1.0',
     sourceInventory,
     bestAvailablePositions,
@@ -420,4 +432,12 @@ export function managementVisualControl(
           :'No procurement Long Lead field, readable BOQ long-lead screening, or schedule/WBS long-lead evidence is available.')
     },
   };
+  if(profiling){
+    const finished=performance.now();
+    process.stdout.write(JSON.stringify({event:'management_visual_profile',projectId:state.projectId,
+      sourceInventoryMs:inventoryDone-started,managementContextMs:contextDone-inventoryDone,
+      boqScreeningMs:boqDone-contextDone,deliveryPositionMs:deliveryDone-boqDone,
+      displayAssemblyMs:finished-deliveryDone,totalMs:finished-started})+'\n');
+  }
+  return result;
 }
