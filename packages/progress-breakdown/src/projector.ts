@@ -145,6 +145,10 @@ function buildProgressBreakdownProjectionImpl(
   },
   deliveryOnly=false,
 ): ProgressBreakdownProjection | Pick<ProgressBreakdownProjection,'rows'|'overallSummary'> {
+  const profiling=deliveryOnly&&process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  let last=profiling?performance.now():0;
+  const stages:Array<{part:string;ms:number}>=[];
+  const mark=(part:string)=>{if(profiling){const now=performance.now();stages.push({part,ms:now-last});last=now;}};
   const config =
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
@@ -175,9 +179,12 @@ function buildProgressBreakdownProjectionImpl(
   }
 
 
+  mark('wbs_index');
   const plan = schedulePlanPositions(model, input.baselineModel ?? null);
+  mark('plan_positions');
   const baselineMatches = input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
   const baselineId = new Map(baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId]) ?? model.activities.map(a=>[a.activityId,a.activityId]));
+  mark('baseline_correspondence');
   const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
@@ -286,6 +293,7 @@ function buildProgressBreakdownProjectionImpl(
       ...managementSignals(activities),
     };
   };
+  mark('derived_activity_signals');
   const rows = [...groups.entries()]
     .map(([wbsId, activities]) =>
       enrich(buildRow(
@@ -304,12 +312,16 @@ function buildProgressBreakdownProjectionImpl(
         naturalCompare(a.wbsId, b.wbsId),
     );
 
+  mark('grouped_wbs_progress_rows');
   if(deliveryOnly){
     // Delivery consumes the exact WBS rows and scope summary, not the
     // specialist's six additional dimension/hierarchy views. The specialist
     // continues using the complete original producer unchanged.
     const scopeActivities=model.activities.filter(isExecutionActivity);
     const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config),scopeActivities);
+    mark('scope_summary');
+    if(profiling)process.stdout.write(JSON.stringify({event:'workfront_breakdown_profile',projectId:model.projectId,activities:model.activities.length,
+      baselineActivities:input.baselineModel?.activities.length??0,stages,totalMs:stages.reduce((n,part)=>n+part.ms,0)})+'\n');
     return {rows,overallSummary};
   }
 
