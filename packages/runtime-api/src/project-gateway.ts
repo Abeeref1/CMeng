@@ -23,7 +23,7 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
-export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null}={}){
+export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[]}={}){
   await clearDerivedReadCaches(root,release());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
@@ -81,7 +81,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const directory=projectDirectory(root,id);
       const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath};
       if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
-      const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env});
+      const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env,...(options.workerExecArgv?{execArgv:[...options.workerExecArgv]}:{})});
       const lane:Lane={worker,ready:Promise.resolve(0),tail:Promise.resolve(),pending:1,lastUsed:Date.now()};
       lane.ready=new Promise<number>((resolve,reject)=>{
         const timer=setTimeout(()=>{reject(new Error('PROJECT_START_TIMEOUT'));void worker.terminate();},120000);timer.unref();
