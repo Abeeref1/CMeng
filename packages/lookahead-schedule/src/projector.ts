@@ -1,3 +1,4 @@
+import {performance} from 'node:perf_hooks';
 import {naturalCompare} from '../../shared/src/natural-order';
 import {activityDateExceptionReader} from '../../activity-analytics/src/exceptions';
 import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from "../../schedule-cpm/src/calendar";
@@ -269,6 +270,11 @@ export function buildLookAheadProjection(
     >;
   },
 ): LookAheadProjection {
+  const profile=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const profileStart=profile?performance.now():0;
+  const profileMarks:Array<{part:string;ms:number}>=[];
+  let profileLast=profileStart;
+  const mark=(part:string)=>{if(!profile)return;const now=performance.now();profileMarks.push({part,ms:now-profileLast});profileLast=now;};
   const windowDays = input.windowDays ?? 42;
   const drivingIds=input.drivingActivityIds?new Set(input.drivingActivityIds):null;
   if (
@@ -308,6 +314,7 @@ export function buildLookAheadProjection(
 
   const logic =
     buildScheduleActivityLogicIndex(model,true);
+  mark('logic_index');
 
   const activityById = new Map(model.activities.map(activity => [activity.activityId, activity]));
   const incoming = new Map<string, CanonicalScheduleRelationship[]>();
@@ -323,6 +330,7 @@ export function buildLookAheadProjection(
   const overdueBacklogRows: LookAheadActivityRow[] = [];
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
+  mark('activity_indexes');
 
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
@@ -426,6 +434,8 @@ export function buildLookAheadProjection(
     else forwardWindowRows.push(row);
   }
 
+  mark('activity_rows');
+
   const byFinish=(a:LookAheadActivityRow,b:LookAheadActivityRow)=>{
     const aDate=a.finishIso??"9999",bDate=b.finishIso??"9999";
     return aDate.localeCompare(bDate)||naturalCompare(a.activityId,b.activityId);
@@ -435,6 +445,7 @@ export function buildLookAheadProjection(
   overdueBacklogRows.sort((a,b)=>backlogAge(b)-backlogAge(a)||byFinish(a,b));
   const rows=[...overdueBacklogRows,...forwardWindowRows].sort(byFinish);
 
+  mark('sort_rows');
   const managementGroups=new Map<string,{
     blockerType:ReadinessDimensionKey;wbsId:string|null;wbsPath:string|null;rows:LookAheadActivityRow[];sourceRefs:Set<string>
   }>();
@@ -459,6 +470,7 @@ export function buildLookAheadProjection(
   // One complete population traversal replaces 36 repeated full-table
   // scans and per-row dimension searches. The retained source record set is
   // unchanged: these are authoritative denominators, not visible-row counts.
+  mark('management_interventions');
   const coverageByDimension=new Map<ReadinessDimensionKey,{
     linkedActivityCount:number;sourceRefs:Set<string>;
     unresolvedLinkedActivityCount:number;knownCount:number;
@@ -476,6 +488,8 @@ export function buildLookAheadProjection(
     if(dimension.state!=='unknown')bucket.knownCount++;
   }
 
+  mark('coverage');
+  if(profile)process.stdout.write(JSON.stringify({event:'lookahead_profile',projectId:model.projectId,activityCount:model.activities.length,relationshipCount:model.relationships.length,marks:profileMarks,totalMs:performance.now()-profileStart})+'\n');
   return {
     schemaVersion: "1.0",
     projectionKey: "lookahead_schedule",
