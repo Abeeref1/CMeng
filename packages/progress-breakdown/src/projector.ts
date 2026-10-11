@@ -129,6 +129,9 @@ function buildProgressBreakdownProjectionImpl(
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     baselineModel?: CanonicalScheduleModel | null;
+    // Workfront-only: exact unique activity ID correspondence already proved
+    // across the full source revisions; not used for ambiguous/renamed IDs.
+    sharedExactBaselineIds?:ReadonlyMap<string,string>;
     previousModel?: CanonicalScheduleModel | null;
     readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
@@ -182,8 +185,10 @@ function buildProgressBreakdownProjectionImpl(
   mark('wbs_index');
   const plan = schedulePlanPositions(model, input.baselineModel ?? null);
   mark('plan_positions');
-  const baselineMatches = input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
-  const baselineId = new Map(baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId]) ?? model.activities.map(a=>[a.activityId,a.activityId]));
+  const baselineMatches = input.sharedExactBaselineIds?null:
+    input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
+  const baselineId = input.sharedExactBaselineIds??new Map(
+    baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId])??model.activities.map(a=>[a.activityId,a.activityId]));
   mark('baseline_correspondence');
   const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
