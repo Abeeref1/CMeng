@@ -591,6 +591,21 @@ function previousComparableFloatBasis(
   };
 }
 
+/** A reporting calculation is identified by its retained source revision, not
+ * the time at which an evicted worker happens to rebuild it. Audit events give
+ * the actual mutation timestamp; the latest stored upload is a legacy fallback.
+ * This never changes engineering figures, contract dates or approval state. */
+function calculationSnapshotTime(state:ProjectRuntimeState):string {
+  const audited=state.auditHistory?.findLast(event=>event.projectVersion===state.version)?.occurredAt;
+  if(audited)return audited;
+  if(state.lastRerunReceipt?.projectVersion===state.version)return state.lastRerunReceipt.generatedAt;
+  const sourceTimes=[
+    ...state.schedules.map(row=>row.uploadedAt),
+    ...state.evidenceDocuments.map(row=>row.uploadedAt),
+  ].filter((value):value is string=>typeof value==='string'&&Number.isFinite(Date.parse(value)));
+  return sourceTimes.sort().at(-1)??new Date().toISOString();
+}
+
 function buildBundle(
   state: ProjectRuntimeState,
 ): ProjectionBundle {
@@ -617,7 +632,7 @@ function buildBundle(
     bundleMark=now;
   };
   const generatedAt =
-    new Date().toISOString();
+    calculationSnapshotTime(state);
   const modules =
     new Map<
       string,
@@ -3709,7 +3724,7 @@ function planningContextForState(state: ProjectRuntimeState, current: NonNullabl
 
 function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullable<ReturnType<typeof projectControlSchedule>>) {
   const generatedAt =
-    new Date().toISOString();
+    calculationSnapshotTime(state);
   const ordered =
     analyticalHistory(state);
   const model =
@@ -5462,7 +5477,7 @@ function buildSpecialistModuleFast(
       )
     ) {
       const generatedAt =
-        new Date().toISOString();
+        calculationSnapshotTime(state);
       const claimPopulationQuarantined =
         claimsQuarantined(delayModel);
       const claimPopulationIntegrity =
@@ -5650,7 +5665,7 @@ function buildSpecialistModuleFast(
   }
 
   const generatedAt =
-    new Date().toISOString();
+    calculationSnapshotTime(state);
   const model =
     current.revision.model;
   const scheduleControlBasis =
@@ -7414,7 +7429,7 @@ function resolveProjectModuleUncertified(
   if (sourceResource) {
     const current = projectControlSchedule(state);
     if (!current) return applyProfessionalModuleState(sourceResource);
-    const generatedAt = new Date().toISOString();
+    const generatedAt = calculationSnapshotTime(state);
     const context = specialistChallengeContext(state, current.revision.model, generatedAt);
     const modules = new Map([[key, sourceResource]]);
     applyUniversalModuleChallenges({state, generatedAt, model:current.revision.model,
@@ -7495,7 +7510,7 @@ function resolveProjectModuleCandidate(
   const model = projectControlSchedule(state)?.revision.model;
   if (!model) {
     const data=result.data&&typeof result.data==='object'?result.data as Record<string,unknown>:{};
-    const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:new Date().toISOString(),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
+    const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:calculationSnapshotTime(state),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
     const enriched={...result,data:{...data,challenge}};
     if(enriched.data&&typeof enriched.data==='object'){
       (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data);
@@ -7506,7 +7521,7 @@ function resolveProjectModuleCandidate(
   if (result.data && typeof result.data === "object") {
     const data = result.data as Record<string, any>;
     const time = canonicalTimeClaims(state);
-    const forecast = ["milestones", "independent-forecast", "near-critical", "schedule-analytics"].includes(key) ? cachedIndependentForecast(model, new Date().toISOString()) : null;
+    const forecast = ["milestones", "independent-forecast", "near-critical", "schedule-analytics"].includes(key) ? cachedIndependentForecast(model, calculationSnapshotTime(state)) : null;
     const forecastReview = forecast ? independentForecastReviewReason(forecast) : null;
     const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
@@ -7521,7 +7536,7 @@ function resolveProjectModuleCandidate(
         calendarBasisReview:(()=>{const review=reviewScheduleCalendarBasis(model);return {...review,rows:key==='independent-forecast'?review.rows:undefined};})(),
         sourceProductivityForecast:(()=>{const p=sourceProductivityForecastEvidence(state);return {completionIso:p.completionIso,state:p.state,method:p.method,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,driverWorkPackageIds:p.driverWorkPackageIds,concentration:p.concentration,sourceRefs:p.sourceRefs};})(),
       }:{}),
-      ...(key==='contract-particulars-bonds'?{contractSourceContext:contractChallengeForState(state,new Date().toISOString())}:{}),
+      ...(key==='contract-particulars-bonds'?{contractSourceContext:contractChallengeForState(state,calculationSnapshotTime(state))}:{}),
       ...(key==='challenge-contract'?{boqFeasibility:deliveryFeasibilityForState(state),sourceLaborEvidence:laborEvidence?{
         state:'source',laborResourceCount:laborEvidence.laborResourceCount,plannedHours:laborEvidence.plannedHoursKnown,
         plannedHoursToDataDate:laborEvidence.plannedHoursToDataDate,actualHoursToDataDate:laborEvidence.actualHoursToDataDate,
@@ -7529,8 +7544,8 @@ function resolveProjectModuleCandidate(
         basis:'Weekly labor demand and approved usage; source hours do not by themselves establish a submitted headcount plan or measured productivity.'
       }:null,boqSource:boqSourceReporting(state)}:{}),
       ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
-      ...(key==='eot-assessment'?{...eotCompletionAuthorityContext(state,time,model,new Date().toISOString()),
-        determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(model,new Date().toISOString()).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
+      ...(key==='eot-assessment'?{...eotCompletionAuthorityContext(state,time,model,calculationSnapshotTime(state)),
+        determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(model,calculationSnapshotTime(state)).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
           if(!finish||!contract||time.effectiveDeterminationDays===null||data.timeBasisReconciliation?.overlapResolution!=='unresolved')return null;
           const late=(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000;
           return {allIncludedLatenessDays:late,noneIncludedLatenessDays:late-time.effectiveDeterminationDays,determinedDays:time.effectiveDeterminationDays,
@@ -7652,7 +7667,7 @@ function resolveProjectModuleCandidate(
     (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
   }
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
-    const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),controlBasis.analysisConfig,state.version);
+    const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,calculationSnapshotTime(state)),controlBasis.analysisConfig,state.version);
     result.data=attachActivityFloatReconciliation(result.data,review);
     if(review.summary.criticalityDifferenceCount){
       result.status='partial';result.professionalState='review_required';
@@ -8028,7 +8043,7 @@ export function directorForProject(
   const data=buildBundle(state).director;
   if(!data)return null;
   const scoped=reportingState(state),model=projectControlSchedule(scoped)?.revision.model;
-  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,new Date().toISOString()),projectScheduleControlBasis(scoped).analysisConfig,scoped.version)):data;
+  const reviewedBase=model?attachActivityFloatReconciliation(data,activityFloatReconciliation(model,cachedIndependentForecast(model,calculationSnapshotTime(state)),projectScheduleControlBasis(scoped).analysisConfig,scoped.version)):data;
   const register=projectActionRegisterForState(state);
   const reviewed={...reviewedBase,managementActions:register.actions.map(a=>{
     const kind=a.recordKey?.split('|')[0],label=kind==='ncr'?'NCR':kind==='rfi'?'RFI':null;
@@ -8890,18 +8905,25 @@ export function overviewForProject(
   // Only a durable same-version rerun receipt may establish a specialist
   // status in this light-weight summary. Warming another page cannot promote
   // or rewrite the overview for unchanged source evidence.
+  const finished=resolvedProjectCache.get(projectId);
+  const calculated=finished?.version===state.version?finished.modules:null;
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
+    const live=calculated?.get(module.key);
     const stored=receiptStates.get(module.key);
-    return {key:module.key,status:stored??'partial' as const,
-      reason:stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
-        'Specialist check not yet recorded for this project version; open the specialist page for its current findings.',
-      issueAssessment:undefined};
+    return {key:module.key,status:live?.status??stored??'partial' as const,
+      reason:live?.reason??(stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
+        'Specialist check not yet recorded for this project version; open the specialist page for its current findings.'),
+      issueAssessment:live?.issueAssessment};
   });
-  const overviewManagementStates=managementModuleKeys.map(key=>({
-    key,status:'partial' as const,
-    reason:'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
-    issueAssessment:undefined,
-  }));
+  // Reuse ONLY already-calculated management positions from this exact source
+  // version. Do not start specialist work just to populate a cold Overview.
+  const managementCalculated=managementProjectionCache.get(projectId)?.version===state.version;
+  const overviewManagementStates=managementModuleKeys.map(key=>{
+    const existing=managementCalculated?managementSurfaceForProject(projectId,key):null;
+    return {key,status:existing?.status??'partial' as const,
+      reason:existing?.reason??'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
+      issueAssessment:existing?.issueAssessment};
+  });
 
   // These richer role-specific analyses are intentionally left to their
   // dedicated pages. They are NOT used to invent an unfinished project
