@@ -8909,8 +8909,14 @@ export function overviewForProject(
   const roleDiagnosis:any=null,roleCompletion:any=null;
   const roleContext:any=null,roleInterfaces:any=null;
   const forecastData:any=null;
-  const projectFacts=projectFactsForState(state);
-  const canonicalActions=projectActionRegisterForState(state).actions;
+  // The full source-facts producer recalculates CPM, Delivery and Commercial.
+  // Do not silently launch this expensive work from the lightweight Overview
+  // merely to fill role previews. The portfolio and owning module pages
+  // publish those full figures after their own source-version calculation.
+  // Report unknown here, never an invented zero or a worker-cache-dependent
+  // figure. Overview's document and programme metadata remain source backed.
+  const projectFacts:any=null;
+  const canonicalActions:ReturnType<typeof projectActionRegisterForState>['actions']=[];
   const compactActions=canonicalActions.slice(0,12).map(action=>({
     issue:action.issue??null,
     consequence:action.consequence??null,
