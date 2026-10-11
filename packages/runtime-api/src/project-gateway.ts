@@ -56,7 +56,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const readStores=new Map<string,ProjectReadCache>();
   const reads=(id:string)=>{let cache=readStores.get(id);if(!cache)cache=new ProjectReadCache(projectDirectory(root,id));readStores.delete(id);readStores.set(id,cache);while(readStores.size>16)readStores.delete(readStores.keys().next().value!);return cache;};
   let closing=false,catalogWrites=Promise.resolve();
-  let lastForegroundProjectRequestAt=0;
+  let lastForegroundProjectRequestAt=Date.now();
+  let activeForegroundRequests=0;
   const reservations=new Map<string,Promise<Lane>>();
   const waiters=new Set<()=>void>();
   const signal=()=>{for(const wake of waiters)wake();waiters.clear();};
@@ -281,7 +282,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       send(res,503,{error:'project_work_unavailable',message:'This project could not finish its request. Other projects remain available.'});
     }finally{
       if(mutation)updating.set(id,Math.max(0,(updating.get(id)??1)-1));
-      if(succeeded&&/\/(overview|management\/[^/]+|evidence\/rerun|modules\/[^/]+)$/.test(path))void refreshSummary(id);
+      // A successful project read must not immediately occupy the worker for a
+      // background portfolio refresh ahead of the user's next page. The idle
+      // sweep maintains the portfolio without competing for foreground turns.
     }
   }
   const server=createServer((req,res)=>{void (async()=>{
@@ -359,7 +362,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           // project; fall through to the live worker and compute /overview directly.
         }
       }
-      await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);return;
+      activeForegroundRequests++;
+      try{await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);}
+      finally{activeForegroundRequests=Math.max(0,activeForegroundRequests-1);}
+      return;
     }
     if(url.pathname.startsWith('/api/')){if(!(req.method==='GET'&&/^\/api\/(?:schedule|commercial|delivery)\/modules$/.test(url.pathname)))applicationAccess.administrator(principal);await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
     send(res,404,{error:'not_found'});
@@ -372,6 +378,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   let activeSummaryWarmups=0;
   const maxSummaryWarmups=Math.max(1,Math.min(3,maxWorkers-1));
   const warmSweep=()=>{
+    // Never begin heavyweight background calculations while project pages are
+    // being opened or uploaded; these jobs previously queued ahead of the
+    // first Overview, making a light read take more than five seconds.
+    if(activeForegroundRequests>0||Date.now()-lastForegroundProjectRequestAt<1500)return;
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
     if(closing||activeSummaryWarmups>=maxSummaryWarmups)return;
     const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
@@ -394,8 +404,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(startupTimer)clearTimeout(startupTimer);
   }
   // The full portfolio remains accessible even if another project's warmup fails.
-  setImmediate(warmSweep);
-  const close=async()=>{closing=true;clearInterval(warmer);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const initialWarmup=setTimeout(warmSweep,4000);initialWarmup.unref();
+  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 
