@@ -8905,8 +8905,13 @@ export function overviewForProject(
   // Only a durable same-version rerun receipt may establish a specialist
   // status in this light-weight summary. Warming another page cannot promote
   // or rewrite the overview for unchanged source evidence.
+  // A controlled baseline requires an explicit project rerun/certification
+  // before opening a specialist can change the navigation readiness status.
+  // Without that baseline, current specialist calculations can be reflected
+  // as a working (not adopted) assessment, but only after they actually exist.
+  const baselineControlled=state.schedules.some(item=>item.role==='baseline'||item.role==='revised_baseline');
   const finished=resolvedProjectCache.get(projectId);
-  const calculated=finished?.version===state.version?finished.modules:null;
+  const calculated=!baselineControlled&&finished?.version===state.version?finished.modules:null;
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
     const live=calculated?.get(module.key);
     const stored=receiptStates.get(module.key);
@@ -8917,7 +8922,7 @@ export function overviewForProject(
   });
   // Reuse ONLY already-calculated management positions from this exact source
   // version. Do not start specialist work just to populate a cold Overview.
-  const managementCalculated=managementProjectionCache.get(projectId)?.version===state.version;
+  const managementCalculated=!baselineControlled&&managementProjectionCache.get(projectId)?.version===state.version;
   const overviewManagementStates=managementModuleKeys.map(key=>{
     const existing=managementCalculated?managementSurfaceForProject(projectId,key):null;
     return {key,status:existing?.status??'partial' as const,
