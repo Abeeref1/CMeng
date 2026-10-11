@@ -10,8 +10,8 @@ test('S-17 source codes differing only by WBS separators resolve to exactly one 
  assert.equal(wbsSeparatorKey('vlc_01'),'vlc.01');
  assert.equal(wbsSeparatorKey('MEP-02'),'mep.02');
  assert.equal(index.get(wbsSeparatorKey('VLC.01'))?.length,1);
- assert.equal(index.get(wbsSeparatorKey('VLC.01'))?.[0].wbsId,'100');
- assert.equal(index.get(wbsSeparatorKey('MEP-02'))?.[0].wbsId,'200');
+ assert.equal(index.get(wbsSeparatorKey('VLC.01'))?.[0]?.wbsId,'100');
+ assert.equal(index.get(wbsSeparatorKey('MEP-02'))?.[0]?.wbsId,'200');
  assert.equal(index.get(wbsSeparatorKey('UNKNOWN.99')),undefined);
 });
 test('S-17 collision is unresolved, not assigned to an arbitrary programme node',()=>{
