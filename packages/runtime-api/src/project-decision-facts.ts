@@ -120,8 +120,9 @@ function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null,itemCurrency
  for(const r of rows){
   const number=cell(r,'certificate no','certificate number','ipc'),d=date(cell(r,'certification date','certificate date'));
   const amount=numberValue(cell(r,'certified value','certified amount','gross certified','gross certified amount'));
-  const status=norm(cell(r,'status','certificate status','source status'));
+  const status=norm(cell(r,'status','certificate status','source status')),sourceCurrency=cell(r,'currency');
   if(!number||!d||amount===null||(cutoff&&d>cutoff)||/applied|application|draft|submitted/.test(status))continue;
+  if(sourceCurrency&&itemCurrency&&norm(sourceCurrency)!==norm(itemCurrency))continue;
   const raw=norm(cell(r,'certified amount basis','amount basis','series basis','basis'));
   const basis:'incremental'|'cumulative'|'unknown'=/cumulative|to date|to-date/.test(raw)?'cumulative':/incremental|period|this month|this certificate/.test(raw)?'incremental':'unknown';
   const key=norm(number)+'|'+d,prior=entries.get(key),sourceRefs=rowRefs(r);
