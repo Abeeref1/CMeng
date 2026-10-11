@@ -38,6 +38,9 @@ test('S-35 visible decision displays examined sources when exception count is ze
   decisionPanel:(title:string,_basis:string,kind:string,rows:any[])=>'TABLE:'+kind+':'+rows.length+':'+title,
   managementModuleLink:()=>''
  });
- assert.match(String(html),/TABLE:registerReviews:1/);
- assert.doesNotMatch(String(html),/TABLE:registers:/,'No false exception table is emitted');
+ const rendered=String(html);
+ assert.match(rendered,/id="decision-registerReviews"/,'The actual rendered comparison table remains visible when exception count is zero');
+ assert.match(rendered,/Gross issued certificates/);
+ assert.match(rendered,/>80</);
+ assert.doesNotMatch(rendered,/id="decision-registers"/,'No false exception table is emitted');
 });
