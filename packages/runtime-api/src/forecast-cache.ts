@@ -38,7 +38,10 @@ export function cachedIndependentForecast(
   if (cached) {
     return cached;
   }
+  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  const started=profiling?performance.now():0;
   const fingerprint=modelFingerprint(model);
+  const afterFingerprint=profiling?performance.now():0;
   const shared=forecastContentPool.get(fingerprint)?.deref();
   if(shared){independentForecastCache.set(key,shared);return shared;}
   const projection =
@@ -60,6 +63,10 @@ export function cachedIndependentForecast(
     key,
     projection,
   );
+  if(profiling)process.stdout.write(JSON.stringify({event:'independent_cpm_profile',
+    projectId:model.projectId,sourceRevisionId:model.sourceRevisionId,
+    activities:model.activities.length,relationships:model.relationships.length,calendars:model.calendars.length,
+    fingerprintMs:afterFingerprint-started,forecastMs:performance.now()-afterFingerprint})+'\n');
   forecastContentPool.delete(fingerprint);
   forecastContentPool.set(fingerprint,new WeakRef(projection));
   while(forecastContentPool.size>24)forecastContentPool.delete(forecastContentPool.keys().next().value!);
