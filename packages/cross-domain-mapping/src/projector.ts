@@ -400,59 +400,88 @@ export function buildQuantityScheduleMapping(
   // for a zero score, making real source registers block the whole resolver.
   const eligible=schedule.activities.filter(a=>a.activityType==='task'&&a.status!=='completed');
   const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,wbsText(a,wbsById))]));
-  type Posting=Map<string,Set<CanonicalScheduleActivity>>;
-  const descriptions:Posting=new Map(),sections:Posting=new Map(),codes:Posting=new Map(),nameGrams:Posting=new Map(),namePrefixes:Posting=new Map();
+  type FeatureGroup={members:CanonicalScheduleActivity[];features:ActivityFeatures};
+  const featureGroupsByKey=new Map<string,FeatureGroup>();
+  const groupForActivity=new Map<CanonicalScheduleActivity,FeatureGroup>();
+  for(const activity of eligible){
+    const f=featuresByActivity.get(activity)!;
+    // Scoring depends on name and WBS tokens, the count of code tokens,
+    // and item-specific code intersections. Individual code hits below are
+    // handled separately; the remaining members have identical scores.
+    const key=JSON.stringify([f.name,[...f.wbsTokens].sort(),f.codes.size]);
+    let group=featureGroupsByKey.get(key);
+    if(!group){group={members:[],features:f};featureGroupsByKey.set(key,group);}
+    group.members.push(activity);groupForActivity.set(activity,group);
+  }
+  type GroupPosting=Map<string,Set<FeatureGroup>>;
+  type ActivityPosting=Map<string,Set<CanonicalScheduleActivity>>;
+  const descriptions:GroupPosting=new Map(),sections:GroupPosting=new Map();
+  const nameGrams:GroupPosting=new Map(),namePrefixes:GroupPosting=new Map();
+  const codes:ActivityPosting=new Map();
+  const indexGroup=(map:GroupPosting,key:string,group:FeatureGroup)=>{
+    const rows=map.get(key)??new Set<FeatureGroup>();rows.add(group);map.set(key,rows);
+  };
+  const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
+  for(const group of featureGroupsByKey.values()){
+    group.members.sort((a,b)=>a.activityId.localeCompare(b.activityId));
+    for(const token of group.features.nameTokens)indexGroup(descriptions,token,group);
+    for(const token of group.features.wbsTokens)indexGroup(sections,token,group);
+    const name=group.features.name;
+    if(name.length>=5){
+      indexGroup(namePrefixes,name.slice(0,5),group);
+      for(const gram of grams(name))indexGroup(nameGrams,gram,group);
+    }
+  }
+  for(const activity of eligible)for(const key of featuresByActivity.get(activity)!.codes){
+    const rows=codes.get(key)??new Set<CanonicalScheduleActivity>();
+    rows.add(activity);codes.set(key,rows);
+  }
   const explicit=new Map(eligible.filter(a=>/^[A-Za-z0-9_.-]+$/.test(a.activityId)).map(a=>[a.activityId.toUpperCase(),a]));
   const unusualIds=eligible.filter(a=>!/^[A-Za-z0-9_.-]+$/.test(a.activityId));
-  const index=(map:Posting,key:string,a:CanonicalScheduleActivity)=>{const list=map.get(key)??new Set();list.add(a);map.set(key,list);};
-  const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
-  for(const a of eligible){
-    const features=featuresByActivity.get(a)!;
-    for(const token of features.nameTokens)index(descriptions,token,a);
-    for(const token of features.wbsTokens)index(sections,token,a);
-    for(const token of features.codes)index(codes,token,a);
-    const name=features.name;if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
-  }
-  // Inverted evidence postings: count exact shared tokens once per source
-  // item rather than performing three Set intersections for every candidate.
-  // No potentially matchable WBS/trade/area or keyword candidate is discarded.
-  type Hits=Map<CanonicalScheduleActivity,number>;
-  const countPosting=(posting:Posting,keys:Iterable<string>):Hits=>{
-    const hits:Hits=new Map();
-    for(const key of keys)for(const activity of posting.get(key)??[])
-      hits.set(activity,(hits.get(activity)??0)+1);
-    return hits;
-  };
-  const sectionHitCache=new Map<string,Hits>();
-  const candidatesFor=(item:CanonicalQuantityItem,features:ItemFeatures)=>{
-    const nameHits=countPosting(descriptions,features.descriptionTokens);
-    const found=new Set<CanonicalScheduleActivity>(nameHits.keys());
-    const collect=(posting:Posting,keys:Iterable<string>)=>{
-      for(const key of keys)for(const activity of posting.get(key)??[])found.add(activity);
+  const candidatesFor=(features:ItemFeatures)=>{
+    const nameGroups=new Set<FeatureGroup>();
+    const collect=(posting:GroupPosting,keys:Iterable<string>,target:Set<FeatureGroup>)=>{
+      for(const key of keys)for(const group of posting.get(key)??[])target.add(group);
     };
-    const description=features.description;
-    if(description.length>=5){
-      collect(nameGrams,[description.slice(0,5)]);
-      collect(namePrefixes,grams(description));
+    collect(descriptions,features.descriptionTokens,nameGroups);
+    if(features.description.length>=5){
+      collect(nameGrams,[features.description.slice(0,5)],nameGroups);
+      collect(namePrefixes,grams(features.description),nameGroups);
     }
-    const codeHits=countPosting(codes,features.codes);
-    const sectionKey=item.section??'';
-    let sectionHits=sectionHitCache.get(sectionKey);
-    if(!sectionHits){
-      sectionHits=countPosting(sections,features.sectionTokens);
-      sectionHitCache.set(sectionKey,sectionHits);
-      // Bound the index to source sections actually being screened now.
-      while(sectionHitCache.size>48)sectionHitCache.delete(sectionHitCache.keys().next().value!);
+    const sectionGroups=new Set<FeatureGroup>();
+    collect(sections,features.sectionTokens,sectionGroups);
+    const codeHits=new Map<CanonicalScheduleActivity,number>();
+    for(const token of features.codes)for(const activity of codes.get(token)??[])
+      codeHits.set(activity,(codeHits.get(activity)??0)+1);
+    const specialsByGroup=new Map<FeatureGroup,Set<CanonicalScheduleActivity>>();
+    const special=(activity:CanonicalScheduleActivity)=>{
+      const group=groupForActivity.get(activity)!;
+      const rows=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
+      rows.add(activity);specialsByGroup.set(group,rows);
+    };
+    const candidateGroups=new Set(nameGroups);
+    for(const activity of codeHits.keys()){
+      const group=groupForActivity.get(activity)!;
+      if(sectionGroups.has(group))candidateGroups.add(group);
+      special(activity);
     }
-    // Section and code matches alone may reach 0.34; either alone cannot.
-    for(const activity of codeHits.keys())if(sectionHits.has(activity))found.add(activity);
-    const corpus=features.corpus;
     const explicitMatches=new Set<CanonicalScheduleActivity>();
-    for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
-      const activity=explicit.get(token);if(activity){found.add(activity);if(featuresByActivity.get(activity)!.explicitId?.test(corpus))explicitMatches.add(activity);}
+    const raw=features.corpus;
+    for(const token of raw.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
+      const activity=explicit.get(token);
+      if(activity&&featuresByActivity.get(activity)!.explicitId?.test(raw)){
+        explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+      }
     }
-    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(corpus)){found.add(activity);explicitMatches.add(activity);}
-    return {found,nameHits,sectionHits,codeHits,explicitMatches};
+    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(raw)){
+      explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+    }
+    return {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches};
+  };
+  const overlaps=(keys:ReadonlySet<string>,other:ReadonlySet<string>):number=>{
+    let count=0;
+    for(const key of keys)if(other.has(key))count++;
+    return count;
   };
   const fastScore=(item:ItemFeatures,activity:ActivityFeatures,
     descriptionHits:number,sectionHits:number,codeHits:number):number=>{
@@ -486,27 +515,44 @@ export function buildQuantityScheduleMapping(
 
     const features = itemFeatures(item);
     const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
-    const {found,nameHits,sectionHits,codeHits,explicitMatches}=candidatesFor(item,features);
-    for (const activity of found) {
-      scoredPairCount += 1;
-      const activityFeature=featuresByActivity.get(activity)!;
-      const rawConfidence=explicitMatches.has(activity)?0.99:fastScore(features,activityFeature,
-        nameHits.get(activity)??0,sectionHits.get(activity)??0,codeHits.get(activity)??0);
-      // Lossless upper-bound test: a result below the current fifth place
-      // even after rounding can never change the retained top-five.
-      if(top.length===5&&rawConfidence<top[4]!.confidence-0.0001)continue;
-      if(rawConfidence<0.33994)continue;
+    const {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches}=candidatesFor(features);
+    const offer=(activity:CanonicalScheduleActivity,rawConfidence:number)=>{
+      // Preserve both the original four-decimal confidence rule and the
+      // stable activity-ID tie break, including on ambiguous BOQ proposals.
+      if(top.length===5&&rawConfidence<top[4]!.confidence-0.0001)return;
+      if(rawConfidence<0.33994)return;
       const confidence=Number(rawConfidence.toFixed(4));
-      if (confidence < 0.34) continue;
-      // This is the same stable confidence/Activity-ID sort and top five as
-      // before. Do not fingerprint or copy source evidence for discarded rows.
-      const index = top.findIndex(row => confidence > row.confidence ||
-        (confidence === row.confidence && activity.activityId.localeCompare(row.activity.activityId) < 0));
-      if (index < 0) {
-        if (top.length < 5) top.push({activity, confidence});
-      } else {
-        top.splice(index, 0, {activity, confidence});
-        if (top.length > 5) top.pop();
+      if(confidence<0.34)return;
+      const index=top.findIndex(row=>confidence>row.confidence||
+        confidence===row.confidence&&activity.activityId.localeCompare(row.activity.activityId)<0);
+      if(index<0){if(top.length<5)top.push({activity,confidence});}
+      else {top.splice(index,0,{activity,confidence});if(top.length>5)top.pop();}
+    };
+    for(const group of candidateGroups){
+      const normal=nameGroups.has(group);
+      const specials=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
+      const n=overlaps(features.descriptionTokens,group.features.nameTokens);
+      const s=overlaps(features.sectionTokens,group.features.wbsTokens);
+      if(normal){
+        // Members have identical evidence except for their own unique codes.
+        // Five lowest Activity IDs suffice for each same-score group: a sixth
+        // cannot appear in any globally ranked top-five, even on a tie.
+        scoredPairCount+=group.members.length;
+        const baseConfidence=fastScore(features,group.features,n,s,0);
+        let considered=0;
+        for(const activity of group.members){
+          if(specials.has(activity))continue;
+          offer(activity,baseConfidence);
+          if(++considered===5)break;
+        }
+      }
+      for(const activity of specials){
+        const codeHit=codeHits.get(activity)??0;
+        if(!normal&&!(codeHit>0&&sectionGroups.has(group))&&!explicitMatches.has(activity))continue;
+        if(!normal)scoredPairCount++;
+        const rawConfidence=explicitMatches.has(activity)?0.99:fastScore(
+          features,featuresByActivity.get(activity)!,n,s,codeHit);
+        offer(activity,rawConfidence);
       }
     }
     const ranked: QuantityActivityMappingCandidate[] = top.map(({activity, confidence}) => ({
