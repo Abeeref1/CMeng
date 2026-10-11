@@ -1133,18 +1133,22 @@ function buildBundle(
   );
 
   measureBundle('activity_analytics');
-  const lookAhead =
-    buildLookAheadProjection(
-      model,
-      {
-        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
-        generatedAt,
-        producerVersion:
-          versions.lookAhead,
-        readinessEvidence:
-          lookAheadReadinessWithProcurement(state,cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[]),
-      },
-    );
+  const lookaheadStarted=bundleProfile?performance.now():0;
+  const controllingForecast=cachedIndependentForecast(model,generatedAt);
+  const drivingIds=controllingForecast.drivingNetwork?.activityIds??[];
+  const cpmDone=bundleProfile?performance.now():0;
+  const procurementReadiness=lookAheadReadinessWithProcurement(state,drivingIds);
+  const procurementDone=bundleProfile?performance.now():0;
+  const lookAhead=buildLookAheadProjection(model,{
+    drivingActivityIds:drivingIds,generatedAt,
+    producerVersion:versions.lookAhead,readinessEvidence:procurementReadiness,
+  });
+  if(bundleProfile)process.stdout.write(JSON.stringify({
+    event:'lookahead_cold_breakdown',projectId:state.projectId,
+    cpmLookupMs:cpmDone-lookaheadStarted,
+    procurementReadinessMs:procurementDone-cpmDone,
+    lookaheadProjectionMs:performance.now()-procurementDone,
+  })+'\n');
   modules.set(
     "lookahead-schedule",
     available(
