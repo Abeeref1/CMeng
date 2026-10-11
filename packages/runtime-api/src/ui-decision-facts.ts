@@ -34,8 +34,12 @@ function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
  const start=visible.length?at+1:0,end=at+visible.length;
  const hasMore=pageData?Boolean(pageData.hasMore):typeof size==='number'&&end<size;
  const caption='Showing '+decisionNumber(start)+'–'+decisionNumber(end)+' of '+(typeof size==='number'?decisionNumber(size):'total not established');
- const body=visible.map(row=>'<tr>'+cols.map(([label,key])=>'<td>'+escapeHtml(decisionDisplay(row[key],key))+'</td>').join('')+'</tr>').join('');
- return '<p class="decision-population">'+escapeHtml(caption)+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(([label])=>'<th>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable dated records were found in this source population.</td></tr>')+'</tbody></table></div><div class="actions">'+
+ // Label a completely empty visible column once; do not repeat the same
+ // missing-value sentence in every cell. Never imply that later pages are
+ // empty, and never suppress an actual zero or any source record.
+ const emptyColumns=new Set(cols.filter(([label,key])=>visible.length&&visible.every(row=>row[key]===null||row[key]===undefined)).map(([label,key])=>key));
+ const body=visible.map(row=>'<tr>'+cols.map(([label,key])=>'<td>'+escapeHtml(row[key]===null||row[key]===undefined?'—':decisionDisplay(row[key],key))+'</td>').join('')+'</tr>').join('');
+ return '<p class="decision-population">'+escapeHtml(caption)+'</p><div class="table-wrap"><table><thead><tr>'+cols.map(([label,key])=>'<th>'+escapeHtml(label)+(emptyColumns.has(key)?' <small>(not in shown rows)</small>':'')+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable dated records were found in this source population.</td></tr>')+'</tbody></table></div><div class="actions">'+
   '<button class="btn small" '+(at===0?'disabled ':'')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+Math.max(0,at-25)+')">Previous records</button>'+
   '<button class="btn small" '+(hasMore?'':'disabled ')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+(at+25)+')">Next records</button></div>';
 }
@@ -55,7 +59,7 @@ async function loadDecisionPage(kind,pointer,offset){
   target.innerHTML=decisionTable(kind,[],pointer,page.total,page.offset,page);
  }catch(e){if(project()===owner&&projectRequestSeq===seq&&currentModuleResult===result)target.insertAdjacentHTML('beforeend','<p role="alert">This source page could not be retrieved. The previous values are retained; retry the page.</p>');}
 }
-function decisionPanel(title,basis,kind,rows,pointer,total){return '<section class="planning-panel decision-panel"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(basis)+'</p></div><div class="planning-panel-body" id="decision-'+kind+'">'+decisionTable(kind,rows,pointer,total)+'</div></section>';}
+function decisionPanel(title,basis,kind,rows,pointer,total){return '<section class="planning-panel decision-panel"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4></div><div class="planning-panel-body" id="decision-'+kind+'">'+decisionTable(kind,rows,pointer,total)+'</div><details class="module-basis"><summary>Calculation basis</summary><p>'+escapeHtml(basis)+'</p></details></section>';}
 function renderManagementCommercialFacts(data){
  const rows=data.briefCommercialPosition?.currencies??data.decisionAnalysis?.commercialSummary??data.projectFacts?.commercial?.currencies??[];
  if(!rows.length)return '<section class="planning-panel"><h4>Cost and certified cash position</h4><p>No dated cost/certification currency position has been established. Missing: a dated EAC or earned-value cost record and issued certificates with linked payment evidence. No zero is inferred.</p>'+managementModuleLink('cost-forecast','Review cost records')+'</section>';
@@ -79,7 +83,7 @@ function renderDecisionAnalysis(key,data){
  if(a.kind==='payment_due')return decisionPanel('Contract payment due dates and actual receipt',a.paymentChecks.basis,'paymentDue',a.paymentChecks.rows,'/data/decisionAnalysis/paymentChecks/rows',a.paymentChecks.total);
  if(a.kind==='register_reconciliation'){
   const checks=a.registerValueChecks||{},rows=checks.checkedRows||[];
-  return '<section class="planning-panel primary"><h4>Register-to-contract comparisons actually performed</h4>'+planningKpis([['Comparable registers checked',checks.checkedCount??rows.length,'Retained same-currency source totals'],['Above-contract arithmetic exceptions',checks.count??0,'Every exception remains visible; a candidate contract value is a qualified basis']])+'<p>'+escapeHtml(checks.basis||'Only source-qualified comparisons are performed. Unavailable amounts are not zeros.')+'</p></section>'+
+  return '<section class="planning-panel primary"><h4>Register-to-contract comparisons actually performed</h4>'+planningKpis([['Comparable registers checked',checks.checkedCount??rows.length,'Retained same-currency source totals'],['Above-contract arithmetic exceptions',checks.count??0,'Every exception remains visible; a candidate contract value is a qualified basis']])+'<details class="module-basis"><summary>Comparison basis</summary><p>'+escapeHtml(checks.basis||'Only source-qualified comparisons are performed. Unavailable amounts are not zeros.')+'</p></details></section>'+
     decisionPanel('All comparable retained register totals','Each available source amount is compared to the same-currency current contract sum, with its source and contract authority retained. A within-contract result is not a formal reconciliation or approval.','registerReviews',rows,'/data/decisionAnalysis/registerValueChecks/checkedRows',checks.checkedCount)+
     (checks.count?decisionPanel('Register totals above the current contract sum','These exceptions require source scope, tax and period-basis reconciliation.','registers',checks.rows,'/data/decisionAnalysis/registerValueChecks/rows',checks.count):'');
  }
