@@ -43,9 +43,17 @@ const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typ
 function build(state:ProjectRuntimeState){
   const documents=state.evidenceDocuments.filter(document=>document.basisState!=='superseded');
   const tables=sourceTables(documents,[],{includeHistorical:true});
+  // One inventory pass, not one scan of every extracted table for every
+  // document multiplied by every professional source domain.
+  const tablesByDocument=new Map<string,typeof tables>();
+  for(const table of tables){
+    const id=table.document.documentId;
+    const group=tablesByDocument.get(id)??[];group.push(table);tablesByDocument.set(id,group);
+  }
+  const preparedByDocument=new Map<string,ReturnType<typeof prepareRegisterRows>[]>();
   const normalizeSourceText=(values:Array<string|null|undefined>)=>values.filter(Boolean).join(' ').normalize('NFKC').replace(/[_/\\.-]+/g,' ').replace(/\s+/g,' ').trim();
   const specificDomains=(document:ProjectRuntimeState['evidenceDocuments'][number])=>{
-    const semanticTypes=tables.filter(table=>table.document.documentId===document.documentId).map(table=>table.document.documentType);
+    const semanticTypes=(tablesByDocument.get(document.documentId)??[]).map(table=>table.document.documentType);
     const typed=definitions.filter(definition=>definition.pattern.test(normalizeSourceText(semanticTypes))).map(definition=>definition.domain);
     if(typed.length)return typed;
     const specific=normalizeSourceText([document.documentType,document.sourceFilename,document.familyKey]);
@@ -57,13 +65,18 @@ function build(state:ProjectRuntimeState){
     const fallback=normalizeSourceText([document.category]);
     return definitions.filter(definition=>definition.pattern.test(fallback)).map(definition=>definition.domain);
   };
+  const domainsByDocument=new Map(documents.map(document=>[document.documentId,specificDomains(document)] as const));
   const domains=definitions.map(definition=>{
-    const matched=documents.filter(document=>specificDomains(document).includes(definition.domain));
+    const matched=documents.filter(document=>domainsByDocument.get(document.documentId)?.includes(definition.domain));
     let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false,longLeadMarkedCount=0,longLeadObserved=false;
     const longLeadSamples:ManagementSourceDomainSummary['signals']['longLeadSamples']=[];
     for(const document of matched){
-      const retained=tables.filter(table=>table.document.documentId===document.documentId);
-      const preparedTables=retained.length?retained.map(table=>({headers:table.headers,rows:table.rows.map(row=>table.headers.map(header=>row.cells[header]??'')),readRowCount:table.rows.length,recognized:table.recognition?.recognized??false})):(document.tabularRead?.sheets??[]).map(sheet=>prepareRegisterRows(sheet.rows,document.documentType));
+      const retained=tablesByDocument.get(document.documentId)??[];
+      let preparedTables=preparedByDocument.get(document.documentId);
+      if(!preparedTables){
+        preparedTables=retained.length?retained.map(table=>({headers:table.headers,rows:table.rows.map(row=>table.headers.map(header=>row.cells[header]??'')),readRowCount:table.rows.length,recognized:table.recognition?.recognized??false})):(document.tabularRead?.sheets??[]).map(sheet=>prepareRegisterRows(sheet.rows,document.documentType));
+        preparedByDocument.set(document.documentId,preparedTables);
+      }
       for(const prepared of preparedTables){
         readableRows+=prepared.readRowCount;
         hasReadableRows=hasReadableRows||prepared.readRowCount>0;
