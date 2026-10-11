@@ -11,18 +11,19 @@ const decisionColumns={
  registers:[['Register','register'],['Currency','currency'],['Register total','registerTotal'],['Current contract sum','currentContractValue'],['Excess to reconcile','excess'],['Required review','action']],
  registerReviews:[['Register','register'],['Currency','currency'],['Source total','registerTotal'],['Contract sum','currentContractValue'],['Difference vs contract','comparisonDifference'],['Check result','state'],['Contract authority','contractAuthorityState'],['Follow-up','action']]
 };
+function decisionText(value){return typeof readerText==='function'?readerText(value):String(value).replace(/_/g,' ');}
 function decisionDisplay(value,key){
  if(value===null||value===undefined)return 'Not in source';
- if(Array.isArray(value))return value.length?value.map(v=>readerText(v)).join('; '):'None identified';
+ if(Array.isArray(value))return value.length?value.map(v=>decisionText(v)).join('; '):'None identified';
  if(value&&typeof value==='object'&&Object.hasOwn(value,'value'))return managementValue(value);
  if(typeof value==='number')return managementNumber(value);
  if(typeof value==='boolean')return value?'Yes':'No';
  if(/Iso$/.test(key))return planningShortDate(value);
  if(key==='state'||key==='detailedClaimState'){
   const labels={already_critical:'Already critical at the Data Date',comparison_missing:'Previous comparable float not recorded',no_positive_erosion:'No positive float erosion',erosion_scenario:'Continuing-erosion scenario',notice_date_missing:'Event notice date missing',within_period:'Within the stated period',late:'Submitted after the stated period',overdue_no_submission:'Due date passed; submission not recorded',submission_not_recorded:'Submission not recorded',application_not_certified:'Application — not certified',due_basis_missing:'Contract due-date basis missing',payment_not_recorded:'Actual payment not recorded',paid_late:'Paid after the contract due date',paid_within_period:'Paid within the contract period'};
-  return labels[value]||readerText(value);
+  return labels[value]||decisionText(value);
  }
- return readerText(value);
+ return decisionText(value);
 }
 function decisionPointer(root,pointer){let value=root;for(const k of pointer.split('/').slice(1))value=value?.[k.replace(/~1/g,'/').replace(/~0/g,'~')];return value;}
 function decisionNumber(value){return typeof managementNumber==='function'?managementNumber(value):String(value);}
