@@ -270,6 +270,10 @@ export function buildLookAheadProjection(
     >;
   },
 ): LookAheadProjection {
+  const profiling=process.env.CMENG_PROFILE_PERF==='1';
+  let previous=profiling?performance.now():0;
+  const stages:Array<{part:string;ms:number}>=[];
+  const stage=(part:string)=>{if(profiling){const now=performance.now();stages.push({part,ms:now-previous});previous=now;}};
   const windowDays = input.windowDays ?? 42;
   const drivingIds=input.drivingActivityIds?new Set(input.drivingActivityIds):null;
   if (
@@ -316,6 +320,7 @@ export function buildLookAheadProjection(
   const overdueBacklogRows: LookAheadActivityRow[] = [];
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
+  stage('indexes_and_dates');
 
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
@@ -418,6 +423,7 @@ export function buildLookAheadProjection(
     else forwardWindowRows.push(row);
   }
 
+  stage('activity_rows_and_readiness');
   const byFinish=(a:LookAheadActivityRow,b:LookAheadActivityRow)=>{
     const aDate=a.finishIso??"9999",bDate=b.finishIso??"9999";
     return aDate.localeCompare(bDate)||naturalCompare(a.activityId,b.activityId);
@@ -427,6 +433,7 @@ export function buildLookAheadProjection(
   overdueBacklogRows.sort((a,b)=>backlogAge(b)-backlogAge(a)||byFinish(a,b));
   const rows=[...overdueBacklogRows,...forwardWindowRows].sort(byFinish);
 
+  stage('sort_rows');
   const managementGroups=new Map<string,{
     blockerType:ReadinessDimensionKey;wbsId:string|null;wbsPath:string|null;rows:LookAheadActivityRow[];sourceRefs:Set<string>
   }>();
@@ -468,6 +475,8 @@ export function buildLookAheadProjection(
     if(dimension.state!=='unknown')bucket.knownCount++;
   }
 
+  stage('group_and_coverage');
+  if(profiling)process.stdout.write(JSON.stringify({event:'lookahead_profile',projectId:model.projectId,activities:model.activities.length,relationships:model.relationships.length,stages})+'\n');
   return {
     schemaVersion: "1.0",
     projectionKey: "lookahead_schedule",
