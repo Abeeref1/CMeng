@@ -61,6 +61,26 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const classifiedUnavailable=unavailableItems.filter((i:any)=>i.independent?.diagnostics?.some((s:string)=>s.startsWith('COMPARISON_INPUT_REQUIRED:')||s==='SOURCE_AUTHORITY_ONLY'));
   for(const item of classifiedUnavailable){
     const sourceOnly=item.independent.diagnostics.includes('SOURCE_AUTHORITY_ONLY');
+    // A certified financial progress percentage is already a governed source
+    // fact when the Progress Report carries the same numeric value. An
+    // additional *independent* quantity-based comparator is CMeng's technical
+    // verification gap, never another request for the held certificates.
+    // Preserve the original challenge, independent-missing diagnostics, and
+    // comparison evidence in issueAssessment for the engineer's audit.
+    const heldCertified=d?.progressBases?.certified?.valuePercent;
+    const certifiedSourcePresent=result.key==='progress-report'
+      &&item.metric==='certified_progress_percent'
+      &&typeof heldCertified==='number'&&Number.isFinite(heldCertified)
+      &&typeof item.submitted?.value==='number'&&Number.isFinite(item.submitted.value)
+      &&Math.abs(heldCertified-item.submitted.value)<1e-6;
+    if(certifiedSourcePresent){
+      add('verification_pending','CERTIFIED_PROGRESS_INDEPENDENT_VERIFICATION',
+        'Certified financial progress established; independent quantity comparator not verified',
+        'The Progress Report already holds '+heldCertified+'% certified financial progress. The separate independent quantity/valuation comparison remains unavailable and must not be represented as missing source certification.',
+        'CMeng must establish a genuinely comparable independent verification if source evidence permits; retain the certified financial amount and percentage without asking for them again.',
+        'challenge.items.'+item.metric,'CMeng',item.submitted.sourceRefs??[]);
+      continue;
+    }
     add(sourceOnly?'governance_review':'missing_information',sourceOnly?'SOURCE_AUTHORITY_COMPARISON':'INDEPENDENT_COMPARISON_INPUT',item.label+' · '+(sourceOnly?'source authority review':'specific evidence needed'),item.consequence,item.action,'challenge.items.'+item.metric,sourceOnly?'Project controls reviewer':'Project evidence owner',item.independent.sourceRefs??[]);
   }
   const dependenciesExplained=unavailableItems.length>0&&classifiedUnavailable.length===unavailableItems.length;
