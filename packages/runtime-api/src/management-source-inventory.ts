@@ -50,7 +50,8 @@ function build(state:ProjectRuntimeState){
     const id=table.document.documentId;
     const group=tablesByDocument.get(id)??[];group.push(table);tablesByDocument.set(id,group);
   }
-  const preparedByDocument=new Map<string,ReturnType<typeof prepareRegisterRows>[]>();
+  type InventoryTable={headers:string[];rows:string[][];readRowCount:number;recognized:boolean};
+  const preparedByDocument=new Map<string,InventoryTable[]>();
   const normalizeSourceText=(values:Array<string|null|undefined>)=>values.filter(Boolean).join(' ').normalize('NFKC').replace(/[_/\\.-]+/g,' ').replace(/\s+/g,' ').trim();
   const specificDomains=(document:ProjectRuntimeState['evidenceDocuments'][number])=>{
     const semanticTypes=(tablesByDocument.get(document.documentId)??[]).map(table=>table.document.documentType);
