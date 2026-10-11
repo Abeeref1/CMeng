@@ -1,7 +1,7 @@
 name: CMeng Exact Head Final Gate
 on:
   push:
-    branches: ['fix/cmeng-open-items-20261011']
+    branches: ['final-cmeng-20261011']
 permissions:
   contents: read
 jobs:
