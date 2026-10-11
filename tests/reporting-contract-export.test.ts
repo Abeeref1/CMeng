@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import {PDFParse} from 'pdf-parse';
 import {buildModuleWorkbook,buildModuleJsonDownload,exportModuleReport} from '../packages/runtime-api/src/module-report';
+import {publicModuleResult} from '../packages/runtime-api/src/registry';
 
 test('report exports retain large populations and all contract fields without oversized Excel cells',async()=>{
  const members=Array.from({length:4000},(_,i)=>'LONG-SOURCE-ACTIVITY-'+String(i).padStart(5,'0'));
@@ -35,6 +36,13 @@ test('JSON report preserves the exact page route key used by the live page',()=>
 });
 
 
+test('S-06 JSON report serializes the exact same canonical result as the live page',()=>{
+ const result={key:'progress-report',status:'partial' as const,reason:'Same governed position',dependencies:['source'],data:{projectVersion:17,value:37,knownZero:0,missing:null,rows:[{id:'A',value:1},{id:'B',value:2}]}};
+ const page=publicModuleResult(result,'progress-status');
+ const report=JSON.parse(buildModuleJsonDownload('REPORT-PARITY','progress-status',result).toString()).result;
+ assert.deepEqual(report,page);
+ assert.equal(report.data.knownZero,0);assert.equal(report.data.missing,null);assert.deepEqual(report.data.rows,result.data.rows);
+});
 test('Task 58 keeps value unit population Data Date state authority and qualification consistent across report surfaces',async()=>{
  const fact={value:37,unit:'%',state:'partial',authority:'source',basis:'Measured physical progress from the dated installed-progress register.'};
  const contract={populationId:'physical-progress-pop',denominator:120,excludedCount:5,exclusionsRef:'reportingContract.populations.physical.exclusions',dataDateIso:'2031-04-15',authority:'source',dateBasis:'Dated physical measurements on or before the Data Date',unit:'%',state:'partial',qualification:fact.basis};
