@@ -79,24 +79,24 @@ async function createCandidateBoqActivityLink(){
      body:JSON.stringify({quantityItemId:values[0],activityId:values[1],
        proposedBy:values[2],sourceRef:values[3],reason:values[4]})
    });
-   result.textContent=response.duplicate?'This candidate is already recorded.':'Candidate relationship saved for review. No quantity is allocated and no programme relationship has been approved.';
+   result.textContent=response.duplicate?'This suggested link is already recorded.':'Suggested link saved for review. BOQ quantities and programme data remain unchanged until the link is reviewed and accepted.';
  }catch(error){
-   result.textContent='Candidate not saved: '+(error?.message||'Check the source identities.');
+   result.textContent='Suggested link was not saved: '+(error?.message||'Check the source identities.');
  }
 }
 function renderBoqCandidateLinkPanel(mapping){
  const saved=mapping?.userCandidateLinks||[],suggestions=mapping?.sourceWbsLinks||[];
- const table=saved.length?basisTable(['BOQ item','Activity','Proposed by','Reason / evidence','Authority'],
-  saved.map(r=>[r.quantityItemId,r.activityId,r.proposedBy,r.reason+' · '+r.sourceRef,'Candidate only — not an approved allocation'])):'<p>No user-proposed BOQ-to-activity candidate has been saved for this programme version.</p>';
- const wbs=suggestions.length?'<p>'+fmt(suggestions.filter(r=>r.wbsId).length)+' BOQ item WBS associations are suggested by source code/name. Each is a grouping candidate, not a direct item-to-activity allocation.</p>':'';
- const inputs=[['boqCandidateItem','BOQ quantity item ID'],['boqCandidateActivity','Programme activity ID'],['boqCandidateProposer','Proposed by'],['boqCandidateSource','Evidence reference'],['boqCandidateReason','Reason for candidate']].map(([id,label])=>'<label>'+escapeHtml(label)+' <input id="'+id+'" type="text" maxlength="220" placeholder="'+escapeHtml(label)+'"></label>').join('');
- return basisPanel('Candidate BOQ–programme relationships','Review suggestions; never treat shared WBS as a direct verified allocation.',
-   wbs+table+'<div class="delivery-toolbar">'+inputs+'<button class="btn small" onclick="createCandidateBoqActivityLink()">Save candidate for review</button></div><p id="boqCandidateFeedback" role="status"></p>');
+ const table=saved.length?basisTable(['BOQ item','Programme activity','Suggested by','Reason / evidence','Review status'],
+  saved.map(r=>[r.quantityItemId,r.activityId,r.proposedBy,r.reason+' · '+r.sourceRef,'Awaiting review — no quantity allocation'])):'<p>No suggested BOQ–programme link has been saved for this programme version.</p>';
+ const wbs=suggestions.length?'<p>'+fmt(suggestions.filter(r=>r.wbsId).length)+' BOQ items have a likely programme work-package match from the BOQ/WBS reference. This does not by itself link the BOQ item to a specific activity.</p>':'';
+ const inputs=[['boqCandidateItem','BOQ item'],['boqCandidateActivity','Programme activity'],['boqCandidateProposer','Suggested by'],['boqCandidateSource','Evidence'],['boqCandidateReason','Reason']].map(([id,label])=>'<label>'+escapeHtml(label)+' <input id="'+id+'" type="text" maxlength="220" placeholder="'+escapeHtml(label)+'"></label>').join('');
+ return basisPanel('BOQ–programme link review','Review each suggested link against the BOQ and programme before accepting it.',
+   wbs+table+'<div class="delivery-toolbar">'+inputs+'<button class="btn small" onclick="createCandidateBoqActivityLink()">Save suggested link</button></div><p id="boqCandidateFeedback" role="status"></p>');
 }
 async function openBoqLinkEditor(){
  const id='boqLinkEditor',old=document.getElementById(id);if(old)old.remove();
  const panel=document.createElement('section');panel.id=id;panel.className='planning-panel primary';
- panel.innerHTML='<h4>Create BOQ links</h4><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
+ panel.innerHTML='<h4>Create BOQ links</h4><p>Choose the BOQ item and the programme activity it may relate to. Saving records the suggestion for review; it does not change quantities, progress or programme dates.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save suggested link</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
  el('moduleContent').prepend(panel);panel.scrollIntoView({block:'start'});
  const owner=project();let itemTicket=0,activityTicket=0;
  async function choices(kind,query){
@@ -104,8 +104,8 @@ async function openBoqLinkEditor(){
   const target=document.getElementById(kind==='items'?'boqCandidateItem':'boqCandidateActivity');
   try{const data=await api('/api/projects/'+encodeURIComponent(owner)+'/boq/activity-link-candidates?kind='+kind+'&q='+encodeURIComponent(query));
    if(project()!==owner||!panel.isConnected||ticket!==(kind==='items'?itemTicket:activityTicket))return;
-   target.innerHTML='<option value="">Select from '+fmt(data.total)+' matching source records</option>'+data.options.map(o=>'<option value="'+escapeHtml(o.id)+'">'+escapeHtml(o.label)+'</option>').join('');
-  }catch(error){if(panel.isConnected)document.getElementById('boqCandidateFeedback').textContent='Source choices unavailable: '+(error?.message||'Try again');}
+   target.innerHTML='<option value="">Select from '+fmt(data.total)+' matching choices</option>'+data.options.map(o=>'<option value="'+escapeHtml(o.id)+'">'+escapeHtml(o.label)+'</option>').join('');
+  }catch(error){if(panel.isConnected)document.getElementById('boqCandidateFeedback').textContent='Choices unavailable: '+(error?.message||'Try again');}
  }
  document.getElementById('boqLinkItemSearch').oninput=e=>choices('items',e.target.value);
  document.getElementById('boqLinkActivitySearch').oninput=e=>choices('activities',e.target.value);
