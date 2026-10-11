@@ -276,7 +276,17 @@ export function buildLookAheadProjection(
     );
   }
 
-  const dataDateMs = ms(model.dataDateIso);
+  // Parse each distinct programme date once per projection, without allowing
+  // dates from another project or revision to contaminate this result.
+  const parsedInstants=new Map<string,number|null>();
+  const instant=(value:string|null):number|null=>{
+    if(!value)return null;
+    if(parsedInstants.has(value))return parsedInstants.get(value)!;
+    const result=ms(value);
+    parsedInstants.set(value,result);
+    return result;
+  };
+  const dataDateMs = instant(model.dataDateIso);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
   const windowEndMs =
     dataDateMs === null
@@ -305,8 +315,8 @@ export function buildLookAheadProjection(
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
     const finishIso = effectiveFinish(activity);
-    const startMs = ms(startIso);
-    const finishMs = ms(finishIso);
+    const startMs = instant(startIso);
+    const finishMs = instant(finishIso);
 
     if (
       dataDateMs === null ||
@@ -432,6 +442,26 @@ export function buildLookAheadProjection(
     sourceRefs:[...group.sourceRefs],
   })).sort((a,b)=>b.activityCount-a.activityCount||(a.requiredByIso??"9999").localeCompare(b.requiredByIso??"9999")||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
 
+  // One complete population traversal replaces 36 repeated full-table
+  // scans and per-row dimension searches. The retained source record set is
+  // unchanged: these are authoritative denominators, not visible-row counts.
+  const coverageByDimension=new Map<ReadinessDimensionKey,{
+    linkedActivityCount:number;sourceRefs:Set<string>;
+    unresolvedLinkedActivityCount:number;knownCount:number;
+  }>(READINESS_KEYS.map(key=>[key,{
+    linkedActivityCount:0,sourceRefs:new Set<string>(),
+    unresolvedLinkedActivityCount:0,knownCount:0,
+  }]));
+  for(const row of forwardWindowRows)for(const dimension of row.readiness.dimensions){
+    const bucket=coverageByDimension.get(dimension.key)!;
+    if(dimension.sourceRefs.length){
+      bucket.linkedActivityCount++;
+      for(const ref of dimension.sourceRefs)bucket.sourceRefs.add(ref);
+      if(dimension.state==='unknown')bucket.unresolvedLinkedActivityCount++;
+    }
+    if(dimension.state!=='unknown')bucket.knownCount++;
+  }
+
   return {
     schemaVersion: "1.0",
     projectionKey: "lookahead_schedule",
@@ -463,13 +493,15 @@ export function buildLookAheadProjection(
     blockedWithEvidenceGapCount: forwardWindowRows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
     blockerOccurrenceCount: forwardWindowRows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
     blockerTypes: summarizeReadinessBlockers(forwardWindowRows),
-    readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: forwardWindowRows.length,
-      linkedActivityCount: forwardWindowRows.filter(row=>(row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs.length??0)>0).length,
-      linkedSourceRecordCount: new Set(forwardWindowRows.flatMap(row=>row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs??[])).size,
-      unresolvedLinkedActivityCount: forwardWindowRows.filter(row=>row.readiness.dimensions.some(d=>d.key===key&&d.state==='unknown'&&d.sourceRefs.length>0)).length,
-      knownCount: forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length,
-      coveragePercent: coverage(forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length, forwardWindowRows.length),
-    })),
+    readinessCoverage: READINESS_KEYS.map(key => {
+      const bucket=coverageByDimension.get(key)!;
+      return {key,denominator:forwardWindowRows.length,
+        linkedActivityCount:bucket.linkedActivityCount,
+        linkedSourceRecordCount:bucket.sourceRefs.size,
+        unresolvedLinkedActivityCount:bucket.unresolvedLinkedActivityCount,
+        knownCount:bucket.knownCount,
+        coveragePercent:coverage(bucket.knownCount,forwardWindowRows.length)};
+    }),
     forwardWindowCount:forwardWindowRows.length,
     overdueBacklogCount:overdueBacklogRows.length,
     overdueBacklogBlockedCount:overdueBacklogRows.filter(row=>row.readiness.state==="blocked").length,
