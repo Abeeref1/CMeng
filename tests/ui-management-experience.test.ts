@@ -73,6 +73,15 @@ test('documents label a submitted-current programme as usable without demanding 
  assert.equal(label('active',{category:'schedule',scheduleAdoption:{method:'explicit'}}),'Current / used now');
  assert.equal(label('superseded',{category:'schedule',scheduleAdoption:{method:'submitted_update'}}),'Previous version');
 });
+test('S-41 unmapped internal identifiers never reach reader-facing text',()=>{
+ const code=functions(['readerReference']);
+ const ctx={currentModuleResult:{data:{sourceLabels:{'delivery:abcdef123456':'PKG-0056','boqitem_abcdef123456':'1.2.3'}}}};
+ assert.equal(runInNewContext(code+";readerReference('delivery:abcdef123456')",ctx),'PKG-0056');
+ assert.equal(runInNewContext(code+";readerReference('boqitem_abcdef123456')",ctx),'1.2.3');
+ assert.equal(runInNewContext(code+";readerReference('delivery:1234567890abcdef')",{currentModuleResult:{data:{sourceLabels:{}}}}),'Source record (reference in details)');
+ assert.equal(runInNewContext(code+";readerReference('quantityitem_deadbeef123456')",{currentModuleResult:{data:{sourceLabels:{}}}}),'BOQ item (source reference in details)');
+ assert.equal(runInNewContext(code+";readerReference('population:abcdef123456')",{currentModuleResult:{data:{sourceLabels:{}}}}),'Reporting population (source reference in details)');
+});
 test('Ask tables translate retained revision references and internal states without changing stored identities',()=>{
  const labels={schedrev_abcdef123456:'August update',evidence_abcdef123456:'Risk register.csv'};
  const ctx={askAnalysis:{sourceLabels:labels},currentModuleResult:null};
