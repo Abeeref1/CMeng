@@ -54,6 +54,10 @@ export const deliveryPopulationAuthority=(population:any,sourceCount:number|null
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildDelivery>}>();
 
 function buildDelivery(state:ProjectRuntimeState){
+ const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+ let last=profiling?performance.now():0;
+ const stages:Array<{part:string;ms:number}>=[];
+ const mark=(part:string)=>{if(profiling){const now=performance.now();stages.push({part,ms:now-last});last=now;}};
  const source=deliveryRecords(state),records=source.records,governed=records.filter(currentRecord),store=deliveryStore(state);
  const kindIndex=new Map<DeliveryKind,DeliveryRecord[]>();for(const r of governed){const rows=kindIndex.get(r.kind)??[];rows.push(r);kindIndex.set(r.kind,rows);}
  const current=projectControlSchedule(reportingState(state)),model=current?.revision.model??null,dataDateIso=projectDataDate(state);
@@ -70,6 +74,7 @@ function buildDelivery(state:ProjectRuntimeState){
   return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
    recordIds:rows.map(r=>r.recordId),basis:decision?.note??'Confirm that all applicable records have been captured before relying on a percentage.',confirmedAt:decision?.recordedAt??null};
  };
+ mark('record_population');
  const populations=Object.fromEntries(deliveryKinds.map(k=>[k,population(k)]));
  const boq=resolveBoqSource(state,current?.revision.revisionId??''),controlledBoq=boq.selection.adoptedSource&&boq.selection.state==='source';
  const quantities=withInstalledMeasurements(state,boq.quantities,dataDateIso);
@@ -77,6 +82,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const snapshotsByItem=new Map<string,NonNullable<typeof quantities>['installedSnapshots']>();
  for(const snapshot of quantities?.installedSnapshots??[]){if(!isOnDate(snapshot.asOfIso.slice(0,10),dataDateIso))continue;const rows=snapshotsByItem.get(snapshot.quantityItemId)??[];rows.push(snapshot);snapshotsByItem.set(snapshot.quantityItemId,rows);}
  for(const rows of snapshotsByItem.values())rows.sort((a,b)=>a.asOfIso.localeCompare(b.asOfIso));
+ mark('source_boq_and_quantities');
  const activities=new Map(model?.activities.map(a=>[a.activityId,a])??[]);
  const findings:Array<{code:string;recordId:string|null;message:string;action:string;sourceRefs:string[]}>=[];
  const add=(code:string,r:DeliveryRecord|null,message:string,action:string)=>findings.push({code,recordId:r?.recordId??null,message,action,sourceRefs:r?.receipts.map(s=>s.documentId+':'+s.locator)??[]});
@@ -124,6 +130,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const drivingIds=new Set(model?cachedIndependentForecast(model,new Date().toISOString()).drivingNetwork?.activityIds??[]:[]);
  const readinessByRecord=new Map(readiness.map(r=>[r.recordId,r]));
  const lifecycleById=new Map(byKind('lifecycle').map(r=>[r.recordId,r]));
+ mark('cpm_and_record_readiness');
  const packageRows=byKind('package').map(r=>{
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const registerCleanup=linkedActivities.length>0&&linkedActivities.every(a=>a?.status==='completed');
@@ -247,7 +254,9 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const [itemId,packages] of packagesByItem){const item=items.get(itemId);const allocated=sumKnown(packages.map(p=>p.links.boqAllocations.find(a=>a.boqItemId===itemId)?.quantity??null));if(item?.contractQuantity!==null&&item?.contractQuantity!==undefined&&allocated!==null&&allocated>item.contractQuantity)add('SCOPE_ALLOCATIONS_ABOVE_BOQ',null,'Package allocations exceed BOQ item '+itemId+'.','Review the governed split quantities.');}
  const mapped=new Set(byKind('package').flatMap(p=>p.links.boqItemIds));
  const activityByItem=new Map<string,string[]>();for(const a of quantities?.allocations??[]){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
+ mark('material_and_scope');
  const sharedBoqLinks=model?boqProgrammeLinks(state,model):null;
+ mark('boq_to_programme_links');
  for(const row of sharedBoqLinks?.rows??[])if(row.activityIds.length)activityByItem.set(row.itemId,[...new Set([...(activityByItem.get(row.itemId)??[]),...row.activityIds])]);
  const workfrontsByItem=new Map<string,DeliveryRecord[]>();for(const r of byKind('workfront'))for(const id of r.links.boqItemIds){const rows=workfrontsByItem.get(id)??[];rows.push(r);workfrontsByItem.set(id,rows);}
  const boqRows=(controlledBoq?supplied.rows:[]).map(i=>{const packages=packagesByItem.get(i.itemId)??[],workfronts=workfrontsByItem.get(i.itemId)??[],scope=[...packages,...workfronts];return {...i,
@@ -283,6 +292,7 @@ function buildDelivery(state:ProjectRuntimeState){
   stages.forEach((stage,i)=>{const when=milestone(r,stage).actual;if(isOnDate(when,dataDateIso))earned+=weights[i]??0;else if(!(when&&dataDateIso&&when>dataDateIso)&&!(date(r,stage+' status as of')===dataDateIso&&field(r,stage+' status')==='not started'))known=false;});
   return {recordId:r.recordId,basis,unit:basis==='controlled package value'?field(r,'currency')||null:'management weight',weight,percent:known?earned:null,lifecycleId:template?.recordId??null};});
  const weightedGroups=[...new Set(weightedPackages.map(r=>r.basis+'|'+r.unit))].map(key=>{const rows=weightedPackages.filter(r=>r.basis+'|'+r.unit===key),complete=populations.package!.state==='established'&&rows.every(r=>r.percent!==null&&r.weight!==null&&r.weight>0&&r.unit);const total=sumKnown(rows.map(r=>r.weight));return {key,unit:rows[0]?.unit??null,basis:rows[0]?.basis??null,value:complete&&total?round(rows.reduce((n,r)=>n+r.percent!*r.weight!,0)/total):null,denominator:complete?total:null,includedRecordIds:rows.filter(r=>r.percent!==null&&r.weight!==null).map(r=>r.recordId),excludedRecordIds:rows.filter(r=>r.percent===null||r.weight===null).map(r=>r.recordId),explanation:complete?'Governed lifecycle weights and complete package denominator.':'Weighted procurement progress not established. Confirm the package population, package weights and dated lifecycle status.'};});
+ mark('scope_and_curve_projections');
  const operations=operationalReporting(state);
  const operationalRows=new Map([...operations.rfi.current,...operations.quality.current].flatMap(row=>row.sourceRefs.map(ref=>[ref,row] as const)));
  const registerRows=governed.map(r=>{const raised=date(r,'raised date','identified date','submitted date','actual issue','incident date','event start','report date','effective date');const actual=date(r,'actual date','actual issue'),approval=date(r,'approval date'),verified=date(r,'verification date'),closed=date(r,'closed date','close date'),rectified=date(r,'rectified date'),accepted=date(r,'acceptance date','handover acceptance date');
@@ -329,6 +339,7 @@ function buildDelivery(state:ProjectRuntimeState){
    group.activityIds.add(row.activityId);scopeGroups.set(key,group);
   }
  }
+ mark('workfront_index');
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   const baseline=state.schedules.filter(r=>['baseline','revised_baseline'].includes(r.role)&&isAdoptedProgrammeRevision(state,r)&&isOnDate(r.revision.model.dataDateIso?.slice(0,10)??null,dataDateIso)).sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1)?.revision.model??null;
@@ -362,6 +373,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const packages=packageRows.filter(r=>supplierKey(r.supplier)===supplierKey(name));
   return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
+ mark('workfront_and_supplier');
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
@@ -447,7 +459,10 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const r of registerRows){const source=byId.get(r.recordId)!;if(r.overdue)add('RECORD_OVERDUE',source,(r.reference??r.kind)+' is overdue at the programme Data Date.','Review the required response or completion action and its dated evidence.');if(['failed','rejected','retest required'].includes(r.currentStatus))add('OUTCOME_REQUIRES_ACTION',source,(r.reference??r.kind)+' has a dated '+r.currentStatus+' outcome.','Review rectification, retesting and the applicable acceptance evidence.');}
  for(const r of permitRows)if(r.permitStatus==='expired'&&r.affectsOpenWork===true)add('PERMIT_EXPIRED_OPEN_WORK',byId.get(r.recordId)!,(r.reference??'Permit')+' expired and affects unfinished linked work at the programme Data Date.','Confirm renewal and restrict only the affected open workfront until evidence supports clearance.');
  for(const r of readiness)if(r.state==='blocked')add('READINESS_BLOCKED',byId.get(r.recordId)!,(r.reference??r.kind)+' has a confirmed blocking prerequisite.','Open the gate detail and resolve the dated blocker before releasing this scope.');
+ mark('final_registers_and_curves');
  const relationshipAuthorities=Object.fromEntries(([['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const).map(([key,kind])=>{const linked=new Set(governed.flatMap(r=>r.links[key]));return [kind,linked.size?deliveryAuthorityCatalog(state,kind).filter(r=>linked.has(r.id)):[]];}));
+ mark('relationship_authorities');
+ if(profiling)process.stdout.write(JSON.stringify({event:'delivery_cold_profile',projectId:state.projectId,version:state.version,registerRecords:records.length,activities:model?.activities.length??0,boqItems:quantities?.items.length??0,stages,totalMs:stages.reduce((sum,part)=>sum+part.ms,0)})+'\n');
  return {schemaVersion:'1.0',producerVersion:'delivery-v1',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeLabel:current?.revision.label??current?.sourceFilename??null,programmeRevisionId:current?.revision.revisionId??null,
   scheduleAuthorityReview:scheduleAuthorityReview(state),records,documents:source.documents,diagnostics:source.diagnostics,populations,findings,
   packageRows,materialRows,itemMaterialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
