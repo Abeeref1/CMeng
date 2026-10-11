@@ -65,17 +65,19 @@ export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]
 }
 
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
-  predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity) {
+  predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity,
+  parseInstant:(value:string|null)=>number|null=parseScheduleInstant,
+  calendarFor?:(calendarId:string|null)=>ReturnType<typeof resolveWorkingCalendar>) {
   const unknown = (reason: string) => ({ state: "unknown" as const, requiredIso: null, note: relation.relationshipId + ": " + reason });
   if (!predecessor || relation.external) return unknown("Predecessor evidence is not established in this controlled programme.");
   if (relation.type === "unknown" || relation.lagHours === null || !Number.isFinite(relation.lagHours)) return unknown("Relationship type or lag is not established.");
   const predecessorAnchor = relation.type === "FS" || relation.type === "FF" ? effectiveFinish(predecessor) : effectiveStart(predecessor);
   const successorAnchor = relation.type === "FS" || relation.type === "SS" ? effectiveStart(successor) : effectiveFinish(successor);
-  const from = parseScheduleInstant(predecessorAnchor), target = parseScheduleInstant(successorAnchor);
+  const from = parseInstant(predecessorAnchor), target = parseInstant(successorAnchor);
   if (from === null || target === null) return unknown("Required relationship date evidence is incomplete.");
   let required = from;
   if (relation.lagHours !== 0) {
-    const calendar = resolveWorkingCalendar(successor.calendarId, model.calendars, false);
+    const calendar = calendarFor?calendarFor(successor.calendarId):resolveWorkingCalendar(successor.calendarId, model.calendars, false);
     if (!calendar) return unknown("Successor working calendar is unresolved; lag cannot be evaluated.");
     try { required = addWorkingHours(calendar.calendar, from, relation.lagHours); }
     catch { return unknown("Working-calendar lag calculation is unresolved."); }
@@ -94,12 +96,14 @@ export function readinessForActivity(
   externalEvidence:
     | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
     | undefined,
+  parseInstant:(value:string|null)=>number|null=parseScheduleInstant,
+  calendarFor?:(calendarId:string|null)=>ReturnType<typeof resolveWorkingCalendar>,
 ) {
   const dimensions: ReadinessDimension[] =
     READINESS_KEYS.map((key) => {
       if (key === "predecessor") {
         if (predecessors.length === 0) return { key, state: "not_applicable" as const, sourceRefs: [], note: "No incoming schedule relationships; review open-end logic separately." };
-        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity));
+        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity, parseInstant, calendarFor));
         return {
           key, state: checks.some(check => check.state === "blocked") ? "blocked" as const
             : checks.some(check => check.state === "unknown") ? "unknown" as const : "ready" as const,
@@ -286,6 +290,14 @@ export function buildLookAheadProjection(
     parsedInstants.set(value,result);
     return result;
   };
+  const calendarCache=new Map<string,ReturnType<typeof resolveWorkingCalendar>>();
+  const calendarFor=(calendarId:string|null)=>{
+    const key=calendarId??'';
+    if(calendarCache.has(key))return calendarCache.get(key)!;
+    const value=resolveWorkingCalendar(calendarId,model.calendars,false);
+    calendarCache.set(key,value);
+    return value;
+  };
   const dataDateMs = instant(model.dataDateIso);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
   const windowEndMs =
@@ -394,6 +406,8 @@ export function buildLookAheadProjection(
         incoming.get(activity.activityId) ?? [],
         activityById,
         input.readinessEvidence?.[activity.activityId],
+        instant,
+        calendarFor,
       ),
       daysToStart: Number(
         (
