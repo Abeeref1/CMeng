@@ -350,7 +350,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const currentSourceIds=new Set(model?.activities.map(row=>row.activityId)??[]);
  const sameIds=!!workfrontBaseline&&!!model&&baselineSourceIds.size===workfrontBaseline.activities.length&&currentSourceIds.size===model.activities.length&&model.activities.every(row=>!!row.activityId&&baselineSourceIds.has(row.activityId));
  const sharedExactBaselineIds=sameIds?new Map(model!.activities.map(row=>[row.activityId,row.activityId])):undefined;
- const workfrontConfig={baselineModel:workfrontBaseline,sharedExactBaselineIds,readinessEvidence:state.controls.readinessEvidence,
+ const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
