@@ -180,7 +180,8 @@ function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:
     deliveryState?.manual?.length||deliveryState?.decisions?.length||
     deliveryState?.populations?.length||deliveryState?.mappings?.length
   );
-  if(!hasDeliveryState&&state.evidenceDocuments.length===0)return retained;
+  const hasNonScheduleEvidence=state.evidenceDocuments.some(document=>document.category!=='schedule');
+  if(!hasDeliveryState&&!hasNonScheduleEvidence)return retained;
   const driving=new Set(drivingIds);
   const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
   for(const pkg of deliveryPosition(state).packageRows){
