@@ -9,6 +9,7 @@ import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project
 import {runtimeProjects,RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {linkCandidatesRequest,linkDataset} from '../packages/runtime-api/src/link-candidates';
 import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links';
+import {buildQuantityScheduleMapping} from '../packages/cross-domain-mapping/src/projector';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
 import {assessLinkProposal,reviewLink,type LinkInput} from '../packages/runtime-api/src/link-candidate-core';
 import {sourceCommercialEvidence} from '../packages/runtime-api/src/source-commercial-evidence';
@@ -61,4 +62,55 @@ test('Candidate approval, reviewer and source references survive store reload wi
  const rows=assessLinkProposal(c,{projectId:c.projectId,requestHash:c.requestHash,sourceId:'B1',matches:[{targetId:'A1',confidence:.96,reason:'Explicit same concrete workfront for review.',sourceRefs:['boq:row:2','schedule:A1']}]});
  state.linkCandidateReviews=reviewLink(rows,rows[0]!.id,state.version,{decision:'confirm',confirmed:true,reviewer:'Reviewer',actor:'test-owner'});store.touch(state);
  const reloaded=new RuntimeProjectStore({dataDir:dir,durable:false}).get(state.projectId)!;assert.equal(reloaded.linkCandidateReviews![0]!.state,'confirmed');assert.equal(reloaded.linkCandidateReviews![0]!.reviewedBy,'Reviewer');assert.equal(reloaded.linkCandidateReviews![0]!.basisVersion,reloaded.version);assert.equal(reloaded.schedules.length,0);assert.equal(reloaded.boq,null);
+});
+
+test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ties for every source item',()=>{
+ const state=loadCertifiedDemoProject('BOQ-GROUP-PARITY-'+randomUUID());
+ const original=projectControlSchedule(state)!.revision.model;
+ const base=original.activities.find(a=>a.activityType==='task')??original.activities[0]!;
+ const wbs=Array.from({length:8},(_,i)=>({wbsId:'ZONE-'+i,name:'Mechanical Electrical Zone '+i,parentWbsId:null,sourceRefs:[]}));
+ const activities=Array.from({length:145},(_,i)=>{
+  const zone=i%8,trade=i%3===0?'Mechanical':i%3===1?'Electrical':'Civil';
+  return {...base,projectId:state.projectId,activityId:'ACT-'+i,name:'Installation '+trade+' Zone '+zone,
+   wbsId:'ZONE-'+zone,activityType:'task' as const,status:'not_started' as const};
+ });
+ const schedule={...original,activities,wbs,relationships:[]};
+ const originalQuantities=state.quantities!;
+ assert.ok(originalQuantities,'Demo source quantities must be established');
+ const items=Array.from({length:30},(_,i)=>{
+  const zone=i%8,trade=i%3===0?'Mechanical':i%3===1?'Electrical':'Civil';
+  return {quantityItemId:'BQ-'+i,itemNumber:'BOQ.'+i,section:'Mechanical Electrical Zone '+zone,
+   description:i%11===0?'Works linked to ACT-'+i:'Installation '+trade+' Zone '+zone,
+   unit:'m3',contractQuantity:10,sourceRefs:[],diagnostics:[]};
+ });
+ const quantities={...originalQuantities,items,allocations:[],installedSnapshots:[]};
+ const actual=buildQuantityScheduleMapping(quantities,schedule);
+ const stop=new Set('the and for with from into work works system systems supply installation install provide including complete all of to in on at by or a an as per item package'.split(' '));
+ const norm=(value:string|null|undefined)=>String(value??'').normalize('NFKC').toLowerCase().replace(/[^\\p{L}\\p{N}]+/gu,' ').replace(/\\s+/g,' ').trim();
+ const tokens=(v:string|null|undefined)=>new Set(norm(v).split(' ').filter(x=>x.length>=2&&!stop.has(x)));
+ const codes=(v:string)=>new Set(v.toUpperCase().match(/[A-Z]{1,8}-?\\d{1,8}|\\d{2,}/g)??[]);
+ const jaccard=(a:Set<string>,b:Set<string>)=>{if(!a.size||!b.size)return 0;let n=0;for(const k of a)if(b.has(k))n++;return n/(a.size+b.size-n);};
+ for(const item of items){
+  const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
+  const features={description:norm(item.description),names:tokens(item.description),sections:tokens(item.section),codes:codes(corpus)};
+  const expected=activities.map(activity=>{
+   const wbsNode=wbs.find(x=>x.wbsId===activity.wbsId)!;
+   const af={name:norm(activity.name),names:tokens(activity.name),wbs:tokens(wbsNode.wbsId+' '+wbsNode.name),codes:codes(activity.activityId+' '+activity.wbsId+' '+wbsNode.wbsId+' '+wbsNode.name)};
+   const escaped=activity.activityId.replace(/[.*+?^$()|[\\]\\\\]/g,'\\\\$&');
+   const explicit=new RegExp('(^|[^A-Za-z0-9_.-])'+escaped+'([^A-Za-z0-9_.-]|$)','i').test(corpus);
+   let value=0;
+   if(explicit)value=.99;
+   else{
+    const desc=jaccard(features.names,af.names);
+    if(desc)value+=Math.min(.62,desc*.72);
+    if(features.description.length>=5&&af.name.length>=5&&(features.description.includes(af.name)||af.name.includes(features.description)))value+=.23;
+    const sec=jaccard(features.sections,af.wbs);if(sec)value+=Math.min(.24,sec*.30);
+    const cd=jaccard(features.codes,af.codes);if(cd)value+=Math.min(.18,cd*.22);
+    value=Math.min(.97,value);
+   }
+   return {activityId:activity.activityId,confidence:Number(value.toFixed(4))};
+  }).filter(row=>row.confidence>=.34).sort((a,b)=>b.confidence-a.confidence||a.activityId.localeCompare(b.activityId)).slice(0,5);
+  const found=actual.candidates.filter(x=>x.quantityItemId===item.quantityItemId).map(x=>({activityId:x.activityId,confidence:x.confidence}));
+  assert.deepEqual(found,expected,'Unchanged links and rankings for '+item.quantityItemId);
+ }
 });
