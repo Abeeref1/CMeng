@@ -8883,49 +8883,34 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // The overview must never trigger the full certified specialist suite.
-  // Only reuse completed calculations for the identical project version.
-  // On a cold open, retain a conservative qualified state and let each
-  // specialist/management page calculate when that page is requested.
-  const resolvedCache=resolvedProjectCache.get(state.projectId);
-  const overviewResolvedModules=resolvedCache?.version===state.version?resolvedCache.modules:null;
+  // Overview is a stable view of the retained project revision, NOT the
+  // incidental order in which workers or browser pages calculated specialist
+  // reports. Its current management facts are the canonical source facts;
+  // specialist pages hold their own more detailed calculations.
+  // Only a durable same-version rerun receipt may establish a specialist
+  // status in this light-weight summary. Warming another page cannot promote
+  // or rewrite the overview for unchanged source evidence.
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
-    const ready=overviewResolvedModules?.get(module.key);
-    if(ready)return {key:module.key,status:ready.status,reason:ready.reason,issueAssessment:ready.issueAssessment};
     const stored=receiptStates.get(module.key);
     return {key:module.key,status:stored??'partial' as const,
-      reason:stored?'Previously calculated at this project version; open the specialist page to view the retained basis.':
-        'Specialist calculation has not run for this project version; open the page to establish the position.',
+      reason:stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
+        'Specialist check not yet recorded for this project version; open the specialist page for its current findings.',
       issueAssessment:undefined};
   });
-  const overviewIssueAssessment=overviewResolvedModules
-    ?summarizeControlIssues([...overviewResolvedModules.values()].flatMap(result=>result.issueAssessment?.issues??[]))
-    :undefined;
-  const cachedManagement=managementProjectionCache.get(state.projectId);
-  const overviewManagementStates=managementModuleKeys.map(key=>{
-    // A completed management calculation is safe to reuse, but never run it
-    // just to supply a navigation badge on a cold project overview.
-    if(cachedManagement?.version===state.version){
-      const result=managementSurfaceForProject(state.projectId,key);
-      if(result)return {key,status:result.status,reason:result.reason,issueAssessment:result.issueAssessment};
-    }
-    return {key,status:'partial' as const,
-      reason:'Management position has not been calculated for this project version; open the management page for its full answer.',
-      issueAssessment:overviewIssueAssessment};
-  });
+  const overviewManagementStates=managementModuleKeys.map(key=>({
+    key,status:'partial' as const,
+    reason:'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
+    issueAssessment:undefined,
+  }));
 
-  const pmoData=overviewResolvedModules?.get('pmo-analysis')?.data as any;
-  const forecastData=overviewResolvedModules?.get('independent-forecast')?.data as any;
-  const roleDiagnosis=pmoData?.projectDiagnosis??null;
-  const roleCompletion=forecastData?.completionPosition&&(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))
-    ?{...forecastData.completionPosition,independentFinishIso:null,calculationState:'unresolved'}
-    :forecastData?.completionPosition??null;
-  const bundle=overviewResolvedModules?buildBundle(state):null;
-  const overviewCommercial=bundle?commercialPositionForState(state,bundle.generatedAt):null;
-  const roleContext=overviewResolvedModules?projectManagementContext(state,overviewResolvedModules,overviewCommercial):null;
-  const roleInterfaces=overviewResolvedModules?interfaceIntelligence(state):null;
-  const projectFacts=overviewResolvedModules?projectFactsForState(state):null;
-  const canonicalActions=overviewResolvedModules?projectActionRegisterForState(state).actions:[];
+  // These richer role-specific analyses are intentionally left to their
+  // dedicated pages. They are NOT used to invent an unfinished project
+  // forecast or a false all-clear in this source-version summary.
+  const roleDiagnosis:any=null,roleCompletion:any=null;
+  const roleContext:any=null,roleInterfaces:any=null;
+  const forecastData:any=null;
+  const projectFacts=projectFactsForState(state);
+  const canonicalActions=projectActionRegisterForState(state).actions;
   const compactActions=canonicalActions.slice(0,12).map(action=>({
     issue:action.issue??null,
     consequence:action.consequence??null,
