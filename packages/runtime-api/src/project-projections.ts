@@ -9,6 +9,7 @@ import {activityFloatReconciliation,attachActivityFloatReconciliation} from './a
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,deliveryPosition} from './delivery-projections';
+import {deliveryRecords} from './delivery-records';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
 import {projectActions,type ProjectAction} from './project-actions';
@@ -172,6 +173,10 @@ import {
 function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
   const retained=state.controls.readinessEvidence;
   if(drivingIds.length===0)return retained;
+  // Do not build the complete Delivery/BOQ/readiness projections when there
+  // is no sourced procurement package to connect to the programme. This
+  // does not suppress an existing readiness blocker or a single source row.
+  if(!deliveryRecords(state).records.some(record=>record.kind==='package'&&record.sourceActive))return retained;
   const driving=new Set(drivingIds);
   const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
   for(const pkg of deliveryPosition(state).packageRows){
