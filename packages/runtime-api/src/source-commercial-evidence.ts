@@ -14,10 +14,16 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
  for(const row of certificates){const k=key(row.paymentId);if(k)byNumber.set(k,[...(byNumber.get(k)??[]),row]);}
  type PaymentLink={reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'future';certificateReference:string|null;basis:string;sourceRefs:string[]};
  const links:PaymentLink[]=[];const seen=new Set<string>();
+ const reviewedRelationships=state.linkCandidateReviews??[],projectVersion=state.version;
  const retain=(reference:string,certificateNumber:string,certificateDate:string|null,paymentDate:string|null,amount:number|null,currency:string|null,sourceRefs:string[])=>{
   const identity=sourceRefs.join('|')+'|'+certificateNumber+'|'+paymentDate;
   if(seen.has(identity))return;seen.add(identity);
   let matches=byNumber.get(key(certificateNumber))??[];
+  const reviewed=reviewedRelationships.filter(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&r.basisVersion===projectVersion&&sourceRefs.includes(r.sourceId));
+  if(reviewed.length===1){const selected=certificates.filter((r:any)=>refs(r).includes(reviewed[0]!.targetId));
+   if(selected.length===1&&currency&&selected[0].amounts?.netCertifiedAmount?.currency===currency)matches=selected;
+  }
+
   if(certificateDate)matches=matches.filter(r=>validDate(r.certificationDate)===certificateDate||validDate(r.periodEnd)===certificateDate);
   if(paymentDate)matches=matches.filter(r=>!r.certificationDate||validDate(r.certificationDate)!<=paymentDate);
   if(currency)matches=matches.filter(r=>!r.amounts?.netCertifiedAmount?.currency||r.amounts.netCertifiedAmount.currency===currency);
@@ -25,7 +31,7 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   const state:PaymentLink['state']=!paymentDate?'date_missing':!visible(paymentDate)?'future':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';
   links.push({reference,certificateNumber,certificateDate,paymentDate,amount,currency,state,
    certificateReference:state==='linked'?unique[0].paymentId:null,
-   basis:state==='linked'?'Exact certificate reference and compatible certificate/payment dates; same currency':state==='ambiguous'?'More than one certificate matches; source selection required':state==='future'?'Payment is after the reporting date':state==='date_missing'?'Actual payment date is not recorded':'No unique dated certificate matches the payment reference',
+   basis:state==='linked'?(reviewed.length===1?'Explicitly user-confirmed certificate relationship; dates and currency revalidated':'Exact certificate reference and compatible certificate/payment dates; same currency'):state==='ambiguous'?'More than one certificate matches; source selection required':state==='future'?'Payment is after the reporting date':state==='date_missing'?'Actual payment date is not recorded':'No unique dated certificate matches the payment reference',
    sourceRefs:[...new Set([...sourceRefs,...(state==='linked'?refs(unique[0]):[])])]});
  };
  const tables=governedTables((state.evidenceDocuments??[]).filter(d=>d.basisState!=='superseded'),[]);
@@ -34,8 +40,9 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
    const paymentDate=dateValue(cell(row,'payment date','actual payment date','paid date','receipt date','date paid'));
    const paid=numberValue(cell(row,'paid amount','amount paid','payment amount','receipt amount','amount received'));
    const number=cell(row,'certificate no','certificate number','ipc no','ipc number','payment certificate','certificate ref');
-   if(!number||paid===null||!paymentDate)continue;
-   retain(cell(row,'payment reference','receipt reference','transaction no')||number,number,dateValue(cell(row,'certificate date','certification date')),paymentDate,paid,cell(row,'currency')||null,refs(row));
+   if(paid===null||!paymentDate)continue;
+   if(!number&&!(state.linkCandidateReviews??[]).some(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&r.basisVersion===state.version&&refs(row).includes(r.sourceId)))continue;
+   retain(cell(row,'payment reference','receipt reference','transaction no')||number||refs(row)[0]||'Payment source record',number,dateValue(cell(row,'certificate date','certification date')),paymentDate,paid,cell(row,'currency')||null,refs(row));
   }
  }
  for(const row of ledger.payments??[]){

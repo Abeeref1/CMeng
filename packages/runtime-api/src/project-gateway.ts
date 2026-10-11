@@ -1,3 +1,5 @@
+import {probeConfiguredProvider,providerProbeState} from './ai-provider-probe';
+import {configuredProviderState} from '../../project-ask/src/provider';
 import {retainedAuditSessionKey} from './audit-session-key';
 import {ApplicationAccess,applicationPolicyFromEnvironment,type ApplicationAccessPolicy,type ApplicationPrincipal} from './application-access';
 import {configuredUploadLimit} from './request-body';
@@ -273,7 +275,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,release())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -372,7 +374,7 @@ if(require.main===module){
   const root=process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim()||process.env.CMENG_DATA_DIR?.trim()||join(process.cwd(),'.cmeng-runtime');
   void createProjectGateway(root).then(gateway=>{
     const port=Number(process.env.PORT??3000),host=process.env.HOST??'0.0.0.0';
-    gateway.server.listen(port,host,()=>console.log('CMeng runtime listening on '+host+':'+port));
+    gateway.server.listen(port,host,()=>{console.log('CMeng runtime listening on '+host+':'+port);void probeConfiguredProvider(root,release()).catch(()=>console.warn('AI provider self-check unavailable; deterministic calculations remain enabled.'));});
     process.once('SIGTERM',()=>{void gateway.close().then(()=>process.exit(0));});
   }).catch(error=>{console.error('CMENG_STARTUP_FAILED',error);process.exitCode=1;});
 }

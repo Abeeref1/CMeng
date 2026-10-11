@@ -1,3 +1,4 @@
+import {reserveModelUsage} from './usage-budget';
 import type {AnalysisPlan,AnalysisResult,AskTelemetry,AuthorityDescriptor,NarrativeBlock} from './types';
 import {validateProposedPlan} from './intent';
 import {selectEvidence,retrieveEvidence,type EvidenceItem,type EvidenceRequest,type ReferencePage} from './evidence';
@@ -48,6 +49,7 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
     const chat=this.transport.protocol==='chat-completions',base=(this.transport.baseUrl??'https://api.openai.com/v1').replace(/\/$/,'');
     const endpoint=new URL(base+(chat?'/chat/completions':'/responses'));if(!['http:','https:'].includes(endpoint.protocol)||endpoint.username||endpoint.password||endpoint.search||endpoint.hash)throw new Error('MODEL_ENDPOINT_INVALID');
     const payload=chat?{model:this.model,store:false,max_tokens:this.limits.outputTokens,messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify(input)}],response_format:{type:'json_schema',json_schema:{name,strict:true,schema}}}:{model:this.model,store:false,max_output_tokens:this.limits.outputTokens,instructions:prompt,input:JSON.stringify(input),text:{format:{type:'json_schema',name,strict:true,schema}}};
+    const reservation=reserveModelUsage(this.model,this.limits.contextTokens,this.limits.outputTokens);
     try{response=await this.request(endpoint.toString(),{method:'POST',redirect:'error',headers:{...(this.key?{authorization:'Bearer '+this.key}:{}),'content-type':'application/json'},signal:AbortSignal.timeout(45000),body:JSON.stringify(payload)});}catch{throw new Error('MODEL_PROVIDER_UNAVAILABLE');}
     if(!response.ok)throw new Error('MODEL_PROVIDER_UNAVAILABLE');
     if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('MODEL_RESPONSE_TOO_LARGE');
@@ -56,6 +58,7 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
     const body:any=JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if(Number.isFinite((body.usage?.input_tokens??body.usage?.prompt_tokens)))call.inputTokens=body.usage.input_tokens??body.usage.prompt_tokens;
     if(Number.isFinite((body.usage?.output_tokens??body.usage?.completion_tokens)))call.outputTokens=body.usage.output_tokens??body.usage.completion_tokens;
+    reservation?.finish(call.inputTokens,call.outputTokens);
     if(chat?body.choices?.[0]?.finish_reason!=='stop':body.status!=='completed')throw new Error('MODEL_RESPONSE_INCOMPLETE');
     const text=chat?body.choices?.[0]?.message?.content:(body.output??[]).filter((v:any)=>v.type==='message').flatMap((v:any)=>v.content??[]).filter((v:any)=>v.type==='output_text').map((v:any)=>v.text).join('');
     if(typeof text!=='string')throw new Error('MODEL_RESPONSE_INVALID');
@@ -133,4 +136,21 @@ export function validateNarrative(output:any,result:AnalysisResult,items:Evidenc
     return {heading:b.heading,text,classification:'ai_recommendation',traceIds:b.traceIds};
   });
 }
-export function configuredAskModel(){let managed;try{managed=readManagedAskSettings(process.env.CMENG_ASK_AI_CONFIG_FILE);}catch{return null;}const key=managed?.apiKey??process.env.CMENG_ASK_AI_API_KEY??'',model=managed?.model??process.env.CMENG_ASK_AI_MODEL,baseUrl=managed?undefined:process.env.CMENG_ASK_AI_BASE_URL,protocol=managed?'responses':process.env.CMENG_ASK_AI_PROTOCOL??'responses';if(protocol==='none'||!model||!key&&!baseUrl)return null;if(!['responses','chat-completions'].includes(protocol))return null;return new OpenAiAskModel(key,model,fetch,configuredModelLimits(),{...(baseUrl?{baseUrl}:{}),protocol:protocol as 'responses'|'chat-completions'});}
+function configuredModelSettings(env:NodeJS.ProcessEnv=process.env){
+ let managed;try{managed=readManagedAskSettings(env.CMENG_ASK_AI_CONFIG_FILE);}catch{return null;}
+ const key=managed?.apiKey??env.CMENG_ASK_AI_API_KEY??'',model=managed?.model??env.CMENG_ASK_AI_MODEL;
+ const baseUrl=managed?undefined:env.CMENG_ASK_AI_BASE_URL,protocol=managed?'responses':env.CMENG_ASK_AI_PROTOCOL??'responses';
+ if(protocol==='none'||!model||(!key&&!baseUrl)||!['responses','chat-completions'].includes(protocol))return null;
+ return {key,model,baseUrl,protocol:protocol as 'responses'|'chat-completions'};
+}
+/** Configuration is not permission and does not prove a successful provider call. */
+export function configuredProviderState(env:NodeJS.ProcessEnv=process.env){
+ const config=configuredModelSettings(env);
+ return {providerConfigured:config!==null,model:config?.model??null,protocol:config?.protocol??null,
+  monthlyBudgetUsd:env.CMENG_AI_USAGE_DIR?Number(env.CMENG_AI_MONTHLY_USD??20):null,
+  configuredIsNotConnectivityProof:true};
+}
+export function configuredAskModel(env:NodeJS.ProcessEnv=process.env){
+ const config=configuredModelSettings(env);if(!config)return null;
+ return new OpenAiAskModel(config.key,config.model,fetch,configuredModelLimits(env),{...(config.baseUrl?{baseUrl:config.baseUrl}:{}),protocol:config.protocol});
+}

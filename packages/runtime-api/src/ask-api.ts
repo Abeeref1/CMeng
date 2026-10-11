@@ -9,7 +9,7 @@ import {askHash} from './ask-store';
 import {exportAskAnalysis,askChartPng,type AskExportView} from './ask-export';
 import {sendHttpBody} from './http-response';
 import {runtimeProjects} from './project-state';
-import {configuredAskModel} from '../../project-ask/src/provider';
+import {configuredAskModel,configuredProviderState} from '../../project-ask/src/provider';
 async function body(req:IncomingMessage,limit:number){const chunks:Buffer[]=[];let size=0;for await(const c of req){size+=c.length;if(size>limit)throw new AskError(413,'request_too_large','This request is too large.');chunks.push(Buffer.from(c));}return Buffer.concat(chunks);}
 async function jsonBody(req:IncomingMessage){try{return JSON.parse((await body(req,128*1024)).toString('utf8'));}catch(e){if(e instanceof AskError)throw e;throw new AskError(400,'invalid_request','The request could not be read.');}}
 function json(res:ServerResponse,status:number,value:unknown){sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(value));}
@@ -43,7 +43,7 @@ export async function askAiRequest(req:IncomingMessage,res:ServerResponse,url:UR
     if(req.method==='GET'&&path==='home'){
       const {scope}=engine.scope(projectId,user,{question:'Project overview'}),authorities=askCatalogue.available(user);
       const state=runtimeProjects.get(projectId)!;const suggestions=[...(scope.programmeRevision?['What changed since the previous update?','Show the worst 20 float-risk activities','Why is progress behind?']:[]),...(state.boq?['Show Top 20 BOQ cost drivers']:[]),...(state.delivery?.decisions.length?['Build procurement dashboard','Show materials needed in the next 60 days with delivery under 90%']:[]),'Prepare a Construction Intelligence Package'];
-      json(res,200,{scope,authorities,suggestions,views:await engine.store.views(projectId,user),providerConfigured:model!==null});return true;
+      json(res,200,{scope,authorities,suggestions,views:await engine.store.views(projectId,user),...configuredProviderState(),providerPermittedForSession:user.allowModel});return true;
     }
     if(req.method==='POST'&&path==='ask'){
       const input=await jsonBody(req);if(input.profile&&typeof input.profile==='object')for(const key of ['name','title','company'] as const)if(typeof input.profile[key]==='string')user[key]=input.profile[key].slice(0,160);

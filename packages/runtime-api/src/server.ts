@@ -1,3 +1,4 @@
+import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
@@ -904,6 +905,7 @@ async function route(
     return;
   }
 
+  if(await linkCandidatesRequest(req,res,url))return;
   if(/^\/api\/projects\/[^/]+\/intelligence(?:\/|$)/.test(url.pathname)){const {askAiRequest}=await import('./ask-api');if(await askAiRequest(req,res,url))return;}
 
   if(req.method === "GET" && url.pathname === "/api/delivery/modules"){const modules=moduleRegistry.filter(m=>m.area==="delivery");json(res,200,{moduleCount:modules.length,modules});return;}

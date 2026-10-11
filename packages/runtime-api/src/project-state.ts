@@ -172,7 +172,8 @@ async function enrichRegisterSheetSemantics(
   options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead']}={},
 ){
   let aiCalls=0;
-  const maxAiCalls=Math.max(0,Math.min(20,Number.parseInt(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??'8',10)||8));
+  const configuredAiCalls=Number(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??8);
+  const maxAiCalls=Number.isInteger(configuredAiCalls)?Math.max(0,Math.min(20,configuredAiCalls)):8;
   for(const sheet of read.sheets){
     const cached=options.cached?.sourceHashSha256===read.sourceHashSha256
       ?options.cached.sheets.find(item=>item.name===sheet.name)?.semantic
@@ -1880,6 +1881,7 @@ export class RuntimeProjectStore {
       ProjectRuntimeState = {
         projectId: normalized,
         scheduleAuthorityVersion: 'explicit-adoption-v1',
+        sourceIntegrationVersion: 'canonical-source-v7',
         version: 1,
         demo: false,
         testProject: false,

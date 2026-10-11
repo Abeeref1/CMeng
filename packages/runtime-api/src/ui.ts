@@ -1,3 +1,4 @@
+import {linkCandidateScript} from './ui-link-candidates';
 import {decisionFactsScript} from './ui-decision-facts';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
@@ -442,6 +443,7 @@ ${answerFirstScript}
 ${projectDiagnosisScript}
 ${systemReviewScript}
 ${decisionFactsScript}
+${linkCandidateScript}
 ${projectActionsScript}
 ${boqNumericReviewScript}
 ${boqPageReviewScript}
@@ -5290,6 +5292,7 @@ function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
   const decisions=renderDecisionAnalysis(result.legacyKey||result.key,result.data);
+  const linkReview=linkCandidateEntry(result.legacyKey||result.key);if(linkReview)container.insertAdjacentHTML('beforeend',linkReview);
   if(decisions)container.insertAdjacentHTML('beforeend',decisions);
   if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button></div>');
   const mapping=result.data?.boqProgrammeLinks;
