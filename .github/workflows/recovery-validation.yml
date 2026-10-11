@@ -1,0 +1,33 @@
+name: CMeng recovery build
+on:
+  push:
+    branches: ['fix/cmeng-guarded-linking-recovery-20261011']
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run build && node scripts/check-assembled-browser.cjs
+      - name: Test repaired renderer
+        run: node --test dist/tests/register-contract-reconciliation.test.js
+      - name: Preserve reproducible local test runtime
+        if: always()
+        run: |
+          mkdir -p /tmp/cmeng-recovery
+          git rev-parse HEAD > /tmp/cmeng-recovery/source-commit.txt
+          tar -czf /tmp/cmeng-recovery/runtime.tgz node_modules dist
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-recovery-runtime-${{ github.sha }}
+          path: /tmp/cmeng-recovery/
+          retention-days: 2

@@ -35,9 +35,14 @@ test('S-35 visible decision displays examined sources when exception count is ze
   input:review,
   planningKpis:(rows:any)=>JSON.stringify(rows),
   escapeHtml:(x:any)=>String(x),
-  decisionPanel:(title:string,_basis:string,kind:string,rows:any[])=>'TABLE:'+kind+':'+rows.length+':'+title,
+  currentModuleResult:null,
+  managementNumber:(value:number)=>String(value),
+  readerText:(value:unknown)=>String(value),
   managementModuleLink:()=>''
  });
- assert.match(String(html),/TABLE:registerReviews:1/);
- assert.doesNotMatch(String(html),/TABLE:registers:/,'No false exception table is emitted');
+ assert.match(String(html),/id="decision-registerReviews"/);
+ assert.match(String(html),/Showing 1–1 of 1/);
+ assert.match(String(html),/<td>80<\/td>/,'The actual certified amount is rendered');
+ assert.match(String(html),/Gross issued certificates/);
+ assert.doesNotMatch(String(html),/id="decision-registers"/,'No false exception table is emitted');
 });
