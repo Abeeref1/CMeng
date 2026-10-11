@@ -169,6 +169,8 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const actualHours=actualHs.length===1?actualHs[0]!:null;
   const areaCandidates=[...new Set(sourceRows.map(r=>cell(r,'plot','area','zone','location','workfront')).filter(Boolean))];
   const area=areaCandidates.length===1?areaCandidates[0]!:item.section??null;
+  const installedValue=installed!==null&&rate!==null?installed*rate:null;
+  const itemCertification=certifiedValueFromRows(sourceRows,cutoff),certifiedValue=itemCertification.value;
   return {itemId:item.quantityItemId,itemNumber:item.itemNumber,description:item.description,unit:item.unit,area,areaBasis:areaCandidates.length===1?'Explicit measurement/BOQ area':'BOQ section; no finer area allocation inferred',currency,
    contractQuantity:contract,installedQuantity:installed,installedPercent:contract!==null&&contract>0&&installed!==null?100*installed/contract:null,
    periodInstalledQuantity:period,periodStartIso:date(prior?.asOfIso),periodEndIso:date(now?.asOfIso),
@@ -178,10 +180,11 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    remainingQuantity:remaining,targetFinishIso:target,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
    periodEarnedHours:period!==null&&hpu!==null?period*hpu:null,actualHours,
    productivityPerActualHour:period!==null&&actualHours!==null&&actualHours>0?period/actualHours:null,
-   installedValue:installed!==null&&rate!==null?installed*rate:null,contractValue:contract!==null&&rate!==null?contract*rate:null,
-   sourceRefs:[...new Set([...(price?.sourceRefs??[]),...(now?.sourceRefs??[]).map((r:any)=>r.locator),...sourceRows.flatMap(rowRefs)])],
-   missingInputs:[installed===null?'Dated measured installation':null,prior?null:'Previous comparable installed measurement',hpu===null?'Unique budget labour hours per unit':null,actualHours===null?'Actual labour hours for the measurement interval':null,target?null:'Linked activity forecast finish',rate===null?'BOQ unit rate':null].filter(Boolean),
-   basis:'Installed values use measured cumulative quantities, never schedule percentage. Rates use stated calendar days. Earned hours use a supplied budget labour-hours-per-unit rate; actual productivity requires measured output and actual hours for the same interval.'};
+   installedValue,certifiedValue,installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
+   contractValue:contract!==null&&rate!==null?contract*rate:null,
+   sourceRefs:[...new Set([...(price?.sourceRefs??[]),...(now?.sourceRefs??[]).map((r:any)=>r.locator),...sourceRows.flatMap(rowRefs),...itemCertification.sourceRefs])],
+   missingInputs:[installed===null?'Dated measured installation':null,prior?null:'Previous comparable installed measurement',hpu===null?'Unique budget labour hours per unit':null,actualHours===null?'Actual labour hours for the measurement interval':null,target?null:'Linked activity forecast finish',rate===null?'BOQ unit rate':null,certifiedValue===null?'Item-level certified value with certificate number, date and amount basis':null].filter(Boolean),
+   basis:'Installed values use measured cumulative quantities, never schedule percentage. Item certified value is used only when the certificate source explicitly identifies this BOQ item; whole-project certificates are never allocated to items. Rates use stated calendar days. Earned hours use a supplied budget labour-hours-per-unit rate; actual productivity requires measured output and actual hours for the same interval.'};
  });
  const areaMap=new Map<string,typeof items>();for(const r of items){const key=JSON.stringify([r.area,r.currency]);const group=areaMap.get(key)??[];group.push(r);areaMap.set(key,group);}
  const certificates=(commercial.sourceLedger?.payments??[]).filter((r:any)=>date(r.certificationDate)&&(!cutoff||date(r.certificationDate)!<=cutoff)&&!/applied|application|draft|submitted/i.test(r.sourceStatus??''));
