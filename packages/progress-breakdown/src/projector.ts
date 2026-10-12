@@ -132,6 +132,9 @@ function buildProgressBreakdownProjectionImpl(
     // Workfront-only: exact unique activity ID correspondence already proved
     // across the full source revisions; not used for ambiguous/renamed IDs.
     sharedExactBaselineIds?:ReadonlyMap<string,string>;
+    // Fully calculated at the same revision and Data Date by Delivery.
+    // Each workfront consumes a subset of identical per-activity positions.
+    sharedPlanPositions?:ReturnType<typeof schedulePlanPositions>;
     previousModel?: CanonicalScheduleModel | null;
     readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
@@ -183,7 +186,7 @@ function buildProgressBreakdownProjectionImpl(
 
 
   mark('wbs_index');
-  const plan = schedulePlanPositions(model, input.baselineModel ?? null);
+  const plan = input.sharedPlanPositions ?? schedulePlanPositions(model, input.baselineModel ?? null);
   mark('plan_positions');
   const baselineMatches = input.sharedExactBaselineIds?null:
     input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;

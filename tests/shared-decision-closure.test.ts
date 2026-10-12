@@ -13,6 +13,8 @@ import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links
 import {quantityModelFromBoq} from '../packages/runtime-api/src/boq-source';
 import {ingestBoq} from '../packages/boq-ingestion/src';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
+import {schedulePlanPositions} from '../packages/progress-scurve/src/projector';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {runInNewContext} from './browser-context';
@@ -171,4 +173,20 @@ test('Window screening uses actual programme intervals as well as dated claim re
  assert.equal(result.claimChecks.rows[1].longWindow,true);assert.match(result.claimChecks.rows[1].warning,/exceeds three calendar months/);
  assert.equal(result.claimChecks.rows[2].longWindow,null);assert.deepEqual(result.claimChecks.rows[2].missingInputs,['Window start date']);
  assert.equal(result.claimChecks.windowCount,3);assert.equal(JSON.stringify(input),before,'original analysis intervals are retained');
+});
+
+// Exact parity is mandatory: sharing source-wide working calendar positions
+// must not alter any WBS/workfront number, denominator, classification or evidence.
+test('Cold Delivery shared calendar positions exactly equal standalone workfront calculations',t=>{
+ const {state}=fixture(t),baseline=state.schedules[0]!.revision.model,current=state.schedules.at(-1)!.revision.model;
+ const sharedPlanPositions=schedulePlanPositions(current,baseline);
+ const input={generatedAt:'2026-08-31T00:00:00Z',producerVersion:'shared-calendar-parity',baselineModel:baseline};
+ const groups=new Map<string,typeof current.activities>();
+ for(const a of current.activities){const key=a.wbsId??'unassigned';const list=groups.get(key)??[];list.push(a);groups.set(key,list);}
+ for(const activities of [...groups.values()].slice(0,12)){
+  const subset={...current,activities};
+  const original=buildDeliveryWorkfrontBreakdown(subset,input);
+  const reused=buildDeliveryWorkfrontBreakdown(subset,{...input,sharedPlanPositions});
+  assert.deepEqual(reused,original,'full result must be identical, with no changed WBS/float/progress values');
+ }
 });

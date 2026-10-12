@@ -8,6 +8,7 @@ import {deliveryAuthorityCatalog} from './delivery-authorities';
 import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
+import {schedulePlanPositions} from '../../progress-scurve/src/projector';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
 import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -350,7 +351,11 @@ function buildDelivery(state:ProjectRuntimeState){
  const currentSourceIds=new Set(model?.activities.map(row=>row.activityId)??[]);
  const sameIds=!!workfrontBaseline&&!!model&&baselineSourceIds.size===workfrontBaseline.activities.length&&currentSourceIds.size===model.activities.length&&model.activities.every(row=>!!row.activityId&&baselineSourceIds.has(row.activityId));
  const sharedExactBaselineIds=sameIds?new Map(model!.activities.map(row=>[row.activityId,row.activityId])):undefined;
- const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),readinessEvidence:state.controls.readinessEvidence,
+ // Every workfront uses the same full programme revision, baseline and Data Date.
+ // Calculate its unchanged per-activity working-calendar positions once, not
+ // again for each discipline/location workfront and the same 8,000+ activity baseline.
+ const sharedPlanPositions=model&&scopeGroups.size?schedulePlanPositions(model,workfrontBaseline):undefined;
+ const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
