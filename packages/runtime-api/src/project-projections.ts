@@ -1556,7 +1556,9 @@ function buildBundle(
   );
 
   markIndependent('progress_report');
-  const revisionAnalyses=new Map<typeof model,ReturnType<typeof analyzeSchedule>>();
+  // The current-revision analysis was already calculated for Schedule Analytics
+  // using this exact model and configuration. Do not analyze it twice.
+  const revisionAnalyses=new Map<typeof model,ReturnType<typeof analyzeSchedule>>([[model,scheduleAnalyticsRaw.result]]);
   const revisionComparisons=new Map<typeof current.revision,Map<typeof current.revision,ReturnType<typeof compareScheduleRevisions>>>();
   const revisionTrend =
     buildRevisionTrendProjection(
@@ -1569,6 +1571,7 @@ function buildBundle(
         producerVersion:
           versions.revision,
         config: scheduleAnalysisConfig,
+        precomputedAnalyses:revisionAnalyses,
         onRevisionAnalytics:(revisionModel,analysis)=>revisionAnalyses.set(revisionModel,analysis),
         onComparison:(from,to,comparison)=>{const comparisons=revisionComparisons.get(from)??new Map();comparisons.set(to,comparison);revisionComparisons.set(from,comparisons);},
       },

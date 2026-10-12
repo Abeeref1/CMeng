@@ -16,6 +16,7 @@ import {moduleForProject} from '../packages/runtime-api/src/project-projections'
 import {buildProgressBreakdownProjection,buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {schedulePlanPositions} from '../packages/progress-scurve/src/projector';
 import {buildRevisionTrendProjection} from '../packages/revision-trend/src/projector';
+import {buildScheduleAnalyticsProjection} from '../packages/schedule-analytics/src/projector';
 import {buildVarianceTrendsProjection} from '../packages/variance-trends/src/projector';
 import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src/projector';
 import {scheduleScopeClassification,classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
@@ -234,4 +235,13 @@ test('Unclassified whole-programme dimensions retain exact overall plan, progres
   for(const [left,right] of [['baselinePlannedPercent','baselinePlannedPercent'],['currentPlanPercent','currentPlanPercent'],['scheduleProgressPercent','durationWeightedProgressPercent'],['criticalCount','criticalCount'],['nearCriticalCount','nearCriticalCount'],['negativeFloatCount','negativeFloatCount'],['delayedActivityCount','delayedActivityCount'],['milestoneThreatIds','milestoneThreatIds'],['managementAction','managementAction']] as const)
     assert.deepEqual(row[left],summary[right],dimension.dimension+' '+left+' must exactly equal the full programme');
  }
+});
+
+test('Current revision schedule analysis is reused unchanged in revision trend',t=>{
+ const {state}=fixture(t),revisions=state.schedules.map(row=>row.revision),model=revisions.at(-1)!.model;
+ const input={generatedAt:'2026-08-31T00:00:00Z',producerVersion:'current-schedule-parity'};
+ const canonical=buildScheduleAnalyticsProjection(model,input).result;
+ const original=buildRevisionTrendProjection(revisions,input);
+ const reused=buildRevisionTrendProjection(revisions,{...input,precomputedAnalyses:new Map([[model,canonical]])});
+ assert.deepEqual(reused,original,'the same full revision analytics, population, float and dates must be retained');
 });

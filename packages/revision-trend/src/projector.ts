@@ -37,6 +37,7 @@ export function buildRevisionTrendProjection(
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     // Local bundle-only reuse: full source revision and control basis stay unchanged.
+    precomputedAnalyses?: ReadonlyMap<ScheduleRevision['model'],ReturnType<typeof analyzeSchedule>>;
     onRevisionAnalytics?: (model:ScheduleRevision['model'],value:ReturnType<typeof analyzeSchedule>)=>void;
     onComparison?: (from:ScheduleRevision,to:ScheduleRevision,result:ReturnType<typeof compareScheduleRevisions>)=>void;
   },
@@ -50,7 +51,7 @@ export function buildRevisionTrendProjection(
 
   for (let index = 0; index < ordered.length; index += 1) {
     const revision = ordered[index]!;
-    const analytics = analyzeSchedule(
+    const analytics = input.precomputedAnalyses?.get(revision.model) ?? analyzeSchedule(
       revision.model,
       input.config,
     );
