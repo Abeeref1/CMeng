@@ -36,6 +36,9 @@ export function buildRevisionTrendProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    // Local bundle-only reuse: full source revision and control basis stay unchanged.
+    onRevisionAnalytics?: (model:ScheduleRevision['model'],value:ReturnType<typeof analyzeSchedule>)=>void;
+    onComparison?: (from:ScheduleRevision,to:ScheduleRevision,result:ReturnType<typeof compareScheduleRevisions>)=>void;
   },
 ): RevisionTrendProjection {
   const ordered =
@@ -60,6 +63,8 @@ export function buildRevisionTrendProjection(
         )
       : null;
 
+    input.onRevisionAnalytics?.(revision.model,analytics);
+    if(comparison&&previous)input.onComparison?.(previous,revision,comparison);
     const latestForecast=completion(analytics,"forecast");
     const earlierPoint=points.at(-1)??null;
     points.push({

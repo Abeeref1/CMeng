@@ -48,9 +48,9 @@ import { reportingState, claimsReporting, operationalReporting, boqSourceReporti
 import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
 import { commercialPerformanceCapabilityForState } from "./commercial-performance-runtime";
 import { commercialContractControlCapabilityForState } from "./commercial-contract-controls-runtime";
-import { parseScheduleTime } from "../../schedule-analysis-core/src";
+import { parseScheduleTime,analyzeSchedule } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
-import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
+import { resolveRevisionActivityCorrespondence, compareScheduleRevisions } from "../../schedule-revision-core/src";
 import { activityPopulation, isExecutionActivity, numericDistribution } from "../../schedule-analysis-core/src";
 import {
   canonicalCommercialModule,
@@ -1556,6 +1556,8 @@ function buildBundle(
   );
 
   markIndependent('progress_report');
+  const revisionAnalyses=new Map<typeof model,ReturnType<typeof analyzeSchedule>>();
+  const revisionComparisons=new Map<typeof current.revision,Map<typeof current.revision,ReturnType<typeof compareScheduleRevisions>>>();
   const revisionTrend =
     buildRevisionTrendProjection(
       ordered.map(
@@ -1567,6 +1569,8 @@ function buildBundle(
         producerVersion:
           versions.revision,
         config: scheduleAnalysisConfig,
+        onRevisionAnalytics:(revisionModel,analysis)=>revisionAnalyses.set(revisionModel,analysis),
+        onComparison:(from,to,comparison)=>{const comparisons=revisionComparisons.get(from)??new Map();comparisons.set(to,comparison);revisionComparisons.set(from,comparisons);},
       },
     );
   modules.set(
@@ -1600,6 +1604,7 @@ function buildBundle(
           controlledBaseline
             ?.revision ??
           null,
+        precomputedAnalyses:revisionAnalyses,
       },
     );
   modules.set(
@@ -1632,6 +1637,7 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.change,
+          precomputedComparison:revisionComparisons.get(before)?.get(after),
         },
       );
     modules.set(

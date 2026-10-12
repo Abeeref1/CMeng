@@ -15,6 +15,9 @@ import {ingestBoq} from '../packages/boq-ingestion/src';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {schedulePlanPositions} from '../packages/progress-scurve/src/projector';
+import {buildRevisionTrendProjection} from '../packages/revision-trend/src/projector';
+import {buildVarianceTrendsProjection} from '../packages/variance-trends/src/projector';
+import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src/projector';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {runInNewContext} from './browser-context';
@@ -188,5 +191,26 @@ test('Cold Delivery shared calendar positions exactly equal standalone workfront
   const original=buildDeliveryWorkfrontBreakdown(subset,input);
   const reused=buildDeliveryWorkfrontBreakdown(subset,{...input,sharedPlanPositions});
   assert.deepEqual(reused,original,'full result must be identical, with no changed WBS/float/progress values');
+ }
+});
+
+test('Cold revision reuse preserves every trend, variance and change finding',t=>{
+ const {state}=fixture(t);
+ const revisions=state.schedules.map(row=>row.revision);
+ const config={generatedAt:'2026-08-31T00:00:00Z',producerVersion:'shared-revision-parity'};
+ const analytics=new Map(),comparisons=new Map();
+ const oldTrend=buildRevisionTrendProjection(revisions,config);
+ const newTrend=buildRevisionTrendProjection(revisions,{...config,onRevisionAnalytics:(model,value)=>analytics.set(model,value),onComparison:(from,to,result)=>comparisons.set(from.revisionId+'|'+to.revisionId,result)});
+ assert.deepEqual(newTrend,oldTrend,'all revision-trend values must be preserved');
+ const controlled=revisions[0]!;
+ for(const baseline of [controlled,null]){
+  const original=buildVarianceTrendsProjection(revisions,{...config,controlledBaselineRevision:baseline});
+  const reused=buildVarianceTrendsProjection(revisions,{...config,controlledBaselineRevision:baseline,precomputedAnalyses:analytics});
+  assert.deepEqual(reused,original,'all variance/trend values must remain unchanged when controlled baseline is '+(baseline?'established':'missing'));
+ }
+ if(revisions.length>1){const before=revisions.at(-2)!,after=revisions.at(-1)!;
+  const original=buildScheduleChangeReportProjection(before,after,config);
+  const reused=buildScheduleChangeReportProjection(before,after,{...config,precomputedComparison:comparisons.get(before.revisionId+'|'+after.revisionId)});
+  assert.deepEqual(reused,original,'all source change, fields and relationships must match exactly');
  }
 });

@@ -17,9 +17,11 @@ export function buildScheduleChangeReportProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    // Optional identical-revision comparison calculated earlier in the same management bundle.
+    precomputedComparison?: ReturnType<typeof compareScheduleRevisions>;
   },
 ): ScheduleChangeReportProjection {
-  const comparison = compareScheduleRevisions(from, to);
+  const comparison = input.precomputedComparison ?? compareScheduleRevisions(from, to);
   const currentExecution = new Set(to.model.activities.filter(isExecutionActivity).map(a=>a.activityId));
   const before=new Map(from.model.activities.map(a=>[a.activityId,a])),after=new Map(to.model.activities.map(a=>[a.activityId,a]));
   const finishRows=comparison.activityChanges.flatMap(change=>{
