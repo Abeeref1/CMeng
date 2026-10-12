@@ -10,6 +10,12 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const calendars=new Map(model?.calendars.map(c=>[c.calendarId,c])??[]);
  const relations=model?.relationships.filter(r=>!r.external&&ids.has(r.predecessorActivityId)&&ids.has(r.successorActivityId))??[];
  const dayHours=(a:typeof execution[number])=>{const c=calendars.get(a.calendarId??'');return c?.standardDayHours&&c.standardDayHours>0?c.standardDayHours:null;};
+ const calendarValidById=new Map<string|null,boolean>();
+ const hasReadableCalendar=(id:string|null)=>{
+   if(calendarValidById.has(id))return calendarValidById.get(id)!;
+   const valid=!!model&&!!resolveWorkingCalendar(id,model.calendars,false);
+   calendarValidById.set(id,valid);return valid;
+ };
  const report=(key:string,label:string,rows:typeof execution,population:number,basis:string)=>({key,label,count:model?rows.length:null,population:model?population:null,percent:model&&population?rows.length/population*100:null,activityIds:rows.map(a=>a.activityId),basis});
  const checks=[
   report('constraints','Source constraints',remaining.filter(a=>a.sourceConstraints?.length),remaining.length,'All retained source constraint types and dates; review justification.'),
@@ -17,7 +23,7 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
   report('high_float','High float',remaining.filter(a=>dayHours(a)!==null&&a.totalFloatHours!==null&&a.totalFloatHours/dayHours(a)!>44),remaining.length,'Source total float exceeds 44 activity-calendar working days; CMeng screening threshold.'),
   report('negative_float','Negative float',remaining.filter(a=>a.totalFloatHours!==null&&a.totalFloatHours<0),remaining.length,'Remaining execution activities with total float below zero.'),
   report('high_duration','Long remaining duration',remaining.filter(a=>dayHours(a)!==null&&a.remainingDurationHours!==null&&a.remainingDurationHours/dayHours(a)!>44),remaining.length,'Remaining duration exceeds 44 activity-calendar working days; CMeng screening threshold.'),
-  report('calendar','Unreadable or missing calendar',remaining.filter(a=>!model||!resolveWorkingCalendar(a.calendarId,model.calendars,false)),remaining.length,'Each remaining execution activity requires an explicit readable working calendar.'),
+  report('calendar','Unreadable or missing calendar',remaining.filter(a=>!hasReadableCalendar(a.calendarId)),remaining.length,'Each remaining execution activity requires an explicit readable working calendar.'),
   report('float_missing','Missing float on remaining work',remaining.filter(a=>a.totalFloatHours===null),remaining.length,'Completed work is excluded from the missing-float population.'),
   report('duration_day_basis_missing','Unresolved working-day conversion',remaining.filter(a=>dayHours(a)===null),remaining.length,'High-float and duration checks cannot convert hours to days for these rows.'),
   report('invalid_dates','Invalid activity dates',execution.filter(a=>

@@ -399,7 +399,15 @@ export function buildQuantityScheduleMapping(
   // every BOQ item re-tokenized every activity and created a fingerprint even
   // for a zero score, making real source registers block the whole resolver.
   const eligible=schedule.activities.filter(a=>a.activityType==='task'&&a.status!=='completed');
-  const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,wbsText(a,wbsById))]));
+  // WBS ancestry is a property of the source node, not individual activities.
+  const wbsTextById=new Map<string,string>();
+  const scopeText=(activity:CanonicalScheduleActivity)=>{
+    const id=activity.wbsId;
+    if(!id)return '';
+    const cached=wbsTextById.get(id);if(cached!==undefined)return cached;
+    const value=wbsText(activity,wbsById);wbsTextById.set(id,value);return value;
+  };
+  const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,scopeText(a))]));
   type FeatureGroup={members:CanonicalScheduleActivity[];features:ActivityFeatures};
   const featureGroupsByKey=new Map<string,FeatureGroup>();
   const groupForActivity=new Map<CanonicalScheduleActivity,FeatureGroup>();
