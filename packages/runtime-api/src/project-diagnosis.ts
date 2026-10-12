@@ -64,7 +64,13 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  for(const rel of model.relationships){const ins=incoming.get(rel.successorActivityId)??[];ins.push(rel);incoming.set(rel.successorActivityId,ins);const outs=outgoing.get(rel.predecessorActivityId)??[];outs.push(rel);outgoing.set(rel.predecessorActivityId,outs);}
  const networkIncoming=new Map<string,any[]>(),networkOutgoing=new Map<string,any[]>();
  for(const rel of network?.relationships??[]){const ins=networkIncoming.get(rel.successorActivityId)??[];ins.push(rel);networkIncoming.set(rel.successorActivityId,ins);const outs=networkOutgoing.get(rel.predecessorActivityId)??[];outs.push(rel);networkOutgoing.set(rel.predecessorActivityId,outs);}
- const previousMovement=(id:string)=>{const change=changeById.get(id);return !changes?null:change?change.finishShiftDays:previousById.has(id)?0:null;};
+ const previousMovementCache=new Map<string,number|null|undefined>();
+ const previousMovement=(id:string)=>{
+   if(previousMovementCache.has(id))return previousMovementCache.get(id);
+   const change=changeById.get(id);
+   const result=!changes?null:change?change.finishShiftDays:previousById.has(id)?0:null;
+   previousMovementCache.set(id,result);return result;
+ };
  const describe=(r:ActivityAnalyticsRow)=>({activityId:r.activityId,name:r.name??r.activityId,wbsId:r.wbsId,wbs:wbsPath(r.wbsId),status:r.status,
    baselineFinishIso:r.baselineFinishIso,currentStartIso:r.forecastStartIso??r.currentStartIso,currentFinishIso:r.forecastFinishIso??r.currentFinishIso,
    remainingDurationHours:r.remainingDurationHours,totalFloatHours:r.totalFloatHours,percentComplete:r.percentComplete,
@@ -137,7 +143,13 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  pressureRows.forEach((r,index)=>{const movement=previousMovement(r.activityId),linked=checksByActivity.get(r.activityId)??[],root=find(r.activityId),componentSize=componentSizes.get(root)??1;
    const linkedKey=linked.map(c=>c.recordId).filter(Boolean).sort().join('|'),moveKey=numeric(movement)&&movement>0?movement.toFixed(6):null;
    const category=linkedKey?'linked:'+linkedKey:moveKey&&componentSize>1?'revision-chain:'+moveKey+':'+root:moveKey?'revision-family:'+moveKey+':'+family(r):'activity:'+r.activityId;
-   const group=actionGroups.get(category)??{rows:[],linked:[],movement:numeric(movement)?movement:null,firstRank:index};group.rows.push(r);group.linked.push(...linked);actionGroups.set(category,group);
+   let group=actionGroups.get(category);
+   // Only the first 10 distinct ranked action families enter the published
+   // management answer. Preserve *every* subsequent member of those families,
+   // but do not construct thousands of groups never returned to the user.
+   // Pressure rows, activity detail, relationships and evidence remain complete.
+   if(!group){if(actionGroups.size>=10)return;group={rows:[],linked:[],movement:numeric(movement)?movement:null,firstRank:index};actionGroups.set(category,group);}
+   group.rows.push(r);group.linked.push(...linked);
  });
  const actions=[...actionGroups.values()].sort((a,b)=>a.firstRank-b.firstRank).slice(0,10).map((group,index)=>{const r=group.rows[0]!,linked=[...new Map(group.linked.map(c=>[[c.domain,c.recordId,c.explanation].join('|'),c])).values()],described=describe(r),wbsLabels=[...new Set(group.rows.map(x=>shortWbs(wbsPath(x.wbsId))))],move=group.movement;
    const groupedCount=group.rows.length,ids=group.rows.map(x=>x.activityId),movementText=numeric(move)&&move>0?(groupedCount+' activities moved '+move+' elapsed days later since the previous adopted revision'):'';
