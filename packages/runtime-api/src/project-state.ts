@@ -130,7 +130,7 @@ import {
   evidenceFamily,
   rebuildEvidenceFamily,
 } from "./evidence-control";
-import {configuredTableSemanticAiResolver,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
+import {configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -197,10 +197,8 @@ async function enrichRegisterSheetSemantics(
       if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={documentType:route.documentType,category:route.category,
         confidence:route.confidence,method:'tabular_content',signals:['Generic table semantics',...route.basis]};
     }
-    const specialistUsable=sheet.semantic
-      ?prepareEvidenceRows(sheet.rows,sheet.semantic.documentType,[],sheet.semantic.columnMeanings??[]).recognized
-      :false;
-    if(options.resolver&&aiCalls<maxAiCalls&&(!sheet.semantic||!specialistUsable)){
+    const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(sheet.rows,sheet.semantic.documentType,sheet.semantic.columnMeanings??[]);
+    if(options.resolver&&aiCalls<maxAiCalls&&needsSemanticReading){
       aiCalls++;
       try{
         const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
@@ -4532,12 +4530,13 @@ export class RuntimeProjectStore {
       try{
         const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,documentType);
-        const specialistUsable=route?prepareEvidenceRows(rows,route.documentType).recognized:false;
-        if(!csvSemantic&&semanticResolver&&(!route||!specialistUsable)){
+        const needsSemanticReading=!route||tableNeedsSemanticReading(rows,route.documentType);
+        if(!csvSemantic&&semanticResolver&&needsSemanticReading){
           try{
             const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
             if(proposed)csvSemantic=proposed;
-          }catch{/* Provider failure leaves deterministic evidence unresolved. */}
+            else identification.diagnostics.push('AI reading could not establish the remaining column meanings. Source values are retained.');
+          }catch{identification.diagnostics.push('AI reading failed. Unresolved source columns remain available for review.');}
         }
         const resolved=csvSemantic??route;
         if(resolved&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document'||csvSemantic)){

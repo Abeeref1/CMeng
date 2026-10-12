@@ -110,3 +110,31 @@ test('AI-off unresolved evidence is retained without manufacturing specialist fa
   assert.equal(calls,0);assert.equal(doc.csvSemantic,undefined);assert.equal(state.controls.invoices.length,0);
   assert.ok(state.evidenceDocuments.some(d=>d.sourceHashSha256===doc.sourceHashSha256),'ambiguous source must remain retained');
 });
+
+test('recognized payment tables still request AI for populated unread columns and reuse the result',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-partial-ai-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  let calls=0;
+  const model:StructuredModel={structured:async(_name,_schema,_prompt,input:any)=>{
+    calls++;
+    return {sourceHashSha256:input.sourceHashSha256,sheetName:input.sheetName,documentType:'payment_certificates',confidence:0.98,
+      columns:[{columnIndex:2,rawHeader:'Q2',meaning:'paid amount',confidence:0.98}]};
+  }};
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false,semanticAiResolver:new GroundedTableSemanticAiResolver(model)});
+  const bytes=Buffer.from('Certificate No,Net Certified,Q2,Currency\nPC-1,1000,700,AED\nPC-2,2000,900,AED');
+  const upload=()=>store.ingestEvidenceFile({projectId:'PARTIAL',bytes,mediaType:'text/csv',sourceFilename:'payments.csv',
+    sourceRelativePath:'payments.csv',uploadedAt:'2039-04-01T00:00:00.000Z',uploadIntent:'add_update',allowSemanticAi:true});
+  await upload();
+  const doc=store.get('PARTIAL')!.evidenceDocuments.find(d=>d.sourceFilename==='payments.csv')!;
+  assert.equal(calls,1);
+  assert.equal(doc.csvSemantic?.columnMeanings?.[0]?.meaning,'paid amount');
+  await upload();assert.equal(calls,1);
+});
+
+test('failed AI reading is recorded on the retained source',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-failed-ai-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false,semanticAiResolver:{name:'failed',resolveTable:async()=>{throw new Error('provider unavailable');}}});
+  await store.ingestEvidenceFile({projectId:'FAILED',bytes:Buffer.from(rows.map(row=>row.join(',')).join('\n')),mediaType:'text/csv',sourceFilename:'opaque.csv',
+    sourceRelativePath:'opaque.csv',uploadedAt:'2039-04-01T00:00:00.000Z',uploadIntent:'add_update',allowSemanticAi:true});
+  const doc=store.get('FAILED')!.evidenceDocuments.find(d=>d.sourceFilename==='opaque.csv')!;
+  assert.ok(doc.identification?.diagnostics.some(d=>d.startsWith('AI reading failed.')));
+});

@@ -3,6 +3,7 @@ import {
   analyzeEvidenceTable,
   canonicalHeader,
   inferTableSemanticRoute,
+  prepareEvidenceRows,
   tableSemanticSchemas,
   type EvidenceSemanticColumnMeaning,
   type EvidenceTableSemantic,
@@ -85,6 +86,13 @@ export function assessTableSemanticAiProposal(input:TableSemanticAiInput,proposa
   if(!routed||routed.documentType!==proposal.documentType)return null;
   return {documentType:routed.documentType,category:routed.category,confidence:Math.min(proposal.confidence,routed.confidence),
     method:'ai_grounded',signals:['AI proposal validated against retained table structure',...routed.basis],columnMeanings:meanings};
+}
+
+/** A recognized table can still contain populated columns the reader missed. */
+export function tableNeedsSemanticReading(rows:readonly string[][],documentType:string,meanings:readonly EvidenceSemanticColumnMeaning[]=[]):boolean{
+  const prepared=prepareEvidenceRows(rows,documentType,[],meanings);
+  return !prepared.recognized||prepared.columnAudit.some((column,index)=>
+    column.mappingState==='unused'&&prepared.rows.some(row=>Boolean(row[index]?.trim())));
 }
 
 export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver {
