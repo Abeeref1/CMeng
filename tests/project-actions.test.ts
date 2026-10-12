@@ -139,19 +139,17 @@ test('one payment conflict does not turn unrelated missing fields into one corre
   assert.ok(information);assert.equal(information!.requestCount,1);assert.equal(information!.findings?.[0]?.kind,'missing_information');
 });
 
-test('Project Review separates user decisions from project-team follow-ups and clarifies grouped dates',()=>{
- const sample={projectId:'REVIEW',actionCount:12,userDecisionCount:4,teamFollowUpCount:8,checkedAt:'2026-10-12',pageSize:25,matchedActionCount:12,
+test('Project Review displays decisions only, and directs the team register to Accountability',()=>{
+ const sample={projectId:'REVIEW',actionCount:1,userDecisionCount:1,teamFollowUpCount:8,checkedAt:'2026-10-12',pageSize:25,matchedActionCount:1,
  actions:[{id:'matter:completion',category:'confirmation',title:'Confirm contractual completion date',reason:'Contractual date not established',recordCount:1,owner:'Project Director',resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm the contractual date.',completionRule:'Saved'},target:{type:'inline',kind:'contract-completion',suggestedDateIso:null,label:'Confirm'}},
  {id:'accountability-owner-group:procurement',category:'follow_up',title:'898 open procurement records',reason:'Review the register with its owner.',recordCount:898,owner:'Procurement Manager',dueIso:'2025-12-11',resolution:{kind:'information',requiresUserAction:false,instruction:'Review individual records.',completionRule:'Closed from register'},target:{type:'module',moduleKey:'procurement',label:'Open supporting record'}}],information:[],systemCheckCount:0};
  const script=projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String});
- assert.match(html,/4 matters need review or a decision/);
- assert.match(html,/8 project-team follow-up groups/);
- assert.match(html,/Earliest due date in this group:/);
- assert.ok(html.includes('Records in this owner group:</b> 898'));
- assert.ok(html.includes('data-action-module="procurement"'),'team records remain accessible without being mistaken for user approval');
+ assert.match(html,/1 decision needs your review/);
  assert.match(html,/Confirm the contractual date/);
- assert.doesNotMatch(html,/12 actions require your input/);
+ assert.ok(html.includes('data-action-module="cross-domain-accountability"'),'all team work is reachable via Accountability');
+ assert.doesNotMatch(html,/898 open procurement records|Earliest due date in this group|PROJECT-TEAM FOLLOW-UP/);
+ assert.doesNotMatch(html,/data-action-module="procurement"|project-team follow-up groups/);
  assert.ok(!html.includes('What you need to do:</b> Review individual records'));
 });
 

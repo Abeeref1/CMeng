@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {crossDomainAccountability,accountabilityModule} from '../packages/runtime-api/src/accountability-intelligence';
+import {projectActionRegisterForState,moduleForProject} from '../packages/runtime-api/src/project-projections';
 import type {ProjectRuntimeState} from '../packages/runtime-api/src/project-state-types';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 function fixture(){
@@ -51,4 +52,19 @@ test('an overdue due date alone cannot establish an undated risk as currently op
   const before=JSON.stringify(state.controls.risks),result=accountabilityModule(state);
   assert.equal(result.status,'blocked');assert.deepEqual(crossDomainAccountability(state).recordActions,[]);
   assert.equal(JSON.stringify(state.controls.risks),before);
+});
+
+test('Project Review does not publish team records and Accountability retains their evidence',()=>{
+ const {state}=fixture();state.controls.ncrs.push(ncr('NCR-BOUNDARY'));state.version++;
+ const baseline=crossDomainAccountability(state);
+ assert.equal(baseline.recordActions.length,1);
+ const register=projectActionRegisterForState(state);
+ assert.ok(register.actions.some(a=>a.actionId.startsWith('accountability-owner-group:')),'ranked source team action retained');
+ assert.equal(register.workflow.actionCount,register.workflow.actions.length);
+ assert.ok(register.workflow.actions.every(a=>(a.category==='confirmation'||a.category==='review')&&a.resolution?.requiresUserAction),'Project Review contains only decisions');
+ assert.ok(!register.workflow.actions.some(a=>a.id.startsWith('accountability-owner-group:')));
+ const team=(moduleForProject(state.projectId,'cross-domain-accountability').data as any).actions as any[];
+ assert.ok(team.some(a=>a.actionId.startsWith('accountability-owner-group:')),'Accountability retains original group');
+ assert.ok(team.every(a=>!register.workflow.actions.some(d=>d.id===a.actionId)),'no duplicate authority decisions in team list');
+ assert.ok(baseline.recordActions[0]!.sourceRefs.includes('quality-source:NCR-BOUNDARY'));
 });

@@ -7940,11 +7940,18 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
     resolution:{kind:'information',requiresUserAction:false,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
     target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
   });
-  return {actions,recordActions,ownerGroups:recordPosition.ownerGroups,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
-    workflow:{...review,actions:workflowActions,actionCount:actions.length,
-      userDecisionCount:workflowActions.filter(a=>a.category!=='follow_up'&&a.resolution?.requiresUserAction).length,
-      teamFollowUpCount:workflowActions.filter(a=>a.category==='follow_up').length,
-      scope:'One grouped project decision register. Each owner/register/state group counts once; every source action is retained inside its group. Source-review decisions remain separate.'},
+  // Publish direct decisions only. The full, independently ranked team register
+  // stays above: source rows, owners, priorities, and links are never removed.
+  const decisionOrder=new Map(actions.map((a,i)=>[a.actionId,i]));
+  const decisions=review.actions
+    .filter(a=>(a.category==='confirmation'||a.category==='review')&&a.resolution?.requiresUserAction===true)
+    .sort((a,b)=>(decisionOrder.get(a.id)??Number.MAX_SAFE_INTEGER)-(decisionOrder.get(b.id)??Number.MAX_SAFE_INTEGER));
+  const decisionIds=new Set(decisions.map(a=>a.id));
+  const teamActions=actions.filter(a=>!decisionIds.has(a.actionId));
+  return {actions,recordActions,ownerGroups:recordPosition.ownerGroups,recordActionCount:recordActions.length,reviewActionCount:decisions.length,
+    workflow:{...review,actions:decisions,actionCount:decisions.length,userDecisionCount:decisions.length,
+      teamFollowUpCount:teamActions.length,
+      scope:'User decisions only. Accountable team actions and supporting source records remain in Accountability.'},
     recordPosition};
 }
 export function projectActionRegisterForState(state:ProjectRuntimeState){
@@ -8025,12 +8032,14 @@ function moduleForProjectUncached(
   if (key==='recovery-acceleration') {const scoped=reportingState(state);return finalize(withPositionVerdict(attachReportingContract(scoped,recoveryAccelerationModule(scoped))));}
   if (key==='cross-domain-accountability') {
     const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);
+    const decisionIds=new Set(register.workflow.actions.map(a=>a.id));
+    const teamActions=register.actions.filter(a=>!decisionIds.has(a.actionId));
     return finalize(withPositionVerdict(attachReportingContract(scoped,{
       ...result,
-      status:register.actions.length?'partial':result.status,
-      data:{...(result.data as object),actions:register.actions,actionCount:register.actions.length,
-        ownerRegisterGroups:groupActionsByOwnerRegister(register.actions),
-        managementPosition:register.actions.length+' canonical project actions: '+register.recordPosition.actions.length+' owner/register groups covering '+register.recordActionCount+' source records, plus '+register.reviewActionCount+' source reviews or confirmations.'}
+      status:teamActions.length?'partial':result.status,
+      data:{...(result.data as object),actions:teamActions,actionCount:teamActions.length,
+        ownerRegisterGroups:groupActionsByOwnerRegister(teamActions),
+        managementPosition:teamActions.length+' accountable project-team groups. '+register.recordActionCount+' underlying source records remain available. Decisions requiring your authority are in Project Review.'}
     })));
   }
   if (isDeliveryPage(key)) {
