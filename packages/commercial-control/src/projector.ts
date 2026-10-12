@@ -189,6 +189,10 @@ function commercialClaimsNotices(
     ] += 1;
   }
 
+  const sourceClaimStateCounts={...claimStateCounts};
+  for(const key of Object.keys(sourceClaimStateCounts) as Array<keyof typeof sourceClaimStateCounts>)sourceClaimStateCounts[key]=0;
+  for(const claim of lifecycle?.claims??[])sourceClaimStateCounts[claim.sourceRegister?.state??claim.state]++;
+
   const noticeKindCounts:
     CommercialClaimsNoticesPosition["noticeKindCounts"] = {
       notice: 0,
@@ -315,6 +319,7 @@ function commercialClaimsNotices(
     commercialLifecycleLinkCoveragePercent:
       linkCoverage,
     claimStateCounts,
+    sourceClaimStateCounts,
     noticeKindCounts,
     noticeTimelinessCounts,
     claims:

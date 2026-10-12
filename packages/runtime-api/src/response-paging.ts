@@ -41,7 +41,7 @@ const PAGE_BUDGETS:PageBudget[]=[
   {rows:25,keys:100,text:2048,depth:10},
   {rows:12,keys:90,text:1600,depth:10},
   {rows:4,keys:72,text:1200,depth:9},
-  {rows:0,keys:55,text:700,depth:8},
+  {rows:1,keys:55,text:700,depth:8},
 ];
 
 function chosenKeys(value:Record<string,unknown>,max:number):string[]{
@@ -121,6 +121,7 @@ export function pageProjectResponse(
  const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
    /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
+   ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
    ||(screenKey==='activity-analytics'&&pointer==='/data/rows'&&!!item?.data?.activitySummary&&value.length<=50)
@@ -137,6 +138,7 @@ export function pageProjectResponse(
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;
+ let smallestProjection:unknown=body;
  for(const budget of PAGE_BUDGETS){
   // Reserve paging metadata for the actual screen registers. A large canonical
   // fact snapshot can have hundreds of nested arrays; allowing it to consume
@@ -200,23 +202,14 @@ export function pageProjectResponse(
   };
   (projection as Record<string,unknown>).responsePaging=paging;
   const size=bytes(projection);
-  if(size<=maxBytes){paging.responseBytes=size;return projection;}
+  paging.responseBytes=size;
+  smallestProjection=projection;
+  if(size<=maxBytes)return projection;
  }
- const input=body as Record<string,any>;
- const final={
-   key:input.key??null,status:input.status??'partial',
-   reason:'Source details are paged. No original register or computation has been deleted.',
-   data:{projectFacts:normalizedFacts},
-   responsePaging:{source,pageSize:25 as const,projectVersion,
-     tables:[{pointer:'',total:Object.keys(input).length,shown:0,kind:'object' as const}],
-     additionalTables:0,responseBytes:0,sourcePreserved:true as const},
- };
- // Do not turn a page into HTTP 400 because its provenance grew. The fixed
- // fact projection above pages long evidence collections without losing facts.
- // If a genuine scalar/qualification core still exceeds the screen target,
- // retain it and expose the measured size for the release gate to reject.
- final.responsePaging.responseBytes=bytes(final);
- return final;
+ // Preserve the screen shape and the exact table pointers even when the
+ // irreducible facts exceed the target. Dropping the entire module here made
+ // populated registers appear empty and removed their record navigation.
+ return smallestProjection;
 }
 export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25,filter?:{
  query?:string;status?:string;groupKey?:string;sort?:string;direction?:'asc'|'desc';

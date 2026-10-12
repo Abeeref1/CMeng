@@ -169,7 +169,7 @@ const sheetSemanticExcludedTypes=new Set([
 
 async function enrichRegisterSheetSemantics(
   read:NonNullable<StoredEvidenceDocument['tabularRead']>,
-  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead']}={},
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[]}={},
 ){
   let aiCalls=0;
   const configuredAiCalls=Number(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??8);
@@ -204,7 +204,10 @@ async function enrichRegisterSheetSemantics(
         const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
           hintedDocumentType:sheet.semantic?.documentType??null});
         if(resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType))sheet.semantic=resolved;
-      }catch{/* Provider failure leaves deterministic evidence unresolved. */}
+        else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
+      }catch{options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');}
+    }else if(needsSemanticReading){
+      options.diagnostics?.push('Worksheet '+sheet.name+': some source column meanings remain unresolved. '+(options.resolver?'The per-file AI reading limit was reached.':'AI reading was not enabled for this read.'));
     }
   }
   return read;
@@ -2405,7 +2408,7 @@ export class RuntimeProjectStore {
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
           if(isWorkbook){
-            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead});
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics});
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
             next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
@@ -4520,7 +4523,7 @@ export class RuntimeProjectStore {
     const priorSameSource=existingState.evidenceDocuments.find(document=>document.sourceHashSha256===sourceHashSha256);
     const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,cached:priorSameSource?.tabularRead})
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
       :undefined;
     let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){

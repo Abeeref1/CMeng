@@ -156,3 +156,17 @@ test('Milestone source totals and open/completed browse pages never depend on a 
  assert.equal(completed.total,50);assert.ok((completed.rows as any[]).every(r=>r.status==='completed'));
  assert.equal(source.data.rows.length,340,'paging never mutates the full source population');
 });
+
+test('oversize fact core retains module records and navigation instead of an empty data wrapper',()=>{
+ const body={key:'claims',data:{projectFacts:{projectId:'P',qualification:'x'.repeat(20000)},rows:Array.from({length:240},(_,i)=>({id:'C'+i,status:'open'})),total:240}};
+ const result:any=pageProjectResponse(body,'/api/projects/P/commercial/modules/claims',1000);
+ assert.equal(result.data.total,240);assert.ok(result.data.rows.length>0);
+ assert.ok(result.responsePaging.tables.some((p:any)=>p.pointer==='/data/rows'&&p.total===240));
+ assert.equal(result.data.projectFacts.qualification,body.data.projectFacts.qualification);
+});
+
+test('an explicitly paged activity response keeps every row in its advertised page size',()=>{
+ const body={page:1,pageSize:50,pageCount:190,matchingCount:9500,totalCount:9500,rows:Array.from({length:50},(_,i)=>({activityId:'A'+(50+i)}))};
+ const result:any=pageProjectResponse(body,'/api/projects/P/schedule/modules/activity-analytics');
+ assert.equal(result.rows.length,50);assert.equal(result.rows[49].activityId,'A99');
+});

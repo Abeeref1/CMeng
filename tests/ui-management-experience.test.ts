@@ -26,7 +26,7 @@ function functions(names:string[]) {
   return selected.map(n=>n.getText(source)).join('\n');
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String,SCREEN_STATUS_LABELS:STATUS_LABELS,currentModuleResult:null};
-const briefFunctions=functions(['aggregateCount','experienceBrief','experienceValue','findProjectionRoot']);
+const briefFunctions=functions(['aggregateCount','experienceRecordCount','experienceBrief','experienceValue','findProjectionRoot']);
 test('S-30 milestone view separates overdue open dates, baseline-late and completed historical milestones',()=>{
   assert.match(script,/Late milestone commitments — active versus history/);
   assert.match(script,/openOverdueMilestones=.*status!=='completed'/);
@@ -124,7 +124,7 @@ test('named curves and variance trend render their chart before KPI and source d
 
 test('result-first pages retain source context after their result in every role',()=>{
   for(const role of ['overall','planning','controls','project-director','program-director','executive']){
-    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
       ...common,selectedRoleView:role,roleViews:{[role]:{label:role}},experienceBrief:()=>({facts:[],note:'ROLE-NOTE',review:''}),
       experienceSourceContext:()=>'SOURCE-DETAIL',experiencePreview:()=>'PRIMARY-CHART',
     });
@@ -259,7 +259,7 @@ test('all six lenses retain access to the full module and leadership does not in
   const roles=['overall','planning','controls','project-director','program-director','executive'];
   const roleViews=Object.fromEntries(roles.map(r=>[r,{label:r}]));
   for(const role of roles){
-    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
       ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>chart</svg>'
     });
     assert.equal((html.match(/evidence-row/g)||[]).length,1,role);
@@ -287,7 +287,7 @@ test('Task 56 role lenses lead with materially different canonical management co
     executive:['Strategic commitments & intervention','Approve recovery']
   } as Record<string,string[]>;
   for(const role of roles){
-    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>")',{
+    const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>")',{
       ...common,overview,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[],note:'',review:''}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>page-chart</svg>',
       renderProjectDiagnosis:()=>'',renderCompletionPosition:()=>''
     });
@@ -551,4 +551,23 @@ test('dashboard date comparisons retain the current contract basis after awarded
   renderWaterfallChart:(rows:any[])=>{scheduleRows=rows;return 'chart';},renderVisualPanel:()=>'',renderVisualBars:()=>''});
  assert.deepEqual(Array.from(scheduleRows,r=>[r.label,r.value]),[['Submitted vs current contract',15],['Recalculation vs current contract',15]]);
  assert.doesNotMatch(script,/vs original contract/);
+});
+
+
+test('role views use page facts even when the overview summary has no calculated facts',()=>{
+ const fact=(value:unknown)=>({value,basis:'Accepted source'});
+ const data={projectFacts:{time:{contractualCompletionIso:fact('2031-10-01'),extendedContractCompletionIso:fact('2031-11-01')},schedule:{submittedProgrammeCompletionIso:fact('2031-11-15'),criticalActivityCount:fact(147),nearCriticalActivityCount:fact(null),negativeFloatActivityCount:fact(12)},actions:{openCount:fact(32)},commercial:{currencies:[{currency:'AED'}]}}};
+ const result=runInNewContext(functions(['pageRoleLensContext','findProjectionRoot'])+';pageRoleLensContext(data)',{data,overview:{roleLensContext:{planning:{criticalCount:null},executive:{contractualCompletionIso:null}}}});
+ assert.equal(result.planning.criticalCount,147);
+ assert.equal(result.planning.nearCriticalCount,null);
+ assert.equal(result.executive.contractualCompletionIso,'2031-11-01');
+ assert.equal(result.controls.submittedCompletionIso,'2031-11-15');
+ assert.equal(result.executive.metrics.find((m:any)=>m.label==='Open actions').value,32);
+});
+
+
+test('role page record counts use full response populations instead of visible rows',()=>{
+ const rows=Array.from({length:25},(_,id)=>({id}));
+ const count=runInNewContext(functions(['experienceRecordCount'])+';experienceRecordCount(rows)',{rows,responseListPopulation:()=>({total:240})});
+ assert.equal(count,240);
 });

@@ -482,3 +482,32 @@ test('clean source register establishes package counts and lateness before appro
  f.population('package');assert.equal(deliveryPosition(f.state).populations.package!.denominator,2);
  assert.equal(deliveryRecords(f.state).records.find(r=>r.reference==='PK1')!.state,'extracted_candidate','confirming completeness does not pretend each row has been certified');
 });
+
+test('quality records with inconsistent close dates remain separate from known open records',async t=>{
+ const f=await fixture(t);
+ await f.upload('NCR.csv','NCR ID,Description,Raised Date,Closed Date,Status\nN1,Unresolved closure,2031-08-20,2031-08-10,Closed\nN2,Open defect,2031-08-01,,Open\nN3,Closed defect,2031-08-01,2031-08-10,Closed');
+ const p=deliveryPosition(f.state),summary=p.summaries.quality!;
+ assert.equal(summary.knownOpenCount,1);assert.equal(summary.unknownStatusCount,1);
+ const page:any=deliveryModule(f.state,'delivery-quality').data;
+ assert.equal(page.metrics.find((m:any)=>m.label==='Open records').value,1);
+ assert.equal(page.metrics.find((m:any)=>m.label==='Status unclear').value,1);
+});
+
+test('a package without a calculated driving network does not report that it is off the path',async t=>{
+ const f=await fixture(t);
+ f.create('package','PKG-UNKNOWN',{'required on site':'2031-09-01','forecast delivery':'2031-10-01',status:'Ordered'},{activityIds:['A1']});
+ const model=projectControlSchedule(f.state)!.revision.model;model.calendars=[];f.state.version++;
+ const row=deliveryPosition(f.state).packageRows.find(r=>r.reference==='PKG-UNKNOWN')!;
+ assert.equal(row.drivingPath,null);
+});
+
+test('undated supplied risks remain the main risk register instead of being replaced by BOQ candidates',async t=>{
+ const f=await fixture(t);
+ await f.upload('Risk.csv','Risk ID,Description,Status,Rating,Probability,Impact,Owner,Due Date\nR1,Supply risk,Mitigating,High,0.4,3,Buyer,2031-09-10\nR2,Closed risk,Closed,Low,0.2,1,Planner,2031-09-20');
+ const page:any=deliveryModule(f.state,'delivery-risks').data;
+ assert.equal(page.boqDerivedCandidate,false);assert.equal(page.rows.length,2);
+ assert.equal(page.rows[0].reportingScope,'Reporting date missing');
+ assert.equal(page.metrics.find((m:any)=>m.label==='Reported open / mitigating').value,1);
+ assert.equal(page.metrics.find((m:any)=>m.label==='Open at reporting date').value,null);
+ assert.equal(page.metrics.find((m:any)=>m.label==='Reporting date missing').value,2);
+});

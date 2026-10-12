@@ -1140,7 +1140,7 @@ function buildBundle(
   const procurementReadiness=lookAheadReadinessWithProcurement(state,drivingIds);
   const procurementDone=bundleProfile?performance.now():0;
   const lookAhead=buildLookAheadProjection(model,{
-    drivingActivityIds:drivingIds,generatedAt,
+    drivingActivityIds:controllingForecast.drivingNetwork?.activityIds,generatedAt,
     producerVersion:versions.lookAhead,readinessEvidence:procurementReadiness,
   });
   if(bundleProfile)process.stdout.write(JSON.stringify({
@@ -4282,7 +4282,7 @@ function buildPlanningModuleFast(
         buildLookAheadProjection(
           model,
           {
-        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds,
             generatedAt,
             producerVersion:
               "planning-fast:lookahead-v1",
@@ -4617,7 +4617,7 @@ function buildPlanningModuleFast(
       buildLookAheadProjection(
         model,
         {
-        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds,
           generatedAt,
           producerVersion:
             "planning-fast:lookahead-v1",
@@ -6327,7 +6327,7 @@ function buildSpecialistModuleFast(
       buildLookAheadProjection(
         model,
         {
-        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds??[],
+        drivingActivityIds:cachedIndependentForecast(model,generatedAt).drivingNetwork?.activityIds,
           generatedAt,
           producerVersion:
             "progress-position:lookahead-v1",

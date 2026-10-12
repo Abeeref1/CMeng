@@ -63,6 +63,10 @@ function experienceValue(value,unit=''){
   return (typeof v==='number'&&!exactUnit?fmtExecutive(v):fmtForField(unit||'value',v))+(unit?' '+unit:'');
 }
 // Explicit module schemas prevent status words, arbitrary counts or unrelated fields becoming a management KPI.
+function experienceRecordCount(rows){
+  if(!Array.isArray(rows))return null;
+  return typeof responseListPopulation==='function'?responseListPopulation(rows).total:rows.length;
+}
 function experienceBrief(key,data){
   const d=findProjectionRoot(data),s=d.result||d,p=d.position||{},f=p.foundation||{},c=p.contractControls||{};
   const facts=[];
@@ -79,9 +83,9 @@ function experienceBrief(key,data){
     add('Execution activities',s.population?.executableActivityCount,'LOE and summary records excluded');
     add('Critical activities',s.float?.criticalCount,'Source total float');
     add('Near-critical activities',s.float?.nearCriticalCount,d.nearCriticalScreening?.basis||'Activity-calendar threshold; authority unresolved');
-    add('Open logic starts',s.logicQuality?.executionOpenStartActivityIds?.length,'Execution activities without predecessors');
+    add('Open logic starts',experienceRecordCount(s.logicQuality?.executionOpenStartActivityIds),'Execution activities without predecessors');
     note='Float classifications describe the submitted schedule. Open ends require a boundary review before they are treated as logic defects.';
-    if(s.logicQuality?.executionOpenStartActivityIds?.length)review='Review the open starts against approved project boundaries. The complete activity list is in the analysis below.';
+    if(experienceRecordCount(s.logicQuality?.executionOpenStartActivityIds))review='Review the open starts against approved project boundaries. The complete activity list is in the analysis below.';
   }else if(key==='activity-analytics'){
     const m=d.movementAnalysis,dist=d.movementDistribution;
     add('Baseline-comparable',dist?.knownCount,'Of '+experienceValue(d.activityCount)+' source activities');
@@ -140,8 +144,8 @@ function experienceBrief(key,data){
     note=d.installedQuantityStatus?.explanation||'Programme links and dated installed measurements are separate facts.';
     if(d.allocationState!=='complete'||d.mappingBasis!=='governed')review='Planned quantity curves require confirmed BOQ-to-activity links. This mapping review does not remove available measured installations.';
   }else if(key==='progress-breakdown'){
-    add('Execution activities',d.totalActivityCount,'Nonadditive WBS hierarchy');add('Direct WBS groups',d.rows?.length,'Groups owning execution activities');
-    add('Hierarchy groups',d.hierarchyRows?.length,'Parents and direct groups');
+    add('Execution activities',d.totalActivityCount,'Nonadditive WBS hierarchy');add('Direct WBS groups',experienceRecordCount(d.rows),'Groups owning execution activities');
+    add('Hierarchy groups',experienceRecordCount(d.hierarchyRows),'Parents and direct groups');
     note='Parent rows roll up their children and must not be added to child totals.';
   }else if(key==='schedule-change-report'){
     add('Added activities',d.addedActivityCount,'Current vs previous revision');add('Removed activities',d.removedActivityCount,'Previous vs current revision');
@@ -187,8 +191,8 @@ function experienceBrief(key,data){
     note='Cash movements and certificate values are separate views. Currency and tax partitions are never combined.';
     if(rows.some(r=>!r.sourceReadiness?.netCashReady))review='Add paid amounts with receipt dates and actual cash expenditure dates to establish net cash. Certificate values by reporting period are available below.';
   }else if(key==='payments'){
-    const r=f.paymentRegister||{};add('Certificate periods',r.recordCount,'By Data Date');add('Future periods',r.futureRows?.length,'Excluded from current position');
-    add('Undated records',r.undatedRows?.length,'Outside dated totals');
+    const r=f.paymentRegister||{};add('Certificate periods',r.recordCount,'By Data Date');add('Future periods',experienceRecordCount(r.futureRows),'Excluded from current position');
+    add('Undated records',experienceRecordCount(r.undatedRows),'Outside dated totals');
     note='Application, certification and payment are separate events. A period-end date is not proof of a payment date.';
   }else if(key==='variations-change'){
     const t=p.sourceLedger?.temporalPosition?.variations||{};add('Approvals by Data Date',t.asOfApprovedCount,'Dated approved changes');
@@ -203,7 +207,7 @@ function experienceBrief(key,data){
     add('Active bonds',bi.bonds?.length?bi.activeBondCount:null,'Requires a current security register');add('Active policies',bi.insurances?.length?bi.activeInsuranceCount:null,'Requires an insurance register');
     note='Contract requirements do not establish whether a bond, policy or controlled obligation has been issued.';
   }else if(key==='commercial-claims-notices'){
-    const r=d.claimsReporting;add('Claims by Data Date',r?.claims?.asOf?.length,'Dated claims only');add('Future claims',r?.claims?.future?.length,'Excluded from current totals');
+    const r=d.claimsReporting;add('Claims by Data Date',experienceRecordCount(r?.claims?.asOf),'Dated claims only');add('Future claims',experienceRecordCount(r?.claims?.future),'Excluded from current totals');
     add('Commercial records',p.claimCommercialCount,'Claims with a commercial linkage');
     note='Money claims and time entitlement have separate assessment and approval bases.';
   }else if(key==='commercial-overview'){
@@ -229,8 +233,29 @@ function roleLensTable(title,columns,rows){
   const body=rows.map(row=>'<tr>'+columns.map(column=>{const raw=row?.[column[0]];const value=Array.isArray(raw)?raw.join('; '):raw;return '<td>'+escapeHtml(value===null||value===undefined||value===''?'Not established':column[2]==='date'?planningShortDate(value):String(value))+'</td>';}).join('')+'</tr>').join('');
   return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div></section>';
 }
-function experienceRoleLensContext(role){
-  const context=typeof overview!=='undefined'&&overview?.roleLensContext?overview.roleLensContext:null;
+function pageRoleLensContext(data){
+  const root=findProjectionRoot(data),facts=data?.projectFacts||root?.projectFacts;
+  const base=data?.roleLensContext||root?.roleLensContext||(typeof overview!=='undefined'?overview?.roleLensContext:null)||{};
+  if(!facts)return base;
+  const value=field=>field?.value??null;
+  const submitted=value(facts.schedule?.submittedProgrammeCompletionIso);
+  const currentContract=value(facts.time?.extendedContractCompletionIso)||value(facts.time?.contractualCompletionIso);
+  const metrics=[
+    ['Original contract completion',facts.time?.contractualCompletionIso,'date'],
+    ['Current contract completion',value(facts.time?.extendedContractCompletionIso)!==null?facts.time.extendedContractCompletionIso:facts.time?.contractualCompletionIso,'date'],
+    ['Submitted completion',facts.schedule?.submittedProgrammeCompletionIso,'date'],
+    ['Critical activities',facts.schedule?.criticalActivityCount,''],
+    ['Near-critical activities',facts.schedule?.nearCriticalActivityCount,''],
+    ['Open actions',facts.actions?.openCount,'']
+  ].filter(row=>row[1]).map(([label,field,unit])=>({label,value:value(field),unit,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'}));
+  const actions=root?.projectDiagnosis?.actionRegister?.actions||data?.projectDiagnosis?.actionRegister?.actions;
+  return {...base,planning:{...base.planning,criticalCount:value(facts.schedule?.criticalActivityCount),nearCriticalCount:value(facts.schedule?.nearCriticalActivityCount),negativeFloatCount:value(facts.schedule?.negativeFloatActivityCount)},
+    controls:{...base.controls,submittedCompletionIso:submitted},
+    projectDirector:{...base.projectDirector,...(Array.isArray(actions)?{actions}:{})},
+    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,metrics,commercialByCurrency:facts.commercial?.currencies||[]}};
+}
+function experienceRoleLensContext(role,data){
+  const context=pageRoleLensContext(data);
   if(!context||role==='overall')return '';
   const basis='Same canonical project facts used by Management Control; the role lens does not recalculate them.';
   if(role==='planning'){
@@ -302,7 +327,7 @@ function experiencePreview(primaryView,limit=2){
 }
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
-  const roleContext=experienceRoleLensContext(role);
+  const roleContext=experienceRoleLensContext(role,data);
   const reading=key==='pmo-analysis'?'':experienceManagementReading(key,brief);
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>Page-specific review</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';

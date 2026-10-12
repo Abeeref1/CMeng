@@ -39,7 +39,14 @@ export function activityRegisterView(data:any){
  const criticalityCounts:Record<string,number>={critical:0,near_critical:0,noncritical:0,unknown:0};
  let openLogicCount=0;
  for(const row of execution){const status=Object.hasOwn(statusCounts,row.status)?row.status:'unknown';statusCounts[status]=(statusCounts[status]??0)+1;if(row.status!=='completed'){const kind=Object.hasOwn(criticalityCounts,row.criticality)?row.criticality:'unknown';criticalityCounts[kind]=(criticalityCounts[kind]??0)+1;}if(row.openStart||row.openFinish||row.isolated)openLogicCount++;}
+ const pressureCounts=Array.from({length:4},()=>Array<number>(6).fill(0));
+ for(const row of execution.filter((r:any)=>r.status!=='completed')){
+  const band=['critical','near_critical','noncritical'].indexOf(row.criticality),v=row.finishVarianceDays;
+  const column=typeof v!=='number'||!Number.isFinite(v)?5:v<=0?0:v<=30?1:v<=90?2:v<=180?3:4;
+  pressureCounts[band<0?3:band]![column]!++;
+ }
+ const pressureMatrix={counts:pressureCounts,unfinishedCount:execution.filter((r:any)=>r.status!=='completed').length,completedCount:statusCounts.completed,excludedCount:all.length-execution.length};
  return {...data,rows:activityRegisterPage(all,new URLSearchParams('pageSize=50')).rows,
-  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,statusCounts,criticalityCounts,openLogicCount,filterOptions},
+  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,statusCounts,criticalityCounts,openLogicCount,filterOptions,pressureMatrix},
   ...(data.scopeClassification?{scopeClassification:{...data.scopeClassification,rows:undefined}}:{})};
 }

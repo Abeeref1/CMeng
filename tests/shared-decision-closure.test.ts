@@ -83,8 +83,8 @@ test('Float erosion uses all activities and real elapsed months without predicti
 test('Detailed claim and long-window screens are derived from actual notice and submission dates',t=>{
  const {state,csv}=fixture(t);state.schedules.at(-1)!.revision.model.dataDateIso='2026-09-30';
  csv('claim_register','Claim ID,Event Notice Date,Detailed Claim Date,Window Start,Window End\nC1,2026-01-01,2026-02-13,2026-01-01,2026-04-02\nC2,2026-03-01,2026-04-01,2026-03-01,2026-06-01');
- const c=projectDecisionFacts(state).claimChecks;assert.equal(c.total,2);assert.equal(c.rows[0].dueDateIso,'2026-02-12');assert.equal(c.rows[0].daysAfterDue,1);assert.equal(c.longWindowCount,1);assert.equal(c.rows[1].longWindow,false);
- assert.match(c.rows[0].basis,/screening/);assert.equal(decisionAnalysisForModule(state,'notices-claims')!.kind,'detailed_claims');
+ const c=projectDecisionFacts(state).claimChecks;assert.equal(c.total,2);assert.equal(c.rows[0].dueDateIso,null);assert.equal(c.rows[0].daysAfterDue,null);assert.equal(c.rows[0].detailedClaimState,'due_basis_missing');assert.equal(c.lateCount,0);assert.equal(c.longWindowCount,1);assert.equal(c.rows[1].longWindow,false);
+ assert.match(c.rows[0].basis,/no deadline is assumed/);assert.equal(decisionAnalysisForModule(state,'notices-claims')!.kind,'detailed_claims');
 });
 
 test('Monthly EVM includes all retained months and preserves currency separation and missing values',t=>{

@@ -1953,9 +1953,9 @@ function planningDateTrend(points,series,contractDateIso){
     '<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Forecast completion trend">'+
     ticks+(typeof contractMs==='number'?'<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y(contractMs).toFixed(1)+'" y2="'+y(contractMs).toFixed(1)+'" stroke="#ab4737" stroke-dasharray="7 3"/><text x="'+(left+5)+'" y="'+(y(contractMs)-6).toFixed(1)+'" fill="#ab4737" font-size="11">Contract including awarded EOT · '+escapeHtml(planningShortDate(contractDateIso))+'</text>':'')+paths+pointsSvg+labels+'</svg></div></div>';
 }
-function planningActivityPressure(rows){
+function planningActivityPressure(rows,summary){
   const all=rows||[],excluded=all.filter(r=>["level_of_effort","wbs_summary"].includes(r.activityType)),completed=all.filter(r=>r.status==="completed"&&!["level_of_effort","wbs_summary"].includes(r.activityType)),candidates=all.filter(r=>r.status!=="completed"&&!["level_of_effort","wbs_summary"].includes(r.activityType));
-  if(!all.length)return '<div class="empty-visual">No source activities are available.</div>';
+  if(!all.length&&!summary)return '<div class="empty-visual">No source activities are available.</div>';
   const columns=[
     {label:"On / early",match:v=>typeof v==="number"&&v<=0},
     {label:"1–30 d late",match:v=>typeof v==="number"&&v>0&&v<=30},
@@ -1970,12 +1970,12 @@ function planningActivityPressure(rows){
     {label:"Non-critical",tone:"accent",match:r=>r.criticality==="noncritical"},
     {label:"Float classification unknown",tone:"neutral",match:r=>!["critical","near_critical","noncritical"].includes(r.criticality)}
   ];
-  const counts=bands.map(band=>columns.map(col=>candidates.filter(r=>band.match(r)&&col.match(r.finishVarianceDays)).length));
+  const counts=summary?.counts||bands.map(band=>columns.map(col=>candidates.filter(r=>band.match(r)&&col.match(r.finishVarianceDays)).length));
   const max=Math.max(1,...counts.flat());
   const head='<div class="pressure-matrix-head" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><span>Float class</span>'+columns.map(col=>'<b>'+escapeHtml(col.label)+'</b>').join("")+'</div>';
   const body=bands.map((band,i)=>'<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>'+escapeHtml(band.label)+'</strong>'+counts[i].map(count=>'<span class="pressure-cell '+band.tone+'" style="--cell-alpha:'+Math.max(.08,count/max).toFixed(3)+'"><b>'+escapeHtml(fmt(count))+'</b></span>').join("")+'</div>').join("");
-  const excludedRow='<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>LOE / WBS summaries</strong><span class="pressure-cell neutral" style="grid-column:span 6">'+fmt(excluded.length)+' source records excluded from execution float bands</span></div>';
-  return '<div class="pressure-matrix">'+head+body+excludedRow+'</div><div class="pressure-note">All '+escapeHtml(fmt(candidates.length))+' unfinished execution activities are reconciled; '+fmt(completed.length)+' completed activities and LOE / WBS summaries are outside the live float bands. Thresholds use each activity calendar. Unknown dates and classifications remain visible.</div>';
+  const excludedRow='<div class="pressure-matrix-row" style="grid-template-columns:150px repeat(6,minmax(55px,1fr))"><strong>LOE / WBS summaries</strong><span class="pressure-cell neutral" style="grid-column:span 6">'+fmt(summary?.excludedCount??excluded.length)+' source records excluded from execution float bands</span></div>';
+  return '<div class="pressure-matrix">'+head+body+excludedRow+'</div><div class="pressure-note">All '+escapeHtml(fmt(summary?.unfinishedCount??candidates.length))+' unfinished execution activities are reconciled; '+fmt(summary?.completedCount??completed.length)+' completed activities and LOE / WBS summaries are outside the live float bands. Thresholds use each activity calendar. Unknown dates and classifications remain visible.</div>';
 }
 function planningLookAheadTimeline(p){
   const labelMap={predecessor:"Predecessor",procurement_material:"Material",design_submittal:"Design / RFIs / Submittals",permit:"Permit",resource:"Resource",quality:"Quality",commercial:"Commercial",risk:"Risk",access:"Access"};
@@ -2262,15 +2262,15 @@ function renderPmoVisual(data){
 function renderProgrammeQuality(q){
  if(!q||q.state==='missing')return '';
  const rows=q.checks.map(c=>'<tr><td>'+escapeHtml(c.label)+'</td><td>'+fmt(c.count)+' / '+fmt(c.population)+'</td><td>'+escapeHtml(c.basis)+'</td><td><details><summary>Affected activities</summary>'+escapeHtml(c.activityIds.join(', ')||'None in the checked population')+'</details></td></tr>').join('');
- return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['BEI',q.bei.value,'Actual completions / baseline due completions'],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Positive lags',q.positiveLags.length,'relationships'],['Leads',q.negativeLags.length,'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / population</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; planned '+fmt(q.bei.planned)+'.</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+fmt(q.cpli.totalFloatWorkingHours)+' h.</p></details></div></section>';
+ return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['BEI',q.bei.value,'Actual completions / baseline due completions'],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Positive lags',experienceRecordCount(q.positiveLags),'relationships'],['Leads',experienceRecordCount(q.negativeLags),'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / population</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; planned '+fmt(q.bei.planned)+'.</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+fmt(q.cpli.totalFloatWorkingHours)+' h.</p></details></div></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
   const r=p.result||p;
   if(!r.graph||!r.float)return"";
-  const openStarts=(r.graph.openStartActivityIds||[]).length,openFinishes=(r.graph.openFinishActivityIds||[]).length;
-  const broken=(r.graph.brokenPredecessorActivityIds||[]).length+(r.graph.brokenSuccessorActivityIds||[]).length;
-  const cycles=(r.graph.cyclicActivityIds||[]).length,isolated=(r.graph.isolatedActivityIds||[]).length;
+  const openStarts=experienceRecordCount(r.graph.openStartActivityIds||[]),openFinishes=experienceRecordCount(r.graph.openFinishActivityIds||[]);
+  const broken=experienceRecordCount(r.graph.brokenPredecessorActivityIds||[])+experienceRecordCount(r.graph.brokenSuccessorActivityIds||[]);
+  const cycles=experienceRecordCount(r.graph.cyclicActivityIds||[]),isolated=experienceRecordCount(r.graph.isolatedActivityIds||[]);
   const kpis=planningKpis([
     ["Programme records",r.activityCount,"All programme records"],["Execution activities",r.population?.executableActivityCount,"Activities used for analysis"],["Excluded types",r.population?.excludedActivityCount,"LOE and WBS summaries"],
     ["Relationships",r.relationshipCount,"logic links"],
@@ -2300,7 +2300,7 @@ function renderScheduleAnalyticsVisual(data){
   })),r.dataDateIso);
   const variance=r.finishVariance||{};
   const logic=r.logicQuality||{};
-  const quality='<div class="notice info"><b>Logic quality: '+escapeHtml(humanizeKey(logic.state||"not_established"))+'</b><br>Execution open starts: '+escapeHtml(fmt(logic.executionOpenStartActivityIds?.length))+'; open finishes: '+escapeHtml(fmt(logic.executionOpenFinishActivityIds?.length))+'; isolated: '+escapeHtml(fmt(logic.executionIsolatedActivityIds?.length))+'. Excluded isolated source records: '+escapeHtml(fmt(logic.excludedIsolatedActivityIds?.length))+'. Boundary candidates: '+escapeHtml(fmt(logic.boundaryCandidateActivityIds?.length))+' require confirmed review.</div>';
+  const quality='<div class="notice info"><b>Logic quality: '+escapeHtml(humanizeKey(logic.state||"not_established"))+'</b><br>Execution open starts: '+escapeHtml(fmt(experienceRecordCount(logic.executionOpenStartActivityIds)))+'; open finishes: '+escapeHtml(fmt(experienceRecordCount(logic.executionOpenFinishActivityIds)))+'; isolated: '+escapeHtml(fmt(experienceRecordCount(logic.executionIsolatedActivityIds)))+'. Excluded isolated source records: '+escapeHtml(fmt(experienceRecordCount(logic.excludedIsolatedActivityIds)))+'. Boundary candidates: '+escapeHtml(fmt(experienceRecordCount(logic.boundaryCandidateActivityIds)))+' require confirmed review.</div>';
   const varianceBand=planningStatusBand([
     ["Late",variance.lateActivities||0,"danger"],["On time",variance.onTimeActivities||0,"success"],["Early",variance.earlyActivities||0,"accent"],["Unknown",variance.unknownActivities||0,"neutral"]
   ]);
@@ -2408,7 +2408,7 @@ function renderActivityAnalyticsVisual(data){
   ]);
   const repeatedMovementWarning="";
   const topLate=[...allRows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
-  const pressure=planningActivityPressure(allRows);
+  const pressure=planningActivityPressure(allRows,p.activitySummary?.pressureMatrix);
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Execution status","Activities by current status.",renderDonutChart([
       {label:"Completed",value:status.completed||0,tone:"success"},
@@ -4238,10 +4238,10 @@ function renderCommercialVisual(key,data){
   }
   if(key==="commercial-claims-notices"){
     const cn=position.claimsNotices||p.focus?.claimsNotices||{};
-    const stateCounts=(cn.claims||[]).reduce((counts,c)=>{const state=c.sourceRegister?.state||c.state;counts[state]=(counts[state]||0)+1;return counts;},{});
+    const stateCounts=cn.sourceClaimStateCounts||{};
     const timeliness=cn.noticeTimelinessCounts||{};
     const kindCounts=cn.noticeKindCounts||{};
-    const lifecyclePopulationEstablished=Array.isArray(cn.claims)&&cn.claims.length>0;
+    const lifecyclePopulationEstablished=cn.lifecycleClaimCount>0&&!!cn.sourceClaimStateCounts;
     const noticeAssessmentPopulationEstablished=Array.isArray(cn.noticeAssessments)&&cn.noticeAssessments.length>0;
     const noticePopulationEstablished=Array.isArray(cn.notices)&&cn.notices.length>0;
     const noticeEvidenceGapCount=(timeliness.requirement_conflicted??0)+(timeliness.requirement_missing??0)+(timeliness.event_date_missing??0)+(timeliness.notice_date_missing??0);

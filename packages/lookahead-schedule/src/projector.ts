@@ -263,7 +263,7 @@ export function buildLookAheadProjection(
     generatedAt: string;
     producerVersion: string;
     windowDays?: number;
-    drivingActivityIds?:readonly string[];
+    drivingActivityIds?:readonly string[]|undefined;
     readinessEvidence?: Record<
       string,
       Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>

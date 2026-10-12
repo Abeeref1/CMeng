@@ -161,6 +161,7 @@ test('an undelivered package with a past forecast requires a new recovery date, 
  const result=recoveryAccelerationIntelligence(state);
  const stale=result.scenarios.find(r=>r.subject==='STALE')!,future=result.scenarios.find(r=>r.subject==='FUTURE')!;
  assert.equal(stale.state,'option_requires_assumption');assert.equal(stale.possibleDaysRecovered,null);
- assert.match(stale.currentPosition,/remains undelivered/);assert.match(stale.targetPosition,/current achievable delivery/);
- assert.equal(future.state,'calculated');assert.equal(future.possibleDaysRecovered,7);
+ assert.match(stale.currentPosition,/Historical lateness/);assert.match(stale.targetPosition,/current achievable delivery/);
+ assert.equal(future.state,'option_requires_assumption');assert.equal(future.possibleDaysRecovered,null);
+ assert.match(future.targetPosition,/achievable delivery/);
 });

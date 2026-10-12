@@ -1,3 +1,5 @@
+import {contractNoticeRules} from './contract-notice-rules';
+import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import {cell,dateValue,numberValue,governedTables,type SourceRow} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -45,7 +47,7 @@ function buildDecisionFacts(state:ProjectRuntimeState){
   get boqLinkage(){return linkage();},
   get quantities(){return quantities();},
   get trends(){return once('trends',()=>buildProgrammeTrends(state,model,cutoff));},
-  get claimChecks(){return once('claims',()=>buildClaimChecks(sourceRows(),cutoff));},
+  get claimChecks(){return once('claims',()=>buildClaimChecks(sourceRows(),cutoff,contractNoticeRules(state,'detailed_claim')));},
   get paymentChecks(){return once('paymentChecks',()=>buildPaymentChecks(commercial(),cutoff));},
   get monthlyEvm(){return once('evm',()=>buildMonthlyEvm(commercial(),cutoff));},
   get registerValueChecks(){return once('registerChecks',()=>buildRegisterChecks(commercial(),commercial().sourceLedger??{},quantities(),procurementSourceTotals(state)));},
@@ -223,22 +225,32 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   basis:'Full retained BOQ item population; area and currency totals use explicit source associations. Quantities with unlike units are never summed into a project physical percentage.'};
 }
 
-function buildClaimChecks(rows:SourceRow[],cutoff:string|null){
+export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:NoticeRequirement[]=[]){
  const seen=new Set<string>(),checks:any[]=[];
  for(const r of rows){const ref=cell(r,'claim id','claim no','claim number','event id','event no');const notice=date(cell(r,'notice date','event notice date','notice submitted date'));
   const submitted=date(cell(r,'detailed claim date','fully detailed claim date','detailed submission date','claim submission date','submission date'));
   const start=date(cell(r,'window start','window start date','delay start')),end=date(cell(r,'window end','window end date','delay end'));
-  if(!ref||(!notice&&!submitted&&!start&&!end))continue;
+  if(!ref)continue;
   const identity=ref+'|'+notice+'|'+submitted+'|'+start+'|'+end;if(seen.has(identity))continue;seen.add(identity);
-  const contractDays=numberValue(cell(r,'detailed claim period days','fully detailed claim period days')),limit=contractDays!==null&&contractDays>=0?contractDays:42;
-  const due=notice?plusDays(notice,limit):null;
+  const awareness=date(cell(r,'awareness date','date of awareness','became aware date'));
+  const eventStart=date(cell(r,'event start','event start date','event date'));
+  const candidates=rules.filter(rule=>{
+   const trigger=rule.triggerBasis==='awareness'?awareness:rule.triggerBasis==='event_start'?eventStart:null;
+   return trigger&&(!rule.effectiveFromIso||trigger>=rule.effectiveFromIso)&&(!rule.effectiveToIso||trigger<rule.effectiveToIso);
+  });
+  const rule=candidates.length===1&&candidates[0]!.state==='official'?candidates[0]!:null;
+  const trigger=rule?.triggerBasis==='awareness'?awareness:rule?.triggerBasis==='event_start'?eventStart:null;
+  const limit=rule?.noticePeriodDays??null;
+  const due=trigger&&limit!==null?plusDays(trigger,limit):null;
   checks.push({claimReference:ref,noticeDateIso:notice,detailedSubmissionDateIso:submitted,dueDateIso:due,allowedDays:limit,
+   triggerDateIso:trigger,triggerBasis:rule?.triggerBasis??null,
    daysAfterDue:due&&submitted?days(due,submitted):null,
-   detailedClaimState:!notice?'notice_date_missing':submitted?(submitted<=due!?'within_period':'late'):cutoff&&due!<cutoff?'overdue_no_submission':'submission_not_recorded',
+   detailedClaimState:!due?'due_basis_missing':submitted?(submitted<=due?'within_period':'late'):cutoff&&due<cutoff?'overdue_no_submission':'submission_not_recorded',
    windowStartIso:start,windowEndIso:end,windowCalendarDays:days(start,end),longWindow:start&&end?end>monthDate(start,3):null,
-   sourceRefs:rowRefs(r),basis:contractDays!==null?'Explicit source detailed-claim period measured from event notice; review the governing clause.':'42-day detailed-claim screening from event notice as requested; a policy check, not a determination of contractual entitlement.',
+   sourceRefs:[...rowRefs(r),...(rule?.evidenceRefs??[]).map(ref=>ref.sourceType+':'+ref.sourceId+':'+ref.locator)],
+   basis:rule?'Documented detailed-claim period of '+limit+' calendar days from '+(rule.triggerBasis==='awareness'?'awareness':'event start')+'.':'The applicable detailed-claim period and starting event are not established; no deadline is assumed.',
    warning:start&&end&&end>monthDate(start,3)?'Delay window exceeds three calendar months; subdivide the analysis or justify the longer window.':null,
-   missingInputs:[!notice?'Dated event notice':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
+   missingInputs:[!rule?'Applicable contract detailed-claim rule and its dated starting event':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
  }
  return {rows:checks,total:checks.length,lateCount:checks.filter(r=>r.detailedClaimState==='late'||r.detailedClaimState==='overdue_no_submission').length,longWindowCount:checks.filter(r=>r.longWindow).length,
   basis:'Dated claim screening; all source references retained. No entitlement, waiver, time-bar or liability determination is inferred.'};

@@ -87,6 +87,7 @@ export interface CommercialClaimsNoticesPosition {
   commercialLifecycleLinkCoveragePercent:
     number | null;
   claimStateCounts: Record<ClaimState, number>;
+  sourceClaimStateCounts?: Record<ClaimState, number>;
   noticeKindCounts: Record<NoticeKind, number>;
   noticeTimelinessCounts:
     Record<NoticeTimeliness, number | null>;

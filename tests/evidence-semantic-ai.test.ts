@@ -138,3 +138,13 @@ test('failed AI reading is recorded on the retained source',async t=>{
   const doc=store.get('FAILED')!.evidenceDocuments.find(d=>d.sourceFilename==='opaque.csv')!;
   assert.ok(doc.identification?.diagnostics.some(d=>d.startsWith('AI reading failed.')));
 });
+
+test('workbook AI failures identify the affected worksheet on its retained source',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'cmeng-workbook-ai-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const {default:ExcelJS}=await import('exceljs');const book=new ExcelJS.Workbook();book.addWorksheet('Payments').addRows(rows);
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false,semanticAiResolver:{name:'failed',resolveTable:async()=>{throw new Error('provider unavailable');}}});
+ await store.ingestEvidenceFile({projectId:'WORKBOOK',bytes:new Uint8Array(await book.xlsx.writeBuffer()),mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',sourceFilename:'opaque.xlsx',
+  sourceRelativePath:'opaque.xlsx',uploadedAt:'2039-04-01T00:00:00.000Z',uploadIntent:'add_update',allowSemanticAi:true});
+ const doc=store.get('WORKBOOK')!.evidenceDocuments.find(d=>d.sourceFilename==='opaque.xlsx')!;
+ assert.ok(doc.identification?.diagnostics.some(d=>d.startsWith('Worksheet Payments: AI reading failed.')));
+});
