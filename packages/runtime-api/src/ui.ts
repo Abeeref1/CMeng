@@ -5410,7 +5410,7 @@ function renderModuleResultBody(result){
   const progressBreakdown=result.key==='progress-breakdown';
   const supporting=progressBreakdown?'':result.key==='source-quality'?experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+sourceBasis,"Dates, records and calculation qualifications"):'<p class="module-evidence-link">'+escapeHtml(moduleName)+' evidence and qualifications · '+managementModuleLink('source-quality','Open the shared source review')+'</p>'+(result.key==='notices-claims'?renderClaimsReporting(data.claimsReporting,result.key):'');
   const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
-  el("moduleContent").innerHTML=context+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+  el("moduleContent").innerHTML=context+(managementSurface&&result.key!=='source-quality'?renderPositionVerdict(data,true):'')+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
     (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     supporting+review;

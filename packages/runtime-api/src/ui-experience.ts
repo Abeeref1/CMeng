@@ -1,5 +1,6 @@
 /** Shared presentation only. Values remain owned by the module resolvers. */
 export const experienceStyles = String.raw`
+.experience-management-reading{border:1px solid #cedce9;background:#fff;border-left:4px solid #527aa0;border-radius:9px;padding:17px 19px;margin:0 0 18px;line-height:1.65}.experience-management-reading h4{font-size:17px;margin:0 0 10px;color:#233e59}.experience-management-reading p{margin:8px 0;font-size:14px;color:#314a63}.experience-management-reading details{margin:10px 0 0;background:#f8fafc}.experience-management-reading details p{padding:0 12px 12px}
 :root{--bg:#f3f5f8;--ivory:#fff;--ink:#1b2c43;--muted:#526479;--line:#dce3ec;--accent:#316ba6;--accent-strong:#245783;--shadow:0 3px 12px rgba(22,42,67,.035)}
 .badge.ready{background:#eaf2fb!important;color:#245e93!important}.badge.blocked{background:#edf1f6!important;color:#586c82!important}#moduleBadge:empty{display:none}#moduleContent{text-align:left}.badge{text-transform:none!important;letter-spacing:0!important}.management-metric-head>span{font-size:13px!important;text-transform:none!important;letter-spacing:0!important;color:#526479!important;max-width:100%}.management-metric-head{align-items:flex-start;gap:8px}.experience-brief p,.experience-fact,.experience-review{text-align:left}
 body{font-size:15px;line-height:1.55;background:var(--bg)}
@@ -28,6 +29,17 @@ h1,h2,h3,h4,h5,.kpi-value,.position-value{font-family:Inter,"Segoe UI",system-ui
 `;
 
 export const experienceScript = String.raw`
+function experienceManagementReading(key,brief){
+ const facts=(brief.facts||[]).filter(item=>item.value!==null&&item.value!==undefined&&item.display!=='Not established').slice(0,4);
+ const absent=(brief.facts||[]).filter(item=>item.value===null||item.value===undefined||item.display==='Not established').slice(0,3);
+ if(!facts.length&&!absent.length&&!brief.review)return '';
+ const established=facts.length?'<p><b>Established from project records:</b> '+facts.map(f=>escapeHtml(f.label)+': <strong>'+escapeHtml(f.display)+'</strong>').join(' · ')+'</p>':'';
+ const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. This is not a zero result.</p>':'';
+ const attention=brief.review?'<p><b>What needs attention:</b> '+escapeHtml(brief.review)+'</p>':'';
+ const context=brief.note?'<details><summary>How to interpret these figures</summary><p>'+escapeHtml(brief.note)+'</p></details>':'';
+ return '<section class="experience-management-reading"><h4>What this page shows</h4>'+established+gaps+attention+context+'</section>';
+}
+
 function experienceDisclosure(title,body,note='',className=''){
   return '<details class="experience-disclosure '+className+'"><summary>'+escapeHtml(title)+(note?'<span>'+escapeHtml(note)+'</span>':'')+'</summary><div class="experience-disclosure-body">'+body+'</div></details>';
 }
@@ -291,6 +303,7 @@ function experiencePreview(primaryView,limit=2){
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
   const roleContext=experienceRoleLensContext(role);
+  const reading=experienceManagementReading(key,brief);
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>Page-specific review</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
   // Planning keeps the full technical page visible. Controls leads with its
@@ -302,8 +315,8 @@ function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTech
     :role==='controls'?roleContext+experiencePreview(primaryView,2)+experienceDisclosure('Detailed controls, charts and records',analysis,'Same canonical page facts')
     :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page');
   const sourceContext=experienceSourceContext(key,data);
-  if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
-  return '<div class="role-view-'+role+'">'+content+briefHtml+experienceDisclosure('Additional source context',sourceContext,'Supporting information')+challengeHtml+'</div>';
+  if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+reading+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
+  return '<div class="role-view-'+role+'">'+reading+content+briefHtml+experienceDisclosure('Additional source context',sourceContext,'Supporting information')+challengeHtml+'</div>';
 }
 function experienceCertificateGroups(position){
   const register=position?.foundation?.paymentRegister||{},source=position?.sourceLedger?.payments||[];

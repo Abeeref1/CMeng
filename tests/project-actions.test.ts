@@ -168,3 +168,14 @@ test('Existing contract and amendment findings are visible before any replacemen
  assert.ok(html.includes('Documents and locations to examine'));
  assert.ok(!html.includes('What needs your response:</b> Upload corrected evidence'));
 });
+
+
+test('Shared specialist-page management summary uses established figures, never inserts zero for missing values',()=>{
+ const {experienceScript}=require('../packages/runtime-api/src/ui-experience');
+ const result=runInNewContext(experienceScript+';experienceManagementReading("progress-report",{facts:[{label:"Schedule progress",value:72,display:"72%"},{label:"Earned value",value:null,display:"Not established"}],review:"Confirm the missing cost data before calculating CPI.",note:"Progress and cost are different measures."})',{escapeHtml:String});
+ assert.ok(result.includes('Established from project records:'));
+ assert.ok(result.includes('Schedule progress: <strong>72%</strong>'));
+ assert.ok(result.includes('Not yet established:</b> Earned value'));
+ assert.ok(result.includes('Confirm the missing cost data'));
+ assert.ok(!result.includes('Earned value: <strong>0'));
+});

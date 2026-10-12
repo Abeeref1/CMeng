@@ -9,9 +9,9 @@ function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
   const issue=(data.issueAssessment?.issues||[]).find(i=>i.action===v.nextAction);
   const request=issue?readerIssue(issue):null;
-  const next='<p><b>Assign to:</b> '+escapeHtml(request?.assignTo||v.assignTo||'Project Controls')+'</p><p><b>Next:</b> '+escapeHtml(request?.action||readerText(v.nextAction))+'</p>';
+  const next='<p><b>Next step:</b> '+escapeHtml(request?.action||readerText(v.nextAction))+'</p><p><b>Responsible role:</b> '+escapeHtml(request?.assignTo||v.assignTo||'Project Controls')+'</p>';
   if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(readerText(v.text))+'</p>'+next+'</details>':'';
-  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p>'+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
+  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
  const raw=readerReference(value);
@@ -233,7 +233,7 @@ function renderSourceQuality(data){
 }
 function renderDashboardDecisions(data){
   const decisions=(data.actions||[]).filter(row=>row.recordKey?.startsWith('review|'));
-  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.requiredAction))+'</p>'+managementModuleLink('source-quality','Open the pre-filled review action')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
+  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.consequence||row.requiredAction))+'</p>'+managementModuleLink('source-quality','Review findings and existing evidence before deciding')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
   return managementPanel('Source decisions',fmt(decisions.length)+' source reviews within the shared project action list.',body);
 }
 function renderDashboardExceptions(data){
