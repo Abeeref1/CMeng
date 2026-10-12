@@ -76,7 +76,8 @@ test('When independent CPM fails, source pressure is shown but zero is not passe
  assert.match(html,/Important schedule inconsistency to investigate/);
  assert.match(html,/The submitted finish precedes the original contract date/);
  assert.match(html,/Overdue RFIs:.*86/);
- assert.match(html,/Major / critical NCRs:.*38 known; full total not confirmed/);
+ assert.ok(html.includes('Major / critical NCRs:'), 'source-qualified NCR heading is retained');
+ assert.match(html,/38 known; full total not confirmed/);
  assert.match(html,/SAR commercial position/);
  assert.match(html,/6,100,000,000/);
  assert.match(html,/260,000,000/);
