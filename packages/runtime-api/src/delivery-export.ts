@@ -1,7 +1,7 @@
-import ExcelJS from 'exceljs';
 import type {ModuleRuntimeResult} from './project-state-types';
 /** Normalize every nested record, including every curve point, without row caps. */
 export async function buildDeliveryWorkbook(projectId:string,result:ModuleRuntimeResult){
+ const {default:ExcelJS}=await import('exceljs');
  const workbook=new ExcelJS.Workbook();workbook.creator='CMeng';workbook.title=projectId+' Delivery';
  const sections=new Map<string,Record<string,unknown>[]>();
  function visit(value:any,path:string,parent:string|null){

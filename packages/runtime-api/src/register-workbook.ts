@@ -1,9 +1,9 @@
 import {readableXlsx} from '../../shared/src/xlsx';
-import ExcelJS from 'exceljs';
-import {canonicalHeader,isRegisterDateHeader,prepareRegisterRows} from '../../truth-kernel/src';
+import {analyzeEvidenceTable,canonicalHeader,isRegisterDateHeader,prepareRegisterRows} from '../../truth-kernel/src';
 import type {StoredEvidenceDocument} from './project-state-types';
 
 export async function readRegisterWorkbook(bytes:Uint8Array,sourceHashSha256:string,documentType:string):Promise<NonNullable<StoredEvidenceDocument['tabularRead']>> {
+  const {default:ExcelJS}=await import('exceljs');
   const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await readableXlsx(bytes) as any);
   const sheets=workbook.worksheets.map(sheet=>{
     const rows:string[][]=[];
@@ -25,8 +25,8 @@ export async function readRegisterWorkbook(bytes:Uint8Array,sourceHashSha256:str
       const epoch=workbook.properties.date1904?Date.UTC(1904,0,1):Date.UTC(1899,11,serial<60?31:30);
       compact[r]![c]=new Date(epoch+Math.floor(serial)*86400000).toISOString().slice(0,10);
     }
-    return {name:sheet.name,rows:compact};
+    return {name:sheet.name,rows:compact,intelligence:analyzeEvidenceTable(compact)};
   });
-  return {producerVersion:'register-workbook-v2',sourceHashSha256,sheets};
+  return {producerVersion:'register-workbook-v3',sourceHashSha256,sheets};
 }
 export const registerCsv=(rows:readonly string[][])=>rows.map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');

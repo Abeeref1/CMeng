@@ -1,8 +1,10 @@
 import { detectBoqHeader } from "../../boq-parser/src/headers";
-import { resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
-import type { BoqColumnRole } from "../../boq-parser/src/types";
+import { parseStrictNumeric, resolveBoqCommercialNumerics } from "../../boq-parser/src/numeric";
+import type { BoqColumnRole, BoqHeaderMapping } from "../../boq-parser/src/types";
 import { parsePdfDocument } from "../../pdf-document-parser/src";
-import {parseNativeBoqText} from './native-text';
+import {parseNativeBoqText,parseAlignedNativeBoqText} from './native-text';
+import {BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED} from '../../boq-parser/src/numeric-evidence';
+import {readRasterBoqTable,type RasterBoqTable} from './raster-table';
 import type {
   AiBoqCellEvidence,
   AiBoqTableExtraction,
@@ -28,7 +30,31 @@ function cell(row: readonly string[], column: number | null): string | null {
 function looksLikeTotal(description: string): boolean {
   const normalized = description.toLowerCase().replace(/\s+/g, " ").trim();
   return /\b(total|subtotal|sub total|carried|brought forward|summary)\b/.test(normalized) ||
+    /\b(?:totalcontractcost|totalcost|grandtotal)\b/.test(normalized) ||
+    /^approved budget for (?:the )?contract\b/.test(normalized) ||
     /(الإجمالي|اجمالي|المجموع|مرحّل|مرحل)/.test(normalized);
+}
+
+/** Native extraction can split the body below a merged description header.
+ * Move role coordinates only across explicitly empty leading subdivisions;
+ * never remove cells, infer missing numerics, or shift a nonempty item code. */
+function nativeRowRoles(rows: readonly (readonly string[])[], headerRow: number,
+  roles: Record<number, BoqColumnRole>, row: readonly string[]): Record<number, BoqColumnRole> {
+  const width = rows[headerRow - 1]?.length ?? 0;
+  const extra = row.length - width;
+  if (extra > 0 && roleColumn(roles, "description") === 1 &&
+      row.slice(0, extra).every(value => !value.trim()) && cell(row, extra + 1)) {
+    return Object.fromEntries(Object.entries(roles).map(([column, role]) => [Number(column) + extra, role]));
+  }
+  // A labelled total may merge the description and quantity columns. Retain
+  // its one explicit final amount at the original coordinate, not as a unit.
+  if (row.length < width && looksLikeTotal(row[0] ?? "") &&
+      roleColumn(roles, "amount") === width && row.length >= 2 &&
+      row.slice(1, -1).every(value => !value.trim()) &&
+      parseStrictNumeric(row.at(-1) ?? "").status === "valid") {
+    return {1: "description", [row.length]: "amount"};
+  }
+  return roles;
 }
 
 function arithmeticValid(quantity: number, rate: number, amount: number): boolean {
@@ -39,8 +65,9 @@ function arithmeticValid(quantity: number, rate: number, amount: number): boolea
 
 function normalizeEvidence(value: string): string {
   return value
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[\s,._:\-\/\\()[\]{}]+/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -85,11 +112,10 @@ function validateAiTableEvidence(
 
       const normalizedValue = normalizeEvidence(cell.value);
       const normalizedSource = normalizeEvidence(cell.sourceText);
-      if (
-        normalizedValue &&
-        !normalizedSource.includes(normalizedValue) &&
-        !normalizedValue.includes(normalizedSource)
-      ) {
+      // Evidence spans must support the whole cell, including decimals, signs,
+      // units and identifiers. Substring/punctuation-insensitive matching can
+      // certify 3.00 as 300, -3 as 3, or 100 as 10 even if arithmetic balances.
+      if (normalizedValue !== normalizedSource) {
         diagnostics.push(
           "BOQ_AI_VALUE_NOT_SUPPORTED_BY_SOURCE:R" +
             (rowIndex + 1) +
@@ -113,28 +139,37 @@ function parseTableRows(
   tableNumber: number,
   rows: readonly (readonly string[])[],
   inheritedDiagnostics: string[] = [],
+  native = false,
+  continuationHeader?: BoqHeaderMapping,
 ): { items: BoqPdfLineItem[]; diagnostics: string[] } {
   const diagnostics = [...inheritedDiagnostics];
-  const header = detectBoqHeader(rows);
+  const ownHeader = detectBoqHeader(rows);
+  const header = ownHeader ?? continuationHeader;
   if (!header) {
     diagnostics.push("BOQ_PDF_TABLE_HEADER_NOT_FOUND");
     return { items: [], diagnostics };
   }
+  const inherited = !ownHeader && !!continuationHeader;
+  const continuationDiagnostic = 'BOQ_PDF_TABLE_HEADER_INHERITED_FROM_CONTINUATION';
+  if(inherited)diagnostics.push(continuationDiagnostic);
 
   const items: BoqPdfLineItem[] = [];
 
   for (let index = header.headerRow; index < rows.length; index += 1) {
     const row = rows[index] ?? [];
     if (row.every((value) => !String(value).trim())) continue;
+    // Repeated headings between tables/sections are structure, never priced rows.
+    if (detectBoqHeader([row])) continue;
+    const roles = native && !inherited ? nativeRowRoles(rows, header.headerRow, header.roles, row) : header.roles;
 
-    const itemNumber = cell(row, roleColumn(header.roles, "item_number"));
-    const section = cell(row, roleColumn(header.roles, "section"));
-    const description = cell(row, roleColumn(header.roles, "description")) ?? "";
-    const unit = cell(row, roleColumn(header.roles, "unit"));
-    const currency = cell(row, roleColumn(header.roles, "currency"));
-    const quantityRaw = cell(row, roleColumn(header.roles, "quantity"));
-    const rateRaw = cell(row, roleColumn(header.roles, "rate"));
-    const amountRaw = cell(row, roleColumn(header.roles, "amount"));
+    const itemNumber = cell(row, roleColumn(roles, "item_number"));
+    const section = cell(row, roleColumn(roles, "section"));
+    const description = cell(row, roleColumn(roles, "description")) ?? "";
+    const unit = cell(row, roleColumn(roles, "unit"));
+    const currency = cell(row, roleColumn(roles, "currency"));
+    const quantityRaw = cell(row, roleColumn(roles, "quantity"));
+    const rateRaw = cell(row, roleColumn(roles, "rate"));
+    const amountRaw = cell(row, roleColumn(roles, "amount"));
 
     if (
       !itemNumber &&
@@ -149,7 +184,7 @@ function parseTableRows(
       continue;
     }
 
-    const rowDiagnostics: string[] = [];
+    const rowDiagnostics: string[] = inherited ? [continuationDiagnostic] : [];
     if (!description) rowDiagnostics.push("BOQ_DESCRIPTION_MISSING");
 
     const resolvedNumerics = resolveBoqCommercialNumerics(
@@ -210,7 +245,7 @@ function parseTableRows(
       "amount",
       "currency",
     ] as BoqColumnRole[]) {
-      const column = roleColumn(header.roles, role);
+      const column = roleColumn(roles, role);
       if (column === null) continue;
       sourceCells[role] = {
         page,
@@ -242,13 +277,30 @@ function parseTableRows(
   return { items, diagnostics };
 }
 
-export async function parseBoqPdf(
+/** A preceding native table can supply roles, never values. Exact width and
+ * compatible quantity/unit cells are required so an unrelated table cannot
+ * acquire a BOQ meaning merely because it follows one in the document. */
+function nativeContinuationHeader(rows: readonly (readonly string[])[],
+  previous: {header:BoqHeaderMapping;width:number}): BoqHeaderMapping | undefined {
+ const data=rows.filter(row=>row.some(value=>value.trim()));
+ if(!data.length||data.some(row=>row.length!==previous.width))return undefined;
+ const roles=previous.header.roles,description=roleColumn(roles,'description'),quantity=roleColumn(roles,'quantity'),unit=roleColumn(roles,'unit');
+ if(description===null||quantity===null||unit===null)return undefined;
+ const isUnit=(value:string)=>/^(?:m|m2|m3|m²|m³|sqm|cum|lm|sqft|cuft|ft|ft2|ft3|in|kg|g|t|ton|tons|tonne|tonnes|l|litre|litres|liter|liters|each|ea|no|nos|nr|piece|pieces|pc|pcs|unit|units|set|sets|lot|lots|ls|sum|lumpsum|month|months|day|days|hour|hours|hr|hrs|week|weeks|roll|rolls|pair|pairs|عدد|م|م٢|م٣|كجم|طن|شهر|يوم|ساعة)$/.test(value.toLowerCase().replace(/[.\s]/g,''));
+ if(data.some(row=>{const value=cell(row,unit);return value!==null&&!isUnit(value);} ))return undefined;
+ if(!data.some(row=>cell(row,description)&&cell(row,unit)&&parseStrictNumeric(cell(row,quantity)??'').status==='valid'))return undefined;
+ return {...previous.header,headerRow:0};
+}
+
+async function parseBoqPdfWithOpenProvider(
   bytes: Uint8Array,
   options: BoqPdfOptions = {},
 ): Promise<BoqPdfResult> {
   const pageResult = await parsePdfDocument(bytes, {
-    ...(options.ocrProvider ? { ocrProvider: options.ocrProvider } : {}),
+    // This parser owns the provider through structured cell extraction too.
+    ...(options.ocrProvider ? { ocrProvider: {name:options.ocrProvider.name,recognize:options.ocrProvider.recognize.bind(options.ocrProvider)} } : {}),
     ...(options.aiPageVerifier ? { aiVerifier: options.aiPageVerifier } : {}),
+    ...(options.onProgress?{onPageRead:(page,total)=>options.onProgress!(page.pageNumber,total,'page_read')}:{}),
   });
 
   const parser = new (await import('pdf-parse')).PDFParse({ data: Buffer.from(bytes) as any });
@@ -274,7 +326,68 @@ export async function parseBoqPdf(
       tablePageByNumber.set(page.num, page);
     }
 
+    let precedingRaster:{page:number;table:RasterBoqTable}|undefined;
+    let precedingNative:{page:number;header:BoqHeaderMapping;width:number}|undefined;
     for (const page of pageResult.pages) {
+      const nativeTables:string[][][]=tablePageByNumber.get(page.pageNumber)?.tables??[];
+      if(page.method==='native'&&nativeTables.length===0){
+        const aligned=parseAlignedNativeBoqText(page.pageNumber,page.text);
+        if(aligned.length){
+          items.push(...aligned);nativeTablePages++;
+          unresolvedPages.add(page.pageNumber);
+          diagnostics.push('BOQ_NATIVE_ALIGNED_TABLE_RECOVERED:'+page.pageNumber,'BOQ_NATIVE_PAGE_COVERAGE_REVIEW_REQUIRED:'+page.pageNumber);
+          continue;
+        }
+      }
+      if(options.ocrProvider&&nativeTables.length===0){
+        try{
+          const screenshot=await parser.getScreenshot({partial:[page.pageNumber],scale:3,imageBuffer:true,imageDataUrl:false});
+          const image=screenshot.pages[0]?.data;
+          // A large restored BOQ can spend longer in cell extraction than in
+          // page OCR. Report actual successful cell work so the project worker
+          // retains its progress/startup watchdog through both reading phases.
+          const provider=options.ocrProvider;
+          const cellProvider:import('../../pdf-document-parser/src').OcrProvider={name:provider.name,async recognize(image,number,readOptions){
+            const result=await provider.recognize(image,number,readOptions);
+            options.onProgress?.(page.pageNumber,pageResult.totalPages,'table_read');
+            return result;
+          }};
+          const raster=image?await readRasterBoqTable(image,cellProvider,page.pageNumber,precedingRaster?.page===page.pageNumber-1?precedingRaster.table:undefined):null;
+          if(raster){
+            precedingRaster={page:page.pageNumber,table:raster};
+            const parsed=parseTableRows(page.pageNumber,1,raster.rows);
+            for(const item of parsed.items){
+              const evidence=raster.cells[item.row-1]??{};
+              const issues=raster.diagnostics[item.row-1]??[];
+              item.rasterEvidence={rotation:raster.rotation,imageWidth:raster.imageWidth,imageHeight:raster.imageHeight,cells:evidence};
+              item.diagnostics.push('BOQ_OFFLINE_RASTER_CELL_EVIDENCE',BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED,...issues);
+              item.status='unresolved';
+              // A withheld numeric reading is not a section or an empty row.
+              // A low-confidence hallucination over an empty ruled cell must
+              // not turn a section heading into a new quantity-review item.
+              if(item.rowKind==='section'&&(item.unit!==null||['quantity','rate','amount'].some(role=>(evidence[role]??[]).some(c=>{
+                const description=evidence.description?.[0]?.bounds;
+                if(description&&(c.bounds.y<description.y-8||c.bounds.y+c.bounds.height>description.y+description.height+8))return false;
+                const readings=[c,c.confirmation,...(c.additionalReadings??[])].filter((reading):reading is NonNullable<typeof reading>=>!!reading);
+                const numeric=readings.some(reading=>(reading.confidence??0)>=.70&&/^[+\-]?[\d.,\s]+$/.test(reading.text)&&parseStrictNumeric(reading.text).status==='valid');
+                // A merged heading can extend into nominal numeric columns.
+                // Repeated alphabetic wording there is text, not an unreadable
+                // quantity. Retain ink-only candidates when OCR is inconclusive.
+                const prose=readings.filter(reading=>(reading.confidence??0)>=.50&&!/\d/.test(reading.text)&&(reading.text.match(/[a-z]/gi)?.length??0)>=3).length>=2;
+                return numeric||c.hasText&&!prose;
+              }))))item.rowKind='line_item';
+              if(issues.length){item.status='unresolved';unresolvedPages.add(page.pageNumber);}
+            }
+            items.push(...parsed.items);ocrTablePages++;
+            diagnostics.push('BOQ_OFFLINE_RASTER_TABLE:'+page.pageNumber,...parsed.diagnostics);
+            // Finding one ruled table does not establish complete page coverage.
+            // Keep that distinction until every page region has been reconciled.
+            unresolvedPages.add(page.pageNumber);
+            diagnostics.push('BOQ_RASTER_PAGE_COVERAGE_REVIEW_REQUIRED:'+page.pageNumber);
+            continue;
+          }
+        }catch(error){diagnostics.push('BOQ_RASTER_READING_FAILED:'+page.pageNumber+':'+String(error));}
+      }
       if (page.method === "failed") {
         unresolvedPages.add(page.pageNumber);
         continue;
@@ -297,11 +410,20 @@ export async function parseBoqPdf(
         nativeTablePages += 1;
         const pageStart=items.length;
         tables.forEach((rows, index) => {
+          const ownHeader=detectBoqHeader(rows);
+          const continuation=!ownHeader&&precedingNative&&page.pageNumber<=precedingNative.page+1
+            ?nativeContinuationHeader(rows,precedingNative):undefined;
           const parsed = parseTableRows(
             page.pageNumber,
             index + 1,
             rows,
+            [],
+            true,
+            continuation,
           );
+          precedingNative=ownHeader
+            ?{page:page.pageNumber,header:ownHeader,width:rows[ownHeader.headerRow-1]?.length??0}
+            :continuation&&precedingNative?{...precedingNative,page:page.pageNumber}:undefined;
           items.push(...parsed.items);
           diagnostics.push(
             ...parsed.diagnostics.map(
@@ -314,7 +436,7 @@ export async function parseBoqPdf(
                 code,
             ),
           );
-          if (parsed.items.length === 0) {
+          if (parsed.items.length === 0 || continuation) {
             unresolvedPages.add(page.pageNumber);
           }
         });
@@ -371,6 +493,9 @@ export async function parseBoqPdf(
           evidence.rows,
           extraction.diagnostics,
         );
+        for(const item of parsed.items){item.status='unresolved';item.diagnostics.push(BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED);}
+        unresolvedPages.add(page.pageNumber);
+        diagnostics.push(BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED);
         items.push(...parsed.items);
         ocrTablePages += 1;
 
@@ -396,6 +521,7 @@ export async function parseBoqPdf(
   const verifiedRows = items.length - unresolvedRows;
 
   return {
+    pageRead:pageResult,
     totalPages: pageResult.totalPages,
     nativeTablePages,
     ocrTablePages,
@@ -421,4 +547,9 @@ export async function parseBoqPdf(
       unresolvedPages.size === 0,
     diagnostics,
   };
+}
+
+export async function parseBoqPdf(bytes:Uint8Array,options:BoqPdfOptions={}):Promise<BoqPdfResult>{
+  try{return await parseBoqPdfWithOpenProvider(bytes,options);}
+  finally{await options.ocrProvider?.close?.();}
 }

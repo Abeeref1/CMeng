@@ -1,4 +1,5 @@
 import type {ProjectRuntimeState} from './project-state-types';
+import {reportingState} from './reporting-state';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {projectControlSchedule} from './canonical-time-claims';
 
@@ -134,4 +135,12 @@ function buildBoqScopeIntelligence(state:ProjectRuntimeState){
  return value;
 }
 const scopeCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildBoqScopeIntelligence>}>();
-export function boqScopeIntelligence(state:ProjectRuntimeState){const cached=scopeCache.get(state);if(cached?.version===state.version)return cached.value;const value=buildBoqScopeIntelligence(state);scopeCache.set(state,{version:state.version,value});return value;}
+export function boqScopeIntelligence(state:ProjectRuntimeState){
+ // Same governed, Data-Date BOQ scope in Delivery and in Management/Visual;
+ // never re-screen all quantity rows just because one caller has a read-only
+ // reporting-state copy of the identical source project version.
+ const scoped=reportingState(state);
+ const cached=scopeCache.get(scoped);if(cached?.version===scoped.version)return cached.value;
+ const value=buildBoqScopeIntelligence(scoped);
+ scopeCache.set(scoped,{version:scoped.version,value});return value;
+}

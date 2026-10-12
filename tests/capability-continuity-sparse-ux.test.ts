@@ -1,6 +1,7 @@
+import {runInNewContext} from './browser-context';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runInNewContext} from 'node:vm';
+
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 
 import {tenderReadinessForState} from '../packages/runtime-api/src/tender-readiness';
@@ -56,7 +57,7 @@ test('shared KPI presentation shows known facts first and never drops unresolved
     {
       items:[
         ['Known A',12,'Established source'],
-        ['Missing B','Unresolved','Contract not supplied'],
+        ['Missing B',{value:null,valueState:'not_in_source'},'Contract not supplied'],
         ['Known C',0,'Established zero'],
         ['Missing D',null,'Risk population not supplied'],
       ],
@@ -73,7 +74,7 @@ test('shared KPI presentation shows known facts first and never drops unresolved
   const allMissing=runInNewContext(
     functions(['planningKpis'])+';planningKpis(items)',
     {
-      items:Array.from({length:7},(_,i)=>['Missing '+(i+1),'Unresolved','Needed '+(i+1)]),
+      items:Array.from({length:7},(_,i)=>['Missing '+(i+1),{value:null,valueState:'not_in_source'},'Needed '+(i+1)]),
       escapeHtml:String,
       fmt:String
     }

@@ -1,4 +1,39 @@
 import type {BoqPdfLineItem} from './types';
+import {parseStrictNumeric} from '../../boq-parser/src/numeric';
+
+/** A native four-column BOQ may have double rules that defeat table geometry.
+ * Accept only an explicit header, same-line quantity/unit/amount triples and a
+ * closing budget/total. A detached or malformed numeric line rejects this path.
+ * No OCR text, calculated quantity or inferred unit enters this recovery. */
+export function parseAlignedNativeBoqText(page:number,text:string):BoqPdfLineItem[]{
+ const lines=text.split(/\r?\n/).map(line=>line.trim());
+ const header=lines.findIndex(line=>/^(?:items of work|description)\s+quantity\s+unit\s+amount$/i.test(line));
+ if(header<0)return [];
+ const number='[+-]?(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?';
+ const unit='(?:lot|sets?|pcs?\\.?|no\\.?|nos\\.?|m[23²³]?|cu\\.?\\s*m\\.?|sq\\.?\\s*m\\.?|kgs?\\.?|man\\.?\\s*days?\\.?)';
+ const row=new RegExp('^(.+?)\\s+('+number+')\\s+('+unit+')\\s+('+number+')$','i');
+ const closing=new RegExp('^(?:approved budget for (?:the )?contract|total(?: contract cost)?)\\s+('+number+')$','i');
+ const items:BoqPdfLineItem[]=[];let section:string|null=null,closed=false;
+ for(let i=header+1;i<lines.length;i++){
+  const line=lines[i]!;if(!line)continue;
+  const total=closing.exec(line);
+  if(total){closed=true;break;}
+  const match=row.exec(line);
+  if(!match){
+   if(/\d[.,]\d/.test(line)||new RegExp('\\b'+unit+'$','i').test(line)||/^[-+\d.,\s]+$/.test(line))return [];
+   section=line;continue;
+  }
+  const quantity=parseStrictNumeric(match[2]!),amount=parseStrictNumeric(match[4]!);
+  if(quantity.status!=='valid'||amount.status!=='valid')return [];
+  const code=/^([A-Z])\.\s+(.+)$/.exec(match[1]!);
+  const description=code?.[2]??match[1]!;
+  if(/^(?:total|subtotal|carried|brought forward|summary)\b/i.test(description))return [];
+  const locator=(column:number)=>({page,table:0,row:i+1,column});
+  items.push({page,table:0,row:i+1,rowKind:'line_item',itemNumber:code?.[1]??null,section,description,unit:match[3]!,quantity:quantity.value,rate:null,amount:amount.value,currency:null,
+   sourceCells:{description:locator(1),quantity:locator(2),unit:locator(3),amount:locator(4)},status:'verified',diagnostics:['BOQ_NATIVE_ALIGNED_ROW_RECOVERED']});
+ }
+ return closed?items:[];
+}
 
 /** Conservative recovery for native PDFs whose ruled-table detector misses the
  * text. Only explicit item/unit/rate/amount lines qualify. Detached quantities

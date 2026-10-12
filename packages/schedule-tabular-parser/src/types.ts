@@ -136,6 +136,8 @@ export interface ScheduleMetadataSheet {
 
 export interface ScheduleTabularResult {
   sourceType: "csv" | "xlsx";
+  /** Explicit programme dates supplied on activity rows, including duplicate columns. */
+  dataDateValues?: Array<{ raw: string; locator: ScheduleCellLocator }>;
   metadataSheets: ScheduleMetadataSheet[];
   wbsRows: ScheduleWbsRow[];
   calendarRows: ScheduleCalendarRow[];

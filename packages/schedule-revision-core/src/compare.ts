@@ -423,6 +423,55 @@ function calculateRevisionActivityCorrespondence(
   ambiguousTo:
     Set<string>;
 } {
+  // Normal programme updates retain stable activity IDs. When both revisions
+  // carry the same unique IDs in the same source order, the full multi-index
+  // identity matcher cannot produce a different answer. Return that exact
+  // activity-id correspondence directly and reserve the more expensive native
+  // ID / WBS-name fallback for genuinely changed populations.
+  if(fromActivities.length===toActivities.length){
+    const seen=new Set<string>();
+    let exact=true;
+    for(let i=0;i<fromActivities.length;i++){
+      const from=fromActivities[i]!,to=toActivities[i]!,id=from.activityId;
+      if(!id||id!==to.activityId||seen.has(id)){exact=false;break;}
+      seen.add(id);
+    }
+    if(exact){
+      return {
+        matches:fromActivities.map(activity=>({
+          fromActivityId:activity.activityId,
+          toActivityId:activity.activityId,
+          method:"activity_id" as const,
+          confidence:1,
+        })),
+        ambiguousFrom:new Set<string>(),
+        ambiguousTo:new Set<string>(),
+      };
+    }
+  }
+
+  // Controlled workfronts and portfolio scopes are often a strict subset of
+  // the current programme. If every target has an unambiguous identical ID,
+  // the existing first-priority activity_id identity rule yields exactly
+  // these matches; avoid rebuilding three global fallback indexes per group.
+  if(toActivities.length>0&&fromActivities.length>=toActivities.length){
+    const fromIds=new Set<string>();
+    let uniqueFrom=true;
+    for(const row of fromActivities){if(!row.activityId||fromIds.has(row.activityId)){uniqueFrom=false;break;}fromIds.add(row.activityId);}
+    if(uniqueFrom){
+      const seenTo=new Set<string>();
+      let allExact=true;
+      for(const row of toActivities){
+        if(!row.activityId||seenTo.has(row.activityId)||!fromIds.has(row.activityId)){allExact=false;break;}
+        seenTo.add(row.activityId);
+      }
+      if(allExact)return {matches:toActivities.map(row=>({
+        fromActivityId:row.activityId,toActivityId:row.activityId,
+        method:'activity_id' as const,confidence:1,
+      })),ambiguousFrom:new Set<string>(),ambiguousTo:new Set<string>()};
+    }
+  }
+
   const matches:
     ActivityIdentityMatch[] =
     [];

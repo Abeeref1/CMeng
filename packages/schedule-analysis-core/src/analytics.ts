@@ -153,6 +153,9 @@ function floatSummary(
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
 ): FloatSummary {
+  // Float controls the remaining work. Completed tasks are retained in
+  // progress/history but cannot make the unfinished population incomplete.
+  activities=activities.filter(activity=>activity.status!=='completed');
   const known = activities.filter(
     (activity) => activity.totalFloatHours !== null,
   );

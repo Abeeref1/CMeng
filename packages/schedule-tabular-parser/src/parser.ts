@@ -1,5 +1,4 @@
 import {readableXlsx} from '../../shared/src/xlsx';
-import ExcelJS from "exceljs";
 import { parseCsv } from "../../tabular-parser/src";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
 import {
@@ -1087,16 +1086,41 @@ function finalize(
   };
 }
 
+function activityDataDates(
+  source: "csv" | "xlsx", sheet: string | null,
+  rows: readonly (readonly string[])[], headers: ScheduleHeaderMapping[],
+  activities: ScheduleActivityRow[],
+): NonNullable<ScheduleTabularResult["dataDateValues"]> {
+  const out: NonNullable<ScheduleTabularResult["dataDateValues"]> = [];
+  const dateHeaders=headers.map(header=>({row:header.row,columns:Object.entries(header.headers).filter(([,label])=>{
+    const key=label.toLowerCase().replace(/[_:\-]+/g," ").replace(/\s+/g," ").trim();
+    return ["data date","current data date","status date"].includes(key);
+  }).map(([column])=>Number(column))}));
+  if(!dateHeaders.some(header=>header.columns.length))return out;
+  for (const activity of activities) {
+    const origin = activity.locators.activity_id;
+    if (!activity.activityId || !origin || origin.source !== source || origin.sheet !== sheet) continue;
+    const header = dateHeaders.filter(h => h.row < origin.row).at(-1);
+    if (!header) continue;
+    for (const column of header.columns) {
+      const raw = rows[origin.row - 1]?.[column - 1]?.trim();
+      if (raw) out.push({raw, locator: locator(source, sheet, origin.row, column)});
+    }
+  }
+  return out;
+}
+
 export function parseScheduleCsv(
   bytes: Uint8Array,
 ): ScheduleTabularResult {
   const csv = parseCsv(bytes);
   const rows = csv.rows.map((row) => row.cells);
   const diagnostics = [...csv.diagnostics];
+  const headers = detectAllScheduleHeaders(rows);
 
   const mixed = parseMixedScheduleRows(rows);
   if (mixed) {
-    return finalize(
+    const result = finalize(
       "csv",
       [
         {
@@ -1114,9 +1138,9 @@ export function parseScheduleCsv(
         sourceRecordCount: mixed.sourceRecordCount,
       },
     );
+    result.dataDateValues = activityDataDates("csv", null, rows, headers, result.activities);
+    return result;
   }
-
-  const headers = detectAllScheduleHeaders(rows);
 
   if (headers.length === 0) {
     diagnostics.push("SCHEDULE_CSV_HEADER_NOT_FOUND");
@@ -1141,17 +1165,21 @@ export function parseScheduleCsv(
     );
   }
 
-  return finalize("csv", sets, diagnostics);
+  const result = finalize("csv", sets, diagnostics);
+  result.dataDateValues = activityDataDates("csv", null, rows, headers, result.activities);
+  return result;
 }
 
 export async function parseScheduleXlsx(
   bytes: Uint8Array,
 ): Promise<ScheduleTabularResult> {
+  const {default:ExcelJS}=await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await readableXlsx(bytes) as any);
   const sets: Array<ReturnType<typeof parseRows>> = [];
   const metadataSheets: ScheduleMetadataSheet[] = [];
   const diagnostics: string[] = [];
+  const dataDateValues: NonNullable<ScheduleTabularResult["dataDateValues"]> = [];
 
   for (const sheet of workbook.worksheets) {
     const rows: string[][] = [];
@@ -1205,7 +1233,8 @@ export async function parseScheduleXlsx(
         ),
       );
     }
+    dataDateValues.push(...activityDataDates("xlsx", sheet.name, rows, headers, sets.flatMap(set => set.activities)));
   }
 
-  return finalize("xlsx", sets, diagnostics, metadataSheets);
+  return {...finalize("xlsx", sets, diagnostics, metadataSheets), dataDateValues};
 }

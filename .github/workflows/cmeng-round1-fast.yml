@@ -1,0 +1,78 @@
+name: CMeng Round One Fast Release
+on:
+  push:
+    branches: ['fix/cmeng-round1-20261010-1428']
+    paths: ['scripts/cmeng-round1-patch.*', '.github/workflows/cmeng-round1-fast.yml']
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact base and apply consolidated shared changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = '7980d0a65b12e8a2bb074df581f23ba43d007147'
+          mkdir -p /tmp/cmeng-round1-evidence
+          cat scripts/cmeng-round1-patch.1 scripts/cmeng-round1-patch.2 | base64 -d | xz -d > /tmp/cmeng-round1.patch
+          echo 'c8effbb1663f4ddc6a15077080007a58622fff156170d6cd80d8687f64300bf0  /tmp/cmeng-round1.patch' | sha256sum -c -
+          git apply --check --unidiff-zero /tmp/cmeng-round1.patch
+          git apply --unidiff-zero /tmp/cmeng-round1.patch
+      - name: Install application and browser dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright
+      - name: Build typecheck assembled browser and unchanged preservation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run typecheck
+          node scripts/check-assembled-browser.cjs
+          node --test dist/tests/round-one-shared.test.js dist/tests/system-shared-rules.test.js dist/tests/accountability-unassigned.test.js dist/tests/consultant-response-paging.test.js dist/tests/fact-provenance-paging.test.js dist/tests/procurement-float-consistency.test.js | tee /tmp/cmeng-round1-evidence/targeted.log
+      - name: Capture largest production source report read-only
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            const r=await fetch('https://cmeng-main-production.up.railway.app/api/projects/UPTOWN-100/management/master-dashboard/report.json',{signal:AbortSignal.timeout(120000)});
+            if(!r.ok)throw Error('Largest source report HTTP '+r.status);
+            const data=await r.json(),value=data.result??data;
+            if((value.data?.projectFacts?.projectId??value.data?.projectId)!=='UPTOWN-100')throw Error('Largest project identity mismatch');
+            fs.writeFileSync('/tmp/cmeng-round1-evidence/largest-dashboard.json',JSON.stringify(data));
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+      - name: Every demo page and largest dashboard in the actual browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CMENG_CHROMIUM="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CMENG_CHROMIUM" ]; then
+            npx playwright install chromium
+            export CMENG_CHROMIUM="$(node -e 'console.log(require("playwright").chromium.executablePath())')"
+          fi
+          CMENG_LARGEST_REPORT=/tmp/cmeng-round1-evidence/largest-dashboard.json CMENG_REQUIRE_LARGEST=1 CMENG_FAST_GATE_REPORT=/tmp/cmeng-round1-evidence/fast-gate.json node scripts/fast-release-gate.cjs
+      - name: Publish only the exact source that passed the fast gate
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages tests
+          git commit -m 'Round one: grouped action authority, gated history, source-preserving formats and identities, full activity population, WBS and trade linkage'
+          git push origin HEAD:refs/heads/fix/cmeng-round1-validated-20261010-1428
+          git rev-parse HEAD > /tmp/cmeng-round1-evidence/validated-commit.txt
+          git rev-parse HEAD^{tree} > /tmp/cmeng-round1-evidence/validated-tree.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmeng-round1-fast-${{ github.run_id }}
+          path: /tmp/cmeng-round1-evidence/
+          retention-days: 3

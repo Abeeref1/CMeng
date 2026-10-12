@@ -190,6 +190,8 @@ export interface CanonicalClaimRecord {
   state: ClaimState;
   eventIds: string[];
   submittedAt: string | null;
+  /** Dated professional assessment; final register status alone is not authority. */
+  assessedAt?: string | null;
   claimedDays: number | null;
   claimedAmount: number | null;
   assessedDays: number | null;

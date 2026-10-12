@@ -49,14 +49,14 @@ export class TesseractOcrProvider implements OcrProvider {
     this.session=session;return session;
   }
 
-  recognize(image:Uint8Array,pageNumber:number):Promise<OcrPageResult>{
+  recognize(image:Uint8Array,pageNumber:number,options?:{segmentation:'block'|'line'|'word'}):Promise<OcrPageResult>{
     const task=this.tail.then(async()=>{
       const session=this.start();await session.ready;
       if(this.closed||this.session!==session)throw new Error('OCR_READER_CLOSED');
       return new Promise<OcrPageResult>((resolve,reject)=>{
         const id=++this.sequence,timer=setTimeout(()=>session.fail(new Error('OCR_PAGE_TIMEOUT: '+pageNumber)),this.timeout());
         session.pending.set(id,{resolve,reject,timer});
-        try{session.worker.postMessage({type:'recognize',id,image});}catch(error){session.fail(error instanceof Error?error:new Error(String(error)));}
+        try{session.worker.postMessage({type:'recognize',id,image,options});}catch(error){session.fail(error instanceof Error?error:new Error(String(error)));}
       });
     });
     this.tail=task.catch(()=>{});return task;

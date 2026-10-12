@@ -1,5 +1,4 @@
 import {readableXlsx} from '../../shared/src/xlsx';
-import ExcelJS from "exceljs";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -436,6 +435,7 @@ export async function parseSubmittedManpowerPlan(
       "excel",
     )
   ) {
+    const {default:ExcelJS}=await import('exceljs');
     const workbook =
       new ExcelJS.Workbook();
     await workbook.xlsx.load(

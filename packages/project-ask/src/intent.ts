@@ -3,6 +3,7 @@ import {AskError} from './catalogue';
 import {normalized} from './primitives';
 import {mentionsConcept,rankedRequests,substantiveQuestion} from './router';
 import {projectQuestionRecipe} from './question-recipes';
+import {parseScheduleDate} from '../../schedule-values/src';
 
 const formats: [RegExp,Presentation['format']][]=[[/\bexcel\b|xlsx|اكسل|إكسل/i,'xlsx'],[/\bpdf\b/i,'pdf'],[/\bword\b|docx|وورد/i,'docx'],[/\bcsv\b/i,'csv'],[/power\s?bi|\bpbix\b/i,'powerbi'],[/\bjson\b/i,'json']];
 const defaults=(question:string):AnalysisPlan=>({objective:question,kind:'facts',authorities:[],filters:[],groupBy:[],rankBy:null,rankDirection:'desc',limit:null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]});
@@ -42,7 +43,15 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   if(/our logo|client logo/.test(q))gaps.push('Use the configured CMeng branding. An authorized organization logo has not been configured.');
   if(/without charts|remove charts/.test(q))presentation.charts=false;
   if(/add charts?|with charts?/.test(q))presentation.charts=true;
-  const explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+  let explicitlyRequested=catalogue.filter(c=>c.concepts.some(concept=>mentions(q,concept))).map(c=>c.id);
+  // "Current completion" is a common project-controls question for the current
+  // forecast finish. Keep percentage wording on Progress, but do not let the
+  // shorter Progress concept steal a completion-date/forecast question.
+  const currentCompletionPercentage=/\bcurrent completion\s*(?:percentage|percent|%)/.test(q);
+  if(/\bcurrent completion\b/.test(q)&&!currentCompletionPercentage&&catalogue.some(c=>c.id==='forecast')){
+    explicitlyRequested=explicitlyRequested.filter(id=>id!=='progress');
+    if(!explicitlyRequested.includes('forecast'))explicitlyRequested.push('forecast');
+  }
   if(!inherited){
     const broad=/full.*(?:report|package)|construction intelligence|monthly project|project director meeting|everything|joined.*today|what killing us|what needs management|تقرير شامل/.test(q);
     if(broad){
@@ -147,9 +156,18 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
   const currency=/^(SAR|AED|USD|EUR|GBP)$/i.exec(question.trim());if(currency){plan.filters=plan.filters.filter(f=>f.field!=='currency');plan.filters.push({field:'currency',operator:'eq',value:currency[1]!.toUpperCase(),upper:null});gaps.push('Currency filtering does not convert values. No exchange rate is assumed.');}
   const days=/next\s+(\d+)\s+days|القادمه\s+(\d+)/.exec(q);if(days)plan.nextDays=Math.min(3650,Number(days[1]??days[2]));
   const coverage=/(?:delivery|delivered|التسليم).*?(?:under|below|less than|اقل من)\s+(\d+(?:\.\d+)?)\s*%/.exec(q);if(coverage)plan.deliveryBelowPercent=Number(coverage[1]);
-  const asOf=/(?:as of|at|on|before|position at|بتاريخ)\s+(\d{4}-\d{2}-\d{2})\b/.exec(q);
-  if(asOf){const date=Date.parse(asOf[1]!);if(!Number.isFinite(date)||new Date(date).toISOString().slice(0,10)!==asOf[1])throw new AskError(422,'invalid_reporting_date','Enter a valid historical cut-off date.');plan.asOf=asOf[1]!;plan.kind='historical';}
-  else if(/what (was|did)|historical|time.machine|position at|as of|at \d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)/.test(q)){
+  const month='(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+  const namedDate='(?:\\d{1,2}(?:st|nd|rd|th)?\\s+'+month+'(?:,)?\\s+\\d{4}|'+month+'\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,)?\\s+\\d{4})';
+  const cutoffs=[...q.matchAll(new RegExp('(?:as of|at|on|before|position at|بتاريخ)\\s+(\\d{4}-\\d{2}-\\d{2}|'+namedDate+')\\b','g'))];
+  if(cutoffs.length){
+    const dates=cutoffs.map(match=>parseScheduleDate(match[1]!.replace(/(\d)(?:st|nd|rd|th)\b/g,'$1').replace(/,/g,'')));
+    if(dates.some(date=>date.status!=='valid'))throw new AskError(422,'invalid_reporting_date','Enter a valid historical cut-off date.');
+    const distinct=[...new Set(dates.map(date=>date.iso!.slice(0,10)))];
+    plan.kind='historical';
+    if(distinct.length===1)plan.asOf=distinct[0]!;
+    else {plan.asOf='unresolved';gaps.push('Multiple historical cut-off dates were supplied. Confirm one reporting date; current values have not been substituted.');}
+  }
+  else if(!/(?:as of|at|on)\s+(?:the\s+)?(?:current\s+)?(?:reporting|data)\s+date\b/.test(q)&&/what (was|did)|historical|time.machine|position at|as of|at \d{1,2} (?:january|february|march|april|may|june|july|august|september|october|november|december)/.test(q)){
     gaps.push('Confirm the historical cut-off as YYYY-MM-DD. A year or reporting date is missing; current values have not been substituted.');plan.kind='historical';plan.asOf='unresolved';
   }
   const groupingPrevious=inherited&&/^(?:group )?by wbs\b/.test(q);

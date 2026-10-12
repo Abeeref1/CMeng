@@ -49,7 +49,8 @@ export interface RetentionRecord extends MoneyValue {
   state: "held" | "released";
 }
 
-export interface BondRecord extends MoneyValue {
+export interface BondRecord extends Omit<MoneyValue,'amount'> {
+  amount: number | null;
   bondId: string;
   kind:
     | "performance"

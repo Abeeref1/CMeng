@@ -193,7 +193,7 @@ function snippet(
 function sourceRefs(
   section: ContractSection,
 ): string[] {
-  return section.sourceSpans.map((span) =>
+  return (section.sourceSpans??[]).map((span) =>
     [
       span.sourceKind,
       span.sourceIndex,

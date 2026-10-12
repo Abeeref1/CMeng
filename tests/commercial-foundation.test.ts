@@ -656,6 +656,19 @@ test("C2A missing CBS mappings stay explicit rather than disappearing or becomin
   );
 });
 
+test('current cost register uses confirmed current values while retaining unconfirmed history differences',()=>{
+ const value=input();
+ const row=(amount:FoundationMoneyInput)=>({metric:'EV',amount,sourceStatus:'Reported',cbsId:null,cbsDescription:null,parentCbsId:null,wbsId:null,counterparty:null,boqItemId:null,paymentId:null});
+ value.costMetrics=[row({...money(12345),sourceRefs:['current:row:7']}),row({...money(9999),state:'candidate',sourceRefs:['history:row:25']})];
+ let result=buildCommercialFoundation(value).costRegister;
+ assert.equal(result.rows[0]!.metrics.ev!.value,12345);
+ assert.equal(result.rows[0]!.metrics.ev!.state,'established');
+ assert.match(result.rows[0]!.metrics.ev!.diagnostics.join(' '),/UNCONFIRMED_HISTORY/);
+ assert.ok(result.rows[0]!.sourceRefs.includes('history:row:25'));
+ value.costMetrics[1]!.amount.state='official';result=buildCommercialFoundation(value).costRegister;
+ assert.equal(result.rows[0]!.metrics.ev!.value,null);assert.equal(result.rows[0]!.metrics.ev!.state,'conflicted');
+});
+
 
 test('Payment periods never substitute for certification events, and future periods stay outside current coverage',()=>{
  const value=input(); const base=value.payments[0]!;
@@ -664,4 +677,45 @@ test('Payment periods never substitute for certification events, and future peri
  assert.equal(p.recordCount,1);assert.equal(p.sourceRecordCount,2);assert.equal(p.futureRows.length,1);assert.equal(p.asOfRecordCount,1);assert.equal(p.futureRecordCount,1);
  assert.equal(p.rows[0]!.lifecycle.paymentDueDate.value,null);
  assert.equal(p.slaCounts.notEstablished,1);
+});
+
+
+test("contractual completion never becomes Confirmed from a candidate or conflicted time basis", () => {
+  for (const contractualCompletionState of ["candidate","conflicted"] as const) {
+    const value=input();
+    value.contractTimeBasis={
+      contractualCompletionIso:"2043-08-31",
+      contractualCompletionState,
+      sourceRefs:["evidence-document:TIME:row:2"],
+    };
+    const completion=buildCommercialFoundation(value).commercialTerms.contractualCompletionDate;
+    assert.equal(completion.value,"2043-08-31");
+    assert.equal(completion.state,contractualCompletionState);
+    assert.equal(completion.authority,contractualCompletionState==="candidate"?"candidate":"mixed");
+    assert.notEqual(completion.state,"established");
+    assert.ok(completion.action);
+  }
+});
+
+test("official contractual completion remains established and approved", () => {
+  const value=input();
+  value.contractTimeBasis={
+    contractualCompletionIso:"2043-08-31",
+    contractualCompletionState:"official",
+    sourceRefs:["evidence-document:TIME:row:2"],
+  };
+  const completion=buildCommercialFoundation(value).commercialTerms.contractualCompletionDate;
+  assert.equal(completion.state,"established");
+  assert.equal(completion.authority,"approved");
+  assert.equal(completion.action,null);
+});
+
+
+test('one missing due date retains the timing outcomes of the other certificates',()=>{
+ const value=input(),base=value.payments[0]!;
+ value.payments=[{...base,paymentId:'KNOWN',periodEnd:'2026-07-31',certificationDate:'2026-08-01',paymentDate:'2026-08-20',paymentDueDate:'2026-08-10'},
+ {...base,paymentId:'UNKNOWN',periodEnd:'2026-07-31',certificationDate:'2026-08-01',paymentDate:null,paymentDueDate:null}];
+ value.contractTimeBasis=null;
+ const p=buildCommercialFoundation(value).paymentRegister;
+ assert.equal(p.slaCounts.paidLate,1);assert.deepEqual(p.latePaymentDays,{min:10,max:10});
 });

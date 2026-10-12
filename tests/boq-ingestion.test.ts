@@ -113,6 +113,41 @@ test("Excel BOQ ingestion creates candidate-only governed evidence and canonical
   );
 });
 
+test("CSV ingestion uses the canonical BOQ parser for semicolon, tab and reordered columns", async () => {
+  const cases = [
+    {
+      filename:"blind-semicolon.csv",
+      text:[
+        "Amount;Description;Currency;Item No;Rate;Unit;Quantity",
+        "1000;Concrete;SAR;B1;10;m3;100",
+        "50000;Equipment;SAR;B2;5000;No.;10",
+      ].join("\n"),
+    },
+    {
+      filename:"blind-tab.csv",
+      text:[
+        "Quantity\tUnit\tDescription\tItem No\tCurrency\tAmount\tRate",
+        "100\tm3\tConcrete\tB1\tSAR\t1000\t10",
+        "10\tNo.\tEquipment\tB2\tSAR\t50000\t5000",
+      ].join("\n"),
+    },
+  ];
+  for (const value of cases) {
+    const result=await ingestBoq({
+      projectId:"P-BOQ-CSV-"+value.filename,
+      bytes:Buffer.from(value.text,"utf8"),
+      verifiedMediaType:"text/csv",
+      sourceFilename:value.filename,
+      receivedAt:"2026-10-03T00:00:00.000Z",
+    });
+    assert.equal(result.canonicalItems.length,2,value.filename);
+    assert.deepEqual(result.canonicalItems.map(item=>item.itemNumber),["B1","B2"],value.filename);
+    assert.deepEqual(result.canonicalItems.map(item=>item.quantity),[100,10],value.filename);
+    assert.deepEqual(result.canonicalItems.map(item=>item.amount),[1000,50000],value.filename);
+    assert.equal(result.complete,true,value.filename);
+  }
+});
+
 test("PDF ingestion creates evidence but fails closed when no structured BOQ table is established", async () => {
   const result = await ingestBoq({
     projectId: "P-BOQ-2",

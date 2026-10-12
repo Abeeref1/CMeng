@@ -1,0 +1,42 @@
+name: CMeng REEM Real-Screen Acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      review_url:
+        description: 'Actual deployed Railway review URL'
+        required: true
+        type: string
+      release_sha:
+        description: 'Full 40-character Git commit deployed to review'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  rendered_62_pages:
+    name: Inspect actual rendered REEM surfaces
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install browser (screen test only)
+        run: |
+          npm install --no-save --ignore-scripts playwright
+          npx playwright install chromium
+      - name: Visit all 62 live surfaces and compare signed independent source values
+        env:
+          CMENG_RAILWAY_URL: ${{ inputs.review_url }}
+          CMENG_EXPECTED_RELEASE: ${{ inputs.release_sha }}
+          CMENG_SCREEN_ACCEPTANCE_OUTPUT: /tmp/cmeng-reem-screen-acceptance.json
+        run: node scripts/reem-browser-acceptance.mjs
+      - name: Retain full pass/fail and source evidence (including failures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reem-real-screen-${{ github.sha }}
+          path: /tmp/cmeng-reem-screen-acceptance.json
+          retention-days: 14

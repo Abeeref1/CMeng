@@ -47,7 +47,7 @@ function forecastDate(
   activity: CanonicalScheduleActivity,
 ): string | null {
   if (activity.status === "completed") return null;
-  return activity.forecastFinishIso ?? activity.forecastStartIso;
+  return activity.forecastFinishIso ?? activity.forecastStartIso ?? activity.currentFinishIso ?? activity.currentStartIso;
 }
 
 function managementDate(
@@ -417,6 +417,7 @@ export function buildMilestonesProjection(
             baselineIso,
           currentDateIso: current,
           forecastDateIso: forecast,
+          forecastDateBasis:activity.status==='completed'?null:activity.forecastFinishIso||activity.forecastStartIso?'submitted_forecast':forecast?'current_programme':null,
           actualDateIso:
             activity.actualFinishIso ??
             activity.actualStartIso,
@@ -483,17 +484,17 @@ export function buildMilestonesProjection(
   const open = rows.filter(
     (row) => row.status !== "completed",
   );
-  const knownFloat = rows.filter(
+  const knownFloat = open.filter(
     (row) => row.totalFloatHours !== null,
   ).length;
   const floatCoveragePercent = coverage(
     knownFloat,
-    rows.length,
+    open.length,
   );
   const sourceFloatState =
     knownFloat === 0
       ? "not_established"
-      : knownFloat === rows.length
+      : knownFloat === open.length
         ? "source_float_established"
         : "source_float_partial";
 

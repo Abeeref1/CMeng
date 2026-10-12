@@ -53,7 +53,8 @@ function buildRow(
       activity.percentComplete <= 100,
   );
 
-  const floatKnown = activities.filter(
+  const unfinished=activities.filter(activity=>activity.status!=='completed');
+  const floatKnown = unfinished.filter(
     (activity) =>
       activity.totalFloatHours !== null,
   );
@@ -100,36 +101,42 @@ function buildRow(
           (activity.remainingDurationHours ?? 0),
         0,
       ),
-    criticalCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    criticalCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.length!==activities.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
+    nearCriticalCount: floatKnown.length!==unfinished.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
       (activity) =>
         sourceFloatCriticality(model, activity, config) ===
         "near_critical",
     ).length,
-    negativeFloatCount: floatKnown.length!==activities.length?null:floatKnown.filter(
+    negativeFloatCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,
     floatCoveragePercent: coverage(
       floatKnown.length,
-      activities.length,
+      unfinished.length,
     ),
   };
 }
 
-export function buildProgressBreakdownProjection(
+function buildProgressBreakdownProjectionImpl(
   model: CanonicalScheduleModel,
   input: {
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     baselineModel?: CanonicalScheduleModel | null;
+    // Workfront-only: exact unique activity ID correspondence already proved
+    // across the full source revisions; not used for ambiguous/renamed IDs.
+    sharedExactBaselineIds?:ReadonlyMap<string,string>;
+    // Fully calculated at the same revision and Data Date by Delivery.
+    // Each workfront consumes a subset of identical per-activity positions.
+    sharedPlanPositions?:ReturnType<typeof schedulePlanPositions>;
     previousModel?: CanonicalScheduleModel | null;
-    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string}>>>;
+    readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
       rows: Array<{
         activityId: string;
@@ -142,7 +149,12 @@ export function buildProgressBreakdownProjection(
       }>;
     } | null;
   },
-): ProgressBreakdownProjection {
+  deliveryOnly=false,
+): ProgressBreakdownProjection | Pick<ProgressBreakdownProjection,'rows'|'overallSummary'> {
+  const profiling=deliveryOnly&&process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  let last=profiling?performance.now():0;
+  const stages:Array<{part:string;ms:number}>=[];
+  const mark=(part:string)=>{if(profiling){const now=performance.now();stages.push({part,ms:now-last});last=now;}};
   const config =
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
@@ -173,9 +185,14 @@ export function buildProgressBreakdownProjection(
   }
 
 
-  const plan = schedulePlanPositions(model, input.baselineModel ?? null);
-  const baselineMatches = input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
-  const baselineId = new Map(baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId]) ?? model.activities.map(a=>[a.activityId,a.activityId]));
+  mark('wbs_index');
+  const plan = input.sharedPlanPositions ?? schedulePlanPositions(model, input.baselineModel ?? null);
+  mark('plan_positions');
+  const baselineMatches = input.sharedExactBaselineIds?null:
+    input.baselineModel ? resolveRevisionActivityCorrespondence(input.baselineModel.activities, model.activities) : null;
+  const baselineId = input.sharedExactBaselineIds??new Map(
+    baselineMatches?.matches.map(match=>[match.toActivityId,match.fromActivityId])??model.activities.map(a=>[a.activityId,a.activityId]));
+  mark('baseline_correspondence');
   const previousMatches = input.previousModel ? resolveRevisionActivityCorrespondence(input.previousModel.activities, model.activities) : null;
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
@@ -205,16 +222,18 @@ export function buildProgressBreakdownProjection(
         (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
         (Number.isFinite(baselineMs)&&Number.isFinite(finishMs)&&finishMs>baselineMs)
       ),
-      longLead:longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
-      procurementBlocked:readiness?.procurement_material?.state==="blocked",
-      designBlocked:readiness?.design_submittal?.state==="blocked",
-      pressure:typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
+      longLead:!!readiness?.procurement_material?.records?.some(record=>record.longLead)||longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
+      procurementBlocked:activity.status!=="completed"&&readiness?.procurement_material?.state==="blocked",
+      designBlocked:activity.status!=="completed"&&readiness?.design_submittal?.state==="blocked",
+      completedRecordCleanup:activity.status==="completed"&&(readiness?.procurement_material?.state==="blocked"||readiness?.design_submittal?.state==="blocked"),
+      owners:Object.values(readiness??{}).flatMap(dimension=>(dimension.records??[]).map(row=>row.owner).filter((owner):owner is string=>!!owner)),
+      pressure:activity.status!=="completed"&&typeof activity.totalFloatHours==="number"&&activity.totalFloatHours<=0,
     }] as const;
   }));
   const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
     const wbsIds=new Set<string>();
     let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0;
-    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0;
+    let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0,completedRecordCleanupCount=0;const owners=new Set<string>();
     for(const activity of activities){
       if(activity.wbsId)wbsIds.add(activity.wbsId);
       const signal=signalByActivity.get(activity.activityId);
@@ -222,6 +241,8 @@ export function buildProgressBreakdownProjection(
       if(signal.finishIso&&(!forecastFinishIso||signal.finishIso>forecastFinishIso))forecastFinishIso=signal.finishIso;
       if(signal.delayed)delayedActivityCount++;
       if(signal.longLead)longLeadActivityCount++;
+      if(signal.completedRecordCleanup)completedRecordCleanupCount++;
+      for(const owner of signal.owners)owners.add(owner);
       if(signal.procurementBlocked)procurementBlockerCount++;
       if(signal.designBlocked)designBlockerCount++;
       if(signal.pressure)criticalOrNegative++;
@@ -242,7 +263,7 @@ export function buildProgressBreakdownProjection(
           ? "Agree recovery dates and accountable actions for delayed activities in this scope."
           : criticalOrNegative>0
             ? "Protect remaining float and monitor the critical/negative-float activities."
-            : "Monitor the current plan and recorded progress for this scope.";
+            : completedRecordCleanupCount>0?"Programme work is complete. Reconcile the open register records as closeout; they are not blockers to starting this completed work.":"Monitor the current plan and recorded progress for this scope.";
     return {
       forecastFinishIso,
       delayedActivityCount,
@@ -250,7 +271,8 @@ export function buildProgressBreakdownProjection(
       longLeadActivityCount,
       procurementBlockerCount,
       designBlockerCount,
-      owner:null,
+      completedRecordCleanupCount,
+      owner:[...owners].join('; ')||null,
       managementAction,
       physicalMeasuredPercent:null,
       certifiedPhysicalPercent:null,
@@ -279,6 +301,7 @@ export function buildProgressBreakdownProjection(
       ...managementSignals(activities),
     };
   };
+  mark('derived_activity_signals');
   const rows = [...groups.entries()]
     .map(([wbsId, activities]) =>
       enrich(buildRow(
@@ -296,6 +319,19 @@ export function buildProgressBreakdownProjection(
         b.activityCount - a.activityCount ||
         naturalCompare(a.wbsId, b.wbsId),
     );
+
+  mark('grouped_wbs_progress_rows');
+  if(deliveryOnly){
+    // Delivery consumes the exact WBS rows and scope summary, not the
+    // specialist's six additional dimension/hierarchy views. The specialist
+    // continues using the complete original producer unchanged.
+    const scopeActivities=model.activities.filter(isExecutionActivity);
+    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config),scopeActivities);
+    mark('scope_summary');
+    if(profiling)process.stdout.write(JSON.stringify({event:'workfront_breakdown_profile',projectId:model.projectId,activities:model.activities.length,
+      baselineActivities:input.baselineModel?.activities.length??0,stages,totalMs:stages.reduce((n,part)=>n+part.ms,0)})+'\n');
+    return {rows,overallSummary};
+  }
 
   // Ancestor rollups are a separate population from direct assignments. Each
   // activity contributes once to each ancestor and once to the project total.
@@ -327,6 +363,7 @@ export function buildProgressBreakdownProjection(
   }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   const executionActivities = model.activities.filter(isExecutionActivity);
+  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config),executionActivities);
   const progressPosition = scheduleProgress(executionActivities);
   const overallKnownWeightHours = progressPosition.knownWeightHours;
   const scopeByActivity = new Map((input.scopeClassification?.rows ?? []).map(row => [row.activityId, row]));
@@ -411,8 +448,12 @@ export function buildProgressBreakdownProjection(
     classified: boolean,
     activities: CanonicalScheduleActivity[],
   ) => {
-    const progress = scheduleProgress(activities);
-    const row = enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
+    // A whole-programme class (including Unclassified) has exactly the
+    // same activity population as the previously calculated scope summary.
+    // Reuse the full calculations, while retaining the dimension's own label.
+    const fullPopulation=activities.length===executionActivities.length;
+    const progress = fullPopulation ? progressPosition : scheduleProgress(activities);
+    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;
@@ -500,6 +541,7 @@ export function buildProgressBreakdownProjection(
     projectId: model.projectId,
     sourceRevisionId:
       model.sourceRevisionId,
+    overallSummary,
     totalActivityCount: rows.reduce(
       (sum, row) => sum + row.activityCount,
       0,
@@ -516,4 +558,18 @@ export function buildProgressBreakdownProjection(
     baselinePlanAvailable: Boolean(input.baselineModel) && hierarchyRows.some(row=>typeof row.baselinePlannedPercent==="number"),
     controlledBaselineAvailable: Boolean(input.baselineModel),
   };
+}
+
+/** Same WBS/activity equations; retains the complete specialist projection. */
+export function buildProgressBreakdownProjection(
+ model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjectionImpl>[1],
+):ProgressBreakdownProjection{
+ return buildProgressBreakdownProjectionImpl(model,input,false) as ProgressBreakdownProjection;
+}
+/** Delivery-only consumer uses the same exact WBS rows and overall result.
+ * No source activities, evidence, scoring or specialist content are dropped. */
+export function buildDeliveryWorkfrontBreakdown(
+ model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjectionImpl>[1],
+):Pick<ProgressBreakdownProjection,'rows'|'overallSummary'>{
+ return buildProgressBreakdownProjectionImpl(model,input,true);
 }

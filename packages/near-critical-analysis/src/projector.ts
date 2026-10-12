@@ -84,9 +84,10 @@ export function buildNearCriticalProjection(
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
 
   const population = activityPopulation(model);
+  const unfinished=population.activities.filter(activity=>activity.status!=='completed');
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
-  const known = population.activities.filter(
+  const known = unfinished.filter(
     (activity) =>
       activity.totalFloatHours !== null,
   );
@@ -484,7 +485,7 @@ export function buildNearCriticalProjection(
         : "explicit_hours",
     floatCoveragePercent: coverage(
       known.length,
-      population.activities.length,
+      unfinished.length,
     ),
     classificationCoveragePercent: coverage(
       classified.filter(
@@ -493,25 +494,25 @@ export function buildNearCriticalProjection(
             config.criticalFloatThresholdHours ||
           threshold !== null,
       ).length,
-      population.activities.length,
+      unfinished.length,
     ),
-    nearCriticalCount: known.length!==population.activities.length||classified.some(r=>r.threshold===null)?null:rows.length,
-    unresolvedActivityCount:population.activities.length-known.length+classified.filter(r=>r.threshold===null).length,
+    nearCriticalCount: known.length!==unfinished.length||classified.some(r=>r.threshold===null)?null:rows.length,
+    unresolvedActivityCount:unfinished.length-known.length+classified.filter(r=>r.threshold===null).length,
     floatRiskWatchlistCount:
-      known.length!==population.activities.length||classified.some(r => r.threshold === null) ? null : watchlistRows.length,
-    zeroFloatCount: known.length!==population.activities.length?null:known.filter(
+      known.length!==unfinished.length||classified.some(r => r.threshold === null) ? null : watchlistRows.length,
+    zeroFloatCount: known.length!==unfinished.length?null:known.filter(
       (activity) =>
         activity.totalFloatHours ===
         0,
     ).length,
-    negativeFloatCount: known.length!==population.activities.length?null:known.filter(
+    negativeFloatCount: known.length!==unfinished.length?null:known.filter(
       (activity) =>
         activity.totalFloatHours! < 0,
     ).length,
     knownCriticalCount:criticalRows.length,
     knownNegativeFloatCount:negativeFloatRows.length,
     knownZeroFloatCount:known.filter(a=>a.totalFloatHours===0).length,
-    unknownFloatCount:population.activities.length-known.length,
+    unknownFloatCount:unfinished.length-known.length,
     floatRiskWatchlistIncludesCriticalThreshold:
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
     population: population.contract,

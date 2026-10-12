@@ -188,7 +188,7 @@ test("Activity Analytics uses shared logic index and source float classification
   assert.equal(projection.activityCount, 4);
   assert.equal(
     projection.floatCoveragePercent,
-    75,
+    66.6667, // two of three unfinished activities; completed work is outside float coverage
   );
 
   const mobilize = projection.rows.find(
@@ -288,7 +288,7 @@ test("Near-Critical module excludes critical and unknown-float activities", () =
 
   assert.equal(
     projection.floatCoveragePercent,
-    75,
+    66.6667, // two of three unfinished activities; completed work is outside float coverage
   );
   assert.equal(
     projection.nearCriticalCount,

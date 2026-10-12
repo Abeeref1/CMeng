@@ -1,0 +1,176 @@
+{
+  "projectId": "REEM 112",
+  "dataDateIso": "2026-08-31",
+  "source": "Consultant review of release 47cd8029856ab6447497a9f922a2705460406a56; source records must be independently checked during the live walk",
+  "expected": {
+    "time.contractualCompletionIso": "2027-09-08",
+    "time.awardedEotDays": 13,
+    "time.extendedContractCompletionIso": "2027-09-21",
+    "schedule.submittedProgrammeCompletionIso": "2027-10-06",
+    "schedule.criticalActivityCount": 41,
+    "schedule.delayedOpenActivityCount": 192,
+    "controls.openRfiCount": 53,
+    "controls.overdueRfiCount": 44,
+    "controls.openCriticalMajorNcrCount": 29,
+    "commercial.variationRecordCount": 26,
+    "commercial.approvedVariationCount": 25,
+    "commercial.pendingVariationCount": 0,
+    "commercial.rejectedVariationCount": 1,
+    "commercial.activeBondCount": 1,
+    "commercial.expiredBondCount": 1,
+    "commercial.expiredInsuranceCount": 1,
+    "schedule.nearCriticalActivityCount": 7,
+    "schedule.negativeFloatActivityCount": 41,
+    "schedule.delayedExecutionActivityCount": 189,
+    "time.submittedDaysAfterExtendedCompletion": 15,
+    "claims.eventDateMissingCount": 0,
+    "claims.noticeDateMissingCount": 0,
+    "claims.noticeRequirementMissingCount": 0,
+    "controls.openRiskCount": 73
+  },
+  "currencies": {
+    "QAR": {
+      "certifiedUnpaidAmount": 9899013,
+      "activeBondAmount": 21000000,
+      "grossCertifiedAmount": 196034538,
+      "netCertifiedAmount": 166629358,
+      "paidAmount": 156730345,
+      "interimCertificateCount": 23,
+      "retentionDeductedAmount": 9801726,
+      "retentionHeldAmount": 9801726,
+      "advanceBalance": 1396548,
+      "currentContractValue": 221776000,
+      "pendingVariationAmount": 0,
+      "forecastEac": 218403148
+    }
+  },
+  "procurementReconciliation": {
+    "expectedKnownLate": 17,
+    "sourceDeliveredMissingActual": 27,
+    "expectationBasis": "Consultant-reported REEM register breakdown, 8 October 2026; confirm original records independently before formal acceptance"
+  },
+  "delivery": {
+    "package": 90,
+    "design": 680,
+    "quality": 260,
+    "permit": 70
+  },
+  "sectionTwoDelayDamages": {
+    "dailyRate": 60000,
+    "cap": 21000000,
+    "originalDateExposure": 1680000,
+    "extendedDateExposure": 900000
+  },
+  "pageAnswers": {
+    "independent-forecast": {
+      "requiredFinishIso": "2027-09-21",
+      "activityCoveragePercent": 100,
+      "unresolvedActivityCount": 0,
+      "probabilistic.status": "available"
+    },
+    "delivery-hse": {
+      "reportedHse.metrics.manHours": 831000,
+      "reportedHse.metrics.lostTimeInjuries": 1,
+      "reportedHse.metrics.medicalTreatmentCases": 5,
+      "reportedHse.metrics.restrictedWorkCases": 1,
+      "reportedHse.metrics.ltifr": 1.2,
+      "reportedHse.metrics.trir": 1.68,
+      "reportedHse.monthlyMetrics.manHours": 11720
+    },
+    "quantity-scurve": {
+      "boqItemCount": 896,
+      "series.length": 896,
+      "inferredMapping.sourceWbsCoveragePercent": 100,
+      "quantityQueries.length": 132
+    },
+    "notices-claims": {
+      "noticeCount": 16,
+      "timelyNoticeCount": 14,
+      "lateNoticeCount": 2,
+      "noticeEventDateMissingCount": 0
+    },
+    "eot-assessment": {
+      "officialApprovedEotDays": 13,
+      "officialAdjustedCompletionIso": "2027-09-21",
+      "projectFacts.claims.pipeline.claimedDays": 75,
+      "projectFacts.claims.pipeline.assessedDays": 34,
+      "projectFacts.claims.pipeline.pendingCount": 8,
+      "projectFacts.claims.pipeline.pendingAssessedDays": 21,
+      "projectFacts.claims.pipeline.pendingScenarioCompletionIso": "2027-10-12"
+    },
+    "procurement-packages": {
+      "rows.length": 90
+    },
+    "delivery-design": {
+      "rows.length": 680,
+      "programmeFollowUp.openOnUnfinishedWork": 9,
+      "programmeFollowUp.closeoutCount": 44,
+      "programmeFollowUp.linksNeedReview": 0
+    },
+    "delivery-quality": {
+      "rows.length": 260,
+      "programmeFollowUp.openOnUnfinishedWork": 1,
+      "programmeFollowUp.closeoutCount": 67,
+      "programmeFollowUp.linksNeedReview": 0
+    },
+    "delivery-permits": {
+      "rows.length": 70
+    },
+    "long-lead": {
+      "rows.length": 30
+    },
+    "delivery-risks": {
+      "rows.length": 110,
+      "riskBasis.currentRecordCount": 110
+    },
+    "material-tracking": {
+      "rows.length": 896
+    },
+    "cost-forecast": {
+      "position.costBasisReview.length": 1,
+      "position.costBasisReview.0.sourceEac": 218403148,
+      "position.costBasisReview.0.currentContractValue": 221776000,
+      "position.costBasisReview.0.eacVsCurrentContract": -3372852,
+      "position.costBasisReview.0.ev": 187206039,
+      "position.costBasisReview.0.ac": 194697087,
+      "position.performance.costControl.positions.0.ev.value": 187206039,
+      "position.performance.costControl.positions.0.ac.value": 194697087,
+      "focus.costRegister.rows.0.metrics.ev.value": 187206039,
+      "focus.costRegister.rows.0.metrics.ac.value": 194697087
+    },
+    "payments": {
+      "focus.paymentRegister.slaCounts.paidLate": 11,
+      "focus.paymentRegister.slaCounts.paidOnTime": 10,
+      "focus.paymentRegister.latePaymentDays.min": 5,
+      "focus.paymentRegister.latePaymentDays.max": 25
+    },
+    "recovery-acceleration": {
+      "recoveryTargets.extended.workingDays": 11,
+      "recoveryTargets.original.workingDays": 20
+    },
+    "construction-readiness": {
+      "rows.length": 39
+    },
+    "variance-trends": {
+      "revisionCount": 3,
+      "points.2.criticalCount": 41,
+      "points.2.nearCriticalCount": 7,
+      "points.2.projectCompletionVarianceDays": 49
+    },
+    "schedule-change-report": {
+      "engineeringChanges.updateGapCalendarDays": 427,
+      "engineeringChanges.completionMovementDays": 17
+    },
+    "cash-flow": {
+      "position.performance.cashFlow.currencies.0.certifiedIncome.value": 166629358,
+      "position.performance.cashFlow.currencies.0.certifiedUnpaid.value": 9899013
+    },
+    "contract-particulars-bonds": {
+      "projectFacts.commercial.securityValidity.0.daysAfterProgrammeFinish": 86
+    }
+  },
+  "sectionMilestones": {
+    "1": "VLC-08-005",
+    "2": "VLC-PC-001"
+  }
+}

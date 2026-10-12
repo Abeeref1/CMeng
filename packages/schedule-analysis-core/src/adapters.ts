@@ -8,6 +8,7 @@ import {
 import type { PrimaveraXmlResult } from "../../primavera-xml-parser/src";
 import type { ScheduleTabularResult } from "../../schedule-tabular-parser/src";
 import { parseScheduleDate } from "../../schedule-values/src";
+import {reconcileCalendarWithP6Dates} from "../../xer-parser/src/calendar-date-reconciliation";
 import {
   normalizeActivityStatus,
   normalizeActivityType,
@@ -103,10 +104,10 @@ function sourceRef(
   return { source, locator };
 }
 
-function metadataValue(
+function metadataValues(
   result: ScheduleTabularResult,
   candidates: readonly string[],
-): string | null {
+): string[] {
   const wanted = new Set(
     candidates.map((value) =>
       value
@@ -117,6 +118,7 @@ function metadataValue(
     ),
   );
 
+  const values: string[] = [];
   for (const sheet of result.metadataSheets) {
     for (const field of sheet.fields) {
       const key = field.key
@@ -124,11 +126,11 @@ function metadataValue(
         .replace(/[_:\-]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      if (wanted.has(key)) return field.value;
+      if (wanted.has(key) && field.value.trim()) values.push(field.value);
     }
   }
 
-  return null;
+  return values;
 }
 
 function zeroFromRaw(
@@ -289,22 +291,28 @@ export function canonicalScheduleFromTabular(
       ],
     }));
 
-  const rawDataDate = metadataValue(result, [
+  const rawDataDates = [...metadataValues(result, [
     "data date",
     "current data date",
     "status date",
-  ]);
+  ]), ...(result.dataDateValues ?? []).map(value => value.raw)];
+  const dateValues = rawDataDates.map(raw => parseScheduleDate(raw));
+  const dateDiagnostics: string[] = [];
+  if (dateValues.some(value => value.status !== "valid" || !value.iso)) dateDiagnostics.push("SCHEDULE_DATA_DATE_INVALID_OR_AMBIGUOUS");
+  const uniqueDates = new Set(dateValues.filter(value => value.status === "valid" && value.iso).map(value => value.iso!.slice(0,10)));
+  if (uniqueDates.size > 1) dateDiagnostics.push("SCHEDULE_DATA_DATE_CONFLICTING");
+  const dataDateIso = dateDiagnostics.length === 0 && uniqueDates.size === 1 ? [...uniqueDates][0]! : null;
 
   return {
     projectId: input.projectId ?? null,
     source,
     sourceRevisionId: input.sourceRevisionId,
-    dataDateIso: tabularDate(rawDataDate),
+    dataDateIso,
     activities,
     relationships,
     wbs,
     calendars,
-    diagnostics: [...result.diagnostics],
+    diagnostics: [...result.diagnostics, ...dateDiagnostics],
   };
 }
 
@@ -548,6 +556,7 @@ export function canonicalScheduleFromXer(
       return [
         {
           wbsId,
+          code:xerField(row,'wbs_short_name'),
           parentWbsId:
             xerField(row, "parent_wbs_id"),
           name: firstXerField(row, [
@@ -566,6 +575,13 @@ export function canonicalScheduleFromXer(
 
   const calendarIntegrity =
     verifyXerCalendars(result);
+  // Source calendar intervals remain the first authority. Only where they
+  // are genuinely absent, a unique P6-dated duration reconciliation can
+  // supply an explicitly qualified working pattern.
+  const reconciledP6Calendars=new Map(calendarIntegrity.calendars.flatMap(calendar=>{
+    const data=reconcileCalendarWithP6Dates(calendar,taskRows);
+    return data?[[calendar.calendarId,data] as const]:[];
+  }));
   const calendarById =
     new Map(
       calendarIntegrity.calendars.map(
@@ -616,6 +632,12 @@ export function canonicalScheduleFromXer(
       calendarById.get(
         calendarId,
       );
+    const recovered=reconciledP6Calendars.get(calendarId);
+    if(recovered){
+      const qualified={data:recovered,inheritedFrom:[] as string[]};
+      resolvedCalendarData.set(calendarId,qualified);
+      return qualified;
+    }
     if (
       !calendar ||
       calendar.status ===
@@ -756,6 +778,9 @@ export function canonicalScheduleFromXer(
             resolveCalendarData(
               calendar.calendarId,
             );
+          if(reconciledP6Calendars.has(calendar.calendarId)){
+            return ["CALENDAR_P6_DATE_RECONCILIATION_QUALIFIED:"+calendar.calendarId];
+          }
           if (
             calendar.status ===
             "unresolved"
@@ -836,11 +861,12 @@ export function canonicalScheduleFromXer(
           name: calendar.name,
           sourceConversionDayHours:calendar.conversionDayHours,
           sourceConversionWeekHours:calendar.conversionWeekHours,
+          reconciledFromP6Dates:reconciledP6Calendars.has(calendar.calendarId),
           semanticComplete:
-            calendar.status === "verified" &&
+            (calendar.status === "verified" || reconciledP6Calendars.has(calendar.calendarId)) &&
             resolved !== null &&
             resolved.data.status === "valid" &&
-            days.length > 0,
+            days.length === 7,
           weeklyWorkMinutes,
           weeklyWorkIntervals:
             days.map((day) => ({

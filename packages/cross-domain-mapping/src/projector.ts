@@ -399,40 +399,110 @@ export function buildQuantityScheduleMapping(
   // every BOQ item re-tokenized every activity and created a fingerprint even
   // for a zero score, making real source registers block the whole resolver.
   const eligible=schedule.activities.filter(a=>a.activityType==='task'&&a.status!=='completed');
-  const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,wbsText(a,wbsById))]));
-  type Posting=Map<string,Set<CanonicalScheduleActivity>>;
-  const descriptions:Posting=new Map(),sections:Posting=new Map(),codes:Posting=new Map(),nameGrams:Posting=new Map(),namePrefixes:Posting=new Map();
+  // WBS ancestry is a property of the source node, not individual activities.
+  const wbsTextById=new Map<string,string>();
+  const scopeText=(activity:CanonicalScheduleActivity)=>{
+    const id=activity.wbsId;
+    if(!id)return '';
+    const cached=wbsTextById.get(id);if(cached!==undefined)return cached;
+    const value=wbsText(activity,wbsById);wbsTextById.set(id,value);return value;
+  };
+  const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,scopeText(a))]));
+  type FeatureGroup={members:CanonicalScheduleActivity[];features:ActivityFeatures};
+  const featureGroupsByKey=new Map<string,FeatureGroup>();
+  const groupForActivity=new Map<CanonicalScheduleActivity,FeatureGroup>();
+  for(const activity of eligible){
+    const f=featuresByActivity.get(activity)!;
+    // Scoring depends on name and WBS tokens, the count of code tokens,
+    // and item-specific code intersections. Individual code hits below are
+    // handled separately; the remaining members have identical scores.
+    const key=JSON.stringify([f.name,[...f.wbsTokens].sort(),f.codes.size]);
+    let group=featureGroupsByKey.get(key);
+    if(!group){group={members:[],features:f};featureGroupsByKey.set(key,group);}
+    group.members.push(activity);groupForActivity.set(activity,group);
+  }
+  type GroupPosting=Map<string,Set<FeatureGroup>>;
+  type ActivityPosting=Map<string,Set<CanonicalScheduleActivity>>;
+  const descriptions:GroupPosting=new Map(),sections:GroupPosting=new Map();
+  const nameGrams:GroupPosting=new Map(),namePrefixes:GroupPosting=new Map();
+  const codes:ActivityPosting=new Map();
+  const indexGroup=(map:GroupPosting,key:string,group:FeatureGroup)=>{
+    const rows=map.get(key)??new Set<FeatureGroup>();rows.add(group);map.set(key,rows);
+  };
+  const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
+  for(const group of featureGroupsByKey.values()){
+    group.members.sort((a,b)=>a.activityId.localeCompare(b.activityId));
+    for(const token of group.features.nameTokens)indexGroup(descriptions,token,group);
+    for(const token of group.features.wbsTokens)indexGroup(sections,token,group);
+    const name=group.features.name;
+    if(name.length>=5){
+      indexGroup(namePrefixes,name.slice(0,5),group);
+      for(const gram of grams(name))indexGroup(nameGrams,gram,group);
+    }
+  }
+  for(const activity of eligible)for(const key of featuresByActivity.get(activity)!.codes){
+    const rows=codes.get(key)??new Set<CanonicalScheduleActivity>();
+    rows.add(activity);codes.set(key,rows);
+  }
   const explicit=new Map(eligible.filter(a=>/^[A-Za-z0-9_.-]+$/.test(a.activityId)).map(a=>[a.activityId.toUpperCase(),a]));
   const unusualIds=eligible.filter(a=>!/^[A-Za-z0-9_.-]+$/.test(a.activityId));
-  const index=(map:Posting,key:string,a:CanonicalScheduleActivity)=>{const list=map.get(key)??new Set();list.add(a);map.set(key,list);};
-  const grams=(s:string)=>Array.from({length:Math.max(0,s.length-4)},(_,i)=>s.slice(i,i+5));
-  for(const a of eligible){
-    const features=featuresByActivity.get(a)!;
-    for(const token of features.nameTokens)index(descriptions,token,a);
-    for(const token of features.wbsTokens)index(sections,token,a);
-    for(const token of features.codes)index(codes,token,a);
-    const name=features.name;if(name.length>=5){index(namePrefixes,name.slice(0,5),a);for(const gram of grams(name))index(nameGrams,gram,a);}
-  }
-  const sectionMatchCache=new Map<string,Set<CanonicalScheduleActivity>>();
-  const candidatesFor=(item:CanonicalQuantityItem,features:ItemFeatures)=>{
-    const found=new Set<CanonicalScheduleActivity>();
-    const collect=(map:Posting,keys:Iterable<string>,target=found)=>{for(const key of keys)for(const a of map.get(key)??[])target.add(a);};
-    collect(descriptions,features.descriptionTokens);
-    const description=features.description;
-    if(description.length>=5){collect(nameGrams,[description.slice(0,5)]);collect(namePrefixes,grams(description));}
-    const codeMatches=new Set<CanonicalScheduleActivity>();
-    const corpus=features.corpus;
-    collect(codes,features.codes,codeMatches);
-    // Section or code evidence alone cannot reach the 0.34 candidate threshold.
-    if(codeMatches.size){
-      const sectionKey=item.section??'';
-      let sectionMatches=sectionMatchCache.get(sectionKey);
-      if(!sectionMatches){sectionMatches=new Set();collect(sections,features.sectionTokens,sectionMatches);sectionMatchCache.set(sectionKey,sectionMatches);}
-      for(const a of codeMatches)if(sectionMatches.has(a))found.add(a);
+  const candidatesFor=(features:ItemFeatures)=>{
+    const nameGroups=new Set<FeatureGroup>();
+    const collect=(posting:GroupPosting,keys:Iterable<string>,target:Set<FeatureGroup>)=>{
+      for(const key of keys)for(const group of posting.get(key)??[])target.add(group);
+    };
+    collect(descriptions,features.descriptionTokens,nameGroups);
+    if(features.description.length>=5){
+      collect(nameGrams,[features.description.slice(0,5)],nameGroups);
+      collect(namePrefixes,grams(features.description),nameGroups);
     }
-    for(const token of corpus.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){const a=explicit.get(token);if(a)found.add(a);}
-    for(const a of unusualIds)if(featuresByActivity.get(a)!.explicitId?.test(corpus))found.add(a);
-    return [...found];
+    const sectionGroups=new Set<FeatureGroup>();
+    collect(sections,features.sectionTokens,sectionGroups);
+    const codeHits=new Map<CanonicalScheduleActivity,number>();
+    for(const token of features.codes)for(const activity of codes.get(token)??[])
+      codeHits.set(activity,(codeHits.get(activity)??0)+1);
+    const specialsByGroup=new Map<FeatureGroup,Set<CanonicalScheduleActivity>>();
+    const special=(activity:CanonicalScheduleActivity)=>{
+      const group=groupForActivity.get(activity)!;
+      const rows=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
+      rows.add(activity);specialsByGroup.set(group,rows);
+    };
+    const candidateGroups=new Set(nameGroups);
+    for(const activity of codeHits.keys()){
+      const group=groupForActivity.get(activity)!;
+      if(sectionGroups.has(group))candidateGroups.add(group);
+      special(activity);
+    }
+    const explicitMatches=new Set<CanonicalScheduleActivity>();
+    const raw=features.corpus;
+    for(const token of raw.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
+      const activity=explicit.get(token);
+      if(activity&&featuresByActivity.get(activity)!.explicitId?.test(raw)){
+        explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+      }
+    }
+    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(raw)){
+      explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+    }
+    return {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches};
+  };
+  const overlaps=(keys:ReadonlySet<string>,other:ReadonlySet<string>):number=>{
+    let count=0;
+    for(const key of keys)if(other.has(key))count++;
+    return count;
+  };
+  const fastScore=(item:ItemFeatures,activity:ActivityFeatures,
+    descriptionHits:number,sectionHits:number,codeHits:number):number=>{
+    const similarity=(n:number,a:number,b:number)=>n&&a&&b?n/(a+b-n):0;
+    const description=similarity(descriptionHits,item.descriptionTokens.size,activity.nameTokens.size);
+    let value=description>0?Math.min(0.62,description*0.72):0;
+    if(item.description.length>=5&&activity.name.length>=5&&
+      (item.description.includes(activity.name)||activity.name.includes(item.description)))value+=0.23;
+    const section=similarity(sectionHits,item.sectionTokens.size,activity.wbsTokens.size);
+    if(section>0)value+=Math.min(0.24,section*0.30);
+    const code=similarity(codeHits,item.codes.size,activity.codes.size);
+    if(code>0)value+=Math.min(0.18,code*0.22);
+    return Math.min(0.97,value);
   };
 
   for (const item of quantities.items) {
@@ -453,19 +523,44 @@ export function buildQuantityScheduleMapping(
 
     const features = itemFeatures(item);
     const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
-    for (const activity of candidatesFor(item, features)) {
-      scoredPairCount += 1;
-      const confidence = Number(score(features, featuresByActivity.get(activity)!, false).value.toFixed(4));
-      if (confidence < 0.34) continue;
-      // This is the same stable confidence/Activity-ID sort and top five as
-      // before. Do not fingerprint or copy source evidence for discarded rows.
-      const index = top.findIndex(row => confidence > row.confidence ||
-        (confidence === row.confidence && activity.activityId.localeCompare(row.activity.activityId) < 0));
-      if (index < 0) {
-        if (top.length < 5) top.push({activity, confidence});
-      } else {
-        top.splice(index, 0, {activity, confidence});
-        if (top.length > 5) top.pop();
+    const {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches}=candidatesFor(features);
+    const offer=(activity:CanonicalScheduleActivity,rawConfidence:number)=>{
+      // Preserve both the original four-decimal confidence rule and the
+      // stable activity-ID tie break, including on ambiguous BOQ proposals.
+      if(top.length===5&&rawConfidence<top[4]!.confidence-0.0001)return;
+      if(rawConfidence<0.33994)return;
+      const confidence=Number(rawConfidence.toFixed(4));
+      if(confidence<0.34)return;
+      const index=top.findIndex(row=>confidence>row.confidence||
+        confidence===row.confidence&&activity.activityId.localeCompare(row.activity.activityId)<0);
+      if(index<0){if(top.length<5)top.push({activity,confidence});}
+      else {top.splice(index,0,{activity,confidence});if(top.length>5)top.pop();}
+    };
+    for(const group of candidateGroups){
+      const normal=nameGroups.has(group);
+      const specials=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
+      const n=overlaps(features.descriptionTokens,group.features.nameTokens);
+      const s=overlaps(features.sectionTokens,group.features.wbsTokens);
+      if(normal){
+        // Members have identical evidence except for their own unique codes.
+        // Five lowest Activity IDs suffice for each same-score group: a sixth
+        // cannot appear in any globally ranked top-five, even on a tie.
+        scoredPairCount+=group.members.length;
+        const baseConfidence=fastScore(features,group.features,n,s,0);
+        let considered=0;
+        for(const activity of group.members){
+          if(specials.has(activity))continue;
+          offer(activity,baseConfidence);
+          if(++considered===5)break;
+        }
+      }
+      for(const activity of specials){
+        const codeHit=codeHits.get(activity)??0;
+        if(!normal&&!(codeHit>0&&sectionGroups.has(group))&&!explicitMatches.has(activity))continue;
+        if(!normal)scoredPairCount++;
+        const rawConfidence=explicitMatches.has(activity)?0.99:fastScore(
+          features,featuresByActivity.get(activity)!,n,s,codeHit);
+        offer(activity,rawConfidence);
       }
     }
     const ranked: QuantityActivityMappingCandidate[] = top.map(({activity, confidence}) => ({

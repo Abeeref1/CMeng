@@ -14,7 +14,7 @@ function build(state:ProjectRuntimeState){
   const model=projectControlSchedule(state)?.revision.model;
   if(!model)return null;
   const basis=projectScheduleControlBasis(state),config=basis.analysisConfig;
-  const activities=activityPopulation(model).activities;
+  const activities=activityPopulation(model).activities.filter(activity=>activity.status!=='completed');
   const rows=activities.map(activity=>({activity,classification:sourceFloatCriticality(model,activity,config),watch:sourceFloatInFloatRiskWatchlist(model,activity,config)}));
   const unknown=rows.filter(r=>r.classification==='unknown'||r.watch===null).length;
   const near=rows.filter(r=>r.classification==='near_critical').length;
@@ -32,8 +32,8 @@ function build(state:ProjectRuntimeState){
   }
   const broad=watchPercent!==null&&watchPercent>50;
   const authorityText=authority==='cmeng_screening_policy'?'CMeng screening only; project threshold unresolved':authority==='project_evidenced_threshold'?'Project-evidenced threshold':'Threshold authority requires review';
-  const message=unknown?`${unknown} of ${activities.length} execution activities cannot be fully classified. Whole-population counts and percentages remain unresolved.`
-    :`${near} of ${activities.length} execution activities (${nearPercent??'unresolved'}%) are near-critical; the wider watchlist contains ${watch} (${watchPercent??'unresolved'}%).`;
+  const message=unknown?`${unknown} of ${activities.length} unfinished execution activities cannot be fully classified. Whole-population counts and percentages remain unresolved.`
+    :`${near} of ${activities.length} unfinished execution activities (${nearPercent??'unresolved'}%) are near-critical; the wider watchlist contains ${watch} (${watchPercent??'unresolved'}%).`;
   return {sourceRevisionId:model.sourceRevisionId,authority,threshold,thresholdWorkingDays:config.nearCriticalWorkingDays??null,
     thresholdHours:config.nearCriticalWorkingDays==null?config.nearCriticalFloatThresholdHours:null,
     populationCount:activities.length,unresolvedActivityCount:unknown,nearCriticalCount:unknown?null:near,watchlistCount:unknown?null:watch,

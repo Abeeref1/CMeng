@@ -17,6 +17,9 @@ export interface LdRateCandidate {
   percent: number | null;
   sourceRefs: string[];
   textSnippet: string;
+  sectionKey?: string;
+  sectionIdentifier?: string | null;
+  sectionHeading?: string | null;
 }
 
 export interface LdCapCandidate {
@@ -29,6 +32,9 @@ export interface LdCapCandidate {
   percent: number | null;
   sourceRefs: string[];
   textSnippet: string;
+  sectionKey?: string;
+  sectionIdentifier?: string | null;
+  sectionHeading?: string | null;
 }
 
 export interface ContractLdTerms {

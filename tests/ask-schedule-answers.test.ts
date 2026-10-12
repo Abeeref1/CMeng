@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
-import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
+import {ProjectAskEngine,requestedProjectFactsAnswer} from '../packages/runtime-api/src/ask-engine';
 import {AskStore} from '../packages/runtime-api/src/ask-store';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {createCmengServer} from '../packages/runtime-api/src/server';
@@ -12,6 +12,31 @@ import {activityDateExceptions} from '../packages/activity-analytics/src/excepti
 import type {AnalysisResult,AskSession} from '../packages/project-ask/src/types';
 
 const user:AskSession={userId:'schedule-reader',workspaceId:'cmeng-projects',name:null,title:null,company:null,allowModel:true};
+test('multi-domain fact questions include every requested fact beyond the first authority metrics',()=>{
+ const metric=(label:string,value:string|number)=>({id:label,label,value,unit:null,state:'established',traceId:label});
+ const result={plan:{objective:'What are the original contract completion date, awarded EOT, extended contract completion date, current programme finish, open RFIs and certified unpaid amount?'},sections:[
+  {authorityId:'programme',metrics:Array.from({length:22},(_,i)=>metric('Supporting figure '+i,i))},
+  {authorityId:'forecast',metrics:[metric('Submitted programme finish','2031-12-31T14:00:00')]},
+  {authorityId:'eot',metrics:[metric('Original contractual completion','2031-12-01'),metric('Contract completion including awarded EOT','2031-12-11'),metric('Awarded EOT',10)]},
+  {authorityId:'payments',metrics:[metric('Certified Unpaid Amount · AED',321)]},
+  {authorityId:'design',metrics:[metric('Open records',7)]},
+ ]} as unknown as AnalysisResult;
+ const answer=requestedProjectFactsAnswer(result)!;
+ assert.match(answer.text,/Open RFIs: 7/);assert.match(answer.text,/Unpaid Amount · AED: 321/);assert.match(answer.text,/2031-12-01/);assert.match(answer.text,/2031-12-11/);assert.match(answer.text,/Awarded EOT: 10/);assert.match(answer.text,/2031-12-31/);assert.doesNotMatch(answer.text,/Supporting figure|T14/);
+ assert.equal(answer.traceIds.length,6);
+});
+test('S-09 S-10 S-13 fact answers use a held confirmed source before requesting missing data',()=>{
+ const metric=(value:number|null,state='established')=>({id:'unpaid',label:'Certified Unpaid Amount · AED',value,unit:'AED',state,traceId:'source'});
+ const analysis={plan:{objective:'What is the certified unpaid amount?'},sections:[
+  {authorityId:'payments',metrics:[metric(null,'unavailable')]},
+  {authorityId:'commercial',metrics:[metric(14520)]},
+ ]} as unknown as AnalysisResult;
+ const found=requestedProjectFactsAnswer(analysis);
+ assert.ok(found);assert.match(found.text,/14,520/);
+ assert.doesNotMatch(found.text,/Missing|Not established/);
+ const missing={plan:{objective:'What is the certified unpaid amount?'},sections:[{authorityId:'payments',metrics:[metric(null,'unavailable')]}]} as unknown as AnalysisResult;
+ assert.match(requestedProjectFactsAnswer(missing)!.text,/Not established/);
+});
 let sequence=0;
 type Row=[string,string,string,string,string,string,string,string?];
 const rows:Row[]=[

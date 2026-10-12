@@ -29,6 +29,7 @@ test('opening a project loads and renders the canonical Director position with i
     renderStatus:()=>{},renderNav:()=>{},updateActiveProjectShell:()=>{},setBusy:()=>{},
     loadModule:async()=>{},loadEvidence:async()=>{},loadPhaseProgrammes:async()=>{},loadProjectActions:async()=>{},localStorage:{setItem:()=>{}},escapeHtml:String,
   });
+  await new Promise<void>(resolve=>setImmediate(resolve)); // agreed page-first load, then non-blocking Director
   assert.ok(requested.includes('/api/projects/OTHER-2032/director-position'));
   assert.deepEqual(rendered,[director]);
 });

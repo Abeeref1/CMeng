@@ -1,6 +1,7 @@
+import {runInNewContext} from './browser-context';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runInNewContext} from 'node:vm';
+
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -54,7 +55,9 @@ test('Task 11 Command Center keeps issue consequence scope owner action due and 
 test('management UI is action-first and MCP execution-first',()=>{
   assert.match(script,/Actions requiring management attention/);
   assert.match(script,/Issue & consequence/);
-  assert.match(script,/Accountability action register/);
+  // S-44: groups are the headline; individual follow-ups remain inside them.
+  assert.match(script,/Accountable owner and register groups/);
+  assert.match(script,/Top 10 accountability follow-ups/);
   assert.match(script,/Integrated programme control sequence/);
   assert.match(script,/Control authority & evidence matrix/);
   assert.match(script,/renderMcpProgrammeControl\(data\)[\s\S]*experienceDisclosure\("Control authority & evidence"/,
@@ -88,7 +91,7 @@ test('programme control stages derive an integrated execution sequence from prog
   assert.deepEqual(procurement.wbsPaths,['Long Lead Procurement']);
   assert.deepEqual(construction.wbsPaths,['Civil Construction']);
   assert.equal(procurement.latestCurrentFinishIso,'2030-05-01');
-  assert.equal(procurement.latestForecastFinishIso,null);
+  assert.equal(procurement.latestForecastFinishIso,'2030-05-01','the submitted programme finish is the forecast when no distinct forecast column is supplied');
   assert.ok(Array.isArray(procurement.dependencyStages));
   assert.ok(Array.isArray(procurement.controlMilestoneIds));
 });

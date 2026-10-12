@@ -54,7 +54,7 @@ function population(count:number, options:{genericTitles?:boolean;linkedActiviti
   return {claims,events,letters};
 }
 
-test("quarantines the proven generated-looking claims signature without deleting source evidence",()=>{
+test("retains every claim and documents source-pattern risks without fabricating a quarantine",()=>{
   const data=population(180);
   const result=assessClaimPopulationIntegrity(
     data.claims,
@@ -62,15 +62,15 @@ test("quarantines the proven generated-looking claims signature without deleting
     data.letters,
     ["CL01_Claims_Register_180.csv"],
   );
-  assert.equal(result.state,"quarantined");
+  assert.equal(result.state,"accepted");
   assert.equal(result.sourceClaimCount,180);
-  assert.equal(result.quarantinedClaimCount,180);
+  assert.equal(result.quarantinedClaimCount,0);
   assert.equal(result.linkedActivityEventCount,0);
   assert.equal(result.genericClaimEventPairCount,180);
   assert.equal(result.genericNoticePairCount,180);
   assert.equal(result.arithmeticClaimedDaysPrefixLength,180);
   assert.deepEqual(result.sourceFilenames,["CL01_Claims_Register_180.csv"]);
-  assert.ok(result.reasons.includes("GENERATED_ARITHMETIC_CLAIM_DAY_PATTERN"));
+  assert.ok(result.reasons.includes("CLAIM_SOURCE_PATTERN_INFORMATION_ONLY"));
 });
 
 test("does not quarantine a real linked population merely because IDs and notices are sequential",()=>{

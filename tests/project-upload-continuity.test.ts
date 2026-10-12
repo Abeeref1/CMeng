@@ -17,24 +17,84 @@ test('phase updates, baselines, scenarios and restart retain separate authority 
   const base=await upload('2036-01-01','baseline'),current=await upload('2036-08-31','update');
   const before=projectControlSchedule(state)!.revision.revisionId;
   const phaseBaseline=await upload('2037-01-31','baseline','PHASE-2'),phaseUpdate=await upload('2037-03-31','update','PHASE-2');
-  assert.equal(state.schedules.length,2);assert.equal(state.evidenceDocuments.filter(d=>d.category==='schedule').length,2);assert.equal(projectControlSchedule(state)!.revision.revisionId,before);assert.equal(projectDataDate(state),'2036-08-31');
+  assert.equal(state.schedules.length,2);assert.equal(state.evidenceDocuments.filter(d=>d.category==='schedule').length,2);
+  assert.equal(projectControlSchedule(state)!.revision.revisionId,before);assert.equal(projectDataDate(state),'2036-08-31');
   assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);
-  const revised=await upload('2037-04-30','revised_baseline','PHASE-2');assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId,'baseline adoption is distinct from a current update');
+  const revised=await upload('2037-04-30','revised_baseline','PHASE-2');
+  assert.equal(phaseProgrammePosition(state,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId,'baseline adoption is distinct from a current update');
   assert.equal(state.phaseProgrammes![0]!.activeEvidenceBasis['schedule:baseline']!.activeArtifactId,revised.revisionId);
-  const recovery=await upload('2037-05-31','recovery','PHASE-2',false);assert.throws(()=>f.store.adoptSchedule(projectId,recovery.revisionId,'PHASE-2'),/SCENARIO/);
+  const recovery=await upload('2037-05-31','recovery','PHASE-2',false);
+  assert.throws(()=>f.store.adoptSchedule(projectId,recovery.revisionId,'PHASE-2'),/SCENARIO/);
   assert.throws(()=>f.store.adoptSchedule(projectId,phaseUpdate.revisionId),/NOT_FOUND/);
   assert.throws(()=>f.store.adoptSchedule(projectId,current.revisionId,'PHASE-2'),/NOT_FOUND/);
-  const pending=await upload('2037-03-31','update','PHASE-3',false);assert.equal(phaseProgrammePosition(state,'PHASE-3').programme,null);f.store.adoptSchedule(projectId,pending.revisionId,'PHASE-3');
+  const submitted=await upload('2037-03-31','update','PHASE-3',false);
+  assert.equal(phaseProgrammePosition(state,'PHASE-3').programme!.revisionId,submitted.revisionId,'first dated phase update becomes the submitted analytical programme');
+  assert.equal(projectDataDate(state),'2036-08-31','phase programme must not advance the parent project Data Date');
   const restored=new RuntimeProjectStore({dataDir:f.root,durable:true}),again=restored.get(projectId)!;
   assert.equal(projectControlSchedule(again)!.revision.revisionId,current.revisionId);assert.equal(again.activeEvidenceBasis['schedule:baseline']!.activeArtifactId,base.revisionId);
-  assert.equal(phaseProgrammePosition(again,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);assert.equal(phaseProgrammePosition(again,'PHASE-3').programme!.revisionId,pending.revisionId);
+  assert.equal(phaseProgrammePosition(again,'PHASE-2').programme!.revisionId,phaseUpdate.revisionId);
+  assert.equal(phaseProgrammePosition(again,'PHASE-3').programme!.revisionId,submitted.revisionId);
   assert.ok(again.phaseProgrammes![0]!.schedules.some(s=>s.revision.revisionId===phaseBaseline.revisionId));
 });
+
 test('confirmed programme purpose overrides filename hints and baseline adoption requires an approval reference',async t=>{
   const f=store(t),input={projectId:'NAMES',bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:'Draft-Recovery-Phase-99.xer',role:'update',roleConfirmed:true,uploadIntent:'replace_current_basis' as const,uploadedAt:'2036-09-01'};
   const result=await f.store.ingestSchedule(input);assert.equal(result.role,'update');assert.equal(projectDataDate(f.store.get('NAMES')!),'2036-08-31');
   await assert.rejects(()=>f.store.ingestSchedule({...input,projectId:'NO-APPROVAL',role:'baseline'}),/APPROVAL_REFERENCE/);
 });
+test('mitigation and acceleration programme names stay scenario-only until purpose is explicitly confirmed',async t=>{
+  const f=store(t),projectId='RECOVERY-NAMES';
+  for(const [index,name] of ['Mitigation_Programme_01.xer','Acceleration_Programme_02.xer','WhatIf_Programme_03.xer'].entries()){
+    const uploaded=await f.store.ingestEvidenceFile({
+      projectId,bytes:xer('2036-0'+(index+8)+'-31'),mediaType:'text/plain',sourceFilename:name,
+      uploadedAt:'2036-10-01',uploadIntent:'add_update',
+    });
+    const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
+    const expectedRole=/WhatIf/i.test(name)?'scenario':'recovery';
+    assert.equal(uploaded.scheduleRole,expectedRole,name+' must be recognised as scenario/recovery intent');
+    assert.equal(document.basisState,'scenario',name+' must not become the current analytical programme');
+    assert.equal(projectDataDate(state),null,name+' must not establish the project Data Date');
+  }
+  const explicit=await f.store.ingestSchedule({
+    projectId:'EXPLICIT-ACCELERATION',bytes:xer('2036-08-31'),mediaType:'text/plain',
+    sourceFilename:'Acceleration_Programme_03.xer',role:'update',roleConfirmed:true,
+    uploadedAt:'2036-09-01',uploadIntent:'replace_current_basis',
+  });
+  assert.equal(explicit.role,'update','an explicit confirmed programme purpose must override the filename hint');
+  assert.equal(projectDataDate(f.store.get('EXPLICIT-ACCELERATION')!),'2036-08-31');
+});
+
+test('explicit baseline names remain unapproved candidates and never become submitted-current',async t=>{
+  const f=store(t);
+  for(const name of ['Contract_Baseline_01.xer','Tender_Baseline_02.xer','Baseline_Programme_03.xer','Proposed_Baseline_04.xer','Rebaseline_Submission_05.xer']){
+    const projectId='BASELINE-NAME-'+name.replace(/[^A-Za-z0-9]/g,'');
+    const uploaded=await f.store.ingestEvidenceFile({
+      projectId,bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:name,
+      uploadedAt:'2036-09-01',uploadIntent:'add_update',
+    });
+    const state=f.store.get(projectId)!,document=state.evidenceDocuments.find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)!;
+    const expectedRole=/Proposed|Rebaseline/i.test(name)?'revised_baseline':'baseline';
+    assert.equal(uploaded.scheduleRole,expectedRole,name+' must be recognised as baseline/revised-baseline intent');
+    assert.equal(document.basisState,'candidate',name+' must remain unapproved candidate');
+    assert.equal(projectDataDate(state),null,name+' must not establish the current project Data Date');
+    assert.throws(()=>f.store.adoptSchedule(projectId,uploaded.linkedArtifactId!),/BASELINE_APPROVAL_REFERENCE_REQUIRED/);
+  }
+});
+
+test('schedule and evidence registry resolve the same project through normalized identity',async t=>{
+  const f=store(t),inputId='mixed-case project';
+  const uploaded=await f.store.ingestEvidenceFile({
+    projectId:inputId,bytes:xer('2036-08-31'),mediaType:'text/plain',
+    sourceFilename:'Current_Update.xer',uploadedAt:'2036-09-01',uploadIntent:'add_update',
+  });
+  const canonical=f.store.get('MIXED-CASE PROJECT')!;
+  assert.ok(canonical);
+  assert.ok(canonical.evidenceDocuments.some(d=>d.linkedArtifactId===uploaded.linkedArtifactId));
+  assert.equal(f.store.evidence(inputId).find(d=>d.linkedArtifactId===uploaded.linkedArtifactId)?.documentId,uploaded.documentId);
+  assert.equal(f.store.latestSchedule(inputId)?.revision.revisionId,uploaded.linkedArtifactId);
+  assert.equal(f.store.latestSchedule('MIXED-CASE PROJECT')?.revision.revisionId,uploaded.linkedArtifactId);
+});
+
 test('BOQ identity ignores row order and filename but refuses missing, ambiguous or changed scope identities',()=>{
   const old={id:'hash-old-row-1',itemNumber:'B1',section:'MEP',description:'Chiller',unit:'No.'},same={...old,id:'hash-new-row-200'};
   assert.equal(boqItemContinuity([old],[same]).get(old.id),same.id);

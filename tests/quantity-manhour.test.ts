@@ -115,7 +115,7 @@ test("BOQ quantity adapter preserves separate item identities and units", () => 
   assert.equal(items[1]!.unit, "m2");
 });
 
-test("Quantity Installed S-Curve keeps units separate and reports mapping gaps", () => {
+test("Quantity Installed S-Curve keeps different BOQ items separate even when their units match", () => {
   const quantities: CanonicalQuantityProgressModel = {
     projectId: "P88",
     boqRevisionId: "boq-rev-1",
@@ -211,10 +211,10 @@ test("Quantity Installed S-Curve keeps units separate and reports mapping gaps",
     projection.allocationState,
     "partial",
   );
-  assert.equal(projection.series.length, 2);
+  assert.equal(projection.series.length, 3);
 
   const m3 = projection.series.find(
-    (series) => series.unit === "m3",
+    (series) => series.quantityItemId === "BOQ::1.1",
   )!;
   const m2 = projection.series.find(
     (series) => series.unit === "m2",
@@ -222,11 +222,11 @@ test("Quantity Installed S-Curve keeps units separate and reports mapping gaps",
 
   assert.equal(
     m3.knownContractQuantity,
-    150,
+    100,
   );
   assert.equal(
     m3.mappingCoveragePercent,
-    66.6667,
+    100,
   );
   assert.equal(
     m3.actualHistoryMode,
@@ -234,7 +234,7 @@ test("Quantity Installed S-Curve keeps units separate and reports mapping gaps",
   );
   assert.equal(
     m3.actualSnapshotItemCoveragePercent,
-    50,
+    100,
   );
 
   assert.equal(

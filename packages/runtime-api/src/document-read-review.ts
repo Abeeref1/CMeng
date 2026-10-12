@@ -1,19 +1,20 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {parsePdfDocument,type OcrProvider} from '../../pdf-document-parser/src';
+import {parsePdfDocument,fragmentedPdfText,hasUnreadableNativePages,type OcrProvider} from '../../pdf-document-parser/src';
 import type {SourceTable} from '../../truth-kernel/src';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
 
 /** Upload classification, physical reading and adoption are different facts. */
-export function documentReadReview(document:StoredEvidenceDocument,state:ProjectRuntimeState,table?:SourceTable){
+export function documentReadReview(document:StoredEvidenceDocument,state:ProjectRuntimeState,sourceTables?:SourceTable|readonly SourceTable[]){
   const hash=document.sourceHashSha256;
   const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
     state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
   if(pdf){
-    const readPages=pdf.nativePages+pdf.ocrPages+pdf.blankPages;
+    const unreadableNative=pdf.pages.filter(p=>p.method==='native'&&fragmentedPdfText(p.text)).length;
+    const readPages=pdf.nativePages+pdf.ocrPages+pdf.blankPages-unreadableNative;
     const complete=pdf.totalPages>0&&readPages===pdf.totalPages&&pdf.failedPages===0&&pdf.unresolvedPages===0;
     return {state:complete?'read':'partial',label:complete?'All pages read':'Pages need review',
-      note:`${readPages} of ${pdf.totalPages} pages read: ${pdf.nativePages} native, ${pdf.ocrPages} OCR, ${pdf.blankPages} blank; ${pdf.failedPages} failed, ${pdf.unresolvedPages} unresolved. Reading does not confirm structured facts, compliance or adoption.`,
+      note:`${readPages} of ${pdf.totalPages} pages read: ${pdf.nativePages-unreadableNative} native, ${pdf.ocrPages} OCR, ${pdf.blankPages} blank; ${pdf.failedPages} failed, ${pdf.unresolvedPages+unreadableNative} unresolved. Reading does not confirm structured facts, compliance or adoption.`,
       method:pdf.ocrPages?'Native text / OCR':'Native text',pageCount:pdf.totalPages,readPageCount:readPages,complete};
   }
   const receipt=document.correspondenceNarrativeRefresh;
@@ -28,7 +29,18 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
     const known=Object.values(document.hseSummary.metrics).filter(v=>v!==null).length;
     return {state:known?'read':'partial',label:known?'Report figures read':'Report figures need review',note:`${known} report figures extracted. Reporting period, rate basis and incident status are assessed separately.`,method:'Native text',pageCount:null,readPageCount:null,complete:false};
   }
-  if(table?.document.sourceHashSha256===hash){
+  const tables=(Array.isArray(sourceTables)?sourceTables:sourceTables?[sourceTables]:[]).filter(table=>
+    table.document.sourceHashSha256===hash&&table.document.documentId===document.documentId);
+  if(tables.length>1){
+    const unresolved=tables.filter(table=>table.recognition?.recognized===false);
+    const rows=tables.reduce((sum,table)=>sum+(table.recognition?.recognized===false?table.recognition.readRowCount:table.rows.length),0);
+    const fields=new Set(tables.flatMap(table=>table.headers)).size;
+    return {state:unresolved.length?'partial':'read',label:unresolved.length?'Source tables need review':'Source rows read',
+      note:`${rows} rows and ${fields} distinct fields read across ${tables.length} parsed tables. ${unresolved.length} tables have unrecognised columns. Field completeness, validation, mapping and adoption are checked separately.`,
+      method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
+  }
+  const table=tables[0];
+  if(table){
     if(table.recognition?.recognized===false)return {state:'unresolved',label:'Columns not recognised',note:`Read ${table.recognition.readRowCount} rows, columns not recognised: ${table.headers.join(', ')}.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
     return {state:'read',label:'Source rows read',note:`${table.rows.length} rows and ${table.headers.length} fields read from the source. Field completeness, validation, mapping and adoption are checked separately.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
   }
@@ -63,7 +75,7 @@ export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createPro
   const prior=running.get(document);if(prior)return prior;
   const work=(async()=>{
     if(!/pdf/i.test(document.mediaType)||
-      (document.fullTextRead?.sourceHashSha256===document.sourceHashSha256&&document.fullTextRead.result.complete))return false;
+      (document.fullTextRead?.sourceHashSha256===document.sourceHashSha256&&document.fullTextRead.result.complete&&!hasUnreadableNativePages(document.fullTextRead.result)))return false;
     const hash=document.sourceHashSha256,bytes=readFileSync(document.storedPath);
     if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('DEFERRED_PDF_SOURCE_HASH_MISMATCH');
     const provider=createProvider();

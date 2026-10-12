@@ -859,6 +859,7 @@ export function loadCertifiedDemoProject(
         ncrId: "NCR1",
         severity: "major",
         status: "open",
+        raisedIso: "2026-01-03T00:00:00.000Z",
         sourceRefs: [
           "demo:ncr:NCR1",
         ],
@@ -866,6 +867,7 @@ export function loadCertifiedDemoProject(
       rfis: [{
         rfiId: "RFI-22",
         status: "open",
+        raisedIso: "2026-01-03T00:00:00.000Z",
         dueIso:
           "2026-01-07T00:00:00.000Z",
         sourceRefs: [
@@ -885,6 +887,7 @@ export function loadCertifiedDemoProject(
         riskId: "R1",
         status: "open",
         rating: "high",
+        raisedIso: "2026-01-03T00:00:00.000Z",
         owner: "Project Director",
         dueIso:
           "2026-01-08T00:00:00.000Z",

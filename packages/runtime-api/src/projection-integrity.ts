@@ -19,9 +19,10 @@ function sharedIntegrityBasis(model:CanonicalScheduleModel,config:ScheduleAnalys
   if(!byConfig){byConfig=new Map();integrityBasisCache.set(model,byConfig);}
   const cached=byConfig.get(configKey);if(cached)return cached;
   const execution=activityPopulation(model);
-  const classifications=execution.activities.map(a=>sourceFloatCriticality(model,a,config));
-  const expectedCritical=execution.activities.some(a=>a.totalFloatHours===null)?null:classifications.filter(x=>x==='critical').length;
-  const expectedNear=execution.activities.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x=>x==='near_critical').length;
+  const unfinished=execution.activities.filter(a=>a.status!=='completed');
+  const classifications=unfinished.map(a=>sourceFloatCriticality(model,a,config));
+  const expectedCritical=unfinished.some(a=>a.totalFloatHours===null)?null:classifications.filter(x=>x==='critical').length;
+  const expectedNear=unfinished.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x=>x==='near_critical').length;
   const progress=scheduleProgress(model.activities);
   const value={execution,expectedCritical,expectedNear,progress};
   byConfig.set(configKey,value);return value;
@@ -111,8 +112,8 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   } else if (result.key === 'activity-analytics') {
     compare('source_register_population', data.rows?.length, model.activities.length);
     compare('activity_near_critical_total', data.counts?.nearCritical.value, expectedNear);
-    compare('activity_critical_total', data.counts?.critical.value, execution.activities.some(a=>a.totalFloatHours===null)?null:expectedCritical);
-    const datedRows=(data.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType));
+    compare('activity_critical_total', data.counts?.critical.value, expectedCritical);
+    const datedRows=(data.rows??[]).filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.status!=='completed');
     compare('activity_late_total', data.counts?.late.value, datedRows.some((r:any)=>r.finishVarianceDays===null)?null:datedRows.filter((r:any)=>r.finishVarianceDays>0).length);
   } else if (result.key === 'near-critical') {
     compare('strict_near_critical_population', data.nearCriticalCount, expectedNear);

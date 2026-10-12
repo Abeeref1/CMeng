@@ -4,6 +4,7 @@ import type {ProjectRuntimeState} from "./project-state-types";
 import {canonicalTimeClaims} from "./canonical-time-claims";
 import {isScenarioRevision} from "./schedule-authority";
 import {sourceProductivityForecastEvidence} from "./source-productivity-forecast";
+import {commercialPositionForState} from './commercial-runtime';
 
 export const FORECAST_TAXONOMY_LABELS = [
   "Contractual completion",
@@ -76,6 +77,8 @@ export function buildForecastReconciliationGate(input: {
   const sourceConstraintActivities = model.activities.filter(activity =>
     (activity.sourceConstraints?.length ?? 0) > 0,
   );
+  const constraintsApplied=forecast.diagnostics.some(code=>code.startsWith('SOURCE_CONSTRAINTS_APPLIED'));
+  const unappliedConstraints=sourceConstraintActivities.length>0&&!constraintsApplied;
   const materialDivergences = forecast.activities.filter(row =>
     typeof row.finishVarianceDays === "number" &&
     Number.isFinite(row.finishVarianceDays) &&
@@ -108,11 +111,13 @@ export function buildForecastReconciliationGate(input: {
     {
       key: "source_constraints",
       label: "Source constraints",
-      state: sourceConstraintActivities.length === 0 ? "passed" : "review_required",
+      state: unappliedConstraints ? "review_required" : "passed",
       detail: sourceConstraintActivities.length === 0
-        ? "No retained source constraint is excluded from the current unconstrained network calculation."
-        : String(sourceConstraintActivities.length) + " activity(ies) contain retained source constraints that this CPM calculation does not apply.",
-      count: sourceConstraintActivities.length,
+        ? "No source constraints are present."
+        : constraintsApplied
+          ? String(sourceConstraintActivities.length) + " activity(ies) have source constraints applied in the calendar calculation."
+          : String(sourceConstraintActivities.length) + " activity(ies) have source constraints that have not been applied; their effect needs calculation.",
+      count: unappliedConstraints?sourceConstraintActivities.length:0,
     },
     {
       key: "activity_calculation_coverage",
@@ -146,23 +151,50 @@ export function buildForecastReconciliationGate(input: {
   const publishable =
     forecast.independentForecastCompletionIso !== null &&
     checks.every(check => check.state === "passed");
+  // A material difference from the contractor's submitted activity dates
+  // warrants qualification, not suppression of an otherwise valid source-
+  // calendar calculation. Graph, calendar, constraints and complete coverage
+  // remain hard gates: a failed recalculation is NEVER a dashboard value.
+  const usable=forecast.independentForecastCompletionIso!==null&&
+    !hasUnreconciledScheduleCalendar(forecast)&&checks
+    .filter(check=>!['required_finish_authority','material_activity_divergence'].includes(check.key))
+    .every(check=>check.state==='passed');
   const failed = checks.filter(check => check.state !== "passed");
   return {
     state: publishable ? "publishable" as const : "review_required" as const,
     publishable,
-    managementForecastCompletionIso: publishable ? forecast.independentForecastCompletionIso : null,
+    usable,
+    valueState:usable?'calculated_with_stated_assumption' as const:'missing' as const,
+    managementForecastCompletionIso: usable ? forecast.independentForecastCompletionIso : null,
     materialActivityScreeningDays,
     materialityAuthority: "cmeng_screening_not_contractual" as const,
     materialActivityIds: materialDivergences.map(row => row.activityId),
     checks,
     reason: publishable
       ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation may be published as a management analytical forecast, separate from contractual and contractor forecasts."
-      : failed.map(check => check.label + ": " + check.detail).join(" "),
+      : (usable?'Calculated using the current programme logic, remaining durations and source calendars; reconciliation remains open. ':'')+failed.map(check => check.label + ": " + check.detail).join(" "),
     basis:
       "A matching Project finish does not override failed calendar, graph, source-constraint, activity-coverage, activity-divergence or required-finish-authority checks. The " +
       materialActivityScreeningDays +
       "-day activity divergence threshold is a CMeng screening threshold, not a contractual materiality rule.",
   };
+}
+
+/** Source-calendar anomalies must not be promoted as a management finish. */
+export function hasUnreconciledScheduleCalendar(
+  forecast: {diagnostics?:readonly string[];assumptions?:readonly string[];forecastVarianceDays?:number|null}|null|undefined,
+):boolean {
+  const messages=[...(forecast?.diagnostics??[]),...(forecast?.assumptions??[])];
+  const calendarWarning=messages.some(message=>
+    message.startsWith('CALENDAR_SEMANTICS_UNRESOLVED:')||
+    message.startsWith('CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:')||
+    message.includes('SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION')
+  );
+  // Independent CPM may remain available in the specialist evidence, but its
+  // management headline is withheld if it differs materially from the source
+  // completion until the difference is reconciled.
+  return calendarWarning||(typeof forecast?.forecastVarianceDays==='number'&&
+    Math.abs(forecast.forecastVarianceDays)>1);
 }
 
 export function forecastControlForState(
@@ -171,7 +203,9 @@ export function forecastControlForState(
   forecast: IndependentForecastProjection,
 ) {
   const time = canonicalTimeClaims(state);
-  const requiredFinishIso = time.contractTimeBasis?.contractualCompletionIso ?? null;
+  const contractTime=commercialPositionForState(state).timeExposure;
+  const originalContractualCompletionIso=time.contractTimeBasis?.contractualCompletionIso??null;
+  const requiredFinishIso=contractTime.officialAdjustedCompletion.value??originalContractualCompletionIso;
   const productivity = sourceProductivityForecastEvidence(state);
   const scenario = state.schedules
     .filter(item => isScenarioRevision(item))
@@ -182,9 +216,10 @@ export function forecastControlForState(
 
   return {
     gate,
+    originalContractualCompletionIso,
     taxonomy: {
       contractualCompletion: {
-        label: FORECAST_TAXONOMY_LABELS[0],
+        label: requiredFinishIso!==originalContractualCompletionIso?'Contract completion with awarded EOT':FORECAST_TAXONOMY_LABELS[0],
         completionIso: requiredFinishIso,
         authority: "contract_time_basis",
         state: requiredFinishIso ? "established" : "not_established",

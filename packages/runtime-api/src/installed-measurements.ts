@@ -7,9 +7,8 @@ const norm=(value:string)=>value.normalize('NFKC').trim().toLowerCase().replace(
  * unique item number and unit; retain every unresolved row in the review. */
 export function withInstalledMeasurements(state:ProjectRuntimeState,model:CanonicalQuantityProgressModel|null,dataDateIso:string|null){
   if(!model)return null;
-  const documents=state.evidenceDocuments.filter(d=>d.documentType==='installed_measurement_register');
-  if(!documents.length)return model;
-  const diagnostics:string[]=[],tables=governedTables(documents,diagnostics);
+  const diagnostics:string[]=[],tables=governedTables(state.evidenceDocuments,diagnostics).filter(table=>table.document.documentType==='installed_measurement_register');
+  if(!tables.length)return model;
   const items=new Map<string,typeof model.items>();
   for(const item of model.items){
     if(!item.itemNumber||!item.unit)continue;

@@ -1,8 +1,6 @@
-import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import PDFDocument from 'pdfkit';
-import {createCanvas,GlobalFonts} from '@napi-rs/canvas';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
 import {AskError} from '../../project-ask/src/catalogue';
 const font=join(process.cwd(),'packages/project-ask/assets/DejaVuSans.ttf');
@@ -12,6 +10,23 @@ const safe=(s:string)=>s.replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,70);
 const xml=(s:unknown)=>String(s??'').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const csv=(v:Cell|undefined)=>'"'+display(v).replace(/^[=+@\t\r]/,"'$&").replace(/^-([^\d])/,"'-$1").replace(/"/g,'""')+'"';
 const rows=(r:AnalysisResult)=>r.sections.flatMap(s=>s.tables);
+let chartFontRegistered=false;
+// Formats reuse the same chart cells. Cache only exact rendered inputs, bounded
+// by both entry count and PNG bytes; source/scope changes get a different key.
+const chartImages=new Map<string,Buffer>();
+let chartImageBytes=0;
+const chartImageByteLimit=8*1024*1024;
+function retainChartImage(key:string,bytes:Buffer){
+  if(bytes.length<=chartImageByteLimit){
+    while(chartImages.size>=128||chartImageBytes+bytes.length>chartImageByteLimit){
+      const oldest=chartImages.keys().next().value;
+      if(oldest===undefined)break;
+      chartImageBytes-=chartImages.get(oldest)!.length;chartImages.delete(oldest);
+    }
+    chartImages.set(key,Buffer.from(bytes));chartImageBytes+=bytes.length;
+  }
+  return bytes;
+}
 export interface AskExportView {
   title?:string;
   subtitle?:string|null;
@@ -46,15 +61,39 @@ export function preparedAskResult(result:AnalysisResult,input?:AskExportView){
   })).sort((a,b)=>(order.get(a.authorityId)??9999)-(order.get(b.authorityId)??9999));
   return {...result,presentation:{...result.presentation,title:view.title??result.presentation.title,...(view.detailLevel?{detail:view.detailLevel}:{})},sections};
 }
-const metadata=(r:AnalysisResult)=>[['Project',r.scope.projectName],['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],['Grouping',r.plan.groupBy.join(', ')||'None']];
+const reviewLensLabel=(value:NonNullable<AnalysisResult['presentation']['reviewLens']>)=>({
+  overall:'Overall Detailed',planning:'Planning Engineer',controls:'Project Controls Manager',
+  'project-director':'Project Director','program-director':'Program Director',executive:'Executive / CEO',
+}[value]);
+const metadata=(r:AnalysisResult):Array<[string,string|number]>=>[
+  ['Project',r.scope.projectName],
+  ...(r.presentation.reviewLens?[['Review lens',reviewLensLabel(r.presentation.reviewLens)] as [string,string]]:[]),
+  ['Data Date',r.scope.dataDate??'Not established'],['Programme revision',r.scope.programmeRevision??'Not established'],
+  ['Project version',r.scope.projectVersion],['Analysis',r.id],['Source snapshot',r.snapshotHash],
+  ['Prepared by',r.presentation.preparedBy??'Not supplied'],['Job title',r.presentation.jobTitle??'Not supplied'],
+  ['Company',r.presentation.company??'Not supplied'],['Issue date',r.createdAt.slice(0,10)],['Status','Draft / Prepared'],
+  ['Confidentiality',r.presentation.confidentiality],['Scope',JSON.stringify({filters:r.plan.filters,authorityFilters:r.plan.authorityFilters??{},rankings:r.plan.rankings??[]})],
+  ['Grouping',r.plan.groupBy.join(', ')||'None']
+];
 
 /** Charts are a rendering of table cells. No KPI is recalculated here. */
 export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{type?:'bar'|'line';limit?:number}={}){
-  GlobalFonts.registerFromPath(font,'CMeng');const canvas=createCanvas(1200,560),c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,1200,560);
+  const imageKey=createHash('sha256').update(JSON.stringify([chart,table,options])).digest('hex');
+  const retained=chartImages.get(imageKey);
+  if(retained){chartImages.delete(imageKey);chartImages.set(imageKey,retained);return Buffer.from(retained);}
+  // The synchronous chart API loads native rendering only when a chart is requested.
+  const {createCanvas,GlobalFonts}=require('@napi-rs/canvas') as typeof import('@napi-rs/canvas');
+  // Native font registrations outlive each canvas. Re-registering the same font
+  // for every chart grows the worker's native memory across repeated exports.
+  if(!chartFontRegistered){
+    if(!GlobalFonts.registerFromPath(font,'CMeng'))throw new Error('CMeng chart font could not be loaded');
+    chartFontRegistered=true;
+  }
+  const canvas=createCanvas(1200,560),c=canvas.getContext('2d');c.fillStyle='#ffffff';c.fillRect(0,0,1200,560);
   c.font='bold 22px CMeng';c.fillStyle='#24384a';c.fillText(chart.title.slice(0,86),28,35);c.font='14px CMeng';c.fillStyle='#53697d';c.fillText(chart.unit+' · Data Date '+(chart.dataDate??'not established'),28,62);
   const chartRows=table.rows.slice(0,options.limit??table.rows.length),chartType=options.type??chart.type;
   const values=chartRows.flatMap(r=>chart.series.map(s=>r[s])).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
-  if(!values.length)return canvas.toBuffer('image/png');
+  if(!values.length)return retainChartImage(imageKey,canvas.toBuffer('image/png'));
   const lo=Math.min(0,...values),hi=Math.max(0,...values),span=hi-lo||1,left=85,top=96,width=1080,height=330;
   const y=(v:number)=>top+height-(v-lo)/span*height;c.font='13px CMeng';
   for(let i=0;i<=4;i++){const v=lo+span*i/4;c.strokeStyle='#e2e9ee';c.beginPath();c.moveTo(left,y(v));c.lineTo(left+width,y(v));c.stroke();c.fillStyle='#53697d';c.fillText(Number(v.toFixed(2)).toLocaleString('en-US'),8,y(v)+4);}
@@ -66,9 +105,10 @@ export function askChartPng(chart:AnalysisChart,table:AnalysisTable,options:{typ
     });c.fillRect(32+index*280,510,14,14);c.fillStyle='#24384a';c.fillText(table.columns.find(col=>col.key===key)?.label??key,54+index*280,522);
   });
   chartRows.forEach((r,i)=>{if(i%Math.max(1,Math.ceil(table.rows.length/10)))return;c.save();c.translate(left+step*(i+.5),446);c.rotate(-.22);c.fillStyle='#53697d';c.fillText(display(r[chart.category]).slice(0,24),-24,0);c.restore();});
-  return canvas.toBuffer('image/png');
+  return retainChartImage(imageKey,canvas.toBuffer('image/png'));
 }
 async function workbook(result:AnalysisResult,view?:AskExportView){
+  const {default:ExcelJS}=await import('exceljs');
   const book=new ExcelJS.Workbook();book.creator=result.presentation.preparedBy??'CMeng';book.title=result.presentation.title;book.created=new Date(result.createdAt);
   const report=book.addWorksheet('Executive Summary');report.addRows([['CMeng · '+result.presentation.title],...metadata(result),[],['Current position']]);
   for(const n of result.narrative)report.addRows([[n.heading],[n.text]]);
@@ -91,6 +131,7 @@ async function workbook(result:AnalysisResult,view?:AskExportView){
   return Buffer.from(await book.xlsx.writeBuffer());
 }
 async function pdf(result:AnalysisResult,view?:AskExportView){
+  const {default:PDFDocument}=await import('pdfkit');
   const doc=new PDFDocument({size:'A4',margins:{top:48,bottom:48,left:44,right:44},bufferPages:true,info:{Title:result.presentation.title,Author:result.presentation.preparedBy??'CMeng',Subject:result.scope.projectId+' · '+result.scope.dataDate}});
   doc.font(font);const chunks:Buffer[]=[];const done=new Promise<Buffer>((resolve,reject)=>{doc.on('data',c=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);});
   const heading=(text:string)=>{if(doc.y>690)doc.addPage();doc.moveDown(.8).fontSize(15).fillColor('#24384a').text(text,{width:507}).moveDown(.4);};

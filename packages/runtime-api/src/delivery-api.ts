@@ -7,11 +7,12 @@ import {deliveryAuthorityCatalog} from './delivery-authorities';
 import {deliverySourceTables} from './delivery-sources';
 import {sourceTables} from '../../truth-kernel/src';
 import {sendHttpBody} from './http-response';
+import {pageProjectResponse} from './response-paging';
 import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-core/src/types';
 
 export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url:URL):Promise<boolean>{
  const match=/^\/api\/projects\/([^/]+)\/delivery\/(records|catalog|sources)(?:\/([^/]+))?$/.exec(url.pathname);if(!match)return false;
- const send=(status:number,data:unknown)=>{sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(data));};
+ const send=(status:number,data:unknown)=>{sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(status===200&&req.method==='GET'?pageProjectResponse(data,url.pathname):data));};
  const projectId=decodeURIComponent(match[1]!),state=runtimeProjects.get(projectId);if(!state){send(404,{error:'Project not found.'});return true;}
  try{
   if(req.method==='POST'&&match[2]==='records'){
@@ -37,7 +38,7 @@ export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url
    else rows=rows.filter(r=>['governed','verified'].includes(r.state)).map(r=>({id:r.recordId,label:(r.reference??'')+' · '+(r.description??''),kind:r.kind}));
   }
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
-  const offset=Math.max(0,Number(url.searchParams.get('offset'))||0),limit=Math.max(1,Math.min(100,Number(url.searchParams.get('limit'))||50));
+  const offset=Math.max(0,Number(url.searchParams.get('offset'))||0),limit=Math.max(1,Math.min(25,Number(url.searchParams.get('limit'))||25));
   send(200,{projectId,projectVersion:state.version,total:rows.length,offset,limit,rows:rows.slice(offset,offset+limit),kinds:deliveryKinds,labels:deliveryLabels,lifecycleExamples});return true;
  }catch(error){const message=error instanceof Error?error.message:'Delivery request failed';send(message.startsWith('PROJECT_VERSION_CHANGED')?409:400,{error:message});return true;}
 }

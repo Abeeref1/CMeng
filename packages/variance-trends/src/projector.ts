@@ -82,6 +82,8 @@ export function buildVarianceTrendsProjection(
     producerVersion: string;
     controlledBaselineRevision?: ScheduleRevision | null;
     config?: ScheduleAnalysisConfig;
+    // Exact same revision, calendar and configuration already analyzed for Revision Trend.
+    precomputedAnalyses?: ReadonlyMap<ScheduleRevision['model'],ReturnType<typeof analyzeSchedule>>;
   },
 ): VarianceTrendsProjection {
   const ordered =
@@ -133,7 +135,7 @@ export function buildVarianceTrendsProjection(
   };
 
 
-      const analytics = analyzeSchedule(
+      const analytics = (baselineRevision?input.precomputedAnalyses?.get(revision.model):undefined) ?? analyzeSchedule(
         baselineRevision ? revision.model : {...revision.model,activities:revision.model.activities.map(a=>({...a,baselineStartIso:null,baselineFinishIso:null}))},
         input.config,
       );
@@ -339,6 +341,7 @@ export function buildVarianceTrendsProjection(
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     revisionCount: points.length,
+    revisionLabels: Object.fromEntries(ordered.map(revision => [revision.revisionId, revision.label || `Revision ${revision.sequence}`])),
     points,
     activityTrends,
   };

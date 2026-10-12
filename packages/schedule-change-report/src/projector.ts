@@ -1,5 +1,5 @@
 import {classifyScheduleChanges} from "../../schedule-revision-core/src";
-import { isExecutionActivity,parseScheduleTime } from "../../schedule-analysis-core/src";
+import { isExecutionActivity,parseScheduleTime,analyzeSchedule } from "../../schedule-analysis-core/src";
 import {scheduleActivityFinish} from '../../schedule-revision-core/src/compare';
 import {dateValue,populationContract} from '../../truth-kernel/src';
 import {
@@ -17,9 +17,11 @@ export function buildScheduleChangeReportProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    // Optional identical-revision comparison calculated earlier in the same management bundle.
+    precomputedComparison?: ReturnType<typeof compareScheduleRevisions>;
   },
 ): ScheduleChangeReportProjection {
-  const comparison = compareScheduleRevisions(from, to);
+  const comparison = input.precomputedComparison ?? compareScheduleRevisions(from, to);
   const currentExecution = new Set(to.model.activities.filter(isExecutionActivity).map(a=>a.activityId));
   const before=new Map(from.model.activities.map(a=>[a.activityId,a])),after=new Map(to.model.activities.map(a=>[a.activityId,a]));
   const finishRows=comparison.activityChanges.flatMap(change=>{
@@ -72,6 +74,13 @@ export function buildScheduleChangeReportProjection(
   const modifiedRelationships = [...added].flatMap(([key, after]) => {
     const before = removed.get(key); return after.length === 1 && before?.length === 1 ? [{ before: before[0]!, after: after[0]! }] : [];
   });
+  const changedField=(field:string)=>comparison.activityChanges.filter(row=>row.fieldChanges.some(change=>change.field===field)).map(row=>row.activityId);
+  const constraints=(value:typeof from.model.activities[number])=>JSON.stringify([...(value.sourceConstraints??[])].sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
+  const constraintActivityIds=comparison.activityChanges.flatMap(row=>{const a=before.get(row.fromActivityId??''),b=after.get(row.toActivityId??'');return a&&b&&constraints(a)!==constraints(b)?[row.activityId]:[];});
+  const completion=(model:typeof from.model)=>{const bases=analyzeSchedule(model).completionBases;return (bases.find(row=>row.basis==='forecast'&&row.dateIso)??bases.find(row=>row.basis==='programme'&&row.dateIso))?.dateIso??null;};
+  const fromCompletionIso=completion(from.model),toCompletionIso=completion(to.model);
+  const days=(a:string|null,b:string|null)=>a&&b?(Date.parse(b.slice(0,10))-Date.parse(a.slice(0,10)))/86400000:null;
+  const engineeringChanges={originalDurationActivityIds:changedField('originalDurationHours'),remainingDurationActivityIds:changedField('remainingDurationHours'),constraintActivityIds,calendarActivityIds:changedField('calendarId'),lagChangeCount:modifiedRelationships.filter(row=>row.before.lagHours!==row.after.lagHours).length,relationshipTypeChangeCount:modifiedRelationships.filter(row=>row.before.type!==row.after.type).length,fromCompletionIso,toCompletionIso,completionMovementDays:days(fromCompletionIso,toCompletionIso),updateGapCalendarDays:days(from.model.dataDateIso,to.model.dataDateIso)};
 
   return {
     schemaVersion: "1.0",
@@ -102,6 +111,7 @@ export function buildScheduleChangeReportProjection(
     removedRelationships:
       comparison.removedRelationships,
     changedActivities,
+    engineeringChanges,
     finishMovementAnalysis,
     executionModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>currentExecution.has(id)).length,
     excludedModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>!currentExecution.has(id)).length,

@@ -1,0 +1,32 @@
+{
+  "projectId": "REEM 112",
+  "purpose": "Consultant-independent source-to-screen checks; do not fill from CMeng output",
+  "referenceState": "awaiting_independent_source_validation",
+  "assertions": [
+    {
+      "id": "CONTRACT_EXTENDED_FINISH",
+      "surfaces": [
+        "master-dashboard",
+        "pmo-analysis",
+        "master-control-programme",
+        "forecast-history",
+        "independent-forecast"
+      ],
+      "text": "21 Sep 2027",
+      "sourceDocument": "Signed contract and approved EOT evidence (must be independently identified)",
+      "sourceLocator": null,
+      "approvedBy": null
+    },
+    {
+      "id": "PROCUREMENT_KNOWN_LATE",
+      "surfaces": [
+        "procurement-packages",
+        "delivery-control"
+      ],
+      "text": "17",
+      "sourceDocument": "Original procurement register (source rows must be independently reconciled)",
+      "sourceLocator": null,
+      "approvedBy": null
+    }
+  ]
+}

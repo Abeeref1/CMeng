@@ -1,4 +1,5 @@
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
+import {quarantineUnconfirmedBoqNumerics} from '../../boq-ingestion/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 
 type TenderCriterionState='established'|'partial'|'missing';
@@ -61,7 +62,7 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
   const tenderSources=matching(/tender|employer.?requirements|request for proposal|\brfp\b|invitation to tender|\bitt\b/i);
 
   const boqSources=matching(/\bboq\b|bill of quantities|scope of work|scope register|pricing schedule/i);
-  const boqItems=(state.boq?.canonicalItems??[]) as Array<any>;
+  const boqItems=(state.boq?quarantineUnconfirmedBoqNumerics(state.boq).canonicalItems:[]) as Array<any>;
   const pricedItemCount=boqItems.filter(item=>
     (typeof item.rate==='number'&&Number.isFinite(item.rate)) ||
     (typeof item.amount==='number'&&Number.isFinite(item.amount))

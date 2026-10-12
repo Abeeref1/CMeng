@@ -4,8 +4,8 @@ import type { ControlIssueAssessment } from '../../truth-kernel/src';
 /** One reader-facing vocabulary; source authority and project performance stay separate. */
 export const STATUS_LABELS: Record<string,string> = {
   system_defect:'System failure',source_conflict:'Records disagree',data_quality:'Record needs correction',
-  missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Approval needed',
-  verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Unresolved',
+  missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Review required',
+  verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Not established',
   candidate:'Needs review',governed:'Confirmed',governed_source:'Reported forecast',source:'Reported',source_current:'Current record',source_report:'Reported',unknown:'Not known',partial:'Partly confirmed',
   reported_source_value:'Reported amount',cmeng_policy_default:'Default rule',conditions_present_status_register_missing:'Conditions present; permit status needed',validation_failed:'Records need correction',
   unavailable:'Not available',not_checked:'Not checked',review_required:'Review needed',conflicted:'Records disagree',
@@ -26,11 +26,41 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(result.status==='blocked'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
   else if(result.key==='master-dashboard'){
     const metrics=d.metrics??[],get=(k:string)=>metrics.find((m:any)=>m.key===k)?.value;
-    const finish=get('submitted-programme-finish'),contract=get('contract-finish');
-    const days=typeof finish==='string'&&typeof contract==='string'?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
-    if(number(days)){rag=days>0?'red':'green';text=days>0?'Submitted completion is '+Math.round(days)+' calendar days late against the contract date.':'Submitted completion is within the contract date.';
-      nextAction=days>0?'Review the recovery plan. The packages driving the late completion have not yet been established.':'Monitor submitted completion against the contract date.';assignTo='Project Director';}
-    else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
+    const independent=get('independent-forecast-finish'),submitted=get('submitted-programme-finish'),contract=get('contract-finish');
+    const variance=(finish:unknown)=>typeof finish==='string'&&typeof contract==='string'
+      ?(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000:null;
+    // The shared contract/EOT fact is the only authority for a late/early
+    // management verdict. Never compare against an obsolete original date
+    // when awarded EOT exists or the extended date is unavailable.
+    const canonicalTime=d.projectFacts?.time;
+    const independentDays=canonicalTime
+      ? (canonicalTime.independentDaysAfterCurrentContract?.value??null)
+      :variance(independent);
+    const submittedDays=canonicalTime
+      ? (canonicalTime.submittedDaysAfterCurrentContract?.value??null)
+      :variance(submitted);
+    if(number(independentDays)){
+      rag=independentDays>0?'red':'green';
+      text=independentDays>0
+        ?'CMeng programme calendar recalculation is '+Math.round(independentDays)+' calendar days late against the contract date.'
+        :'CMeng programme calendar recalculation is within the contract date.';
+      nextAction=independentDays>0
+        ?'Review the forecast reconciliation and recovery plan against the packages driving the late completion.'
+        :'Monitor the published CMeng forecast against the contract date.';
+      assignTo='Project Director';
+    }else if(number(submittedDays)){
+      // A contractor-submitted date is useful source evidence, but it cannot
+      // produce a green CMeng management verdict while the independent
+      // management forecast is withheld or unavailable.
+      rag=submittedDays>0?'red':'amber';
+      text=submittedDays>0
+        ?'Submitted completion is '+Math.round(submittedDays)+' calendar days late against the contract date. CMeng management forecast is not yet publishable.'
+        :'Submitted completion is within the contract date, but CMeng management forecast is not yet publishable. This is a submitted position, not a confirmed management forecast.';
+      nextAction=submittedDays>0
+        ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
+        :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';
+      assignTo='Project Director';
+    }else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
   } else if(['notices-claims','commercial-claims-notices'].includes(result.key)) {
     // Use the assessed event population. Correspondence also includes determinations
     // and can contain several letters for one event; it is not an event counter.
@@ -68,7 +98,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   if(!nextAction)nextAction=result.status==='blocked'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
-    nextAction,owner:'Not assigned',assignTo,
+    nextAction,owner:assignTo,assignTo,
     basis:'Red: a reported target is exceeded or a calculation check failed. Amber: information or review is incomplete. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {

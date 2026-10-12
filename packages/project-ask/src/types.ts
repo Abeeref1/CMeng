@@ -67,6 +67,8 @@ export interface AnalysisPlan {
 }
 export interface Presentation {
   title: string; audience: 'project' | 'planner' | 'commercial' | 'director' | 'executive';
+  /** Exact CMeng review lens selected for a module report. Presentation-only; never changes Project facts. */
+  reviewLens?: 'overall' | 'planning' | 'controls' | 'project-director' | 'program-director' | 'executive' | null;
   language: 'en' | 'ar' | 'bilingual'; detail: 'short' | 'normal' | 'detailed'; charts: boolean;
   preparedBy: string | null; jobTitle: string | null; company: string | null; reportNumber: string | null;
   confidentiality: string; status: 'Draft / Prepared'; format: 'interactive' | 'xlsx' | 'pdf' | 'docx' | 'csv' | 'json' | 'powerbi';
@@ -75,6 +77,7 @@ export interface NarrativeBlock {
   heading: string; text: string; classification: 'project_fact' | 'calculated_intelligence' | 'ai_recommendation' | 'professional_guidance'; traceIds: string[];
 }
 export interface AnalysisResult {
+  sourceLabels?: Record<string,string>;
   schemaVersion: 1; id: string; conversationId: string; createdAt: string; scope: ProjectScope;
   plan: AnalysisPlan; presentation: Presentation; mode: 'Deterministic CMeng Summary' | 'CMeng AI Analysis';
   sections: AuthorityResult[]; narrative: NarrativeBlock[]; unresolved: string[];

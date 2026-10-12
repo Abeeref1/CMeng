@@ -9,7 +9,7 @@ export interface OcrPageResult {
 
 export interface OcrProvider {
   readonly name: string;
-  recognize(image: Uint8Array, pageNumber: number): Promise<OcrPageResult>;
+  recognize(image: Uint8Array, pageNumber: number, options?: {segmentation: 'block' | 'line' | 'word'}): Promise<OcrPageResult>;
   close?(): Promise<void>;
 }
 

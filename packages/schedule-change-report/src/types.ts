@@ -51,5 +51,6 @@ export interface ScheduleChangeReportProjection {
     maximumRows:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number}>;
     causation:'not_established';
   };
+  engineeringChanges?:{originalDurationActivityIds:string[];remainingDurationActivityIds:string[];constraintActivityIds:string[];calendarActivityIds:string[];lagChangeCount:number;relationshipTypeChangeCount:number;fromCompletionIso:string|null;toCompletionIso:string|null;completionMovementDays:number|null;updateGapCalendarDays:number|null};
   diagnostics: string[];
 }

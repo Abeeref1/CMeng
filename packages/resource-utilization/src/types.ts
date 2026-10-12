@@ -39,6 +39,9 @@ export interface ResourceUtilizationRow {
   peakRemainingRateCoveragePercent: number | null;
 
   capacityUnitsPerHour: number | null;
+  p6RateUnitsPerHour?:number|null;
+  capacityAuthority?:'project_confirmed'|'not_approved';
+  capacitySourceRef?:string|null;
   capacityEffectiveDateIso: string | null;
   plannedUtilizationPercent: number | null;
   remainingUtilizationPercent: number | null;

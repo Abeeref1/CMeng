@@ -12,6 +12,9 @@ export interface QuantityScurvePoint {
 
 export interface QuantityScurveSeries {
   seriesKey: string;
+  quantityItemId?:string;
+  itemNumber?:string|null;
+  description?:string;
   unit: string | null;
   unitKey: string;
   authority:
@@ -30,6 +33,7 @@ export interface QuantityScurveSeries {
 }
 
 export interface QuantityScurveProjection {
+  quantityQueries?:Array<{quantityItemId:string;itemNumber:string|null;unit:string|null;quantity:number|null;reason:string}>;
   schemaVersion: "1.0";
   projectionKey: "quantity_scurve";
   generatedAt: string;

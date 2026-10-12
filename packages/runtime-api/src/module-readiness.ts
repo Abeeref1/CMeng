@@ -2,7 +2,7 @@ import {withPositionVerdict} from './position-review';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
-import { assessModuleIssues } from './module-issues';
+import { assessModuleIssues, type IssueScanContext } from './module-issues';
 import {comparisonRequirement} from './comparison-requirement';
 
 const NON_BLOCKING_REVIEW_CODES = new Set([
@@ -24,9 +24,10 @@ export function enforceModuleReadiness(
   result: ModuleRuntimeResult,
   consistency: Pick<CrossModuleCertification, 'state' | 'failedCheckIds' | 'checkCount'> &
     Partial<Pick<CrossModuleCertification,'checks'>>,
+  scanContext?:IssueScanContext,
 ): ModuleRuntimeResult {
   const scopedConsistency = consistencyForModule(consistency, result.key);
-  const issueAssessment = assessModuleIssues(result, consistency);
+  const issueAssessment = assessModuleIssues(result, consistency,scanContext);
   const data = result.data as any;
   if (!data || typeof data !== 'object') {
     return {...result, issueAssessment};
@@ -51,10 +52,17 @@ export function enforceModuleReadiness(
     if (
       issue.kind === 'system_defect' ||
       issue.kind === 'source_conflict' ||
-      issue.kind === 'data_quality' ||
-      issue.kind === 'missing_information'
+      issue.kind === 'data_quality'
     ) {
       return true;
+    }
+    if (issue.kind === 'missing_information') {
+      // Field-level gaps stay visible and block the affected figure, not an
+      // otherwise established page. Missing module authority is already gated
+      // by result.status/evidence above. This keeps "Missing" distinct from zero
+      // without turning every optional contract term into a page-level blocker.
+      return result.status === 'blocked' ||
+        ['missing', 'not_established', 'conflicted'].includes(evidence);
     }
     if (
       issue.kind === 'verification_pending' &&

@@ -1,19 +1,20 @@
 import {canonicalHeader,registerDate} from '../../truth-kernel/src';
-import {deliveryRecords} from './delivery-records';
+import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleAuthorityReview} from './schedule-authority';
+import {contractCompletionDependencies,projectContractSections} from './project-contract-sections';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 
 const cleanText=(value:unknown)=>{if(value===null||value===undefined)return '';const text=String(value).trim();return /^(?:undefined|null|nan)$/i.test(text)?'':text;};
 const field=(r:DeliveryRecord,...names:string[])=>{for(const name of names){const value=cleanText(r.fields[canonicalHeader(name)]);if(value)return value;}return '';};
 const recordLabel=(value:unknown,fallback:string)=>cleanText(value)||fallback;
-const current=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified';
+const current=deliveryCurrentRecord;
 const closed=(value:string)=>/^(closed|resolved|accepted|complete|completed)$/i.test(value.trim());
 const days=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Math.round((Date.parse(later)-Date.parse(earlier))/86400000):null;
 
 export interface InterfaceIntelligenceRow {
-  interfaceId:string; authority:'confirmed'|'candidate'; state:'open'|'blocked'|'overdue'|'closed'|'candidate'|'unknown';
+  interfaceId:string; authority:'confirmed'|'source'|'candidate'; state:'open'|'blocked'|'overdue'|'closed'|'candidate'|'unknown';
   givingParty:string|null; receivingParty:string|null; package:string|null; discipline:string|null; system:string|null; location:string|null;
   requiredDeliverable:string|null; requiredDate:string|null; currentStatus:string|null; responsibleParty:string|null; affectedWorkfront:string|null;
   linkedActivity:string|null; linkedRfi:string|null; linkedSubmittal:string|null; linkedRisk:string|null; consequence:string|null; escalation:string|null;
@@ -25,13 +26,24 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
   const activities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
   const packages=governed.filter(r=>r.kind==='package'),workfronts=governed.filter(r=>r.kind==='workfront');
   const rows:InterfaceIntelligenceRow[]=[];
+  const sections=projectContractSections(state,null,null);
+  for(const dependency of contractCompletionDependencies(state)){const from=sections.find(s=>s.sectionId===dependency.fromSection),to=sections.find(s=>s.sectionId===dependency.toSection);rows.push({
+    interfaceId:'Section '+dependency.fromSection+' → Section '+dependency.toSection,authority:'candidate',state:'candidate',
+    givingParty:null,receivingParty:null,package:null,discipline:null,system:null,location:null,
+    requiredDeliverable:'Completion of Section '+dependency.fromSection+' before Section '+dependency.toSection+' completion can be certified',
+    requiredDate:to?.programmeCompletionIso?.slice(0,10)??null,currentStatus:'Contract-stated dependency; required date from programme, completion evidence needs review',responsibleParty:null,affectedWorkfront:'Section '+dependency.toSection,
+    linkedActivity:[from?.milestoneId,to?.milestoneId].filter(Boolean).join('; ')||null,linkedRfi:null,linkedSubmittal:null,linkedRisk:null,
+    consequence:'The contract explicitly makes completion of the receiving section dependent on completion of the preceding section.',
+    escalation:from?.milestoneId&&to?.milestoneId?'Confirm the dated section completion certificates and responsible owner.':'Link the section milestones and dated completion certificates; confirm the responsible owner.',
+    packageIds:[],workfrontIds:[],sourceRecordIds:[],sourceRefs:dependency.sourceRefs,
+  });}
   for(const r of governed.filter(r=>r.kind==='interface')){
     const raw=field(r,'current status','status'),requiredDate=registerDate(field(r,'required date','due date'));
     const overdue=!!dataDateIso&&!!requiredDate&&requiredDate<dataDateIso&&!closed(raw);
     const blocked=/blocked|hold|stopped|unresolved/i.test(raw);
     const linkedKinds=(kind:string)=>r.links.recordIds.map(id=>byId.get(id)).filter(x=>x?.kind===kind).map(x=>x!.reference??x!.recordId);
     const pkgRefs=r.links.packageIds.map(id=>byId.get(id)?.reference??id),locRefs=r.links.locationIds.map(id=>byId.get(id)?.description??byId.get(id)?.reference??id);
-    rows.push({interfaceId:recordLabel(r.reference,r.recordId),authority:'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':raw?'open':'unknown',
+    rows.push({interfaceId:recordLabel(r.reference,r.recordId),authority:r.state==='extracted_candidate'?'source':'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':raw?'open':'unknown',
       givingParty:field(r,'giving party')||null,receivingParty:field(r,'receiving party')||null,package:field(r,'package')||pkgRefs.map(x=>cleanText(x)).filter(Boolean).join('; ')||null,
       discipline:field(r,'discipline')||null,system:field(r,'system')||null,location:field(r,'location')||locRefs.join('; ')||null,
       requiredDeliverable:field(r,'required deliverable','description')||cleanText(r.description)||null,requiredDate,currentStatus:raw||null,
@@ -61,16 +73,16 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
         packageIds:[a.recordId,b.recordId],workfrontIds:workfront?[workfront.recordId]:[],sourceRecordIds:[a.recordId,b.recordId],sourceRefs:[...a.receipts,...b.receipts].map(x=>x.documentId+':'+x.locator)});
     }
   }
-  const confirmed=rows.filter(r=>r.authority==='confirmed'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>!['closed'].includes(r.state));
+  const confirmed=rows.filter(r=>r.authority!=='candidate'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>!['closed'].includes(r.state));
   const blockers=confirmed.filter(r=>['blocked','overdue'].includes(r.state));
   const overdue=confirmed.filter(r=>r.state==='overdue');
   const linkedActivityCount=new Set(rows.flatMap(r=>r.linkedActivity?r.linkedActivity.split(';').map(x=>x.trim()).filter(Boolean):[])).size;
   return {schemaVersion:'1.0',projectionKey:'interface_intelligence',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,
     managementPosition:blockers.length?blockers.length+' confirmed interface'+(blockers.length===1?'':'s')+' require management action now. '+candidates.length+' additional interface candidate'+(candidates.length===1?' is':'s are')+' retained for review.':
       confirmed.length?open.length+' confirmed interfaces remain open; no confirmed overdue/blocked interface is established from the current records. '+candidates.length+' candidates require review.':
-      candidates.length?candidates.length+' candidate interfaces were identified from confirmed package-to-activity relationships. No formal Interface Register is yet confirmed.':'No confirmed or derivable interface population is available from the current Project information.',
-    rows,confirmedCount:confirmed.length,candidateCount:candidates.length,openCount:open.length,blockerCount:blockers.length,overdueCount:overdue.length,linkedActivityCount,
-    blockers,candidates,basis:'Confirmed interfaces come from governed Interface records. Candidate interfaces are created only where two confirmed packages converge on the same programme activity; candidates do not establish responsibility, causation or delay.'};
+      candidates.length?candidates.length+' interfaces were identified from contract completion dependencies or package-to-activity relationships. Confirm ownership and completion evidence.':'No confirmed or derivable interface population is available from the current Project information.',
+    rows,knownCount:confirmed.length,confirmedCount:rows.filter(r=>r.authority==='confirmed').length,candidateCount:candidates.length,openCount:open.length,blockerCount:blockers.length,overdueCount:overdue.length,linkedActivityCount,
+    blockers,candidates,basis:'Confirmed interfaces come from Interface records. Other interfaces retain explicit contract completion dependencies or identify packages converging on the same programme activity. These links do not establish responsibility, causation or delay.'};
 }
 export function interfaceModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=interfaceIntelligence(state),has=data.rows.length>0;

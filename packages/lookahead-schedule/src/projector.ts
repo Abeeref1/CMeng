@@ -39,6 +39,12 @@ const READINESS_KEYS: readonly ReadinessDimensionKey[] = [
   "access",
 ];
 
+// These immutable dimension values contain no activity or project identity.
+// Sharing absent-evidence descriptors avoids allocating eight identical objects
+// for every activity. Source-backed descriptors and relationship receipts remain
+// specific to the activity, and source changes rebuild the projection normally.
+const absentDimensions=new Map<ReadinessDimensionKey,ReadinessDimension>(READINESS_KEYS.map(key=>[key,Object.freeze({key,state:"unknown" as const,sourceRefs:Object.freeze([]) as unknown as string[],note:null})]));
+
 /** Preserve the source record type when several registers feed one readiness dimension. */
 export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]) {
   const groups = new Map<string, { activities: Set<string>; records: Set<string>; recordIds: Set<string> }>();
@@ -59,13 +65,14 @@ export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]
 }
 
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
-  predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity) {
+  predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity,
+  instant:(value:string|null)=>number|null=parseScheduleInstant) {
   const unknown = (reason: string) => ({ state: "unknown" as const, requiredIso: null, note: relation.relationshipId + ": " + reason });
   if (!predecessor || relation.external) return unknown("Predecessor evidence is not established in this controlled programme.");
   if (relation.type === "unknown" || relation.lagHours === null || !Number.isFinite(relation.lagHours)) return unknown("Relationship type or lag is not established.");
   const predecessorAnchor = relation.type === "FS" || relation.type === "FF" ? effectiveFinish(predecessor) : effectiveStart(predecessor);
   const successorAnchor = relation.type === "FS" || relation.type === "SS" ? effectiveStart(successor) : effectiveFinish(successor);
-  const from = parseScheduleInstant(predecessorAnchor), target = parseScheduleInstant(successorAnchor);
+  const from = instant(predecessorAnchor), target = instant(successorAnchor);
   if (from === null || target === null) return unknown("Required relationship date evidence is incomplete.");
   let required = from;
   if (relation.lagHours !== 0) {
@@ -88,12 +95,13 @@ export function readinessForActivity(
   externalEvidence:
     | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
     | undefined,
+  instant:(value:string|null)=>number|null=parseScheduleInstant,
 ) {
   const dimensions: ReadinessDimension[] =
     READINESS_KEYS.map((key) => {
       if (key === "predecessor") {
         if (predecessors.length === 0) return { key, state: "not_applicable" as const, sourceRefs: [], note: "No incoming schedule relationships; review open-end logic separately." };
-        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity));
+        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity, instant));
         return {
           key, state: checks.some(check => check.state === "blocked") ? "blocked" as const
             : checks.some(check => check.state === "unknown") ? "unknown" as const : "ready" as const,
@@ -103,7 +111,8 @@ export function readinessForActivity(
       }
 
       const evidence = externalEvidence?.[key];
-      if (!evidence || evidence.state === "ready" && evidence.sourceRefs.length === 0) {
+      if (!evidence) return absentDimensions.get(key)!;
+      if (evidence.state === "ready" && evidence.sourceRefs.length === 0) {
         return {
           key,
           state: "unknown" as const,
@@ -198,6 +207,9 @@ function wbsPathLookup(model: CanonicalScheduleModel): Map<string,string> {
 }
 
 function downstreamMilestoneLookup(model:CanonicalScheduleModel):Map<string,string[]>{
+  // Many live programmes have no milestone-typed activities. A full reverse
+  // relationship index cannot produce downstream milestones in that case.
+  if(!model.activities.some(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone'))return new Map();
   const byId=new Map(model.activities.map(activity=>[activity.activityId,activity]));
   const predecessors=new Map<string,string[]>();
   for(const rel of model.relationships){
@@ -251,13 +263,19 @@ export function buildLookAheadProjection(
     generatedAt: string;
     producerVersion: string;
     windowDays?: number;
+    drivingActivityIds?:readonly string[];
     readinessEvidence?: Record<
       string,
       Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
     >;
   },
 ): LookAheadProjection {
+  const profiling=process.env.CMENG_PROFILE_PERF==='1';
+  let previous=profiling?performance.now():0;
+  const stages:Array<{part:string;ms:number}>=[];
+  const stage=(part:string)=>{if(profiling){const now=performance.now();stages.push({part,ms:now-previous});previous=now;}};
   const windowDays = input.windowDays ?? 42;
+  const drivingIds=input.drivingActivityIds?new Set(input.drivingActivityIds):null;
   if (
     !Number.isSafeInteger(windowDays) ||
     windowDays <= 0
@@ -267,7 +285,17 @@ export function buildLookAheadProjection(
     );
   }
 
-  const dataDateMs = ms(model.dataDateIso);
+  // Parse each distinct programme date once per projection, without allowing
+  // dates from another project or revision to contaminate this result.
+  const parsedInstants=new Map<string,number|null>();
+  const instant=(value:string|null):number|null=>{
+    if(!value)return null;
+    if(parsedInstants.has(value))return parsedInstants.get(value)!;
+    const result=ms(value);
+    parsedInstants.set(value,result);
+    return result;
+  };
+  const dataDateMs = instant(model.dataDateIso);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
   const windowEndMs =
     dataDateMs === null
@@ -276,7 +304,7 @@ export function buildLookAheadProjection(
         windowDays * 86_400_000;
 
   const logic =
-    buildScheduleActivityLogicIndex(model);
+    buildScheduleActivityLogicIndex(model,true);
 
   const activityById = new Map(model.activities.map(activity => [activity.activityId, activity]));
   const incoming = new Map<string, CanonicalScheduleRelationship[]>();
@@ -292,12 +320,13 @@ export function buildLookAheadProjection(
   const overdueBacklogRows: LookAheadActivityRow[] = [];
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
+  stage('indexes_and_dates');
 
   for (const activity of incomplete) {
     const startIso = effectiveStart(activity);
     const finishIso = effectiveFinish(activity);
-    const startMs = ms(startIso);
-    const finishMs = ms(finishIso);
+    const startMs = instant(startIso);
+    const finishMs = instant(finishIso);
 
     if (
       dataDateMs === null ||
@@ -361,19 +390,21 @@ export function buildLookAheadProjection(
         activity.percentComplete,
       totalFloatHours:
         activity.totalFloatHours,
+      drivingPath:drivingIds?drivingIds.has(activity.activityId):null,
       classification,
       missedPlannedStart: missedStart,
       finishOverdue: isOverdue,
       predecessorIds:
-        activityLogic?.predecessorIds ?? [],
+        [...(activityLogic?.predecessorIds ?? [])],
       successorIds:
-        activityLogic?.successorIds ?? [],
+        [...(activityLogic?.successorIds ?? [])],
       readiness: readinessForActivity(
         model,
         activity,
         incoming.get(activity.activityId) ?? [],
         activityById,
         input.readinessEvidence?.[activity.activityId],
+        instant,
       ),
       daysToStart: Number(
         (
@@ -392,6 +423,7 @@ export function buildLookAheadProjection(
     else forwardWindowRows.push(row);
   }
 
+  stage('activity_rows_and_readiness');
   const byFinish=(a:LookAheadActivityRow,b:LookAheadActivityRow)=>{
     const aDate=a.finishIso??"9999",bDate=b.finishIso??"9999";
     return aDate.localeCompare(bDate)||naturalCompare(a.activityId,b.activityId);
@@ -401,6 +433,7 @@ export function buildLookAheadProjection(
   overdueBacklogRows.sort((a,b)=>backlogAge(b)-backlogAge(a)||byFinish(a,b));
   const rows=[...overdueBacklogRows,...forwardWindowRows].sort(byFinish);
 
+  stage('sort_rows');
   const managementGroups=new Map<string,{
     blockerType:ReadinessDimensionKey;wbsId:string|null;wbsPath:string|null;rows:LookAheadActivityRow[];sourceRefs:Set<string>
   }>();
@@ -417,11 +450,33 @@ export function buildLookAheadProjection(
     activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
     affectedMilestoneIds:[...new Set(group.rows.flatMap(row=>row.affectedMilestoneIds??[]))].slice(0,10),
     requiredByIso:group.rows.map(row=>row.startIso).filter((value):value is string=>!!value).sort()[0]??null,
-    owner:null,
+    owner:[...new Set(group.rows.flatMap(row=>row.readiness.dimensions.filter(d=>d.key===group.blockerType).flatMap(d=>(d.records??[]).filter(record=>record.state==='blocked').map(record=>record.owner).filter((owner):owner is string=>!!owner))))].join('; ')||null,
     action:readinessAction[group.blockerType],
     sourceRefs:[...group.sourceRefs],
   })).sort((a,b)=>b.activityCount-a.activityCount||(a.requiredByIso??"9999").localeCompare(b.requiredByIso??"9999")||String(a.wbsPath??"").localeCompare(String(b.wbsPath??"")));
 
+  // One complete population traversal replaces 36 repeated full-table
+  // scans and per-row dimension searches. The retained source record set is
+  // unchanged: these are authoritative denominators, not visible-row counts.
+  const coverageByDimension=new Map<ReadinessDimensionKey,{
+    linkedActivityCount:number;sourceRefs:Set<string>;
+    unresolvedLinkedActivityCount:number;knownCount:number;
+  }>(READINESS_KEYS.map(key=>[key,{
+    linkedActivityCount:0,sourceRefs:new Set<string>(),
+    unresolvedLinkedActivityCount:0,knownCount:0,
+  }]));
+  for(const row of forwardWindowRows)for(const dimension of row.readiness.dimensions){
+    const bucket=coverageByDimension.get(dimension.key)!;
+    if(dimension.sourceRefs.length){
+      bucket.linkedActivityCount++;
+      for(const ref of dimension.sourceRefs)bucket.sourceRefs.add(ref);
+      if(dimension.state==='unknown')bucket.unresolvedLinkedActivityCount++;
+    }
+    if(dimension.state!=='unknown')bucket.knownCount++;
+  }
+
+  stage('group_and_coverage');
+  if(profiling)process.stdout.write(JSON.stringify({event:'lookahead_profile',projectId:model.projectId,activities:model.activities.length,relationships:model.relationships.length,stages})+'\n');
   return {
     schemaVersion: "1.0",
     projectionKey: "lookahead_schedule",
@@ -453,13 +508,15 @@ export function buildLookAheadProjection(
     blockedWithEvidenceGapCount: forwardWindowRows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
     blockerOccurrenceCount: forwardWindowRows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
     blockerTypes: summarizeReadinessBlockers(forwardWindowRows),
-    readinessCoverage: READINESS_KEYS.map(key => ({ key, denominator: forwardWindowRows.length,
-      linkedActivityCount: forwardWindowRows.filter(row=>(row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs.length??0)>0).length,
-      linkedSourceRecordCount: new Set(forwardWindowRows.flatMap(row=>row.readiness.dimensions.find(d=>d.key===key)?.sourceRefs??[])).size,
-      unresolvedLinkedActivityCount: forwardWindowRows.filter(row=>row.readiness.dimensions.some(d=>d.key===key&&d.state==='unknown'&&d.sourceRefs.length>0)).length,
-      knownCount: forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length,
-      coveragePercent: coverage(forwardWindowRows.filter(row => row.readiness.dimensions.find(d => d.key === key)?.state !== "unknown").length, forwardWindowRows.length),
-    })),
+    readinessCoverage: READINESS_KEYS.map(key => {
+      const bucket=coverageByDimension.get(key)!;
+      return {key,denominator:forwardWindowRows.length,
+        linkedActivityCount:bucket.linkedActivityCount,
+        linkedSourceRecordCount:bucket.sourceRefs.size,
+        unresolvedLinkedActivityCount:bucket.unresolvedLinkedActivityCount,
+        knownCount:bucket.knownCount,
+        coveragePercent:coverage(bucket.knownCount,forwardWindowRows.length)};
+    }),
     forwardWindowCount:forwardWindowRows.length,
     overdueBacklogCount:overdueBacklogRows.length,
     overdueBacklogBlockedCount:overdueBacklogRows.filter(row=>row.readiness.state==="blocked").length,
@@ -472,6 +529,10 @@ export function buildLookAheadProjection(
     conditionalCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "conditional",
     ).length,
+    atRiskCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
+    noKnownLinkedBlockerCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
+      !row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
     blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,

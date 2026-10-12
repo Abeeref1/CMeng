@@ -1,4 +1,4 @@
-import {prepareRegisterRows} from '../../truth-kernel/src';
+import {prepareRegisterRows,sourceTables} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
 export type ManagementSourceDomain =
@@ -38,19 +38,49 @@ const definitions:Array<{domain:ManagementSourceDomain;label:string;pattern:RegE
   {domain:'contract',label:'Contract / amendments',pattern:/contract|amendment|particular.?conditions|commercial.?terms|employer.?requirements|\brfp\b|\bitt\b/i},
 ];
 
-const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof build>}>();
+// Inventory is derived solely from this immutable version's source documents.
+// Raw and Data-Date reporting views reuse exactly the same document array.
+const cache=new WeakMap<ProjectRuntimeState['evidenceDocuments'],{version:number;value:ReturnType<typeof build>}>();
 
 function build(state:ProjectRuntimeState){
   const documents=state.evidenceDocuments.filter(document=>document.basisState!=='superseded');
+  const tables=sourceTables(documents,[],{includeHistorical:true});
+  // One inventory pass, not one scan of every extracted table for every
+  // document multiplied by every professional source domain.
+  const tablesByDocument=new Map<string,typeof tables>();
+  for(const table of tables){
+    const id=table.document.documentId;
+    const group=tablesByDocument.get(id)??[];group.push(table);tablesByDocument.set(id,group);
+  }
+  type InventoryTable={headers:string[];rows:string[][];readRowCount:number;recognized:boolean};
+  const preparedByDocument=new Map<string,InventoryTable[]>();
+  const normalizeSourceText=(values:Array<string|null|undefined>)=>values.filter(Boolean).join(' ').normalize('NFKC').replace(/[_/\\.-]+/g,' ').replace(/\s+/g,' ').trim();
+  const specificDomains=(document:ProjectRuntimeState['evidenceDocuments'][number])=>{
+    const semanticTypes=(tablesByDocument.get(document.documentId)??[]).map(table=>table.document.documentType);
+    const typed=definitions.filter(definition=>definition.pattern.test(normalizeSourceText(semanticTypes))).map(definition=>definition.domain);
+    if(typed.length)return typed;
+    const specific=normalizeSourceText([document.documentType,document.sourceFilename,document.familyKey]);
+    const matches=definitions.filter(definition=>definition.pattern.test(specific)).map(definition=>definition.domain);
+    if(matches.length)return matches;
+    // Broad storage categories such as risk_claims_procurement and hse_quality_fm
+    // are routing buckets, not proof that one document belongs to every domain.
+    // Use the category only when the specific document identity gives no signal.
+    const fallback=normalizeSourceText([document.category]);
+    return definitions.filter(definition=>definition.pattern.test(fallback)).map(definition=>definition.domain);
+  };
+  const domainsByDocument=new Map(documents.map(document=>[document.documentId,specificDomains(document)] as const));
   const domains=definitions.map(definition=>{
-    const matched=documents.filter(document=>definition.pattern.test(
-      [document.documentType,document.category,document.sourceFilename,document.familyKey].filter(Boolean).join(' ')
-    ));
+    const matched=documents.filter(document=>domainsByDocument.get(document.documentId)?.includes(definition.domain));
     let readableRows=0,recognisedRows=0,hasReadableRows=false,hasRecognisedRows=false,longLeadMarkedCount=0,longLeadObserved=false;
     const longLeadSamples:ManagementSourceDomainSummary['signals']['longLeadSamples']=[];
     for(const document of matched){
-      for(const sheet of document.tabularRead?.sheets??[]){
-        const prepared=prepareRegisterRows(sheet.rows,document.documentType);
+      const retained=tablesByDocument.get(document.documentId)??[];
+      let preparedTables=preparedByDocument.get(document.documentId);
+      if(!preparedTables){
+        preparedTables=retained.length?retained.map(table=>({headers:table.headers,rows:table.rows.map(row=>table.headers.map(header=>row.cells[header]??'')),readRowCount:table.rows.length,recognized:table.recognition?.recognized??false})):(document.tabularRead?.sheets??[]).map(sheet=>prepareRegisterRows(sheet.rows,document.documentType));
+        preparedByDocument.set(document.documentId,preparedTables);
+      }
+      for(const prepared of preparedTables){
         readableRows+=prepared.readRowCount;
         hasReadableRows=hasReadableRows||prepared.readRowCount>0;
         if(prepared.recognized){
@@ -106,6 +136,6 @@ function build(state:ProjectRuntimeState){
 }
 
 export function managementSourceInventory(state:ProjectRuntimeState){
-  const prior=cache.get(state);if(prior?.version===state.version)return prior.value;
-  const value=build(state);cache.set(state,{version:state.version,value});return value;
+  const prior=cache.get(state.evidenceDocuments);if(prior?.version===state.version)return prior.value;
+  const value=build(state);cache.set(state.evidenceDocuments,{version:state.version,value});return value;
 }

@@ -1,0 +1,2757 @@
+{
+  "reviewRelease": "47cd8029856ab6447497a9f922a2705460406a56",
+  "project": "REEM 112",
+  "dataDate": "2026-08-31",
+  "totals": {
+    "Critical": 28,
+    "High": 103,
+    "Medium": 90,
+    "Low": 45
+  },
+  "pages": [
+    {
+      "n": 1,
+      "key": "master-dashboard",
+      "label": "Master Dashboard",
+      "group": "Management Control",
+      "verdict": "Misleading",
+      "c": 2,
+      "h": 8,
+      "m": 6,
+      "l": 2,
+      "roots": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "The extended contract date is never stated. Evidence: tiles show \"Contract Sep 08, 2027\", \"Submitted Oct 06, 2027\" and separately \"13 d approved EOT\". 08 Sep 2027 + 13 days = 21 Sep 2027, which is exactly the date behind the -88 h float on VLC-PC-001. The real position (15 days late on the extended date) appears nowhere."
+        },
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Expired guarantee counted as active security. Evidence: \"ACTIVE BONDS 42M\". The bond register gives APG-VLC1-0202 (21M) an expiry of 25 Jul 2026, 37 days before the data date. CMeng's own Contract page counts it as expired. The CAR insurance (210M, expired 01 Aug 2026) is not shown at all."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Notice timing shown as nothing. Evidence: \"Timely notices 0\", \"Late notices 0\" against 16 dated notices and 16 dated events. The data behind the page marks every event \"event_date_missing\" although the event start date sits in the same record."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "The page contradicts itself on RFIs and NCRs. Evidence: top tiles \"53 open, 44 overdue RFIs\", \"29 major / critical NCR\" and an NCR table; lower tiles say \"DESIGN SOURCE ROWS 1 document(s) ... a structured row population is not available from the current extraction\" and \"QUALITY SOURCE ROWS 2 document(s)\" with the same sentence."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Procurement register ignored. Evidence: \"13 procurement source / scope items ... BOQ-derived package candidates\" and \"No procurement, BOQ or schedule/WBS long-lead scope is identified\". The register holds 90 packages, 30 marked long lead. PKG-0056 (fire pumps, required 29 Aug 2026, still \"Ordered\") feeds VLC-10-428 on the -88 h chain; PKG-0004 (cables, forecast 21 days after need) feeds VLC-10-548 on the same chain."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Driving chain told wrong. Evidence: \"20 driving activities ... Latest finish May 12, 2027 ... a downstream milestone link is not established\". The chain is 34 activities, plaster Plot B42 to B70, then MEP, painting and snagging Plot B70, then VLC-10-702 and VLC-PC-001 on 06 Oct 2027. The same page lists both milestones as \"CRITICAL, -88 h\" a few rows below."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Overrun measured against the original sum only. Evidence: \"8.4M QAR forecast overrun\" with \"BAC 210M\". 25 approved variations add 11.78M (current contract 221.78M). The page does not say whether the EAC includes them, so the sign of the answer is unknown."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Delay damages blocked on a false conflict. Evidence (collapsed section): \"Delay damages rate · records disagree ... Compare the conflicting records\" and \"LD amount remains withheld\". The contract is sectional: Section 1 QAR 35,000/day, Section 2 (whole of works) QAR 60,000/day, cap QAR 21,000,000. Two sections are not a conflict. At the Section 2 rate the exposure is 1.68M against 08 Sep 2027 and 0.90M against 21 Sep 2027."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Certified unpaid withheld. Evidence (collapsed section): \"QAR · Certified unpaid: Unresolved: amount not established in the supplied records\". The IPC register has IPC-022 (5,220,369) and IPC-023 (4,678,644) certified with paid amount 0: 9,899,013. Same block says \"Pending variations: Unresolved\" while the only non-approved VO (VO-026) is rejected, so pending is 0."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Opening the collapsed sections shows raw system references to the user: 59 data paths such as \"data.focus.currencies[*].certifiedUnpaidAmount\" and \"data.focus.liquidatedDamages.scenarios[*].uncappedExposure\", 448 references like \"evidence-document:evidence_8d5d4743f751bf977010f5a1:row:3\" and 35 \"population:...\" IDs. Expanded, the page grows from 20,000 to 134,000 characters."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Cross-module consistency: Pass ... 88 checks\" while the page itself shows the contradictions in defects 2, 4 and 6."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "NCR owners shown as missing. Evidence: \"Owner: Not assigned\" on every NCR row. The NCR file has a \"responsible\" party on every open NCR (for example NCR-0042: MEP Coordinator)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Management priorities read as data dumps. Evidence: \"1 activities moved 7 elapsed days later ... VLC-10-447 ... ; VLC-10-457\" (says 1, lists 2) and \"Next: Resolve the identified linked blocker\" without naming it. The blockers are NCR-0259 (VLC-10-447) and RFI-0660 (VLC-10-457, overdue since 24 Aug 2026)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Meaningless precision. Evidence: \"Difference -0.25 elapsed days. Recalculation minus submitted finish; includes time of day\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Delay counts do not agree. Evidence: \"555 delayed activities\" in Villa Type B alone vs \"Showing 50 of 189 activities\" in the attention table. The file has 192 unfinished activities finishing after baseline; the 555 includes finished work."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "\"Control Readiness 29 CONTROL VIEWS\" while the menu has 57 pages."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Raw file name as the programme label: \"P8 Update02 2026 08 31\"."
+        },
+        {
+          "sev": "Low",
+          "root": "R3",
+          "text": "Footer \"A newly uploaded schedule needs your review\" still shows after the baseline was adopted."
+        }
+      ],
+      "rules": [
+        "Show contract date, contract date as extended by awarded EOT, forecast, and days late against both in one row.",
+        "Read security status from the expiry date against the data date; file insurance policies as insurance, not bonds.",
+        "Count notices as timely or late from the dated event; only report \"unknown\" when a date is really absent.",
+        "One project-facts layer: RFI, NCR, procurement and bond counts come from one place and every page reads it.",
+        "Describe the driving chain from the CPM path through to the completion milestone; never cut it to the first 20 rows.",
+        "Report EAC against the original sum and the current contract value, and say which one the cost report uses.",
+        "Put delay damages (rate, days, cap) and certified unpaid on the dashboard.",
+        "The consistency check must compare the same fact across pages and fail when they differ."
+      ]
+    },
+    {
+      "n": 2,
+      "key": "command-center",
+      "label": "Command Center",
+      "group": "Management Control",
+      "verdict": "Misleading",
+      "c": 2,
+      "h": 5,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R3",
+        "R4",
+        "R6",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R6",
+          "text": "The top of the list is paperwork, not threats. Evidence: all 30 rows shown are NCR/RFI items from Oct 2024 to Jun 2026. The items that touch the critical chain are lower down in the 287: RFI-0660 (open on VLC-10-457, TF 80 h, due 24 Aug 2026) at #121 and #284; NCR-0259 (major weld failure on VLC-10-447, TF 72 h) at #137 and #287; the first \"-88 hours total float\" action at #134. \"Expired contract security\" is #2 in the data but is pushed out of the 30 shown because it has no due date."
+        },
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "Procurement threats missing completely. Evidence: no PKG action in all 287. PKG-0056 (required 29 Aug 2026, still \"Ordered\") and PKG-0004 (forecast 21 days after need) both feed the -88 h chain."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Owners dropped. Evidence: \"Unassigned ... 286\" and \"Not assigned\" on every NCR. The NCR file names a responsible party for all 68 open NCRs (MEP Coordinator 22, QA/QC Manager 17, Package Manager 16, Site Engineer - Structures 13). RFIs carry a discipline."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Every RFI and NCR appears twice. Evidence: \"RFI response is overdue ... VLC-01-003 ... Oct 01, 2024\" and \"Obtain the overdue response ... RFI-0008 ... Oct 01, 2024\" are one RFI. Same for VLC-06-013 / RFI-0026, VLC-02-003 / RFI-0029 and onward."
+        },
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "The issue column repeats the action. Evidence: ISSUE \"Resolve the NCR and record closure evidence ...\" and ACTION the same sentence. The file has the defect: NCR-0042 \"Waterproofing defect\", NCR-0259 \"Weld inspection fail\"."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Fully defensible claim chain Good 16 / 16\" is not true on CMeng's own data: claim days and notice timing are unresolved for all 16 (see Notice Compliance and EOT Assessment)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R6",
+          "text": "34 separate actions \"Activity has -88 hours total float\", one per activity, instead of one action for the chain."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "44 of the 53 open RFIs sit on activities already complete. The page treats them as live design blockers (\"may constrain linked programme work\") instead of a register clean-up item."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Risk scores said to be missing. Evidence: \"Risk register figures ... impact is missing or unreadable in 110 rows. Provide those source values\". The risk register header (shown on CMeng's Documents page) has \"Impact (1-5)\", \"Score\", \"Last Reviewed\" and \"Action Due Date\" columns."
+        },
+        {
+          "sev": "Low",
+          "root": "R3",
+          "text": "Same stale \"A newly uploaded schedule needs your review\" footer."
+        }
+      ],
+      "rules": [
+        "Rank actions by effect: float of the linked activity, link to the driving chain or a key milestone, money at stake, then age.",
+        "One record, one action. Use the record ID as the key and show the linked activity as a field.",
+        "Take the owner from the register's responsible / owner / discipline column before saying \"Not assigned\".",
+        "Issue = the record's own description; action = the next step.",
+        "Group same-cause items (one chain, one package, one discipline) into one action with a count.",
+        "Pull procurement, permit, security, payment and claim items into the same list, not only RFI and NCR.",
+        "Mark RFIs and NCRs on finished work as register clean-up, not as programme threats."
+      ]
+    },
+    {
+      "n": 3,
+      "key": "cross-domain-accountability",
+      "label": "Accountability",
+      "group": "Management Control",
+      "verdict": "Not useful",
+      "c": 1,
+      "h": 2,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R3",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "Owners dropped. Evidence: 100 of 100 rows \"Not assigned\". NCR file \"responsible\": MEP Coordinator (22 open), QA/QC Manager (17), Package Manager (16), Site Engineer - Structures (13). Risk register owners (Commercial 20, Planning 17, Construction 15, Design 12, HSE 9) are also not used."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Counts disagree with the Command Center for the same action population: 267 vs 287 actions; 73 owned vs 1 owned."
+        },
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "The page never groups by owner, which is its whole purpose. It is a second copy of the Command Center list."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Every row is \"HIGH\", including 20 rows \"minor NCR remains open\". No priority signal is left."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Scope shows the activity ID instead of the record. A reader cannot tell which RFI or NCR \"VLC-01-003\" means."
+        },
+        {
+          "sev": "Low",
+          "root": "R3",
+          "text": "Stale \"newly uploaded schedule\" footer."
+        }
+      ],
+      "rules": [
+        "Build accountability from the owner fields the registers already carry (responsible, owner, discipline, vendor).",
+        "Show one row per party with counts, then the items underneath.",
+        "Use the same action population and the same count as the Command Center.",
+        "Priority comes from the record's own severity and its effect on critical work, not one fixed level for all."
+      ]
+    },
+    {
+      "n": 4,
+      "key": "master-control-programme",
+      "label": "Master Control Programme",
+      "group": "Management Control",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 3,
+      "m": 4,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "Stage classification fails on the work that matters. Evidence: \"Other programme scope 89 open / 848 activities ... 35 critical / negative-float activities\". The 35 include the plaster, MEP, painting and snagging chain in Villa Type B, which is construction."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "\"Forecast finish Not established\" on all four stages, while the same rows show \"Current finish Sep 19, 2027\" and \"Oct 06, 2027\". The programme is the forecast for each stage."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Long-lead dependencies said not to exist. Evidence: \"No long-lead or confirmed open interface dependency is identified\". Procurement register: 30 long-lead packages, 2 of them on the -88 h chain."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No sectional view. Evidence: no Section 1 / Section 2 rows. The contract has Section 1 Infrastructure (QAR 35,000/day) and Section 2 Whole of Works (QAR 60,000/day); this is the page where they belong."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Dependency column is meaningless: Construction \"Other → Testing Commissioning → Handover\", Other \"Construction → Handover → Testing Commissioning\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Readiness names no item: \"3 affected activities · Design Submittal, Quality\". They are VLC-10-447 (NCR-0259), VLC-10-456 (RFI-0680) and VLC-10-457 (RFI-0660)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Raw system text on a management page: \"evidence_e07304a1e9cd872a10aced62:clause:cycle:1:2#3 · Delay Damages ...\", \"SOURCE EVIDENCE evidence-document:evidence_e0730...:page:2\", \"POST /api/projects/REEM%20112/schedule/revisions/schedrev_262b.../adopt\", \"Session 474b6917 (identity unverified)\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R3",
+          "text": "The Section 2 delay damages clause sits as \"Pending Review\" with an \"Open owner\" link. Until someone approves it, delay damages cannot be calculated anywhere, and no page says that this one click is what unlocks LDs."
+        },
+        {
+          "sev": "Low",
+          "root": "R1",
+          "text": "Owner \"Not recorded\" on all stages."
+        }
+      ],
+      "rules": [
+        "Classify stages from WBS and activity names with a fallback rule; \"Other\" must stay under 5% of activities or be flagged as a classification failure.",
+        "Each stage and each contract section shows baseline, current, forecast and contract dates with float.",
+        "Long-lead and permit items are linked to the stage they feed, from the procurement and permit registers.",
+        "Never show API paths, document hash IDs or session IDs to users. Show \"Baseline adopted by [user] on 07 Oct 2026, 18:17\".",
+        "When a pending approval blocks a calculation (for example the damages rate), say which figure it unlocks."
+      ]
+    },
+    {
+      "n": 5,
+      "key": "pmo-analysis",
+      "label": "Management Brief",
+      "group": "Programme & Planning",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 3,
+      "m": 4,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R7",
+          "text": "The brief is buried. Evidence: the first 60,000 characters are a float table of 500 rows, all \"INDEPENDENT CPM NOT ESTABLISHED\". A manager opening the page sees a wall of \"Not known\" and never reaches the brief."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Determinations both known and unknown on one page. Evidence: the determination table lists \"DET-002 5 d ... DET-005 4 d ... DET-009 4 d\" while the claims tile says \"Effective approved determinations at Data Date: Unresolved days\" and \"Determination register total: Unresolved days\"."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Completion told against the original date only. Evidence: \"Contractual completion Sep 08, 2027 · Separate contract comparison\". With 13 days awarded the date is 21 Sep 2027; the brief should say \"15 days late on the extended date, 28 on the original\"."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "CMeng's own CPM is \"not established\" for every activity, yet the page shows \"CMeng calendar recalculation Oct 06, 2027\" and \"Network calculation: Computed; source float unverified\". The user cannot tell whether CMeng checked the programme or not."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Raw codes as the exposure: \"SOURCE_FLOAT_CRITICAL; NEGATIVE_FLOAT; TERMINAL_CRITICAL_MILESTONE; LATER_THAN_BASELINE\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "\"Investigate submitted negative float and constraints\" without saying which constraint. The -88 h comes from the completion milestone being 11 working days past 21 Sep 2027 (contract + EOT)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "\"Decisions and actions\" repeat the Master Dashboard groups word for word (\"Manage this as one grouped schedule finding; open the activities only when the detailed sequence or ownership is needed.\") and still do not name NCR-0259 or RFI-0660 as the blockers on VLC-10-447 and VLC-10-457."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "No cost line in the brief. CPI 0.96, EAC 218.4M and 9.9M certified unpaid are known elsewhere in CMeng."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"Difference -0.25 elapsed days\" between the calendar recalculation and the submitted date (time of day only)."
+        }
+      ],
+      "rules": [
+        "A brief is one screen: date position (original, extended, forecast), movement and cause, driving chain, progress, cost, top blockers with owners, decisions. Detail tables never go above it.",
+        "Never show a table where every row has the same \"not established\" value; show one line (\"CMeng has not run its own CPM on this programme\") and the reason.",
+        "One determination total, used everywhere.",
+        "Translate exposure codes to words."
+      ]
+    },
+    {
+      "n": 6,
+      "key": "schedule-analytics",
+      "label": "Programme Review",
+      "group": "Programme & Planning",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 3,
+      "m": 3,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "The standard programme quality checks are missing. Evidence: no constraints, lags, leads, relationship-type mix, high float, high duration, BEI or CPLI anywhere on the page. These are the checks a PMC planning engineer runs before accepting an update."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "The one constraint that explains the whole -88 h is not named. Evidence: the page never mentions the completion-milestone constraint. CMeng's Completion Forecast page says \"1 activity(ies) contain retained source constraints that this CPM calculation does not apply\". That constraint is what makes VLC-PC-001 -88 h (11 working days past 21 Sep 2027, contract + 13 d EOT)."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "CMeng's own CPM is reported \"not established\" for all 2,057 activities because of that single constraint. Evidence: 500 rows \"INDEPENDENT CPM NOT ESTABLISHED\"; Completion Forecast \"Source constraints REVIEW NEEDED 1\". A normal contract-date constraint switches off the independent check for the whole programme."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Negative float: Unresolved\" here; \"Negative float 41\" on Master Dashboard and Management Brief, same data."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Finished work treated as missing data. Evidence: \"Classification unknown 1,837 · 89.3%\" and \"Float-field coverage: 10.7%\". A planner reads this as \"the file is broken\"; in fact every open activity has float."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Finish variance mixes finished and open work. Evidence: \"Late 1,049\". Only 192 unfinished activities finish after baseline; the rest finished late in the past. The two numbers mean different things."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Baseline start dates are copies of current start dates on all 2,060 rows (511 rows have baseline start after baseline finish). The page does not flag it, and any \"missed start\" test built on it is empty."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Large \"Comparison with the submitted position\" block where every metric is \"Submitted value missing\" or \"Not derivable\"."
+        }
+      ],
+      "rules": [
+        "Run and show the standard schedule quality checks with threshold, count, pass/fail and the activity list for each.",
+        "Read constraints from the XER and show each with type, date and the float it creates.",
+        "Apply source constraints in CMeng's own CPM (as P6 does) and report the difference, instead of refusing the whole calculation.",
+        "Exclude completed activities from float coverage and classification counts; say \"220 open activities, all with float\".",
+        "Check that baseline start and finish come from the baseline file and that start is before finish."
+      ]
+    },
+    {
+      "n": 7,
+      "key": "activity-analytics",
+      "label": "Activity Review",
+      "group": "Programme & Planning",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 1,
+      "m": 3,
+      "l": 3,
+      "roots": [
+        "R4",
+        "R5",
+        "R7",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "Same 500-row \"INDEPENDENT CPM NOT ESTABLISHED\" table opens the page, and each register row repeats \"INDEPENDENT CPM NOT ESTABLISHED / Submitted: -88 h · Critical / CMeng CPM: Not established\". The criticality column says the same thing 500 times."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No plot filter. Evidence: Zone filter covers only the 20 infrastructure zones; 1,580 activities have no zone. All villa work is named by plot (\"Plot B 42\"), which is how a site team works."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "\"Unresolved criticality 1,837 execution activities awaiting classification\" are finished activities. They do not await anything."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "\"Later than baseline 1,046\" mixes 854 finished-late activities with 192 open ones. A planner needs the open count."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "WBS filter shows codes \"1, 6, 7 ... 19\" instead of WBS names."
+        },
+        {
+          "sev": "Low",
+          "root": "R4",
+          "text": "System filter values garbled: \"System s testing - System 01\"."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "About 18,000 page elements and 210,000 characters for one page; the register stops at 500 rows."
+        }
+      ],
+      "rules": [
+        "Parse location from activity names and WBS (plot, villa, block, floor, zone) and offer it as the first filter.",
+        "Hide empty filters.",
+        "Separate finished and open work in every count; float classification applies to open work only.",
+        "Show CMeng's CPM state once at the top of the page, not on every row."
+      ]
+    },
+    {
+      "n": 8,
+      "key": "lookahead-schedule",
+      "label": "Look-Ahead",
+      "group": "Programme & Planning",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 2,
+      "m": 3,
+      "l": 1,
+      "roots": [
+        "R2",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "A late long-lead package on a driving activity is not called a blocker. Evidence: VLC-10-428 (plaster Plot B 43, TF -88 h, start 13 Sep 2026) shows materials \"Dates / status need review\". PKG-0056 was required on site 29 Aug 2026 and is still \"Ordered\"."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No float or driving-chain flag in the window. Evidence: the matrix has no float column. VLC-10-418, 428, 438, 448 (all -88 h, the chain that sets completion) look the same as Plot B 40 snagging with 1,104 h float."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "NCR owner dropped. Evidence: \"Not established in linked evidence\"; file: NCR-0259 responsible QA/QC Manager."
+        },
+        {
+          "sev": "Medium",
+          "root": "R2",
+          "text": "\"Readiness confirmed 0\" and \"Activities with evidence gaps 39\" because most cells say \"No linked record\". No linked RFI or NCR means no known design or quality hold; the page turns that into \"not ready\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Resources column \"No linked record\" for every activity although the weekly resource register holds planned and actual hours by trade."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Open RFIs that are not yet overdue on near-critical work (RFI-0680, RFI-0677) appear as \"Dates / status need review\" rather than \"open RFI, due 14 Sep\"."
+        }
+      ],
+      "rules": [
+        "Show float and a driving-path flag for every window activity; sort chain activities first.",
+        "Treat a package not delivered by its required date as a material blocker on the linked activity, and an open RFI or NCR on the activity as a hold, with due date.",
+        "\"No linked record\" means no known hold. Show it as neutral, not as an evidence gap.",
+        "Take owners from the register."
+      ]
+    },
+    {
+      "n": 9,
+      "key": "schedule-change-report",
+      "label": "Programme Changes",
+      "group": "Programme & Planning",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 3,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "The completion movement is not on the page that compares the two programmes. Evidence: no \"+17 days\" for VLC-PC-001 here (it appears only on the Management Brief)."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No cause split. Evidence: categories \"Forecast 1,130 / Progress 919 / Source Target 630\". The planner needs \"0 logic changes, 0 lag changes, N duration changes, 0 constraint changes\", which would show the 17 days came from progress on the plaster chain, not re-planning."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "A 14-month gap between updates is not flagged. Evidence: FROM 30 Jun 2025 TO 31 Aug 2026, no remark. Under Sub-Clause 8.3 the programme must be revised when it no longer matches progress; any slip analysis over 14 months loses all cause detail."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "\"500 of 1,130 changed source rows share exactly 0 days ... requires investigation\". These are finished rows whose progress fields changed. The warning sends the planner after nothing."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Float shift \"Unresolved\" for finished activities in the change table."
+        }
+      ],
+      "rules": [
+        "Lead with the completion and key-milestone movement between the two revisions.",
+        "Split changes by type, including original and remaining duration and constraint changes, and say which type moved the critical path.",
+        "Flag update intervals longer than the contract or the project procedure requires.",
+        "Do not raise \"common pattern\" warnings on finished work."
+      ]
+    },
+    {
+      "n": 10,
+      "key": "revision-trend",
+      "label": "Revision History",
+      "group": "Programme & Planning",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Update02 critical, near-critical and negative-float counts \"Unresolved\" here, 41 / 7 / 41 on the Master Dashboard, Management Brief and Programme Review for the same file."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Float-trend charts plot \"Unresolved\" as 0, so the three charts are flat lines. The real story (0 critical in the baseline, 41 negative-float activities now) is lost."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No contract line on the finish chart. Contract 08 Sep 2027 and extended 21 Sep 2027 should be drawn, so the reader sees the programme crossed the contract date between baseline and Update01."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Movement between revisions not stated: +32 days (baseline to Update01) and +17 days (Update01 to Update02)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "14-month gap between Update01 and Update02 not flagged; the chart's x-axis spacing shows it, but nothing says it is a control failure."
+        },
+        {
+          "sev": "Low",
+          "root": "R5",
+          "text": "Baseline \"Critical 0\" without saying that criticality here means TF <= 0 only; the baseline's longest path is not reported."
+        }
+      ],
+      "rules": [
+        "Compute the same float counts for every revision with one method; never show \"Unresolved\" for one page and a number on another.",
+        "Plot contract and extended contract dates on the finish trend.",
+        "State movement between consecutive revisions and flag long update gaps.",
+        "Report the longest path for each revision, not only TF <= 0 counts."
+      ]
+    },
+    {
+      "n": 11,
+      "key": "milestones",
+      "label": "Milestones",
+      "group": "Programme & Planning",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "No contract or extended date on the milestone page. Evidence: VLC-PC-001 shows only baseline and current. The variance that matters (15 days past 21 Sep 2027, 28 days past 08 Sep 2027) is absent."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Sectional completion not shown. The contract has Section 1 (Infrastructure, QAR 35,000/day) and Section 2 (Whole of the Works, QAR 60,000/day). VLC-08-005 (Infrastructure complete, 02 Jun 2025) is the Section 1 milestone; the page treats it as an ordinary completed milestone."
+        },
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "The page opens with the 502-row \"INDEPENDENT CPM NOT ESTABLISHED\" table."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Finished milestones show \"Float not confirmed\" and \"INDEPENDENT CPM NOT ESTABLISHED\"; float has no meaning for a completed milestone."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Completed-late milestones are not listed (Landscaping complete +26 d, Villa Type C complete +9 d)."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Flag text run together: \"SUBMITTED FLOAT CRITICALNEGATIVE FLOATSOURCE-FLOAT CRITICAL TERMINALLATER THAN BASELINE\"."
+        }
+      ],
+      "rules": [
+        "Every milestone that has a contract date shows contract, extended and forecast dates and the variance to each.",
+        "Map sectional completion milestones to their contract section, rate and cap.",
+        "Completed milestones: actual vs contract and baseline; no float status."
+      ]
+    },
+    {
+      "n": 12,
+      "key": "near-critical",
+      "label": "Near-Critical & Float Risk",
+      "group": "Programme & Planning",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 1,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "Same 500-row \"INDEPENDENT CPM NOT ESTABLISHED\" table first."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "\"1,837 execution activities still lack the float/calendar evidence\" is wrong: they are finished. Coverage for open work is 100%."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No erosion rate or \"turns critical by\" date. 80 h lost in 14 months is about 6 h a month; at that rate the 24 h activities go critical in about 4 months. The page has both numbers but does not do the step."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Raw ID \"Comparison revision: schedrev_530f009f5a1b3aa83a56f185\" instead of \"Update01 (30 Jun 2025)\"."
+        }
+      ],
+      "rules": [
+        "Remove the per-activity CPM table from summary pages.",
+        "Count float coverage over open work only.",
+        "Add an erosion rate and projected \"turns critical\" date per chain.",
+        "Name revisions by their file name and data date, not internal IDs."
+      ]
+    },
+    {
+      "n": 13,
+      "key": "resource-utilization",
+      "label": "Resources",
+      "group": "Progress & Resources",
+      "verdict": "Not useful",
+      "c": 1,
+      "h": 2,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "No actual manpower. Evidence: \"Weekly labor register ... RECORDED HOURS Unresolved ... actual usage through DD, future hours are planned\". The register's header (shown on CMeng's own Documents page) is \"Resource ID, Resource Name, Unit, Week Start, Available Capacity, Planned Demand, Actual Approved Usage\". CMeng reads the last column as empty on all 1,496 rows, so planned vs actual by trade cannot be shown."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "The capacity table says \"Available: Not established\" for all 12 trades while the same page charts weekly capacity from the register for all 12."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Nothing ties resources to the driving chain. The -88 h plaster chain needs masons/plasterers on Villa Type B; the page lists \"3 affected activity(ies) are on submitted critical/negative-float scope\" per trade but no hours, no shortfall."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Affected scope as WBS numbers (\"6; 7; 8; 9; 10; 11 ...\") and two ID schemes for the same trade (7001 and LAB-001)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "\"Worst actual week: Unresolved: date not established\" on all 12 rows."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"Planned utilization 30.93%\" with no statement of what capacity means (register available hours vs P6 max units)."
+        }
+      ],
+      "rules": [
+        "Read actual hours or headcount from the resource register; if the column is missing, say so in one line.",
+        "Show planned vs actual per trade per week, with the trades on the driving chain first.",
+        "Use one resource ID scheme and trade names, never WBS numbers, in the user view.",
+        "Compare hours spent vs earned (budget x progress) as a productivity check."
+      ]
+    },
+    {
+      "n": 14,
+      "key": "progress-report",
+      "label": "Progress Status",
+      "group": "Progress & Resources",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Other progress measures ignored. Evidence: \"certified/contractor physical progress is not confirmed\". EVM gives 89.1% earned, certification gives 87.7% of the original sum for measured work. A PM needs all three side by side to see that schedule %, EV % and certified % agree within 1.5 points."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No progress by area. With 41 critical activities all in Villa Type B, the page should show Villa Type B progress vs plan separately from the finished infrastructure."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No period progress and no required rate. 11.4% of work remains for 13 months to the forecast finish; the page gives no monthly planned vs actual figure."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Long caveat paragraphs (\"Current programme dates can include actuals, so agreement with the current plan is not independent evidence of performance ...\") under each tile."
+        }
+      ],
+      "rules": [
+        "Show schedule %, EVM %, certified % and measured-quantity % for the same date in one table, with the source of each.",
+        "Split progress by top-level area and by trade.",
+        "Add this-period planned vs actual and the rate needed to finish on the contract and extended dates."
+      ]
+    },
+    {
+      "n": 15,
+      "key": "variance-trends",
+      "label": "Variance Trend",
+      "group": "Progress & Resources",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 2,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "Revisions labelled by internal IDs: \"schedrev 262b801a53f4c4cc7a38579b\", \"schedrev 530f009f5a1b3aa83a56f185\", \"schedrev 433a2233de820d2c4e79fcfd\". A user cannot tell which is the baseline."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Float trend \"Critical · 0 → Unresolved\" again plotted as zero, while 41 critical is known."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No slip rate. 49 days lost over 24 months (32 in the first 10 months, 17 in the next 14) is the trend; the page does not say it."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Duplicates Revision History almost entirely."
+        }
+      ],
+      "rules": [
+        "Label revisions with file name and data date.",
+        "Merge with Revision History into one trend page.",
+        "Show slip rate per period and where the slip is concentrated."
+      ]
+    },
+    {
+      "n": 16,
+      "key": "progress-scurve",
+      "label": "Progress S-Curve",
+      "group": "Progress & Resources",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 0,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R4",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "The monthly EVM history file is loaded but not used. It would give a monthly actual curve instead of three points 14 months apart."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "The Progress Status block (headline, tiles, caveat paragraph) is repeated in full."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"Schedule snapshot progress · revision scope\", \"Current plan · current scope\": legend names a client would not use."
+        }
+      ],
+      "rules": [
+        "Use any monthly progress source (EVM history, certified value, measured quantities) to plot actuals between revisions, labelled by source.",
+        "Do not repeat another page's block; link to it."
+      ]
+    },
+    {
+      "n": 17,
+      "key": "quantity-scurve",
+      "label": "Installed Quantities",
+      "group": "Progress & Resources",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 3,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Cross-item sums by unit. Evidence: \"m quantity curve 119 BOQ item(s)\" adds metres of different items; \"LS quantity curve\" adds lump sums to 156.2k. Only money or per-item quantities can be summed."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Lump-sum items with fractional quantities not queried. Evidence: all 132 LS items have quantity other than 1 (item 1.008 = 41.908 LS at 597.23). Either the unit or the quantity is wrong in the BOQ; CMeng should say so."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "BOQ-to-programme mapping 0% although the BOQ file has a \"WBS Code\" column (header shown on CMeng's own Documents page) and its 14 sections carry the same names as the 14 WBS areas."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No installed value and no check against certification. Installed qty x rate per item vs certified gross work (184.26M to IPC-023) is the core QS reconciliation."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "No % installed shown, although contract and installed quantities are both known per unit."
+        }
+      ],
+      "rules": [
+        "Never sum quantities across different items; aggregate only in money.",
+        "Show per-item and per-section installed quantity, %, and value; reconcile to certified value.",
+        "Map BOQ sections to WBS by name match first, then by code; report the match rate.",
+        "Flag LS items whose quantity is not 1 and items installed beyond contract quantity."
+      ]
+    },
+    {
+      "n": 18,
+      "key": "progress-breakdown",
+      "label": "Progress Breakdown",
+      "group": "Progress & Resources",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 1,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Villa Type B shows \"DELAYED 0\" and \"— / —\" for critical and negative float. Every other schedule page puts 40 critical activities in Villa Type B."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Finished areas told to \"Close design/RFI/submittal blockers before the affected workfront proceeds\" (Villa Type A, Villa Type C, Roads, Drainage ...). They are 100% complete; the open RFIs on them are register clean-up."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Physical and certified columns empty (\"—\") for every area. The installed quantities file is per BOQ section, which matches these areas one to one."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Owner \"Not recorded\" on every row."
+        }
+      ],
+      "rules": [
+        "Feed the critical, negative-float and delayed counts per area from the same schedule facts as the dashboard.",
+        "Never give a \"proceed\" action to a finished area; label stale open records separately.",
+        "Fill physical % per area from installed quantities when the BOQ sections match the WBS."
+      ]
+    },
+    {
+      "n": 19,
+      "key": "manhour-scurve",
+      "label": "Man-Hour S-Curve",
+      "group": "Progress & Resources",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Actual hours withheld while known. The XER actual regular hours (755,452) give at least the cumulative actual at the data date; the page shows them in a side table and still draws no actual point."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No earned hours. Budget 849,104 h x 88.59% = about 752,200 earned hours vs 755,452 spent: productivity is close to 1.0. That is the reading a manager wants."
+        },
+        {
+          "sev": "Low",
+          "root": "R1",
+          "text": "The \"Hour totals disagree\" table is a copy of the Resources page."
+        }
+      ],
+      "rules": [
+        "Plot actual hours from any available source (register actuals, XER actual units), labelled by source.",
+        "Add earned hours (budget x % complete) and a productivity figure."
+      ]
+    },
+    {
+      "n": 20,
+      "key": "forecast-history",
+      "label": "Completion History",
+      "group": "Forecast & Finish",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No contract line. The chart should show the forecast crossing 08 Sep 2027 between baseline and Update01, and staying past 21 Sep 2027 (with EOT) in Update02."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Model-precision notes (\"-1.25 calendar days\", \"Calendar movement vs prior 33 d\" next to \"Submitted move vs prior 32 d\") add a second set of numbers that differ by a day and mean nothing to a manager."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Every row's basis is \"Scenario With Assumptions\", including the submitted dates."
+        }
+      ],
+      "rules": [
+        "Draw contract and extended-contract dates on every finish-date chart.",
+        "Keep model-reconciliation detail out of the main view unless it exceeds a stated tolerance."
+      ]
+    },
+    {
+      "n": 21,
+      "key": "independent-forecast",
+      "label": "Completion Forecast",
+      "group": "Forecast & Finish",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R2",
+          "text": "Forecast withheld over a normal constraint. Evidence: every check passes except \"Source constraints REVIEW NEEDED 1\". A finish constraint at the contract (extended) date is standard practice; it does not change early dates. The CPM date agrees with the programme. The page should publish Oct 06, 2027 as \"checked\"."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Required finish ignores awarded EOT. Evidence: \"Required finish Sep 08, 2027\". With 13 days awarded the required date is 21 Sep 2027."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "P50/P80/P90 withheld for the same reason. A risk range is the main reason to have this page."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "This page says CPM coverage is 100% and calendars all readable; Challenge the Contract says \"Calendar / working time: MISSING\"; every schedule page says \"INDEPENDENT CPM NOT ESTABLISHED\" for each activity."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"Forecast taxonomy\" with six positions, three of them \"Not established\"; reads as a governance model, not a forecast."
+        }
+      ],
+      "rules": [
+        "Apply source constraints in the CPM the way P6 does, and also run without them; report both.",
+        "Required date = contract date + awarded EOT, always.",
+        "Publish the CMeng-checked forecast when the network checks pass; show any remaining caveat as a label, not a block.",
+        "Run the risk range whenever the network is valid."
+      ]
+    },
+    {
+      "n": 22,
+      "key": "challenge-contract",
+      "label": "Challenge the Contract",
+      "group": "Forecast & Finish",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Two prerequisites marked missing that other pages confirm (quantities, calendars)."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "All-or-nothing gate. With remaining hours (93,652 h), remaining duration of the plaster chain (267 working days) and the calendar, a feasibility check of the driving chain is possible today."
+        },
+        {
+          "sev": "Medium",
+          "root": "R3",
+          "text": "No route: the page does not say which button or upload creates the BOQ-activity links it needs."
+        }
+      ],
+      "rules": [
+        "Read prerequisites from the same project facts as the other pages.",
+        "Run the check on whatever scope has data (start with the driving chain) and label assumptions.",
+        "Every \"missing\" item names the exact step to supply it."
+      ]
+    },
+    {
+      "n": 23,
+      "key": "recovery-acceleration",
+      "label": "Recovery & Acceleration",
+      "group": "Forecast & Finish",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R2",
+        "R4",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "No recovery thinking at all. The chain is a single-crew sequence (each plaster plot follows the previous one). A second plaster crew or a sixth working day on calendar 1 are the first options any planner tests; neither is offered."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "\"0 late procurement package(s)\" is wrong; at least five undelivered packages have a forecast or status later than their need date, two on the -88 h chain."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "The target is not stated: 11 working days (to 21 Sep 2027) or 19 working days (to 08 Sep 2027)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R2",
+          "text": "\"Every option remains a scenario until separately approved\" is fine, but the page refuses to generate the scenarios to approve."
+        }
+      ],
+      "rules": [
+        "Compute the recovery target (days and date) from float on the completion milestone.",
+        "Detect crew-sequenced chains (same activity type, consecutive locations linked FS) and test parallel crews and extra working days.",
+        "Read late packages from forecast vs required dates and status vs required date.",
+        "Produce scenarios with stated assumptions; let the user approve, not the system refuse."
+      ]
+    },
+    {
+      "n": 24,
+      "key": "delay-claims",
+      "label": "Delay Event Register",
+      "group": "Delay & Time Entitlement",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 3,
+      "m": 3,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "Awarded days shown as missing. Evidence: EOT column \"MISSING\" on all 16 rows, while DET-002, DET-005 and DET-009 award 13 days and the EOT page shows \"Approved EOT 13 d\"."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Claimed, assessed and status not on the register. The claims register values (75 claimed, 34 assessed, 8/6/2 status) are held in CMeng (Management Brief shows them) but not on this page."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Event date missing 0\" here; \"Event / awareness dates missing 16\" on Notice Compliance for the same events."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Delayed activities 0\" on all three delay pages."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "RESPONSIBILITY \"MISSING\" on all 16 rows, although the claims register has a \"Responsibility Claimed\" column."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Window column shows internal revision IDs joined by \"->\"."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "The chain table spells status words (CONFIRMED, PARTLY CONFIRMED, MISSING) in every cell; the event ID repeats twice per row (\"CLM-001:event\")."
+        }
+      ],
+      "rules": [
+        "Register columns: status, claimed, assessed, awarded, determination date, notice date, days from event to notice, linked activity float.",
+        "Use one event-date rule across Delay Register, Notice Compliance and EOT pages.",
+        "Show totals and the open pipeline (claims under review, their claimed and assessed days).",
+        "Name windows by revision names and dates."
+      ]
+    },
+    {
+      "n": 25,
+      "key": "notices-claims",
+      "label": "Notice Compliance",
+      "group": "Delay & Time Entitlement",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 1,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R4",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "Event and awareness dates dropped. Evidence: \"Event / awareness dates missing 16\". The claims register header (shown on CMeng's Documents page) has both \"Event Date\" and \"Awareness Date\" columns, CMeng's data holds an event start for all 16, and the Delay Event Register says \"Event date missing 0\"."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "No notice timing at all. A best-available answer (days from event start, labelled as a proxy for awareness) would flag CLM-003 (44 days) and CLM-004 (42 days) for review. This is a flag for the contracts team, not a time-bar ruling."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Sub-Clause 20.2.4 (fully detailed claim within 42 days) is read from the contract but not checked."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "The evidence-chain table is a copy of the Delay Event Register."
+        }
+      ],
+      "rules": [
+        "Compute days from the trigger date to the notice for every event; use event start as a labelled proxy when awareness is not given.",
+        "Show both the notice (20.2.1) and detailed-claim (20.2.4) periods with status per event.",
+        "Keep \"missing\" for fields that are really absent."
+      ]
+    },
+    {
+      "n": 26,
+      "key": "windows-analysis",
+      "label": "Delay Windows",
+      "group": "Delay & Time Entitlement",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 1,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No driving activities per window. The point of a windows analysis is to show which path moved; the page lists events only."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Window 2 spans 14 months with no warning that causes cannot be separated over such a period."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "\"Delayed activities 0\" in the context block."
+        },
+        {
+          "sev": "Low",
+          "root": "R1",
+          "text": "Evidence-chain table repeated from two other pages."
+        }
+      ],
+      "rules": [
+        "For each window, show the critical path at both ends and the activities that drove the movement.",
+        "Flag windows longer than the reporting cycle.",
+        "Lead with the window results; put context blocks below."
+      ]
+    },
+    {
+      "n": 27,
+      "key": "eot-assessment",
+      "label": "EOT Assessment",
+      "group": "Delay & Time Entitlement",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 3,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R2",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Amended contract date withheld. Adding awarded days to the contract date is arithmetic, not an entitlement decision."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Contract finish and EOT day basis are not confirmed\" next to \"Contractual completion Sep 08, 2027 Official\" and \"Approved EOT 13 d\" on the same page."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No pending pipeline. 8 claims under review hold 21 assessed days. If awarded as assessed (a scenario, not a ruling) the date would move to 12 Oct 2027, after the forecast of 06 Oct 2027. That is the most important open commercial question on the project, and the page does not frame it."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "\"Notice compliance Not established\" because of the event-date error on Notice Compliance."
+        },
+        {
+          "sev": "Low",
+          "root": "R1",
+          "text": "Context block and evidence chain repeated from two other pages."
+        }
+      ],
+      "rules": [
+        "Always compute contract date + awarded EOT and show it as \"amended (awarded only)\".",
+        "Show the pending claims as labelled scenarios with dates, never as an entitlement view.",
+        "Use the contract date and determinations already shown on the page in its own reasons."
+      ]
+    },
+    {
+      "n": 28,
+      "key": "commercial-overview",
+      "label": "Commercial Overview",
+      "group": "Commercial",
+      "verdict": "Misleading",
+      "c": 2,
+      "h": 2,
+      "m": 3,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "Net certified labelled as gross. Evidence: \"Dated gross certification 166,629,358 QAR · Confirmed\". Gross certified is 196,034,538; 166,629,358 is after 9.80M retention and 19.60M advance recovery."
+        },
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Expired guarantee counted: \"Active bonds 42,000,000 QAR · Confirmed\". APG-VLC1-0202 expired 25 Jul 2026; the Contract Particulars page counts 1 active, 2 expired. CAR insurance (expired 01 Aug 2026) is not shown."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Certified unpaid missing (9,899,013 on IPC-022 and IPC-023). It is the main cash fact for the period."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Unlike-for-like ratio. \"Actual cost / source certificate-period net 1.15 times\" compares gross cost with a net-of-deductions figure; it suggests a 15% gap that does not exist."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "An application counted as certified. Retention 9,949,141 and the \"169,135,416 certificate-period net\" include IPC-024, which is only \"Applied\" (the page itself notes \"Certification dates unconfirmed for 1 of 24\")."
+        },
+        {
+          "sev": "Medium",
+          "root": "R2",
+          "text": "\"Pending variations Unresolved\" should be 0 (VO-026 rejected)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Advance payment outstanding not shown: 21,000,000 advance, 19,603,452 recovered to IPC-023, 1,396,548 outstanding."
+        }
+      ],
+      "rules": [
+        "Name each certificate figure by its basis: gross work, gross incl. VOs, deductions, net certified, paid, certified unpaid.",
+        "Count only certified IPCs in certified totals; show applications separately.",
+        "Security status from expiry date vs data date; insurance separate from bonds.",
+        "Pending VOs = submitted and not yet approved or rejected; rejected = 0.",
+        "Compare AC only with gross measures on the same basis."
+      ]
+    },
+    {
+      "n": 29,
+      "key": "cost-forecast",
+      "label": "Cost Outlook",
+      "group": "Commercial",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 2,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "EVM history ignored. The monthly history file was uploaded but filed as \"supporting document / historical\" with a partial parse, so the page shows one point and \"trend not confirmed\"."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No view against the current contract. With 11.78M approved VOs, EAC 218.4M is 3.37M below the current contract value. The page reports only VAC -8.40M against the original budget."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Same unlike-for-like \"1.15 times\" ratio as Commercial Overview."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "The bottom block repeats the Commercial Overview tiles (\"Pending variations Unresolved\", \"Claimed Unresolved\")."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"218,403,148.15 QAR\" to the cent next to \"218,403,148 QAR\"."
+        }
+      ],
+      "rules": [
+        "Recognise a time-phased EVM history file and plot the curves and index trends.",
+        "Show VAC against the original budget and against the current contract value, and say which one the source EAC covers.",
+        "Round money consistently."
+      ]
+    },
+    {
+      "n": 30,
+      "key": "variations-change",
+      "label": "Variations & Change",
+      "group": "Commercial",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 1,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R2",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R4",
+          "text": "A rejected VO shown as approved. Evidence: \"Approved by Data Date 26\", \"Rejected 0\", and the VO-026 row status \"Approved\". The page's own total (25 records) contradicts its own count (26)."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Omissions added as positive value. Four VOs titled \"Omission\" carry positive approved amounts totalling 966,000. A QS would query each; CMeng accepts them."
+        },
+        {
+          "sev": "Medium",
+          "root": "R2",
+          "text": "\"Pending exposure Unresolved\" instead of 0."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "\"Payment linkage 0%\" although the IPC register's variations column totals exactly 11,776,000 by IPC-023, i.e. every approved VO is certified."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Owner and due \"Not recorded\" on all 26 rows of the action table with \"No open lifecycle action\" in each."
+        }
+      ],
+      "rules": [
+        "Take VO status from the register; never default a row to Approved.",
+        "Check that counts and totals come from the same population.",
+        "Flag omissions with positive value and additions with negative value.",
+        "Reconcile approved VOs to certified VO amounts in the IPCs."
+      ]
+    },
+    {
+      "n": 31,
+      "key": "payments",
+      "label": "Payments",
+      "group": "Commercial",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 3,
+      "m": 2,
+      "l": 1,
+      "roots": [
+        "R2",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "Net shown as gross certification (same as Commercial Overview)."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Certified unpaid withheld (9,899,013)."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Advance balance withheld although the contract amount (Sub-Clause 14.2, QAR 21,000,000) is read by CMeng and the recoveries are in every IPC row."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Late payment not assessed. Every paid IPC has a due date and a payment date in the register; 11 of 21 were paid late, by 5 to 25 days."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "1-riyal rounding treated as an arithmetic failure (\"19 / 24 current rows match\")."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Due-date basis not checked against the contract: the register's due dates are certification + 45 days; Sub-Clause 14.7 counts 45 days from the Engineer's receipt of the Statement. CMeng should show both and flag the difference for the commercial team."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"Observed retention: 5.00%, 5.00%, ...\" repeated 24 times in one sentence."
+        }
+      ],
+      "rules": [
+        "Compute certified unpaid, overdue and paid-late from certificate, due and payment dates.",
+        "Compute advance outstanding from the contract advance and the recoveries.",
+        "Use a rounding tolerance in component checks.",
+        "Show the contract's payment-period rule next to the register's due dates."
+      ]
+    },
+    {
+      "n": 32,
+      "key": "cash-flow",
+      "label": "Cash Flow",
+      "group": "Commercial",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R4"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Payment dates ignored. Every paid IPC has a dated payment; that is a dated cash series."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "No forecast cash. Remaining contract value (221.78M current less certified) phased on the programme is the standard forecast; the page offers none."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Everything below the first block is a duplicate of Payments."
+        }
+      ],
+      "rules": [
+        "Build actual cash from payment dates (and the advance), and forecast cash from the programme and the contract value.",
+        "Do not repeat another page's blocks."
+      ]
+    },
+    {
+      "n": 33,
+      "key": "commercial-claims-notices",
+      "label": "Financial Claims",
+      "group": "Commercial",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No delay-damages exposure on the financial claims page. Rates and cap are in the contract and read by CMeng; they are blocked as \"records disagree\" (see Contract Particulars)."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "\"Event dates missing 16\" (same error as Notice Compliance)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "\"Claimed Unresolved\" without saying whether the register holds money at all. If it is time-only, say \"claims register has days only; no amounts claimed\"."
+        },
+        {
+          "sev": "Low",
+          "root": "R1",
+          "text": "\"Pending variations Unresolved\" repeated from Commercial Overview."
+        }
+      ],
+      "rules": [
+        "Show delay damages exposure on the claims and commercial pages.",
+        "Distinguish \"no money column in the register\" from \"money not established\".",
+        "Use the same event dates as the Delay Event Register."
+      ]
+    },
+    {
+      "n": 34,
+      "key": "contract-particulars-bonds",
+      "label": "Contract Particulars & Bonds",
+      "group": "Commercial",
+      "verdict": "Misleading",
+      "c": 2,
+      "h": 3,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Two answers for active security on one page: \"Active bonds 1\" and \"Active bonds 42,000,000 QAR\"."
+        },
+        {
+          "sev": "Critical",
+          "root": "R5",
+          "text": "Insurance expiry missed. CAR insurance (210M) expired 01 Aug 2026; because it is filed as a bond, the insurance section says no policy exists and nothing tells the PM the works may be uninsured."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Sectional damages treated as a conflict (\"Records disagree\"), which blocks every damages figure in CMeng."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Instrument type dropped. The bond register's first column is \"Instrument\"; CMeng sets every instrument to kind \"Other\", so the advance payment guarantee is not recognised as the advance-payment security (\"Unresolved\") and the CAR policy is not recognised as insurance."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Performance security validity not checked against clause 4.2: PB expires 31 Dec 2027, 86 days after the forecast completion and before any defects period ends."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "The contract data sheet does not exist on screen; terms are inside \"13 requirement wording groups\" with raw references \"evidence-document:evidence_e07304a1e9cd872a10aced62:page:2\"."
+        }
+      ],
+      "rules": [
+        "Show a contract data sheet with every key term, its clause and value.",
+        "Classify instruments by type from ID, description and amount (performance bond, APG, CAR, third-party); insurance separate from bonds.",
+        "Status from expiry vs data date; check required validity against the contract and the forecast.",
+        "Sectional rates are separate terms per section, not a conflict."
+      ]
+    },
+    {
+      "n": 35,
+      "key": "delivery-control",
+      "label": "Delivery Control",
+      "group": "Delivery Control",
+      "verdict": "Not useful",
+      "c": 1,
+      "h": 1,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R2",
+        "R3",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R2",
+          "text": "A clean register blocked in full. 90 rows with no review issue (\"Review required: None in this set\") are kept out of every figure. The late fire-pump and cable packages on the critical chain are invisible."
+        },
+        {
+          "sev": "High",
+          "root": "R3",
+          "text": "The unlock step is hidden. \"Confirm selected record population\" sits in a collapsed block at the bottom; the headline and the Project review panel do not mention it."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Tile captions such as \"Controlled BOQ item denominator; mapped item IDs counted once\" and \"Governed records at the programme Data Date\" under every empty tile."
+        }
+      ],
+      "rules": [
+        "Use clean source rows at once, labelled \"from register, not yet confirmed\"; only rows with a real issue wait for review.",
+        "Offer \"Accept all clean rows\" at the top of the page.",
+        "Show late and long-lead packages first, linked to activity float."
+      ]
+    },
+    {
+      "n": 36,
+      "key": "procurement-packages",
+      "label": "Procurement Packages",
+      "group": "Procurement & Long Lead",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 1,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R2",
+        "R4",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R2",
+          "text": "Real register replaced by guesses. The page shows BOQ section names as \"packages\" while the actual register (vendor, status, dates, value) is held back."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Long-lead flag ignored (\"0\")."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Register value (292.5M) exceeds the contract sum (210M); a PMC would query it. Not mentioned."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "12 undelivered packages are linked to activities already complete (for example PKG-0001 \"Awarded\", required Oct 2024, activity done). Register needs updating; not flagged."
+        }
+      ],
+      "rules": [
+        "When a procurement register exists, it is the package list; BOQ-derived candidates are only a fallback.",
+        "Read the long-lead flag; compute headroom from forecast delivery and the linked activity start.",
+        "Flag register rows inconsistent with the programme (open packages on finished work) and totals above the contract value."
+      ]
+    },
+    {
+      "n": 37,
+      "key": "material-tracking",
+      "label": "Material Tracking",
+      "group": "Procurement & Long Lead",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R4",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Installed quantities exist in CMeng but this page shows \"Not established\" for all 896 items."
+        },
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "No link from BOQ items to procurement packages, so ordered/delivered can never fill; the page does not say what link is needed."
+        },
+        {
+          "sev": "Low",
+          "root": "R5",
+          "text": "LS items with fractional quantities shown without query."
+        }
+      ],
+      "rules": [
+        "Fill installed and remaining from the measurement register.",
+        "State the missing link (BOQ item to package) in one line with the step to add it."
+      ]
+    },
+    {
+      "n": 38,
+      "key": "long-lead",
+      "label": "Long Lead",
+      "group": "Procurement & Long Lead",
+      "verdict": "Not useful",
+      "c": 1,
+      "h": 0,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R2",
+          "text": "The two long-lead packages that threaten completion are hidden by the review gate."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Identical tile block to Delivery Control, Procurement S-Curves and Procurement Readiness."
+        }
+      ],
+      "rules": [
+        "Long-lead list from the register's long-lead flag, with headroom and linked float, shown even before formal review."
+      ]
+    },
+    {
+      "n": 39,
+      "key": "procurement-scurves",
+      "label": "Procurement S-Curves",
+      "group": "Procurement & Long Lead",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Curve withheld behind the review gate though every date needed is present."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Duplicate tile block."
+        }
+      ],
+      "rules": [
+        "Draw required vs forecast vs delivered curves from register dates, labelled \"unconfirmed\" until reviewed."
+      ]
+    },
+    {
+      "n": 40,
+      "key": "delivery-suppliers",
+      "label": "Suppliers & Subcontractors",
+      "group": "Procurement & Long Lead",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 0,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Supplier list not derived from the procurement register's vendor field."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "\"4 relevant source document(s)\" without naming them."
+        }
+      ],
+      "rules": [
+        "Build the supplier view from any register with a vendor, supplier or subcontractor field."
+      ]
+    },
+    {
+      "n": 41,
+      "key": "procurement-readiness",
+      "label": "Procurement Readiness",
+      "group": "Procurement & Long Lead",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Readiness withheld though status and dates are in the register."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Overlaps Delivery Control, Long Lead and Procurement S-Curves; four pages for one register, all empty."
+        }
+      ],
+      "rules": [
+        "Merge the four procurement pages into one with tabs; classify readiness from status and need date."
+      ]
+    },
+    {
+      "n": 42,
+      "key": "delivery-submittals",
+      "label": "Submittals",
+      "group": "Design & Interfaces",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 0,
+      "m": 0,
+      "l": 2,
+      "roots": [
+        "R7",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Empty tiles instead of one clear \"not uploaded\" line."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409 on page load (also on Interfaces, Locations, Construction Readiness, HSE, Commissioning, Assets, Snag, Spares, Handover Readiness, Weather)."
+        }
+      ],
+      "rules": [
+        "When a register type is absent, show one line and the upload action; no empty tiles.",
+        "Return a normal \"no data\" response, not a 409 error."
+      ]
+    },
+    {
+      "n": 43,
+      "key": "delivery-design",
+      "label": "RFI & Design",
+      "group": "Design & Interfaces",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 0,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "Two answers for the same register: \"Not established\" here, \"53 open / 44 overdue\" on the Master Dashboard."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "A clean 680-row register (8 fields, all activities linked) blocked behind review."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "No close-out view: 44 open RFIs on finished work should be closed or reclassified, not counted as design blockers."
+        }
+      ],
+      "rules": [
+        "One RFI count used everywhere.",
+        "Use clean register rows immediately; list open RFIs on unfinished work first, with float.",
+        "Flag open RFIs on completed activities for close-out."
+      ]
+    },
+    {
+      "n": 44,
+      "key": "delivery-interfaces",
+      "label": "Interface Management",
+      "group": "Design & Interfaces",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R5",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "Contract-stated interface (Section 1 → Section 2) not derived."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409 on load."
+        }
+      ],
+      "rules": [
+        "Derive interfaces from the contract (sectional dependencies) and from cross-WBS logic links; label them as derived."
+      ]
+    },
+    {
+      "n": 45,
+      "key": "construction-discipline",
+      "label": "Discipline Progress",
+      "group": "Construction Control",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Programme discipline field not used; the page uses BOQ words instead."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Discipline lists differ between this page and Activity Review's discipline filter."
+        }
+      ],
+      "rules": [
+        "Compute discipline progress from the programme's discipline field; map BOQ disciplines to it."
+      ]
+    },
+    {
+      "n": 46,
+      "key": "construction-locations",
+      "label": "Location / Floor / Zone",
+      "group": "Construction Control",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 0,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Plot and zone in activity names not parsed into locations."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409 on load."
+        }
+      ],
+      "rules": [
+        "Parse location tokens (plot, villa, block, floor, zone, chainage) from names and WBS; show a location grid."
+      ]
+    },
+    {
+      "n": 47,
+      "key": "construction-readiness",
+      "label": "Construction Readiness",
+      "group": "Construction Control",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 0,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Duplicates Look-Ahead's purpose but shows none of its result."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Merge with Look-Ahead readiness or reuse its result per workfront."
+      ]
+    },
+    {
+      "n": 48,
+      "key": "delivery-permits",
+      "label": "Permits & Authorities",
+      "group": "Construction Control",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R2",
+        "R4",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Register misclassified as a reference-only supporting document (20% confidence) despite a clear permit header."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Expired / expiring / pending permits withheld behind review."
+        },
+        {
+          "sev": "Medium",
+          "root": "R5",
+          "text": "No link to the programme: a PM needs to know that none of the 37 expired permits touches open work, which is the reassuring answer here."
+        }
+      ],
+      "rules": [
+        "Classify registers by header first.",
+        "Show expired, expiring and pending permits and whether the linked work is open."
+      ]
+    },
+    {
+      "n": 49,
+      "key": "delivery-quality",
+      "label": "Quality & Inspections",
+      "group": "Quality & HSE",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 0,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R3",
+        "R5"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R1",
+          "text": "\"Not established\" here vs \"29 major / critical NCR\" on the dashboard for the same register."
+        },
+        {
+          "sev": "High",
+          "root": "R3",
+          "text": "The only route offered is \"Upload the corrected quality register that resolves the highlighted lifecycle/date conflict\" (Project review), and no conflict is highlighted."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "The one NCR that holds open work (NCR-0259) is not singled out."
+        }
+      ],
+      "rules": [
+        "One NCR count everywhere; show it here first.",
+        "Any \"conflict\" message must name the rows and fields in conflict.",
+        "Rank NCRs by effect on open work, then severity, then age."
+      ]
+    },
+    {
+      "n": 50,
+      "key": "delivery-hse",
+      "label": "Construction HSE",
+      "group": "Quality & HSE",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 1,
+      "m": 0,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "One-page native-text HSE report read but no field extracted."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409 on load."
+        }
+      ],
+      "rules": [
+        "Extract the standard HSE fields from text reports; show what was found with the page reference."
+      ]
+    },
+    {
+      "n": 51,
+      "key": "delivery-commissioning",
+      "label": "Testing & Commissioning",
+      "group": "Testing & Handover",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Programme testing activities not used as a fallback."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Without a T&C register, show testing activities from the programme, labelled as programme-based."
+      ]
+    },
+    {
+      "n": 52,
+      "key": "delivery-assets",
+      "label": "Asset & System Handover",
+      "group": "Testing & Handover",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 0,
+      "l": 2,
+      "roots": [
+        "R7",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Empty tiles instead of a single empty-state line."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Single empty-state line with the upload action; no error response."
+      ]
+    },
+    {
+      "n": 53,
+      "key": "delivery-closeout",
+      "label": "Snag & Closeout",
+      "group": "Testing & Handover",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Programme snagging activities not used."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Use the programme's snagging/handover activities as the fallback view."
+      ]
+    },
+    {
+      "n": 54,
+      "key": "delivery-spares",
+      "label": "Spares & Special Tools",
+      "group": "Testing & Handover",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 0,
+      "l": 2,
+      "roots": [
+        "R7",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Empty tiles instead of one empty-state line."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Single empty-state line with the upload action."
+      ]
+    },
+    {
+      "n": 55,
+      "key": "handover-readiness",
+      "label": "Handover Readiness",
+      "group": "Testing & Handover",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Programme handover milestones not used."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Build handover readiness from handover milestones and activities when no requirement register exists."
+      ]
+    },
+    {
+      "n": 56,
+      "key": "delivery-weather",
+      "label": "Weather / Disruption Evidence",
+      "group": "Delivery Risk",
+      "verdict": "Not useful",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 1,
+      "roots": [
+        "R4",
+        "R8"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R4",
+          "text": "Weather and disruption claims not shown as disruption events."
+        },
+        {
+          "sev": "Low",
+          "root": "R8",
+          "text": "HTTP 409."
+        }
+      ],
+      "rules": [
+        "Show disruption-type events from the claims register as a fallback."
+      ]
+    },
+    {
+      "n": 57,
+      "key": "delivery-risks",
+      "label": "Delivery Risks",
+      "group": "Delivery Risk",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 2,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Impact, Score, Last Reviewed and Action Due Date columns dropped; scores \"Not established\"."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Closed status turned into \"Unknown\" for 37 risks; open count withheld."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "111 rows for 110 records."
+        },
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Risk owners are used here but not on the Accountability page."
+        }
+      ],
+      "rules": [
+        "Read all register columns; compute open, top risks and stale reviews from them.",
+        "Keep the source status; \"Mitigating\" counts as open.",
+        "Row count must equal the register count."
+      ]
+    },
+    {
+      "n": 58,
+      "key": "project-review",
+      "label": "Project review panel (Actions required)",
+      "group": "Project workspace",
+      "verdict": "Misleading",
+      "c": 1,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R2",
+        "R3",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "Critical",
+          "root": "R3",
+          "text": "The actions that would unlock the delivery pages and the programme state are not on the list; the listed actions ask for re-uploads of files that are correct."
+        },
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "Raw codes and row references as explanations (\"DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED\", 26 \"evidence-document:...:row:N\" strings)."
+        },
+        {
+          "sev": "High",
+          "root": "R2",
+          "text": "Many \"information needed\" items are values CMeng already holds (net certified, pending VOs, contract value \"approval needed\")."
+        },
+        {
+          "sev": "Medium",
+          "root": "R3",
+          "text": "\"Contract section numbers repeat\" sent to the user as a problem: the contract has Section 1 and Section 2, each with a Time for Completion and Delay Damages line, which is normal."
+        }
+      ],
+      "rules": [
+        "Each action: what it unlocks, the system's proposed answer, one-click confirm, and the rows at issue.",
+        "Include register acceptance and schedule adoption in the same list.",
+        "Never ask for a corrected file without naming the rows and fields."
+      ]
+    },
+    {
+      "n": 59,
+      "key": "documents",
+      "label": "Documents (evidence library)",
+      "group": "Project workspace",
+      "verdict": "Partly useful",
+      "c": 0,
+      "h": 2,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R4",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Programme state shown two ways: Update02 \"needs adoption\" here, \"current\" everywhere else; the stale banner on every page comes from this."
+        },
+        {
+          "sev": "High",
+          "root": "R4",
+          "text": "Two registers misclassified as reference-only, so their data never reaches Permits or Cost Outlook trend."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Columns are dense; the most useful column (fields mapped vs ignored) does not exist."
+        }
+      ],
+      "rules": [
+        "One programme state, shown the same on every page.",
+        "Classify by header row before file name.",
+        "Show, per file, which columns were mapped and which were ignored."
+      ]
+    },
+    {
+      "n": 60,
+      "key": "director",
+      "label": "Management position drawer",
+      "group": "Project workspace",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 2,
+      "m": 0,
+      "l": 1,
+      "roots": [
+        "R1",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R7",
+          "text": "Float table first in a director's view."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Repeats the bond, unpaid and adjusted-date errors from the dashboard."
+        },
+        {
+          "sev": "Low",
+          "root": "R7",
+          "text": "Mixed date formats (\"2027-09-08\" next to \"Oct 06, 2027\")."
+        }
+      ],
+      "rules": [
+        "Same project-facts layer as the dashboard; a one-screen director summary; no activity tables."
+      ]
+    },
+    {
+      "n": 61,
+      "key": "ask-cmeng",
+      "label": "Ask CMeng (landing page only)",
+      "group": "Project workspace",
+      "verdict": "Not tested",
+      "c": 0,
+      "h": 0,
+      "m": 1,
+      "l": 0,
+      "roots": [
+        "R1"
+      ],
+      "defects": [
+        {
+          "sev": "Medium",
+          "root": "R1",
+          "text": "Risk to test next: the answers draw on the same facts that disagree across pages (bonds, RFIs, critical count, EOT date). Each suggested question should be run once and compared with this review."
+        }
+      ],
+      "rules": [
+        "Ask CMeng must read the single project-facts layer, so its answers cannot differ from the pages."
+      ]
+    },
+    {
+      "n": 62,
+      "key": "portfolio",
+      "label": "Portfolio Overview",
+      "group": "Portfolio",
+      "verdict": "Misleading",
+      "c": 0,
+      "h": 3,
+      "m": 2,
+      "l": 0,
+      "roots": [
+        "R1",
+        "R2",
+        "R5",
+        "R7"
+      ],
+      "defects": [
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Same rule, different result per project: extended date shown for BLIND-COM, withheld for REEM 112."
+        },
+        {
+          "sev": "High",
+          "root": "R5",
+          "text": "Portfolio card has no forecast finish, no days late, no cost; the first field on every card is \"Productivity forecast: Unresolved\"."
+        },
+        {
+          "sev": "High",
+          "root": "R1",
+          "text": "Action count for REEM 112 differs on four pages (13 / 287 / 267 / 3)."
+        },
+        {
+          "sev": "Medium",
+          "root": "R7",
+          "text": "Test projects mixed into the live portfolio."
+        },
+        {
+          "sev": "Medium",
+          "root": "R2",
+          "text": "\"0 current positions\" across 85 projects, including the fully loaded one."
+        }
+      ],
+      "rules": [
+        "Card = forecast vs extended contract, days late, CPI/EAC, top threat.",
+        "One action count definition.",
+        "Separate test projects from the live portfolio."
+      ]
+    }
+  ]
+}

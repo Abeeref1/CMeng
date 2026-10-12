@@ -10,7 +10,7 @@ function renderCompletionPosition(p,detailsOpen=false){
   ['Submitted programme finish',p.submittedFinishIso?planningShortDate(p.submittedFinishIso):'Not available','Current reporting programme'],
   ['CMeng calendar recalculation',p.independentFinishIso?planningShortDate(p.independentFinishIso):'Not available',p.calculationState==='scenario'?'Calculated with assumptions':p.calculationState==='calculated'?'Calculated from programme calendars':'Full network not calculable'],
   ['Difference',delta,'Recalculation minus submitted finish; includes time of day'],
-  ['Contractual completion',p.contractualFinishIso?planningShortDate(p.contractualFinishIso):'Not confirmed','Separate contract comparison']
+  [p.extendedContractFinishIso?'Contract completion including awarded EOT':'Contractual completion',(p.extendedContractFinishIso||p.contractualFinishIso)?planningShortDate(p.extendedContractFinishIso||p.contractualFinishIso):'Not confirmed',p.extendedContractFinishIso?'Original completion '+planningShortDate(p.contractualFinishIso)+' plus awarded time':'Separate contract comparison']
  ]);
  const limits=p.limitations||[];
  return '<section class="completion-position" aria-label="Completion position"><h4>Completion position</h4>'+values+'<p><b>What this means:</b> '+escapeHtml(p.interpretation)+'</p><p>'+escapeHtml(p.contractNote)+'</p>'+

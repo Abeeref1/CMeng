@@ -1,4 +1,5 @@
-import type { OcrProvider, AiPageVerifier } from "../../pdf-document-parser/src";
+import type { OcrProvider, AiPageVerifier, PdfDocumentResult } from "../../pdf-document-parser/src";
+import type {RasterCellEvidence} from './raster-table';
 
 export interface BoqPdfCellLocator {
   page: number;
@@ -23,6 +24,7 @@ export interface BoqPdfLineItem {
   sourceCells: Record<string, BoqPdfCellLocator>;
   status: "verified" | "unresolved";
   diagnostics: string[];
+  rasterEvidence?: {rotation:number;imageWidth:number;imageHeight:number;cells:Record<string,RasterCellEvidence[]>};
 }
 
 export interface AiBoqCellEvidence {
@@ -48,11 +50,13 @@ export interface AiBoqTableExtractor {
 
 export interface BoqPdfOptions {
   ocrProvider?: OcrProvider;
+  onProgress?: (pageNumber:number,totalPages:number,phase:'page_read'|'table_read')=>void;
   aiPageVerifier?: AiPageVerifier;
   aiTableExtractor?: AiBoqTableExtractor;
 }
 
 export interface BoqPdfResult {
+  pageRead?: PdfDocumentResult;
   totalPages: number;
   nativeTablePages: number;
   ocrTablePages: number;

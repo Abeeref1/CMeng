@@ -142,7 +142,6 @@ export function inferScheduleRole(
   path: string,
   requested?: string | null,
 ): StoredScheduleRevision["role"] {
-  if(scenarioName(path)&&!/\brecovery\b/i.test(path))return "scenario";
   const normalized = (requested ?? "")
     .trim()
     .toLowerCase()
@@ -151,6 +150,7 @@ export function inferScheduleRole(
     normalized === "baseline" ||
     normalized === "update" ||
     normalized === "recovery" ||
+    normalized === "scenario" ||
     normalized === "revised_baseline"
   ) return normalized;
 
@@ -164,21 +164,28 @@ export function inferScheduleRole(
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-  if (/\brevised\s+baseline\b/.test(words)) {
+  // Proposed/revised baseline submissions are governed baseline candidates,
+  // not ordinary updates and not current control programmes.
+  if (
+    /\b(?:revised|proposed)\s+baseline\b/.test(words) ||
+    /\brebaseline(?:d|ing)?\b/.test(words)
+  ) {
     return "revised_baseline";
   }
-  if (/\brecovery\b/.test(words)) {
+  // A schedule source that explicitly says "baseline" must fail closed as a
+  // baseline candidate. Treating an unapproved contract/tender/baseline programme
+  // as an ordinary update can silently make historical/contract basis current.
+  if (/\bbaseline\b/.test(words)) {
+    return "baseline";
+  }
+  // Recovery intent is wider than the literal word "recovery". Mitigation and
+  // acceleration programmes must fail closed as scenarios until purpose is
+  // explicitly confirmed.
+  if (/\b(recovery|mitigation|acceleration)\b/.test(words)) {
     return "recovery";
   }
-  if (
-    /\bbaseline\b/.test(words) &&
-    (
-      /\brev(?:ision)?\s*0\b/.test(words) ||
-      /\brev0\b/.test(source) ||
-      /(?:^|[\/_-])s0?1(?:[\/_-]|$)/.test(source)
-    )
-  ) {
-    return "baseline";
+  if (scenarioName(path)) {
+    return "scenario";
   }
   if (/\bupdate\b/.test(words)) {
     return "update";

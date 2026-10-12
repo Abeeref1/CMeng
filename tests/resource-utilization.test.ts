@@ -176,7 +176,7 @@ test("XER resource adapter preserves UMEASURE effective capacity and stored peri
   );
 });
 
-test("Resource Utilization selects effective source capacity and calculates overload only when capacity exists", () => {
+test("Resource Utilization selects effective approved capacity and calculates overload only when capacity exists", () => {
   const parsed = parseXerBytes(
     Buffer.from(resourceXer(), "utf8"),
   );
@@ -198,6 +198,11 @@ test("Resource Utilization selects effective source capacity and calculates over
           "2026-09-18T19:30:00.000Z",
         producerVersion:
           "resource-util-v1",
+        capacityConfirmations:[
+          {resourceId:'R1',capacityUnitsPerHour:2,effectiveFromIso:'2025-01-01',approvedBy:'PMC Resource Manager',sourceRef:'approved-capacity:R1:2025'},
+          {resourceId:'R1',capacityUnitsPerHour:4,effectiveFromIso:'2026-01-01',approvedBy:'PMC Resource Manager',sourceRef:'approved-capacity:R1:2026'},
+          {resourceId:'R3',capacityUnitsPerHour:1,effectiveFromIso:'2025-01-01',approvedBy:'PMC Resource Manager',sourceRef:'approved-capacity:R3:2025'},
+        ],
       },
     );
 

@@ -3,6 +3,7 @@ import {operationalReporting} from './reporting-state';
 import {hseReportPosition} from './hse-report-evidence';
 import {projectDataDate,canonicalTimeClaims} from './canonical-time-claims';
 import {sourceTables} from '../../truth-kernel/src';
+import {commercialCanonical} from './commercial-canonical';
 import {documentReadReview} from './document-read-review';
 
 /** Availability is about the failed prerequisite, not a project risk score. */
@@ -20,6 +21,8 @@ export function evidenceAvailabilityReview(state:ProjectRuntimeState){
   });
   const risks=operationalReporting(state).risk;
   const bonds=supplied.filter(d=>/bond|guarantee/i.test(d.documentType+' '+d.sourceFilename));
+  const securityRecords=commercialCanonical(state).bonds??state.controls.bonds??[];
+  const securityMissing=securityRecords.flatMap(row=>[!row.amount?'amount/currency':null,!row.expiryIso?'expiry date':null].filter(Boolean));
   const items = [
     {topic:'HSE report figures',state:reports.periodEndIso?'read':hseDocs.some(d=>d.hseSummary)?'read_not_adopted':hseDocs.length?'present_not_read':'not_provided',
       detail:reports.periodEndIso?'Reported period figures are available. They do not establish which incident cases remain open.':hseDocs.some(d=>d.hseSummary)?'Report figures have been read but their period or reporting basis has not been selected.':hseDocs.length?'A source report is present, but its figures have not been extracted.':'No source report was supplied.',
@@ -29,8 +32,9 @@ export function evidenceAvailabilityReview(state:ProjectRuntimeState){
       action:permitDocuments.some(d=>!d.readComplete)?'Complete the document reading and request the dated permit register and activity links.':'Request permit IDs, applications, approvals, validity dates and activity links.',documents:permitDocuments},
     {topic:'Risk ratings',state:!risks.sourceRecordCount?'not_provided':risks.validation.ratingInconsistencyGroups.length?'validation_failed':risks.undatedRecordCount?'reporting_dates_missing':'read',
       detail:risks.validation.explanation,action:'Confirm the rating matrix or documented overrides and the dates on which each risk was open.',documents:[]},
-    {topic:'Bonds and guarantees',state:(state.controls.bonds?.length??0)>0?'records_present':bonds.length?'present_not_read':'not_provided',
-      detail:'Security values and expiry require a dated bond or guarantee record; contract wording alone does not establish current securities.',action:'Request the security register and instrument documents, with values, currency and expiry.',documents:bonds.map(d=>d.sourceFilename)},
+    {topic:'Bonds and guarantees',state:securityRecords.length?'records_present':bonds.length?'present_not_read':'not_provided',
+      detail:securityRecords.length?securityRecords.length+' security instruments are held; current coverage is assessed against their values, dates and contract terms.':'Security values and expiry require a dated instrument; contract wording alone is not an instrument.',
+      action:securityRecords.length?(securityMissing.length?'Complete only these fields in the held instruments: '+[...new Set(securityMissing)].join(', '):'Review current instrument cover against the contract and outstanding advance.'):bonds.length?'Read the supplied instruments and preserve their values and dates.':'Request the security register and instrument documents.',documents:bonds.map(d=>d.sourceFilename)},
   ];
   const extra=[{topic:'Determinations',pattern:/determination|award|decision/i},{topic:'Cost history',pattern:/cost.?history|cost.?report|cost.?ledger|cost_evm/i}];
   const tables=sourceTables(supplied,[]);

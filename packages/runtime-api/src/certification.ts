@@ -1391,10 +1391,10 @@ export function certifyCrossModuleConsistency(
     )
       ? quantity.series
       : [];
-  const quantityUnitKeys =
+  const quantityItemUnitKeys =
     quantitySeries.map(
       (series: any) =>
-        series.unitKey,
+        series.quantityItemId+'|'+series.unitKey,
     );
   const quantityCurveContractOk =
     !quantity ||
@@ -1407,6 +1407,7 @@ export function certifyCrossModuleConsistency(
           typeof series
             .seriesKey ===
             "string" &&
+          typeof series.quantityItemId === "string" && series.quantityItemId.length > 0 &&
           typeof series
             .unitKey ===
             "string" &&
@@ -1423,16 +1424,16 @@ export function certifyCrossModuleConsistency(
           )
       ) &&
       new Set(
-        quantityUnitKeys,
+        quantityItemUnitKeys,
       ).size ===
-        quantityUnitKeys.length
+        quantityItemUnitKeys.length
     );
 
   checks.push(
     booleanCheck(
       "QUANTITY_CURVE_UNIT_AUTHORITY_CONTRACT",
       quantityCurveContractOk,
-      "Quantity S-Curve must remain unit-keyed, keep one series per unit key and declare governed versus scenario mapping authority.",
+      "Quantity S-Curve must keep one separate series per BOQ item and unit, and declare governed versus scenario mapping authority. Different items must never be added together merely because their units match.",
       [
         {
           source:
@@ -1443,9 +1444,9 @@ export function certifyCrossModuleConsistency(
         },
         {
           source:
-            "quantity-scurve.unitKeys",
+            "quantity-scurve.itemUnitKeys",
           value:
-            quantityUnitKeys.join(
+            quantityItemUnitKeys.join(
               ",",
             ),
         },
@@ -1459,7 +1460,7 @@ export function certifyCrossModuleConsistency(
   const adoption=scheduleDocument?.scheduleAdoption;
   checks.push({checkId:'CURRENT_PROGRAMME_ADOPTION_AUTHORITY',
     state:!scheduleBasis?.activeArtifactId?'not_applicable':selectedSchedule&&!isScenarioRevision(selectedSchedule)&&scheduleDocument?.basisState==='active'&&scheduleDocument.linkedArtifactId===selectedSchedule.revision.revisionId&&selectedSchedule.sourceHashSha256===scheduleDocument.sourceHashSha256&&adoption?.sourceHashSha256===scheduleDocument.sourceHashSha256?'pass':'fail',
-    detail:'The active programme must exclude drafts/scenarios and retain an explicit decision or disclosed pre-upgrade source selection. A later data date is not an adoption decision.',
+    detail:'The active analytical programme must exclude drafts/scenarios and retain a governed source decision: explicit selection, migrated retained selection, or a later ordinary submitted update. Submitted-update authority does not imply baseline or contractual approval.',
     values:[{source:'current-programme-all-schedule-consumers',value:{revisionId:scheduleBasis?.activeArtifactId??null,method:adoption?.method??null}}]});
   const boqSelection=resolveBoqSource(state,state.quantities?.scheduleRevisionId??'').selection;
   const candidateBoq=boqSelection.state==='candidate'&&!boqSelection.adoptedSource;

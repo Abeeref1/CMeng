@@ -85,7 +85,7 @@ test('known critical and negative float stay visible with unreadable calendars a
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const source=createSourceFile('ui.js',script,ScriptTarget.Latest,true);
   const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderNearCriticalVisual')!.getText(source);
-  const html=runInNewContext(fn+';renderNearCriticalVisual(data)',{data:result,projectionFor:(d:unknown)=>d,fmt:String,escapeHtml:String,
+  const html=runInNewContext(fn+';renderNearCriticalVisual(data)',{data:result,projectionFor:(d:unknown)=>d,fmt:String,escapeHtml:String,shortRevision:(v:unknown)=>v??'Previous programme',
     planningDaysBetween:()=>null,planningShortDate:(d:unknown)=>d??'Unresolved',planningStateLabel:String,
     planningKpis:(rows:unknown)=>JSON.stringify(rows),planningFloatHistogram:()=>'',planningFinishPeriodBars:()=>'',distributionSummary:()=>''});
   assert.match(html,/Known critical and negative-float activities/);assert.match(html,/1 known; total unconfirmed/);

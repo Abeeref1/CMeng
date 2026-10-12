@@ -20,9 +20,9 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     const text=fragments.map(f=>f.text).join('\n');
     const pattern=noticeKind==='claim_notice'?/(?:current\s+)?initial\s+claim\s+notice\s*[:|\n]?\s*(\d+)\s+(?:calendar\s+)?days|initial\s+notice\s+of\s+claim\s+shall\s+be\s+given\s+within\s+(\d+)\s+(?:calendar\s+)?days/gi:
       /fully\s+detailed\s+claim\s*[:\n]?\s*(\d+)\s+(?:calendar\s+)?days|(?:fully\s+)?detailed\s+claim[^.]{0,100}?within\s+(\d+)\s+(?:calendar\s+)?days/gi;
-    const matches=fragments.flatMap(f=>[...f.text.matchAll(pattern)].map(m=>({days:Number(m[1]??m[2]),locator:f.locator})));
+    const matches=fragments.flatMap(f=>[...f.text.matchAll(pattern)].map(m=>({days:Number(m[1]??m[2]),locator:f.locator,context:f.text.slice(m.index!,m.index!+m[0].length+200).split(/\n\s*(?:Sub[- ]Clause|\d+\.\d+)/i)[0]??''})));
     for(const term of labelledTerms.filter(v=>v.documentId===document.documentId)){
-      for(const ref of term.sourceRefs)matches.push({days:term.value,locator:ref.split(':').slice(-2).join(':')});
+      for(const ref of term.sourceRefs)matches.push({days:term.value,locator:ref.split(':').slice(-2).join(':'),context:text});
     }
     const periods=[...new Set(matches.map(m=>m.days))];
     const effective=/Effective Date\s*[:|\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
@@ -30,11 +30,12 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     // An undated amendment must not overwrite the original rule.
     if(document.role==='amendment'&&!from)continue;
     for(const days of periods){
+      const ruleText=matches.filter(m=>m.days===days).map(m=>m.context).join(' ');
       rules.push({requirementId:document.documentId+':'+noticeKind+':'+days,
         sourceFilename:evidence?.sourceFilename??document.documentId,
         noticeKind,eventCategories:[],noticePeriodDays:days,
         effectiveFromIso:from,effectiveToIso:null,
-        triggerBasis:noticeKind==='detailed_claim'?'not_stated':/became aware|become aware|should have become aware/i.test(text)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(text)?'event_start':'not_stated',
+        triggerBasis:/became aware|become aware|should have become aware/i.test(ruleText)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(ruleText)?'event_start':'not_stated',
         state:periods.length===1&&Boolean(evidence)&&sections.some(s=>s.sourceMode==='deterministic')?'official':'candidate',
         clauseIdentifiers:[...new Set([...text.matchAll(/(?:Sub[- ]Clause|Clause|Article)\s+(\d+(?:\.\d+)*)/gi)].map(m=>m[1]!))],
         evidenceRefs:[...new Set(matches.filter(m=>m.days===days).map(m=>m.locator))].map(locator=>({sourceType:'contract' as const,sourceId:document.documentId,locator})),
