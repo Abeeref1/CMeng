@@ -1391,15 +1391,21 @@ function buildBundle(
   );
 
   measureBundle('progress_breakdown_projection');
+  const independentStageTimings:Array<{part:string;ms:number}>=[];
+  let independentStageStarted=bundleProfile?performance.now():0;
+  const markIndependent=(part:string)=>{if(bundleProfile){const now=performance.now();independentStageTimings.push({part,ms:now-independentStageStarted});independentStageStarted=now;}};
   const independentForecast = cachedIndependentForecast(model, generatedAt);
+  markIndependent('current_cpm');
   const productivityForecast =
     sourceProductivityForecastEvidence(state);
+  markIndependent('productivity_evidence');
   const forecastControl =
     forecastControlForState(
       state,
       model,
       independentForecast,
     );
+  markIndependent('forecast_reconciliation_and_contract');
   const forecastTaxonomy =
     forecastControl.taxonomy;
   modules.set(
@@ -1549,6 +1555,7 @@ function buildBundle(
     ),
   );
 
+  markIndependent('progress_report');
   const revisionTrend =
     buildRevisionTrendProjection(
       ordered.map(
@@ -1577,6 +1584,7 @@ function buildBundle(
     ),
   );
 
+  markIndependent('revision_trend');
   const varianceTrends =
     buildVarianceTrendsProjection(
       ordered.map(
@@ -1609,6 +1617,7 @@ function buildBundle(
     ),
   );
 
+  markIndependent('variance_trends');
   if (ordered.length >= 2) {
     const before =
       ordered.at(-2)!.revision;
@@ -1680,6 +1689,8 @@ function buildBundle(
     );
   }
 
+  markIndependent('schedule_change_report');
+  if(bundleProfile)process.stdout.write(JSON.stringify({event:'independent_change_stage_profile',projectId:state.projectId,stages:independentStageTimings,totalMs:independentStageTimings.reduce((n,p)=>n+p.ms,0)})+'\n');
   measureBundle('independent_forecast_and_change');
   const forecastSnapshots =
     ordered.map((stored) =>
