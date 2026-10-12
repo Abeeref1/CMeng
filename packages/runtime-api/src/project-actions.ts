@@ -268,7 +268,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
           :group.key==='risk-rating-rule'?'The register supplies inconsistent ratings for identical scores. Original ratings are retained until the rating rule is confirmed.'
           :group.key==='programme-logic'?'The submitted programme includes duplicate IDs or missing links. The planner must validate the original programme.'
           :group.key==='procurement-date-check'||group.key==='register-date-check'?group.note
-          :'CMeng identified '+subset.length+' source finding'+(subset.length===1?'':'s')+'. Compare the extracted facts before deciding whether any document must be changed.';
+          :'CMeng identified '+subset.length+' source finding'+(subset.length===1?'':'s')+'. Available values remain usable; only the listed fields need correction if the source is wrong. Compare the extracted facts before changing a document.';
       }
       (item.category==='information'?information:actions).push(item);
     };
