@@ -29,12 +29,15 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const lagRows=(predicate:(hours:number)=>boolean)=>relations.filter(r=>r.lagHours!==null&&predicate(r.lagHours)).map(r=>({relationshipId:r.relationshipId,predecessor:r.predecessorActivityId,successor:r.successorActivityId,type:r.type,lagHours:r.lagHours}));
  const detail=execution.filter(a=>a.activityType==='task'),cutoff=model?.dataDateIso?.slice(0,10)??null;
  const baselineKnown=detail.filter(a=>a.baselineFinishIso&&a.baselineDateBasis!=='xer_target_dates');
+ // Per-activity source membership must be linear. Array.includes here created
+ // a quadratic scan for every cold first dashboard on large real programmes.
+ const baselineKnownSet=new Set(baselineKnown);
  const planned=baselineKnown.filter(a=>cutoff&&a.baselineFinishIso!.slice(0,10)<=cutoff);
  const completed=baselineKnown.filter(a=>cutoff&&a.actualFinishIso&&a.actualFinishIso.slice(0,10)<=cutoff);
  const baselineComplete=detail.length>0&&baselineKnown.length===detail.length;
  const unknownActual=detail.filter(a=>a.status==='completed'&&!a.actualFinishIso).map(a=>a.activityId);
  const bei={value:cutoff&&baselineComplete&&!unknownActual.length&&planned.length?completed.length/planned.length:null,completed:completed.length,planned:planned.length,
-  missingBaselineActivityIds:detail.filter(a=>!baselineKnown.includes(a)).map(a=>a.activityId),missingActualFinishActivityIds:unknownActual,
+  missingBaselineActivityIds:detail.filter(a=>!baselineKnownSet.has(a)).map(a=>a.activityId),missingActualFinishActivityIds:unknownActual,
   basis:'Actual completed detail activities divided by detail activities due to finish under the adopted baseline at the Data Date; milestone and summary records excluded.'};
  const dated=[...new Set(revisions.map(r=>r.dataDateIso?.slice(0,10)).filter((v):v is string=>!!v))].sort();
  const updateGaps=dated.slice(1).map((to,i)=>({from:dated[i]!,to,calendarDays:Math.round((Date.parse(to)-Date.parse(dated[i]!))/86400000)})).filter(g=>g.calendarDays>45);

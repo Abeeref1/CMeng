@@ -26,3 +26,20 @@ test('CPLI uses matching calendar units for remaining length and required-date h
  const value=pmcScheduleRules(model,[], '2031-09-12').cpli;
  assert.ok(value.remainingWorkingHours!>0);assert.equal(value.totalFloatWorkingHours,16);assert.equal(value.value,(value.remainingWorkingHours!+16)/value.remainingWorkingHours!);
 });
+
+test('Programme quality retains exact source-order list of activities whose baseline is not established',()=>{
+ const model=loadCertifiedDemoProject('PMC-MISSING-BASELINE').schedules.at(-1)!.revision.model;
+ const sample=model.activities[0]!;
+ model.activities=[
+  {...sample,activityId:'B1',activityType:'task',status:'not_started',baselineFinishIso:'2030-08-01',baselineDateBasis:'controlled_baseline'},
+  {...sample,activityId:'M1',activityType:'task',status:'not_started',baselineFinishIso:null},
+  {...sample,activityId:'X1',activityType:'task',status:'not_started',baselineFinishIso:'2030-08-02',baselineDateBasis:'xer_target_dates'},
+  {...sample,activityId:'B2',activityType:'task',status:'completed',baselineFinishIso:'2030-08-03',baselineDateBasis:'controlled_baseline',actualFinishIso:null},
+  {...sample,activityId:'M2',activityType:'task',status:'not_started',baselineFinishIso:null},
+ ];
+ model.relationships=[];
+ const got=pmcScheduleRules(model);
+ assert.deepEqual(got.bei.missingBaselineActivityIds,['M1','X1','M2']);
+ assert.deepEqual(got.bei.missingActualFinishActivityIds,['B2']);
+ assert.equal(got.bei.value,null,'BEI stays unavailable until all source baselines are confirmed');
+});
