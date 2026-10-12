@@ -236,9 +236,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         ?identity(noticeVersions.map(v=>[v.documentId,v.value,v.unit,v.effectiveFromIso,v.effectiveToIso,v.sourceRefs]))
         :group.key==='risk-rating-rule'?identity(state.evidenceDocuments.filter(d=>/risk/i.test(d.documentType+' '+d.category)).map(d=>[d.documentId,d.sourceHashSha256,d.basisState])):undefined;
       const saved=fingerprint?state.controls.reviewDecisions?.[group.key]:undefined;
-      if(saved?.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
+      if(saved&&saved.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
         resolution={category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Contracts Manager to determine the applicable interpretation.',completionRule:'A contracts determination is required.'},target:{type:'module',moduleKey:'contract-particulars-bonds',label:'Review the contract terms'}};
-      else if(saved?.sourceFingerprint===fingerprint)
+      else if(saved&&saved.sourceFingerprint===fingerprint)
         resolution=informationResolution('Recorded on '+saved.confirmedAt.slice(0,10)+'. The original contract and register records remain unchanged.');
       const missing=subset.some(issue=>issue.kind==='missing_information');
       // Missing optional or source-unproven fields remain visible as information.
