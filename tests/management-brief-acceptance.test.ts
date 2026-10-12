@@ -41,7 +41,9 @@ function fixture(){
    submittedDaysAfterExtendedCompletion:{value:null},
    amendmentEotStatements:[{documentId:'C02',statement:'Amendment states: "Extension of Time 60 calendar days"',basis:'Extracted contract wording'}]
   },
-  schedule:{submittedProgrammeCompletionIso:{value:'2029-01-02'}}
+  schedule:{submittedProgrammeCompletionIso:{value:'2029-01-02'}},
+  controls:{overdueRfiCount:{value:86,complete:true},openCriticalMajorNcrCount:{value:38,complete:false},openRiskCount:{value:null,complete:false}},
+  commercial:{currencies:[{currency:'SAR',currentContractValue:{value:6100000000,complete:true},approvedVariationAmount:{value:260000000,complete:false},cpi:{value:null},forecastEac:{value:null}}]}
  }};
  return {d,data};
 }
@@ -71,6 +73,14 @@ test('When independent CPM fails, source pressure is shown but zero is not passe
  assert.match(html,/Not established/);
  assert.doesNotMatch(html,/<td>0<\/td><\/tr>/,'unavailable driving network must not be shown as a verified zero');
  assert.match(html,/Milestone exposure cannot be cleared or ranked/);
+ assert.match(html,/Important schedule inconsistency to investigate/);
+ assert.match(html,/The submitted finish precedes the original contract date/);
+ assert.match(html,/Overdue RFIs:.*86/);
+ assert.match(html,/Major / critical NCRs:.*38 known; full total not confirmed/);
+ assert.match(html,/SAR commercial position/);
+ assert.match(html,/6,100,000,000/);
+ assert.match(html,/260,000,000/);
+ assert.match(html,/forecast cost at completion Not established/);
  assert.match(html,/8,506 activities changed/);
  assert.match(html,/300 were added/);
  assert.match(html,/Full completion calculations and evidence qualifications/);

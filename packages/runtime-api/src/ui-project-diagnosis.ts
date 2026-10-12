@@ -93,6 +93,8 @@ function renderProjectBrief(d,data=null){
  const sourceQualified=d.criticalityBasis!=='independent_cpm';
  const fmtCount=(n)=>typeof n==='number'?fmt(n)+(sourceQualified?' reported':''):'Not established';
  const progress=typeof data?.progress?.durationWeightedProgressPercent==='number'?data.progress.durationWeightedProgressPercent:null;
+ const tension=typeof originalDifference==='number'&&originalDifference<0&&typeof negative==='number'&&negative>0
+   ?'<p><b>Important schedule inconsistency to investigate:</b> The submitted finish precedes the original contract date, yet '+fmt(negative)+' activities carry negative float. Review interim constraints, calendars and programme logic before inferring the governing completion risk.</p>':'';
  const originalComparison=typeof originalDifference==='number'
   ?'The submitted completion is '+(originalDifference<0?fmt(Math.abs(originalDifference))+' calendar days before':originalDifference>0?fmt(originalDifference)+' calendar days after':'on')+' the original contractual completion'+(originalDifference===0?' date.':'.'):'The submitted finish cannot yet be compared with the original contractual date.';
  const verifiedComparison=typeof extendedDifference==='number'
@@ -126,7 +128,7 @@ function renderProjectBrief(d,data=null){
  ]);
  const summary='<section class="diagnosis-section brief-management-conclusion"><h4>Management conclusion</h4>'+
   '<p><b>Completion:</b> '+escapeHtml(originalComparison)+' '+escapeHtml(verifiedComparison)+'</p>'+
-  '<p><b>Schedule confidence:</b> '+escapeHtml(networkMessage)+'</p>'+
+  '<p><b>Schedule confidence:</b> '+escapeHtml(networkMessage)+'</p>'+tension+
   '<p><b>Required management response:</b> Establish the governing contract date, correct or reconcile the programme logic and calendars, and require dated recovery plans from the affected workfront owners.</p>'+
   '<p><small>All figures use the stated reporting date. No source-float warning or date comparison independently establishes contractual delay responsibility.</small></p></section>';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
@@ -152,6 +154,22 @@ function renderProjectBrief(d,data=null){
   ?fmt(revision.modified??0)+' activities changed, '+fmt(revision.added??0)+' were added and '+fmt(revision.removed??0)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
   :revision.basis||'No comparable earlier adopted programme is available.';
  const changeNext=revision.state==='available'?'<p><b>Decision needed from Project Controls:</b> Validate material changes and their authority before accepting the update as a recovery commitment.</p>':'';
+ const controls=data?.projectFacts?.controls||{};
+ const financial=Array.isArray(data?.projectFacts?.commercial?.currencies)?data.projectFacts.commercial.currencies:[];
+ const displayFact=f=>f?.value===null||f?.value===undefined?'Not established':fmt(f.value)+(f.complete===false?' known; full total not confirmed':'');
+ const deliveryRows=[
+  ['Overdue RFIs',controls.overdueRfiCount,'Dated overdue design responses'],
+  ['Major / critical NCRs',controls.openCriticalMajorNcrCount,'Open source records, qualified if incomplete'],
+  ['Open risks',controls.openRiskCount,'Register count only when established']
+ ];
+ const deliveryAndCommercial='<section class="diagnosis-section"><h4>Delivery controls and commercial exposure</h4>'+
+  planningKpis(deliveryRows.map(row=>[row[0],displayFact(row[1]),row[2]]))+
+  (financial.length?financial.slice(0,2).map(c=>'<p><b>'+escapeHtml(c.currency)+' commercial position:</b> Current contract value '+escapeHtml(displayFact(c.currentContractValue))+
+    '; approved variation amount '+escapeHtml(displayFact(c.approvedVariationAmount))+
+    '; CPI '+escapeHtml(displayFact(c.cpi))+
+    '; forecast cost at completion '+escapeHtml(displayFact(c.forecastEac))+'.</p>').join(''):'<p>No reconciled currency-specific commercial position is available.</p>')+
+  '<p>These are independent source measures. Do not add variations to the current contract value or infer cost performance without a consistent stated basis.</p>'+
+  '<p>'+managementModuleLink('commercial-overview','Open Commercial Overview')+' '+managementModuleLink('cross-domain-accountability','Open accountable team work')+'</p></section>';
  const sourceDetails='<details class="management-brief-support"><summary>Full completion calculations and evidence qualifications</summary>'+
    renderCompletionPosition(d.completion)+
    '<p>'+escapeHtml(d.summary||'')+'</p>'+
@@ -163,7 +181,7 @@ function renderProjectBrief(d,data=null){
   summary+keyFigures+contractPosition+
   '<section class="diagnosis-section"><h4>Schedule pressure and affected workfronts</h4><p>'+escapeHtml(networkMessage)+'</p>'+driversHtml+'</section>'+
   '<section class="diagnosis-section"><h4>Milestones requiring protection</h4>'+milestoneHtml+'</section>'+
-  '<section class="diagnosis-section"><h4>What changed since the previous programme</h4><p>'+escapeHtml(revisionText)+'</p>'+changeNext+'</section>'+
+  '<section class="diagnosis-section"><h4>What changed since the previous programme</h4><p>'+escapeHtml(revisionText)+'</p>'+changeNext+'</section>'+deliveryAndCommercial+
   '<section class="diagnosis-section"><h4>Management decisions and delegated actions</h4>'+renderProjectPrioritySummary(d.actionRegister)+'</section>'+
   sourceDetails+'</section>';
 }
