@@ -303,14 +303,14 @@ function experiencePreview(primaryView,limit=2){
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
   const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
   const roleContext=experienceRoleLensContext(role);
-  const reading=experienceManagementReading(key,brief);
+  const reading=key==='pmo-analysis'?'':experienceManagementReading(key,brief);
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>Page-specific review</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
   // Planning keeps the full technical page visible. Controls leads with its
   // canonical variance/forecast context and a concise visual preview. Director
   // and executive lenses lead with cross-domain decisions. Every lens retains
   // one unchanged full-detail disclosure, so presentation never changes facts.
-  const content=role==='overall'?analysis
+  const content=key==='pmo-analysis'?(role==='overall'?analysis:roleContext+analysis):role==='overall'?analysis
     :role==='planning'?roleContext+analysis
     :role==='controls'?roleContext+experiencePreview(primaryView,2)+experienceDisclosure('Detailed controls, charts and records',analysis,'Same canonical page facts')
     :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page');

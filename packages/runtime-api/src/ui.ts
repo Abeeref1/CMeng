@@ -2255,7 +2255,9 @@ function renderPmoVisual(data){
   const briefCommercial=renderManagementCommercialFacts(data);
   return '<section class="planning-view management-view">'+
     (data.projectDiagnosis?renderProjectBrief(data.projectDiagnosis,data):renderCompletionPosition(data.completionPosition))+
-    briefCommercial+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+'</section>';
+    '<details class="management-detail"><summary>Supporting commercial and programme analysis</summary><div class="planning-panel-body">'+
+    briefCommercial+experienceDisclosure("Detailed project controls position",detail,"KPIs, charts, finish dates and programme health")+
+    '</div></details></section>';
 }
 function renderProgrammeQuality(q){
  if(!q||q.state==='missing')return '';
@@ -5503,7 +5505,7 @@ function renderDirector(d){
   html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';
   (d.commercialByCurrency||[]).forEach(r=>{html+='<div class="currency-card"><div class="currency-code">'+escapeHtml(r.currency)+'</div>'+[["Pending variations",r.pendingVariationAmount],["Approved variations · source aggregate",r.approvedVariationAmount],["Certified unpaid",r.certifiedUnpaidAmount],["Retention deducted through DD",r.retentionDeductedAmount],["Source held balance",r.retentionHeldAmount],["Active bonds",r.activeBondAmount],["Claimed",r.claimClaimedAmount],["LD scenario",r.ldScenarioAmount]].map(x=>'<div class="currency-line" title="'+escapeHtml(commercialFindingTitle(x[1]))+'"><span>'+x[0]+'</span><strong>'+escapeHtml(commercialFindingText(x[1]))+'</strong></div>').join("")+'</div>'});
   if(!(d.commercialByCurrency||[]).length)html+='<div class="empty">No governed commercial currency position is established.</div>';
-  html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.slice(0,5).map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div><button class="btn small" onclick="openProjectActions()">View all '+fmt(d.managementActionCount??d.managementActions?.length??0)+' project actions</button><div style="margin-top:14px" class="scalar-grid">'+
+  html+='</div></div><div class="card"><h3>Management actions</h3><div class="actions">'+((d.managementActions||[]).length?d.managementActions.slice(0,5).map(a=>'<div class="action">'+escapeHtml(a)+'</div>').join(""):'<div class="empty">No current actions generated.</div>')+'</div>'+managementModuleLink('cross-domain-accountability','Open all accountable project-team actions')+'<div style="margin-top:14px" class="scalar-grid">'+
     '<div class="scalar"><b>Reported HSE exposure hours</b><span>'+escapeHtml(fmt(d.sourceInterpretation?.hse?.metrics?.manHours??null))+'</span></div>'+
     '<div class="scalar"><b>Reported lost-time injuries</b><span>'+escapeHtml(d.sourceInterpretation?.hse?.metrics?.lostTimeInjuries??"Not established")+'</span></div>'+
     '<div class="scalar"><b>Major / critical NCR</b><span>'+escapeHtml(evidenceCount(ctrl.qualityEvidenceState,ctrl.openCriticalMajorNcrCount,ctrl.reporting?.knownCounts?.openCriticalMajorNcrCount))+'</span></div>'+

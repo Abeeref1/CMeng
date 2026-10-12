@@ -70,6 +70,7 @@ export interface ProjectFactsSnapshot {
     extendedContractCompletionIso:ProjectFact<string>;
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
+    submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
     amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string}>;
   };
@@ -393,6 +394,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
     time:{
       amendmentEotStatements,
+      submittedDaysAfterOriginalCompletion:fact(calendarDifference(submittedFinish?.dateIso,commercial.timeExposure.contractualCompletion.value),'Submitted programme finish minus the recorded original contractual completion, calendar-date comparison only. This is not the award-adjusted deadline or entitlement.','calculated_with_stated_basis'),
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),

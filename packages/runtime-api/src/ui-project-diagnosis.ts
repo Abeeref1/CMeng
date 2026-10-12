@@ -1,5 +1,5 @@
 export const projectDiagnosisStyles=String.raw`
-.project-diagnosis{margin-bottom:24px}.diagnosis-heading h3{margin:0;font-size:22px}.diagnosis-heading p{color:var(--muted);margin:5px 0 16px}.diagnosis-summary{font-size:17px;line-height:1.65;margin:18px 0}.diagnosis-section{background:white;border:1px solid var(--line);border-radius:10px;padding:18px;margin:18px 0}.diagnosis-section h4{font-size:18px;margin:0 0 8px}.diagnosis-section p{line-height:1.6}.diagnosis-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.diagnosis-table{overflow-x:auto}.diagnosis-table table{font-size:12px;min-width:720px}.diagnosis-table td{max-width:340px;white-space:normal;overflow-wrap:anywhere}.diagnosis-note{font-size:13px;color:var(--muted)}.diagnosis-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}.diagnosis-action{padding:14px;background:#f8fbfe;border:1px solid var(--line);border-radius:8px}.diagnosis-action h5{margin:0 0 7px;font-size:15px}.diagnosis-action p{font-size:13px;margin:6px 0}
+.project-diagnosis{margin-bottom:24px}.diagnosis-heading h3{margin:0;font-size:22px}.diagnosis-heading p{color:var(--muted);margin:5px 0 16px}.diagnosis-summary{font-size:17px;line-height:1.65;margin:18px 0}.diagnosis-section{background:white;border:1px solid var(--line);border-radius:10px;padding:18px;margin:18px 0}.diagnosis-section h4{font-size:18px;margin:0 0 8px}.diagnosis-section p{line-height:1.6}.diagnosis-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.diagnosis-table{overflow-x:auto}.diagnosis-table table{font-size:12px;min-width:720px}.diagnosis-table td{max-width:340px;white-space:normal;overflow-wrap:anywhere}.diagnosis-note{font-size:13px;color:var(--muted)}.diagnosis-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}.diagnosis-action{padding:14px;background:#f8fbfe;border:1px solid var(--line);border-radius:8px}.diagnosis-action h5{margin:0 0 7px;font-size:15px}.diagnosis-action p{font-size:13px;margin:6px 0}.brief-management-conclusion{border-left:3px solid #75899c}.management-brief-support{margin-top:20px}.management-brief .planning-kpi-grid{margin:10px 0 18px}.management-brief .diagnosis-section p{margin:9px 0}
 `;
 export const projectDiagnosisScript=String.raw`
 let diagnosisTableSeq=0;const diagnosisTables=new Map();
@@ -27,9 +27,19 @@ async function diagnosisPage(id,offset){
 }
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
 function renderProjectPrioritySummary(register){
- if(!register)return '';
+ const actions=register?.actions||[];
+ const decisions=actions.filter(row=>String(row.recordKey||'').startsWith('review|'));
+ const team=actions.filter(row=>!String(row.recordKey||'').startsWith('review|'));
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
- return '<p>'+fmt(register.total)+' project actions · same ranking as Command Center.</p><ol>'+(register.actions||[]).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b><br>'+escapeHtml(row.owner||row.organisation||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'))+(row.dueIso?' · '+planningShortDate(row.dueIso):'')+'<br>'+escapeHtml(text(row.requiredAction))+'</li>').join('')+'</ol>';
+ const grouped=team.slice(0,3).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b>'+
+   '<p>'+escapeHtml(text(row.consequence||row.requiredAction||''))+'</p>'+
+   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Project Controls Manager')+(row.dueIso?' · Earliest reported due: '+escapeHtml(planningShortDate(row.dueIso)):'')+'</small></li>').join('');
+ return '<p>Contract interpretations and other confirmations are managed in Project Review. Operational work is assigned through Accountability.</p>'+
+  '<p><button class="btn small" onclick="openProjectActions()">Open Project Review</button> '+managementModuleLink('cross-domain-accountability','Open Accountability')+'</p>'+
+  (decisions.length?'<p><b>'+fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' included in the ranked register.</b> Confirm only after reviewing the original evidence.</p>':'')+
+  '<h5>Highest-ranked delegated follow-ups</h5>'+
+  (grouped?'<ol>'+grouped+'</ol>':'<p>No team follow-up is currently ranked from the available source records.</p>')+
+  (team.length>3?'<p>'+fmt(team.length-3)+' other ranked groups remain in Accountability, with the full individual records.</p>':'');
 }
 function renderProjectDashboardSummary(d){
  if(!d)return '';
@@ -66,49 +76,96 @@ function renderProjectDashboardSummary(d){
 }
 function renderProjectBrief(d,data=null){
  if(!d)return '';
- const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
- const actions=(d.actions||[]).slice(0,5);
- const milestones=(d.milestoneRows||[]).slice(0,5);
- const revision=d.revision||{};
- const facts=data?.projectFacts?.time||{},original=facts.contractualCompletionIso?.value??null;
- const extended=facts.extendedContractCompletionIso?.value??null,submitted=data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value??d.completion?.submittedFinishIso??null;
- const establishedLate=facts.submittedDaysAfterExtendedCompletion?.value??null;
- const scenarioLate=extended&&submitted?
-   (Date.parse(String(submitted).slice(0,10)+'T00:00:00Z')-Date.parse(String(extended).slice(0,10)+'T00:00:00Z'))/86400000:null;
- const lateDays=typeof establishedLate==='number'?establishedLate:Number.isFinite(scenarioLate)?scenarioLate:null;
- const timeQualified=facts.extendedContractCompletionIso?.complete===false;
- const timing=planningKpis([
-   ['Original contract date',original?planningShortDate(original):'Not in source','Contract source date'],
-   ['Awarded EOT',managementValue(facts.awardedEotDays,'days'),'Dated determination register; amendment incorporation remains separate'],
-   ['Contract date with awarded EOT',extended?planningShortDate(extended):'Not in source','Source-based extended commitment'],
-   ['Submitted programme finish',submitted?planningShortDate(submitted):'Not in source','Current source programme'],
-   ['Days late against extended contract',typeof lateDays==='number'?
-     (lateDays>0?fmt(lateDays)+' days late':lateDays<0?fmt(Math.abs(lateDays))+' days early':'On the extended date'):
-     'Not in source',timeQualified?'Qualified scenario · extension overlap needs confirmation; not a contractual delay determination':'Submitted less awarded-EOT adjusted contract completion']
+ const time=data?.projectFacts?.time||{},scheduleFacts=data?.projectFacts?.schedule||{};
+ const original=time.contractualCompletionIso?.value??d.completion?.contractualFinishIso??null;
+ const submitted=scheduleFacts.submittedProgrammeCompletionIso?.value??d.completion?.submittedFinishIso??null;
+ const extended=time.extendedContractCompletionIso?.value??null;
+ const verifiedExtended=time.extendedContractCompletionIso?.complete===true&&Boolean(extended);
+ const independent=d.completion?.independentFinishIso??null;
+ const verifiedNetwork=d.network?.state==='calculated'&&Boolean(independent);
+ const originalDifference=time.submittedDaysAfterOriginalCompletion?.value??null;
+ const extendedDifference=verifiedExtended?(time.submittedDaysAfterExtendedCompletion?.value??null):null;
+ const amendmentStatements=Array.isArray(time.amendmentEotStatements)?time.amendmentEotStatements:[];
+ const awarded=time.awardedEotDays?.value??null;
+ const calculatedCount=x=>x?.value??x?.knownCount??null;
+ const critical=calculatedCount(d.counts?.critical),negative=calculatedCount(d.counts?.negativeFloat),nearCritical=calculatedCount(d.counts?.nearCritical);
+ const floatOrigin=d.criticalityBasis==='independent_cpm'?'Independent CPM':'Submitted programme float';
+ const sourceQualified=d.criticalityBasis!=='independent_cpm';
+ const fmtCount=(n)=>typeof n==='number'?fmt(n)+(sourceQualified?' reported':''):'Not established';
+ const progress=typeof data?.progress?.durationWeightedProgressPercent==='number'?data.progress.durationWeightedProgressPercent:null;
+ const originalComparison=typeof originalDifference==='number'
+  ?'The submitted completion is '+(originalDifference<0?fmt(Math.abs(originalDifference))+' calendar days before':originalDifference>0?fmt(originalDifference)+' calendar days after':'on')+' the original contractual completion'+(originalDifference===0?' date.':'.'):'The submitted finish cannot yet be compared with the original contractual date.';
+ const verifiedComparison=typeof extendedDifference==='number'
+  ?'Against the independently established adjusted contract date, the submitted programme is '+(extendedDifference<0?fmt(Math.abs(extendedDifference))+' calendar days early':extendedDifference>0?fmt(extendedDifference)+' calendar days late':'on the adjusted completion date')+'.'
+  :'The governing completion date after extension is not established. No contractual lateness figure can be concluded.';
+ const networkMessage=verifiedNetwork
+  ?'CMeng has a reconciled independent finish calculation. Confirm the critical path and activity impacts in the programme detail.'
+  :'CMeng cannot currently establish an independent finish-driving path or recalculated completion. Submitted float is a warning, not proof of project delay.';
+ const amendmentText=amendmentStatements.length
+  ?amendmentStatements.map(row=>'<p><b>Recorded amendment:</b> '+escapeHtml(row.statement)+' <small>('+escapeHtml(readerReference(row.documentId))+')</small></p>').join('')
+  :'<p>No explicit extension wording was identified in the available amendment records.</p>';
+ const determined=typeof awarded==='number'?fmt(awarded)+' days in the dated determination basis':'Not independently established from the determination evidence';
+ const contractPosition='<section class="diagnosis-section"><h4>Contract dates and extension authority</h4>'+
+  planningKpis([
+   ['Original contractual completion',original?planningShortDate(original):'Not established','Recorded original agreement'],
+   ['EOT from determinations',determined,'Separate from amendment wording'],
+   ['Adjusted contractual completion',verifiedExtended?planningShortDate(extended):'Not established','A qualified candidate is not an approved deadline'],
+   ['Submitted programme finish',submitted?planningShortDate(submitted):'Not established','Current submitted programme']
+  ])+
+  amendmentText+
+  '<p><b>Time comparison:</b> '+escapeHtml(originalComparison)+'</p>'+
+  '<p><b>Current contractual position:</b> '+escapeHtml(verifiedComparison)+'</p>'+
+  (extended&&!verifiedExtended?'<details><summary>Qualified date requiring confirmation</summary><p>CMeng holds '+escapeHtml(planningShortDate(extended))+' as an unconfirmed comparison candidate. Its amendment or determination overlap must be reviewed before it becomes a governing date.</p></details>':'')+
+  '</section>';
+ const keyFigures=planningKpis([
+   ['Schedule progress',progress===null?'Not established':fmt(progress)+'%','Duration-weighted source programme; not certified physical progress'],
+   ['Critical activities',fmtCount(critical),floatOrigin],
+   ['Negative-float activities',fmtCount(negative),floatOrigin],
+   ['Near-critical activities',fmtCount(nearCritical),floatOrigin],
+   ['Independent CPM finish',independent?planningShortDate(independent):'Not established','Calculated finish, not an EOT decision']
  ]);
- const amendments=facts.amendmentEotStatements||[];
- const amendmentWording=amendments.length?'<section class="diagnosis-section"><h4>Actual amendment EOT wording</h4>'+
-   amendments.map(item=>'<p><b>'+escapeHtml(readerReference(item.documentId))+'</b> · '+escapeHtml(item.statement)+
-     '<br><small>'+escapeHtml(item.basis)+'</small></p>').join('')+'</section>':
-   '<p>No applicable amendment text is recorded; this does not assert zero awarded days.</p>';
- const constraints=data?.completionMilestoneConstraints||[];
- const constraintNames={CS_MSO:'Start on',CS_MEO:'Finish on',CS_MEOB:'Finish on or before',CS_MEOA:'Finish on or after',CS_MANDSTART:'Mandatory start',CS_MANDFIN:'Mandatory finish'};
- const constraintHtml=constraints.length?'<p><b>Completion milestone constraints:</b> '+constraints.map(r=>escapeHtml(r.activityReference+' · '+(r.activityName||'')+' · '+(r.typeLabel||constraintNames[r.type]||r.type)+' · '+planningShortDate(r.dateIso))).join('; ')+'. These source restrictions do not amend the contractual completion.</p>':'<p><b>Completion milestone constraint:</b> No dated constraint is recorded on the identified completion milestone.</p>';
- const timeHtml='<section class="diagnosis-section"><h4>Contract-time position and awarded extension</h4>'+timing+amendmentWording+constraintHtml+'</section>';
- const driversHtml=drivers.length?'<div class="table-wrap"><table><thead><tr><th>Driver WBS / workfront</th><th>Pressure</th><th>Driving</th><th>Critical</th><th>Negative float</th><th>Lowest float</th></tr></thead><tbody>'+drivers.map(r=>'<tr><td><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / ')||'Project scope')+'</b></td><td>'+escapeHtml(fmt(r.pressureCount||0))+'</td><td>'+escapeHtml(fmt(r.drivingCount||0))+'</td><td>'+escapeHtml(fmt(r.criticalCount||0))+'</td><td>'+escapeHtml(fmt(r.negativeFloatCount||0))+'</td><td>'+escapeHtml(r.worstFloatHours==null?'—':fmt(r.worstFloatHours)+' h')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No concentrated schedule pressure is established from the readable programme fields.</p>';
- const milestoneHtml=milestones.length?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Current date</th><th>Float</th><th>Exposure</th><th>Action</th></tr></thead><tbody>'+milestones.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||'')+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso||r.currentDateIso))+'</td><td>'+escapeHtml(r.totalFloatHours==null?'—':fmt(r.totalFloatHours)+' h')+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(r.reason||r.priority||'Monitor'):String(r.reason||r.priority||'Monitor').toLowerCase().replaceAll('_',' '))+'</td><td>'+escapeHtml(r.action||'Confirm the milestone protection action.')+'</td></tr>').join('')+'</tbody></table></div>':'<p>No priority milestone exposure is established from the current programme evidence.</p>';
- const actionHtml=actions.length?'<ol>'+actions.map(r=>'<li><b>'+escapeHtml(r.reason)+'</b><br><span class="muted">'+escapeHtml((r.activityIds||[r.activityId]).filter(Boolean).slice(0,5).join('; '))+(r.wbs?' · '+escapeHtml(String(r.wbs).split(' / ').slice(-3).join(' / ')):'')+'</span><br>'+escapeHtml(r.action)+'</li>').join('')+'</ol>':'<p>No immediate management action can be ranked from the available information.</p>';
- const revisionHtml=revision.state==='available'
-   ?'<p><b>Previous programme comparison:</b> '+escapeHtml(fmt(revision.modified||0))+' changed, '+escapeHtml(fmt(revision.added||0))+' added and '+escapeHtml(fmt(revision.removed||0))+' removed activities. Submitted completion movement: '+escapeHtml(revision.finishMovementCalendarDays==null?'Not established':(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days')+'.</p>'
-   :'<p>'+escapeHtml(revision.basis||'No applicable previous controlled revision is available for comparison.')+'</p>';
- return '<section class="project-diagnosis management-brief"><header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+planningShortDate(d.dataDateIso)+' · '+fmt(d.executionActivityCount)+' execution activities</p></header>'+
+ const summary='<section class="diagnosis-section brief-management-conclusion"><h4>Management conclusion</h4>'+
+  '<p><b>Completion:</b> '+escapeHtml(originalComparison)+' '+escapeHtml(verifiedComparison)+'</p>'+
+  '<p><b>Schedule confidence:</b> '+escapeHtml(networkMessage)+'</p>'+
+  '<p><b>Required management response:</b> Establish the governing contract date, correct or reconcile the programme logic and calendars, and require dated recovery plans from the affected workfront owners.</p>'+
+  '<p><small>All figures use the stated reporting date. No source-float warning or date comparison independently establishes contractual delay responsibility.</small></p></section>';
+ const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
+ const driversHtml=drivers.length
+  ?'<div class="table-wrap"><table><thead><tr><th>Workfront</th><th>Activities under pressure</th><th>Critical</th><th>Negative float</th><th>Lowest reported float</th><th>Confirmed driving activities</th></tr></thead><tbody>'+
+    drivers.map(row=>'<tr><td><b>'+escapeHtml(String(row.wbs||'').split(' / ').slice(-3).join(' / ')||'Project workfront')+'</b></td>'+
+      '<td>'+fmt(row.pressureCount??0)+'</td><td>'+fmt(row.criticalCount??0)+'</td><td>'+fmt(row.negativeFloatCount??0)+'</td>'+
+      '<td>'+escapeHtml(row.worstFloatHours==null?'Not established':fmt(row.worstFloatHours)+' hours')+'</td>'+
+      '<td>'+escapeHtml(verifiedNetwork?fmt(row.drivingCount??0):'Not established')+'</td></tr>').join('')+
+    '</tbody></table></div>'
+  :'<p>No concentration ranking is established from the available programme data.</p>';
+ const milestones=(d.milestoneRows||[]).slice(0,5);
+ const milestoneHtml=milestones.length
+  ?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Submitted date</th><th>Float</th><th>Required review</th></tr></thead><tbody>'+
+    milestones.map(row=>'<tr><td>'+escapeHtml((row.name||row.activityId)+' ('+row.activityId+')')+'</td>'+
+      '<td>'+escapeHtml(row.currentFinishIso?planningShortDate(row.currentFinishIso):'Not established')+'</td>'+
+      '<td>'+escapeHtml(row.totalFloatHours==null?'Not established':fmt(row.totalFloatHours)+' hours')+'</td>'+
+      '<td>'+escapeHtml(row.action||'Check the required milestone date and its dependent work.')+'</td></tr>').join('')+
+    '</tbody></table></div>'
+  :'<p>'+(verifiedNetwork?'No milestone is currently ranked as a priority from the available programme checks.':'Milestone exposure cannot be cleared or ranked as finish-driving until the network is reconciled.')+'</p>';
+ const revision=d.revision||{};
+ const revisionText=revision.state==='available'
+  ?fmt(revision.modified??0)+' activities changed, '+fmt(revision.added??0)+' were added and '+fmt(revision.removed??0)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
+  :revision.basis||'No comparable earlier adopted programme is available.';
+ const changeNext=revision.state==='available'?'<p><b>Decision needed from Project Controls:</b> Validate material changes and their authority before accepting the update as a recovery commitment.</p>':'';
+ const sourceDetails='<details class="management-brief-support"><summary>Full completion calculations and evidence qualifications</summary>'+
    renderCompletionPosition(d.completion)+
-   timeHtml+'<p class="diagnosis-summary">'+escapeHtml(d.summary)+'</p>'+
-   '<section class="diagnosis-section"><h4>What is driving the current position</h4><p>Distinct WBS/workfront concentrations are shown rather than repeating the same finish-driving statement per activity.</p>'+driversHtml+'</section>'+
-   '<section class="diagnosis-section"><h4>Milestones to protect</h4>'+milestoneHtml+'</section>'+
-   '<section class="diagnosis-section"><h4>What changed since the previous programme</h4>'+revisionHtml+'</section>'+
-   '<section class="diagnosis-section"><h4>Decisions and actions</h4>'+(d.actionRegister?renderProjectPrioritySummary(d.actionRegister):actionHtml)+'</section>'+
-   '<details><summary>Supporting programme detail</summary><p>Critical '+escapeHtml(diagnosisCell(d.counts?.critical?.knownCount))+' · Negative float '+escapeHtml(diagnosisCell(d.counts?.negativeFloat?.knownCount))+' · Near-critical '+escapeHtml(diagnosisCell(d.counts?.nearCritical?.knownCount))+'.</p><p>'+escapeHtml(d.limitation||'')+'</p></details></section>';
+   '<p>'+escapeHtml(d.summary||'')+'</p>'+
+   '<p><b>Calculation basis:</b> '+escapeHtml(d.criticalityBasisLabel||'Available programme information only')+'.</p>'+
+   (data?.completionMilestoneConstraints?.length?'<p>'+fmt(data.completionMilestoneConstraints.length)+' dated completion milestone constraints are retained in source details.</p>':'<p>No explicit dated constraint was identified on the selected completion milestone. This does not prove that milestones are free of schedule exposure.</p>')+
+   '</details>';
+ return '<section class="project-diagnosis management-brief">'+
+  '<header class="diagnosis-heading"><h3>Management brief</h3><p>Data Date '+escapeHtml(planningShortDate(d.dataDateIso))+' · '+fmt(d.executionActivityCount)+' execution activities</p></header>'+
+  summary+keyFigures+contractPosition+
+  '<section class="diagnosis-section"><h4>Schedule pressure and affected workfronts</h4><p>'+escapeHtml(networkMessage)+'</p>'+driversHtml+'</section>'+
+  '<section class="diagnosis-section"><h4>Milestones requiring protection</h4>'+milestoneHtml+'</section>'+
+  '<section class="diagnosis-section"><h4>What changed since the previous programme</h4><p>'+escapeHtml(revisionText)+'</p>'+changeNext+'</section>'+
+  '<section class="diagnosis-section"><h4>Management decisions and delegated actions</h4>'+renderProjectPrioritySummary(d.actionRegister)+'</section>'+
+  sourceDetails+'</section>';
 }
 function renderProjectDiagnosis(d){
  if(!d)return '';
