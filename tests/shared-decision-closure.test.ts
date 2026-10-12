@@ -228,7 +228,7 @@ test('Unclassified whole-programme dimensions retain exact overall plan, progres
  const {state}=fixture(t),current=state.schedules.at(-1)!.revision.model,baseline=state.schedules[0]!.revision.model;
  const result=buildProgressBreakdownProjection(current,{generatedAt:'2026-08-31T00:00:00Z',producerVersion:'full-unclassified-parity',baselineModel:baseline,previousModel:baseline,scopeClassification:{rows:[]}});
  const summary=result.overallSummary!;
- for(const dimension of result.dimensionViews){
+ for(const dimension of result.dimensionViews??[]){
   if(dimension.rows.length!==1||dimension.rows[0]!.activityCount!==summary.activityCount)continue;
   const row=dimension.rows[0]!;
   for(const [left,right] of [['baselinePlannedPercent','baselinePlannedPercent'],['currentPlanPercent','currentPlanPercent'],['scheduleProgressPercent','durationWeightedProgressPercent'],['criticalCount','criticalCount'],['nearCriticalCount','nearCriticalCount'],['negativeFloatCount','negativeFloatCount'],['delayedActivityCount','delayedActivityCount'],['milestoneThreatIds','milestoneThreatIds'],['managementAction','managementAction']] as const)
