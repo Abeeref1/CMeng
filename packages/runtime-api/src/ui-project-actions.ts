@@ -24,11 +24,40 @@ async function loadProjectActions(){
  catch(e){if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;projectActionState={projectId:owner,status:'error',message:e.message};}
  updateActionIndicator();for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
 }
+function projectReviewFinding(i){
+ const code=String(i.code||''),detail=String(i.detail||''),all=(code+' '+detail+' '+i.summary).toLowerCase();
+ if(/schedule.graph|broken.relationship|broken.predecessor|broken.successor|duplicate.activity/.test(all)){
+   const dup=/duplicate activity ids?\s*[·: -]*([a-z0-9-]+)/i.exec(detail);
+   const predecessor=/broken predecessors?[^\d]*([0-9]+)/i.exec(detail);
+   const successor=/broken successors?[^\d]*([0-9]+)/i.exec(detail);
+   const examples=[dup?'Repeated activity ID '+dup[1]:null,predecessor?'Missing predecessor example '+predecessor[1]:null,successor?'Missing successor example '+successor[1]:null].filter(Boolean);
+   return {title:'Programme activity and logic references need checking',detail:examples.length?examples.join('. ')+'.':'Some activity IDs or relationship references are invalid.',owner:'Planning Engineer'};
+ }
+ if(/material.link.timing.mismatch/.test(all))return {title:'Procurement need dates and activity dates do not agree',detail:'The Procurement Manager must check each package against the activity it supports.',owner:'Procurement Manager'};
+ if(/closure.before.raised.date/.test(all))return {title:'Some design or inspection records closed before they were raised',detail:'The relevant register owner must check the original raised and closure dates.',owner:'Design / Quality Manager'};
+ if(/risk.rating.score.conflict/.test(all))return {title:'Equal risk scores have different ratings',detail:'The current scores and entered ratings are preserved. Confirm the approved rating basis.',owner:'Risk Manager'};
+ if(/notice.period|contract.notice|noticeperiod|conflicting commercial term candidates/.test(all))return {title:'Contract notice provisions require interpretation',detail:'Compare the effective dates and values above before deciding which provision applies.',owner:'Contracts Manager'};
+ const r=readerIssue(i);
+ const problematic=value=>/[_]{1}|(?:[A-Z]{3,}:)|\b(?:native|data quality|source quality)\s*[·:]/i.test(String(value||''));
+ return {title:problematic(r.title)?'Source record needs review':r.title||'Source record needs review',
+   detail:problematic(detail)?'The supporting source and page references are retained for review.':readerText(detail||r.action||'Review the source record.'),
+   owner:r.owner||'Project Controls Manager'};
+}
 function renderActionFindings(a,expanded=false){
  const readable=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const reference=value=>typeof readerReference==='function'?readerReference(value):readable(value);
- const rows=(a.findings||[]).map(i=>{const r=readerIssue(i);return '<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title||i.summary)+'</summary><p>'+escapeHtml(readable(i.detail))+'</p><p><b>Next step:</b> '+escapeHtml(readable(r.action||i.action))+'</p><p>Affects: '+escapeHtml(i.moduleKeys.map(k=>names[k]||k).join(', '))+'</p>'+(!a.correctionRecords?.length&&i.sourceRefs.length?'<p>Supporting records: '+escapeHtml(i.sourceRefs.map(reference).join('; '))+'</p>':'')+'</details>';}).join('');
+ const unique=new Map();
+ for(const i of a.findings||[]){const r=projectReviewFinding(i),key=r.title+'|'+r.detail;const group=unique.get(key)||{r,modules:new Set(),refs:new Set()};for(const mod of i.moduleKeys??[])group.modules.add(mod);for(const ref of i.sourceRefs??[])group.refs.add(ref);unique.set(key,group);}
+ const rows=[...unique.values()].map(({r,modules,refs})=>'<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title)+'</summary><p>'+escapeHtml(r.detail)+'</p><p><b>Review owner:</b> '+escapeHtml(r.owner)+'</p><p>Relevant pages: '+escapeHtml([...modules].map(k=>names[k]||k).join(', '))+'</p>'+(refs.size?'<p>'+fmt(refs.size)+' source references retained for audit and the full records.</p>':'')+'</details>').join('');
  return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+rows;
+}
+function reviewFindingPreview(a){
+ if(!a.findings?.length||a.evidenceSummary?.length)return '';
+ const groups=new Map();
+ for(const i of a.findings){const r=projectReviewFinding(i);if(!groups.has(r.title))groups.set(r.title,r);}
+ const rows=[...groups.values()];
+ return '<section class="review-evidence"><b>What CMeng found</b><ol>'+rows.slice(0,3).map(r=>'<li><strong>'+escapeHtml(r.title)+'</strong><p>'+escapeHtml(r.detail)+'</p></li>').join('')+'</ol>'+
+   (rows.length>3?'<small>'+fmt(rows.length-3)+' more distinct findings are in supporting information.</small>':'')+'</section>';
 }
 function reviewEvidenceHtml(a){
  if(!a.evidenceSummary?.length)return '';
@@ -87,14 +116,14 @@ function renderProjectActionList(){
   const records=team&&a.recordCount>1?'<p><b>Records in this owner group:</b> '+fmt(a.recordCount)+' · review individual record dates and evidence in the supporting view.</p>':'';
   return '<article class="project-action '+(information?'action-information':team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':'DECISION / SOURCE REVIEW')+'</span>':'')+
-   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+
+   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
    '<p><b>'+(team?'Responsible project-team role:':'Review owner:')+'</b> '+escapeHtml(a.owner||'PMC Project Controls Manager')+'</p>'+records+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
    (a.correctionRecords?.length?'<div><b>Documents and source locations</b><p>'+a.correctionRecords.slice(0,3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>Open all '+fmt(a.correctionRecords.length)+' recorded locations</summary><p>'+a.correctionRecords.slice(3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information?actionResolutionHtml(a):'')+
-   ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Fields and correction details':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
+   ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Findings, owners and affected pages':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
    (a.affectedPages?.length?'<small>Affects '+fmt(a.affectedPages.length)+' view'+(a.affectedPages.length===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';
  };
  return '<div class="action-summary"><b>'+fmt(decisionCount)+' decision'+(decisionCount===1?' requires':'s require')+' your response</b><span>'+fmt(teamCount)+' project-team follow-up group'+(teamCount===1?'':'s')+' assigned to their owners</span><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh</button><button class="btn small" data-action-close>Close</button></div><p>Confirm or review source evidence here. Project-team follow-ups are assigned to the listed roles, not personal approvals. Existing records and rankings remain available.</p><div class="action-filters"><input class="project-action-search" aria-label="Find an action" placeholder="Find an action or document" value="'+escapeHtml(projectActionSearch)+'"><select class="project-action-filter" aria-label="Action type">'+[['all','All decisions and team follow-ups'],['confirmation','Confirm / choose'],['review','Source review'],['follow_up','Project-team follow-up']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><div class="project-action-list">'+pageRows.map(a=>article(a,false)).join('')+'</div>'+(total>perPage?'<p><button class="btn small" data-action-page="-1" '+(projectActionPage===0?'disabled':'')+'>Previous</button> '+fmt(projectActionPage*perPage+1)+'–'+fmt(Math.min((projectActionPage+1)*perPage,total))+' of '+fmt(total)+' <button class="btn small" data-action-page="1" '+((projectActionPage+1)*perPage>=total?'disabled':'')+'>Next</button></p>':'')+(!filtered.length?'<p>'+(items.length?'No actions match this filter.':'No decisions or project-team follow-ups are required for this project.')+'</p>':'')+((data.dataGapsTotalCount??data.information?.length)>0?'<details class="review-inline"><summary>Data gaps · '+fmt(data.dataGapsTotalCount??data.information.length)+'</summary><p>These source fields are not established. Their available source figures remain visible. Items without a direct correction route are listed here.</p>'+(data.information||[]).map(a=>article(a,true)).join('')+(data.dataGapsTotalCount>perPage?'<p><button class="btn small" data-gap-page="-1" '+(projectDataGapsPage===0?'disabled':'')+'>Previous gaps</button> '+fmt(projectDataGapsPage*perPage+1)+'–'+fmt(Math.min((projectDataGapsPage+1)*perPage,data.dataGapsTotalCount))+' of '+fmt(data.dataGapsTotalCount)+' <button class="btn small" data-gap-page="1" '+((projectDataGapsPage+1)*perPage>=data.dataGapsTotalCount?'disabled':'')+'>More gaps</button></p>':'')+'</details>':'')+(comparisonInformation.length?'<details class="review-inline"><summary>Additional information · programme calculation qualifications</summary>'+comparisonInformation.map(a=>article(a,true)).join('')+'</details>':'')+(data.systemCheckCount?'<p>'+fmt(data.systemCheckCount)+' CMeng calculation/check item'+(data.systemCheckCount===1?' is':'s are')+' tracked separately and require no user input.</p>':'');

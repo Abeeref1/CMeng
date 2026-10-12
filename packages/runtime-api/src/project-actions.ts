@@ -258,7 +258,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{}),...(evidenceSummary.length?{evidenceSummary}:{}),...(fingerprint?{reviewFingerprint:fingerprint}:{})};
-      if(resolution.resolution?.kind==='upload'){
+      if(resolution.resolution?.kind==='upload'||item.category==='follow_up'&&refs.length){
         item.correctionRecords=refs.map(ref=>{
           const document=state.evidenceDocuments.find(d=>ref.startsWith('evidence-document:'+d.documentId+':'));
           const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
