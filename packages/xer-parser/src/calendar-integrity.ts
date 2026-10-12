@@ -78,7 +78,24 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
 
     const diagnostics: string[] = [];
     const conversionDiagnostics:string[]=[];
-    const conversionHours=(name:string)=>{const raw=field(row,name);const value=raw===null?NaN:Number(raw);return Number.isFinite(value)&&value>0?value:null;};
+    // Read explicit source aliases without treating a calendar name as a shift.
+    // Conflicting declarations remain unresolved rather than choosing silently.
+    const conversionHours=(name:string,alias:string):number|null=>{
+      const declarations=[name,alias].map(key=>({key,raw:field(row,key)})).filter(item=>item.raw!==null);
+      if(!declarations.length)return null;
+      const values=declarations.map(item=>Number(item.raw));
+      if(values.some(value=>!Number.isFinite(value)||value<=0)){
+        conversionDiagnostics.push(`CALENDAR_CONVERSION_INVALID:${name}`);
+        return null;
+      }
+      if(values.some(value=>Math.abs(value-values[0]!)>0.001)){
+        conversionDiagnostics.push(`CALENDAR_CONVERSION_CONFLICT:${name}:${alias}`);
+        return null;
+      }
+      return values[0]!;
+    };
+    const dayHours=conversionHours('day_hr_cnt','hours_per_day');
+    const weekHours=conversionHours('week_hr_cnt','hours_per_week');
     if (baseCalendarId && !ids.has(baseCalendarId)) {
       missingBase.add(baseCalendarId);
       diagnostics.push(`CALENDAR_BASE_MISSING:${baseCalendarId}`);
@@ -97,8 +114,7 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
           0,
         ) / 60;
 
-      const rawWeekHours=field(row,'week_hr_cnt');
-      const declaredWeekHours=rawWeekHours===null?null:Number(rawWeekHours);
+      const declaredWeekHours=weekHours;
       if (
         declaredWeekHours!==null&&Number.isFinite(declaredWeekHours) &&
         Math.abs(declaredWeekHours - computedWeekHours) > 0.001
@@ -116,8 +132,7 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
         ),
       ];
 
-      const rawDayHours=field(row,'day_hr_cnt');
-      const declaredDayHours=rawDayHours===null?null:Number(rawDayHours);
+      const declaredDayHours=dayHours;
       if (
         declaredDayHours!==null&&Number.isFinite(declaredDayHours) &&
         nonzeroDayHours.length === 1 &&
@@ -143,8 +158,8 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
       // P6 Hours per Time Period are display/input conversion factors. They
       // do not invalidate the independently specified working intervals.
       conversionDiagnostics,
-      conversionDayHours:conversionHours('day_hr_cnt'),
-      conversionWeekHours:conversionHours('week_hr_cnt'),
+      conversionDayHours:dayHours,
+      conversionWeekHours:weekHours,
     });
   }
 

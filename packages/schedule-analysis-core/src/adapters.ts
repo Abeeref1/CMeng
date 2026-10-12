@@ -344,6 +344,7 @@ export function canonicalScheduleFromXer(
       : null);
 
   const taskCodeByNative = new Map<string, string>();
+  const nativeTaskCandidates = new Map<string, Array<{projectId:string;activityId:string}>>();
   for (const row of taskRows) {
     const nativeId = xerField(row, "task_id");
     const projId = xerField(row, "proj_id");
@@ -353,6 +354,9 @@ export function canonicalScheduleFromXer(
         projId + "::" + nativeId,
         activityId,
       );
+      const candidates=nativeTaskCandidates.get(nativeId)??[];
+      candidates.push({projectId:projId,activityId});
+      nativeTaskCandidates.set(nativeId,candidates);
     }
   }
 
@@ -512,12 +516,18 @@ export function canonicalScheduleFromXer(
         "::" +
         predecessorNative;
 
-      const successorActivityId =
-        taskCodeByNative.get(successorKey) ??
-        "native:" + successorKey;
-      const predecessorActivityId =
-        taskCodeByNative.get(predecessorKey) ??
-        "native:" + predecessorKey;
+      // Some exports omit project IDs on link rows. Resolve a missing scope
+      // only from one uniquely identifiable task in a single-project export.
+      // Explicit external IDs and ambiguous multi-project IDs stay unresolved.
+      const resolveEndpoint=(scope:string|null,nativeId:string,key:string)=>{
+        const exact=taskCodeByNative.get(key);
+        if(exact)return exact;
+        const candidates=nativeTaskCandidates.get(nativeId)??[];
+        return scope===null&&projectIds.size===1&&candidates.length===1
+          ?candidates[0]!.activityId:"native:"+key;
+      };
+      const successorActivityId = resolveEndpoint(successorProject,successorNative,successorKey);
+      const predecessorActivityId = resolveEndpoint(predecessorProject,predecessorNative,predecessorKey);
 
       const external =
         predecessorProject !== null &&

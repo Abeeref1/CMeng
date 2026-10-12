@@ -18,6 +18,7 @@ const EXACT: Record<string, XerUnitSemantic> = {
   lag_hr_cnt: "hours",
   lag_hr_cnt_elapsed: "hours",
   day_hr_cnt: "hours_per_day",
+  hours_per_day: "hours_per_day",
   drtn_complete_pct: "percent",
   phys_complete_pct: "percent",
   task_id: "identifier",
