@@ -230,14 +230,16 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         const filename=state.evidenceDocuments.find(d=>d.documentId===v.documentId)?.sourceFilename??'Contract';
         evidenceSummary.push(v.value+' '+v.unit+' ('+filename+(v.clauseIdentifier?', clause '+v.clauseIdentifier:'')+')'+(v.effectiveFromIso?', from '+v.effectiveFromIso.slice(0,10):', original provision')+(v.effectiveToIso?' until '+v.effectiveToIso.slice(0,10):''));
       }
-      if(group.key==='risk-rating-rule')for(const row of (riskValidation.ratingInconsistencyGroups??[]).slice(0,3))
+      if(group.key==='risk-rating-rule')for(const row of (riskValidation.ratingInconsistencyGroups??[]))
         evidenceSummary.push('Score '+row.score+': '+row.recordCount+' risks — '+row.counts.filter(x=>x.rating).map(x=>x.count+' '+x.rating).join(', '));
       const fingerprint=group.key==='notice-term-versions'
         ?identity(noticeVersions.map(v=>[v.documentId,v.value,v.unit,v.effectiveFromIso,v.effectiveToIso,v.sourceRefs]))
         :group.key==='risk-rating-rule'?identity(state.evidenceDocuments.filter(d=>/risk/i.test(d.documentType+' '+d.category)).map(d=>[d.documentId,d.sourceHashSha256,d.basisState])):undefined;
       const saved=fingerprint?state.controls.reviewDecisions?.[group.key]:undefined;
-      if(saved?.sourceFingerprint===fingerprint&&saved.choice!=='refer_contracts')
-        resolution=informationResolution('Confirmed on '+saved.confirmedAt.slice(0,10)+'. Original source evidence and dates remain unchanged.');
+      if(saved?.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
+        resolution={category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Contracts Manager to determine the applicable interpretation.',completionRule:'A contracts determination is required.'},target:{type:'module',moduleKey:'contract-particulars-bonds',label:'Review the contract terms'}};
+      else if(saved?.sourceFingerprint===fingerprint)
+        resolution=informationResolution('Recorded on '+saved.confirmedAt.slice(0,10)+'. The original contract and register records remain unchanged.');
       const missing=subset.some(issue=>issue.kind==='missing_information');
       // Missing optional or source-unproven fields remain visible as information.
       // Only explicit decisions and proven conflicting records create actions.
