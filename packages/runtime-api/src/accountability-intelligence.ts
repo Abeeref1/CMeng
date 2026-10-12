@@ -183,24 +183,25 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   const buckets=new Map<string,typeof recordActions>();
   for(const action of recordActions){
     const cleanup=(action.consequence??'').startsWith('All linked activities are complete.');
-    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),action.owningModule??'project controls',cleanup?'register_cleanup':'active_control'].join('|');
+    const register=['delay-claims','notices-claims'].includes(action.owningModule??'')?'claims-and-notices':action.owningModule??'project controls';
+    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),register,cleanup?'register_cleanup':'active_control'].join('|');
     const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
     (action as ManagementAction&{ownerGroupKey:string}).ownerGroupKey=key;
   }
   const actions=[...buckets.entries()].map(([key,members])=>{
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
     const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
-    const sourceCount=members.length;
+    const sourceCount=new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size;
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
     return {...first,
       actionId:'accountability-owner-group:'+encodeURIComponent(key),
       dueIso:members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null,
       recordKey:'accountability-owner-group:'+key,
-      issue:sourceCount+' '+(cleanup?'register clean-up':'open control')+' record'+(sourceCount===1?'':'s')+' · '+(first.owningModule??'project control'),
+      issue:(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)',
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
       affectedScope:scope.slice(0,20),
-      requiredAction:(cleanup?'Reconcile completed-work records with the register and confirm close-out evidence. ':'Review source records by the accountable party; prioritise driving work and approaching due dates. ')+first.requiredAction,
+      requiredAction:first.requiredAction,
       sourceRefs:references.slice(0,50),owner,
     };
   });
@@ -210,7 +211,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     const [owner,register,stateKey]=key.split('|');
     const priority=(members.some(m=>m.severity==='critical')?'critical':members.some(m=>m.severity==='high')?'high':members.some(m=>m.severity==='medium')?'medium':'low');
     return {groupId:'accountability-owner-group:'+encodeURIComponent(key),key,owner,register,state:stateKey,
-      memberActionIds:members.map(m=>m.actionId),count:members.length,
+      memberActionIds:members.map(m=>m.actionId),count:new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size,
       earliestDueIso:members.map(m=>m.dueIso).filter((d):d is string=>!!d).sort()[0]??null,
       topPriority:priority};
   });

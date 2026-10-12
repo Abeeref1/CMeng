@@ -1993,7 +1993,7 @@ async function route(
   }
 
   if(url.pathname.endsWith('/diagnosis')){const {diagnosisRequest}=await import('./diagnosis-api');if(await diagnosisRequest(req,res,url))return;}
-  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion))?$/.exec(url.pathname);
+  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
@@ -2021,6 +2021,46 @@ async function route(
       }
       json(res,200,workflow);return;
     }
+    if(req.method==='POST'&&actionsMatch[2]==='confirm-review'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+      if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
+      const action=projectActionRegisterForState(state).workflow.actions.find(a=>a.id===input.actionId);
+      if(!action||!['review-notice','review-risk'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+        throw new Error('The supporting records or review request changed. Refresh Project Review.');
+      const key=action.target.kind==='review-notice'?'notice-term-versions':'risk-rating-rule';
+      const choice=String(input.choice??'');
+      const allowed=key==='notice-term-versions'?['confirm_versions','refer_contracts']:['keep_source_ratings','enter_matrix'];
+      if(!allowed.includes(choice))throw new Error('Select one of the available decisions.');
+      let matrix:Record<string,string>|undefined;
+      if(choice==='confirm_versions'){
+        const {contractTermVersions}=await import('./contract-term-versions');
+        const terms=contractTermVersions(state).filter(t=>t.term==='noticePeriodDays');
+        if(!terms.length||terms.some(t=>t.role==='amendment'&&t.applicability!=='prospective'))
+          throw new Error('The amendment effective date is not confirmed from the source. Refer this interpretation to the Contracts Manager.');
+      }
+      if(choice==='enter_matrix'){
+        const {operationalControlsAsOf}=await import('./operational-reporting');
+        const dates=state.schedules.at(-1)?.revision.model.dataDateIso??null;
+        const affected=operationalControlsAsOf(state,dates).risk.validation.ratingInconsistencyGroups;
+        matrix={};
+        for(const line of String(input.matrixText??'').split(/[\r\n;]+/).map(x=>x.trim()).filter(Boolean)){
+          const m=/^([0-9]+(?:\.[0-9]+)?)\s*[:=,]\s*(.{1,60})$/.exec(line);
+          if(!m)throw new Error('Enter one score and rating per line, for example 0.4=High.');
+          const score=String(Number(m[1])),rating=m[2]!.trim();
+          if(!rating||Object.hasOwn(matrix,score))throw new Error('Each score must have exactly one rating.');
+          matrix[score]=rating;
+        }
+        if(!affected.length||affected.some(g=>!Object.hasOwn(matrix!,String(g.score))))
+          throw new Error('Provide a rating for every affected score. Open the full findings for the score list.');
+      }
+      const sourceRefs=[...new Set((action.findings??[]).flatMap(f=>f.sourceRefs))];
+      runtimeProjects.updateControls(projectId,{reviewDecisions:{...(state.controls.reviewDecisions??{}),[key]:{
+        sourceFingerprint:action.reviewFingerprint,choice,...(matrix?{matrix}:{}),
+        confirmedAt:new Date().toISOString(),sourceRefs
+      }}});
+      invalidateProject(projectId);
+      json(res,200,{projectId,projectVersion:runtimeProjects.get(projectId)?.version,completedActionId:action.id,choice});
+    }catch(err){json(res,409,{error:'review_confirmation_not_completed',message:err instanceof Error?err.message:'The decision was not saved.'});}return;}
     if(req.method==='POST'&&actionsMatch[2]==='confirm-schedule'){try{const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before confirming.');const action=programmeActions(state).find(a=>a.id===input.actionId);if(!action?.target.canConfirm||!action.target.revisionId)throw new Error('This schedule needs review before it can be selected. Refresh Actions required.');runtimeProjects.adoptSchedule(projectId,action.target.revisionId,action.target.phaseId);invalidateProject(projectId);json(res,200,{projectId,projectVersion:state.version,completedActionId:action.id});}catch(e){json(res,409,{error:'schedule_confirmation_not_completed',message:e instanceof Error?e.message:'The schedule could not be confirmed.'});}return;}
     if(req.method==='POST'&&actionsMatch[2]==='confirm-contract-completion'){try{
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));

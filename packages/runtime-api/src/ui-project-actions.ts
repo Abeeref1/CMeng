@@ -1,5 +1,5 @@
 export const projectActionsStyles=String.raw`
-.action-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#4a5e72}.project-action-list{display:grid;gap:12px}.project-action{border:1px solid #d6e1eb;border-left:4px solid #b57a26;border-radius:9px;background:#fff;padding:18px;scroll-margin-top:110px}.project-action h4{margin:0 0 8px;font-size:17px}.project-action p{margin:7px 0;line-height:1.5}.project-action footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.action-filters{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.action-filters input{flex:1;min-width:180px}.action-filters input,.action-filters select,.project-action select,.project-action input[type="text"],.project-action input[type="date"],.project-action input[type="file"]{padding:10px;border:1px solid #bdcbd8;border-radius:7px;font:inherit;background:#fff}.project-action-count{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:10px;background:#fff0d5;color:#6f4616}.action-notification{font-size:13px;color:#7a541c;margin:0 0 12px}.project-action small{color:#546c81}.action-resolution{display:grid;gap:9px;margin-top:12px;padding:12px;border:1px solid #e1e8ef;border-radius:8px;background:#fbfdff}.action-resolution-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}.action-resolution label{display:grid;gap:5px;font-size:11px;font-weight:750;color:#5b6d80}.action-resolution .btn{justify-self:start}.action-inline-message{min-height:18px;font-size:12px;color:#526579}.action-information{border-left-color:#9aa8b5;background:#fbfcfd}.action-information .action-resolution{display:none}.action-findings-preview{margin:12px 0;padding:13px 16px;border-radius:8px;background:#f5f8fc;border:1px solid #dce5ee;font-size:13px;line-height:1.55}.action-findings-preview ol{margin:9px 0 3px;padding-left:21px}.action-findings-preview li{margin-bottom:11px}.action-findings-preview li:last-child{margin-bottom:0}.action-findings-preview p{margin:4px 0;color:#38506b}.action-correction-note{font-size:13px;line-height:1.55}.action-follow-up{border-left-color:#8796a4}.action-type{display:block;font-size:12px;font-weight:700;color:#536579;margin:0 0 8px}
+.action-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#4a5e72}.project-action-list{display:grid;gap:12px}.project-action{border:1px solid #d6e1eb;border-left:4px solid #b57a26;border-radius:9px;background:#fff;padding:18px;scroll-margin-top:110px}.project-action h4{margin:0 0 8px;font-size:17px}.project-action p{margin:7px 0;line-height:1.5}.project-action footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.action-filters{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.action-filters input{flex:1;min-width:180px}.action-filters input,.action-filters select,.project-action select,.project-action input[type="text"],.project-action input[type="date"],.project-action input[type="file"]{padding:10px;border:1px solid #bdcbd8;border-radius:7px;font:inherit;background:#fff}.project-action-count{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:10px;background:#fff0d5;color:#6f4616}.action-notification{font-size:13px;color:#7a541c;margin:0 0 12px}.project-action small{color:#546c81}.action-resolution{display:grid;gap:9px;margin-top:12px;padding:12px;border:1px solid #e1e8ef;border-radius:8px;background:#fbfdff}.action-resolution-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}.action-resolution label{display:grid;gap:5px;font-size:11px;font-weight:750;color:#5b6d80}.action-resolution .btn{justify-self:start}.action-inline-message{min-height:18px;font-size:12px;color:#526579}.action-information{border-left-color:#9aa8b5;background:#fbfcfd}.action-information .action-resolution{display:none}.action-findings-preview{margin:12px 0;padding:13px 16px;border-radius:8px;background:#f5f8fc;border:1px solid #dce5ee;font-size:13px;line-height:1.55}.action-correction-note{font-size:13px;line-height:1.55}.review-evidence{border:1px solid #d6e2ef;background:#f6f9fd;padding:12px 16px;margin:12px 0;border-radius:8px;line-height:1.6}.review-evidence li{margin:6px 0}.review-matrix{width:100%;min-height:90px}.action-follow-up{border-left-color:#8796a4}.action-type{display:block;font-size:12px;font-weight:700;color:#536579;margin:0 0 8px}
 `;
 export const projectActionsScript=String.raw`
 let projectActionState=null,projectActionRequest=0,projectActionSearch='',projectActionFilter='all',projectActionPage=0,projectDataGapsPage=0,projectActionSearchTimer=null;
@@ -24,22 +24,46 @@ async function loadProjectActions(){
  catch(e){if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;projectActionState={projectId:owner,status:'error',message:e.message};}
  updateActionIndicator();for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
 }
+function projectReviewFinding(i){
+ const code=String(i.code||''),detail=String(i.detail||''),all=(code+' '+detail+' '+i.summary).toLowerCase();
+ if(/schedule.graph|broken.relationship|broken.predecessor|broken.successor|duplicate.activity/.test(all)){
+   const dup=/duplicate activity ids?\s*[·: -]*([a-z0-9-]+)/i.exec(detail);
+   const predecessor=/broken predecessors?[^\d]*([0-9]+)/i.exec(detail);
+   const successor=/broken successors?[^\d]*([0-9]+)/i.exec(detail);
+   const examples=[dup?'Repeated activity ID '+dup[1]:null,predecessor?'Missing predecessor example '+predecessor[1]:null,successor?'Missing successor example '+successor[1]:null].filter(Boolean);
+   return {title:'Programme activity and logic references need checking',detail:examples.length?examples.join('. ')+'.':'Some activity IDs or relationship references are invalid.',owner:'Planning Engineer'};
+ }
+ if(/material.link.timing.mismatch/.test(all))return {title:'Procurement need dates and activity dates do not agree',detail:'The Procurement Manager must check each package against the activity it supports.',owner:'Procurement Manager'};
+ if(/closure.before.raised.date/.test(all))return {title:'Some design or inspection records closed before they were raised',detail:'The relevant register owner must check the original raised and closure dates.',owner:'Design / Quality Manager'};
+ if(/risk.rating.score.conflict/.test(all))return {title:'Equal risk scores have different ratings',detail:'The current scores and entered ratings are preserved. Confirm the approved rating basis.',owner:'Risk Manager'};
+ if(/notice.period|contract.notice|noticeperiod|conflicting commercial term candidates/.test(all))return {title:'Contract notice provisions require interpretation',detail:'Compare the effective dates and values above before deciding which provision applies.',owner:'Contracts Manager'};
+ const r=readerIssue(i);
+ const problematic=value=>/[_]{1}|(?:[A-Z]{3,}:)|\b(?:native|data quality|source quality)\s*[·:]/i.test(String(value||''));
+ return {title:problematic(r.title)?'Source record needs review':r.title||'Source record needs review',
+   detail:problematic(detail)?'The supporting source and page references are retained for review.':readerText(detail||r.action||'Review the source record.'),
+   owner:r.owner||'Project Controls Manager'};
+}
 function renderActionFindings(a,expanded=false){
  const readable=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const reference=value=>typeof readerReference==='function'?readerReference(value):readable(value);
- const rows=(a.findings||[]).map(i=>{const r=readerIssue(i);return '<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title||i.summary)+'</summary><p>'+escapeHtml(readable(i.detail))+'</p><p><b>Next step:</b> '+escapeHtml(readable(r.action||i.action))+'</p><p>Affects: '+escapeHtml(i.moduleKeys.map(k=>names[k]||k).join(', '))+'</p>'+(!a.correctionRecords?.length&&i.sourceRefs.length?'<p>Supporting records: '+escapeHtml(i.sourceRefs.map(reference).join('; '))+'</p>':'')+'</details>';}).join('');
+ const unique=new Map();
+ for(const i of a.findings||[]){const r=projectReviewFinding(i),key=r.title+'|'+r.detail;const group=unique.get(key)||{r,modules:new Set(),refs:new Set()};for(const mod of i.moduleKeys??[])group.modules.add(mod);for(const ref of i.sourceRefs??[])group.refs.add(ref);unique.set(key,group);}
+ const rows=[...unique.values()].map(({r,modules,refs})=>'<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title)+'</summary><p>'+escapeHtml(r.detail)+'</p><p><b>Review owner:</b> '+escapeHtml(r.owner)+'</p><p>Relevant pages: '+escapeHtml([...modules].map(k=>names[k]||k).join(', '))+'</p>'+(refs.size?'<p>'+fmt(refs.size)+' source references retained for audit and the full records.</p>':'')+'</details>').join('');
  return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+rows;
 }
-function projectActionFindingPreview(a){
- const findings=a.findings||[];
- if(!findings.length)return '';
- const entries=findings.slice(0,3).map(issue=>{
-  const explained=readerIssue(issue),detail=readerText(issue.detail||'');
-  return '<li><b>'+escapeHtml(explained.title)+'</b>'+
-   (detail&&detail!==explained.title?'<p>'+escapeHtml(detail)+'</p>':'')+'</li>';
- }).join('');
- return '<div class="action-findings-preview"><b>What CMeng found in the documents already provided</b><ol>'+entries+'</ol>'+
-   (findings.length>3?'<p>'+fmt(findings.length-3)+' more findings are retained under Supporting information.</p>':'')+'</div>';
+function reviewFindingPreview(a){
+ if(!a.findings?.length||a.evidenceSummary?.length)return '';
+ const groups=new Map();
+ for(const i of a.findings){const r=projectReviewFinding(i);if(!groups.has(r.title))groups.set(r.title,r);}
+ const rows=[...groups.values()];
+ return '<section class="review-evidence"><b>What CMeng found</b><ol>'+rows.slice(0,3).map(r=>'<li><strong>'+escapeHtml(r.title)+'</strong><p>'+escapeHtml(r.detail)+'</p></li>').join('')+'</ol>'+
+   (rows.length>3?'<small>'+fmt(rows.length-3)+' more distinct findings are in supporting information.</small>':'')+'</section>';
+}
+function reviewEvidenceHtml(a){
+ if(!a.evidenceSummary?.length)return '';
+ const rows=a.evidenceSummary.slice(0,3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('');
+ const rest=a.evidenceSummary.length>3?'<details><summary>See all '+fmt(a.evidenceSummary.length)+' findings</summary><ol>'+a.evidenceSummary.slice(3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('')+'</ol></details>':'';
+ return '<section class="review-evidence"><b>What CMeng found</b><ol>'+rows+'</ol>'+rest+'</section>';
 }
 function programmePurposeOptions(current='update'){
  return [['update','Progress update'],['baseline','Approved baseline'],['revised_baseline','Approved revised baseline'],['recovery','Recovery plan'],['scenario','Draft / scenario']].map(([value,label])=>'<option value="'+value+'" '+(value===current?'selected':'')+'>'+label+'</option>').join('');
@@ -47,7 +71,13 @@ function programmePurposeOptions(current='update'){
 function actionResolutionHtml(a){
  const t=a.target||{},r=a.resolution||{};
  if(t.type==='module')return '<div class="action-resolution"><button class="btn" data-action-module="'+escapeHtml(t.moduleKey)+'">'+escapeHtml(t.label||'Open supporting record')+'</button></div>';
- if(!r.requiresUserAction)return '';
+ if(['review-notice','review-risk'].includes(t.kind??'')){
+  const choices=(t.reviewOptions||[]).map(x=>'<option value="'+escapeHtml(x.value)+'">'+escapeHtml(x.label)+'</option>').join('');
+  return '<div class="action-resolution"><p>'+escapeHtml(r.instruction)+'</p><label>Your decision<select class="review-choice">'+choices+'</select></label>'+
+   (t.kind==='review-risk'?'<label>Approved score-to-rating matrix (only if selecting the matrix option)<textarea class="review-matrix" placeholder="One score per line, e.g. 0.4=High"></textarea></label>':'')+
+   '<button class="btn primary" data-resolve-review="'+escapeHtml(a.id)+'">Record decision</button><p class="action-inline-message" role="status"></p></div>';
+ }
+ if(!r.requiresUserAction&&!(a.category==='follow_up'&&t.type==='upload'))return '';
  if(t.type==='inline'&&t.kind==='boq-numeric-review')return '<div class="action-resolution"><button class="btn primary" data-boq-numeric-review>Review BOQ readings together</button><p>One saved review updates all affected views. Native values and previously confirmed readings are not requested again.</p></div>';
  if(t.type==='schedule'){
   if(t.needsPurpose)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the programme purpose and use it for reporting.')+'</p><div class="action-resolution-grid"><label>Programme purpose<select class="action-schedule-role">'+programmePurposeOptions(t.scheduleRole||'update')+'</select></label><label>Baseline approval reference<input type="text" class="action-schedule-approval" placeholder="Required only for approved baseline / revised baseline"></label></div><button class="btn primary" data-resolve-schedule="'+escapeHtml(a.id)+'">Confirm and use programme</button><p class="action-inline-message" role="status"></p></div>';
@@ -86,17 +116,29 @@ function renderProjectActionList(){
   const records=team&&a.recordCount>1?'<p><b>Records in this owner group:</b> '+fmt(a.recordCount)+' · review individual record dates and evidence in the supporting view.</p>':'';
   return '<article class="project-action '+(information?'action-information':team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
-   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+(!information?projectActionFindingPreview(a):'')+
-   '<p><b>'+(team?'Responsible project-team role:':a.category==='review'?'Suggested review role:':'Decision owner:')+'</b> '+escapeHtml(!team&&a.owner==='Project evidence owner'&&a.findings?.length?readerIssue(a.findings[0]).owner:a.owner||'PMC Project Controls Manager')+'</p>'+records+
+   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
+   '<p><b>'+(team?'Responsible project-team role:':a.category==='review'?'Suggested review role:':'Decision owner:')+'</b> '+escapeHtml(a.owner||'PMC Project Controls Manager')+'</p>'+records+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
-   (!information&&a.resolution?.instruction&&a.category!=='review'?'<p><b>'+(team?'Project-team follow-up:':'What needs your response:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
-   (a.correctionRecords?.length?'<p><b>Documents and locations to examine:</b> '+a.correctionRecords.map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p>':'')+
+   (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
+   (a.correctionRecords?.length?'<div><b>Documents and source locations</b><p>'+a.correctionRecords.slice(0,3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>Open all '+fmt(a.correctionRecords.length)+' recorded locations</summary><p>'+a.correctionRecords.slice(3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information?actionResolutionHtml(a):'')+
-   ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Complete findings and source evidence':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
+   ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Findings, owners and affected pages':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
    (a.affectedPages?.length?'<small>Affects '+fmt(a.affectedPages.length)+' view'+(a.affectedPages.length===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';
  };
  return '<div class="action-summary"><b>'+fmt(decisionCount)+' matter'+(decisionCount===1?' needs':'s need')+' review or a decision</b><span>'+fmt(teamCount)+' project-team follow-up group'+(teamCount===1?'':'s')+' assigned to their owners</span><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh</button><button class="btn small" data-action-close>Close</button></div><p>Review the specific findings and confirm only decisions you have authority to make. Source warnings do not automatically mean a document is wrong; project-team work remains assigned to its responsible roles.</p><div class="action-filters"><input class="project-action-search" aria-label="Find an action" placeholder="Find an action or document" value="'+escapeHtml(projectActionSearch)+'"><select class="project-action-filter" aria-label="Action type">'+[['all','All project matters'],['confirmation','Confirm / choose'],['review','Documents to review'],['follow_up','Project-team follow-up']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><div class="project-action-list">'+pageRows.map(a=>article(a,false)).join('')+'</div>'+(total>perPage?'<p><button class="btn small" data-action-page="-1" '+(projectActionPage===0?'disabled':'')+'>Previous</button> '+fmt(projectActionPage*perPage+1)+'–'+fmt(Math.min((projectActionPage+1)*perPage,total))+' of '+fmt(total)+' <button class="btn small" data-action-page="1" '+((projectActionPage+1)*perPage>=total?'disabled':'')+'>Next</button></p>':'')+(!filtered.length?'<p>'+(items.length?'No actions match this filter.':'No decisions or project-team follow-ups are required for this project.')+'</p>':'')+((data.dataGapsTotalCount??data.information?.length)>0?'<details class="review-inline"><summary>Data gaps · '+fmt(data.dataGapsTotalCount??data.information.length)+'</summary><p>These source fields are not established. Their available source figures remain visible. Items without a direct correction route are listed here.</p>'+(data.information||[]).map(a=>article(a,true)).join('')+(data.dataGapsTotalCount>perPage?'<p><button class="btn small" data-gap-page="-1" '+(projectDataGapsPage===0?'disabled':'')+'>Previous gaps</button> '+fmt(projectDataGapsPage*perPage+1)+'–'+fmt(Math.min((projectDataGapsPage+1)*perPage,data.dataGapsTotalCount))+' of '+fmt(data.dataGapsTotalCount)+' <button class="btn small" data-gap-page="1" '+((projectDataGapsPage+1)*perPage>=data.dataGapsTotalCount?'disabled':'')+'>More gaps</button></p>':'')+'</details>':'')+(comparisonInformation.length?'<details class="review-inline"><summary>Additional information · programme calculation qualifications</summary>'+comparisonInformation.map(a=>article(a,true)).join('')+'</details>':'')+(data.systemCheckCount?'<p>'+fmt(data.systemCheckCount)+' CMeng calculation/check item'+(data.systemCheckCount===1?' is':'s are')+' tracked separately and require no user input.</p>':'');
+}
+async function resolveReviewDecision(id){
+ if(!actionStateCurrent()||projectActionState.status!=='ready')return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);
+ if(!a)return;
+ const node=actionNode(id),choice=node?.querySelector('.review-choice')?.value,matrixText=node?.querySelector('.review-matrix')?.value||'';
+ if(!choice){actionMessage(id,'Select the applicable decision.');return;}
+ setActionBusy(id,true);actionMessage(id,'Recording the decision…');
+ try{
+  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,sourceFingerprint:a.reviewFingerprint,choice,matrixText})});
+  if(project()===owner)await refresh(false);
+ }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
 function actionNode(id){return document.querySelector('[data-action-id="'+CSS.escape(id)+'"]');}
 function actionMessage(id,text){const node=actionNode(id)?.querySelector('.action-inline-message');if(node)node.textContent=text;}
@@ -180,6 +222,7 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-gap-page]').forEach(b=>b.onclick=()=>{projectDataGapsPage=Math.max(0,projectDataGapsPage+Number(b.dataset.gapPage));void loadProjectActions();});
  root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected);});
  root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
+ root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview));
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
  root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));

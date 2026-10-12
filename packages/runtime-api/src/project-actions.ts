@@ -1,4 +1,6 @@
 import {commercialCanonical} from './commercial-canonical';
+import {contractTermVersions} from './contract-term-versions';
+import {operationalControlsAsOf} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
@@ -25,10 +27,11 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
+  evidenceSummary?:string[];reviewFingerprint?:string;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -61,6 +64,16 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[],context:{compl
         target:{type:'inline',kind:'contract-completion',label:'Confirm contractual completion date',suggestedDateIso}
       };
     }
+    case 'notice-term-versions':
+      return {category:'confirmation',resolution:{kind:'choose',requiresUserAction:true,instruction:'Review the original notice periods and dates, then confirm whether the amendment applies prospectively.',completionRule:'The choice is stored against the same contract documents.'},target:{type:'inline',kind:'review-notice',label:'Confirm notice provisions',reviewOptions:[{value:'confirm_versions',label:'Confirm the dated notice provisions'},{value:'refer_contracts',label:'Refer the interpretation to the Contracts Manager'}]}};
+    case 'risk-rating-rule':
+      return {category:'confirmation',resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose whether to preserve the supplied ratings, or enter an approved score-to-rating matrix.',completionRule:'The chosen treatment is stored with its source version.'},target:{type:'inline',kind:'review-risk',label:'Confirm risk rating basis',reviewOptions:[{value:'keep_source_ratings',label:'Keep the ratings entered in the register'},{value:'enter_matrix',label:'Enter the project risk rating matrix'}]}};
+    case 'programme-logic':
+      return {category:'follow_up',resolution:{kind:'upload',requiresUserAction:false,instruction:'Planning Engineer: correct the duplicate IDs or invalid programme links and then reissue the programme.',completionRule:'A valid programme revision replaces the affected source.'},target:{type:'upload',label:'Upload planner-corrected programme',uploadHint:'Revised programme',uploadMode:'schedule'}};
+    case 'procurement-date-check':
+      return {category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Procurement Manager: check package need dates, forecast deliveries and linked programme work in the procurement register.',completionRule:'Recheck the updated procurement register.'},target:{type:'module',moduleKey:'procurement-packages',label:'Review affected procurement records'}};
+    case 'register-date-check':
+      return {category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Design and Quality Managers: reconcile dates of the records closed before they were raised.',completionRule:'Recheck the corrected register.'},target:{type:'module',moduleKey:'delivery-design',label:'Review affected design records'}};
     case 'resources':
       return group.available&&conflict
         ? uploadResolution('Upload corrected resource evidence','Corrected manpower/resource plan, usage or capacity record','Upload the corrected resource/manpower source that resolves the conflicting or invalid record.')
@@ -200,6 +213,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
   const information:ProjectAction[]=[];
+  const noticeVersions=contractTermVersions(state).filter(v=>v.term==='noticePeriodDays').sort((a,b)=>(a.effectiveFromIso??'').localeCompare(b.effectiveFromIso??''));
+  const riskValidation=operationalControlsAsOf(state,projectControlSchedule(state)?.revision.model.dataDateIso??null).risk.validation;
   for(const {group,issues} of groups.values()){
     // Once a contractual completion date has been explicitly governed, stale
     // missing-only findings must not recreate the same confirmation action.
@@ -210,6 +225,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       if(!subset.length)return;
       const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
       let resolution=actionResolution(group,subset,context);
+      const evidenceSummary:string[]=[];
+      if(group.key==='notice-term-versions')for(const v of noticeVersions){
+        const filename=state.evidenceDocuments.find(d=>d.documentId===v.documentId)?.sourceFilename??'Contract';
+        evidenceSummary.push(v.value+' '+v.unit+' ('+filename+(v.clauseIdentifier?', clause '+v.clauseIdentifier:'')+')'+(v.effectiveFromIso?', from '+v.effectiveFromIso.slice(0,10):', original provision')+(v.effectiveToIso?' until '+v.effectiveToIso.slice(0,10):''));
+      }
+      if(group.key==='risk-rating-rule')for(const row of (riskValidation.ratingInconsistencyGroups??[]))
+        evidenceSummary.push('Score '+row.score+': '+row.recordCount+' risks — '+row.counts.filter(x=>x.rating).map(x=>x.count+' '+x.rating).join(', '));
+      const fingerprint=group.key==='notice-term-versions'
+        ?identity(noticeVersions.map(v=>[v.documentId,v.value,v.unit,v.effectiveFromIso,v.effectiveToIso,v.sourceRefs]))
+        :group.key==='risk-rating-rule'?identity(state.evidenceDocuments.filter(d=>/risk/i.test(d.documentType+' '+d.category)).map(d=>[d.documentId,d.sourceHashSha256,d.basisState])):undefined;
+      const saved=fingerprint?state.controls.reviewDecisions?.[group.key]:undefined;
+      if(saved&&saved.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
+        resolution={category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Contracts Manager to determine the applicable interpretation.',completionRule:'A contracts determination is required.'},target:{type:'module',moduleKey:'contract-particulars-bonds',label:'Review the contract terms'}};
+      else if(saved&&saved.sourceFingerprint===fingerprint)
+        resolution=informationResolution('Recorded on '+saved.confirmedAt.slice(0,10)+'. The original contract and register records remain unchanged.');
       const missing=subset.some(issue=>issue.kind==='missing_information');
       // Missing optional or source-unproven fields remain visible as information.
       // Only explicit decisions and proven conflicting records create actions.
@@ -227,14 +257,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       }):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
-        ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{})};
-      if(resolution.resolution?.kind==='upload'){
+        ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{}),...(evidenceSummary.length?{evidenceSummary}:{}),...(fingerprint?{reviewFingerprint:fingerprint}:{})};
+      if(resolution.resolution?.kind==='upload'||item.category==='follow_up'&&refs.length){
         item.correctionRecords=refs.map(ref=>{
           const document=state.evidenceDocuments.find(d=>ref.startsWith('evidence-document:'+d.documentId+':'));
           const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
           return {source:document?.sourceFilename??'Retained source record',locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section'};
         }).filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator)===index);
-        item.reason='CMeng identified '+subset.length+' item'+(subset.length===1?'':'s')+' requiring review in '+group.title.toLowerCase()+'. Read what was extracted from the existing documents before deciding whether a record needs correction or a document needs replacement.';
+        item.reason=group.key==='notice-term-versions'?'These are successive contractual provisions, not necessarily conflicting records. Check the effective dates.'
+          :group.key==='risk-rating-rule'?'The register supplies inconsistent ratings for identical scores. Original ratings are retained until the rating rule is confirmed.'
+          :group.key==='programme-logic'?'The submitted programme includes duplicate IDs or missing links. The planner must validate the original programme.'
+          :group.key==='procurement-date-check'||group.key==='register-date-check'?group.note
+          :'CMeng identified '+subset.length+' source finding'+(subset.length===1?'':'s')+'. Compare the extracted facts before deciding whether any document must be changed.';
       }
       (item.category==='information'?information:actions).push(item);
     };
