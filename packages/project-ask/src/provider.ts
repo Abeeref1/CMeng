@@ -138,7 +138,9 @@ export function validateNarrative(output:any,result:AnalysisResult,items:Evidenc
 }
 function configuredModelSettings(env:NodeJS.ProcessEnv=process.env){
  let managed;try{managed=readManagedAskSettings(env.CMENG_ASK_AI_CONFIG_FILE);}catch{return null;}
- const key=managed?.apiKey??env.CMENG_ASK_AI_API_KEY??'',model=managed?.model??env.CMENG_ASK_AI_MODEL;
+ // An explicitly set deployment model takes precedence over an older saved UI choice.
+  // Keep the existing saved API key and all other provider settings unchanged.
+  const key=managed?.apiKey??env.CMENG_ASK_AI_API_KEY??'',model=env.CMENG_ASK_AI_MODEL??managed?.model;
  const baseUrl=managed?undefined:env.CMENG_ASK_AI_BASE_URL,protocol=managed?'responses':env.CMENG_ASK_AI_PROTOCOL??'responses';
  if(protocol==='none'||!model||(!key&&!baseUrl)||!['responses','chat-completions'].includes(protocol))return null;
  return {key,model,baseUrl,protocol:protocol as 'responses'|'chat-completions'};
