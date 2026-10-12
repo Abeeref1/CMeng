@@ -35,8 +35,8 @@ function programmePurposeOptions(current='update'){
 }
 function actionResolutionHtml(a){
  const t=a.target||{},r=a.resolution||{};
- if(!r.requiresUserAction)return '';
  if(t.type==='module')return '<div class="action-resolution"><button class="btn" data-action-module="'+escapeHtml(t.moduleKey)+'">'+escapeHtml(t.label||'Open supporting record')+'</button></div>';
+ if(!r.requiresUserAction)return '';
  if(t.type==='inline'&&t.kind==='boq-numeric-review')return '<div class="action-resolution"><button class="btn primary" data-boq-numeric-review>Review BOQ readings together</button><p>One saved review updates all affected views. Native values and previously confirmed readings are not requested again.</p></div>';
  if(t.type==='schedule'){
   if(t.needsPurpose)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the programme purpose and use it for reporting.')+'</p><div class="action-resolution-grid"><label>Programme purpose<select class="action-schedule-role">'+programmePurposeOptions(t.scheduleRole||'update')+'</select></label><label>Baseline approval reference<input type="text" class="action-schedule-approval" placeholder="Required only for approved baseline / revised baseline"></label></div><button class="btn primary" data-resolve-schedule="'+escapeHtml(a.id)+'">Confirm and use programme</button><p class="action-inline-message" role="status"></p></div>';
@@ -81,7 +81,7 @@ function renderProjectActionList(){
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction?'<p><b>'+(team?'Project-team follow-up:':'What needs your response:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
    (a.correctionRecords?.length?'<p><b>Records to correct:</b> '+a.correctionRecords.map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p>':'')+
-   (!information&&!team?actionResolutionHtml(a):'')+
+   (!information?actionResolutionHtml(a):'')+
    ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Fields and correction details':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
    (a.affectedPages?.length?'<small>Affects '+fmt(a.affectedPages.length)+' view'+(a.affectedPages.length===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';
  };

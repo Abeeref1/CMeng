@@ -149,6 +149,7 @@ test('Project Review separates user decisions from project-team follow-ups and c
  assert.match(html,/8 project-team follow-up groups/);
  assert.match(html,/Earliest due date in this group:/);
  assert.ok(html.includes('Records in this owner group:</b> 898'));
+ assert.ok(html.includes('data-action-module="procurement"'),'team records remain accessible without being mistaken for user approval');
  assert.match(html,/Confirm the contractual date/);
  assert.doesNotMatch(html,/12 actions require your input/);
  assert.ok(!html.includes('What you need to do:</b> Review individual records'));
