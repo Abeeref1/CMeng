@@ -145,7 +145,7 @@ test('Project Review separates user decisions from project-team follow-ups and c
  {id:'accountability-owner-group:procurement',category:'follow_up',title:'898 open procurement records',reason:'Review the register with its owner.',recordCount:898,owner:'Procurement Manager',dueIso:'2025-12-11',resolution:{kind:'information',requiresUserAction:false,instruction:'Review individual records.',completionRule:'Closed from register'},target:{type:'module',moduleKey:'procurement',label:'Open supporting record'}}],information:[],systemCheckCount:0};
  const script=projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String});
- assert.match(html,/4 decisions require your response/);
+ assert.match(html,/4 matters need review or a decision/);
  assert.match(html,/8 project-team follow-up groups/);
  assert.match(html,/Earliest due date in this group:/);
  assert.ok(html.includes('Records in this owner group:</b> 898'));
@@ -153,4 +153,18 @@ test('Project Review separates user decisions from project-team follow-ups and c
  assert.match(html,/Confirm the contractual date/);
  assert.doesNotMatch(html,/12 actions require your input/);
  assert.ok(!html.includes('What you need to do:</b> Review individual records'));
+});
+
+test('Existing contract and amendment findings are visible before any replacement upload',()=>{
+ const issue={code:'SOURCE_QUALITY',kind:'source_conflict',summary:'Notice obligation differs',detail:'Main contract: 28 days; amendment: 14 days. Applicable date needs review.',moduleKeys:['notice-compliance'],sourceRefs:[]};
+ const sample={projectId:'REVIEW',actionCount:1,userDecisionCount:1,teamFollowUpCount:0,checkedAt:'2026-10-12',pageSize:25,matchedActionCount:1,
+ actions:[{id:'matter:claims:correction',category:'review',title:'Claims and notice obligations',reason:'Read the retained evidence before deciding whether correction is needed.',recordCount:2,owner:'Project evidence owner',resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload corrected evidence',completionRule:'After new upload'},target:{type:'upload',uploadMode:'evidence',label:'Upload evidence'},correctionRecords:[{source:'Main Contract.pdf',locator:'Page 1'},{source:'Amendment.pdf',locator:'Page 1'}],findings:[issue]}],information:[],systemCheckCount:0};
+ const script=projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
+ const html=runInNewContext(script,{project:()=> 'REVIEW',fmt:String,escapeHtml:String,readerText:String,readerIssue:()=>({title:'Contract notice periods differ',owner:'Contracts Manager'}),renderActionFindings:()=>'',formatDocumentTime:()=> 'now',planningShortDate:String});
+ assert.ok(html.includes('What CMeng found in the documents already provided'));
+ assert.ok(html.includes('Contract notice periods differ'));
+ assert.ok(html.includes('Main contract: 28 days; amendment: 14 days'));
+ assert.ok(html.indexOf('What CMeng found')<html.indexOf('Upload replacement only if needed'));
+ assert.ok(html.includes('Documents and locations to examine'));
+ assert.ok(!html.includes('What needs your response:</b> Upload corrected evidence'));
 });

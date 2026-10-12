@@ -234,7 +234,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
           const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
           return {source:document?.sourceFilename??'Retained source record',locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section'};
         }).filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator)===index);
-        item.reason=subset.length+' source finding'+(subset.length===1?'':'s')+' affect '+pages.map(titleForModule).join(', ')+'. Available values remain usable; only the listed fields need correction.';
+        item.reason='CMeng identified '+subset.length+' item'+(subset.length===1?'':'s')+' requiring review in '+group.title.toLowerCase()+'. Read what was extracted from the existing documents before deciding whether a record needs correction or a document needs replacement.';
       }
       (item.category==='information'?information:actions).push(item);
     };
