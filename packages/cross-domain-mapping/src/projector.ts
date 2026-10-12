@@ -446,18 +446,33 @@ export function buildQuantityScheduleMapping(
   }
   const explicit=new Map(eligible.filter(a=>/^[A-Za-z0-9_.-]+$/.test(a.activityId)).map(a=>[a.activityId.toUpperCase(),a]));
   const unusualIds=eligible.filter(a=>!/^[A-Za-z0-9_.-]+$/.test(a.activityId));
+  // Repeated BOQ descriptions and sections have identical posting sets. Memoize
+  // only the source-independent token lookup; distinct item numbers, activity
+  // code matches and exact Activity IDs still receive their own full scoring.
+  const namePostingCache=new Map<string,Set<FeatureGroup>>();
+  const sectionPostingCache=new Map<string,Set<FeatureGroup>>();
+  const baseGroupScoreCache=new Map<string,Map<FeatureGroup,number>>();
   const candidatesFor=(features:ItemFeatures)=>{
-    const nameGroups=new Set<FeatureGroup>();
-    const collect=(posting:GroupPosting,keys:Iterable<string>,target:Set<FeatureGroup>)=>{
-      for(const key of keys)for(const group of posting.get(key)??[])target.add(group);
-    };
-    collect(descriptions,features.descriptionTokens,nameGroups);
-    if(features.description.length>=5){
-      collect(nameGrams,[features.description.slice(0,5)],nameGroups);
-      collect(namePrefixes,grams(features.description),nameGroups);
+    let nameGroups=namePostingCache.get(features.description);
+    if(!nameGroups){
+      nameGroups=new Set<FeatureGroup>();
+      const collect=(posting:GroupPosting,keys:Iterable<string>,target:Set<FeatureGroup>)=>{
+        for(const key of keys)for(const group of posting.get(key)??[])target.add(group);
+      };
+      collect(descriptions,features.descriptionTokens,nameGroups);
+      if(features.description.length>=5){
+        collect(nameGrams,[features.description.slice(0,5)],nameGroups);
+        collect(namePrefixes,grams(features.description),nameGroups);
+      }
+      namePostingCache.set(features.description,nameGroups);
     }
-    const sectionGroups=new Set<FeatureGroup>();
-    collect(sections,features.sectionTokens,sectionGroups);
+    const sectionSignature=[...features.sectionTokens].sort().join('\u0000');
+    let sectionGroups=sectionPostingCache.get(sectionSignature);
+    if(!sectionGroups){
+      sectionGroups=new Set<FeatureGroup>();
+      for(const key of features.sectionTokens)for(const group of sections.get(key)??[])sectionGroups.add(group);
+      sectionPostingCache.set(sectionSignature,sectionGroups);
+    }
     const codeHits=new Map<CanonicalScheduleActivity,number>();
     for(const token of features.codes)for(const activity of codes.get(token)??[])
       codeHits.set(activity,(codeHits.get(activity)??0)+1);
@@ -522,6 +537,11 @@ export function buildQuantityScheduleMapping(
     }
 
     const features = itemFeatures(item);
+    // Code-dependent candidates are scored independently below. A zero-code
+    // group score depends only on BOQ description, section and WBS features.
+    const zeroCodeSignature=features.description+'\u0000'+[...features.sectionTokens].sort().join('\u0000');
+    let baseScores=baseGroupScoreCache.get(zeroCodeSignature);
+    if(!baseScores){baseScores=new Map();baseGroupScoreCache.set(zeroCodeSignature,baseScores);}
     const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
     const {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches}=candidatesFor(features);
     const offer=(activity:CanonicalScheduleActivity,rawConfidence:number)=>{
@@ -546,7 +566,11 @@ export function buildQuantityScheduleMapping(
         // Five lowest Activity IDs suffice for each same-score group: a sixth
         // cannot appear in any globally ranked top-five, even on a tie.
         scoredPairCount+=group.members.length;
-        const baseConfidence=fastScore(features,group.features,n,s,0);
+        let baseConfidence=baseScores.get(group);
+        if(baseConfidence===undefined){
+          baseConfidence=fastScore(features,group.features,n,s,0);
+          baseScores.set(group,baseConfidence);
+        }
         let considered=0;
         for(const activity of group.members){
           if(specials.has(activity))continue;
