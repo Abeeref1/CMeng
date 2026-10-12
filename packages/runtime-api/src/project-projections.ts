@@ -8940,7 +8940,11 @@ export function overviewForProject(
   // as a working (not adopted) assessment, but only after they actually exist.
   const baselineControlled=state.schedules.some(item=>item.role==='baseline'||item.role==='revised_baseline');
   const finished=resolvedProjectCache.get(projectId);
-  const calculated=!baselineControlled&&finished?.version===state.version?finished.modules:null;
+  // A completed calculation for this exact project version is authoritative
+  // for navigation regardless of whether a baseline exists. This does not
+  // create or promote an uncalculated specialist check; stale and absent
+  // results remain unavailable, and each module retains its own readiness.
+  const calculated=finished?.version===state.version?finished.modules:null;
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
     const live=calculated?.get(module.key);
     const stored=receiptStates.get(module.key);
