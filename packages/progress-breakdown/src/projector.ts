@@ -448,8 +448,12 @@ function buildProgressBreakdownProjectionImpl(
     classified: boolean,
     activities: CanonicalScheduleActivity[],
   ) => {
-    const progress = scheduleProgress(activities);
-    const row = enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
+    // A whole-programme class (including Unclassified) has exactly the
+    // same activity population as the previously calculated scope summary.
+    // Reuse the full calculations, while retaining the dimension's own label.
+    const fullPopulation=activities.length===executionActivities.length;
+    const progress = fullPopulation ? progressPosition : scheduleProgress(activities);
+    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;

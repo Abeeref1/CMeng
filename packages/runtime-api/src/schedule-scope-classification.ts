@@ -75,14 +75,26 @@ function derivedDiscipline(text:string){
   if(specific.length>1)return null;
   return hits.includes('MEP')?'MEP':null;
 }
-export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:CanonicalScheduleActivity,nodes=new Map(model.wbs.map(node=>[node.wbsId,node]))):ActivityScopeClassification{
+export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:CanonicalScheduleActivity,nodes=new Map(model.wbs.map(node=>[node.wbsId,node])),
+  pathCache?:Map<string,ReturnType<typeof wbsPath>>,
+  wbsPickCache?:Map<string,Map<string,string|null>>):ActivityScopeClassification{
   const node=activity.wbsId?nodes.get(activity.wbsId):undefined;
-  const hierarchy=wbsPath(node,nodes);
+  const hierarchy=node&&pathCache?.has(node.wbsId)?pathCache.get(node.wbsId)!:wbsPath(node,nodes);
+  if(node&&pathCache&&!pathCache.has(node.wbsId))pathCache.set(node.wbsId,hierarchy);
   const sourceText=clean([hierarchy.path,activity.name,activity.activityId].filter(Boolean).join(' | '));
   const wbsText=hierarchy.path??'';
   const activityText=clean([activity.name,activity.activityId].filter(Boolean).join(' | '));
   const pick=(label:string,patterns:RegExp[])=>{
-    const fromWbs=first(wbsText,patterns);if(fromWbs)return {value:normalizedToken(label,fromWbs),basis:'source_wbs' as const};
+    // The same WBS source text is shared across hundreds of activities.
+    // Cache only during this single classification pass; never across edits.
+    let fromWbs:string|null;
+    if(node&&wbsPickCache){
+      const memo=wbsPickCache.get(node.wbsId)??new Map<string,string|null>();
+      if(!wbsPickCache.has(node.wbsId))wbsPickCache.set(node.wbsId,memo);
+      if(memo.has(label))fromWbs=memo.get(label)!;
+      else{fromWbs=first(wbsText,patterns);memo.set(label,fromWbs);}
+    }else fromWbs=first(wbsText,patterns);
+    if(fromWbs)return {value:normalizedToken(label,fromWbs),basis:'source_wbs' as const};
     const fromActivity=first(activityText,patterns);if(fromActivity)return {value:normalizedToken(label,fromActivity),basis:'source_activity_text' as const};
     return {value:null,basis:'unavailable' as const};
   };
@@ -122,7 +134,9 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
   const cached=classificationCache.get(model);if(cached)return cached;
   const nodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
   const activities=model.activities.filter(activity=>!['level_of_effort','wbs_summary'].includes(activity.activityType));
-  const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes));
+  const pathCache=new Map<string,ReturnType<typeof wbsPath>>();
+  const wbsPickCache=new Map<string,Map<string,string|null>>();
+  const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes,pathCache,wbsPickCache));
   const dimensions:[ClassificationCoverage['key'],string,string][]=[
     ['plot','Plot','Explicit plot identifier in WBS or activity text'],
     ['wbsId','WBS','Explicit activity WBS resolved to the source WBS hierarchy'],

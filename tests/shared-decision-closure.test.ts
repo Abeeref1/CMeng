@@ -13,11 +13,12 @@ import {boqProgrammeLinks} from '../packages/runtime-api/src/boq-programme-links
 import {quantityModelFromBoq} from '../packages/runtime-api/src/boq-source';
 import {ingestBoq} from '../packages/boq-ingestion/src';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
-import {buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
+import {buildProgressBreakdownProjection,buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {schedulePlanPositions} from '../packages/progress-scurve/src/projector';
 import {buildRevisionTrendProjection} from '../packages/revision-trend/src/projector';
 import {buildVarianceTrendsProjection} from '../packages/variance-trends/src/projector';
 import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src/projector';
+import {scheduleScopeClassification,classifyScheduleActivity} from '../packages/runtime-api/src/schedule-scope-classification';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {runInNewContext} from './browser-context';
@@ -212,5 +213,25 @@ test('Cold revision reuse preserves every trend, variance and change finding',t=
   const original=buildScheduleChangeReportProjection(before,after,config);
   const reused=buildScheduleChangeReportProjection(before,after,{...config,precomputedComparison:comparisons.get(before.revisionId+'|'+after.revisionId)});
   assert.deepEqual(reused,original,'all source change, fields and relationships must match exactly');
+ }
+});
+
+test('Shared WBS classification memo produces the exact original per-activity classifications',t=>{
+ const {state}=fixture(t),model=state.schedules.at(-1)!.revision.model;
+ const nodes=new Map(model.wbs.map(node=>[node.wbsId,node])),pathCache=new Map(),pickCache=new Map();
+ const reference=model.activities.map(activity=>classifyScheduleActivity(model,activity,nodes));
+ const reused=model.activities.map(activity=>classifyScheduleActivity(model,activity,nodes,pathCache,pickCache));
+ assert.deepEqual(reused,reference,'identical WBS and activity source classifications, no guessing or changed zone/level');
+ assert.deepEqual(scheduleScopeClassification(model).rows,reference);
+});
+test('Unclassified whole-programme dimensions retain exact overall plan, progress and delay fields',t=>{
+ const {state}=fixture(t),current=state.schedules.at(-1)!.revision.model,baseline=state.schedules[0]!.revision.model;
+ const result=buildProgressBreakdownProjection(current,{generatedAt:'2026-08-31T00:00:00Z',producerVersion:'full-unclassified-parity',baselineModel:baseline,previousModel:baseline,scopeClassification:{rows:[]}});
+ const summary=result.overallSummary!;
+ for(const dimension of result.dimensionViews){
+  if(dimension.rows.length!==1||dimension.rows[0]!.activityCount!==summary.activityCount)continue;
+  const row=dimension.rows[0]!;
+  for(const [left,right] of [['baselinePlannedPercent','baselinePlannedPercent'],['currentPlanPercent','currentPlanPercent'],['scheduleProgressPercent','durationWeightedProgressPercent'],['criticalCount','criticalCount'],['nearCriticalCount','nearCriticalCount'],['negativeFloatCount','negativeFloatCount'],['delayedActivityCount','delayedActivityCount'],['milestoneThreatIds','milestoneThreatIds'],['managementAction','managementAction']] as const)
+    assert.deepEqual(row[left],summary[right],dimension.dimension+' '+left+' must exactly equal the full programme');
  }
 });
