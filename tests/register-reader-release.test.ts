@@ -48,7 +48,7 @@ test('Stage 1 fresh quality cohort retains every reordered noisy workbook row an
   const refreshed=await store.refreshSpreadsheetRegisters(projectId);
   assert.equal(refreshed.refreshedDocumentCount,1,JSON.stringify(refreshed));
   assert.deepEqual(state.controls.ncrs.map(row=>row.ncrId).sort(),[...ids].sort());
-  assert.equal(doc.basisState,basisState);assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
+  assert.equal(doc.basisState,basisState);assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v9');
   assert.deepEqual(readFileSync(doc.storedPath),bytes);assert.equal(doc.sourceHashSha256,hash(bytes));
   assert.equal((await store.refreshSpreadsheetRegisters(projectId)).refreshedDocumentCount,0,'repeated refresh is idempotent');
  }
@@ -315,7 +315,7 @@ test('shared reader upgrade repairs text/plain CSV ingestion without changing an
  const sourceHash=doc.sourceHashSha256;
  const result=await store.refreshSpreadsheetRegisters('REGISTER-PROJECT');
  assert.equal(result.refreshedDocumentCount,1);assert.deepEqual(result.diagnostics,[]);
- assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v8');
+ assert.equal(doc.derivedRegisterRead?.producerVersion,'register-derived-v9');
  assert.equal(sourceTables([doc],[])[0]!.recognition?.recognized,true);
  assert.equal(doc.sourceHashSha256,sourceHash);assert.deepEqual(readFileSync(doc.storedPath),bytes);
  assert.equal(JSON.stringify(unchanged),beforeOther);

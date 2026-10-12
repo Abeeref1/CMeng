@@ -540,6 +540,8 @@ export function buildMilestonesProjection(
         : "explicit_hours",
     floatCoveragePercent,
     sourceFloatState,
+    populationState:model.activities.some(a=>a.activityType==='unknown')?'partial':'established',
+    unknownActivityTypeCount:model.activities.filter(a=>a.activityType==='unknown').length,
     milestoneCount: rows.length,
     completedCount: completed.length,
     openCount: open.length,

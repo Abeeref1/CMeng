@@ -195,6 +195,7 @@ export function buildVarianceTrendsProjection(
       return {
         sourceActivityCount: totalActivities,
         executionActivityCount: analytics.population.executableActivityCount,
+      unfinishedExecutionActivityCount: analytics.float.totalActivities,
         variancePopulationBasis: "source_records" as const,
         unmatchedActivityCount: totalActivities - comparable,
         movementDistribution: numericDistribution(controlledValues),

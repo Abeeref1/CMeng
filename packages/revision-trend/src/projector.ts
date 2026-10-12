@@ -75,6 +75,7 @@ export function buildRevisionTrendProjection(
       sourceRevisionSequenceGap:previous?Math.max(0,revision.sequence-previous.sequence-1):null,
       changeCategories: comparison && previous ? classifyScheduleChanges(comparison.activityChanges,previous.model,revision.model) : null,
       executionActivityCount: analytics.population.executableActivityCount,
+      unfinishedExecutionActivityCount: analytics.float.totalActivities,
       sourceActivityCount: analytics.activityCount,
       scheduleProgressCoveragePercent: analytics.progress.durationWeightedPercentComplete.coveragePercent,
       revisionId: revision.revisionId,

@@ -121,3 +121,17 @@ test('native PDFs without OCR-pending status receive complete hash-bound page re
  await store.ingestEvidenceFile({projectId:id,sourceFilename:'Instructions.txt',bytes:Buffer.from('Retained project reference instructions.'),mediaType:'text/plain',uploadedAt:'2031-09-01'});
  assert.equal(documentReadReview(state.evidenceDocuments[1]!,state).label,'Reference text read');
 });
+
+test('a currency-denominated cost column is read as financial evidence even when its filename says update',async t=>{
+ const {store}=fixture(t);await schedule(store,'COST-HEADER','2031-08-31','Current.xer');
+ const content='Metric,Value SAR,Status,As Of\nBAC,100,Approved,2031-08-31\nEAC,120,Forecast,2031-08-31\nEV,60,Reported,2031-08-31\nAC,80,Actual,2031-08-31\nCPI,0.75,Reported,2031-08-31';
+ await csv(store,'COST-HEADER','Latest_Update_Cost_Report.csv',content);
+ const state=store.get('COST-HEADER')!,document=state.evidenceDocuments.find(d=>d.sourceFilename==='Latest_Update_Cost_Report.csv')!;
+ assert.equal(document.documentType,'cost_evm_report');
+ const ledger=commercialCanonical(state);assert.equal(ledger.costMetrics.length,4);assert.equal(ledger.costMetrics.find(r=>r.metric==='EAC')!.amount.value,120);assert.equal(ledger.costMetrics[0]!.amount.currency,'SAR');
+ // Emulate the persisted pre-fix classification and replay the existing upload intent.
+ document.category='schedule';document.documentType='schedule_update';document.familyKey='boq:quantity';document.basisState='historical';document.derivedRegisterRead={producerVersion:'register-derived-v8',sourceHashSha256:document.sourceHashSha256};
+ const refreshed=await store.refreshSpreadsheetRegisters('COST-HEADER');
+ assert.ok(refreshed.refreshedDocumentCount>0);assert.equal(document.documentType,'cost_evm_report');assert.notEqual(document.basisState,'historical');
+ assert.equal(commercialCanonical(state).costMetrics.find(r=>r.metric==='EAC')!.amount.value,120);
+});

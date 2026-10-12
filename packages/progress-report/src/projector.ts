@@ -477,6 +477,8 @@ export function buildProgressReportProjection(
             : "unresolved",
     },
     milestones: {
+      populationState:input.milestones.populationState??'established',
+      unknownActivityTypeCount:input.milestones.unknownActivityTypeCount??0,
       milestoneCount:
         input.milestones.milestoneCount,
       completedCount:

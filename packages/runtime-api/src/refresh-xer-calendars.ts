@@ -4,18 +4,17 @@ import {canonicalScheduleFromXer} from '../../schedule-analysis-core/src';
 import {parseXerBytes} from '../../xer-parser/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-export const XER_CALENDAR_READER_VERSION='p6-record-separators-v2-dated-reconciliation';
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-v3';
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 
-/** Reread only failed calendar interpretations from the unchanged retained
+/** Refresh calendar interpretations and unresolved single-project links from the unchanged retained
  * source. Activity values, revision identities, selections and approvals stay
  * under their existing authorities. Includes separately governed phases. */
 export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
   let changed=false;
   for(const scope of [state,...state.phaseProgrammes??[]])for(const stored of scope.schedules){
     const old=stored.revision.model;
-    if(stored.format!=='xer'||stored.calendarReaderVersion===XER_CALENDAR_READER_VERSION||
-       !old.diagnostics.some(d=>/CALENDAR_DATA_SYNTAX_ERROR:|CALENDAR_(?:WEEK|DAY)_HOURS_MISMATCH:/.test(d)))continue;
+    if(stored.format!=='xer'||stored.calendarReaderVersion===XER_CALENDAR_READER_VERSION)continue;
     const document=scope.evidenceDocuments.find(d=>d.linkedArtifactId===stored.revision.revisionId&&d.sourceHashSha256===stored.sourceHashSha256);
     if(!document)continue;
     const failure=(code:string)=>{if(!document.diagnostics.includes(code)){document.diagnostics.push(code);changed=true;}};
@@ -27,6 +26,18 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
       // A source-to-model identity discrepancy is not permission to remap data.
       const ids=(values:typeof old.calendars)=>values.map(c=>c.calendarId).sort().join('\0');
       if(ids(old.calendars)!==ids(fresh.calendars)){failure('CALENDAR_REFRESH_IDENTITY_MISMATCH');continue;}
+      const activityIds=(values:typeof old.activities)=>values.map(a=>a.activityId).sort().join('\0');
+      if(activityIds(old.activities)!==activityIds(fresh.activities)){failure('SCHEDULE_REFRESH_ACTIVITY_IDENTITY_MISMATCH');continue;}
+      const freshLinks=new Map(fresh.relationships.map(r=>[r.relationshipId,r]));
+      if(freshLinks.size!==fresh.relationships.length||old.relationships.length!==fresh.relationships.length||old.relationships.some(r=>!freshLinks.has(r.relationshipId))){failure('SCHEDULE_REFRESH_RELATIONSHIP_IDENTITY_MISMATCH');continue;}
+      let repairedRelationshipCount=0;
+      old.relationships=old.relationships.map(link=>{
+        if(![link.predecessorActivityId,link.successorActivityId].some(id=>id.startsWith('native:::')))return link;
+        const recovered=freshLinks.get(link.relationshipId)!;
+        if(link.predecessorActivityId===recovered.predecessorActivityId&&link.successorActivityId===recovered.successorActivityId)return link;
+        repairedRelationshipCount++;
+        return {...link,predecessorActivityId:recovered.predecessorActivityId,successorActivityId:recovered.successorActivityId,external:recovered.external};
+      });
       const previousDiagnostics=old.diagnostics.filter(isCalendarDiagnostic);
       const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
       old.calendars=fresh.calendars;
@@ -34,7 +45,7 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
       document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       stored.calendarReaderVersion=XER_CALENDAR_READER_VERSION;
       stored.calendarReadRefresh={readerVersion:XER_CALENDAR_READER_VERSION,sourceHashSha256:stored.sourceHashSha256,
-        refreshedAt:new Date().toISOString(),previousDiagnostics,diagnostics,
+        refreshedAt:new Date().toISOString(),previousDiagnostics,diagnostics,repairedRelationshipCount,
         resolvedCalendarCount:fresh.calendars.filter(c=>c.semanticComplete).length,totalCalendarCount:fresh.calendars.length};
       changed=true;
     }catch{failure('CALENDAR_REFRESH_READ_FAILED');}

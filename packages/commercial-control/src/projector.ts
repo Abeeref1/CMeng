@@ -193,6 +193,10 @@ function commercialClaimsNotices(
   for(const key of Object.keys(sourceClaimStateCounts) as Array<keyof typeof sourceClaimStateCounts>)sourceClaimStateCounts[key]=0;
   for(const claim of lifecycle?.claims??[])sourceClaimStateCounts[claim.sourceRegister?.state??claim.state]++;
 
+  const sourceStatuses=new Map<string,number>();
+  for(const claim of lifecycle?.claims??[]){const status=claim.sourceRegister?.sourceStatus.trim()||claim.state.replaceAll('_',' ');sourceStatuses.set(status,(sourceStatuses.get(status)??0)+1);}
+  const sourceClaimStatusCounts=Object.fromEntries(sourceStatuses);
+
   const noticeKindCounts:
     CommercialClaimsNoticesPosition["noticeKindCounts"] = {
       notice: 0,
@@ -320,6 +324,7 @@ function commercialClaimsNotices(
       linkCoverage,
     claimStateCounts,
     sourceClaimStateCounts,
+    sourceClaimStatusCounts,
     noticeKindCounts,
     noticeTimelinessCounts,
     claims:

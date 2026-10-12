@@ -103,6 +103,8 @@ export interface MilestonesProjection {
     | "source_float_established"
     | "source_float_partial"
     | "not_established";
+  populationState?: "established" | "partial";
+  unknownActivityTypeCount?: number;
   milestoneCount: number;
   completedCount: number;
   openCount: number;

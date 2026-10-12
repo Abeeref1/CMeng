@@ -1,5 +1,6 @@
 export interface RevisionTrendPoint {
   changeCategories?: Array<{category:string;activityCount:number}> | null;
+  unfinishedExecutionActivityCount?: number;
   executionActivityCount?: number; sourceActivityCount?: number; scheduleProgressCoveragePercent?: number | null;
   revisionId: string;
   label: string | null;

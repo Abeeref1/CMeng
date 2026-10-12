@@ -118,7 +118,7 @@ function renderBasisReviews(data,key){
   if(key==='contract-particulars-bonds'&&data.projectFacts?.time){
     const time=data.projectFacts.time,statements=time.amendmentEotStatements||[];
     const timePosition=planningKpis([
-      ['Original contract completion',time.contractualCompletionIso?.value?planningShortDate(time.contractualCompletionIso.value):'Not established','Original contractual authority'],
+      ['Recorded contractual completion',time.contractualCompletionIso?.value?planningShortDate(time.contractualCompletionIso.value):'Not established','Recorded contract date and source basis'],
       ['Contract completion including awarded EOT',time.extendedContractCompletionIso?.value?planningShortDate(time.extendedContractCompletionIso.value):'Not established',time.extendedContractCompletionIso?.basis||'Current source-qualified date'],
       ['Awarded EOT days',time.awardedEotDays?.value??'Not established',time.awardedEotDays?.basis||'Only dated awarded periods']
     ]);

@@ -134,7 +134,7 @@ export function pageProjectResponse(
      Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
  };
  const fullMilestoneRows=screenKey==='milestones'&&Array.isArray(item?.data?.rows)?item.data.rows as any[]:null;
- const milestoneFullCounts=fullMilestoneRows?milestonePopulation(fullMilestoneRows):null;
+ const milestoneFullCounts=fullMilestoneRows?{...milestonePopulation(fullMilestoneRows),identificationComplete:item?.data?.populationState!=='partial'}:null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
    ?Number((body as any).projectVersion)
    :Number.isInteger((facts as any)?.projectVersion)?Number((facts as any).projectVersion):null;

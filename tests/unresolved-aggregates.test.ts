@@ -216,3 +216,21 @@ test('comparison applicability and register-date dependencies agree with module 
   const dependent=enforceModuleReadiness({...base,key:'lookahead-schedule'},{state:'pass',failedCheckIds:[],checkCount:0,checks:[]});
   assert.ok(dependent.issueAssessment?.issues.some(i=>i.code==='REGISTER_DATE_READING_REVIEW'));
 });
+
+test('unknown activity types qualify an empty milestone population instead of proving none exist',()=>{
+ const model=schedule();model.activities.forEach((row:any)=>row.activityType='unknown');
+ const p=buildMilestonesProjection(model,options);assert.equal(p.milestoneCount,0);assert.equal(p.populationState,'partial');assert.equal(p.unknownActivityTypeCount,model.activities.length);
+ const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+ const ast=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+ const fn=ast.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderMilestonesVisual')!.getText(ast);
+ const html=runInNewContext(fn+';renderMilestonesVisual(p)',{p,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String});
+ assert.match(html,/Milestone population is not established/);assert.doesNotMatch(html,/attention-clear|No current open milestone/);
+});
+test('float trend compares shares of remaining work so completed activities do not imply improvement',()=>{
+ const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+ const ast=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+ const fn=ast.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderFloatPressureTrend')!.getText(ast);
+ let captured:any[]=[];
+ runInNewContext(fn+';renderFloatPressureTrend(points)',{points:[{criticalCount:50,unfinishedExecutionActivityCount:100},{criticalCount:25,unfinishedExecutionActivityCount:50}],fmt:String,renderVisualPanel:()=>'',renderLineChart:(points:any[])=>{captured.push(points);return '';}});
+ assert.equal(captured[0][0].criticalCount,50);assert.equal(captured[0][1].criticalCount,50);
+});

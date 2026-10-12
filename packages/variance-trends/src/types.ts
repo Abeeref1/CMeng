@@ -1,5 +1,6 @@
 export interface VarianceTrendPoint {
   sourceActivityCount?: number;
+  unfinishedExecutionActivityCount?: number;
   executionActivityCount?: number;
   variancePopulationBasis?: "source_records";
   unmatchedActivityCount?: number;

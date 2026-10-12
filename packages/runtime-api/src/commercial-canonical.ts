@@ -225,15 +225,19 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     });
    }
   }
-  if(has(t,'metric','value','as of')&&(has(t,'unit')||has(t,'currency')))for(const r of t.rows){
-   const currencies=[cell(r,'currency'),cell(r,'unit')].filter(v=>/^[A-Z]{3}$/.test(v));
+  const valueHeaders=t.headers.filter(h=>h==='value'||/^value [a-z]{3}$/.test(h));
+  const metricValueHeader=valueHeaders.length===1?valueHeaders[0]!:null;
+  if(has(t,'metric','as of')&&metricValueHeader&&(has(t,'unit')||has(t,'currency')||headerCurrency(metricValueHeader)))for(const r of t.rows){
+   // Dimensionless indices do not become money because the table value heading names a currency.
+   if(/^(cpi|spi|tcpi)$/i.test(cell(r,'metric').trim()))continue;
+   const currencies=[cell(r,'currency'),cell(r,'unit'),headerCurrency(metricValueHeader)??''].filter(v=>/^[A-Z]{3}$/.test(v));
    if(new Set(currencies).size>1){diagnostics.push('COST_ROW_CURRENCY_CONFLICT:'+r.receipt.documentId+':'+r.receipt.locator);continue;}
    const unit=currencies[0];if(!unit)continue;
    costMetrics.push({
     metric:cell(r,'metric'),
     amount:money(
       r,
-      cell(r,'value'),
+      cell(r,metricValueHeader),
       cell(r,'amount basis','value basis','series basis','cash basis')||cell(r,'metric'),
       unit,
       dateValue(cell(r,'as of'))

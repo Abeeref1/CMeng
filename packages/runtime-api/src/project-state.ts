@@ -2395,12 +2395,13 @@ export class RuntimeProjectStore {
       let changed=false;const families=new Set<string>();
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
-        if(document.category==='schedule'||(!isCsv&&!isWorkbook))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v8'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
+        if(!isCsv&&!isWorkbook)continue;
+        if(document.category==='schedule'&&state.schedules.some(s=>s.revision.revisionId===document.linkedArtifactId))continue;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
-          const next={...document};
+          const next={...document,identification:{...document.identification,diagnostics:[...document.identification.diagnostics]}};
           if(identified.identification.method==='tabular_content'&&identified.identification.confidence>=0.95){
             next.category=identified.identification.detectedCategory;next.documentType=identified.identification.detectedDocumentType;
             next.identification=identified.identification;
@@ -2408,7 +2409,7 @@ export class RuntimeProjectStore {
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
           if(isWorkbook){
-            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics});
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics:next.identification.diagnostics});
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
             next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
@@ -2430,7 +2431,7 @@ export class RuntimeProjectStore {
           // reference-only lifecycle. Replay their saved upload intent and
           // review decisions under the corrected family behaviour on refresh.
           if(['retention_register','site_instruction_register','contract_obligation_register'].includes(next.documentType))families.add(next.familyKey);
-          next.derivedRegisterRead={producerVersion:'register-derived-v8',sourceHashSha256:next.sourceHashSha256};
+          next.derivedRegisterRead={producerVersion:'register-derived-v9',sourceHashSha256:next.sourceHashSha256};
           if(isWorkbook)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
@@ -5328,7 +5329,7 @@ export class RuntimeProjectStore {
       }
 
       }
-      document.derivedRegisterRead={producerVersion:'register-derived-v8',sourceHashSha256:hash};
+      document.derivedRegisterRead={producerVersion:'register-derived-v9',sourceHashSha256:hash};
       if(tabularRead)document.parserState="parsed";
       rebuildReadinessEvidence(
         state,

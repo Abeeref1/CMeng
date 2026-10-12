@@ -15,6 +15,6 @@ export function milestonePopulation(rows:readonly any[]){
 }
 export function attachMilestonePopulation(projection:any){
  if(!projection||!Array.isArray(projection.rows))return projection;
- return {...projection,milestoneFullCounts:milestonePopulation(projection.rows),
+ return {...projection,milestoneFullCounts:{...milestonePopulation(projection.rows),identificationComplete:projection.populationState!=='partial'},
   openMilestones:projection.rows.filter((r:any)=>r.status!=='completed'),completedMilestones:projection.rows.filter((r:any)=>r.status==='completed')};
 }

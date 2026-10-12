@@ -419,6 +419,11 @@ export function inferTableSemanticRoute(
   const candidates=tableSemanticSchemas.map(schema=>{
     const headers=raw.map((value,index)=>canonicalHeader(confirmed.get(index)??value,schema.documentType));
     const keys=new Set(headers);
+    // A denomination stated in the value heading is explicit source currency.
+    const denominatedValue=schema.documentType==='cost_evm_report'&&headers.filter(h=>/^value [a-z]{3}$/.test(h)).length===1&&!keys.has('value');
+    const metricColumn=headers.indexOf('metric');
+    const financialMetrics=metricColumn>=0&&input.slice(intelligence.headerRowIndex+1).some(row=>/^(?:pv|ev|ac|bac|eac|etc|sv|cv|planned value|earned value|actual cost|budget at completion|estimate at completion)$/i.test((row[metricColumn]??'').trim()));
+    if(denominatedValue&&financialMetrics){keys.add('value');keys.add('currency');}
     // A variation reference on an instruction identifies its relationship. It
     // cannot turn the instruction's status into a duplicate variation status.
     if(schema.documentType==='variation_register'&&['instruction id','site instruction id','si id'].some(key=>keys.has(key))&&
@@ -428,7 +433,7 @@ export function inferTableSemanticRoute(
     const requiredHits=schema.required.filter(groupHit).length;
     if(requiredHits!==schema.required.length)return null;
     const optionalHits=schema.optional.filter(field=>keys.has(canonicalHeader(field,schema.documentType))).length;
-    const base=0.9+Math.min(0.06,optionalHits*0.015)+(schema.documentType===hintedDocumentType?0.02:0);
+    const base=(denominatedValue&&financialMetrics?0.98:0.9)+Math.min(0.06,optionalHits*0.015)+(schema.documentType===hintedDocumentType?0.02:0);
     return {route:{documentType:schema.documentType,category:schema.category,confidence:Math.min(0.99,Number(base.toFixed(3))),basis:[...schema.required.map(group=>'required:'+group.join('|')),...schema.optional.filter(field=>keys.has(canonicalHeader(field,schema.documentType))).map(field=>'optional:'+field)]},optionalHits};
   }).filter((value):value is {route:TableSemanticRoute;optionalHits:number}=>value!==null)
     .sort((a,b)=>b.route.confidence-a.route.confidence||b.optionalHits-a.optionalHits||a.route.documentType.localeCompare(b.route.documentType));

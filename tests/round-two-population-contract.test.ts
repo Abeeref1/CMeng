@@ -71,3 +71,12 @@ test('reader-facing due labels and partial timestamp suffix preserve the actual 
  assert.equal(managementText('Sep 12, 2026T17:00:00'),'Sep 12, 2026 · 17:00');
  assert.doesNotMatch(managementText('due=2026-09-12T17:00:00.123Z; quantity=4.123456'),/due=|T17:|2026-09-12|\.\d{5,}/);
 });
+
+test('activity pressure matrix retains the full population after register paging',()=>{
+ const rows=Array.from({length:240},(_,i)=>({activityId:'A'+i,activityType:'task',status:i<40?'completed':'not_started',criticality:'critical',finishVarianceDays:10}));
+ const response:any=pageProjectResponse({data:activityRegisterView({rows})},'/api/projects/P/schedule/modules/activity-analytics');
+ const matrix=response.data.activitySummary.pressureMatrix;
+ assert.equal(matrix.unfinishedCount,200);assert.equal(matrix.completedCount,40);assert.equal(matrix.counts[0][1],200);
+ const html=runInNewContext(functions(['planningActivityPressure'])+';planningActivityPressure(rows,matrix)',{rows:response.data.analysisRows,matrix,escapeHtml:String,fmt:String});
+ assert.match(html,/All 200 unfinished execution activities/);assert.match(html,/40 completed activities/);
+});

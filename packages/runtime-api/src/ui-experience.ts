@@ -241,23 +241,32 @@ function pageRoleLensContext(data){
   const submitted=value(facts.schedule?.submittedProgrammeCompletionIso);
   const currentContract=value(facts.time?.extendedContractCompletionIso)||value(facts.time?.contractualCompletionIso);
   const metrics=[
-    ['Original contract completion',facts.time?.contractualCompletionIso,'date'],
+    ['Recorded contractual completion',facts.time?.contractualCompletionIso,'date'],
     ['Current contract completion',value(facts.time?.extendedContractCompletionIso)!==null?facts.time.extendedContractCompletionIso:facts.time?.contractualCompletionIso,'date'],
     ['Submitted completion',facts.schedule?.submittedProgrammeCompletionIso,'date'],
     ['Critical activities',facts.schedule?.criticalActivityCount,''],
     ['Near-critical activities',facts.schedule?.nearCriticalActivityCount,''],
     ['Open actions',facts.actions?.openCount,'']
   ].filter(row=>row[1]).map(([label,field,unit])=>({label,value:value(field),unit,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'}));
-  const actions=root?.projectDiagnosis?.actionRegister?.actions||data?.projectDiagnosis?.actionRegister?.actions;
-  return {...base,planning:{...base.planning,criticalCount:value(facts.schedule?.criticalActivityCount),nearCriticalCount:value(facts.schedule?.nearCriticalActivityCount),negativeFloatCount:value(facts.schedule?.negativeFloatActivityCount)},
-    controls:{...base.controls,submittedCompletionIso:submitted},
-    projectDirector:{...base.projectDirector,...(Array.isArray(actions)?{actions}:{})},
-    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,metrics,commercialByCurrency:facts.commercial?.currencies||[]}};
+  const diagnosis=root?.projectDiagnosis||data?.projectDiagnosis;
+  const completion=root?.completionPosition||data?.completionPosition;
+  const management=root?.managementContext||data?.managementContext;
+  const interfaces=root?.interfaces||data?.interfaces||root?.interfacePosition;
+  const actions=diagnosis?.actionRegister?.actions;
+  const network=diagnosis?.network;
+  const progress=management?.crossModule?.progress?.progressBases||root?.progressBases;
+  const forecast=completion?.independentFinishIso;
+  if(forecast)metrics.push({label:'CMeng forecast / recalculation',value:forecast,unit:'date',basis:'Independent calculation and its stated qualifications',health:'See source basis'});
+  return {...base,planning:{...base.planning,criticalCount:value(facts.schedule?.criticalActivityCount),nearCriticalCount:value(facts.schedule?.nearCriticalActivityCount),negativeFloatCount:value(facts.schedule?.negativeFloatActivityCount),...(network?{drivingNetworkState:network.state,drivers:(network.rows||[]).map(row=>({...row,wbs:row.wbs??row.wbsPath,calculatedFinishIso:row.calculatedFinishIso??row.finishIso,totalFloatHours:row.totalFloatHours??row.independentTotalFloatHours}))}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
+    controls:{...base.controls,submittedCompletionIso:submitted,...(progress?{progress}:{}),...(completion?{forecastCompletionIso:forecast??null,scheduleVarianceDays:completion.differenceElapsedDays??null}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
+    projectDirector:{...base.projectDirector,openActionCount:value(facts.actions?.openCount),...(Array.isArray(actions)?{actions}:{})},
+    programDirector:{...base.programDirector,...(management?.schedule?.programmeStages?{programmeStages:management.schedule.programmeStages}:{}),...(interfaces?.rows?{interfaces:interfaces.rows}:{})},
+    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:facts.commercial?.currencies||[]}};
 }
 function experienceRoleLensContext(role,data){
   const context=pageRoleLensContext(data);
   if(!context||role==='overall')return '';
-  const basis='Same canonical project facts used by Management Control; the role lens does not recalculate them.';
+  const basis='Uses the same project facts and source basis as Management Control.';
   if(role==='planning'){
     const p=context.planning||{};
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Programme mechanics & driving network</h4><span>Planning Engineer</span></div>'+
@@ -291,8 +300,8 @@ function experienceRoleLensContext(role,data){
   if(role==='project-director'){
     const rows=(context.projectDirector?.actions||[]).slice(0,8);
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Delivery consequences, ownership & required action</h4><span>Project Director</span></div>'+
-      roleLensTable('Top canonical management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Due','date'],['escalation','Escalation']],rows)+
-      (!rows.length?'<p>No canonical management action is established from the current evidence. This is not a zero-problem conclusion.</p>':'')+'</section>';
+      roleLensTable('Priority management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Due','date'],['escalation','Escalation']],rows)+
+      (!rows.length?'<p>'+escapeHtml(context.projectDirector?.openActionCount>0?context.projectDirector.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':context.projectDirector?.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+'</section>';
   }
   if(role==='program-director'){
     const p=context.programDirector||{},stages=(p.programmeStages||[]).slice(0,8),interfaces=(p.interfaces||[]).slice(0,8);

@@ -88,6 +88,7 @@ export interface CommercialClaimsNoticesPosition {
     number | null;
   claimStateCounts: Record<ClaimState, number>;
   sourceClaimStateCounts?: Record<ClaimState, number>;
+  sourceClaimStatusCounts?: Record<string, number>;
   noticeKindCounts: Record<NoticeKind, number>;
   noticeTimelinessCounts:
     Record<NoticeTimeliness, number | null>;
