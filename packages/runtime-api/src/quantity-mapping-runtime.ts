@@ -34,10 +34,16 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
   // BOQ/activity pair twice. Current-programme consumers now share the same
   // governed view, source revision, quantities and exact versioned result.
   // Non-current revisions keep their own original calculation authority.
-  const scoped=reportingState(state);
-  const current=projectControlSchedule(scoped)?.revision.model;
-  if(current&&current.projectId===schedule.projectId&&current.sourceRevisionId===schedule.sourceRevisionId){
-    state=scoped;schedule=current;
+  // Some direct callers supply only the version, quantities and schedule.
+  // Such inputs have no adopted-programme evidence to scope; keep their
+  // source-specific calculation without entering full-project reporting.
+  // Real initialized project states still share their governed view.
+  if(Array.isArray(state.schedules)&&Array.isArray(state.evidenceDocuments)&&state.controls&&state.activeEvidenceBasis){
+    const scoped=reportingState(state);
+    const current=projectControlSchedule(scoped)?.revision.model;
+    if(current&&current.projectId===schedule.projectId&&current.sourceRevisionId===schedule.sourceRevisionId){
+      state=scoped;schedule=current;
+    }
   }
   const cached = mappings.get(state);
   if (cached?.version === state.version && cached.quantities === state.quantities && cached.schedule === schedule) {
