@@ -7937,11 +7937,14 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   const workflowActions:ProjectAction[]=actions.map(a=>reviewById.get(a.actionId)??{
     id:a.actionId,category:'follow_up',title:a.issue,reason:a.consequence??a.requiredAction,recordCount:recordPosition.ownerGroups.find(g=>g.groupId===a.actionId)?.count??1,
     owner:pmcRoleOwner(a.owningModule??a.recordKey??'project controls',a.owner??a.organisation),dueIso:a.dueIso,priorityBasis:a.priorityBasis,
-    resolution:{kind:'information',requiresUserAction:true,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
+    resolution:{kind:'information',requiresUserAction:false,instruction:a.requiredAction,completionRule:'Closes when the underlying dated record shows the work or response is complete.'},
     target:{type:'module',moduleKey:a.owningModule??'cross-domain-accountability',label:'Open supporting record'},
   });
   return {actions,recordActions,ownerGroups:recordPosition.ownerGroups,recordActionCount:recordActions.length,reviewActionCount:review.actions.length,
-    workflow:{...review,actions:workflowActions,actionCount:actions.length,scope:'One grouped project decision register. Each owner/register/state group counts once; every source action is retained inside its group. Source-review decisions remain separate.'},
+    workflow:{...review,actions:workflowActions,actionCount:actions.length,
+      userDecisionCount:workflowActions.filter(a=>a.category!=='follow_up'&&a.resolution?.requiresUserAction).length,
+      teamFollowUpCount:workflowActions.filter(a=>a.category==='follow_up').length,
+      scope:'One grouped project decision register. Each owner/register/state group counts once; every source action is retained inside its group. Source-review decisions remain separate.'},
     recordPosition};
 }
 export function projectActionRegisterForState(state:ProjectRuntimeState){

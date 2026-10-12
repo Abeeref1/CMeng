@@ -2009,6 +2009,8 @@ async function route(
         const relevant=workflow.actions.filter(action=>
           (category==='all'||action.category===category)&&
           (!term||(action.title+' '+action.reason).toLowerCase().includes(term)));
+        // Preserve ranking within each category and surface user decisions first.
+        if(category==='all')relevant.sort((a,b)=>Number(b.category!=='follow_up')-Number(a.category!=='follow_up'));
         const gaps=workflow.information??[];
         const gapsPage=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('dataGapsPage')??'0',10)||0));
         json(res,200,{...workflow,actions:relevant.slice(page*pageSize,(page+1)*pageSize),
