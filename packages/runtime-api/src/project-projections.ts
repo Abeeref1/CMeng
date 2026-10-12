@@ -1637,7 +1637,7 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.change,
-          precomputedComparison:revisionComparisons.get(before)?.get(after),
+          ...(revisionComparisons.get(before)?.get(after)?{precomputedComparison:revisionComparisons.get(before)!.get(after)!}:{}),
         },
       );
     modules.set(
