@@ -1,3 +1,4 @@
+import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
@@ -1187,6 +1188,7 @@ function buildBundle(
     buildMilestonesProjection(
       model,
       {
+          review: milestoneReviewForProjection(state,model),
           config: scheduleAnalysisConfig,
         generatedAt,
         producerVersion:
@@ -3252,7 +3254,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     modules,
   });
 
-  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel));
+  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel, key==='milestones'?milestoneReviewForProjection(state,model):undefined));
 
   measureBundle('universal_challenges_and_integrity');
   const latestBoardPublicationRecord =
@@ -4290,6 +4292,7 @@ function buildPlanningModuleFast(
       buildMilestonesProjection(
         model,
         {
+          review: milestoneReviewForProjection(state,model),
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
@@ -4620,6 +4623,7 @@ function buildPlanningModuleFast(
       buildMilestonesProjection(
         model,
         {
+          review: milestoneReviewForProjection(state,model),
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
@@ -6310,6 +6314,7 @@ function buildSpecialistModuleFast(
       buildMilestonesProjection(
         model,
         {
+          review: milestoneReviewForProjection(state,model),
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:
@@ -7778,7 +7783,7 @@ function resolveProjectModuleCandidate(
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
     if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
   }
-  return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims)));
+  return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims, key==='milestones'?milestoneReviewForProjection(state,model):undefined)));
 }
 
 const resolvedProjectCache = new Map<string, {version: number; modules: Map<string, ModuleRuntimeResult>}>();

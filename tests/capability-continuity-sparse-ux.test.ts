@@ -109,7 +109,7 @@ test('schedule-only Delay Events presents missing event populations as unresolve
       planningShortDate:String
     }
   );
-  for(const label of ['Current delay events','Source delay-event rows','After Data Date','Event date missing'])assert.match(html,new RegExp(label));
+  for(const label of ['Current delay events','Source delay-event rows','After Data Date','Event / awareness dates missing','No dated event evidence'])assert.match(html,new RegExp(label));
   assert.match(html,/No delay-event \/ claim source population is established/);
   assert.doesNotMatch(html,/Current delay events<\/span><strong>0<\/strong>/);
   assert.doesNotMatch(html,/Events linked to activities<\/span><strong>0<\/strong>/);

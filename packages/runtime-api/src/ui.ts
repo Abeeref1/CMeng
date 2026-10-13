@@ -2650,6 +2650,7 @@ function renderProgressReportVisual(data){
     ],"Activities"))+
   '</div>';
   return '<section class="planning-view progress-position-view">'+renderProgressScope(p.scopeComparison)+kpis+measuresPanel+areaPanel+warning+visualOverview+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current planned phasing, activity percentage-complete snapshot, physical, contractor-reported, certified and earned-value progress remain separate. Current planned phasing is never presented as achieved progress.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float can overlap critical activities; these counts must not be added.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+    ["Reviewed key dates",p.milestones?.reviewedKeyDateCount??0,"selected from this programme; original types retained"],
     ["Milestones",p.milestones?.populationState==='partial'?null:p.milestones?.milestoneCount,p.milestones?.populationState==='partial'?'Activity types incomplete; milestone total not established':"total"],
     ["Open milestones",p.milestones?.populationState==='partial'?null:p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.populationState==='partial'?null:p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
@@ -3041,10 +3042,17 @@ function renderProgressBreakdownVisual(data){
     viewHtml+baselineNote+hierarchyDetail+
   '</section>';
 }
+function renderMilestoneReview(p){
+  if(!p.review)return '';
+  const choice=p.review.choice;
+  const detail=choice==='no_programme_milestones'?'The reviewer confirmed that this source programme has no milestones. Original activity types remain unchanged.':choice==='track_key_dates'?'Selected activities are tracked as reviewed key dates. Source milestones remain included; the selected activities keep their original types and dates.':'Review source activity types, select key dates to track, or confirm that this programme has no milestones.';
+  return '<div class="notice info"><b>Milestone and key-date review</b><p>'+escapeHtml(detail)+'</p><p>Source milestones: '+escapeHtml(fmt(p.sourceMilestoneCount))+' · Additional reviewed key dates: '+escapeHtml(fmt(p.reviewedKeyDateCount))+(p.review.reference?' · Review reference: '+escapeHtml(p.review.reference):'')+'</p><button class="btn" onclick="openProjectActions()">Review milestone selection</button></div>';
+}
 function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
   if(!Array.isArray(p.rows))return"";
-  if(p.populationState==='partial'&&!p.milestoneCount)return '<section class="planning-view milestone-view"><div class="notice warn"><b>Milestone population is not established.</b><p>'+escapeHtml(fmt(p.unknownActivityTypeCount))+' activities have an unknown activity type. No milestones could be identified; this does not establish zero milestones or an absence of overdue commitments. Review the source activity types.</p></div></section>';
+  const reviewPanel=renderMilestoneReview(p);
+  if(p.populationState==='partial'&&!p.milestoneCount)return '<section class="planning-view milestone-view">'+reviewPanel+'<div class="notice warn"><b>Milestone population is not established.</b><p>'+escapeHtml(fmt(p.unknownActivityTypeCount))+' activities have an unknown activity type. No milestones could be identified; this does not establish zero milestones or an absence of overdue commitments. Review the source activity types.</p></div></section>';
   const full=p.milestoneFullCounts||null;
   const partialSource=!!full&&p.rows.length<full.sourceRows;
   const dd=planningDateMs(p.dataDateIso);
@@ -3120,7 +3128,7 @@ const movementClusters=new Map();
     const flags=(r.managementFlags||[]).map(f=>'<span class="milestone-flag '+escapeHtml(planningMilestoneFlagTone(f))+'">'+escapeHtml(planningMilestoneFlagLabel(f))+'</span>').join("");
     return '<tr>'+
       '<td><span class="milestone-priority-pill '+escapeHtml(priority)+'">'+escapeHtml(priority)+'</span></td>'+
-      '<td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span></td>'+
+      '<td><b>'+escapeHtml(r.activityId)+'</b><br><span class="muted">'+escapeHtml(r.name||"")+'</span><br><span class="muted">'+escapeHtml(r.wbsName||r.wbsId||"")+'</span><br><span class="muted">'+escapeHtml(r.identificationBasis==='reviewed_key_date'?'Reviewed key date · source type unchanged':'Source milestone')+'</span></td>'+
       '<td>'+escapeHtml(planningStateLabel(r.status))+'</td>'+
       '<td>'+(r.status==="completed"?'<span class="state-pill ready">Completed · live float not applicable</span>':'<span class="milestone-criticality '+escapeHtml(r.criticality||"unknown")+'">'+escapeHtml(planningMilestoneCriticalityLabel(r))+'</span>'+activityFloatReviewHtml(r))+'</td>'+
       '<td>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</td>'+
@@ -3193,7 +3201,7 @@ const movementClusters=new Map();
   const sourceLists='<section class="planning-panel primary"><div class="planning-panel-head"><h4>Complete milestone source lists</h4><p>Browse every open and completed milestone separately. The server filters the complete source register before paging.</p></div><div class="planning-panel-body">'+
     '<details><summary>Open milestones · '+fmt(full?.openCount??p.openCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;open&quot;,0)">Browse open milestones</button><div id="milestoneSourceOpen"></div></details>'+
     '<details><summary>Completed milestones · '+fmt(full?.completedCount??p.completedCount)+'</summary><button onclick="loadMilestoneSourcePage(&quot;completed&quot;,0)">Browse completed milestones</button><div id="milestoneSourceCompleted"></div></details></div></section>';
-  return '<section class="planning-view milestone-view">'+(p.populationState==='partial'?'<div class="notice warn">Activity types are missing for '+fmt(p.unknownActivityTypeCount)+' source records. The counts below cover identified milestones only; the full milestone population remains unresolved.</div>':'')+(partialSource?'<div class="notice warn"><b>Milestone register preview only.</b> Showing '+fmt(p.rows.length)+' of '+fmt(full.sourceRows)+' source milestones. All headline totals use full server counts; lists on this screen are not complete. Download the register for all open and completed records.</div>':'')+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+sourceLists+registerPanel+'</section>';
+  return '<section class="planning-view milestone-view">'+reviewPanel+(p.populationState==='partial'?'<div class="notice warn">Activity types are missing for '+fmt(p.unknownActivityTypeCount)+' source records. The counts below cover identified milestones and reviewed key dates only; the full milestone population remains unresolved.</div>':'')+(partialSource?'<div class="notice warn"><b>Milestone register preview only.</b> Showing '+fmt(p.rows.length)+' of '+fmt(full.sourceRows)+' source milestones. All headline totals use full server counts; lists on this screen are not complete. Download the register for all open and completed records.</div>':'')+lateMilestones+managementControl+timelinePanel+supportPanels+analytics+sourceLists+registerPanel+'</section>';
 }
 async function loadMilestoneSourcePage(mode,page){
   if(mode!=='open'&&mode!=='completed')return;

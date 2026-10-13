@@ -1,3 +1,4 @@
+import {milestoneReviewBasis} from './milestone-review';
 import {hseReportPosition} from './hse-report-evidence';
 import {documentClassificationForReview,documentClassificationChoices} from './document-identification';
 import {sourceTables} from '../../truth-kernel/src';
@@ -32,7 +33,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewActivityIds?:string[];reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -369,6 +370,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the cited HSE report and case/exposure population. Keep its stated rates or enter reviewed rates with their exposure-hours bases and a supporting reference. Missing rates stay unknown.',completionRule:'The reporting treatment is saved for these HSE sources and reporting date; source changes require review again.'},
       target:{type:'inline',kind:'review-hse-rates',label:'Record HSE rate review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewedRates:saved?.reviewedRates??hse.reportingRates,reviewOptions:[{value:'keep_reported',label:'Keep the reported rates with their qualifications'},{value:'confirm_rates',label:'Enter reviewed reporting rates and bases'}]}};
     (saved?information:actions).push(item);
+  }
+
+  const milestoneReview=milestoneReviewBasis(state);
+  if(milestoneReview){
+    const saved=milestoneReview.decision,required=!saved&&milestoneReview.unknownActivityTypeCount>0;
+    const item:ProjectAction={id:'matter:milestone-selection',category:required?'confirmation':'information',title:'Review programme milestones and key dates',owner:'Planning Engineer',recordCount:milestoneReview.schedule.revision.model.activities.length,
+      reason:'Source milestones and user-selected key dates remain distinguishable. Unknown source activity types are retained.',reviewFingerprint:milestoneReview.sourceFingerprint,reviewSourceRefs:milestoneReview.sourceRefs,
+      evidenceSummary:['Programme: '+milestoneReview.schedule.sourceFilename,'Source milestones: '+milestoneReview.sourceMilestoneCount,'Unknown source activity types: '+milestoneReview.unknownActivityTypeCount],
+      resolution:{kind:'choose',requiresUserAction:required,instruction:'Review the current activity register. Enter exact activity IDs to track their finish dates as key dates, or explicitly confirm no programme milestones when none are identified in the source. This does not change activity types, dates or contractual commitments.',completionRule:'The editable selection is saved for this programme source and reporting date. A new programme requires review again.'},
+      target:{type:'inline',kind:'review-milestones',label:'Save milestone review',reviewChoice:saved?.choice??null,reviewActivityIds:saved?.activityIds??[],reviewReference:saved?.reference??null,
+        reviewOptions:[{value:'track_key_dates',label:'Track selected programme activities as key dates'},...(milestoneReview.sourceMilestoneCount?[]:[{value:'no_programme_milestones',label:'Confirm this programme has no milestones'}])]}};
+    (required?actions:information).push(item);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];

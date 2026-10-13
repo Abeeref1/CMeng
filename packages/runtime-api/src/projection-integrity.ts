@@ -29,7 +29,7 @@ function sharedIntegrityBasis(model:CanonicalScheduleModel,config:ScheduleAnalys
 }
 
 /** Certifies only the metrics actually checked, never the completeness of project evidence. */
-export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig, claimsSource?: import('../../delay-analysis-core/src').DelayClaimsModel | null): ModuleRuntimeResult {
+export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: CanonicalScheduleModel, config: ScheduleAnalysisConfig, claimsSource?: import('../../delay-analysis-core/src').DelayClaimsModel | null, milestoneReview?: import('../../milestones-analysis/src').MilestonesProjection['review']): ModuleRuntimeResult {
   if (!result.data || typeof result.data !== 'object') return result;
   const data = result.data as Record<string, any>;
   const {execution,expectedCritical,expectedNear,progress}=sharedIntegrityBasis(model,config);
@@ -75,11 +75,22 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   }
   if(result.key==='milestones'){
     const source=model.activities.filter(a=>['milestone','start_milestone','finish_milestone'].includes(a.activityType)),rows=data.rows??[];
-    compare('source_milestone_ids',rows.map((r:any)=>r.activityId).sort().join('\n'),source.map(r=>r.activityId).sort().join('\n'));
-    compare('milestone_count',data.milestoneCount,source.length);
-    compare('completed_milestone_count',data.completedCount,source.filter(a=>a.status==='completed').length);
-    compare('open_milestone_count',data.openCount,source.filter(a=>a.status!=='completed').length);
-    for(const row of rows)compare('milestone_date_variance:'+row.activityId,row.varianceDays,days(row.baselineDateIso,row.currentDateIso));
+    const reviewIds=new Set(milestoneReview?.sourceRevisionId===model.sourceRevisionId&&milestoneReview.choice==='track_key_dates'&&milestoneReview.reference?milestoneReview.activityIds:[]);
+    const sourceIds=new Set(source.map(a=>a.activityId));
+    const reviewed=model.activities.filter(a=>reviewIds.has(a.activityId)&&!sourceIds.has(a.activityId));
+    const expected=[...source,...reviewed];
+    compare('source_milestone_ids',rows.filter((r:any)=>r.identificationBasis!=='reviewed_key_date').map((r:any)=>r.activityId).sort().join('\n'),source.map(r=>r.activityId).sort().join('\n'));
+    compare('reviewed_key_date_ids',rows.filter((r:any)=>r.identificationBasis==='reviewed_key_date').map((r:any)=>r.activityId).sort().join('\n'),reviewed.map(r=>r.activityId).sort().join('\n'));
+    if(data.sourceMilestoneCount!==undefined)compare('source_milestone_count',data.sourceMilestoneCount,source.length);
+    if(data.reviewedKeyDateCount!==undefined)compare('reviewed_key_date_count',data.reviewedKeyDateCount,reviewed.length);
+    compare('milestone_count',data.milestoneCount,expected.length);
+    compare('completed_milestone_count',data.completedCount,expected.filter(a=>a.status==='completed').length);
+    compare('open_milestone_count',data.openCount,expected.filter(a=>a.status!=='completed').length);
+    const expectedById=new Map(expected.map(a=>[a.activityId,a]));
+    for(const row of rows){
+      compare('original_activity_type:'+row.activityId,row.activityType,expectedById.get(row.activityId)?.activityType);
+      compare('milestone_date_variance:'+row.activityId,row.varianceDays,days(row.baselineDateIso,row.status==='completed'?row.actualDateIso??row.currentDateIso:row.forecastDateIso??row.currentDateIso));
+    }
   }
   if(result.key==='forecast-history'){
     const rows=data.points??[];

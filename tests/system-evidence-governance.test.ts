@@ -289,3 +289,33 @@ test('missing-calendar gaps stay bounded by chart intervals on a large source po
  const curve=buildProgressScurveProjection(input,options);
  assert.ok(curve.points.length<30);assert.ok(curve.points.some(p=>p.currentForecastPercent===null));assert.equal(curve.currentCoveragePercent,100);assert.equal(curve.points.at(-1)!.currentForecastPercent,100);
 });
+
+test('reviewed key dates preserve source milestones and require independently supplied review authority at the integrity gate',async()=>{
+ const {buildMilestonesProjection}=await import('../packages/milestones-analysis/src');
+ const input=model([activity('SOURCE',{activityType:'finish_milestone'}),activity('KEY',{activityType:'unknown',forecastFinishIso:'2030-01-10T16:00:00'})]);
+ const before=JSON.stringify(input);
+ const review={sourceFingerprint:'source',sourceRevisionId:input.sourceRevisionId,choice:'track_key_dates',activityIds:['SOURCE','KEY'],reference:'CHECK-1',confirmedAt:options.generatedAt};
+ const projection=buildMilestonesProjection(input,{...options,review});
+ assert.equal(projection.sourceMilestoneCount,1);assert.equal(projection.reviewedKeyDateCount,1);assert.equal(projection.milestoneCount,2);
+ assert.equal(projection.rows.find(r=>r.activityId==='KEY')!.activityType,'unknown');assert.equal(projection.populationState,'partial');
+ const result={key:'milestones',status:'ready' as const,reason:null,dependencies:[],data:projection};
+ const check=(decision?:typeof review,data=projection)=>(checkProjectionIntegrity({...result,data},input,DEFAULT_SCHEDULE_ANALYSIS_CONFIG,null,decision).data as any).systemEvidenceContract;
+ assert.equal(check(review).failureCount,0);assert.equal(check().state,'failed','projection cannot certify its own claimed review');
+ assert.equal(check(review,{...projection,rows:projection.rows.filter(r=>r.activityId!=='SOURCE')}).state,'failed','source milestone removal remains a failure');
+ const stale=buildMilestonesProjection(input,{...options,review:{...review,sourceRevisionId:'old'}});assert.equal(stale.milestoneCount,1);assert.equal(stale.reviewedKeyDateCount,0);
+ const absence=buildMilestonesProjection(input,{...options,review:{...review,choice:'no_programme_milestones',activityIds:[]}});assert.equal(absence.sourceMilestoneCount,1);assert.equal(absence.milestoneCount,1);assert.equal(absence.populationState,'partial');
+ assert.equal(JSON.stringify(input),before);
+});
+
+test('milestone review rejects erased source milestones and ambiguous activity identities',async t=>{
+ const {RuntimeProjectStore}=await import('../packages/runtime-api/src/project-state');
+ const {milestoneReviewInput}=await import('../packages/runtime-api/src/milestone-review');
+ const {mkdtempSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
+ const dir=mkdtempSync(join(tmpdir(),'milestone-validation-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:dir,durable:false}),state=store.getOrCreate('KEY-DATES');
+ const input=model([activity('M',{activityType:'milestone'}),activity('DUP'),activity('DUP')]);
+ state.schedules.push({role:'update',format:'xer',sourceFilename:'Current.xer',sourceHashSha256:'source-hash',uploadedAt:options.generatedAt,revision:{revisionId:'R2',sequence:1,effectiveAt:input.dataDateIso,label:'Current',model:input}} as any);
+ assert.throws(()=>milestoneReviewInput(state,{choice:'no_programme_milestones',activityIds:[],reference:'CHECK'}),/source identifies milestones/);
+ assert.throws(()=>milestoneReviewInput(state,{choice:'track_key_dates',activityIds:['DUP'],reference:'CHECK'}),/exactly one activity/);
+ assert.deepEqual(milestoneReviewInput(state,{choice:'track_key_dates',activityIds:['M','M'],reference:'CHECK'}),{activityIds:['M'],reference:'CHECK'});
+});

@@ -56,6 +56,7 @@ export interface MilestoneRow {
   wbsId: string | null;
   wbsName: string | null;
   activityType: CanonicalActivityType;
+  identificationBasis?: "source_activity_type" | "reviewed_key_date";
   status: CanonicalActivityStatus;
   baselineDateIso: string | null;
   currentDateIso: string | null;
@@ -105,6 +106,9 @@ export interface MilestonesProjection {
     | "not_established";
   populationState?: "established" | "partial";
   unknownActivityTypeCount?: number;
+  sourceMilestoneCount?: number;
+  reviewedKeyDateCount?: number;
+  review?: {sourceFingerprint:string;sourceRevisionId:string;choice:string|null;activityIds:string[];reference:string|null;confirmedAt:string|null};
   milestoneCount: number;
   completedCount: number;
   openCount: number;

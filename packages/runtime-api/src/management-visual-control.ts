@@ -370,6 +370,9 @@ export function managementVisualControl(
       negativeFloatKnownCount:activityRows.filter((row:any)=>typeof row.totalFloatHours==='number'&&row.totalFloatHours<0).length,
     },
     milestones:{
+      sourceMilestoneCount:milestones.sourceMilestoneCount??milestones.milestoneCount??null,
+      reviewedKeyDateCount:milestones.reviewedKeyDateCount??0,
+      review:milestones.review??null,
       milestoneCount:milestones.milestoneCount??null,
       openCount:milestones.openCount??null,
       lateOpenCount:milestones.lateOpenCount??null,

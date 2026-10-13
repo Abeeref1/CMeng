@@ -667,3 +667,12 @@ test('Financial Claims renders full accepted source counts even when none are da
  assert.match(html,/does not by itself establish a formal determination or award/);
  assert.doesNotMatch(html,/Unknown: 14/);assert.doesNotMatch(html,/No confirmed claim lifecycle population/);
 });
+
+test('Milestones offers a source-bound review route and labels a reviewed absence separately from original types',()=>{
+ const render=functions(['renderMilestoneReview']);
+ const p={sourceMilestoneCount:0,reviewedKeyDateCount:0,review:{choice:'no_programme_milestones',reference:'CHECK-2'}};
+ const html=runInNewContext(render+';renderMilestoneReview(p)',{...common,p});
+ assert.match(html,/reviewer confirmed/);assert.match(html,/Original activity types remain unchanged/);assert.match(html,/CHECK-2/);assert.match(html,/openProjectActions\(\)/);
+ const pending=runInNewContext(functions(['renderMilestonesVisual','renderMilestoneReview','projectionFor'])+';renderMilestonesVisual(data)',{...common,data:{projectionKey:'milestones',rows:[],populationState:'partial',unknownActivityTypeCount:9500,milestoneCount:0,review:{choice:null}}});
+ assert.match(pending,/9500/);assert.match(pending,/Review milestone selection/);assert.match(pending,/does not establish zero milestones/);
+});

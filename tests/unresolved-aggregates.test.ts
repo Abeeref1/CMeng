@@ -222,7 +222,7 @@ test('unknown activity types qualify an empty milestone population instead of pr
  const p=buildMilestonesProjection(model,options);assert.equal(p.milestoneCount,0);assert.equal(p.populationState,'partial');assert.equal(p.unknownActivityTypeCount,model.activities.length);
  const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
  const ast=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
- const fn=ast.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderMilestonesVisual')!.getText(ast);
+ const fn=ast.statements.filter(isFunctionDeclaration).filter(n=>['renderMilestonesVisual','renderMilestoneReview'].includes(n.name?.text??'')).map(n=>n.getText(ast)).join('\n');
  const html=runInNewContext(fn+';renderMilestonesVisual(p)',{p,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String});
  assert.match(html,/Milestone population is not established/);assert.doesNotMatch(html,/attention-clear|No current open milestone/);
 });

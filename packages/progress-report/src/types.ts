@@ -121,6 +121,8 @@ export interface ProgressReportProjection {
   milestones: {
     populationState?: "established" | "partial";
     unknownActivityTypeCount?: number;
+    sourceMilestoneCount: number;
+    reviewedKeyDateCount: number;
     milestoneCount: number;
     completedCount: number;
     openCount: number;

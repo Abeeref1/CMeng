@@ -489,7 +489,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Largest finish movements",
       "Finish-date movement",
       "Milestone movement",
-      "Float-risk distribution",
+      "Submitted float distribution",
       "Float-Risk Watchlist",
       "Comparison with the submitted position",
     ]

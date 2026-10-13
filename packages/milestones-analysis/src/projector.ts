@@ -303,6 +303,7 @@ export function buildMilestonesProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    review?: MilestonesProjection["review"];
   },
 ): MilestonesProjection {
   const config =
@@ -315,6 +316,10 @@ export function buildMilestonesProjection(
     "finish_milestone",
   ]);
 
+  const review=input.review?.sourceRevisionId===model.sourceRevisionId?input.review:undefined;
+  const reviewedIds=new Set(review?.choice==='track_key_dates'?review.activityIds:[]);
+  const sourceMilestoneCount=model.activities.filter(a=>milestoneTypes.has(a.activityType)).length;
+  const absenceConfirmed=review?.choice==='no_programme_milestones'&&!!review.reference&&sourceMilestoneCount===0;
   const wbsById = new Map(
     model.wbs.map((node) => [
       node.wbsId,
@@ -365,7 +370,7 @@ export function buildMilestonesProjection(
       .filter((activity) =>
         milestoneTypes.has(
           activity.activityType,
-        ),
+        ) || reviewedIds.has(activity.activityId),
       )
       .map((activity) => {
         const current = currentDate(activity);
@@ -412,6 +417,7 @@ export function buildMilestonesProjection(
             : null,
           activityType:
             activity.activityType,
+          identificationBasis: milestoneTypes.has(activity.activityType)?"source_activity_type":"reviewed_key_date",
           status: activity.status,
           baselineDateIso:
             baselineIso,
@@ -540,7 +546,10 @@ export function buildMilestonesProjection(
         : "explicit_hours",
     floatCoveragePercent,
     sourceFloatState,
-    populationState:model.activities.some(a=>a.activityType==='unknown')?'partial':'established',
+    populationState:!absenceConfirmed&&model.activities.some(a=>a.activityType==='unknown')?'partial':'established',
+    sourceMilestoneCount,
+    reviewedKeyDateCount:rows.filter(r=>r.identificationBasis==='reviewed_key_date').length,
+    ...(review?{review}:{}),
     unknownActivityTypeCount:model.activities.filter(a=>a.activityType==='unknown').length,
     milestoneCount: rows.length,
     completedCount: completed.length,
