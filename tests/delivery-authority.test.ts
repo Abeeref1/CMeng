@@ -583,3 +583,28 @@ test('procurement lateness checks recognize the supplied required-on-site date',
  const p=deliveryPosition(f.state),r=p.registerRows.find(r=>r.reference==='PKG-LATE')!;
  assert.equal(r.dueDate,'2031-08-20');assert.equal(p.findings.some(x=>x.recordId===r.recordId&&x.code==='DELIVERY_LATENESS_DUE_DATE_REQUIRED'),false);
 });
+
+test('completed programme work retains open procurement in a separate close-out action group',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.status='completed';model.activities[0]!.actualFinishIso='2031-08-01';f.store.touch(f.state);
+ f.create('package','CLOSE-OUT',{status:'Manufacturing','required on site':'2031-08-10','forecast delivery':'2031-09-05'},{activityIds:['A1']});
+ f.create('package','NO-DATE',{status:'Awarded'},{activityIds:['A1']});
+ f.create('package','DELIVERED',{status:'Delivered','actual delivery':'2031-08-01'},{activityIds:['A1']});
+ f.create('package','ACTIVE',{status:'Ordered','required on site':'2031-08-10','forecast delivery':'2031-09-05'},{activityIds:['A2']});
+ const before=JSON.stringify(f.state.controls),p=crossDomainAccountability(f.state);
+ const cleanup=p.ownerGroups.find(g=>g.register==='procurement-packages'&&g.state==='register_cleanup')!;
+ const live=p.ownerGroups.find(g=>g.register==='procurement-packages'&&g.state==='active_control')!;
+ assert.equal(cleanup.count,2);assert.equal(live.count,1);assert.equal(p.recordActions.filter(a=>a.owningModule==='procurement-packages').length,3);
+ const action=p.actions.find(a=>a.actionId===cleanup.groupId)!;
+ assert.match(action.issue,/Close-out review/);assert.match(action.requiredAction,/completed programme work/);assert.equal(action.dueIso,null);assert.equal(action.sourceDueIso,'2031-08-10');assert.equal(action.sourceOverdueDays,21);
+ assert.match(action.escalation??'',/1 overdue source record/);assert.match(p.actions.find(a=>a.actionId===live.groupId)!.escalation??'',/overdue source record/);
+ assert.equal(JSON.stringify(f.state.controls),before);
+});
+
+test('late procurement forecasts do not create already-overdue escalation before the source need date',async t=>{
+ const f=await fixture(t),supplier=f.create('supplier','VENDOR',{company:'Vendor'});
+ f.create('package','FUTURE-NEED',{status:'Ordered','required on site':'2031-09-10','forecast delivery':'2031-09-20'},{supplierIds:[supplier.recordId]});
+ const p=crossDomainAccountability(f.state),action=p.actions.find(a=>a.owningModule==='procurement-packages')!;
+ assert.ok(action);assert.equal(action.escalation,null);assert.equal(action.sourceOverdueCount,0);assert.equal(action.sourceOverdueDays,null);
+ assert.ok(p.details.every(d=>d.overdueDays===null));
+});

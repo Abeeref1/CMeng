@@ -300,7 +300,7 @@ function experienceRoleLensContext(role,data){
   if(role==='project-director'){
     const rows=(context.projectDirector?.actions||[]).slice(0,8);
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Delivery consequences, ownership & required action</h4><span>Project Director</span></div>'+
-      roleLensTable('Priority management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Due','date'],['escalation','Escalation']],rows)+
+      roleLensTable('Priority management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Action due','date'],['sourceDueIso','Earliest source due','date'],['sourceOverdueDays','Source days overdue'],['escalation','Escalation']],rows)+
       (!rows.length?'<p>'+escapeHtml(context.projectDirector?.openActionCount>0?context.projectDirector.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':context.projectDirector?.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+'</section>';
   }
   if(role==='program-director'){
@@ -321,7 +321,7 @@ function experienceRoleLensContext(role,data){
         {label:'Currency positions',value:Array.isArray(e.commercialByCurrency)?e.commercialByCurrency.length:null,basis:'Commercial positions remain separated by currency and tax basis'}
       ])+
       roleLensTable('Priority management metrics',[['label','Metric'],['value','Value'],['unit','Unit'],['health','Health'],['basis','Basis']],metricRows)+
-      roleLensTable('Decisions requiring ownership',[['description','Decision'],['accountableOwner','Owner'],['dueDate','Due','date'],['requiredAuthority','Required authority'],['dependencyParty','Dependency'],['state','State']],decisions)+
+      roleLensTable('Decisions requiring ownership',[['description','Decision'],['accountableOwner','Owner'],['dueDate','Action due','date'],['sourceDueIso','Earliest source due','date'],['sourceOverdueDays','Source days overdue'],['requiredAuthority','Required authority'],['dependencyParty','Dependency'],['state','State']],decisions)+
       '</section>';
   }
   return '';

@@ -8058,7 +8058,7 @@ function moduleForProjectUncached(
     result.data={...deliveryData,priorityFindings:priorityActions.map(a=>({message:a.issue,action:a.requiredAction,recordId:(sourceByReference.get(a.recordKey?.split('|').slice(1).join('|')??'') as any)?.recordId??null,sourceRefs:a.sourceRefs,priorityBasis:a.priorityBasis}))};
     if(key==='delivery-control'){
       const actions=register.actions.filter(a=>isDeliveryPage(a.owningModule??''));
-      result.data={...(result.data as object),findings:[],managementActions:actions.map(a=>({actionId:a.actionId,recordKey:a.recordKey,issue:a.issue,workfront:a.affectedMilestones.join('; ')||null,affectedSchedule:a.affectedScope,package:a.recordKey?.startsWith('procurement|')?a.recordKey.split('|')[1]:null,owner:a.owner??a.organisation,requiredDate:a.dueIso,consequence:a.consequence,action:a.requiredAction,priorityBasis:a.priorityBasis,sourceRefs:a.sourceRefs})),managementPosition:actions.length+' delivery actions from the shared project action register, ranked by linked programme and commercial effect.'};
+      result.data={...(result.data as object),findings:[],managementActions:actions.map(a=>({actionId:a.actionId,recordKey:a.recordKey,issue:a.issue,workfront:a.affectedMilestones.join('; ')||null,affectedSchedule:a.affectedScope,package:a.recordKey?.startsWith('procurement|')?a.recordKey.split('|')[1]:null,owner:a.owner??a.organisation,requiredDate:a.dueIso,sourceDueIso:a.sourceDueIso??null,sourceOverdueDays:a.sourceOverdueDays??null,escalation:a.escalation,consequence:a.consequence,action:a.requiredAction,priorityBasis:a.priorityBasis,sourceRefs:a.sourceRefs})),managementPosition:actions.length+' delivery actions from the shared project action register, ranked by linked programme and commercial effect.'};
     }
     return finalize(attachReportingContract(scoped,result));
   }
@@ -8094,7 +8094,7 @@ export function directorForProject(
   const reviewed={...reviewedBase,managementActions:register.actions.map(a=>{
     const kind=a.recordKey?.split('|')[0],label=kind==='ncr'?'NCR':kind==='rfi'?'RFI':null;
     const issue=label&&!a.issue.startsWith(label)?label+' '+a.issue:a.issue;
-    return [issue,a.requiredAction,a.dueIso?'Due '+a.dueIso:null].filter(Boolean).join(' — ');
+    return [issue,a.requiredAction,a.dueIso?'Action due '+a.dueIso:'Follow-up deadline not agreed',a.sourceDueIso?'Earliest source due '+a.sourceDueIso:null,a.sourceOverdueDays?'Source overdue '+a.sourceOverdueDays+' calendar days':null,a.escalation].filter(Boolean).join(' — ');
   }),managementActionCount:register.actions.length};
   return reportingData(state,'project-director',bindProjectFacts('project-director',reviewed,projectFactsForState(state)) as typeof reviewed);
 }
@@ -8993,6 +8993,7 @@ export function overviewForProject(
     organisation:action.organisation??null,
     requiredAction:action.requiredAction??null,
     dueIso:action.dueIso??null,
+    sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,sourceOverdueCount:action.sourceOverdueCount??0,
     escalation:action.escalation??null,
     severity:action.severity??null,
     authority:action.authority??null,
@@ -9011,6 +9012,7 @@ export function overviewForProject(
     description:action.issue,
     accountableOwner:pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner),
     dueDate:action.dueIso??null,
+    sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,
     requiredAuthority:action.authority??null,
     dependencyParty:action.organisation??null,
     state:'open',

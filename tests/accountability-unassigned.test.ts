@@ -68,3 +68,15 @@ test('Project Review does not publish team records and Accountability retains th
  assert.ok(team.every(a=>!register.workflow.actions.some(d=>d.id===a.actionId)),'no duplicate authority decisions in team list');
  assert.ok(baseline.recordActions[0]!.sourceRefs.includes('quality-source:NCR-BOUNDARY'));
 });
+
+test('owner groups aggregate source ageing and escalation without inventing an action deadline',()=>{
+ const {state}=fixture();state.controls.ncrs.push(ncr('OVERDUE'),{...ncr('FUTURE-DUE'),dueIso:'2031-04-20'});state.version++;
+ const before=JSON.stringify(state.controls),p=crossDomainAccountability(state),group=p.actions[0]!;
+ assert.equal(group.dueIso,null);assert.equal(group.sourceDueIso,'2031-04-10');assert.equal(group.sourceOverdueDays,5);assert.equal(group.sourceOverdueCount,1);
+ assert.match(group.escalation??'',/1 overdue source record/);assert.match(group.escalation??'',/Agree a follow-up deadline/);
+ assert.equal(p.ownerGroups[0]!.overdueRecordCount,1);assert.equal(p.ownerGroups[0]!.worstOverdueDays,5);
+ assert.equal(p.recordActions.find(a=>a.actionId.endsWith('FUTURE-DUE'))!.dueIso,'2031-04-20');
+ assert.equal(JSON.stringify(state.controls),before);
+ const shared=projectActionRegisterForState(state).actions.find(a=>a.actionId===group.actionId)!;
+ assert.equal(shared.dueIso,null);assert.equal(shared.sourceDueIso,group.sourceDueIso);assert.equal(shared.escalation,group.escalation);
+});

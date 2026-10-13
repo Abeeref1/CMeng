@@ -55,10 +55,10 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   // Reuse the same as-of procurement flags used by the specialist Delivery page.
   // Reported delivered is not an actual delivery date, but it is not evidence
   // of an outstanding late shipment merely because the old forecast was late.
-  for(const p of delivery.packageRows)if(!p.registerCleanup&&(p.forecastLate||p.overdueUndelivered)){
-    const r=recordById.get(p.recordId)!;const issue=p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
+  for(const p of delivery.packageRows)if(p.registerCleanup&&!p.deliveredAtDataDate&&!p.deliveredStatusOnly||!p.registerCleanup&&(p.forecastLate||p.overdueUndelivered)){
+    const r=recordById.get(p.recordId)!;const issue=p.registerCleanup?'Open procurement record remains against completed programme work':p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
-    for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:p.headroomCalendarDays===null?daysOver(p.needDate,dataDateIso):-p.headroomCalendarDays,activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
+    for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:daysOver(p.needDate,dataDateIso),activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
   }
   const op=(domain:string,row:any,id:string,issue:string)=>{const base={domain,recordId:id,reference:id,issue:[row.subject,issue].filter(Boolean).join(' · '),dueDate:row.dueIso??null,overdueDays:daysOver(row.dueIso??null,dataDateIso),activityIds:row.linkedActivityId?[row.linkedActivityId]:[],sourceRefs:row.sourceRefs??[],authority:'confirmed_record' as const};add('owner',pmcRoleOwner(domain,row.owner),base);add('organisation',row.owner,base);};
   for(const r of operations.quality.current)if(r.status==='open')op('NCR',r,r.ncrId,(r.severity??'unknown')+' NCR remains open');
@@ -141,7 +141,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     const domain=actionRecordKey(first.domain,'').split('|')[0]!;
     const owner=pmcRoleOwner(domain,dimension('organisation')??dimension('party_role')??dimension('contractor')??dimension('subcontractor'));
     const procurement=domain==='procurement'?packageById.get(first.recordId)??null:null;
-    const completedRegisterFollowUp=['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work';
+    const completedRegisterFollowUp=(['rfi','ncr'].includes(domain)&&registerProgrammeContext(first.activityIds,programmeActivities).state==='completed_work')||domain==='procurement'&&procurement?.registerCleanup===true;
     const consequence=
       completedRegisterFollowUp?'All linked activities are complete. Close or reconcile this open register record and check any remaining acceptance obligation.':
       domain==='procurement'?'Programme need dates may be affected by the late package.':
@@ -162,7 +162,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
       actionId:'accountability:'+(['rfi','ncr'].includes(domain)?domain.toUpperCase():domain)+'|'+(first.reference??first.recordId),recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
-      owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,escalation:overdue>0?'Escalate because the required date is already past.':null,
+      owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,sourceOverdueDays:overdue,escalation:overdue>0?'Escalate because the required date is already past.':null,
       severity:completedRegisterFollowUp?'low':overdue>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
       moneyAtRisk:procurement?.packageValue!==null&&procurement?.packageValue!==undefined&&procurement.currency?[{amount:procurement.packageValue,currency:procurement.currency}]:[],
@@ -173,7 +173,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     if(bond.status!=='expired')continue;
     actionRows.push(managementAction({actionId:'security:'+bond.bondId,recordKey:actionRecordKey('security',bond.bondId),issue:bond.bondId+' · security expired',
       consequence:'Contract security is no longer valid at the reporting date.',affectedScope:[],affectedMilestones:[],owner:pmcRoleOwner('bond',null),organisation:null,
-      requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,escalation:'Escalate the uncovered security exposure.',
+      requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,sourceOverdueDays:daysOver(bond.expiryIso,dataDateIso),escalation:'Escalate the uncovered security exposure.',
       severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }
   const recordActions=prioritizeActions(actionRows,programme);
@@ -194,9 +194,13 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     const sourceCount=new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size;
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
+    const sourceDueIso=members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null;
+    const sourceOverdueDays=sourceDueIso?daysOver(sourceDueIso,dataDateIso):null;
+    const sourceOverdueCount=members.filter(m=>(daysOver(m.dueIso,dataDateIso)??0)>0).length;
     return {...first,
       actionId:'accountability-owner-group:'+encodeURIComponent(key),
-      dueIso:members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null,
+      dueIso:null,sourceDueIso,sourceOverdueDays,sourceOverdueCount,
+      escalation:sourceOverdueCount?'Escalate '+sourceOverdueCount+' overdue source record(s); the oldest required date is '+sourceOverdueDays+' calendar days past at the reporting date. Agree a follow-up deadline.':members.find(m=>m.escalation)?.escalation??null,
       recordKey:'accountability-owner-group:'+key,
       issue:(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)',
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
@@ -213,6 +217,8 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     return {groupId:'accountability-owner-group:'+encodeURIComponent(key),key,owner,register,state:stateKey,
       memberActionIds:members.map(m=>m.actionId),count:new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size,
       earliestDueIso:members.map(m=>m.dueIso).filter((d):d is string=>!!d).sort()[0]??null,
+      overdueRecordCount:members.filter(m=>(daysOver(m.dueIso,dataDateIso)??0)>0).length,
+      worstOverdueDays:members.reduce<number|null>((worst,m)=>{const days=daysOver(m.dueIso,dataDateIso);return days===null?worst:Math.max(worst??0,days);},null),
       topPriority:priority};
   });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;

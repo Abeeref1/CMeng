@@ -202,6 +202,10 @@ export interface ManagementAction {
   organisation: string | null;
   requiredAction: string;
   dueIso: string | null;
+  /** Historical obligation dates are evidence, not agreed deadlines for grouped follow-up. */
+  sourceDueIso?: string | null;
+  sourceOverdueDays?: number | null;
+  sourceOverdueCount?: number;
   escalation: string | null;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'information';
   authority: ManagementFactAuthority;

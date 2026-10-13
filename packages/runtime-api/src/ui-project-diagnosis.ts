@@ -33,7 +33,7 @@ function renderProjectPrioritySummary(register){
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const grouped=team.slice(0,3).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b>'+
    '<p>'+escapeHtml(text(row.consequence||row.requiredAction||''))+'</p>'+
-   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Project Controls Manager')+(row.dueIso?' · Earliest reported due: '+escapeHtml(planningShortDate(row.dueIso)):'')+'</small></li>').join('');
+   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Project Controls Manager')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
  return '<p>Contract interpretations and other confirmations are managed in Project Review. Operational work is assigned through Accountability.</p>'+
   '<p><button class="btn small" onclick="openProjectActions()">Open Project Review</button> '+managementModuleLink('cross-domain-accountability','Open Accountability')+'</p>'+
   (decisions.length?'<p><b>'+fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' included in the ranked register.</b> Confirm only after reviewing the original evidence.</p>':'')+

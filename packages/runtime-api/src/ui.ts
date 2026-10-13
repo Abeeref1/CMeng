@@ -4817,6 +4817,12 @@ function commandActionItems(data){
  }
  return [...unique.values()].sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||(a.dueIso||"9999").localeCompare(b.dueIso||"9999"));
 }
+function actionDeadlineText(action){
+ const parts=[action.dueIso?'Action due '+planningShortDate(action.dueIso):'Follow-up deadline not agreed'];
+ if(action.sourceDueIso)parts.push('Earliest source due '+planningShortDate(action.sourceDueIso));
+ if(action.sourceOverdueDays>0)parts.push('Source overdue '+fmt(action.sourceOverdueDays)+' calendar days at reporting date');
+ return parts.join(' · ');
+}
 function renderPmcScope(values){
  const clean=(values||[]).map(value=>typeof readerText==='function'?readerText(value):String(value));
  if(!clean.length)return 'Not classified';
@@ -4831,7 +4837,7 @@ function renderCommandAccountability(data){
  for(const action of actions){
   const recorded=action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls');
   const key=recorded;
-  const group=groups.get(key)||{party:recorded,unassigned:false,actions:0,overdue:0,material:0,milestones:new Set(),scopes:new Set(),nextDue:null,escalations:0};
+  const group=groups.get(key)||{party:recorded,unassigned:false,actions:0,overdue:0,material:0,milestones:new Set(),scopes:new Set(),nextDue:null,sourceDue:null,sourceOverdue:0,escalations:0};
   group.actions++;
   if(action.severity==='critical'||action.severity==='high')group.material++;
   for(const milestone of action.affectedMilestones||[])if(milestone)group.milestones.add(milestone);
@@ -4841,17 +4847,19 @@ function renderCommandAccountability(data){
    if(dd&&due<dd)group.overdue++;
    if(!group.nextDue||due<group.nextDue)group.nextDue=due;
   }
+  if(action.sourceDueIso&&(!group.sourceDue||action.sourceDueIso<group.sourceDue))group.sourceDue=action.sourceDueIso;
+  if(action.sourceOverdueDays>0)group.sourceOverdue++;
   if(action.escalation)group.escalations++;
   groups.set(key,group);
  }
  const rows=[...groups.values()].sort((a,b)=>(a.unassigned?0:1)-(b.unassigned?0:1)||b.overdue-a.overdue||b.material-a.material||b.actions-a.actions||a.party.localeCompare(b.party));
- return '<div class="table-wrap"><table><thead><tr><th>Owner / accountable party</th><th>Open actions</th><th>Overdue</th><th>High / critical</th><th>Threatened milestones</th><th>Affected scope</th><th>Next due</th><th>Escalations</th></tr></thead><tbody>'+rows.map(group=>'<tr><td><b>'+escapeHtml(group.party)+'</b>'+(group.unassigned?'<br><span class="state-pill review">Assignment required</span>':'')+'</td><td>'+escapeHtml(fmt(group.actions))+'</td><td>'+escapeHtml(fmt(group.overdue))+'</td><td>'+escapeHtml(fmt(group.material))+'</td><td>'+escapeHtml([...group.milestones].join('; ')||'Not linked')+'</td><td>'+renderPmcScope([...group.scopes])+'</td><td>'+escapeHtml(group.nextDue?planningShortDate(group.nextDue):'Not set')+'</td><td>'+escapeHtml(fmt(group.escalations))+'</td></tr>').join('')+'</tbody></table></div>';
+ return '<div class="table-wrap"><table><thead><tr><th>Owner / accountable party</th><th>Open actions</th><th>Overdue action deadlines</th><th>Groups with overdue source records</th><th>High / critical</th><th>Threatened milestones</th><th>Affected scope</th><th>Next action due</th><th>Earliest source due</th><th>Escalations</th></tr></thead><tbody>'+rows.map(group=>'<tr><td><b>'+escapeHtml(group.party)+'</b>'+(group.unassigned?'<br><span class="state-pill review">Assignment required</span>':'')+'</td><td>'+escapeHtml(fmt(group.actions))+'</td><td>'+escapeHtml(fmt(group.overdue))+'</td><td>'+escapeHtml(fmt(group.sourceOverdue))+'</td><td>'+escapeHtml(fmt(group.material))+'</td><td>'+escapeHtml([...group.milestones].join('; ')||'Not linked')+'</td><td>'+renderPmcScope([...group.scopes])+'</td><td>'+escapeHtml(group.nextDue?planningShortDate(group.nextDue):'Not set')+'</td><td>'+escapeHtml(group.sourceDue?planningShortDate(group.sourceDue):'Not set')+'</td><td>'+escapeHtml(fmt(group.escalations))+'</td></tr>').join('')+'</tbody></table></div>';
 }
 
 function renderCommandActionTable(data){
  const actions=commandActionItems(data);
  if(!actions.length)return '<div class="notice info"><b>No current action is established from the available Project information.</b><p>Information gaps remain listed separately below.</p></div>';
- const rows=actions.slice(0,30).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(typeof readerText==='function'?readerText(action.issue):action.issue)+'</b></td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.consequence||"Consequence not yet established"):action.consequence||"Consequence not yet established")+'</td><td>'+renderPmcScope(action.affectedScope)+'</td><td>'+escapeHtml(action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls'))+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.requiredAction||"Review required"):action.requiredAction||"Review required")+'</td><td>'+escapeHtml(action.dueIso?planningShortDate(action.dueIso):"Not set")+'</td><td>'+escapeHtml(action.escalation||"Not set")+'</td><td>'+managementModuleLink(action.module,"Open")+'</td></tr>').join("");
+ const rows=actions.slice(0,30).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(typeof readerText==='function'?readerText(action.issue):action.issue)+'</b></td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.consequence||"Consequence not yet established"):action.consequence||"Consequence not yet established")+'</td><td>'+renderPmcScope(action.affectedScope)+'</td><td>'+escapeHtml(action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls'))+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.requiredAction||"Review required"):action.requiredAction||"Review required")+'</td><td>'+escapeHtml(actionDeadlineText(action))+'</td><td>'+escapeHtml(action.escalation||"Not set")+'</td><td>'+managementModuleLink(action.module,"Open")+'</td></tr>').join("");
  return '<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue</th><th>Consequence</th><th>Scope</th><th>Owner</th><th>Action</th><th>Due</th><th>Escalation</th><th>Control</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="muted">Showing '+fmt(Math.min(30,actions.length))+' of '+fmt(actions.length)+' distinct current actions. Missing owners, due dates and escalation are not invented.</p>';
 }
 function renderMcpProgrammeControl(data){
@@ -5081,8 +5089,8 @@ async function loadAccountabilityGroup(encodedKey,page=0){
 }
 function accountabilityOwnerGroups(data){
  const groups=data.ownerGroups||[];
- const rows=groups.map(group=>'<tr><td>'+escapeHtml(group.owner)+'</td><td>'+escapeHtml(names[group.register]||humanizeKey(group.register))+'</td><td>'+escapeHtml(humanizeKey(group.state))+'</td><td>'+fmt(group.count)+'</td><td>'+escapeHtml(planningShortDate(group.earliestDueIso))+'</td><td>'+escapeHtml(humanizeKey(group.topPriority))+'</td><td><button onclick="loadAccountabilityGroup(&quot;'+encodeURIComponent(group.key)+'&quot;,0)">Open all members</button></td></tr>').join('');
- return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>Accountable owner and register groups</h4><p>Each group retains a stable identity and every source action. Counts and earliest due dates use all member records.</p></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Owner</th><th>Register</th><th>State</th><th>Records</th><th>Earliest due</th><th>Priority</th><th>Members</th></tr></thead><tbody>'+rows+'</tbody></table></div><div id="accountabilityGroupMembers"></div></div></section>';
+ const rows=groups.map(group=>'<tr><td>'+escapeHtml(group.owner)+'</td><td>'+escapeHtml(names[group.register]||humanizeKey(group.register))+'</td><td>'+escapeHtml(humanizeKey(group.state))+'</td><td>'+fmt(group.count)+'</td><td>'+escapeHtml(planningShortDate(group.earliestDueIso))+'</td><td>'+escapeHtml(group.worstOverdueDays==null?'Not established':fmt(group.worstOverdueDays))+'</td><td>'+escapeHtml(humanizeKey(group.topPriority))+'</td><td><button onclick="loadAccountabilityGroup(&quot;'+encodeURIComponent(group.key)+'&quot;,0)">Open all members</button></td></tr>').join('');
+ return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>Accountable owner and register groups</h4><p>Each group retains a stable identity and every source action. Counts and earliest source due dates use all member records. These dates do not establish a follow-up deadline.</p></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Owner</th><th>Register</th><th>State</th><th>Records</th><th>Earliest source due</th><th>Source days overdue</th><th>Priority</th><th>Members</th></tr></thead><tbody>'+rows+'</tbody></table></div><div id="accountabilityGroupMembers"></div></div></section>';
 }
 function renderAccountabilityVisual(data){
  const p=projectionFor(data,"cross_domain_accountability");if(!p)return "";
@@ -5093,7 +5101,7 @@ function renderAccountabilityVisual(data){
  const ownerGroups=(p.ownerRegisterGroups||[]);
  const ownerGroupRows=ownerGroups.map(g=>'<tr><td>'+escapeHtml(humanizeKey(g.register))+'</td><td>'+escapeHtml(g.owner)+'</td><td>'+fmt(g.total)+'</td></tr>').join('');
  const actions=p.actions||[];
- const actionRows=actions.slice(0,10).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(typeof readerText==='function'?readerText(action.issue):action.issue)+'</b><br><span class="muted">'+escapeHtml(typeof readerText==='function'?readerText(action.consequence||""):action.consequence||"")+'</span></td><td>'+renderPmcScope(action.affectedScope)+'</td><td>'+escapeHtml(action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls'))+'</td><td>'+escapeHtml(action.dueIso?planningShortDate(action.dueIso):"Not set")+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.requiredAction):action.requiredAction)+(action.escalation?'<br><b>'+escapeHtml(action.escalation)+'</b>':'')+'</td></tr>').join("");
+ const actionRows=actions.slice(0,10).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(typeof readerText==='function'?readerText(action.issue):action.issue)+'</b><br><span class="muted">'+escapeHtml(typeof readerText==='function'?readerText(action.consequence||""):action.consequence||"")+'</span></td><td>'+renderPmcScope(action.affectedScope)+'</td><td>'+escapeHtml(action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls'))+'</td><td>'+escapeHtml(actionDeadlineText(action))+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.requiredAction):action.requiredAction)+(action.escalation?'<br><b>'+escapeHtml(action.escalation)+'</b>':'')+'</td></tr>').join("");
  const rows=(p.rows||[]).map(r=>'<tr><td>'+escapeHtml(humanizeKey(r.dimension))+'</td><td><b>'+escapeHtml(r.value)+'</b></td><td>'+fmt(r.openIssueCount)+'</td><td>'+fmt(r.domainCount)+'</td><td>'+fmt(r.overdueCount)+'</td><td>'+fmt(r.openNcrCount)+'</td><td>'+fmt(r.overdueRfiCount)+'</td><td>'+fmt(r.latePackageCount)+'</td><td>'+fmt(r.openRiskCount)+'</td><td>'+fmt(r.affectedActivityCount)+'</td></tr>').join('');
  const detail=(p.details||[]).map(accountabilityDetailRow).join('');
  const primary=actions.length?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue & consequence</th><th>Affected scope</th><th>Accountable party</th><th>Due</th><th>Required action</th></tr></thead><tbody>'+actionRows+'</tbody></table></div>':'<div class="notice info">No actionable ownership chain is established from the current open records.</div>';

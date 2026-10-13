@@ -16,6 +16,7 @@ function functions(names:string[]) {
   // Missing transitive helpers must fail the harness rather than be mocked away.
   const reader=names.some(n=>["readerIssue","renderPositionVerdict","renderRegisterScope","renderModuleBasis","renderSourceQuality","experienceSourceContext"].includes(n));
   names=[...new Set([...names,
+    ...(names.some(n=>["renderCommandActionTable","renderAccountabilityVisual","renderDashboardExceptions","renderProjectPrioritySummary"].includes(n))?["actionDeadlineText"]:[]),
     ...(reader?["readerText","readerReference","uniqueReportingPopulations"]:[]),
     ...(reader||names.includes("readerText")?["humanizeIsoText"]:[]),
     ...(names.some(n=>["experienceBrief","experienceValue","experienceRoleContent"].includes(n))?["fmtForField"]:[]),
@@ -586,4 +587,14 @@ test('source detail pages render every one of the 25 fetched records',()=>{
  });
  for(let i=26;i<=50;i++)assert.match(html,new RegExp('EXACT-'+i+'<'));
  assert.match(html,/26–50 of 63/);
+});
+
+test('grouped management actions distinguish follow-up deadlines from overdue source dates',()=>{
+ const action={actionId:'group',issue:'Procurement follow-up',requiredAction:'Reconcile delivery',dueIso:null,sourceDueIso:'2031-04-10',sourceOverdueDays:5,sourceOverdueCount:2,severity:'high',affectedScope:[],affectedMilestones:[],owner:'Procurement Manager',escalation:'Escalate 2 overdue source records.'};
+ const helpers=functions(['actionDeadlineText','commandActionItems','renderCommandActionTable','renderCommandAccountability','renderPmcScope']);
+ const html=runInNewContext(helpers+';renderCommandActionTable(data)+renderCommandAccountability(data)',{...common,data:{actions:[action],reportingContract:{dataDateIso:'2031-04-15'}},overview:{},managementModuleLink:()=>'',pmcDisplayOwner:()=>''});
+ assert.match(html,/Follow-up deadline not agreed/);assert.match(html,/Earliest source due 2031-04-10/);assert.match(html,/Source overdue 5 calendar days/);
+ assert.match(html,/Groups with overdue source records/);assert.match(html,/Escalate 2 overdue source records/);
+ const deadline=runInNewContext(functions(['actionDeadlineText'])+';actionDeadlineText(action)',{...common,action:{...action,dueIso:'2031-04-20'}});
+ assert.match(deadline,/Action due 2031-04-20/);assert.match(deadline,/Earliest source due 2031-04-10/);
 });
