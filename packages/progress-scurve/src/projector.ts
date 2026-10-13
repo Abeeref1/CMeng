@@ -11,7 +11,7 @@ const ms = (value: string | null): number | null => {
   const parsed = parseScheduleTime(value); return Number.isFinite(parsed) ? parsed : null;
 };
 const coverage = (known: number, total: number) => total ? Number((known / total * 100).toFixed(4)) : null;
-interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar; clock?: (at: number) => number; clockStart?: number; work?: number; }
+interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar | null; clock?: (at: number) => number; clockStart?: number; work?: number; }
 
 function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalScheduleActivity) => [string | null, string | null], diagnostics: string[]): WeightedActivity[] {
   const rows: WeightedActivity[] = [];
@@ -19,13 +19,13 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
     if (activity.originalDurationHours === null || !Number.isFinite(activity.originalDurationHours) || activity.originalDurationHours <= 0) continue;
     const [startDate, finishDate] = dates(activity), start = ms(startDate), finish = ms(finishDate);
     if (start === null || finish === null || finish <= start) continue;
-    const calendar = resolveWorkingCalendar(activity.calendarId, model.calendars, false)?.calendar;
-    if (!calendar) { diagnostics.push("PROGRESS_WORKING_CALENDAR_UNRESOLVED:" + activity.activityId); continue; }
+    const calendar = resolveWorkingCalendar(activity.calendarId, model.calendars, false)?.calendar ?? null;
+    if (!calendar) diagnostics.push("PROGRESS_WORKING_CALENDAR_UNRESOLVED:" + activity.activityId);
     rows.push({ activityId: activity.activityId, weight: activity.originalDurationHours, start, finish, calendar });
   }
   // One daily working-time prefix per calendar: queries never scan the whole activity span for every chart point.
   const byCalendar = new Map<CanonicalCalendar, WeightedActivity[]>();
-  for (const row of rows) { const group = byCalendar.get(row.calendar) ?? []; group.push(row); byCalendar.set(row.calendar, group); }
+  for (const row of rows) { if(!row.calendar)continue;const group = byCalendar.get(row.calendar) ?? []; group.push(row); byCalendar.set(row.calendar, group); }
   for (const [calendar, group] of byCalendar) {
     let first = Infinity, last = -Infinity;
     for (const row of group) { first = Math.min(first, row.start); last = Math.max(last, row.finish); }
@@ -42,13 +42,21 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
     };
     for (const row of group) { row.clock = clock; row.clockStart = clock(row.start); row.work = clock(row.finish) - row.clockStart; }
   }
-  return rows.filter(row => row.clock && row.work !== undefined && row.work > 0);
+  return rows.filter(row => !row.calendar || row.clock && row.work !== undefined && row.work > 0);
+}
+
+function fractionAt(row:WeightedActivity,at:number):number|null {
+  // Source start/finish boundaries need no invented daily working pattern.
+  if(at<=row.start)return 0;
+  if(at>=row.finish)return 1;
+  return row.clock&&row.work!==undefined&&row.work>0?(row.clock(at)-row.clockStart!)/row.work:null;
 }
 
 function cumulative(rows: readonly WeightedActivity[], at: number): number | null {
   let earned = 0, weight = 0;
   for (const row of rows) {
-    const fraction = at <= row.start ? 0 : at >= row.finish ? 1 : (row.clock!(at) - row.clockStart!) / row.work!;
+    const fraction = fractionAt(row,at);
+    if(fraction===null)return null;
     earned += row.weight * Math.max(0, Math.min(1, fraction)); weight += row.weight;
   }
   return weight > 0 ? Number((100 * earned / weight).toFixed(6)) : null;
@@ -94,6 +102,17 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     for (let at = first; at <= last; at += intervalDays * DAY) dates.add(at);
     dates.add(last);
   }
+  // Weekly samples can jump over a short unresolved interval. Keep a gap per
+  // sampled interval/series, without adding one chart point per source activity.
+  const sampled=[...dates].sort((a,b)=>a-b);
+  for(const source of [baseline,current]){
+    const unresolved=source.filter(row=>!row.calendar);
+    for(let index=1;index<sampled.length;index++){
+      const left=sampled[index-1]!,right=sampled[index]!;
+      const row=unresolved.find(row=>row.start<right&&row.finish>left);
+      if(row)dates.add(Math.floor((Math.max(left,row.start)+Math.min(right,row.finish))/2));
+    }
+  }
   const lastObservation = observations.at(-1)?.[0] ?? null;
   const points: ProgressScurvePoint[] = [...dates].sort((a, b) => a - b).map(at => {
     const observed = lastObservation !== null && at <= lastObservation && cutoff !== null && at <= cutoff
@@ -114,8 +133,8 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     observationCount: observations.length,
     seriesContract: { seriesKey: "progress_percent", unit: "%", authority: "derived_schedule", basisRevisionId: model.sourceRevisionId,
       asOfIso: model.dataDateIso, sourceRefs: ["schedule:" + model.sourceRevisionId] },
-    baselineCoveragePercent: coverage(baseline.length, baselinePopulation.activities.length),
-    currentCoveragePercent: coverage(current.length, currentPopulation.activities.length),
+    baselineCoveragePercent: coverage(baseline.filter(row=>cutoff!==null?fractionAt(row,cutoff)!==null:!!row.clock).length, baselinePopulation.activities.length),
+    currentCoveragePercent: coverage(current.filter(row=>cutoff!==null?fractionAt(row,cutoff)!==null:!!row.clock).length, currentPopulation.activities.length),
     actualSnapshotCoveragePercent: snapshot.coveragePercent,
     actualHistoryMode: snapshots.length > 1 ? "snapshot_history" : snapshots.length === 1 ? "current_snapshot_only" : "missing",
     currentSeriesMeaning: "current_schedule_date_phasing_not_achieved_progress",

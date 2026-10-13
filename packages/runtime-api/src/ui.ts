@@ -1360,8 +1360,8 @@ function renderProgressScurveVisual(data){
     ["Baseline planned",latest?.baselinePlannedPercent===null||latest?.baselinePlannedPercent===undefined?"—":fmt(latest.baselinePlannedPercent)+"%","at data date"],
     ["Current plan",latest?.currentForecastPercent===null||latest?.currentForecastPercent===undefined?"—":fmt(latest.currentForecastPercent)+"%","at data date"],
     ["Schedule snapshot",latest?.actualProgressPercent===null||latest?.actualProgressPercent===undefined?"—":fmt(latest.actualProgressPercent)+"%","not certified physical"],
-    ["Baseline coverage",p.baselineCoveragePercent===null?"—":fmt(p.baselineCoveragePercent)+"%",fmt(p.populationContracts?.baseline?.denominator)+" eligible baseline activities"],
-    ["Current coverage",p.currentCoveragePercent===null?"—":fmt(p.currentCoveragePercent)+"%",fmt(p.populationContracts?.current?.denominator)+" eligible current activities"],
+    ["Baseline coverage at Data Date",p.baselineCoveragePercent===null?"—":fmt(p.baselineCoveragePercent)+"%",fmt(p.populationContracts?.baseline?.denominator)+" eligible baseline activities"],
+    ["Current coverage at Data Date",p.currentCoveragePercent===null?"—":fmt(p.currentCoveragePercent)+"%",fmt(p.populationContracts?.current?.denominator)+" eligible current activities"],
     ["Snapshot coverage",p.actualSnapshotCoveragePercent===null?"—":fmt(p.actualSnapshotCoveragePercent)+"%",fmt(p.populationContracts?.snapshot?.denominator)+" eligible schedule progress records"]
   ]);
   const series=[{key:"baselinePlannedPercent",label:"Baseline plan · original scope",color:"#506579"},{key:"currentForecastPercent",label:"Current plan · current scope",color:"#4f7fb4"},{key:"actualProgressPercent",label:snapshotLabel+" · revision scope",color:"#d97706",step:true}];
@@ -1370,7 +1370,7 @@ function renderProgressScurveVisual(data){
   const early=p.points.filter(row=>endDate&&planningDateMs(row.dateIso)<=endDate.getTime());
   const options={unit:"%",yLabel:"Schedule progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,observationCount:p.observationCount??p.actualSnapshots?.length};
   return '<section class="planning-view progress-scurve-view">'+
-    renderVisualPanel("Progress S-Curve","Baseline plan, current plan and available schedule-progress observations. Missing certified physical progress is never inferred.",renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"}))+
+    renderVisualPanel("Progress S-Curve","Baseline plan, current plan and available schedule-progress observations. Source dates establish 0% before start and 100% after finish. Between those dates, missing working calendars leave gaps. Missing certified physical progress is never inferred.",renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"}))+
     kpis+renderProgressScope(p.scopeComparison)+note+
     '<details class="source-scope"><summary>First 12 months and source-population coverage</summary>'+
       renderLineChart(early,series,null,{...options,ariaLabel:"Progress first 12 months"})+

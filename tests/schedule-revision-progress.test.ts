@@ -582,10 +582,14 @@ test("Progress Breakdown keeps unsupported dimensions unavailable without invent
 });
 
 test("Progress Breakdown distinguishes controlled baseline presence from usable baseline phasing", () => {
+  const unphasedBaseline=revision1Model();
+  // Interior dates require working time. Before/after source boundaries are
+  // independently known even when the source has no usable calendar.
+  for(const row of unphasedBaseline.activities){row.baselineStartIso='2026-01-01';row.baselineFinishIso='2027-01-01';}
   const unresolved=buildProgressBreakdownProjection(revision2Model(),{
     generatedAt:"2026-09-18T17:00:00.000Z",
     producerVersion:"progress-breakdown-baseline-unphased-v1",
-    baselineModel:revision1Model(),
+    baselineModel:unphasedBaseline,
   });
   assert.equal(unresolved.controlledBaselineAvailable,true);
   assert.equal(unresolved.baselinePlanAvailable,false);

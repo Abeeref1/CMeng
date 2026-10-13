@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { activityPopulation, analyzeSchedule, DEFAULT_SCHEDULE_ANALYSIS_CONFIG, scheduleProgress, numericDistribution, type CanonicalScheduleActivity, type CanonicalScheduleModel, type CanonicalScheduleRelationship } from '../packages/schedule-analysis-core/src';
 import { buildNearCriticalProjection } from '../packages/near-critical-analysis/src';
 import { buildProgressBreakdownProjection } from '../packages/progress-breakdown/src';
-import { buildProgressScurveProjection } from '../packages/progress-scurve/src';
+import { buildProgressScurveProjection, schedulePlanPositions } from '../packages/progress-scurve/src';
 import { assessPredecessorRequirement, buildLookAheadProjection } from '../packages/lookahead-schedule/src';
 import { buildModuleChallenge, type IndependentMetricSpec, type ChallengeValue } from '../packages/module-challenge/src';
 import { buildScheduleChangeReportProjection } from '../packages/schedule-change-report/src';
@@ -13,6 +13,7 @@ import { resolveRevisionActivityCorrespondence } from '../packages/schedule-revi
 import { checkProjectionIntegrity } from '../packages/runtime-api/src/projection-integrity';
 import { enforceModuleReadiness } from '../packages/runtime-api/src/module-readiness';
 import { parseScheduleInstant } from '../packages/schedule-cpm/src/calendar';
+import { parseScheduleTime } from '../packages/schedule-analysis-core/src';
 
 const options = { generatedAt: '2030-01-09T12:00:00Z', producerVersion: 'system-regression' };
 function activity(id: string, overrides: Partial<CanonicalScheduleActivity> = {}): CanonicalScheduleActivity {
@@ -63,9 +64,11 @@ test('working calendar progress excludes weekends and uses baseline fields befor
   const wbs=buildProgressBreakdownProjection(input,{...options,baselineModel:baseline});
   assert.equal(wbs.rows[0]?.baselinePlannedPercent,at.baselinePlannedPercent); assert.equal(wbs.rows[0]?.currentPlanPercent,at.currentForecastPercent);
 });
-test('unresolved calendar withholds planned phasing and exposes coverage',()=>{
+test('unresolved calendar preserves source boundaries while withholding interior phasing',()=>{
   const input=model(); input.calendars=[]; const curve=buildProgressScurveProjection(input,options);
-  assert.equal(curve.currentCoveragePercent,0); assert.ok(curve.points.every(p=>p.currentForecastPercent===null));
+  assert.equal(curve.currentCoveragePercent,0);
+  assert.ok(curve.points.some(p=>p.currentForecastPercent===0));assert.ok(curve.points.some(p=>p.currentForecastPercent===100));
+  assert.ok(curve.points.filter(p=>parseScheduleTime(p.dateIso)>parseScheduleTime(input.activities[0]!.currentStartIso!)&&parseScheduleTime(p.dateIso)<parseScheduleTime(input.activities[0]!.currentFinishIso!)).every(p=>p.currentForecastPercent===null));
   assert.ok(curve.diagnostics.some(d=>d.startsWith('PROGRESS_WORKING_CALENDAR_UNRESOLVED')));
 });
 test('schedule history does not extend beyond its last observation or accept future actuals',()=>{
@@ -264,4 +267,25 @@ test('unique native IDs cannot bypass duplicated activity codes used by downstre
  assert.ok(result.ambiguousFrom.has('DUP'));assert.ok(result.ambiguousTo.has('DUP'));
  const uniqueNext=[{...source[0]},{...source[2]}];
  assert.ok(!resolveRevisionActivityCorrespondence(source,uniqueNext).matches.some(m=>m.fromActivityId==='DUP'));
+});
+
+test('calendar-free plan boundaries are shared by activity, WBS and S-curve without linear interpolation',()=>{
+ const input=model([activity('PAST',{currentStartIso:'2030-01-01',currentFinishIso:'2030-01-03',baselineStartIso:'2030-01-01',baselineFinishIso:'2030-01-03',originalDurationHours:20}),activity('FUTURE',{currentStartIso:'2030-01-10',currentFinishIso:'2030-01-12',baselineStartIso:'2030-01-10',baselineFinishIso:'2030-01-12',originalDurationHours:60})]);
+ input.calendars=[];input.dataDateIso='2030-01-07';
+ const before=JSON.stringify(input),positions=schedulePlanPositions(input),curve=buildProgressScurveProjection(input,options);
+ assert.equal(positions.current.get('PAST')!.value,100);assert.equal(positions.current.get('FUTURE')!.value,0);
+ assert.equal(curve.currentCoveragePercent,100);assert.equal(curve.points.find(p=>p.dateIso==='2030-01-07')!.currentSchedulePhasingPercent,25);
+ const wbs=buildProgressBreakdownProjection(input,options);assert.equal(wbs.rows[0]!.currentPlanPercent,25);
+ assert.ok(curve.points.some(p=>p.dateIso>'2030-01-01'&&p.dateIso<'2030-01-03'&&p.currentSchedulePhasingPercent===null),'missing calendar creates a visible gap even when weekly chart samples skip the interval');
+ assert.equal(JSON.stringify(input),before);
+ const inside={...input,dataDateIso:'2030-01-11'};assert.equal(schedulePlanPositions(inside).current.get('FUTURE')!.value,null);
+ const insideCurve=buildProgressScurveProjection(inside,options);assert.equal(insideCurve.currentCoveragePercent,50);assert.equal(insideCurve.points.find(p=>p.dateIso==='2030-01-11')!.currentSchedulePhasingPercent,null);
+});
+
+test('missing-calendar gaps stay bounded by chart intervals on a large source population',()=>{
+ const start=Date.UTC(2030,0,1);
+ const input=model(Array.from({length:1000},(_,i)=>activity('A'+i,{currentStartIso:new Date(start+i*60000).toISOString(),currentFinishIso:new Date(start+86400000+i*60000).toISOString(),baselineStartIso:null,baselineFinishIso:null})));
+ input.calendars=[];input.dataDateIso='2030-01-20';
+ const curve=buildProgressScurveProjection(input,options);
+ assert.ok(curve.points.length<30);assert.ok(curve.points.some(p=>p.currentForecastPercent===null));assert.equal(curve.currentCoveragePercent,100);assert.equal(curve.points.at(-1)!.currentForecastPercent,100);
 });
