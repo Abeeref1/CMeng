@@ -23,6 +23,19 @@ function coverage(
   return Number(((known / total) * 100).toFixed(4));
 }
 
+/** Full submitted-hour population; calendar-based screening is separate. */
+export function floatHourHistogram(values:readonly (number|null)[]){
+  const counts=new Map<number,number>();
+  for(const value of values)if(typeof value==='number'&&Number.isFinite(value))counts.set(value,(counts.get(value)??0)+1);
+  const distinct=[...counts.keys()].sort((a,b)=>a-b),exact=distinct.length<=10;
+  const minimum=distinct[0]??null,maximum=distinct.at(-1)??null;
+  const groups=exact?distinct.map(value=>({lowerHours:value,upperHours:value,upperInclusive:true,count:counts.get(value)!})):
+    Array.from({length:10},(_,i)=>({lowerHours:minimum!*(1-i/10)+maximum!*(i/10),upperHours:minimum!*(1-(i+1)/10)+maximum!* ((i+1)/10),upperInclusive:i===9,count:0}));
+  if(!exact)for(const [value,count] of counts){const index=groups.findIndex(g=>value<g.upperHours);groups[index<0?groups.length-1:index]!.count+=count;}
+  const knownCount=[...counts.values()].reduce((n,count)=>n+count,0);
+  return {unit:'hours' as const,basis:'All unfinished execution activities with supplied finite total float; no working-day conversion.',knownCount,unknownCount:values.length-knownCount,exact,groups};
+}
+
 function wbsPathLookup(model:CanonicalScheduleModel):Map<string,string>{
   const nodes=new Map((model.wbs??[]).map(node=>[node.wbsId,node])),cache=new Map<string,string>();
   const pathFor=(id:string|null):string=>{
@@ -517,6 +530,7 @@ export function buildNearCriticalProjection(
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
     population: population.contract,
     floatDistribution: numericDistribution(known.map(activity => activity.totalFloatHours)),
+    floatHourHistogram:floatHourHistogram(unfinished.map(activity=>activity.totalFloatHours)),
     rows,
     watchlistRows,
     criticalRows,

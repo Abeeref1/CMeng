@@ -87,6 +87,7 @@ export interface NearCriticalProjection {
   floatRiskWatchlistIncludesCriticalThreshold: boolean;
   population?: ActivityPopulationContract;
   floatDistribution?: ReturnType<typeof numericDistribution>;
+  floatHourHistogram?: ReturnType<typeof import('./projector').floatHourHistogram>;
   rows: NearCriticalRow[];
   watchlistRows: NearCriticalRow[];
   criticalRows: NearCriticalRow[];

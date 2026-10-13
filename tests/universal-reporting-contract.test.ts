@@ -118,6 +118,21 @@ test('Actions required carries the same shared project truth contract as the oth
  assert.equal(actions.scheduleAuthorityReview.currentRevisionId,dashboard.scheduleAuthorityReview.currentRevisionId);
 });
 
+test('schedule source progress stays submitted and is never its own independent verification',t=>{
+ const {state,model}=fixture(t);model.activities[0]!.percentComplete=24.482188;state.version++;
+ for(const key of ['activity-analytics','progress-report','progress-scurve','progress-breakdown']){
+   const page=moduleForProject(state.projectId,key).data as any,item=page.challenge.items.find((i:any)=>i.metric==='progress_percent');
+   assert.equal(item.submitted.value,24.482188,key);assert.equal(item.submitted.state,'submitted');
+   assert.equal(item.submitted.basisRevisionId,'CURRENT');assert.ok(item.submitted.sourceRefs.includes('schedule-revision:CURRENT'));
+   assert.equal(item.independent.value,null);assert.equal(item.independent.state,'not_derivable');
+   assert.match(item.independent.note,/does not independently verify/);
+ }
+ model.activities[0]!.percentComplete=0;state.version++;
+ let item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,0);assert.equal(item.submitted.state,'submitted');
+ model.activities[0]!.percentComplete=null;state.version++;
+ item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,null);assert.equal(item.independent.value,null);
+});
+
 test('every registered Delivery page carries the same shared reporting truth',t=>{
  const {state}=fixture(t);
  const reference=(moduleForProject(state.projectId,'master-dashboard').data as any).reportingContract;

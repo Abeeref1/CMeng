@@ -802,6 +802,19 @@ function metricsFor(
   const contractorProgress =
     progress?.progressBases
       ?.contractorReported;
+  const sourceProgressReview=(label:string)=>{
+    const weighted=scheduleProgress(model.activities);
+    const reported=contractorProgress?.state==='established'
+      ?submitted(contractorProgress.valuePercent,'%',contractorProgress.sourceRefs??[],'Contractor-reported progress; measurement basis retained separately.')
+      :submitted(weighted.value,'%',[sourceRef],'Duration-weighted aggregate of submitted activity percentages; not independently measured physical progress.',{basisRevisionId:sourceRevisionId,asOfIso:dataDateIso,coveragePercent:weighted.coveragePercent});
+    return spec('progress_percent',label,null,'%','not_derivable',[],{
+      submittedOverride:reported,
+      note:'The submitted activity percentages and their weighted aggregate are source evidence. Recalculating that aggregate does not independently verify achieved progress.',
+      consequenceMissing:'No independent measurement on the same scope, date and weighting basis is established. The submitted progress remains available.',
+      actionMissing:'Compare separately measured progress only when its scope, reporting date and weighting basis agree with this source position.',
+      tolerance:0.01,
+    });
+  };
   const certifiedProgress =
     progress?.progressBases
       ?.certified;
@@ -893,18 +906,7 @@ function metricsFor(
           "calculated",
           [sourceRef],
         ),
-        spec(
-          "progress_percent",
-          "Duration-weighted activity progress",
-          scheduleProgress(model.activities).value,
-          "%",
-          "derived",
-          [sourceRef],
-          {
-            note:
-              "Independent aggregate derived from activity durations and activity progress evidence.",
-          },
-        ),
+        sourceProgressReview('Duration-weighted submitted activity progress'),
       ];
 
     case "resource-utilization": {
@@ -1061,34 +1063,7 @@ function metricsFor(
 
     case "progress-report":
       return [
-        spec(
-          "progress_percent",
-          "Schedule progress",
-          numberOrNull(
-            progress?.progress
-              ?.durationWeightedProgressPercent,
-          ),
-          "%",
-          "derived",
-          [sourceRef],
-          {
-            submittedOverride:
-              contractorProgress
-                ?.state ===
-                "established"
-                ? submitted(
-                    contractorProgress
-                      .valuePercent,
-                    "%",
-                    contractorProgress
-                      .sourceRefs ??
-                      [],
-                    "Contractor-reported progress.",
-                  )
-                : undefined,
-            tolerance: 0.01,
-          },
-        ),
+        sourceProgressReview('Submitted schedule progress'),
         spec(
           "certified_progress_percent",
           "Certified progress",
@@ -1235,33 +1210,7 @@ function metricsFor(
 
     case "progress-scurve": {
       return [
-        spec(
-          "progress_percent",
-          "Duration-weighted schedule snapshot",
-          scheduleProgress(model.activities).value,
-          "%",
-          "derived",
-          [
-            sourceRef,
-            "progress-scurve",
-          ],
-          {
-            submittedOverride:
-              contractorProgress
-                ?.state ===
-                "established"
-                ? submitted(
-                    contractorProgress
-                      .valuePercent,
-                    "%",
-                    contractorProgress
-                      .sourceRefs ??
-                      [],
-                    "Contractor reported progress.",
-                  )
-                : undefined,
-          },
-        ),
+        sourceProgressReview('Duration-weighted submitted schedule snapshot'),
       ];
     }
 
@@ -1277,32 +1226,7 @@ function metricsFor(
 
     case "progress-breakdown":
       return [
-        spec(
-          "progress_percent",
-          "Project progress represented by WBS breakdown",
-          scheduleProgress(model.activities).value,
-          "%",
-          "derived",
-          [sourceRef],
-          {
-            consequenceMissing: "The WBS schedule snapshot is calculated from submitted activities. A separate WBS progress report is not established.",
-            actionMissing: "Obtain a separate WBS progress report only for an external comparison; retain its measurement, coverage and authority separately from schedule progress.",
-            submittedOverride:
-              contractorProgress
-                ?.state ===
-                "established"
-                ? submitted(
-                    contractorProgress
-                      .valuePercent,
-                    "%",
-                    contractorProgress
-                      .sourceRefs ??
-                      [],
-                    "Contractor reported progress.",
-                  )
-                : undefined,
-          },
-        ),
+        sourceProgressReview('Submitted activity progress represented by WBS breakdown'),
       ];
 
     case "milestones":

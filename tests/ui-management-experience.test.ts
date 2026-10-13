@@ -29,6 +29,15 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String,SCREEN_STATUS_LABELS:STATUS_LABELS,currentModuleResult:null};
 const briefFunctions=functions(['aggregateCount','experienceRecordCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('float histogram retains the full source hours when calendar screening rows are empty',async()=>{
+ const {floatHourHistogram}=await import('../packages/near-critical-analysis/src/projector');
+ const values=Array.from({length:7446},(_,i)=>i%2===0?-40:650),histogram=floatHourHistogram([...values,null]);
+ const html=runInNewContext(functions(['planningFloatHistogram'])+';planningFloatHistogram([],null,histogram)',{...common,histogram});
+ assert.match(html,/7446 known; 1 missing/);assert.match(html,/-40 h/);assert.match(html,/650 h/);assert.doesNotMatch(html,/not available/);
+ const absent=runInNewContext(functions(['planningFloatHistogram'])+';planningFloatHistogram([{totalFloatHours:null}],null)',common);assert.match(absent,/not available/);
+ const many=floatHourHistogram(Array.from({length:240},(_,i)=>i-120));assert.equal(many.groups.length,10);assert.equal(many.groups.reduce((n,g)=>n+g.count,0),240);
+ assert.equal(many.groups[0]!.lowerHours,-120);assert.equal(many.groups.at(-1)!.upperHours,119);
+});
 test('Delay Event Register distinguishes missing trigger dates from entirely undated records',()=>{
  const data:any={projectionKey:'delay_claims',events:[],eventCount:240,claimCount:240,contractorClaimEvidenceSubmitted:true,projectFacts:{claims:{eventDateMissingCount:{value:240}}},claimsReporting:{events:{population:{sourceCount:240},asOf:Array(240).fill({}),future:[],undated:[]}}};
  let kpis:any[]=[];
