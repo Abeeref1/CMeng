@@ -677,6 +677,16 @@ test('Milestones offers a source-bound review route and labels a reviewed absenc
  assert.match(pending,/9500/);assert.match(pending,/Review milestone selection/);assert.match(pending,/does not establish zero milestones/);
 });
 
+test('milestone status bands retain unknown due/status and assessment groups rather than showing them as normal',()=>{
+ const bands:any[]=[];
+ const full={statusCounts:{completed:20,overdue:100,nonOverdue:200,dueUnknown:200,statusUnknown:100},priorityAssessmentCounts:{critical:100,high:0,watch:0,normal:200,unresolved:300}};
+ const code=functions(['milestoneStatusBands'])+';milestoneStatusBands(full)';
+ runInNewContext(code,{...common,full,planningStatusBand:(rows:any[])=>{bands.push(rows);return 'chart';}});
+ assert.deepEqual(Array.from(bands[0],(r:any)=>r[1]),[20,200,100,200,100]);
+ assert.deepEqual(Array.from(bands[1],(r:any)=>r[1]),[100,0,0,200,300]);
+ const legacy=runInNewContext(code,{...common,full:null});assert.match(legacy.statusBand,/not established/);assert.match(legacy.priorityBand,/not established/);
+});
+
 test('location review shows source candidates and saved mappings without asserting automatic assignment',()=>{
  const nodes:Record<string,{innerHTML:string;textContent:string}>={};
  const review={wbsCandidates:[{wbsId:'W-A',location:'North wing',path:'Project / North wing',activityCount:240}],assetCandidates:[{location:'FM plant',assetCount:120,basis:'Reported source location'}],decision:{choice:'confirm_wbs_locations',reference:'LOCATION-CHECK',locationAssignments:[{wbsId:'W-A',location:'FM plant'}]}};

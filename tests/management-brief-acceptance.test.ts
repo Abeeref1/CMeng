@@ -113,7 +113,7 @@ test('Manager gets decisions separately from a short, accountable team follow-up
  assert.equal((html.match(/Action due/g)||[]).length,2,'explicit action deadlines retain their deadline label');
  assert.doesNotMatch(html,/Earliest reported due/);
 });
-test('Verified contract adjustment and available CPM are distinguished from qualified source warnings',()=>{
+test('Verified contract adjustment and available CPM do not clear an unknown milestone population',()=>{
  const {d,data}=fixture();
  d.network.state='calculated';
  d.completion.independentFinishIso='2029-01-15';
@@ -127,7 +127,11 @@ test('Verified contract adjustment and available CPM are distinguished from qual
  assert.match(html,/Against the independently established adjusted contract date/);
  assert.match(html,/calendar days early/);
  assert.match(html,/CMeng has a reconciled independent finish calculation/);
- assert.doesNotMatch(html,/Milestone exposure cannot be cleared or ranked/);
+ assert.match(html,/Milestone exposure cannot be cleared or ranked/);
+ d.milestoneExposure={value:0,knownCount:0,unresolvedCount:0,identifiedCount:0,identificationComplete:true,absenceConfirmed:true};
+ assert.match(rendered(d,data),/source-bound review confirms no programme milestones/);
+ d.milestoneExposure={value:0,knownCount:0,unresolvedCount:0,identifiedCount:2,identificationComplete:true,absenceConfirmed:false};
+ assert.match(rendered(d,data),/No identified milestone or reviewed key date is ranked for attention/);
 });
 test('Role lenses retain the same management brief instead of replacing it with unrelated detailed analysis',()=>{
  assert.match(experienceScript,/key==='pmo-analysis'\?\(role==='overall'\?analysis:roleContext\+analysis\)/);

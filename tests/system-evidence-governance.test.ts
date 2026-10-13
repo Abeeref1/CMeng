@@ -319,3 +319,28 @@ test('milestone review rejects erased source milestones and ambiguous activity i
  assert.throws(()=>milestoneReviewInput(state,{choice:'track_key_dates',activityIds:['DUP'],reference:'CHECK'}),/exactly one activity/);
  assert.deepEqual(milestoneReviewInput(state,{choice:'track_key_dates',activityIds:['M','M'],reference:'CHECK'}),{activityIds:['M'],reference:'CHECK'});
 });
+
+test('G1-12 milestone absence and partial identification cannot establish zero exposure',async()=>{
+ const {buildMilestonesProjection}=await import('../packages/milestones-analysis/src');
+ const input=model([activity('TASK')]),before=structuredClone(input);
+ const empty=buildMilestonesProjection(input,options);
+ assert.equal(empty.populationState,'partial');assert.equal(empty.exposure!.value,null);assert.equal(empty.exposure!.knownCount,0);
+ for(const key of ['lateOpenCount','criticalMilestoneCount','nearCriticalMilestoneCount','negativeFloatMilestoneCount','due30Count','due90Count'] as const)assert.equal(empty[key],null,key);
+ const review={sourceFingerprint:'source',sourceRevisionId:input.sourceRevisionId,choice:'no_programme_milestones',activityIds:[],reference:'CHECK-NONE',confirmedAt:options.generatedAt};
+ const confirmed=buildMilestonesProjection(input,{...options,review});assert.equal(confirmed.exposure!.absenceConfirmed,true);assert.equal(confirmed.exposure!.value,0);assert.equal(confirmed.lateOpenCount,0);
+ const stale=buildMilestonesProjection(input,{...options,review:{...review,sourceRevisionId:'OTHER'}});assert.equal(stale.exposure!.value,null);assert.equal(stale.exposure!.absenceConfirmed,false);
+ assert.deepEqual(input,before);
+ const partial=model([activity('M',{activityType:'finish_milestone'}),activity('UNCLASSIFIED',{activityType:'unknown'})]);
+ const result=buildMilestonesProjection(partial,options);assert.equal(result.exposure!.knownCount,1);assert.equal(result.exposure!.value,null);assert.equal(result.criticalMilestoneCount,null);
+});
+
+test('milestone exposure keeps unknown dates/status/float separate from fully checked zero',async()=>{
+ const {buildMilestonesProjection}=await import('../packages/milestones-analysis/src');
+ const clear=activity('CLEAR',{activityType:'finish_milestone',status:'not_started',currentFinishIso:'2030-06-01',baselineFinishIso:'2030-06-01',totalFloatHours:1000});
+ const unresolved=activity('UNKNOWN',{activityType:'finish_milestone',currentStartIso:null,currentFinishIso:null,forecastStartIso:null,forecastFinishIso:null,baselineStartIso:null,baselineFinishIso:null,totalFloatHours:null});
+ const input=model([clear,unresolved]),before=structuredClone(input),p=buildMilestonesProjection(input,options);
+ assert.equal(p.exposure!.value,null);assert.equal(p.exposure!.knownCount,0);assert.equal(p.exposure!.unresolvedCount,1);assert.equal(p.lateOpenCount,null);assert.deepEqual(input,before);
+ const zero=buildMilestonesProjection(model([clear]),options);assert.equal(zero.exposure!.value,0);assert.equal(zero.lateOpenCount,0);
+ const unknownStatus=buildMilestonesProjection(model([{...clear,status:'unknown'}]),options);assert.equal(unknownStatus.exposure!.value,null);assert.equal(unknownStatus.exposure!.knownCount,0);
+ const completed=buildMilestonesProjection(model([{...unresolved,status:'completed'}]),options);assert.equal(completed.exposure!.value,0);
+});

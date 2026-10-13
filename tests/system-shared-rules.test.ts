@@ -71,3 +71,14 @@ test('unknown values do not claim source absence or attach units to missing fact
  assert.equal(managementValue(0,'days'),'0 days');
  assert.equal(managementValue(false),'No');
 });
+
+test('milestone status and assessment cohorts preserve every missing-date record beyond the screen preview',()=>{
+ const rows=Array.from({length:620},(_,i)=>({activityId:'M'+i,status:i<20?'completed':i<120?'not_started':i<320?'in_progress':i<520?'not_started':'unknown',dueState:i<20?'completed':i<120?'overdue':i<320?'future':'unknown',managementPriority:i<120?'critical':'normal',criticality:i<520?'positive_float':'unknown',varianceDays:i<320?0:null,movementBasis:'actual_vs_baseline'}));
+ const before=structuredClone(rows),p=attachMilestonePopulation({projectionKey:'milestones',populationState:'established',rows});
+ const paged=pageProjectResponse({key:'milestones',data:p},'/api/projects/P/schedule/modules/milestones',50000) as any;
+ assert.ok(paged.data.rows.length<rows.length);
+ assert.deepEqual(paged.data.milestoneFullCounts.statusCounts,{completed:20,overdue:100,nonOverdue:200,dueUnknown:200,statusUnknown:100});
+ assert.deepEqual(paged.data.milestoneFullCounts.priorityAssessmentCounts,{critical:100,high:0,watch:0,normal:200,unresolved:300});
+ assert.equal(paged.data.milestoneFullCounts.openLateBaselineTotal,null);assert.equal(paged.data.milestoneFullCounts.completedLateBaselineTotal,null);
+ assert.equal((recordDetailPage({data:p},'/data/openMilestones',575,25) as any).rows.at(-1).activityId,'M619');assert.deepEqual(rows,before);
+});

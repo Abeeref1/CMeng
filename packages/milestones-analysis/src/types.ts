@@ -105,6 +105,7 @@ export interface MilestonesProjection {
     | "source_float_partial"
     | "not_established";
   populationState?: "established" | "partial";
+  exposure?: {value:number|null;knownCount:number;unresolvedCount:number;identifiedCount:number;identificationComplete:boolean;absenceConfirmed:boolean};
   unknownActivityTypeCount?: number;
   sourceMilestoneCount?: number;
   reviewedKeyDateCount?: number;

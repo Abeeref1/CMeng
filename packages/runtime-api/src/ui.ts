@@ -3062,11 +3062,30 @@ function renderMilestoneReview(p){
   const detail=choice==='no_programme_milestones'?'The reviewer confirmed that this source programme has no milestones. Original activity types remain unchanged.':choice==='track_key_dates'?'Selected activities are tracked as reviewed key dates. Source milestones remain included; the selected activities keep their original types and dates.':'Review source activity types, select key dates to track, or confirm that this programme has no milestones.';
   return '<div class="notice info"><b>Milestone and key-date review</b><p>'+escapeHtml(detail)+'</p><p>Source milestones: '+escapeHtml(fmt(p.sourceMilestoneCount))+' · Additional reviewed key dates: '+escapeHtml(fmt(p.reviewedKeyDateCount))+(p.review.reference?' · Review reference: '+escapeHtml(p.review.reference):'')+'</p><button class="btn" onclick="openProjectActions()">Review milestone selection</button></div>';
 }
+function milestoneStatusBands(full){
+  const status=full?.statusCounts;
+  const statusBand=status?planningStatusBand([
+    ["Completed",status.completed,"success"],
+    ["Open non-overdue",status.nonOverdue,"accent"],
+    ["Overdue",status.overdue,"danger"],
+    ["Open · due date unresolved",status.dueUnknown,"warning"],
+    ["Status unresolved",status.statusUnknown,"neutral"]
+  ]):'<p>Status and due-date coverage are not established for the full population.</p>';
+  const priority=full?.priorityAssessmentCounts;
+  const priorityBand=priority?planningStatusBand([
+    ["Critical",priority.critical,"danger"],
+    ["High",priority.high,"warning"],
+    ["Watch",priority.watch,"accent"],
+    ["Normal",priority.normal,"neutral"],
+    ["Assessment unresolved",priority.unresolved,"warning"]
+  ]):'<p>Priority coverage is not established for the full population.</p>';
+  return {statusBand,priorityBand};
+}
 function renderMilestonesVisual(data){
   const p=projectionFor(data,"milestones");
   if(!Array.isArray(p.rows))return"";
   const reviewPanel=renderMilestoneReview(p);
-  if(p.populationState==='partial'&&!p.milestoneCount)return '<section class="planning-view milestone-view">'+reviewPanel+'<div class="notice warn"><b>Milestone population is not established.</b><p>'+escapeHtml(fmt(p.unknownActivityTypeCount))+' activities have an unknown activity type. No milestones could be identified; this does not establish zero milestones or an absence of overdue commitments. Review the source activity types.</p></div></section>';
+  if(p.populationState==='partial'&&!p.milestoneCount)return '<section class="planning-view milestone-view">'+reviewPanel+'<div class="notice warn"><b>Milestone population is not established.</b><p>'+(p.unknownActivityTypeCount?escapeHtml(fmt(p.unknownActivityTypeCount))+' activities have an unknown activity type. ':'')+'No milestones have been identified or their absence confirmed. This does not establish zero milestones or zero exposure or an absence of overdue commitments. Review source activity types or select key dates.</p></div></section>';
   const full=p.milestoneFullCounts||null;
   const partialSource=!!full&&p.rows.length<full.sourceRows;
   const dd=planningDateMs(p.dataDateIso);
@@ -3081,7 +3100,7 @@ function renderMilestonesVisual(data){
   const priorityRows=[...p.rows].filter(r=>r.status!=="completed").sort((a,b)=>planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0)));
   const topPriority=priorityRows[0]||null;
   const kpis=planningKpis([
-    ["Open milestones",p.openCount,"of "+fmt(p.milestoneCount)+" total"],
+    ["Open milestones",full?.identificationComplete===false||full?.statusCounts?.statusUnknown?"Not established · "+fmt((full?.statusCounts?.overdue||0)+(full?.statusCounts?.nonOverdue||0)+(full?.statusCounts?.dueUnknown||0))+" identified open":p.openCount,"of "+fmt(p.milestoneCount)+" identified records"],
     ["Submitted float critical",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
     ["Negative float",negativeFloatCount,"open milestones",negativeFloatCount?"danger":""],
     ["Near-critical",nearCriticalCount,"open milestones",nearCriticalCount?"warning":""],
@@ -3120,17 +3139,7 @@ const movementClusters=new Map();
   ]);
   const timeline=planningMilestoneTimeline(p,data.projectFacts?.time?.extendedContractCompletionIso?.value??data.projectFacts?.time?.contractualCompletionIso?.value??null);
   const priorityBoard=planningMilestonePriorityBoard(p);
-  const statusBand=planningStatusBand([
-    ["Completed",p.completedCount,"success"],
-    ["Open non-overdue",Math.max(0,p.openCount-(p.lateOpenCount||0)),"accent"],
-    ["Overdue",p.lateOpenCount||0,"danger"]
-  ]);
-  const priorityBand=planningStatusBand([
-    ["Critical",p.criticalPriorityCount??priorityRows.filter(r=>r.managementPriority==="critical").length,"danger"],
-    ["High",p.highPriorityCount??priorityRows.filter(r=>r.managementPriority==="high").length,"warning"],
-    ["Watch",full?.priorityCounts?.watch??priorityRows.filter(r=>r.managementPriority==="watch").length,"accent"],
-    ["Normal",full?.priorityCounts?.normal??priorityRows.filter(r=>r.managementPriority==="normal").length,"neutral"]
-  ]);
+  const {statusBand,priorityBand}=milestoneStatusBands(full);
   const detail=[...p.rows].sort((a,b)=>{
     const ac=a.status==="completed"?1:0,bc=b.status==="completed"?1:0;
     return ac-bc||planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0));
@@ -3194,11 +3203,11 @@ const movementClusters=new Map();
   const lateMilestones=managementPanel('Late milestone commitments — active versus history',
     'Past-due open commitments require intervention; baseline slippage is a separate comparison. Completed milestones are historic actuals and have no live float exposure.',
     planningKpis([
-      ['Open milestones past their current finish',p.lateOpenCount??(full?.overdueOpenCount??'Not established'),'not completed at the reporting Data Date'],
-      ['Open milestones later than baseline',full?.openLateBaselineCount??openBaselineLate.length,'current versus controlled baseline; overlaps overdue population'],
-      ['Completed after baseline',full?.completedLateBaselineCount??completedAfterBaseline.length,'historical actual completion; not live float pressure']
+      ['Open milestones past their current finish',p.lateOpenCount??'Not established · '+fmt(full?.statusCounts?.overdue??0)+' known','not completed at the reporting Data Date'],
+      ['Open milestones later than baseline',full?.identificationComplete!==false&&full?.openLateBaselineTotal!=null?full.openLateBaselineTotal:'Not established · '+fmt(full?.openLateBaselineCount??0)+' known','current versus controlled baseline; overlaps overdue population'],
+      ['Completed after baseline',full?.identificationComplete!==false&&full?.completedLateBaselineTotal!=null?full.completedLateBaselineTotal:'Not established · '+fmt(full?.completedLateBaselineCount??0)+' known','historical actual completion; not live float pressure']
     ])+
-    (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):((full?.overdueOpenCount??0)>0?'<p>Open overdue milestones exist in the full source population but are outside this preview. Download the complete register.</p>':'<p>No current open milestone finish date is overdue in the checked population.</p>'))+
+    (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):((full?.overdueOpenCount??0)>0?'<p>Open overdue milestones exist in the full source population but are outside this preview. Download the complete register.</p>':p.lateOpenCount===0?'<p>No current open milestone finish date is overdue in the established population.</p>':'<p>The complete overdue milestone count is not established; missing population, status or date evidence remains unresolved.</p>'))+
     (openBaselineLate.length?'<details><summary>Open milestones later than baseline · '+fmt(openBaselineLate.length)+'</summary>'+basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openBaselineLate,50,'baseline'))+'</details>':'')+
     (completedAfterBaseline.length?'<details><summary>Historical completions later than baseline · '+fmt(completedAfterBaseline.length)+'</summary>'+basisTable(['Milestone','Baseline date','Actual completion','Movement','Historical classification'],rowDetail(completedAfterBaseline,30,'completed'))+'</details>':'')+
     '<p>Displayed source lists are limited to the first 50 open and 30 historical milestones; counts are calculated across the full source population. Download the unaltered register to inspect all entries.</p>',true);

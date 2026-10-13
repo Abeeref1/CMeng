@@ -26,6 +26,11 @@ async function diagnosisPage(id,offset){
  }catch(e){if(project()===t.projectId&&el(id))el(id).innerHTML=diagnosisTableHtml(t)+'<p role="alert">'+escapeHtml(e.message)+'</p>';}
 }
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
+function milestoneExposureNote(exposure){
+ if(exposure?.absenceConfirmed)return 'The source-bound review confirms no programme milestones. Contractual commitments remain separate.';
+ if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for the complete population. '+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed; review source types or select key dates.':fmt(exposure.knownCount||0)+' identified priorities; population or assessment fields remain unresolved.');
+ return exposure.value===0?'No identified milestone or reviewed key date is ranked for attention by the available programme checks. This is not a contractual clearance.':fmt(exposure.value)+' identified milestones or reviewed key dates are ranked for attention by the available programme checks.';
+}
 function renderProjectPrioritySummary(register){
  const actions=register?.actions||[];
  const decisions=actions.filter(row=>String(row.recordKey||'').startsWith('review|'));
@@ -149,7 +154,7 @@ function renderProjectBrief(d,data=null){
       '<td>'+escapeHtml(row.totalFloatHours==null?'Not established':fmt(row.totalFloatHours)+' hours')+'</td>'+
       '<td>'+escapeHtml(row.action||'Check the required milestone date and its dependent work.')+'</td></tr>').join('')+
     '</tbody></table></div>'
-  :'<p>'+(verifiedNetwork?'No milestone is currently ranked as a priority from the available programme checks.':'Milestone exposure cannot be cleared or ranked as finish-driving until the network is reconciled.')+'</p>';
+  :'<p>'+escapeHtml(milestoneExposureNote(d.milestoneExposure))+'</p>';
  const revision=d.revision||{};
  const revisionText=revision.state==='available'
   ?fmt(revision.modified??0)+' activities changed, '+fmt(revision.added??0)+' were added and '+fmt(revision.removed??0)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
@@ -201,7 +206,7 @@ function renderProjectDiagnosis(d){
  '<section class="diagnosis-section"><h4>Where schedule pressure is concentrated</h4><p>WBS groups are ranked by unfinished driving activities, then pressure count. These counts do not allocate delay days or responsibility.</p>'+diagnosisTable(d,'wbs',d.wbsRows,[['wbs','WBS'],['pressureCount','Pressure activities'],['drivingCount','Unfinished driving'],['criticalCount','Critical'],['negativeFloatCount','Negative float'],['missedStartCount','Missed starts'],['overdueFinishCount','Overdue finishes'],['worstFloatHours','Lowest float · h']],5)+'</section>'+
  '<section class="diagnosis-section"><h4>Immediate management actions</h4><p class="diagnosis-note">'+escapeHtml(d.rankingBasis)+'</p><div class="diagnosis-actions">'+(actions||'<p>No confirmed activity action can be ranked from the available fields.</p>')+'</div></section>'+
  '<section class="diagnosis-section"><h4>What the linked records show</h4><p>'+fmt(d.evidenceCoverage.activitiesWithLinkedPressure)+' pressure activities have a linked blocker or late supporting record. A missing link is unknown; it is not proof of readiness.</p>'+diagnosisTable(d,'evidence',d.evidenceChecks,[['activityId','Activity'],['domain','Area'],['recordId','Source record'],['explanation','Finding']],5)+'<details><summary>Cross-check coverage</summary><p>'+escapeHtml(d.evidenceCoverage.basis)+'</p></details></section>'+
- '<section class="diagnosis-section"><h4>Milestones exposed</h4>'+diagnosisTable(d,'milestones',d.milestoneRows,[['activityId','Milestone ID'],['name','Milestone'],['currentFinishIso','Current date'],['totalFloatHours','Float · h'],['reason','Exposure'],['action','Action']],5)+'</section>'+
+ '<section class="diagnosis-section"><h4>Milestones exposed</h4><p>'+escapeHtml(milestoneExposureNote(d.milestoneExposure))+'</p>'+diagnosisTable(d,'milestones',d.milestoneRows,[['activityId','Milestone ID'],['name','Milestone'],['currentFinishIso','Current date'],['totalFloatHours','Float · h'],['reason','Exposure'],['action','Action']],5)+'</section>'+
  '<section class="diagnosis-section"><h4>What changed since the previous programme</h4><p>'+escapeHtml(revision.state==='available'?(revision.modified+' changed, '+revision.added+' added and '+revision.removed+' removed activities. Completion movement: '+diagnosisCell(revision.finishMovementCalendarDays)+' elapsed days.'):revision.basis)+'</p>'+(revision.state==='available'?diagnosisTable(d,'changes',revision.largestChanges,[['activityId','Activity ID'],['name','Activity'],['finishMovementCalendarDays','Finish movement · elapsed days'],['floatMovementHours','Float movement · h'],['progressMovementPercent','Progress movement · points']],5):'')+'</section>'+
  '<section class="diagnosis-section"><h4>If nothing changes</h4><p>'+escapeHtml(d.noChangeOutlook)+'</p></section>'+
  '<div class="diagnosis-toolbar"><button class="btn" onclick="diagnosisAsk(\'List all delayed activities\')">All delayed activities</button><button class="btn" onclick="diagnosisAsk(\'Show all negative-float activities\')">All negative float</button><button class="btn" onclick="diagnosisAsk(\'Which activities should have started already?\')">Missed starts</button></div>'+

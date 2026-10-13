@@ -1229,31 +1229,29 @@ function metricsFor(
         sourceProgressReview('Submitted activity progress represented by WBS breakdown'),
       ];
 
-    case "milestones":
+    case "milestones": {
+      const milestoneCount=milestones?.populationState==='established'?numberOrNull(milestones?.milestoneCount):null;
+      const lateCount=numberOrNull(milestones?.lateOpenCount);
       return [
         spec(
           "milestone_count",
           "Milestone count",
-          numberOrNull(
-            milestones
-              ?.milestoneCount,
-          ),
+          milestoneCount,
           "milestones",
-          "calculated",
+          milestoneCount===null?'not_derivable':'calculated',
           [sourceRef],
+          {note:milestoneCount===null?'Milestone identification is incomplete or an empty programme milestone population has not been reviewed. Retained identified rows do not establish the full total.':undefined},
         ),
         spec(
           "late_milestone_count",
           "Late open milestones",
-          numberOrNull(
-            milestones
-              ?.lateOpenCount,
-          ),
+          lateCount,
           "milestones",
-          "calculated",
+          lateCount===null?'not_derivable':'calculated',
           [sourceRef],
         ),
       ];
+    }
 
     case "near-critical": {
       const config = projectScheduleControlBasis(state).analysisConfig;

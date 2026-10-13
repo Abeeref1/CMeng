@@ -90,6 +90,9 @@ test('ordinary management questions and WBS follow-ups retain the requested acti
  const path=await f.ask('critical path'),pathGroups=await f.ask('by WBS',path);
  assert.equal(pathGroups.sections[0]!.tables[0]!.rows.reduce((n,r)=>n+Number(r.activityCount),0),4);
  const milestones=await f.ask('Which milestones are threatened?');assert.deepEqual(milestones.sections[0]!.tables.map(t=>t.id),['project-diagnosis.milestones']);
+ assert.equal(f.full().milestoneExposure.value,null);assert.equal(f.full().milestoneExposure.identifiedCount,0);
+ assert.match(milestones.narrative.map(n=>n.text).join(' '),/complete milestone exposure count is not established/);
+ assert.doesNotMatch(milestones.narrative.map(n=>n.text).join(' '),/0 unfinished milestones have exposure/);
  assert.equal(f.calls(),0);
 });
 

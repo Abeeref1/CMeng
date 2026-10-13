@@ -519,6 +519,12 @@ export function buildMilestonesProjection(
         naturalCompare(a.activityId, b.activityId);
     });
 
+  const identificationComplete=absenceConfirmed||(rows.length>0&&!model.activities.some(a=>a.activityType==='unknown'));
+  const exposure=aggregateCount(rows,row=>row.status==='completed'?false:row.status==='unknown'?null:
+    ['critical','high','watch'].includes(row.managementPriority)?true:
+    row.dueState==='unknown'||row.criticality==='unknown'||row.varianceDays===null?null:false);
+  const completeCount=(predicate:(row:MilestoneRow)=>boolean|null)=>identificationComplete?aggregateCount(rows,predicate).value:null;
+
   return {
     schemaVersion: "1.0",
     projectionKey: "milestones",
@@ -546,7 +552,8 @@ export function buildMilestonesProjection(
         : "explicit_hours",
     floatCoveragePercent,
     sourceFloatState,
-    populationState:!absenceConfirmed&&model.activities.some(a=>a.activityType==='unknown')?'partial':'established',
+    populationState:identificationComplete?'established':'partial',
+    exposure:{value:identificationComplete?exposure.value:null,knownCount:exposure.knownCount!,unresolvedCount:exposure.unresolvedCount!,identifiedCount:rows.length,identificationComplete,absenceConfirmed},
     sourceMilestoneCount,
     reviewedKeyDateCount:rows.filter(r=>r.identificationBasis==='reviewed_key_date').length,
     ...(review?{review}:{}),
@@ -554,12 +561,12 @@ export function buildMilestonesProjection(
     milestoneCount: rows.length,
     completedCount: completed.length,
     openCount: open.length,
-    lateOpenCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.daysFromDataDate === null ? null : row.daysFromDataDate < 0).value,
-    criticalMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.criticality === 'critical').value,
-    nearCriticalMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.criticality === 'unknown' ? null : row.criticality === 'near_critical').value,
-    negativeFloatMilestoneCount: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.totalFloatHours < 0).value,
-    due30Count: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_30_days').value,
-    due90Count: aggregateCount(rows, row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_90_days').value,
+    lateOpenCount: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.daysFromDataDate === null ? null : row.daysFromDataDate < 0),
+    criticalMilestoneCount: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.criticality === 'critical'),
+    nearCriticalMilestoneCount: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.criticality === 'unknown' ? null : row.criticality === 'near_critical'),
+    negativeFloatMilestoneCount: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.totalFloatHours === null ? null : row.totalFloatHours < 0),
+    due30Count: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_30_days'),
+    due90Count: completeCount(row => row.status === 'completed' ? false : row.status === 'unknown' || row.dueState === 'unknown' ? null : row.dueState === 'due_90_days'),
     criticalPriorityCount:
       open.filter(
         (row) =>

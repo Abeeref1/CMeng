@@ -35,7 +35,12 @@ export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
  if(recipe==='revision_change')b.result.explanation=d.revision.state==='available'?'Compared the adopted revisions '+d.revision.fromRevisionId+' and '+d.revision.toRevisionId+'. '+d.revision.modified+' changed, '+d.revision.added+' added and '+d.revision.removed+' removed activities. '+(d.revision.finishMovementCalendarDays===null?'Completion movement is unavailable.':'Submitted completion moved '+d.revision.finishMovementCalendarDays+' elapsed calendar days.'):d.revision.basis;
  if(recipe==='management_actions')b.result.explanation=d.actions.length?'Start with the '+d.actions.length+' actions below. '+d.rankingBasis:'No confirmed activity action can be ranked from the current fields.';
  if(recipe==='no_change_outlook')b.result.explanation=d.noChangeOutlook;
- if(recipe==='milestone_exposure')b.result.explanation=d.milestoneRows.length+' unfinished milestones have exposure in the existing milestone checks. Their individual dates, float and reasons are listed below.';
+ if(recipe==='milestone_exposure'){
+   const exposure=d.milestoneExposure;
+   b.result.explanation=exposure?.absenceConfirmed?'The source-bound review confirms that this programme has no milestones. This does not establish absence of contractual commitments.':
+     exposure?.value==null?'The complete milestone exposure count is not established. '+(exposure?.knownCount?exposure.knownCount+' identified unfinished milestones or reviewed key dates are already ranked for attention. ':'')+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed. Review the source types or select key dates.':'Missing population or assessment fields remain unresolved. Listed records retain their dates, float and reasons.'):
+     exposure.value+' identified unfinished milestones or reviewed key dates are ranked for attention by the existing programme checks. This is not a contractual exposure clearance. Their dates, float and reasons are listed below.';
+ }
  if(recipe==='delay_diagnosis'){
    const linked=d.evidenceChecks.filter((c:any)=>c.state==='linked_pressure').slice(0,3);
    b.result.explanation=d.summary+(linked.length?' Linked evidence: '+linked.map((c:any)=>c.activityId+' — '+c.explanation).join(' '):' No specific linked non-schedule blocker is established for these pressure activities.')+' '+d.noChangeOutlook+(d.counts.baselineSlippage.knownCount===null?' No baseline has been confirmed, so delay against the original planned dates cannot be measured.':'');

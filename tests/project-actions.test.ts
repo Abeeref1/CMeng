@@ -309,6 +309,7 @@ test('programme milestone review persists without editing source types and expir
  const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/MILESTONE-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
  let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-milestones');assert.ok(action);
  const before=(await get('/schedule/modules/milestones')).data;assert.equal(before.populationState,'partial');assert.equal(before.milestoneCount,0);
+ assert.equal(before.exposure.value,null);assert.equal(before.challenge.items.find((r:any)=>r.metric==='milestone_count').independent.value,null);
  const request=(values:any)=>post('/api/projects/MILESTONE-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'track_key_dates',activityIds:['A1'],reference:'PLANNER-CHECK-1',...values});
  for(const invalid of [{expectedVersion:workflow.projectVersion-1},{sourceFingerprint:'old'},{activityIds:['NONEXISTENT']},{activityIds:[]},{reference:''},{choice:'no_programme_milestones'}])assert.equal((await request(invalid)).status,409);
  assert.equal((await request({})).status,200);
@@ -322,6 +323,9 @@ test('programme milestone review persists without editing source types and expir
  const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/review-activity-ids/);assert.match(html,/PLANNER-CHECK-1/);assert.match(html,/A1/);
  assert.equal((await request({choice:'no_programme_milestones',activityIds:[],reference:'PLANNER-CHECK-2'})).status,200);
  const empty=(await get('/schedule/modules/milestones')).data;assert.equal(empty.milestoneCount,0);assert.equal(empty.populationState,'established');assert.equal(empty.unknownActivityTypeCount,1);assert.equal(empty.review.reference,'PLANNER-CHECK-2');
+ assert.equal(empty.exposure.value,0);assert.equal(empty.exposure.absenceConfirmed,true);
+ assert.equal(empty.challenge.items.find((r:any)=>r.metric==='milestone_count').independent.value,0);
+ const diagnosis=(await get('/schedule/modules/pmo-analysis')).data.projectDiagnosis;assert.equal(diagnosis.milestoneExposure.absenceConfirmed,true);
  assert.equal((await upload('2031-09-30')).status,201);
  const changed=(await get('/schedule/modules/milestones')).data;assert.equal(changed.populationState,'partial');assert.equal(changed.review.choice,null);assert.equal(changed.reviewedKeyDateCount,0);
  workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-milestones'));
