@@ -826,17 +826,20 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const effectiveDeterminationDays = asOfConflict || dataDateIso === null ||
     eligible.some(d => d.determinationDate === null) ? null :
     effective.length ? sumKnown(effective.map(d => d.awardedDays)) : eligible.length ? 0 : null;
+  const completion=contractCompletionPosition(state,dataDateIso);
+  const amendmentRead=state.evidenceDocuments.some(d=>d.basisState==='candidate'&&state.contractDocuments.some(c=>c.documentId===d.documentId&&c.role==='amendment'))?contractCompletionPosition(state,dataDateIso,true):completion;
   const amendments:AmendmentTimeRecord[]=[];
   for(const contract of state.contractDocuments.filter(c=>c.role==='amendment')){
     const doc=state.evidenceDocuments.find(d=>d.documentId===contract.documentId);if(!doc||!['active','additive','candidate'].includes(doc.basisState))continue;
     const sections=contract.result.sections;const text=sections.map(s=>s.text).join('\n');
-    const dates=[...text.matchAll(/revised contractual completion(?:\s+date)?(?:\s+is)?\s*[:\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/gi)].map(m=>dateValue(m[1]!)).filter((v):v is string=>v!==null);
-    const unique=[...new Set(dates)];if(unique.length!==1){if(unique.length>1)diagnostics.push('CONFLICTING_AMENDMENT_COMPLETION:'+doc.documentId);continue;}
-    const effectiveMatch=/Effective Date\s*[:\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
+    const completionCandidates=amendmentRead.candidates.filter(c=>c.documentId===doc.documentId&&!c.historical);
+    const unique=[...new Set(completionCandidates.map(c=>c.date))];
+    if(unique.length!==1){if(unique.length>1)diagnostics.push('CONFLICTING_AMENDMENT_COMPLETION:'+doc.documentId);continue;}
+    const effectiveDate=completionCandidates[0]?.effectiveFrom??null;
     const extension=/extended by\s+(\d+)\s+calendar days|EOT Granted\s*[:\n]?\s*(\d+)\s+calendar days/i.exec(text);
     const section=sections.find(s=>s.text.includes(unique[0]!)||/revised contractual completion/i.test(s.text));
-    const deterministic=section?.sourceMode==='deterministic';
-    amendments.push({documentId:doc.documentId,effectiveDate:effectiveMatch?dateValue(effectiveMatch[1]!):null,completionIso:unique[0]!,incorporatedEotDays:extension?numberValue(extension[1]??extension[2]??''):null,
+    const deterministic=completionCandidates.some(candidate=>candidate.sourceVerified===true);
+    amendments.push({documentId:doc.documentId,effectiveDate,completionIso:unique[0]!,incorporatedEotDays:extension?numberValue(extension[1]??extension[2]??''):null,
       state:['active','additive'].includes(doc.basisState)&&deterministic?'official':'candidate',
       receipt:{documentId:doc.documentId,sourceHash:doc.sourceHashSha256,revision:doc.linkedArtifactId??doc.sourceHashSha256,locator:section?.startPage?'page:'+section.startPage:section?.sectionKey??'contract',basisState:doc.basisState,authority:'source_approved'}});
   }
@@ -864,7 +867,6 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(trustedDeterminations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
-  const completion=contractCompletionPosition(state,dataDateIso);
   if(completion.hasContractDocuments){
     const previous=contractTimeBasis??state.controls.contractTimeBasis;
     const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>

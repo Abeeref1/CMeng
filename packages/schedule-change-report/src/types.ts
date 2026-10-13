@@ -33,6 +33,11 @@ export interface ScheduleChangeReportProjection {
   addedRelationships: RelationshipSignature[];
   removedRelationships: RelationshipSignature[];
   changedActivities: ScheduleChangeActivityRow[];
+  changeSummary?: {
+    total:number;
+    dominantFinishMovement:{days:number;count:number}|null;
+    largestFloatMovements:Array<{activityId:string;floatShiftHours:number}>;
+  };
   executionModifiedActivityCount?: number; excludedModifiedActivityCount?: number;
   populationBasis?: "source_records";
   fromActivityCount?: number; toActivityCount?: number;

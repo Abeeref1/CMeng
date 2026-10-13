@@ -25,11 +25,22 @@ The requested scope remains the whole CMeng system and all 23 existing projects.
 - Currency-denominated cost headings, such as `Value SAR`, are recognized and consumed without treating CPI/SPI as money. The register-reader upgrade can recover eligible tabular cost reports misfiled as schedules, replaying their existing upload intent and family history. Genuine linked schedule revisions remain on the schedule path.
 - Affected wording distinguishes recorded contract dates from an unproven original date, calculated forecasts from source values, and unresolved readiness from an absence of blockers.
 
+## Continued shared repairs
+
+- Completion reading now accepts explicit month-first English dates and separates historical original dates quoted in amendments from their current revised dates. Invalid dates remain unresolved. Amendment reconciliation uses the same reader and retains whether a matching source passage was read deterministically.
+- The EOT page no longer overwrites its independently sourced original completion with the current amended completion during shared fact binding. Its explanation no longer implies every current completion is simply original plus all awards.
+- An amendment date is no longer substituted for a missing original date in the provisional EOT comparison, preventing a second addition of already-incorporated days.
+- Programme Changes derives its repeated-movement warning and top float changes from the complete comparison before paging. Changed rows are ordered before paging, and engineering/detail counts use full response populations. The bounded float chart series remains intact through response compaction.
+- Variation status distribution is produced before paging. Contract clause/amendment totals and future/undated insurance and retention counts use full response populations.
+- Navigation preserves a completed specialist result with no warning instead of replacing its null warning with an incorrect “not yet recorded” message.
+
 ## Evidence and checks
 
 The changes were traced to the retained ABB page-by-page workbook and shared implementation paths, including its paging, role-view, claim-rule, recovery, procurement, risk, quality and cost-reading findings.
 
 `npm run build` passes, including browser script parsing. Focused checks pass for register refresh, persisted XER recovery and hash refusal, source link scope, aggregate uncertainty, full-population paging, role facts, contract deadline triggers, recovery feasibility, AI failure diagnostics, cost currency handling, quality status and undated risk visibility. These checks establish those implementation behaviours only. They are not substitutes for the requested live review across 23 projects.
+
+The continued-repair build passes with calculation fingerprint `2b09edcdeead4ba9`. The focused contract/source, reporting, revision, commercial and response-paging run passes 173 checks. This is implementation verification, not live acceptance.
 
 A prior broader UI suite reported two pre-existing wording assertions expecting “Assign to” while the UI says “Responsible role”. Those assertions were not weakened to report an all-green suite.
 

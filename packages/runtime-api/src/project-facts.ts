@@ -272,13 +272,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     dateRepeatedDespiteAward||contractTime?.overlapResolution!=='resolved'
   );
   const completionCandidates=overlapPending?contractCompletionPosition(scoped,dataDateIso).candidates:[];
-  const originalDates=[...new Set(completionCandidates.filter(item=>item.role==='main'||item.role==='replacement').map(item=>item.date))];
-  const amendedDates=[...new Set(completionCandidates.filter(item=>item.role==='amendment'&&
+  const originalDates=[...new Set(completionCandidates.filter(item=>item.role==='main').map(item=>item.date))];
+  const amendedDates=[...new Set(completionCandidates.filter(item=>item.role==='amendment'&&!item.historical&&
     item.effectiveFrom!==null&&dataDateIso!==null&&item.effectiveFrom<=dataDateIso).map(item=>item.date))];
   // This is a visible SOURCE-QUALIFIED comparison, never a second official
   // EOT award or a new governing contract date. No extra days are silently
   // added to an amendment, because that could double-count awarded EOT.
-  const originalDate=originalDates.length===1?originalDates[0]!:originalDates.length===0?baseCompletion:null;
+  const originalDate=originalDates.length===1?originalDates[0]!:null;
   const calendared=originalDate&&/^\d{4}-\d{2}-\d{2}$/.test(originalDate)
     ?Date.parse(originalDate+'T00:00:00Z'):NaN;
   const provisionalExtendedDate=overlapPending&&Number.isFinite(calendared)

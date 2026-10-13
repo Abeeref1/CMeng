@@ -1762,6 +1762,7 @@ export function buildCommercialControlPosition(
         .claimCommercials.length||null,
     claimsNotices,
     registers: {
+      variationStateCounts:input.variations.reduce<Record<string,number>>((counts,row)=>{counts[row.state]=(counts[row.state]??0)+1;return counts;},{}),
       variations:
         input.variations.map(
           (row) => ({

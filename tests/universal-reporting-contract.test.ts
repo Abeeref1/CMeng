@@ -625,3 +625,16 @@ test('shared planning analysis refreshes baseline authority and unresolved count
   assert.equal(activityAfter.controlledBaselineRevisionId,'BASE');
   assert.equal(activityBefore.counts.nearCritical.value,1,'earlier response stays intact');
 });
+
+test('revision change summaries include movements beyond the first response page',t=>{
+ const {model}=fixture(t);
+ const from={revisionId:'BEFORE',label:null,sequence:1,effectiveAt:'2031-04-01',model:structuredClone(model)};
+ from.model.activities=Array.from({length:80},(_,i)=>({...model.activities[0]!,activityId:'ACT-'+i,nativeId:String(i),currentFinishIso:'2031-05-06',forecastFinishIso:null,totalFloatHours:100}));
+ const to={...from,revisionId:'AFTER',sequence:2,model:structuredClone(from.model)};
+ to.model.activities.forEach((a,i)=>{a.currentFinishIso=i<30?'2031-05-07':'2031-05-09';a.totalFloatHours=i===79?-900:90;});
+ const p=buildScheduleChangeReportProjection(from,to,{generatedAt:'2031-04-16',producerVersion:'test'});
+ assert.equal(p.changeSummary?.total,80);
+ assert.deepEqual(p.changeSummary?.dominantFinishMovement,{days:3,count:50});
+ assert.equal(p.changeSummary?.largestFloatMovements[0]?.activityId,'ACT-79');
+ assert.equal(p.changedActivities[0]?.finishShiftDays,3);
+});

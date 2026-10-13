@@ -1,21 +1,22 @@
 import {dateValue} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-const dateToken='(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4})';
+const dateToken='(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4}|[A-Za-z]+\\s+\\d{1,2},?\\s+\\d{4})';
 function explicitDate(raw:string):string|null {
   const numeric=/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(raw.trim());
   if(numeric)return dateValue(numeric[3]+'-'+numeric[2]!.padStart(2,'0')+'-'+numeric[1]!.padStart(2,'0'));
-  return dateValue(raw);
+  const monthFirst=/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/.exec(raw.trim());
+  return dateValue(monthFirst?monthFirst[2]+' '+monthFirst[1]+' '+monthFirst[3]:raw);
 }
-export interface CompletionCandidate {date:string;documentId:string;role:string;effectiveFrom:string|null;sourceRef:string;}
+export interface CompletionCandidate {date:string;documentId:string;role:string;effectiveFrom:string|null;sourceRef:string;historical?:boolean;sourceVerified?:boolean;}
 /** A date must be attached to a completion label, never merely present in a
  * section that discusses completion. All competing assertions are retained. */
-export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string|null) {
+export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string|null,includeCandidates=false) {
   const candidates:CompletionCandidate[]=[];
-  const documents=state.contractDocuments.filter(c=>['main','amendment','replacement'].includes(c.role)&&state.evidenceDocuments.some(d=>d.documentId===c.documentId&&['active','additive'].includes(d.basisState)));
+  const documents=state.contractDocuments.filter(c=>['main','amendment','replacement'].includes(c.role)&&state.evidenceDocuments.some(d=>d.documentId===c.documentId&&(includeCandidates?['active','additive','candidate']:['active','additive']).includes(d.basisState)));
   for(const doc of documents){
     const nativePages=(doc.result.pdf?.pages??[]).filter(p=>p.method==='native');
-    const sections=[...(doc.result.sections??[]),...nativePages.map(p=>({text:p.text,heading:null,startPage:p.pageNumber,sectionKey:'page:'+p.pageNumber,sourceSpans:[]}))];
+    const sections=[...(doc.result.sections??[]),...nativePages.map(p=>({text:p.text,heading:null,startPage:p.pageNumber,sectionKey:'page:'+p.pageNumber,sourceSpans:[],sourceMode:'deterministic' as const}))];
     const whole=sections.map(s=>s.text).join('\n');
     const effective=new RegExp('(?:effective\\s+date|effective\\s+from)\\s*[:|\\t]?\\s*('+dateToken+')','i').exec(whole);
     const effectiveFrom=effective?explicitDate(effective[1]!):null;
@@ -34,12 +35,12 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
         const span=section.sourceSpans?.find(s=>s.text.includes(dateText));
         const nativePage=nativePages.find(p=>p.text.includes(dateText));
         const page=span?.page??nativePage?.pageNumber??section.startPage;
-        candidates.push({date,documentId:doc.documentId,role:doc.role,effectiveFrom,sourceRef:'evidence-document:'+doc.documentId+':contract-completion:'+(page?'page:'+page:section.sectionKey)});
+        candidates.push({date,sourceVerified:section.sourceMode==='deterministic',historical:doc.role==='amendment'&&!following&&/\boriginal\b/i.test(match[0]),documentId:doc.documentId,role:doc.role,effectiveFrom,sourceRef:'evidence-document:'+doc.documentId+':contract-completion:'+(page?'page:'+page:section.sectionKey)});
       }
     }
   }
   const base=candidates.filter(c=>c.role!=='amendment');
-  const changes=candidates.filter(c=>c.role==='amendment');
+  const changes=candidates.filter(c=>c.role==='amendment'&&!c.historical);
   const applicable=changes.filter(c=>c.effectiveFrom&&asOf&&c.effectiveFrom<=asOf);
   const latest=applicable.map(c=>c.effectiveFrom!).sort().at(-1);
   const selected=latest?applicable.filter(c=>c.effectiveFrom===latest):base;

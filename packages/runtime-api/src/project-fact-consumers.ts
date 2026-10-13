@@ -76,7 +76,8 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   bind('time.extendedContractCompletionIso',['recoveryTargets.extended.dateIso']);
   bind('schedule.submittedProgrammeCompletionIso',['recoveryTargets.submittedCompletionIso']);
   bind('time.extendedContractCompletionIso',['claims.officialAdjustedCompletionIso','schedule.officialAdjustedCompletionIso']);
-  if(key==='eot-assessment'){bind('time.contractualCompletionIso',['originalContractualCompletionIso']);bind('time.awardedEotDays',['officialApprovedEotDays']);bind('time.extendedContractCompletionIso',['officialAdjustedCompletionIso']);bind('schedule.submittedProgrammeCompletionIso',['sourceForecastCompletionIso']);}
+  // The original contract date is historical evidence, not the current amended date.
+  if(key==='eot-assessment'){bind('time.awardedEotDays',['officialApprovedEotDays']);bind('time.extendedContractCompletionIso',['officialAdjustedCompletionIso']);bind('schedule.submittedProgrammeCompletionIso',['sourceForecastCompletionIso']);}
   if(key==='independent-forecast')bind(facts.time.extendedContractCompletionIso.value!==null?'time.extendedContractCompletionIso':'time.contractualCompletionIso',['requiredFinishIso','forecastTaxonomy.contractualCompletion.completionIso']);
   for(const base of ['completionPosition','projectDiagnosis.completion','completion']){
     if(!at(data,base))continue;

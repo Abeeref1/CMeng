@@ -120,7 +120,7 @@ export function pageProjectResponse(
  const screenKey=String(item?.legacyKey??item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
  const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
-   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
+   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)

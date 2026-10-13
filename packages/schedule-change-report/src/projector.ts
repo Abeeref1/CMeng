@@ -64,6 +64,20 @@ export function buildScheduleChangeReportProjection(
         ],
       }));
 
+  const movementCounts=new Map<number,number>();
+  for(const row of changedActivities){
+    if(row.finishShiftDays===null)continue;
+    const days=Number(row.finishShiftDays.toFixed(6));
+    movementCounts.set(days,(movementCounts.get(days)??0)+1);
+  }
+  const dominant=[...movementCounts].sort((a,b)=>b[1]-a[1]||a[0]-b[0])[0];
+  const changeSummary={total:changedActivities.length,
+    dominantFinishMovement:dominant?{days:dominant[0],count:dominant[1]}:null,
+    largestFloatMovements:changedActivities.filter(row=>row.floatShiftHours!==null&&row.floatShiftHours!==0)
+      .sort((a,b)=>Math.abs(b.floatShiftHours!)-Math.abs(a.floatShiftHours!)).slice(0,15)
+      .map(row=>({activityId:row.activityId,floatShiftHours:row.floatShiftHours!}))};
+  changedActivities.sort((a,b)=>Math.abs(b.finishShiftDays??0)-Math.abs(a.finishShiftDays??0));
+
   const changeCategories=classifyScheduleChanges(comparison.activityChanges,from.model,to.model);
   const endpoint = (link: { predecessorActivityId: string; successorActivityId: string }) => JSON.stringify([link.predecessorActivityId, link.successorActivityId]);
   const added = new Map<string, typeof comparison.addedRelationships>();
@@ -111,6 +125,7 @@ export function buildScheduleChangeReportProjection(
     removedRelationships:
       comparison.removedRelationships,
     changedActivities,
+    changeSummary,
     engineeringChanges,
     finishMovementAnalysis,
     executionModifiedActivityCount: comparison.modifiedActivityIds.filter(id=>currentExecution.has(id)).length,

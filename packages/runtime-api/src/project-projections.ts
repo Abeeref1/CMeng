@@ -8961,7 +8961,7 @@ export function overviewForProject(
     const live=calculated?.get(module.key);
     const stored=receiptStates.get(module.key);
     return {key:module.key,status:live?.status??stored??'partial' as const,
-      reason:live?.reason??(stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
+      reason:live?live.reason:(stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
         'Specialist check not yet recorded for this project version; open the specialist page for its current findings.'),
       issueAssessment:live?.issueAssessment};
   });

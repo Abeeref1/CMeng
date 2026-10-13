@@ -1300,3 +1300,12 @@ test('near-critical screening discloses a broad population and honors source thr
  assert.equal(unresolved.watchlistPercent,null);assert.ok(unresolved.unresolvedActivityCount>0);
  assert.equal(JSON.stringify(other),preserved);
 });
+
+test('an amended completion alone is never reused as an original date for another EOT addition',t=>{
+ const {state,csvDoc}=fixture(t);amendment(state);
+ csvDoc('Determination ID,Claim ID,Awarded EOT Days,Determination Date,Status,Authority,Governance State\nD1,C1,26,2026-08-08,Determined,Engineer,Immutable','delay_eot_claims_register');
+ const facts=projectFactsForState(state);
+ assert.equal(facts.time.awardedEotDays.value,26);
+ assert.notEqual(facts.time.extendedContractCompletionIso.value,'2030-04-26');
+ assert.ok(!facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
+});

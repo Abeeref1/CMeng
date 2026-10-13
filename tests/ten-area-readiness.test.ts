@@ -190,3 +190,31 @@ test('clean identical civil and calculated finish dates have no timezone-induced
   }
  } finally { if(previous===undefined)delete process.env.TZ;else process.env.TZ=previous; }
 });
+
+ test('completion reader separates historical amendment dates and reads month-first dates',t=>{
+ const {state}=fixture(t);contract(state,'Original completion date: December 31, 2028');
+ contract(state,'Effective date: August 1, 2026\nOriginal completion date: December 31, 2028\nRevised completion date: March 1, 2029','amendment','AMD');
+ const position=contractCompletionPosition(state,'2026-08-31');
+ assert.equal(position.value,'2029-03-01');assert.equal(position.state,'official');
+ assert.ok(position.candidates.some(c=>c.date==='2028-12-31'&&c.historical));
+ assert.equal(contractCompletionPosition(state,'2026-07-31').value,'2028-12-31');
+ contract(state,'Effective date: August 1, 2026\nRevised completion date: March 2, 2029','amendment','CONFLICT');
+ assert.equal(contractCompletionPosition(state,'2026-08-31').state,'conflicted');
+ });
+ test('invalid month-first contract dates cannot roll into a valid completion',t=>{
+ const {state}=fixture(t);contract(state,'Completion date: February 30, 2031');
+ assert.equal(contractCompletionPosition(state,'2031-01-01').value,null);
+ });
+
+test('EOT page keeps original and amended completion separate after shared fact binding',async t=>{
+ const {state,store}=fixture(t);await schedule(store,'2031-07-01','dates.xer');
+ contract(state,'Original completion date: December 31, 2031');
+ contract(state,'Effective date: June 1, 2031\nOriginal completion date: December 31, 2031\nRevised completion date: March 1, 2032\nEOT Granted: 60 calendar days','amendment','AMD');
+ for(const document of state.contractDocuments){document.result.amendmentActions=[];document.result.clauses=[];document.result.diagnostics=[];}
+ runtimeProjects.replace(state);
+ const page=moduleForProject(state.projectId,'eot-assessment') as any;
+ assert.equal(page.data.originalContractualCompletionIso,'2031-12-31');
+ assert.equal(page.data.amendedContractualCompletionIso,'2032-03-01');
+ assert.equal(page.data.currentContractualCompletionIso,'2032-03-01');
+ assert.equal(page.data.projectFacts.time.contractualCompletionIso.value,'2032-03-01');
+});

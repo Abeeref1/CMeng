@@ -193,6 +193,7 @@ export interface CommercialControlPosition {
   claimsNotices:
     CommercialClaimsNoticesPosition;
   registers: {
+    variationStateCounts?: Record<string,number>;
     variations: VariationRecord[];
     invoices: InvoiceRecord[];
     retentions: RetentionRecord[];
