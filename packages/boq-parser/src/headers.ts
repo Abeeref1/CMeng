@@ -17,6 +17,7 @@ const SYNONYMS: Record<
     "رقم البند",
     "البند",
   ],
+  cost_code: ["cost code", "cbs code", "cbs id", "رمز التكلفة", "كود التكلفة"],
   section: [
     "section",
     "bill",

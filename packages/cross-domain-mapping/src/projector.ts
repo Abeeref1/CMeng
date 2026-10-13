@@ -112,7 +112,7 @@ interface ActivityFeatures {
 }
 
 function itemFeatures(item: CanonicalQuantityItem): ItemFeatures {
-  const corpus = [item.itemNumber ?? "", item.section ?? "", item.description].join(" ");
+  const corpus = [item.itemNumber ?? "", item.costCode??"", item.section ?? "", item.description].join(" ");
   return {corpus, description: norm(item.description), descriptionTokens: tokens(item.description),
     sectionTokens: tokens(item.section), codes: codeTokens(corpus)};
 }

@@ -11,6 +11,7 @@ export interface QuantitySourceRef {
 export interface CanonicalQuantityItem {
   quantityItemId: string;
   itemNumber: string | null;
+  costCode?: string | null;
   section: string | null;
   description: string;
   unit: string | null;

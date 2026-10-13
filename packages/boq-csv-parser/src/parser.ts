@@ -157,6 +157,7 @@ function parseSegment(
     const sourceCells: BoqLineItem["sourceCells"] = {};
     for (const role of [
       "item_number",
+      "cost_code",
       "section",
       "description",
       "unit",
@@ -180,6 +181,7 @@ function parseSegment(
       row: rowNumber,
       rowKind,
       itemNumber,
+      costCode:valueAt(row,roleColumn(header.roles,"cost_code")),
       section,
       description,
       unit,

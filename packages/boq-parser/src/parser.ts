@@ -157,6 +157,7 @@ function parseLineItem(
   const columns = roleColumns(roles);
 
   const itemCell = parseCellForRole(worksheet, row, columns, "item_number");
+  const costCodeCell = parseCellForRole(worksheet, row, columns, "cost_code");
   const sectionCell = parseCellForRole(worksheet, row, columns, "section");
   const descriptionCell = parseCellForRole(worksheet, row, columns, "description");
   const unitCell = parseCellForRole(worksheet, row, columns, "unit");
@@ -167,6 +168,7 @@ function parseLineItem(
 
   const mappedCells = [
     itemCell,
+    costCodeCell,
     sectionCell,
     descriptionCell,
     unitCell,
@@ -242,6 +244,7 @@ function parseLineItem(
   const sourceCells: BoqLineItem["sourceCells"] = {};
   for (const [role, cell] of [
     ["item_number", itemCell],
+    ["cost_code", costCodeCell],
     ["section", sectionCell],
     ["description", descriptionCell],
     ["unit", unitCell],
@@ -258,6 +261,7 @@ function parseLineItem(
     row: rowNumber,
     rowKind,
     itemNumber: text(itemCell),
+    costCode: text(costCodeCell),
     section: text(sectionCell),
     description,
     unit: text(unitCell),

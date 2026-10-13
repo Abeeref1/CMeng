@@ -114,3 +114,9 @@ test("populated BOQ CSV prefix before first table makes coverage unknown", () =>
     ),
   );
 });
+
+test('BOQ cost codes retain their separate source column without replacing item identifiers',()=>{
+ const parsed=parseBoqCsv(Buffer.from('Item No,Cost Code,Description,Unit,Quantity,Rate,Amount\n1.01,CC-002,Concrete,m3,2,50,100'));
+ assert.equal(parsed.items[0]!.itemNumber,'1.01');assert.equal(parsed.items[0]!.costCode,'CC-002');
+ assert.equal(parsed.items[0]!.sourceCells.cost_code?.column,2);assert.equal(parsed.items[0]!.quantity,2);
+});

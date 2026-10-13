@@ -530,3 +530,16 @@ test('one source-bound procurement decision changes delivery and readiness witho
  f.state.evidenceDocuments.find(d=>d.documentType==='procurement_register')!.sourceHashSha256='changed-source';f.state.version++;
  assert.equal(procurementDateBasis(f.state).choice,null);
 });
+
+test('older BOQ imports recover cost codes from retained source without new quantities or allocations',async t=>{
+ const f=await fixture(t);await f.upload('BOQ.csv','Item No,Cost Code,Description,Unit,Quantity,Rate,Amount,Currency\n1,CC-002,Concrete,m3,2,50,100,AED');
+ assert.ok(f.state.boq);
+ for(const row of f.state.boq!.canonicalItems)delete row.costCode;
+ for(const row of f.state.quantities?.items??[])delete row.costCode;
+ const original=JSON.stringify(f.state.quantities);
+ const result=resolveBoqSource(f.state,projectControlSchedule(f.state)!.revision.model.sourceRevisionId);
+ assert.equal(result.quantities?.items[0]?.costCode,'CC-002');assert.equal(result.quantities?.items[0]?.contractQuantity,2);assert.equal(result.quantities?.allocations.length,0);
+ assert.equal(JSON.stringify(f.state.quantities),original);
+ const {linkDataset}=await import('../packages/runtime-api/src/link-candidates');
+ assert.match(linkDataset(f.state,'boq_activity').sources[0]!.description,/Cost code CC-002/);
+});

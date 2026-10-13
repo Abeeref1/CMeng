@@ -22,7 +22,7 @@ export function linkDataset(state:ProjectRuntimeState,kind:LinkKind){
  if(kind==='boq_activity'){
   const model=projectControlSchedule(state)?.revision.model;
   const q=model?resolveBoqSource(state,model.sourceRevisionId).quantities:null;
-  for(const row of q?.items??[])sources.push({id:row.quantityItemId,projectId,reference:row.itemNumber??row.quantityItemId,description:([row.section,row.description].filter(Boolean).join(' · ')).slice(0,500),unit:row.unit,sourceRefs:row.sourceRefs.map(x=>x.source+':'+x.locator)});
+  for(const row of q?.items??[])sources.push({id:row.quantityItemId,projectId,reference:row.itemNumber??row.quantityItemId,description:([row.costCode?'Cost code '+row.costCode:null,row.section,row.description].filter(Boolean).join(' · ')).slice(0,500),unit:row.unit,sourceRefs:row.sourceRefs.map(x=>x.source+':'+x.locator)});
   const wbs=new Map(model?.wbs.map(x=>[x.wbsId,x.name])??[]);
   for(const a of model?.activities??[])if(!['wbs_summary','level_of_effort','start_milestone','finish_milestone','milestone'].includes(a.activityType))targets.push({id:a.activityId,projectId,reference:a.activityId,description:([a.name,wbs.get(a.wbsId??'')].filter(Boolean).join(' · ')).slice(0,500),sourceRefs:['schedule:'+model!.sourceRevisionId+':'+a.activityId]});
  }else{

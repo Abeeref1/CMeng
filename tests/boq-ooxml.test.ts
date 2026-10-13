@@ -97,3 +97,8 @@ test("OOXML fast BOQ parser preserves summary reconciliation and arithmetic ambi
   assert.equal(fast.sheets[0]!.items[0]!.amount, 2468);
   assert.deepEqual(fast.diagnostics, []);
 });
+
+test('both workbook readers retain the cost-code value and cell reference',async()=>{
+ const bytes=await workbookBytes(w=>{const sheet=w.addWorksheet('BOQ');sheet.addRow(['Item No','Cost Code','Description','Unit','Quantity','Rate','Amount']);sheet.addRow(['A1','CC-002','Concrete','m3',2,50,100]);});
+ for(const parse of [parseBoqWorkbook,parseBoqOoxmlWorkbook]){const result=await parse(bytes);const row=result.sheets[0]!.items[0]!;assert.equal(row.costCode,'CC-002');assert.equal(row.sourceCells.cost_code?.column,2);assert.equal(row.quantity,2);}
+});

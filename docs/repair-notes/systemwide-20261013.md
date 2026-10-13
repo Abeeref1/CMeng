@@ -42,6 +42,9 @@ The requested scope remains the whole CMeng system and all 23 existing projects.
 - Review findings retain their source detail and numeric comparisons instead of replacing ordinary colon-labelled text with a generic message. Supporting information includes editable saved decisions.
 - Build fingerprint `12b8d317e428aac5`; 55 focused delivery/action checks pass, including endpoint save, amendment of the choice, restart persistence, shared readiness behaviour and changed-source invalidation. No deployment or live acceptance is claimed.
 
+- CSV and both Excel BOQ readers retain explicit Cost Code/CBS code columns and cell references independently of item numbers. Ingestion and quantity models carry the text identifiers into matching and source-bound AI proposal context. Older BOQ imports recover those codes from their own hash-verified retained tables; ambiguous duplicate item codes are not chosen. Original stored quantities and allocations are unchanged.
+- The supplied 24,000-item BOQ was read directly: all 24,000 explicit cost codes are retained. This does not establish 24,000 activity links. The focused BOQ, quantity quarantine, delivery and link-provider checks pass (69 checks); build fingerprint `c1b6bb78c1122200`. Provider checks use mocked responses and perform no paid calls.
+
 ## Evidence and checks
 
 The changes were traced to the retained ABB page-by-page workbook and shared implementation paths, including its paging, role-view, claim-rule, recovery, procurement, risk, quality and cost-reading findings.

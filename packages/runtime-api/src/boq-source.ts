@@ -1,3 +1,4 @@
+import {cell,sourceTables} from '../../truth-kernel/src';
 import {boqItemContinuity} from './boq-item-continuity';
 import {applyBoqNumericReviews} from './boq-numeric-review';
 import {quarantineUnconfirmedBoqNumerics,type BoqIngestionResult} from '../../boq-ingestion/src';
@@ -75,6 +76,34 @@ export function suppliedBoqFigures(boq:BoqIngestionResult|null,quantities:Canoni
 /** Source-family validation is shared by all consumers, including restored
  * projects. A rejected legacy classification cannot hide valid source quantities.
  * A sole usable candidate is visible as a candidate; this does not adopt it. */
+const retainedCostCodeCache=new WeakMap<object,{hash:string;confirmations:unknown;read:unknown;semantic:unknown;codes:Map<string,Set<string>>}>();
+const costCodeModelCache=new WeakMap<CanonicalQuantityProgressModel,{codes:Map<string,Set<string>>;value:CanonicalQuantityProgressModel}>();
+/** Recover text identifiers from the same retained BOQ, including older imports.
+ * Item-number collisions with different cost codes remain unresolved. */
+function withRetainedCostCodes(model:CanonicalQuantityProgressModel|null,document:ProjectRuntimeState['evidenceDocuments'][number]|undefined){
+ if(!model||!document||document.mediaType==='application/pdf')return model;
+ let cached=retainedCostCodeCache.get(document);
+ if(!cached||cached.hash!==document.sourceHashSha256||cached.confirmations!==document.tableConfirmations||cached.read!==document.tabularRead||cached.semantic!==document.csvSemantic){
+  const codes=new Map<string,Set<string>>();
+  for(const table of sourceTables([document],[]))for(const row of table.rows){
+   const id=cell(row,'item no','item number','boq item','boq item id').trim();
+   const code=cell(row,'cost code','cbs code','cbs id').trim();
+   if(!id||!code)continue;
+   const values=codes.get(id)??new Set<string>();values.add(code);codes.set(id,values);
+  }
+  cached={hash:document.sourceHashSha256,confirmations:document.tableConfirmations,read:document.tabularRead,semantic:document.csvSemantic,codes};retainedCostCodeCache.set(document,cached);
+ }
+ const prior=costCodeModelCache.get(model);if(prior?.codes===cached.codes)return prior.value;
+ let changed=false;
+ const items=model.items.map(item=>{
+  const values=cached!.codes.get(item.itemNumber?.trim()??'');if(!values)return item;
+  const costCode=values.size===1?[...values][0]!:null;
+  if(item.costCode===costCode)return item;
+  changed=true;return {...item,costCode};
+ });
+ const value=changed?{...model,items}:model;costCodeModelCache.set(model,{codes:cached.codes,value});return value;
+}
+
 export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:string) {
   const hasRasterBoq=(d:ProjectRuntimeState['evidenceDocuments'][number])=>Boolean(d.sourceHashSha256&&d.boqTableRead&&d.boqTableRead.sourceHashSha256===d.sourceHashSha256&&d.boqTableRead.structuredTableFound);
   const artifactId=(d:ProjectRuntimeState['evidenceDocuments'][number])=>hasRasterBoq(d)?d.boqTableRead!.ingestionId:d.linkedArtifactId;
@@ -101,7 +130,8 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
     excludedMisclassifiedDocuments:rejected.map(d=>({documentId:d.documentId,sourceFilename:d.sourceFilename,recordedType:d.documentType,detectedType:documentClassificationForReview(d).documentType})),
     diagnostics:[...(selected&&!readable?['BOQ_ITEM_POPULATION_UNREADABLE']:[]),...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
     explanation:selected&&!readable?'The selected source did not yield a readable BOQ item population. Counts and quantity calculations remain unresolved.':rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
-  return {boq:selected,quantities:selected?(readable?(selected===state.boq&&state.quantities?quarantineBoqQuantityModel(state.quantities,selected):quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:quarantineBoqQuantityModel(state.quantities,null),selection};
+  const quantities=selected?(readable?(selected===state.boq&&state.quantities?quarantineBoqQuantityModel(state.quantities,selected):quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:quarantineBoqQuantityModel(state.quantities,null);
+  return {boq:selected,quantities:withRetainedCostCodes(quantities,source),selection};
 }
 
 export function quantityModelFromBoq(
@@ -124,6 +154,7 @@ export function quantityModelFromBoq(
       quantityItemId: item.itemId,
       itemNumber: item.itemNumber,
       section: item.section,
+      costCode:item.costCode??null,
       description: item.description,
       unit: item.unit,
       contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnostics).contractQuantity,

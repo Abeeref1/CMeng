@@ -16,6 +16,7 @@ export type BoqColumnRole =
   | "amount"
   | "currency"
   | "section"
+  | "cost_code"
   | "unknown";
 
 export interface BoqCellLocator {
@@ -73,6 +74,7 @@ export interface BoqLineItem {
   row: number;
   rowKind: "line_item" | "section" | "total_or_summary" | "unclassified";
   itemNumber: string | null;
+  costCode?: string | null;
   section: string | null;
   description: string;
   unit: string | null;

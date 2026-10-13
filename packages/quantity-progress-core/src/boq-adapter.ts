@@ -40,6 +40,7 @@ function fromLineItem(
     row: number;
     rowKind: string;
     itemNumber: string | null;
+    costCode?: string | null;
     section?: string | null;
     description: string;
     unit: string | null;
@@ -61,6 +62,7 @@ function fromLineItem(
       ),
       itemNumber: item.itemNumber,
       section: item.section ?? null,
+      costCode:item.costCode??null,
       description: item.description,
       unit: item.unit,
       contractQuantity: admissibleBoqQuantity(item.quantity,item.diagnosticCodes).contractQuantity,
