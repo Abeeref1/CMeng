@@ -201,6 +201,42 @@ test("schedule graph exposes exact cycle participants", () => {
   assert.equal(graph.topologicalOrder, null);
 });
 
+test("equal revision topology keeps results isolated and invalidates every graph input", () => {
+  const original = model();
+  const expected = analyzeScheduleGraph(original);
+  const revision = structuredClone(original);
+  revision.sourceRevisionId = "later-revision";
+  revision.activities[0]!.remainingDurationHours = 100;
+  revision.activities[0]!.currentFinishIso = "2030-01-01";
+  const reused = analyzeScheduleGraph(revision);
+  assert.deepEqual(reused, expected);
+  reused.components[0]!.activityIds.push("invented");
+  reused.topologicalOrder!.reverse();
+  reused.diagnostics.push("invented");
+  assert.deepEqual(analyzeScheduleGraph(original), expected);
+  assert.deepEqual(analyzeScheduleGraph(revision), expected);
+
+  revision.relationships.push(structuredClone(revision.relationships[0]!));
+  assert.equal(analyzeScheduleGraph(revision).duplicateRelationshipKeys.length, 1);
+  revision.relationships[2]!.lagHours = 4;
+  assert.equal(analyzeScheduleGraph(revision).duplicateRelationshipKeys.length, 0);
+  revision.relationships[2]!.lagHours = 0;
+  revision.relationships[2]!.type = "SS";
+  assert.equal(analyzeScheduleGraph(revision).duplicateRelationshipKeys.length, 0);
+  revision.relationships[2]!.external = true;
+  assert.equal(analyzeScheduleGraph(revision).externalRelationshipCount, 1);
+  revision.relationships[2]!.external = false;
+  revision.relationships[2]!.predecessorActivityId = "A300";
+  revision.relationships[2]!.successorActivityId = "A100";
+  assert.deepEqual(analyzeScheduleGraph(revision).cyclicActivityIds, ["A100", "A200", "A300"]);
+  revision.activities[2]!.activityId = "A400";
+  const changed = analyzeScheduleGraph(revision);
+  assert.deepEqual(changed.brokenPredecessorActivityIds, ["A300"]);
+  assert.deepEqual(changed.brokenSuccessorActivityIds, ["A300"]);
+  assert.deepEqual(changed.isolatedActivityIds, ["A400"]);
+  assert.deepEqual(analyzeScheduleGraph(original), expected);
+});
+
 test("missing float is not treated as zero or critical", () => {
   const input = model();
   input.activities[1]!.totalFloatHours = null;

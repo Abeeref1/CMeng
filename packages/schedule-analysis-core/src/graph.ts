@@ -378,13 +378,50 @@ function calculateScheduleGraph(
   };
 }
 
-const graphCache=new WeakMap<CanonicalScheduleModel,{activityIds:string[];relationships:Array<{predecessor:string;successor:string;type:string;lag:number|null;external:boolean}>;value:ScheduleGraphAnalysis}>();
-/** Topology is shared across schedule views. Validate every graph input on reuse,
- * including in-place edits, and keep mutable result arrays isolated. */
-export function analyzeScheduleGraph(model:CanonicalScheduleModel):ScheduleGraphAnalysis {
-  let cached=graphCache.get(model);
-  if(!cached||cached.activityIds.length!==model.activities.length||cached.relationships.length!==model.relationships.length||!model.activities.every((a,i)=>a.activityId===cached!.activityIds[i])||!model.relationships.every((r,i)=>{const old=cached!.relationships[i]!;return old.predecessor===r.predecessorActivityId&&old.successor===r.successorActivityId&&old.type===r.type&&old.lag===r.lagHours&&old.external===r.external;})){
-    cached={activityIds:model.activities.map(a=>a.activityId),relationships:model.relationships.map(r=>({predecessor:r.predecessorActivityId,successor:r.successorActivityId,type:r.type,lag:r.lagHours,external:r.external})),value:calculateScheduleGraph(model)};graphCache.set(model,cached);
+interface GraphCacheEntry {
+  activityIds: string[];
+  relationships: Array<{ predecessor: string; successor: string; type: string; lag: number | null; external: boolean }>;
+  value: ScheduleGraphAnalysis;
+}
+const graphCache = new WeakMap<CanonicalScheduleModel, GraphCacheEntry>();
+// Revisions commonly change dates/progress while retaining the exact graph.
+// Keep only bounded weak references: another model must own an entry to retain it.
+const recentGraphs: Array<WeakRef<GraphCacheEntry>> = [];
+function matchesGraph(model: CanonicalScheduleModel, cached: GraphCacheEntry): boolean {
+  return cached.activityIds.length === model.activities.length
+    && cached.relationships.length === model.relationships.length
+    && model.activities.every((a, i) => a.activityId === cached.activityIds[i])
+    && model.relationships.every((r, i) => {
+      const old = cached.relationships[i]!;
+      return old.predecessor === r.predecessorActivityId && old.successor === r.successorActivityId
+        && old.type === r.type && old.lag === r.lagHours && old.external === r.external;
+    });
+}
+/** Topology is shared across schedule views and revisions. Validate every graph
+ * input on reuse, including in-place edits, and isolate mutable result arrays. */
+export function analyzeScheduleGraph(model: CanonicalScheduleModel): ScheduleGraphAnalysis {
+  let cached = graphCache.get(model);
+  if (!cached || !matchesGraph(model, cached)) {
+    cached = undefined;
+    for (let i = 0; i < recentGraphs.length;) {
+      const candidate = recentGraphs[i]!.deref();
+      if (!candidate) { recentGraphs.splice(i, 1); continue; }
+      if (matchesGraph(model, candidate)) {
+        cached = candidate;
+        recentGraphs.splice(i, 1);
+        break;
+      }
+      i++;
+    }
+    cached ??= {
+      activityIds: model.activities.map(a => a.activityId),
+      relationships: model.relationships.map(r => ({ predecessor: r.predecessorActivityId,
+        successor: r.successorActivityId, type: r.type, lag: r.lagHours, external: r.external })),
+      value: calculateScheduleGraph(model),
+    };
+    graphCache.set(model, cached);
+    recentGraphs.unshift(new WeakRef(cached));
+    if (recentGraphs.length > 8) recentGraphs.length = 8;
   }
   const value=cached.value;
   return {...value,duplicateActivityIds:[...value.duplicateActivityIds],duplicateRelationshipKeys:[...value.duplicateRelationshipKeys],brokenPredecessorActivityIds:[...value.brokenPredecessorActivityIds],brokenSuccessorActivityIds:[...value.brokenSuccessorActivityIds],selfLoops:[...value.selfLoops],cyclicActivityIds:[...value.cyclicActivityIds],openStartActivityIds:[...value.openStartActivityIds],openFinishActivityIds:[...value.openFinishActivityIds],isolatedActivityIds:[...value.isolatedActivityIds],components:value.components.map(c=>({...c,activityIds:[...c.activityIds]})),topologicalOrder:value.topologicalOrder?[...value.topologicalOrder]:null,diagnostics:[...value.diagnostics]};

@@ -13,7 +13,7 @@ export function isSourceDerivedTimeBasis(basis:ContractTimeBasis|null|undefined)
 export function riskReviewBasis(state:ProjectRuntimeState){
   const sourceFingerprint=fingerprint({
     documents:state.evidenceDocuments.filter(d=>d.documentType==='risk_register').map(d=>[d.documentId,d.sourceHashSha256,d.basisState,d.tableConfirmations??[]]),
-    manual:state.controls.risks.filter(r=>!r.sourceRefs.some(ref=>ref.startsWith('evidence-document:'))),
+    manual:(state.controls.risks??[]).filter(r=>!r.sourceRefs.some(ref=>ref.startsWith('evidence-document:'))),
   });
   const rating=state.controls.reviewDecisions?.['risk-rating-rule'];
   const snapshot=state.controls.reviewDecisions?.['risk-status-snapshot'];
