@@ -52,3 +52,32 @@ test('missing cutoff and legacy paged subtype counts remain unknown, with source
  const legacy=pageProjectResponse(screen(delayClaimsAsOf(source,'2026-08-31')),'/api/projects/P/schedule/modules/notices-claims') as any;delete legacy.data.claimsReporting.noticeTypeCounts;
  assert.equal(runInNewContext("claimsReportingNoticeCount(r,'asOf',true)",context(legacy,[])),null,'a partial preview cannot establish a subtype zero');
 });
+
+test('window lists expose full activity populations and preserve existing complete event counts',()=>{
+ const ids=(n:number,prefix:string)=>Array.from({length:n},(_,i)=>prefix+i);
+ const window=(i:number,n:number)=>({sequence:i,fromRevisionId:'R'+i,toRevisionId:'R'+(i+1),windowStartIso:'2026-08-01',windowEndIso:'2026-08-31',sourceForecastMovementDays:0,independentForecastMovementDays:null,progressMovementPercent:null,delayEventCount:n,delayEvents:ids(n,'E'),fromDrivingActivityIds:ids(130,'FROM'),toDrivingActivityIds:ids(140,'TO'),enteredCriticalActivityIds:[],exitedCriticalActivityIds:ids(131,'EXIT')});
+ const full={key:'windows-analysis',data:{projectionKey:'windows_analysis',windowCount:2,completeWindowCount:2,partialWindowCount:0,associatedEventCount:240,windows:[window(1,119),window(2,121)]}},before=JSON.stringify(full);
+ const page:any=pageProjectResponse(full,'/api/projects/P/schedule/modules/windows-analysis'),kpis:any[]=[];
+ const html=runInNewContext('renderWindowsVisual(data)',{...context(page,kpis),planningSignedBars:()=>''});
+ assert.match(html,/Finish-driving activities · 130 → 140/);assert.match(html,/Exited critical · 131/);assert.match(html,/Showing 25 of 131 activities/);assert.match(html,/Browse all exited critical activities/);
+ assert.match(html,/119 temporally associated/);assert.match(html,/121 temporally associated/);assert.equal(kpis.find(r=>r[0]==='Window-associated events')[1],240);
+ const last:any=recordDetailPage(full,'/data/windows/1/exitedCriticalActivityIds',125);assert.equal(last.total,131);assert.equal(last.rows.at(-1),'EXIT130');
+ assert.equal(JSON.stringify(full),before);
+});
+
+test('compacted event rows retain all eight evidence links and complete canonical claim facts',()=>{
+ const keys=['event','notice','activity','window','impact','responsibility','eot','determination'];
+ const full={key:'delay-claims',data:{projectionKey:'delay_claims',eventCount:240,claimCount:300,contractorClaimEvidenceSubmitted:true,
+  events:Array.from({length:240},(_,i)=>({eventId:'E'+i,title:'Event '+i,linkedClaimIds:['C'+(299-i)]})),
+  projectFacts:{claims:{pipeline:{rows:Array.from({length:300},(_,i)=>({claimId:'C'+i,state:'submitted',claimedDays:i===299?88.125:1,assessedDays:i===299?0:null}))}}},
+  delayEotEvidenceChain:{populationState:'established',linkOrder:keys,rows:Array.from({length:240},(_,i)=>({eventId:'E'+i,links:keys.map(key=>({key,state:key==='eot'?'established':'missing',value:key==='eot'?0:null}))}))}}};
+ const before=JSON.stringify(full),page:any=pageProjectResponse(full,'/api/projects/P/schedule/modules/delay-claims',1);
+ assert.equal(page.data.events.length,1,'the tightest screen budget is exercised');
+ assert.equal(page.data.projectFacts.claims.pipeline.rows.length,300,'canonical claim facts already have full transport protection');
+ assert.equal(page.data.delayEotEvidenceChain.rows.length,1);assert.equal(page.data.delayEotEvidenceChain.rows[0].links.length,8,'one chain is not a paged record population');
+ assert.equal(page.data.delayEotEvidenceChain.rows[0].links.find((l:any)=>l.key==='eot').value,0);
+ const html=runInNewContext('renderDelayClaimsVisual(data)',context(page,[]));assert.match(html,/<td>submitted<\/td><td>88.125<\/td><td>0<\/td><td>0<\/td>/);
+ page.data.delayEotEvidenceChain.rows[0].links=page.data.delayEotEvidenceChain.rows[0].links.filter((l:any)=>l.key!=='eot');
+ const missing=runInNewContext('renderDelayClaimsVisual(data)',context(page,[]));assert.match(missing,/<td>submitted<\/td><td>88.125<\/td><td>0<\/td><td>Not established<\/td>/);assert.doesNotMatch(missing,/No dated award/);
+ assert.equal(JSON.stringify(full),before);
+});

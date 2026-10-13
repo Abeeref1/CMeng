@@ -39,7 +39,7 @@ test('float histogram retains the full source hours when calendar screening rows
  assert.equal(many.groups[0]!.lowerHours,-120);assert.equal(many.groups.at(-1)!.upperHours,119);
 });
 test('Delay Event Register distinguishes missing trigger dates from entirely undated records',()=>{
- const data:any={projectionKey:'delay_claims',events:[],eventCount:240,claimCount:240,contractorClaimEvidenceSubmitted:true,projectFacts:{claims:{eventDateMissingCount:{value:240}}},claimsReporting:{events:{population:{sourceCount:240},asOf:Array(240).fill({}),future:[],undated:[]}}};
+ const data:any={projectionKey:'delay_claims',events:[],eventCount:240,claimCount:240,contractorClaimEvidenceSubmitted:true,projectFacts:{claims:{eventDateMissingCount:{value:240}}},claimsReporting:{events:{population:{sourceCount:240,dataDateIso:'2026-08-31'},asOf:Array(240).fill({}),future:[],undated:[]}}};
  let kpis:any[]=[];
  const code=functions(['renderDelayClaimsVisual','delayClaimsProjectionFor','projectionFor'])+';renderDelayClaimsVisual(data)';
  runInNewContext(code,{...common,data,planningKpis:(rows:any[])=>{kpis=rows;return '';}});

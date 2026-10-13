@@ -124,7 +124,9 @@ export function pageProjectResponse(
  const quantityItemSeries=(pointer:string)=>pointer.endsWith('/series')&&
    (jsonPointer(body,pointer.slice(0,-'/series'.length)) as any)?.projectionKey==='quantity_scurve';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
-   (/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
+   // These eight links are columns of one event's evidence chain, not separate records.
+   (/\/delayEotEvidenceChain\/rows\/\d+\/links$/.test(pointer)&&value.length<=8)
+   ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
