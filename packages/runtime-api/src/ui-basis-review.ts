@@ -118,6 +118,17 @@ async function openBoqLinkEditor(){
  document.getElementById('boqLinkClose').onclick=()=>panel.remove();
  await Promise.all([choices('items',''),choices('activities','')]);
 }
+async function openBoqScopeReview(){
+ const owner=project(),seq=projectRequestSeq;
+ await openBoqLinkEditor();
+ if(project()!==owner||projectRequestSeq!==seq)return;
+ const panel=el('boqLinkEditor');if(!panel?.isConnected)return;
+ const mapping=currentModuleResult?.data?.boqProgrammeLinks;
+ panel.querySelector('h4').textContent='Review BOQ scope links and source basis';
+ if(mapping)panel.insertAdjacentHTML('afterbegin','<p>'+escapeHtml(fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked. '+(mapping.basis||'Scope relationships do not establish approved quantity allocations.'))+'</p>');
+ if(!el('link-candidate-review'))el('moduleContent').insertAdjacentHTML('beforeend',linkCandidateEntry('challenge-contract'));
+ await loadLinkCandidates('boq_activity');
+}
 function renderBasisReviews(data,key){
   let html='';
   if(key==='contract-particulars-bonds'&&data.projectFacts?.time){

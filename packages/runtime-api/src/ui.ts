@@ -1,4 +1,5 @@
 import {linkCandidateScript} from './ui-link-candidates';
+import {recoveryScenarioScript} from './ui-recovery-scenario';
 import {decisionFactsScript} from './ui-decision-facts';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
@@ -448,6 +449,7 @@ ${projectActionsScript}
 ${boqNumericReviewScript}
 ${boqPageReviewScript}
 ${basisReviewScript}
+${recoveryScenarioScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},
@@ -5341,15 +5343,16 @@ function observeProjectDisplay(){
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
+  if((result.legacyKey||result.key)==='challenge-contract')container.insertAdjacentHTML('beforeend',recoveryScenarioPanel(result.data?.recoveryScenario));
   const decisions=renderDecisionAnalysis(result.legacyKey||result.key,result.data);
   const linkReview=linkCandidateEntry(result.legacyKey||result.key);if(linkReview)container.insertAdjacentHTML('beforeend',linkReview);
   if(decisions)container.insertAdjacentHTML('beforeend',decisions);
-  if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button></div>');
+  if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button>'+((result.legacyKey||result.key)==='challenge-contract'?'<button class="btn" onclick="openRecoveryScenario()">Enter or edit recovery assumptions</button>':'')+'</div>');
   const mapping=result.data?.boqProgrammeLinks;
   if(mapping){
    const text=fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+(mapping.coveragePercent==null?'Coverage not calculable':fmt(mapping.coveragePercent)+'%');
    if((result.legacyKey||result.key)==='quantity-scurve')container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+escapeHtml(text)+'</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p></div></section>');
-   else container.insertAdjacentHTML('beforeend','<p><b>BOQ programme coverage:</b> '+escapeHtml(text)+' · '+managementModuleLink('quantity-scurve','Review scope links and source basis')+'</p>');
+   else container.insertAdjacentHTML('beforeend','<p><b>BOQ programme coverage:</b> '+escapeHtml(text)+' · <button class="btn small" onclick="openBoqScopeReview()">Review scope links and source basis</button></p>');
   }
   const paged=result.responsePaging;
   if(paged?.tables?.length){

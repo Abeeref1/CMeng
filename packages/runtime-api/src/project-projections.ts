@@ -22,6 +22,7 @@ import {nearCriticalScreening} from './near-critical-screening';
 import {resolveModuleKey} from './registry';
 import {registerDateReview} from './register-date-review';
 import {deliveryFeasibilityForState} from './delivery-feasibility';
+import {recoveryScenarioForState} from './recovery-scenario';
 import {suppliedBoqFigures,resolveBoqSource} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
 import {checkPageValues} from './page-value-checks';
@@ -7550,7 +7551,7 @@ function resolveProjectModuleCandidate(
         sourceProductivityForecast:(()=>{const p=sourceProductivityForecastEvidence(state);return {completionIso:p.completionIso,state:p.state,method:p.method,workPackageCount:p.workPackageCount,coveragePercent:p.calculationCoveragePercent,driverWorkPackageIds:p.driverWorkPackageIds,concentration:p.concentration,sourceRefs:p.sourceRefs};})(),
       }:{}),
       ...(key==='contract-particulars-bonds'?{contractSourceContext:contractChallengeForState(state,calculationSnapshotTime(state))}:{}),
-      ...(key==='challenge-contract'?{boqFeasibility:deliveryFeasibilityForState(state),sourceLaborEvidence:laborEvidence?{
+      ...(key==='challenge-contract'?{recoveryScenario:recoveryScenarioForState(state),boqFeasibility:deliveryFeasibilityForState(state),sourceLaborEvidence:laborEvidence?{
         state:'source',laborResourceCount:laborEvidence.laborResourceCount,plannedHours:laborEvidence.plannedHoursKnown,
         plannedHoursToDataDate:laborEvidence.plannedHoursToDataDate,actualHoursToDataDate:laborEvidence.actualHoursToDataDate,
         sourcePeriodCount:laborEvidence.plannedSourcePeriodCount,dataDateIso:laborEvidence.dataDateIso,

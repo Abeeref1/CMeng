@@ -400,6 +400,8 @@ export interface DerivedControlEvidence {
 }
 
 export interface ProjectControlState {
+  recoveryScenario?: import('./recovery-scenario').RecoveryScenarioDecision;
+  recoveryScenarioHistory?: import('./recovery-scenario').RecoveryScenarioDecision[];
   delayClaims: DelayClaimsModel | null;
   contractTimeBasis: ContractTimeBasis | null;
   readinessEvidence: Record<

@@ -1993,6 +1993,22 @@ async function route(
   }
 
   if(url.pathname.endsWith('/diagnosis')){const {diagnosisRequest}=await import('./diagnosis-api');if(await diagnosisRequest(req,res,url))return;}
+  const recoveryMatch=/^\/api\/projects\/([^/]+)\/recovery-scenario$/.exec(url.pathname);
+  if(recoveryMatch){
+    const projectId=decodeURIComponent(recoveryMatch[1]!),state=runtimeProjects.get(projectId);
+    if(!state){json(res,404,{error:'project_not_found'});return;}
+    const {recoveryProgrammeBasis,recoveryScenarioInput,recoveryScenarioForState}=await import('./recovery-scenario');
+    const view=()=>({projectId,projectVersion:state.version,programme:recoveryProgrammeBasis(state),saved:state.controls.recoveryScenario??null,historyCount:state.controls.recoveryScenarioHistory?.length??0,result:recoveryScenarioForState(state)});
+    if(req.method==='GET'){json(res,200,view());return;}
+    if(req.method==='POST'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+      if(input.expectedVersion!==state.version)throw new Error('Project records changed. Reopen the scenario before saving.');
+      const decision=recoveryScenarioInput(state,input),previous=state.controls.recoveryScenario;
+      runtimeProjects.updateControls(projectId,{recoveryScenario:decision,recoveryScenarioHistory:[...(state.controls.recoveryScenarioHistory??[]),...(previous?[previous]:[])]});
+      invalidateProject(projectId);json(res,200,view());
+    }catch(err){json(res,409,{error:'recovery_scenario_not_saved',message:err instanceof Error?err.message:'The scenario was not saved.'});}return;}
+    json(res,405,{error:'method_not_allowed'});return;
+  }
   const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
@@ -2739,6 +2755,7 @@ async function route(
       await readJsonBody<
         Partial<ProjectControlState>
       >(req);
+    if(Object.hasOwn(update,'recoveryScenario')||Object.hasOwn(update,'recoveryScenarioHistory')){json(res,409,{error:'use_recovery_scenario_review',message:'Save recovery assumptions through the version-checked scenario editor.'});return;}
     const controls =
       runtimeProjects
         .updateControls(
