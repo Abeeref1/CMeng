@@ -605,8 +605,8 @@ test('late procurement forecasts do not create already-overdue escalation before
  const f=await fixture(t),supplier=f.create('supplier','VENDOR',{company:'Vendor'});
  f.create('package','FUTURE-NEED',{status:'Ordered','required on site':'2031-09-10','forecast delivery':'2031-09-20'},{supplierIds:[supplier.recordId]});
  const p=crossDomainAccountability(f.state),action=p.actions.find(a=>a.owningModule==='procurement-packages')!;
- assert.ok(action);assert.equal(action.escalation,null);assert.equal(action.sourceOverdueCount,0);assert.equal(action.sourceOverdueDays,null);
- assert.ok(p.details.every(d=>d.overdueDays===null));
+ assert.ok(action);assert.equal(action.escalation,null);assert.equal(action.sourceOverdueCount,0);assert.equal(action.sourceOverdueDays,0);
+ assert.ok(p.details.every(d=>d.overdueDays===0));
 });
 
 test('reported delivery stays unresolved when its date conflicts; forecast source points remain qualified and reviewable',async t=>{

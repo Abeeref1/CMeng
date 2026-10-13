@@ -8973,7 +8973,7 @@ export function overviewForProject(
     organisation:action.organisation??null,
     requiredAction:action.requiredAction??null,
     dueIso:action.dueIso??null,
-    sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,sourceOverdueCount:action.sourceOverdueCount??0,
+    sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,sourceOverdueCount:action.sourceOverdueCount??null,knownSourceOverdueCount:action.knownSourceOverdueCount??null,sourceUnknownDueRecordCount:action.sourceUnknownDueRecordCount??null,
     escalation:action.escalation??null,
     severity:action.severity??null,
     authority:action.authority??null,

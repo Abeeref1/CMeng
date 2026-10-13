@@ -80,3 +80,42 @@ test('owner groups aggregate source ageing and escalation without inventing an a
  const shared=projectActionRegisterForState(state).actions.find(a=>a.actionId===group.actionId)!;
  assert.equal(shared.dueIso,null);assert.equal(shared.sourceDueIso,group.sourceDueIso);assert.equal(shared.escalation,group.escalation);
 });
+
+test('workload totals distinguish incomplete due dates, risk populations and activity links from recorded zeros',()=>{
+ const {state}=fixture();
+ state.controls.ncrs.push({...ncr('LATE','Quality Engineer'),linkedActivityId:'WORK'},
+  {...ncr('FUTURE-DUE','Quality Engineer'),dueIso:'2031-04-20',linkedActivityId:'WORK'},
+  {...ncr('NO-DUE-OR-LINK','Quality Engineer'),dueIso:null,linkedActivityId:null});
+ state.controls.risks.push(...Array.from({length:600},(_,i)=>({riskId:'UNDATED-'+i,status:'open' as const,rating:'high' as const,owner:'Risk Engineer',dueIso:'2031-04-10',sourceRefs:['retained-risk:'+i]})));
+ state.version++;const before=JSON.stringify(state.controls),p=crossDomainAccountability(state),row=p.rows.find(r=>r.dimension==='owner'&&r.value==='Quality Engineer')!;
+ assert.equal(p.actions[0]!.sourceOverdueCount,null);assert.equal(p.actions[0]!.knownSourceOverdueCount,1);assert.equal(p.actions[0]!.sourceUnknownDueRecordCount,1);
+ assert.equal(p.ownerGroups[0]!.overdueRecordCount,null);assert.equal(p.ownerGroups[0]!.knownOverdueRecordCount,1);
+ assert.equal(row.openIssueCount,3);assert.equal(row.overdueCount,null);assert.equal(row.knownOverdueCount,1);assert.equal(row.unknownDueRecordCount,1);
+ assert.equal(row.openRiskCount,null);assert.equal(row.knownOpenRiskCount,0);assert.equal(row.affectedActivityCount,null);assert.equal(row.knownLinkedActivityCount,1);assert.equal(row.unlinkedRecordCount,1);
+ assert.equal(p.recordActions.find(a=>a.actionId.endsWith('NO-DUE-OR-LINK'))!.sourceOverdueDays,null);
+ assert.equal(p.recordActions.find(a=>a.actionId.endsWith('FUTURE-DUE'))!.sourceOverdueDays,0,'a valid future due date is a known non-overdue position');
+ assert.equal(p.recordActions.filter(a=>a.actionId.includes('UNDATED-')).length,0,'excluded risks are not manufactured into current owner actions');
+ assert.equal(JSON.stringify(state.controls),before);
+ state.controls.ncrs=state.controls.ncrs.filter(r=>r.ncrId==='FUTURE-DUE');
+ state.controls.risks=[{riskId:'CLOSED',status:'closed',rating:'high',raisedIso:'2031-04-01',closedIso:'2031-04-10',dueIso:null,owner:'Risk Engineer',sourceRefs:['closed-risk']}];state.version++;
+ const complete=crossDomainAccountability(state).rows.find(r=>r.dimension==='owner'&&r.value==='Quality Engineer')!;
+ assert.equal(complete.overdueCount,0);assert.equal(complete.unknownDueRecordCount,0);assert.equal(complete.openRiskCount,0);assert.equal(complete.affectedActivityCount,1);
+});
+
+test('source register groups use the owning register for grouped and review actions',async()=>{
+ const {groupActionsByOwnerRegister}=await import('../packages/runtime-api/src/action-priority');
+ const {state}=fixture();state.controls.ncrs.push(ncr('N1'));state.version++;
+ const grouped=crossDomainAccountability(state).actions[0]!,original=JSON.stringify(grouped);
+ const rows=groupActionsByOwnerRegister([grouped,{...grouped,actionId:'review-1',recordKey:'review|classification',owningModule:'source-quality'}]);
+ assert.ok(rows.some(r=>r.register==='delivery-quality'));assert.ok(rows.some(r=>r.register==='source-quality'));assert.ok(rows.every(r=>!r.register.includes('accountability-owner-group')&&r.register!=='review'));
+ assert.equal(rows.reduce((sum,r)=>sum+r.total,0),2);assert.ok(rows.every(r=>r.actionIds.length===r.total));assert.equal(JSON.stringify(grouped),original);
+ const module:any=moduleForProject(state.projectId,'cross-domain-accountability');assert.ok(module.data.ownerRegisterGroups.some((r:any)=>r.register==='delivery-quality'));assert.ok(module.data.ownerRegisterGroups.every((r:any)=>!r.register.includes('accountability-owner-group')));
+});
+
+test('Accountability browser retains unknown totals beside their confirmed subsets',async()=>{
+ const {runInNewContext}=await import('./browser-context');
+ const {state}=fixture();state.controls.ncrs.push({...ncr('UNKNOWN','Quality Engineer'),dueIso:null,linkedActivityId:null});state.version++;
+ const data=crossDomainAccountability(state),html=runInNewContext('renderAccountabilityVisual(data)',{data,currentModuleResult:{key:'cross-domain-accountability',data}});
+ assert.match(html,/Not established<br><small>0 confirmed in retained records/);assert.match(html,/Not established<br><small>0 linked activities recorded/);assert.match(html,/incomplete domain populations/);
+ assert.doesNotMatch(html,/NaN|undefined/);
+});

@@ -101,7 +101,9 @@ export function groupActionsByOwnerRegister(actions:ManagementAction[]){
  const groups=new Map<string,{owner:string;register:string;total:number;actionIds:string[]}>();
  for(const action of actions){
    const owner=pmcRoleOwner(action.owningModule??action.recordKey??'project controls',action.owner);
-   const register=String(action.recordKey??action.owningModule??'project controls').split('|')[0]!;
+   const recordKind=action.recordKey?.split('|')[0];
+   const register=recordKind&&!recordKind.startsWith('accountability-owner-group:')&&recordKind!=='review'
+     ?recordKind:action.owningModule??'project controls';
    const key=register+'|'+owner.toLowerCase(),row=groups.get(key)??{owner,register,total:0,actionIds:[]};
    row.total++;row.actionIds.push(action.actionId);groups.set(key,row);
  }
