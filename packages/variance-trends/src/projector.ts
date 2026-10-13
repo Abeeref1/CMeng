@@ -135,8 +135,13 @@ export function buildVarianceTrendsProjection(
   };
 
 
-      const analytics = (baselineRevision?input.precomputedAnalyses?.get(revision.model):undefined) ?? analyzeSchedule(
-        baselineRevision ? revision.model : {...revision.model,activities:revision.model.activities.map(a=>({...a,baselineStartIso:null,baselineFinishIso:null}))},
+      // Reporting already clears unapproved baseline fields. In that case the
+      // existing revision analysis is exactly the same calculation; avoid cloning
+      // and re-analysing every activity. Supplied baseline fields without a
+      // controlled baseline still require the original stripped calculation.
+      const stripBaseline=!baselineRevision&&revision.model.activities.some(a=>a.baselineStartIso!=null||a.baselineFinishIso!=null);
+      const analytics = (!stripBaseline?input.precomputedAnalyses?.get(revision.model):undefined) ?? analyzeSchedule(
+        stripBaseline ? {...revision.model,activities:revision.model.activities.map(a=>({...a,baselineStartIso:null,baselineFinishIso:null}))} : revision.model,
         input.config,
       );
       const programme =

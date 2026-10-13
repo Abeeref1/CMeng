@@ -245,3 +245,17 @@ test('Current revision schedule analysis is reused unchanged in revision trend',
  const reused=buildRevisionTrendProjection(revisions,{...input,precomputedAnalyses:new Map([[model,canonical]])});
  assert.deepEqual(reused,original,'the same full revision analytics, population, float and dates must be retained');
 });
+
+test('variance trends reuse baseline-free revision analysis while rejecting unapproved embedded baseline results',t=>{
+ const {state}=fixture(t);
+ const revisions=state.schedules.map(row=>({...row.revision,model:{...row.revision.model,activities:row.revision.model.activities.map(a=>({...a,baselineStartIso:null,baselineFinishIso:null}))}}));
+ const input={generatedAt:'2026-08-31T00:00:00Z',producerVersion:'baseline-free-parity'};
+ const analyses=new Map();buildRevisionTrendProjection(revisions,{...input,onRevisionAnalytics:(model,result)=>analyses.set(model,result)});
+ const before=JSON.stringify(revisions),expected=buildVarianceTrendsProjection(revisions,input);
+ assert.deepEqual(buildVarianceTrendsProjection(revisions,{...input,precomputedAnalyses:analyses}),expected);
+ assert.equal(JSON.stringify(revisions),before);assert.ok(expected.points.every(p=>p.comparableActivities===0&&p.averageFinishVarianceDays===null));
+ const embedded=revisions.map(r=>({...r,model:{...r.model,activities:r.model.activities.map(a=>({...a,baselineStartIso:'2020-01-01',baselineFinishIso:'2020-01-02'}))}}));
+ const embeddedAnalyses=new Map();buildRevisionTrendProjection(embedded,{...input,onRevisionAnalytics:(model,result)=>embeddedAnalyses.set(model,result)});
+ const qualified=buildVarianceTrendsProjection(embedded,{...input,precomputedAnalyses:embeddedAnalyses});
+ assert.deepEqual(qualified,buildVarianceTrendsProjection(embedded,input));assert.ok(qualified.points.every(p=>p.comparableActivities===0&&p.averageFinishVarianceDays===null),'unapproved source dates cannot become a controlled baseline');
+});
