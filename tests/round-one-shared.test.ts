@@ -20,7 +20,9 @@ for(let sample=0;sample<10;sample++)test('Round one shared population and presen
  const before=JSON.stringify(state.controls.rfis),register=projectActionRegisterForState(state);
  assert.ok(register.recordActions.length>=100+sample);
  assert.equal(register.actions.length,register.ownerGroups.length+register.reviewActionCount,'headlines count groups and source-review decisions, not member records');
- assert.equal(register.workflow.actionCount,register.actions.length);
+ assert.equal(register.workflow.actionCount,register.reviewActionCount);
+ assert.equal(register.workflow.actions.length,register.reviewActionCount);
+ assert.equal(register.workflow.teamFollowUpCount+register.workflow.userDecisionCount,register.actions.length);
  assert.equal(projectFactsForState(state).actions.openCount.value,register.actions.length);
  for(const key of ['master-dashboard','command-center','cross-domain-accountability']){
   const result=moduleForProject(state.projectId,key).data as any;

@@ -133,7 +133,7 @@ function fact<T>(
   sourceRefs:string[]=[],
   diagnostics:string[]=[],
 ):ProjectFact<T>{
-  const valueState:ManagementValueState=value!==null?managementValueState(value):diagnostics.some(d=>/CONFLICT|DISAGREE/.test(d))?'records_disagree':diagnostics.some(d=>/WITHHELD|SUPPRESS|QUARANTIN|CPM.*FAIL|RECONCILIATION.*FAIL/.test(d))?'withheld':diagnostics.some(d=>/NOT_CALCUL|INVALID/.test(d))?'not_calculable':'not_in_source';
+  const valueState:ManagementValueState=value!==null?managementValueState(value):diagnostics.some(d=>/CONFLICT|DISAGREE/.test(d))?'records_disagree':diagnostics.some(d=>/WITHHELD|SUPPRESS|QUARANTIN|CPM.*FAIL|RECONCILIATION.*FAIL/.test(d))?'withheld':diagnostics.some(d=>/NOT_CALCUL|INVALID/.test(d))?'not_calculable':'not_established';
   return {value,valueState,state:value===null?'missing':state,complete:value===null?false:complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
 }
 

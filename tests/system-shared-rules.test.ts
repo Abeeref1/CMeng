@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {managementValueState,managementValue,managementNumber,managementDate} from '../packages/runtime-api/src/management-values';
+import {managementValueState,managementValue,managementNumber,managementDate,managementText} from '../packages/runtime-api/src/management-values';
 import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-scenario';
 import {milestonePopulation,attachMilestonePopulation} from '../packages/runtime-api/src/milestone-population';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
@@ -26,7 +26,7 @@ for(let i=0;i<10;i++)test('shared value and population rules preserve exact sour
  const response=pageProjectResponse({key:'milestones',data},'/api/projects/P'+i+'/schedule/modules/milestones',50000) as any;
  assert.equal(response.data.milestoneFullCounts.openCount,250+i);assert.equal(response.data.milestoneFullCounts.completedLateBaselineCount,50);
  assert.equal(data.openMilestones.length,250+i);assert.equal(data.completedMilestones.length,50);
- assert.deepEqual(data.milestoneFullCounts,milestonePopulation(rows));assert.equal(JSON.stringify(rows),sourceRows);
+ assert.deepEqual(data.milestoneFullCounts,{...milestonePopulation(rows),identificationComplete:true});assert.equal(JSON.stringify(rows),sourceRows);
  const last=recordDetailPage({data},'/data/openMilestones',250,25) as any;assert.equal(last.total,250+i);assert.equal(last.rows.length,i);
  const result=sectionDelayDamagesScenario({contractCompletionIso:'2026-08-29',extendedCompletionIso:null,programmeCompletionIso:'2026-09-03',rate:7000,rateBasis:'fixed_amount_per_week',capAmount:4000});
  assert.equal(result.state,'scenario');assert.equal(result.lateDays,5);assert.equal(result.uncapped,5000);assert.equal(result.capped,4000);
@@ -57,4 +57,17 @@ test('stable owner groups expose complete source membership when unrelated rows 
  for(const item of existing){const group=after.ownerGroups.find(g=>g.key===item.key);assert.ok(group);assert.equal(group.groupId,item.id);assert.equal(group.count,item.count);}
  for(const group of after.ownerGroups){const result=recordDetailPage({recordActions:after.recordActions},'/recordActions',0,25,{groupKey:group.key}) as any;assert.equal(result.total,group.count);assert.ok(result.rows.every((row:any)=>group.memberActionIds.includes(row.actionId)));}
  assert.equal(crossDomainAccountability(state),after,'same canonical project version reuses one action producer');
+});
+
+test('unknown values do not claim source absence or attach units to missing facts',()=>{
+ for(const value of [null,undefined,'']){
+  assert.equal(managementValueState(value),'not_established');
+  assert.equal(managementValue(value,'days'),'Not established');
+  assert.equal(managementDate(value),'Not established');
+ }
+ assert.equal(managementValue({value:null,valueState:'not_in_source'}),'Not in source');
+ assert.equal(managementValue({value:null,valueState:'not_calculable'},'days'),'Not calculable');
+ assert.equal(managementText('null days; undefined hours; NaN days'),'Not established; Not established; Not calculable');
+ assert.equal(managementValue(0,'days'),'0 days');
+ assert.equal(managementValue(false),'No');
 });

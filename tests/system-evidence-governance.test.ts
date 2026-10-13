@@ -253,3 +253,15 @@ test('runtime certification detects corrupted date movement and source populatio
  const history={snapshotCount:2,establishedForecastCount:1,points:[{snapshotId:'missing',independentForecastCompletionIso:null,movementDaysVsPrevious:null,movementDaysVsFirst:null},{snapshotId:'known',independentForecastCompletionIso:'2030-01-10',movementDaysVsPrevious:null,movementDaysVsFirst:0}]};
  assert.equal(checked('forecast-history',history).systemEvidenceContract.failureCount,0);
 });
+
+test('unique native IDs cannot bypass duplicated activity codes used by downstream comparison',()=>{
+ const source=[{activityId:'DUP',nativeId:'1',name:'First',wbsId:'W',activityType:'task'},
+ {activityId:'DUP',nativeId:'2',name:'Second',wbsId:'W',activityType:'task'},
+ {activityId:'SAFE',nativeId:'3',name:'Separate',wbsId:'W',activityType:'task'}] as any;
+ const next=source.map((a:any)=>({...a}));
+ const result=resolveRevisionActivityCorrespondence(source,next);
+ assert.deepEqual(result.matches.map(m=>m.fromActivityId),['SAFE']);
+ assert.ok(result.ambiguousFrom.has('DUP'));assert.ok(result.ambiguousTo.has('DUP'));
+ const uniqueNext=[{...source[0]},{...source[2]}];
+ assert.ok(!resolveRevisionActivityCorrespondence(source,uniqueNext).matches.some(m=>m.fromActivityId==='DUP'));
+});

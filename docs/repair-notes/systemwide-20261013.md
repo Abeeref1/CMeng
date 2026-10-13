@@ -61,3 +61,10 @@ A prior broader UI suite reported two pre-existing wording assertions expecting 
 ## Work not represented as complete
 
 The remaining workbook findings still require implementation review, including confirmation workflows, other paged chart populations, source-reader/OCR coverage, report/export presentation, action navigation, and the complete wording/layout review. AI availability and real paid-provider behaviour have not been verified against live project data. Existing projects have not yet run these new migrations in production. Deployment remains separate from this saved implementation work.
+
+## Continued identity and missing-value repair
+
+- Duplicate activity codes now remain ambiguous through every revision identity fallback, including otherwise unique native IDs. Downstream comparisons indexed by code cannot select an arbitrary duplicate row. The 47 focused identity/revision checks pass.
+- Shared values and project facts distinguish unknown evidence (“Not established”) from explicit source absence, calculation failures and disagreements. Missing values do not acquire numeric units; actual zero and false remain visible.
+- The full-population float chart now describes both gains and losses accurately instead of labelling every largest absolute movement as deterioration.
+- The broader shared check exposed outdated expectations treating the user-decision inbox as the complete team register, and a milestone assertion missing the identification-completeness field. Assertions now separately reconcile user decisions plus team follow-ups to the complete register and explicitly check milestone identification completeness. No complete-suite or live-acceptance claim is made.

@@ -484,6 +484,15 @@ function calculateRevisionActivityCorrespondence(
   const ambiguousTo =
     new Set<string>();
 
+  // Downstream comparison addresses records by activityId. A native-ID or
+  // name fallback cannot safely recover a duplicated activityId: a Map lookup
+  // would silently substitute a different source row with that same code.
+  const duplicateFrom=identityIndex(fromActivities,a=>a.activityId).ambiguous;
+  const duplicateTo=identityIndex(toActivities,a=>a.activityId).ambiguous;
+  const duplicatedIds=new Set([...duplicateFrom,...duplicateTo]);
+  for(const row of fromActivities)if(duplicatedIds.has(row.activityId))ambiguousFrom.add(row.activityId);
+  for(const row of toActivities)if(duplicatedIds.has(row.activityId))ambiguousTo.add(row.activityId);
+
   const steps: Array<{
     method:
       ActivityIdentityMethod;
@@ -523,14 +532,14 @@ function calculateRevisionActivityCorrespondence(
     const remainingFrom =
       fromActivities.filter(
         (activity) =>
-          !matchedFrom.has(
+          !duplicatedIds.has(activity.activityId)&&!matchedFrom.has(
             activity.activityId,
           ),
       );
     const remainingTo =
       toActivities.filter(
         (activity) =>
-          !matchedTo.has(
+          !duplicatedIds.has(activity.activityId)&&!matchedTo.has(
             activity.activityId,
           ),
       );
