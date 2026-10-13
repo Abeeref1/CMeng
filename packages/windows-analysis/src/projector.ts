@@ -405,6 +405,9 @@ export function buildWindowsAnalysisProjection(
     generatedAt: string;
     producerVersion: string;
     cpmConfig?: Partial<CpmConfig>;
+    // Reuse only comparisons supplied for these exact revision objects in the
+    // same immutable calculation batch. Standalone calls still calculate fresh.
+    precomputedComparisons?: ReadonlyMap<ScheduleRevision, ReadonlyMap<ScheduleRevision, ReturnType<typeof compareScheduleRevisions>>>;
     forecastResolver?: (
       revision: ScheduleRevision,
     ) => IndependentForecastProjection;
@@ -428,7 +431,7 @@ export function buildWindowsAnalysisProjection(
     const from = ordered[index - 1]!;
     const to = ordered[index]!;
     const comparison =
-      compareScheduleRevisions(from, to);
+      input.precomputedComparisons?.get(from)?.get(to) ?? compareScheduleRevisions(from, to);
     const activityMovement =
       activityFinishMovementStats(
         comparison,

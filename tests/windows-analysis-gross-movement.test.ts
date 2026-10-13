@@ -7,6 +7,7 @@ import {
 import type {
   ScheduleRevision,
 } from "../packages/schedule-revision-core/src";
+import {compareScheduleRevisions} from "../packages/schedule-revision-core/src";
 import type {
   CanonicalScheduleActivity,
   CanonicalScheduleModel,
@@ -318,4 +319,21 @@ test("windows preserve strongest recovery separately from positive movement", ()
       .strongestNegativeActivityMovementDays,
     -10,
   );
+});
+
+test('shared revision comparisons preserve complete windows and never match different source objects', () => {
+  const source=structuredClone(revisions);
+  const delay={projectId:'WINDOWS',evidenceRevisionId:'comparison-parity',events:[],claims:[],notices:[],noticeRequirements:[],diagnostics:[]};
+  const input={generatedAt:'2026-09-21T00:00:00Z',producerVersion:'comparison-parity'};
+  const comparisons=new Map(source.slice(1).map((to,i)=>[source[i]!,new Map([[to,compareScheduleRevisions(source[i]!,to)]]) ]));
+  const retained=JSON.stringify([...comparisons.values()].map(rows=>[...rows.values()]));
+  const fresh=buildWindowsAnalysisProjection(source,delay,input);
+  assert.deepEqual(buildWindowsAnalysisProjection(source,delay,{...input,precomputedComparisons:comparisons}),fresh);
+  assert.equal(JSON.stringify([...comparisons.values()].map(rows=>[...rows.values()])),retained);
+  const changed=structuredClone(source);
+  changed[1]!.model.activities[0]!.currentFinishIso='2028-01-01';
+  changed[1]!.model.activities[0]!.forecastFinishIso='2028-01-01';
+  const changedFresh=buildWindowsAnalysisProjection(changed,delay,input);
+  assert.notDeepEqual(changedFresh,fresh);
+  assert.deepEqual(buildWindowsAnalysisProjection(changed,delay,{...input,precomputedComparisons:comparisons}),changedFresh);
 });

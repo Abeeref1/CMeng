@@ -240,6 +240,7 @@ function claimsIntegrity(model:DelayClaimsModel|null|undefined) {
 }
 
 interface ProjectionBundle {
+  revisionComparisons?: Parameters<typeof buildWindowsAnalysisProjection>[2]['precomputedComparisons'];
   version: number;
   generatedAt: string;
   modules: Map<
@@ -1973,6 +1974,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           generatedAt,
           producerVersion:
             versions.windows,
+          precomputedComparisons:revisionComparisons,
           forecastResolver: revision => cachedIndependentForecast(revision.model,generatedAt),
         },
       ),
@@ -3613,6 +3615,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
 
   const bundle:
     ProjectionBundle = {
+    revisionComparisons,
     version: state.version,
     generatedAt,
     modules,
@@ -5253,6 +5256,8 @@ function claimsFastContext(
           generatedAt,
           producerVersion:
             "windows-fast-v3",
+          ...(bundleCache.get(state.projectId)?.version===state.version
+            ? {precomputedComparisons:bundleCache.get(state.projectId)!.revisionComparisons??new Map()}:{}),
           forecastResolver:
             (revision) =>
               cachedIndependentForecast(
