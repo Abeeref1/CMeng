@@ -4374,7 +4374,7 @@ export class RuntimeProjectStore {
       );
     if (index >= 0) {
       const previous=state.evidenceDocuments[index]!;
-      if(previous.sourceHashSha256===document.sourceHashSha256&&previous.familyKey===document.familyKey){document.basisState=previous.basisState;document.supersedesDocumentIds=previous.supersedesDocumentIds;document.supersededByDocumentId=previous.supersededByDocumentId;if(previous.relationshipDecision)document.relationshipDecision=previous.relationshipDecision;if(previous.scheduleAdoption)document.scheduleAdoption=previous.scheduleAdoption;}
+      if(previous.sourceHashSha256===document.sourceHashSha256&&previous.familyKey===document.familyKey){document.basisState=previous.basisState;document.supersedesDocumentIds=previous.supersedesDocumentIds;document.supersededByDocumentId=previous.supersededByDocumentId;if(previous.relationshipDecision)document.relationshipDecision=previous.relationshipDecision;if(previous.relationshipHistory)document.relationshipHistory=previous.relationshipHistory;if(previous.scheduleAdoption)document.scheduleAdoption=previous.scheduleAdoption;}
       state.evidenceDocuments[index] =
         document;
     } else {
@@ -5477,15 +5477,22 @@ export class RuntimeProjectStore {
     const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
     const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
     if(document.category==='schedule')throw new Error('USE_PROGRAMME_ADOPTION_WORKFLOW');
+    if(!['candidate','active','additive'].includes(document.basisState))throw new Error('DOCUMENT_RELATIONSHIP_NOT_APPLICABLE');
+    // Retained binary uploads must still match their hash. Legacy inline
+    // evidence has no file path; keep its existing source/version decision path.
+    if(document.storedPath&&hashBytes(readFileSync(document.storedPath))!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
     if(!['new_record','replacement','amendment'].includes(input.kind)||typeof input.note!=='string'||!input.note.trim())throw new Error('DOCUMENT_RELATIONSHIP_AND_NOTE_REQUIRED');
     const target=input.targetDocumentId?state.evidenceDocuments.find(d=>d.documentId===input.targetDocumentId):null;
+    if(input.kind==='new_record'&&input.targetDocumentId)throw new Error('NEW_RECORD_CANNOT_HAVE_REPLACEMENT_TARGET');
     if(input.kind!=='new_record'&&(!target||target.documentId===document.documentId||!['active','additive'].includes(target.basisState)))throw new Error('CURRENT_TARGET_DOCUMENT_REQUIRED');
+    if(target?.storedPath&&hashBytes(readFileSync(target.storedPath))!==target.sourceHashSha256)throw new Error('TARGET_SOURCE_HASH_MISMATCH');
     if(input.kind==='replacement'&&target!.familyKey!==document.familyKey)throw new Error('REPLACEMENT_MUST_MATCH_DOCUMENT_FAMILY');
     if(input.kind==='amendment'&&!(document.documentType==='contract_amendment'&&target!.familyKey==='contract:base'))throw new Error('AMENDMENT_REQUIRES_CLASSIFIED_CONTRACT_AMENDMENT_AND_BASE');
     if(input.kind==='new_record'&&hasSourceDocumentIdentity(document)&&state.evidenceDocuments.some(d=>d.documentId!==document.documentId&&d.familyKey===document.familyKey&&d.logicalDocumentKey===document.logicalDocumentKey&&['active','additive'].includes(d.basisState)))throw new Error('DUPLICATE_DOCUMENT_ID_REQUIRES_REPLACEMENT');
     if(input.kind==='new_record'&&!hasSourceDocumentIdentity(document)&&['contract_amendment','variation_order'].includes(document.documentType))document.logicalDocumentKey=document.familyKey+':reviewed-new:'+document.documentId;
-    document.relationshipDecision={kind:input.kind,targetDocumentId:target?.documentId??null,targetSourceHash:target?.sourceHashSha256??null,sourceHash:document.sourceHashSha256,note:input.note.trim(),recordedAt:new Date().toISOString()};
-    document.lineage={...document.lineage,predecessorDocumentIds:target?[target.documentId]:[],replacesEntireBasis:input.kind==='replacement',appliesAsDelta:input.kind==='amendment',inferred:false,needsReview:false,confidence:1};
+    const decision={kind:input.kind,targetDocumentId:target?.documentId??null,targetSourceHash:target?.sourceHashSha256??null,sourceHash:document.sourceHashSha256,note:input.note.trim(),recordedAt:new Date().toISOString(),originalLineage:document.relationshipDecision?.originalLineage??structuredClone(document.lineage)};
+    document.relationshipDecision=decision;document.relationshipHistory=[...(document.relationshipHistory??[]),decision];
+    document.lineage={...document.lineage,effect:input.kind==='new_record'?'original':input.kind==='replacement'?'full_replacement':'delta_amendment',predecessorDocumentIds:target?[target.documentId]:[],replacesEntireBasis:input.kind==='replacement',appliesAsDelta:input.kind==='amendment',inferred:false,needsReview:false,confidence:1};
     const effect=applyEvidenceBasis(state,document,input.kind==='replacement'?'replace_current_basis':'add_update');
     if(document.documentType==='boq'&&document.basisState==='active'){const boq=state.boqRevisions.find(b=>b.ingestionId===document.linkedArtifactId);if(boq){state.boq=boq;state.quantities=quantityModelFromBoq(boq,this.latestSchedule(projectId)?.revision.revisionId??'',state.quantities);}}
     this.refreshContractFamily(state);rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);return effect;

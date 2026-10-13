@@ -270,7 +270,8 @@ export interface StoredEvidenceDocument {
   classificationHistory?:NonNullable<StoredEvidenceDocument['classificationDecision']>[];
   scheduleRoleConfirmed?:boolean;
   scheduleApprovalReference?:string;
-  relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string};
+  relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string;originalLineage?:EvidenceLineage};
+  relationshipHistory?:NonNullable<StoredEvidenceDocument['relationshipDecision']>[];
   scheduleAdoption?:{method:'explicit'|'legacy_retained'|'submitted_update';sourceHashSha256:string;recordedAt:string;note:string};
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];

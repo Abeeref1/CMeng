@@ -205,16 +205,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ source pages'}});
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
-    if(d.basisState==='candidate'){
+    const saved=d.relationshipDecision;
+    const decided=saved?.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash));
+    const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
+    if(!decided&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
       {
         const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
         const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
         const baseContracts=targets.filter(t=>t.familyKey==='contract:base');
         const options:Array<{value:'new_record'|'replacement'|'amendment';label:string}>=[{value:'new_record',label:'New record'},...(sameFamily.length?[{value:'replacement' as const,label:'Replacement'}]:[]),...(d.documentType==='contract_amendment'&&baseContracts.length?[{value:'amendment' as const,label:'Contract amendment'}]:[])];
+        const proposed=(d.lineage?.predecessorDocumentIds??[]).map(id=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id);
         actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
+          evidenceSummary:['Source type: '+d.documentType.replaceAll('_',' '),'Current source state: '+d.basisState,...(proposed.length?['Reader-proposed predecessor: '+proposed.join('; ')]:[])],
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
-            relationshipTargets:targets.map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))}});
+            relationshipTargets:targets.filter(t=>t.familyKey===d.familyKey||d.documentType==='contract_amendment'&&t.familyKey==='contract:base').map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))}});
       }
     }
   }

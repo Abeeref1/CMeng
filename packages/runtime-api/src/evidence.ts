@@ -1,4 +1,5 @@
 import {scenarioName} from './schedule-authority';
+import {evidenceFamily} from './evidence-control';
 import {csv as parseCsv} from "../../truth-kernel/src";
 import {prepareRegisterRows,canonicalHeader} from '../../truth-kernel/src';
 import type {
@@ -359,11 +360,17 @@ export function inferEvidenceLineage(
       .replace(/\s+/g, " ")
       .trim();
 
+  const family=evidenceFamily({category:input.category,documentType:input.documentType,scheduleRole:null,textSample:input.textSample,sourceFilename:''}).familyKey;
   const sameDomain =
     input.existingDocuments.filter(
       (document) =>
-        document.category ===
-        input.category,
+        document.category===input.category&&
+        // A folder/category is not a revision identity: RFIs, submittals, HSE
+        // and NCRs can share it while remaining distinct source populations.
+        (input.category==='schedule'||(document.familyKey||evidenceFamily({category:document.category,documentType:document.documentType,scheduleRole:document.scheduleRole??null,textSample:(document.assertions??[]).map(a=>a.sourceText).join('\n'),sourceFilename:document.sourceFilename??''}).familyKey)===family||
+          input.documentType==='contract_amendment'&&document.familyKey==='contract:base'||
+          input.documentType==='contract_replacement'&&document.documentType==='contract_amendment'||
+          input.documentType==='variation_order'&&document.documentType==='boq'),
     );
   const predecessor =
     sameDomain
