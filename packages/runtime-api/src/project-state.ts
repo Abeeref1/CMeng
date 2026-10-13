@@ -2355,7 +2355,7 @@ export class RuntimeProjectStore {
           const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
           if(contractRead?.complete&&!contractRead.pages.some(p=>p.method==='native'&&fragmentedPdfText(p.text)))continue;
           const refreshedBoq=await refreshDeferredPdfBoq(document,state,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead);
-          if((refreshedBoq||await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead))&&state.evidenceDocuments.includes(document)){
+          if((refreshedBoq||await refreshDeferredPdfRead(document,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead,()=>{if(state.evidenceDocuments.includes(document))this.persistSnapshot();}))&&state.evidenceDocuments.includes(document)){
             // Physical reading does not grant authority. Retain per-page facts
             // with their source locations, including pages beyond identification.
             const assertions=new Map(document.assertions.map(a=>[a.metric+'|'+String(a.value)+'|'+String(a.unit)+'|'+a.sourceRef,a]));
@@ -2377,7 +2377,14 @@ export class RuntimeProjectStore {
             refreshedDocumentCount++;if(!changedProjects.includes(state.projectId))changedProjects.push(state.projectId);
             state.version++;state.lastRerunReceipt=null;this.staleFinalizedBoardPublications(state);this.persistSnapshot();
           }
-        }catch(error){diagnostics.push('DEFERRED_PDF_REFRESH_FAILED:'+document.documentId+':'+String(error));}
+        }catch(error){
+          const failure='DEFERRED_PDF_REFRESH_FAILED:'+document.documentId+':'+String(error);diagnostics.push(failure);
+          if(state.evidenceDocuments.includes(document)&&!document.diagnostics.includes(failure)){
+            document.diagnostics.push(failure);document.parserState='partial';state.version++;state.lastRerunReceipt=null;
+            if(!changedProjects.includes(state.projectId))changedProjects.push(state.projectId);
+            this.persistSnapshot();
+          }
+        }
       }
     }
     return {refreshedDocumentCount,diagnostics,changedProjects};

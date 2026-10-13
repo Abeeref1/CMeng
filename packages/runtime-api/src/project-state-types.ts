@@ -294,6 +294,7 @@ export interface StoredEvidenceDocument {
   assertions: DocumentAssertion[];
   textSegments?: EvidenceTextSegment[];
   hseSummary?: import("./hse-report-evidence").HseReportSummary;
+  fullTextReadCheckpoint?: {sourceHashSha256:string;updatedAt:string;totalPages:number;pages:import('../../pdf-document-parser/src').PdfPageResult[]};
   fullTextRead?: {producerVersion:'full-page-read-v1';sourceHashSha256:string;completedAt:string;result:import('../../pdf-document-parser/src').PdfDocumentResult};
   boqTableRead?: {producerVersion:'offline-boq-cells-v1'|'offline-boq-cells-v2';sourceHashSha256:string;completedAt:string;structuredTableFound:boolean;ingestionId:string};
   correspondenceNarrativeRefresh?: CorrespondenceNarrativeRefreshReceipt;

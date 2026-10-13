@@ -45,9 +45,23 @@ test('deferred PDFs finish every page, retain failures, retry and preserve docum
     assert.equal(await refreshDeferredPdfRead(doc,()=>provider(false)),true);
     assert.equal(doc.fullTextRead!.result.ocrPages,2);assert.equal(doc.fullTextRead!.result.complete,true);
     assert.equal(await refreshDeferredPdfRead(doc,()=>provider(false)),false);
-    assert.equal(calls,4);assert.equal(closed,2);assert.equal(doc.basisState,'historical');assert.equal(doc.parserState,'ocr_pending');
+    assert.equal(calls,3);assert.equal(closed,2);assert.equal(doc.basisState,'historical');assert.equal(doc.parserState,'ocr_pending');
     delete doc.fullTextRead;writeFileSync(path,'changed source');
     await assert.rejects(refreshDeferredPdfRead(doc,()=>provider(false)),/SOURCE_HASH_MISMATCH/);
-    assert.equal(calls,4);
+    assert.equal(calls,3);
   }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('saved deferred-page checkpoint resumes after reload and does not repeat completed OCR',async t=>{
+ const directory=mkdtempSync(join(tmpdir(),'cmeng-resumed-read-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));
+ const pdf=await PDFDocument.create();pdf.addPage([100,100]);pdf.addPage([100,100]);const bytes=await pdf.save();const path=join(directory,'scan.pdf');writeFileSync(path,bytes);
+ const doc={documentId:'scan',sourceHashSha256:createHash('sha256').update(bytes).digest('hex'),storedPath:path,mediaType:'application/pdf',parserState:'ocr_pending',basisState:'candidate',identification:{pageCount:2}} as unknown as StoredEvidenceDocument;
+ let retained:string|null=null,calls=0;
+ const provider:OcrProvider={name:'test',recognize:async(_image,page)=>{calls++;return {text:'Verified retained page '+page+' includes explicit source conditions.',confidence:0.99,language:'eng',diagnostics:[]};}};
+ await refreshDeferredPdfRead(doc,()=>provider,undefined,()=>{if(retained===null)retained=JSON.stringify(doc);});
+ assert.equal(calls,2);assert.ok(retained);
+ const restored=JSON.parse(retained!) as StoredEvidenceDocument;
+ const state=new RuntimeProjectStore({dataDir:directory,durable:false}).getOrCreate('RESUME');
+ assert.equal(documentReadReview(restored,state).readPageCount,1);assert.equal(documentReadReview(restored,state).complete,false);
+ calls=0;await refreshDeferredPdfRead(restored,()=>provider);assert.equal(calls,1);assert.equal(restored.fullTextRead?.result.complete,true);assert.equal(restored.fullTextReadCheckpoint,undefined);assert.equal(restored.basisState,'candidate');
 });

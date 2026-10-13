@@ -7,6 +7,11 @@ import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-t
 /** Upload classification, physical reading and adoption are different facts. */
 export function documentReadReview(document:StoredEvidenceDocument,state:ProjectRuntimeState,sourceTables?:SourceTable|readonly SourceTable[]){
   const hash=document.sourceHashSha256;
+  const checkpoint=document.fullTextReadCheckpoint;
+  if(checkpoint?.sourceHashSha256===hash){
+    const read=checkpoint.pages.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).length;
+    return {state:'partial',label:'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. Saved pages will be reused on the next processing attempt; unreadable pages still require reading.',method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete:false};
+  }
   const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
     state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
   if(pdf){
@@ -71,7 +76,7 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
 
 const running=new WeakMap<StoredEvidenceDocument,Promise<boolean>>();
 /** Finish deferred physical reading without promoting a document or inventing facts. */
-export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createProvider:()=>OcrProvider|undefined,onPageRead?:(pageNumber:number,totalPages:number)=>void):Promise<boolean>{
+export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createProvider:()=>OcrProvider|undefined,onPageRead?:(pageNumber:number,totalPages:number)=>void,onCheckpoint?:()=>void):Promise<boolean>{
   const prior=running.get(document);if(prior)return prior;
   const work=(async()=>{
     if(!/pdf/i.test(document.mediaType)||
@@ -79,8 +84,24 @@ export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createPro
     const hash=document.sourceHashSha256,bytes=readFileSync(document.storedPath);
     if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('DEFERRED_PDF_SOURCE_HASH_MISMATCH');
     const provider=createProvider();
-    const result=await parsePdfDocument(bytes,{...(provider?{ocrProvider:provider}:{}),...(onPageRead?{onPageRead:(page,total)=>onPageRead(page.pageNumber,total)}:{})});
+    const retained=document.fullTextReadCheckpoint?.sourceHashSha256===hash?document.fullTextReadCheckpoint.pages:
+      document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result.pages:[];
+    const reusable=retained.filter(page=>page.method!=='failed'&&page.aiReview?.status!=='review_required'&&!(page.method==='native'&&fragmentedPdfText(page.text)));
+    const pages=new Map(reusable.map(page=>[page.pageNumber,page]));
+    let newPages=0;
+    const result=await parsePdfDocument(bytes,{...(provider?{ocrProvider:provider}:{}),
+      checkpoint:{completedPages:reusable.map(page=>page.pageNumber),persistedPages:reusable},
+      onPageRead:(page,total)=>{
+        if(document.sourceHashSha256!==hash)throw new Error('DEFERRED_PDF_SOURCE_CHANGED');
+        if(pages.get(page.pageNumber)!==page){
+          pages.set(page.pageNumber,page);newPages++;
+          document.fullTextReadCheckpoint={sourceHashSha256:hash,updatedAt:new Date().toISOString(),totalPages:total,pages:[...pages.values()].sort((a,b)=>a.pageNumber-b.pageNumber)};
+          if(newPages===1||newPages%5===0||page.pageNumber===total)onCheckpoint?.();
+        }
+        onPageRead?.(page.pageNumber,total);
+      }});
     if(document.sourceHashSha256!==hash)throw new Error('DEFERRED_PDF_SOURCE_CHANGED');
+    delete document.fullTextReadCheckpoint;
     document.fullTextRead={producerVersion:'full-page-read-v1',sourceHashSha256:hash,completedAt:new Date().toISOString(),result};
     return true;
   })();
