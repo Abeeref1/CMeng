@@ -119,8 +119,12 @@ export function pageProjectResponse(
  // display-register pages. Their full data must reach the visualisation.
  const screenKey=String(item?.legacyKey??item?.key??item?.data?.projectionKey??(source.split('?')[0]??'').split('/').pop()??'').toLowerCase();
  const milestoneRows=(pointer:string)=>pointer==='/data/rows'&&screenKey==='milestones';
+ // Quantity series are independent BOQ items, not traces of one shared chart.
+ // Page the item population while retaining each selected item's time history.
+ const quantityItemSeries=(pointer:string)=>pointer.endsWith('/series')&&
+   (jsonPointer(body,pointer.slice(0,-'/series'.length)) as any)?.projectionKey==='quantity_scurve';
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
-   /^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)
+   (/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
@@ -177,7 +181,7 @@ export function pageProjectResponse(
    }
    seen.add(value);
    if(Array.isArray(value)){
-     const table=!neverPageArray(key,pointer,value)&&(TABLE_NAME.test(key)||value.length>100);
+     const table=quantityItemSeries(pointer)||!neverPageArray(key,pointer,value)&&(TABLE_NAME.test(key)||value.length>100);
      // Select priority milestone representatives from ALL source rows, without
      // altering the stored source order or declaring the preview complete.
      const candidate=table&&milestoneRows(pointer)?[...value].sort(priorityMilestoneOrder):value;
@@ -223,6 +227,8 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
   const at=Math.max(0,Math.min(1_000_000,Math.floor(Number.isFinite(offset)?offset:0)));
   const size=Math.max(1,Math.min(25,Math.floor(Number.isFinite(limit)?limit:25)));
   if(Array.isArray(value)){
+    const quantityItems=pointer.endsWith('/series')&&
+      (jsonPointer(root,pointer.slice(0,-'/series'.length)) as any)?.projectionKey==='quantity_scurve';
     const query=String(filter?.query??'').trim().toLowerCase().slice(0,100);
     const status=String(filter?.status??'').trim().toLowerCase().slice(0,80);
     const sort=String(filter?.sort??'').trim().slice(0,80);
@@ -232,7 +238,11 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
       if(groupKey&&(row as any)?.ownerGroupKey!==groupKey)return false;
       const rowStatus=String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase();
       if(status&&(status==='__open__'?rowStatus==='completed':status==='__completed__'?rowStatus!=='completed':rowStatus!==status))return false;
-      return !query||JSON.stringify(row).toLowerCase().includes(query);
+      // Search item identity, not thousands of historical numeric points.
+      // This also prevents an unrelated date/value from matching an item code.
+      return !query||(quantityItems
+        ?[row?.quantityItemId,row?.itemNumber,row?.description,row?.unit,row?.unitKey].some(v=>String(v??'').toLowerCase().includes(query))
+        :JSON.stringify(row).toLowerCase().includes(query));
     }):value;
     if(safeSort){
       const atField=(row:any)=>safeSort.split('.').reduce((o,k)=>o?.[k],row);

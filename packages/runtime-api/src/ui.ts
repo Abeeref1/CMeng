@@ -2,6 +2,7 @@ import {linkCandidateScript} from './ui-link-candidates';
 import {recoveryScenarioScript} from './ui-recovery-scenario';
 import {boqSectionReviewScript} from './ui-boq-section-review';
 import {decisionFactsScript} from './ui-decision-facts';
+import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
@@ -446,6 +447,7 @@ ${answerFirstScript}
 ${projectDiagnosisScript}
 ${systemReviewScript}
 ${decisionFactsScript}
+${quantityCurvesScript}
 ${linkCandidateScript}
 ${projectActionsScript}
 ${boqNumericReviewScript}
@@ -1386,16 +1388,18 @@ function quantityItemCurve(series,p){return '<section class="planning-panel"><di
     {key:"currentForecastQuantity",label:series.authority==="scenario_mapping"?"Scenario current plan":"Mapped current plan",color:"#4f7fb4"},
     {key:"actualInstalledQuantity",label:"Measured installed quantities",step:true,color:"#2c7a57"}
   ],null,{unit:series.unit||series.unitKey||"",yLabel:"Cumulative quantity",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:(series.unit||series.unitKey||"Quantity")+" S-Curve"})+'</div></section>';}
-function selectQuantityItemCurve(index){const p=projectionFor(currentModuleResult.data,"quantity_scurve"),rows=p.series.filter(s=>(s.points||[]).length>0);el("quantityItemCurve").innerHTML=quantityItemCurve(rows[Number(index)],p);}
+
 function renderQuantityScurveVisual(data){
   const p=projectionFor(data,"quantity_scurve");
   if(!Array.isArray(p.series))return"";
   const mappingLabel=p.mappingBasis==="governed"?"Confirmed links":p.mappingBasis==="candidate_scenario"?"Suggested links for review":"Activities not yet linked";
-  const mappedSeries=p.series.filter(series=>(series.points||[]).length>0);
   const availability=data?.featureAvailability||p.featureAvailability||null;
   const seriesItemCount=p.series.reduce((sum,series)=>sum+(Number.isFinite(Number(series.itemCount))?Number(series.itemCount):0),0);
   const populationKnown=typeof p.boqItemCount==="number"||Boolean(p.boqRevisionId);
-  const unmappedCount=populationKnown?p.unmappedItemIds?.length??null:null;
+  const unmappedCount=populationKnown?p.unmappedItemCount??responseListPopulation(p.unmappedItemIds||[]).total:null;
+  const partialCount=populationKnown?p.partiallyAllocatedItemCount??responseListPopulation(p.partiallyAllocatedItemIds||[]).total:null;
+  const overCount=populationKnown?p.overAllocatedItemCount??responseListPopulation(p.overAllocatedItemIds||[]).total:null;
+  const curveCount=populationKnown?responseListPopulation(p.series).total:null;
   const boqItemCount=typeof p.boqItemCount==="number"?p.boqItemCount:populationKnown?seriesItemCount>0?seriesItemCount:unmappedCount:null;
   const mappedItemCount=typeof p.allocatedItemCount==="number"?p.allocatedItemCount:null;
   const itemLinkCoverage=typeof p.itemLinkCoveragePercent==="number"?p.itemLinkCoveragePercent:null;
@@ -1410,18 +1414,18 @@ function renderQuantityScurveVisual(data){
     ["Time-distributed quantity allocations",mappedItemCount===null?"Not established":mappedItemCount,"recorded quantity splits; scope associations are not allocations"],
     ["BOQ to WBS coverage",p.inferredMapping?.sourceWbsCoveragePercent==null?"Missing":fmt(p.inferredMapping.sourceWbsCoveragePercent)+"%","Explicit code or uniquely matched section; quantity allocation is separate"],
     ["Mapping basis",mappingLabel,""],
-    ["Item curves",populationKnown?p.series.length:null,"different items are never added merely because their units match"],
-    ["Unmapped items",populationKnown?p.unmappedItemIds?.length??null:null,"items",p.unmappedItemIds?.length?"warning":""],
-    ["Partially mapped",populationKnown?p.partiallyAllocatedItemIds?.length??null:null,"items",p.partiallyAllocatedItemIds?.length?"warning":""],
-    ["Over-allocated",populationKnown?p.overAllocatedItemIds?.length??null:null,"items",p.overAllocatedItemIds?.length?"danger":""]
+    ["Item curves",curveCount,"different items are never added merely because their units match"],
+    ["Unmapped items",unmappedCount,"items",unmappedCount?"warning":""],
+    ["Partially mapped",partialCount,"items",partialCount?"warning":""],
+    ["Over-allocated",overCount,"items",overCount?"danger":""]
   ]);
   const productivity=p.productivityForecast||null;
   const productivityRows=Array.isArray(productivity?.rows)?productivity.rows:[];
   const productivityHtml='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Remaining quantity & productivity forecast</h4><p>Source productivity evidence is kept separate from BOQ-to-programme mapping. Forecast is shown only when the source evidence establishes quantity, achieved rate and calculation basis.</p></div></div><div class="planning-panel-body">'+(productivityRows.length?'<div class="table-wrap"><table><thead><tr><th>Work package</th><th>Total quantity</th><th>Installed</th><th>Remaining</th><th>Evidenced rate / h</th><th>Rate basis</th><th>Forecast finish</th><th>State</th></tr></thead><tbody>'+productivityRows.map(row=>'<tr><td><b>'+escapeHtml(row.workPackageId)+'</b><br>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.totalQuantity==null?"Not established":fmt(row.totalQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.installedQuantity==null?"Not established":fmt(row.installedQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.remainingQuantity==null?"Not established":fmt(row.remainingQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.evidencedRatePerHour==null?"Not established":fmt(row.evidencedRatePerHour))+'</td><td>'+escapeHtml(humanizeKey(row.rateBasis||"missing"))+'</td><td>'+escapeHtml(row.completionIso?planningShortDate(row.completionIso):"Not established")+'</td><td>'+escapeHtml(humanizeKey(row.state||"unresolved"))+'</td></tr>').join("")+'</tbody></table></div>':'<div class="notice info">No source productivity/remaining-quantity forecast is established. BOQ and installed quantities remain visible independently.</div>')+'</div></section>';
   const quantityQueries=p.quantityQueries||[];
-  const queryPanel=quantityQueries.length?'<div class="notice warn"><b>'+fmt(quantityQueries.length)+' lump-sum quantities need checking.</b> The source quantity differs from 1. Confirm the BOQ unit or quantity; the source values have been retained.<details><summary>View exact BOQ items and quantities</summary><div class="table-wrap"><table><thead><tr><th>Item</th><th>Unit</th><th>Quantity</th><th>Question</th></tr></thead><tbody>'+quantityQueries.map(row=>'<tr><td>'+escapeHtml(row.itemNumber||row.quantityItemId)+'</td><td>'+escapeHtml(row.unit)+'</td><td>'+fmt(row.quantity)+'</td><td>'+escapeHtml(row.reason)+'</td></tr>').join('')+'</tbody></table></div></details></div>':'';
+  const queryPanel=quantityQueries.length?'<div class="notice warn"><b>'+fmt(responseListPopulation(quantityQueries).total)+' lump-sum quantities need checking.</b> The source quantity differs from 1. Confirm the BOQ unit or quantity; the source values have been retained.<details><summary>View exact BOQ items and quantities</summary><div class="table-wrap"><table><thead><tr><th>Item</th><th>Unit</th><th>Quantity</th><th>Question</th></tr></thead><tbody>'+quantityQueries.map(row=>'<tr><td>'+escapeHtml(row.itemNumber||row.quantityItemId)+'</td><td>'+escapeHtml(row.unit)+'</td><td>'+fmt(row.quantity)+'</td><td>'+escapeHtml(row.reason)+'</td></tr>').join('')+'</tbody></table></div>'+sourcePopulationControl(quantityQueries,'Browse all lump-sum quantity questions')+'</details></div>':'';
   const diagnostics='<div class="notice info"><b>BOQ source: '+escapeHtml(p.boqSource?.sourceFilename||"Source reference in calculation detail")+'</b> · '+escapeHtml(humanizeKey(p.boqSource?.state||"source"))+'<p>'+escapeHtml(p.boqSource?.explanation||"")+'</p>BOQ loaded: '+escapeHtml(fmt(p.boqItemCount??boqItemCount))+' items; known contract quantities: '+escapeHtml(fmt(p.knownQuantityItemCount))+'. Candidate mapping: '+escapeHtml(humanizeKey(p.candidateMappingState||"not_established"))+'. Actual installations are independent of schedule mapping. Scenario plans do not become confirmed facts.</div>';
-  if(mappedSeries.length===0){
+  if(curveCount===null||curveCount===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
     const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
     return '<section class="planning-view quantity-view">'+installedSummary+measured+top+queryPanel+productivityHtml+'<div class="notice info"><b>No confirmed quantity curve is available.</b><p>Quantity evidence is available, but a complete quantity curve is not yet established. '+escapeHtml(availability?.reason||"Programme mapping and/or dated installed measurements are incomplete.")+'</p><p>'+escapeHtml(candidates?candidates+" candidate link(s) are retained for review. ":"")+escapeHtml(mappingSummary)+'</p></div>'+experienceDisclosure("Quantity-curve prerequisites",moduleEvidenceGate([
@@ -1431,7 +1435,7 @@ function renderQuantityScurveVisual(data){
     ]),"Why the full curve is not yet available")+diagnostics+'</section>';
   }
 
-  const charts='<label>BOQ item <select aria-label="Quantity curve item" onchange="selectQuantityItemCurve(this.value)">'+mappedSeries.map((r,i)=>'<option value="'+i+'">'+escapeHtml((r.itemNumber||'')+' '+(r.description||r.unit||'Item'))+'</option>').join('')+'</select></label><div id="quantityItemCurve">'+quantityItemCurve(mappedSeries[0],p)+'</div>';
+  const charts=renderQuantityCurveBrowser(p);
   return '<section class="planning-view quantity-view">'+installedSummary+measured+top+queryPanel+productivityHtml+charts+diagnostics+'</section>';
 }
 function renderLookAheadVisual(data){
