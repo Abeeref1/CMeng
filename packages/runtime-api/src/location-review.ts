@@ -21,7 +21,7 @@ function readLocationBasis(state:ProjectRuntimeState){
  for(const r of assets){const location=String(r.fields['location']??'').trim();if(!location)continue;const group=assetGroups.get(location)??{location,assetCount:0,sourceRefs:[]};group.assetCount++;group.sourceRefs.push(...r.receipts.map(x=>'evidence-document:'+x.documentId));assetGroups.set(location,group);}
  const assetCandidates=[...assetGroups.values()].map(g=>({...g,sourceRefs:[...new Set(g.sourceRefs)],basis:'Reported asset location; no programme mapping inferred'}));
  const sourceFingerprint=hash(['location-review-v1',state.projectId,programme.sourceHashSha256,programme.revision.revisionId,model.dataDateIso,assets.map(r=>[r.recordId,r.revision,r.fields['location'],r.receipts.map(x=>[x.documentId,x.sourceHash])])]);
- const saved=state.controls.reviewDecisions?.['location-grouping'];
+ const saved=state.controls?.reviewDecisions?.['location-grouping'];
  const decision=saved?.sourceFingerprint===sourceFingerprint&&saved.reference?.trim()?saved:null;
  const sourceRefs=[...new Set(['schedule:'+programme.revision.revisionId,...assetCandidates.flatMap(c=>c.sourceRefs)])];
  return {sourceFingerprint,sourceRevisionId:model.sourceRevisionId,sourceFilename:programme.sourceFilename,wbsCandidates,assetCandidates,decision,sourceRefs};
@@ -51,7 +51,7 @@ const projectionCache=new WeakMap<ScheduleScopeClassification,{key:string;value:
 /** Explicit source classifications win. Reviewed WBS mappings fill otherwise-unclassified locations only. */
 export function projectScopeClassification(state:ProjectRuntimeState,model:CanonicalScheduleModel):ScheduleScopeClassification{
  const base=scheduleScopeClassification(model);
- if(!state.controls.reviewDecisions?.['location-grouping'])return base;
+ if(!state.controls?.reviewDecisions?.['location-grouping'])return base;
  const basis=locationReviewBasis(state),decision=basis?.decision;
  if(!basis||basis.sourceRevisionId!==model.sourceRevisionId||decision?.choice!=='confirm_wbs_locations')return base;
  const assignments=decision.locationAssignments??[],key=hash([basis.sourceFingerprint,assignments]);

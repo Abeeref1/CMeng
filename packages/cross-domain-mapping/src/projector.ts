@@ -108,7 +108,8 @@ interface ActivityFeatures {
   nameTokens: ReadonlySet<string>;
   wbsTokens: ReadonlySet<string>;
   codes: ReadonlySet<string>;
-  explicitId: RegExp | null;
+  activityId: string;
+  explicitId?: RegExp | null;
 }
 
 function itemFeatures(item: CanonicalQuantityItem): ItemFeatures {
@@ -117,12 +118,33 @@ function itemFeatures(item: CanonicalQuantityItem): ItemFeatures {
     sectionTokens: tokens(item.section), codes: codeTokens(corpus)};
 }
 
-function activityFeatures(activity: CanonicalScheduleActivity, wbs: string): ActivityFeatures {
-  const id = activity.activityId.trim();
-  const escaped = id.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
-  return {name: norm(activity.name), nameTokens: tokens(activity.name), wbsTokens: tokens(wbs),
-    codes: codeTokens([activity.activityId, activity.wbsId ?? "", wbs].join(" ")),
-    explicitId: id ? new RegExp("(^|[^A-Za-z0-9_.-])" + escaped + "([^A-Za-z0-9_.-]|$)", "i") : null};
+function activityFeatureBuilder() {
+  // Source names and complete WBS ancestry repeat across many activities.
+  // Share only their immutable text features within this one calculation;
+  // Activity IDs and code intersections remain individual evidence.
+  const names=new Map<string|null,{name:string;nameTokens:ReadonlySet<string>}>();
+  const scopes=new Map<string,{wbsTokens:ReadonlySet<string>;codes:ReadonlySet<string>}>();
+  return (activity:CanonicalScheduleActivity,wbs:string):ActivityFeatures=>{
+    let name=names.get(activity.name);
+    if(!name){name={name:norm(activity.name),nameTokens:tokens(activity.name)};names.set(activity.name,name);}
+    const scopeKey=[activity.wbsId??"",wbs].join(" ");
+    let scope=scopes.get(scopeKey);
+    if(!scope){scope={wbsTokens:tokens(wbs),codes:codeTokens(scopeKey)};scopes.set(scopeKey,scope);}
+    // The separating space prevents code tokens crossing these boundaries.
+    const codes=codeTokens(activity.activityId);
+    for(const code of scope.codes)codes.add(code);
+    return {...name,wbsTokens:scope.wbsTokens,codes,activityId:activity.activityId.trim()};
+  };
+}
+
+function containsActivityId(activity:ActivityFeatures,corpus:string):boolean {
+  // Most activities never become an explicit-ID candidate. Compile their
+  // exact same boundary matcher only when matching or explaining a result.
+  if(activity.explicitId===undefined){
+    const escaped=activity.activityId.replace(/[.*+?^$()|[\]\\]/g,"\\$&");
+    activity.explicitId=escaped?new RegExp("(^|[^A-Za-z0-9_.-])"+escaped+"([^A-Za-z0-9_.-]|$)","i"):null;
+  }
+  return activity.explicitId?.test(corpus)??false;
 }
 
 function score(
@@ -131,7 +153,7 @@ function score(
   includeSignals = true,
 ): {value: number; signals: QuantityActivityMappingSignal[]} {
   const signals: QuantityActivityMappingSignal[] = [];
-  if (activity.explicitId?.test(item.corpus)) {
+  if (containsActivityId(activity,item.corpus)) {
     if (includeSignals) signals.push({key: "explicit_activity_id", score: 0.99,
       detail: "BOQ evidence contains the exact schedule Activity ID."});
     return {value: 0.99, signals};
@@ -407,6 +429,7 @@ export function buildQuantityScheduleMapping(
     const cached=wbsTextById.get(id);if(cached!==undefined)return cached;
     const value=wbsText(activity,wbsById);wbsTextById.set(id,value);return value;
   };
+  const activityFeatures=activityFeatureBuilder();
   const featuresByActivity=new Map(eligible.map(a=>[a,activityFeatures(a,scopeText(a))]));
   type FeatureGroup={members:CanonicalScheduleActivity[];features:ActivityFeatures};
   const featureGroupsByKey=new Map<string,FeatureGroup>();
@@ -490,11 +513,11 @@ export function buildQuantityScheduleMapping(
     const raw=features.corpus;
     for(const token of raw.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
       const activity=explicit.get(token);
-      if(activity&&featuresByActivity.get(activity)!.explicitId?.test(raw)){
+      if(activity&&containsActivityId(featuresByActivity.get(activity)!,raw)){
         explicitMatches.add(activity);special(activity);
       }
     }
-    for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(raw)){
+    for(const activity of unusualIds)if(containsActivityId(featuresByActivity.get(activity)!,raw)){
       explicitMatches.add(activity);special(activity);
     }
     return {nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches};

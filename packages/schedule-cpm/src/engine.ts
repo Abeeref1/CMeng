@@ -357,6 +357,9 @@ export function calculateCpm(
   const graph = analyzeScheduleGraph(model);
   const assumptions: string[] = [];
   const constrainedActivities=model.activities.filter(a=>a.sourceConstraints?.length);
+  const noConstraints:ReturnType<typeof activityConstraints>={constraints:[],diagnostics:[]};
+  const constraintsByActivity=new Map(config.applySourceConstraints
+    ?constrainedActivities.map(a=>[a,activityConstraints(a)] as const):[]);
   if(constrainedActivities.length&&!config.applySourceConstraints)assumptions.push('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED_TO_UNCONSTRAINED_NETWORK:'+constrainedActivities.length);
   if(model.diagnostics.includes('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED'))assumptions.push('SOURCE_CONSTRAINT_RECOVERY_NOT_ESTABLISHED');
   const diagnostics = [
@@ -662,7 +665,7 @@ export function calculateCpm(
       }
     }
 
-    const sourceBounds=config.applySourceConstraints?activityConstraints(context.activity):{constraints:[],diagnostics:[]};
+    const sourceBounds=constraintsByActivity.get(context.activity)??noConstraints;
     context.diagnostics.push(...sourceBounds.diagnostics);
     let startCandidate = candidates.reduce((latest,c)=>Math.max(latest,c.start),anchor);
     let finishMinimum:number|null=null;
@@ -725,10 +728,14 @@ export function calculateCpm(
   // ALAP consumes free float, not total float: move only as far as the
   // successors' early dates allow, so the project finish does not move.
   if(config.applySourceConstraints){
-    const networkFinish=maxDefined([...forward.values()].map(row=>row.earlyFinishMs));
-    for(const activityId of [...graph.topologicalOrder].reverse()){
+    const alapIds=new Set([...constraintsByActivity].filter(([,bounds])=>bounds.constraints.some(c=>c.kind==='alap')).map(([a])=>a.activityId));
+    const networkFinish=alapIds.size?maxDefined([...forward.values()].map(row=>row.earlyFinishMs)):null;
+    let alapMoved=false;
+    for(let index=graph.topologicalOrder.length-1;alapIds.size&&index>=0;index--){
+      const activityId=graph.topologicalOrder[index]!;
+      if(!alapIds.has(activityId))continue;
       const context=contexts.get(activityId),early=forward.get(activityId);
-      if(!context?.calendar||context.durationHours===null||context.activity.status==='completed'||early?.earlyStartMs==null||early.earlyFinishMs===null||networkFinish===null||!activityConstraints(context.activity).constraints.some(c=>c.kind==='alap'))continue;
+      if(!context?.calendar||context.durationHours===null||context.activity.status==='completed'||early?.earlyStartMs==null||early.earlyFinishMs===null||networkFinish===null)continue;
       let finishBound=networkFinish;const startBounds:number[]=[];
       for(const relation of outgoing.get(activityId)??[]){
         const successor=forward.get(relation.successorActivityId),calendar=contexts.get(relation.successorActivityId)?.calendar;
@@ -737,11 +744,18 @@ export function calculateCpm(
         if(bound){finishBound=Math.min(finishBound,bound.finish);if(bound.start!==null)startBounds.push(bound.start);}
       }
       const start=Math.min(subtractWorkingHours(context.calendar.calendar,finishBound,context.durationHours),...startBounds);
-      if(start>early.earlyStartMs)forward.set(activityId,{earlyStartMs:start,earlyFinishMs:addWorkingHours(context.calendar.calendar,start,context.durationHours)});
+      if(start>early.earlyStartMs){
+        forward.set(activityId,{earlyStartMs:start,earlyFinishMs:addWorkingHours(context.calendar.calendar,start,context.durationHours)});
+        alapMoved=true;
+      }
     }
     // ALAP can turn a previously nonbinding branch into a tied driving branch.
     // Trace the final dates, not the pre-constraint forward-pass candidates.
-    for(const activityId of graph.topologicalOrder){
+    // Without an ALAP date movement the forward pass already has the exact
+    // unfinished-activity ties. Completed activities bypass that pass's trace,
+    // so retain their original fixed-date link inspection in either case.
+    const retraceIds=alapMoved?graph.topologicalOrder:model.activities.filter(a=>a.status==='completed').map(a=>a.activityId);
+    for(const activityId of retraceIds){
       const context=contexts.get(activityId),early=forward.get(activityId);
       if(!context?.calendar||context.durationHours===null||early?.earlyStartMs==null||early.earlyFinishMs===null)continue;
       bindingPredecessors.set(activityId,(incoming.get(activityId)??[]).filter(relation=>{
@@ -811,7 +825,7 @@ export function calculateCpm(
 
     const candidates: number[] = [];
     const startBounds: number[] = [];
-    const sourceBounds=config.applySourceConstraints?activityConstraints(context.activity).constraints:[];
+    const sourceBounds=(constraintsByActivity.get(context.activity)??noConstraints).constraints;
     for(const bound of sourceBounds){
       if(bound.date===null)continue;
       if(['start_on','start_before'].includes(bound.kind)){

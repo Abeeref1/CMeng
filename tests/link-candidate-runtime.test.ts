@@ -117,3 +117,25 @@ test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ti
   assert.deepEqual(found,expected,'Unchanged links and rankings for '+item.quantityItemId);
  }
 });
+
+test('BOQ exact-ID matching keeps literal punctuation, boundary checks and fresh source edits',()=>{
+ const state=loadCertifiedDemoProject('BOQ-ID-FEATURES-'+randomUUID());
+ const original=projectControlSchedule(state)!.revision.model,base=original.activities[0]!;
+ const ids=['PUMP.1','PUMP+1','(ZONE)-2','A/B','A 1','آ-3','a_b'];
+ const activities=ids.map(activityId=>({...base,activityId,name:'Different scope',wbsId:'W',activityType:'task' as const,status:'not_started' as const}));
+ const schedule={...original,activities,wbs:[{wbsId:'W',name:'Shared source scope',parentWbsId:null,sourceRefs:[]}],relationships:[]};
+ const items=ids.map((id,i)=>({quantityItemId:'Q'+i,itemNumber:null,costCode:null,section:null,description:'Linked ['+id+']',unit:'ea',contractQuantity:1,sourceRefs:[],diagnostics:[]}));
+ items.push({...items[0]!,quantityItemId:'BOUNDARY',description:'X-PUMP.1-X'});
+ const quantities={...state.quantities!,items,allocations:[],installedSnapshots:[]};
+ const before=JSON.stringify({schedule,quantities});
+ const mapped=buildQuantityScheduleMapping(quantities,schedule);
+ for(const [index,id] of ids.entries()){
+  const found=mapped.candidates.find(row=>row.quantityItemId==='Q'+index&&row.activityId===id);
+  assert.equal(found?.confidence,.99,id);
+  assert.ok(found?.signals.some(signal=>signal.key==='explicit_activity_id'),id);
+ }
+ assert.ok(!mapped.candidates.some(row=>row.quantityItemId==='BOUNDARY'&&row.signals.some(signal=>signal.key==='explicit_activity_id')));
+ assert.equal(JSON.stringify({schedule,quantities}),before);
+ activities[0]!.activityId='NEW.ID';items[0]!.description='Linked [NEW.ID]';
+ assert.equal(buildQuantityScheduleMapping(quantities,schedule).candidates.find(row=>row.quantityItemId==='Q0')?.activityId,'NEW.ID');
+});
