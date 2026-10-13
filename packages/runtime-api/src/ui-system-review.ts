@@ -141,21 +141,28 @@ function uniqueReportingPopulations(populations){
   const groups=new Map();
   for(const p of populations){
     const label=String(p.name||'').normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
-    const old=groups.get(label);
-    if(!old)groups.set(label,{...p});
-    else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount||old.dateBasis!==p.dateBasis){
-      groups.set(label,{...old,denominator:null,sourceCount:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
+    const key=JSON.stringify([label,p.entity,p.dataDateIso,p.dateBasis,p.authority,p.sourceRevisionId]);
+    const old=groups.get(key);
+    if(!old)groups.set(key,{...p});
+    else if(old.denominator!==p.denominator||old.sourceCount!==p.sourceCount){
+      groups.set(key,{...old,denominator:null,sourceCount:null,exclusionCounts:null,dateBasis:'Not established: reporting groups disagree; review the full calculation data.'});
     }
   }
   return [...groups.values()];
+}
+function reportingExclusionCounts(p){
+  const rows=p.exclusions||[];
+  if(p.exclusionCounts){return {future:p.exclusionCounts.after_data_date||0,undated:Object.entries(p.exclusionCounts).reduce((sum,[reason,count])=>sum+(/date_missing|date_invalid/.test(reason)?count:0),0)};}
+  if(responseListPopulation(rows).total!==rows.length)return {future:null,undated:null};
+  return {future:rows.filter(e=>e.reason==='after_data_date').length,undated:rows.filter(e=>/date_missing|date_invalid/.test(e.reason)).length};
 }
 function renderRegisterScope(data,includeComplete=false){
   const contract=data?.reportingContract;if(!contract)return '';
   const populations=Object.values(contract.populations||{}).filter(p=>!['activity','execution_activity','series_point','currency_position','resource','assignment','programme_window'].includes(p.entity)&&!p.dateBasis?.startsWith('Full retained source register')&&!p.dateBasis?.startsWith('Source records after')&&!p.dateBasis?.startsWith('Source records without'));
   if(!populations.length)return '';
   const unique=uniqueReportingPopulations(populations);
-  const row=p=>{const exclusions=p.exclusions||[],future=exclusions.filter(e=>e.reason==='after_data_date'),undated=exclusions.filter(e=>/date_missing|date_invalid/.test(e.reason));return '<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(future.length)+'</td><td>'+fmt(undated.length)+'</td><td>'+escapeHtml(p.dateBasis)+'</td></tr>'};
-  const exclusions=unique.map(p=>({p,future:(p.exclusions||[]).filter(e=>e.reason==='after_data_date').length,undated:(p.exclusions||[]).filter(e=>/date_missing|date_invalid/.test(e.reason)).length})).filter(r=>r.future||r.undated);
+  const row=p=>{const counts=reportingExclusionCounts(p);return '<tr><td>'+escapeHtml(p.name)+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(counts.future)+'</td><td>'+fmt(counts.undated)+'</td><td>'+escapeHtml(p.dateBasis)+'</td></tr>'};
+  const exclusions=unique.map(p=>({p,...reportingExclusionCounts(p)})).filter(r=>r.future===null||r.undated===null||r.future||r.undated);
   if(!exclusions.length&&!includeComplete)return '';
   if(!includeComplete&&['master_dashboard','command_center','master_control_programme'].includes(data.projectionKey))return '<p class="source-scope-summary">'+(data.registerDateReview?.message||fmt(exclusions.length)+' record groups need date review.')+' '+managementModuleLink('source-quality','Review register dates')+'</p>';
   const disclosure=exclusions.length?fmt(exclusions.length)+' record groups include later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);

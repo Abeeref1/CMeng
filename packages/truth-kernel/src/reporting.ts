@@ -14,6 +14,7 @@ export interface PopulationContract {
   denominator: number;
   memberIds: string[];
   exclusions: Array<{ id: string; reason: string }>;
+  exclusionCounts?: Record<string,number>;
   missingDatePolicy: 'withhold_from_as_of';
 }
 
@@ -21,9 +22,12 @@ export interface PopulationContract {
  * A display limit is never a population limit. Forecast dates are not actual-event dates.
  */
 export function populationContract(input: Omit<PopulationContract, 'populationId' | 'missingDatePolicy' | 'denominator'>): PopulationContract {
-  const canonical = { ...input, dataDateIso: dateValue(input.dataDateIso ?? ''),
+  const {exclusionCounts:_previousCounts,...source}=input;
+  const canonical = { ...source, dataDateIso: dateValue(input.dataDateIso ?? ''),
     memberIds: [...input.memberIds].sort(), exclusions: [...input.exclusions].sort((a,b)=>a.id.localeCompare(b.id)||a.reason.localeCompare(b.reason)) };
-  return { ...canonical, denominator: canonical.memberIds.length, missingDatePolicy: 'withhold_from_as_of',
+  const counts=new Map<string,number>();
+  for(const exclusion of canonical.exclusions)counts.set(exclusion.reason,(counts.get(exclusion.reason)??0)+1);
+  return { ...canonical, exclusionCounts:Object.fromEntries(counts), denominator: canonical.memberIds.length, missingDatePolicy: 'withhold_from_as_of',
     populationId: 'population:' + createHash('sha256').update(JSON.stringify(canonical)).digest('hex').slice(0,24) };
 }
 
