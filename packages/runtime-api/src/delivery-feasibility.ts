@@ -2,6 +2,7 @@ import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {withInstalledMeasurements} from './installed-measurements';
 import {resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import {plotCrewScenarios} from './plot-crew-scenarios';
+import {scheduleScopeClassification} from './schedule-scope-classification';
 import {buildBoqFeasibility, type LaborProductivityBasis} from '../../delivery-challenge/src/boq-feasibility';
 import {cell,numberValue,dateValue,governedTables} from '../../truth-kernel/src';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
@@ -38,7 +39,11 @@ function computeDeliveryFeasibility(state:ProjectRuntimeState) {
   const comparable=!!baseline&&baseline.revision.revisionId!==current.revision.revisionId&&from.dateIso!==null&&to.dateIso!==null&&from.activityIds[0]===to.activityIds[0];
   const resourceModel=state.resourcesByRevision.get(current.revision.revisionId),resourceById=new Map(resourceModel?.resources.map(row=>[row.resourceId,row])??[]);
   const laborAssignments=(resourceModel?.assignments??[]).filter(row=>{const resource=row.resourceId?resourceById.get(row.resourceId):null;return Boolean(resource&&resourceLaborHourEligible(resource));});
-  const programmeChecks={remainingLaborHours:laborAssignments.length&&laborAssignments.every(row=>typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits))?laborAssignments.reduce((sum,row)=>sum+row.remainingUnits!,0):null,calendarActivityCount:model.activities.filter(row=>row.status!=='completed'&&resolveWorkingCalendar(row.calendarId,model.calendars,false)).length,crewScenarios:plotCrewScenarios(model),basis:'Submitted remaining labour-hour budget and source-calendar crew sensitivities. They do not establish a quantity-driven productivity forecast.'};
+  // The shared classification belongs to this same versioned reporting model.
+  // Preserve the per-row fallback for ambiguous IDs instead of merging plots.
+  const scopeRows=scheduleScopeClassification(model).rows;
+  const plots=new Map(scopeRows.map(row=>[row.activityId,row.plot]));
+  const programmeChecks={remainingLaborHours:laborAssignments.length&&laborAssignments.every(row=>typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits))?laborAssignments.reduce((sum,row)=>sum+row.remainingUnits!,0):null,calendarActivityCount:model.activities.filter(row=>row.status!=='completed'&&resolveWorkingCalendar(row.calendarId,model.calendars,false)).length,crewScenarios:plotCrewScenarios(model,plots.size===scopeRows.length?plots:undefined),basis:'Submitted remaining labour-hour budget and source-calendar crew sensitivities. They do not establish a quantity-driven productivity forecast.'};
   const finishes=model.activities.filter(a=>a.status!=='completed').flatMap(a=>a.forecastFinishIso??a.currentFinishIso??[]).sort();
   const target=to.dateIso??finishes.at(-1)??null;
   const days=cutoff&&target?Math.max(0,(Date.parse(target.slice(0,10))-Date.parse(cutoff))/86400000):null;

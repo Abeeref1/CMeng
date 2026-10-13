@@ -77,9 +77,12 @@ test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ti
  const schedule={...original,activities,wbs,relationships:[]};
  const originalQuantities=state.quantities!;
  assert.ok(originalQuantities,'Demo source quantities must be established');
- const items=Array.from({length:30},(_,i)=>{
+ // Repeated text must share its base ranking without sharing item-specific
+ // code/ID boosts, even when the boosted activity was outside that top five.
+ const items=Array.from({length:240},(_,i)=>{
   const zone=i%8,trade=i%3===0?'Mechanical':i%3===1?'Electrical':'Civil';
-  return {quantityItemId:'BQ-'+i,itemNumber:'BOQ.'+i,section:'Mechanical Electrical Zone '+zone,
+  return {quantityItemId:'BQ-'+i,itemNumber:i%5===0?'ACT-'+i%145:'BOQ.'+i,
+   costCode:i%7===0?'ACT-'+(i+77)%145:null,section:'Mechanical Electrical Zone '+zone,
    description:i%11===0?'Works linked to ACT-'+i:'Installation '+trade+' Zone '+zone,
    unit:'m3',contractQuantity:10,sourceRefs:[],diagnostics:[]};
  });
@@ -91,7 +94,7 @@ test('BOQ grouped cold matcher exactly preserves brute-force rank, scores and ti
  const codes=(v:string)=>new Set(v.toUpperCase().match(/[A-Z]{1,8}-?\d{1,8}|\d{2,}/g)??[]);
  const jaccard=(a:Set<string>,b:Set<string>)=>{if(!a.size||!b.size)return 0;let n=0;for(const k of a)if(b.has(k))n++;return n/(a.size+b.size-n);};
  for(const item of items){
-  const corpus=[item.itemNumber??'',item.section??'',item.description].join(' ');
+  const corpus=[item.itemNumber??'',item.costCode??'',item.section??'',item.description].join(' ');
   const features={description:norm(item.description),names:tokens(item.description),sections:tokens(item.section),codes:codes(corpus)};
   const expected=activities.map(activity=>{
    const wbsNode=wbs.find(x=>x.wbsId===activity.wbsId)!;

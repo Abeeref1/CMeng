@@ -451,7 +451,8 @@ export function buildQuantityScheduleMapping(
   // code matches and exact Activity IDs still receive their own full scoring.
   const namePostingCache=new Map<string,Set<FeatureGroup>>();
   const sectionPostingCache=new Map<string,Set<FeatureGroup>>();
-  const baseGroupScoreCache=new Map<string,Map<FeatureGroup,number>>();
+  type RankedActivity = {activity: CanonicalScheduleActivity; confidence: number};
+  const baseRankingCache = new Map<string, {top: RankedActivity[]; scoredPairs: number}>();
   const candidatesFor=(features:ItemFeatures)=>{
     let nameGroups=namePostingCache.get(features.description);
     if(!nameGroups){
@@ -482,10 +483,7 @@ export function buildQuantityScheduleMapping(
       const rows=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
       rows.add(activity);specialsByGroup.set(group,rows);
     };
-    const candidateGroups=new Set(nameGroups);
     for(const activity of codeHits.keys()){
-      const group=groupForActivity.get(activity)!;
-      if(sectionGroups.has(group))candidateGroups.add(group);
       special(activity);
     }
     const explicitMatches=new Set<CanonicalScheduleActivity>();
@@ -493,13 +491,13 @@ export function buildQuantityScheduleMapping(
     for(const token of raw.toUpperCase().match(/[A-Z0-9_.-]+/g)??[]){
       const activity=explicit.get(token);
       if(activity&&featuresByActivity.get(activity)!.explicitId?.test(raw)){
-        explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+        explicitMatches.add(activity);special(activity);
       }
     }
     for(const activity of unusualIds)if(featuresByActivity.get(activity)!.explicitId?.test(raw)){
-      explicitMatches.add(activity);special(activity);candidateGroups.add(groupForActivity.get(activity)!);
+      explicitMatches.add(activity);special(activity);
     }
-    return {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches};
+    return {nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches};
   };
   const overlaps=(keys:ReadonlySet<string>,other:ReadonlySet<string>):number=>{
     let count=0;
@@ -540,51 +538,52 @@ export function buildQuantityScheduleMapping(
     // Code-dependent candidates are scored independently below. A zero-code
     // group score depends only on BOQ description, section and WBS features.
     const zeroCodeSignature=features.description+'\u0000'+[...features.sectionTokens].sort().join('\u0000');
-    let baseScores=baseGroupScoreCache.get(zeroCodeSignature);
-    if(!baseScores){baseScores=new Map();baseGroupScoreCache.set(zeroCodeSignature,baseScores);}
-    const top: Array<{activity: CanonicalScheduleActivity; confidence: number}> = [];
-    const {candidateGroups,nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches}=candidatesFor(features);
-    const offer=(activity:CanonicalScheduleActivity,rawConfidence:number)=>{
-      // Preserve both the original four-decimal confidence rule and the
-      // stable activity-ID tie break, including on ambiguous BOQ proposals.
+    const {nameGroups,sectionGroups,codeHits,specialsByGroup,explicitMatches}=candidatesFor(features);
+    const offer=(top: RankedActivity[], activity: CanonicalScheduleActivity, rawConfidence: number)=>{
+      // Preserve the original rounding and Activity-ID tie break. Individual
+      // code/ID evidence can only raise a base score, never lower it.
       if(top.length===5&&rawConfidence<top[4]!.confidence-0.0001)return;
       if(rawConfidence<0.33994)return;
       const confidence=Number(rawConfidence.toFixed(4));
       if(confidence<0.34)return;
+      const existing=top.findIndex(row=>row.activity===activity);
+      if(existing>=0){
+        if(top[existing]!.confidence>=confidence)return;
+        top.splice(existing,1);
+      }
       const index=top.findIndex(row=>confidence>row.confidence||
         confidence===row.confidence&&activity.activityId.localeCompare(row.activity.activityId)<0);
       if(index<0){if(top.length<5)top.push({activity,confidence});}
       else {top.splice(index,0,{activity,confidence});if(top.length>5)top.pop();}
     };
-    for(const group of candidateGroups){
+    let base=baseRankingCache.get(zeroCodeSignature);
+    if(!base){
+      base={top:[],scoredPairs:0};
+      for(const group of nameGroups){
+        const n=overlaps(features.descriptionTokens,group.features.nameTokens);
+        const s=overlaps(features.sectionTokens,group.features.wbsTokens);
+        const confidence=fastScore(features,group.features,n,s,0);
+        base.scoredPairs+=group.members.length;
+        // A sixth equal-score member cannot outrank the first five. Include
+        // code matches here too; their nonnegative extra evidence is merged
+        // below. This lets repeated descriptions reuse the exact base ranking.
+        for(const activity of group.members.slice(0,5))offer(base.top,activity,confidence);
+      }
+      baseRankingCache.set(zeroCodeSignature,base);
+    }
+    scoredPairCount+=base.scoredPairs;
+    const top=[...base.top];
+    for(const [group,specials] of specialsByGroup){
       const normal=nameGroups.has(group);
-      const specials=specialsByGroup.get(group)??new Set<CanonicalScheduleActivity>();
       const n=overlaps(features.descriptionTokens,group.features.nameTokens);
       const s=overlaps(features.sectionTokens,group.features.wbsTokens);
-      if(normal){
-        // Members have identical evidence except for their own unique codes.
-        // Five lowest Activity IDs suffice for each same-score group: a sixth
-        // cannot appear in any globally ranked top-five, even on a tie.
-        scoredPairCount+=group.members.length;
-        let baseConfidence=baseScores.get(group);
-        if(baseConfidence===undefined){
-          baseConfidence=fastScore(features,group.features,n,s,0);
-          baseScores.set(group,baseConfidence);
-        }
-        let considered=0;
-        for(const activity of group.members){
-          if(specials.has(activity))continue;
-          offer(activity,baseConfidence);
-          if(++considered===5)break;
-        }
-      }
       for(const activity of specials){
         const codeHit=codeHits.get(activity)??0;
         if(!normal&&!(codeHit>0&&sectionGroups.has(group))&&!explicitMatches.has(activity))continue;
         if(!normal)scoredPairCount++;
         const rawConfidence=explicitMatches.has(activity)?0.99:fastScore(
           features,featuresByActivity.get(activity)!,n,s,codeHit);
-        offer(activity,rawConfidence);
+        offer(top,activity,rawConfidence);
       }
     }
     const ranked: QuantityActivityMappingCandidate[] = top.map(({activity, confidence}) => ({
