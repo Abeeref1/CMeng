@@ -942,6 +942,7 @@ export function canonicalScheduleFromXer(
     projectId,
     source: "xer",
     sourceRevisionId: input.sourceRevisionId,
+    declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
     dataDateIso: firstProject
       ? xerDate(
           firstXerField(firstProject, [

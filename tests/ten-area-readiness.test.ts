@@ -218,3 +218,8 @@ test('EOT page keeps original and amended completion separate after shared fact 
  assert.equal(page.data.currentContractualCompletionIso,'2032-03-01');
  assert.equal(page.data.projectFacts.time.contractualCompletionIso.value,'2032-03-01');
 });
+
+test('contract cover particulars recognise an Original Completion heading without inventing commencement as finish',t=>{
+ const {state}=fixture(t);contract(state,'Commencement Date 01 December 2025\nOriginal Completion 31 December 2028');
+ assert.equal(contractCompletionPosition(state,'2026-09-30').value,'2028-12-31');
+});

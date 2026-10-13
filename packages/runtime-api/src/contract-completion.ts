@@ -20,7 +20,7 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
     const whole=sections.map(s=>s.text).join('\n');
     const effective=new RegExp('(?:effective\\s+date|effective\\s+from)\\s*[:|\\t]?\\s*('+dateToken+')','i').exec(whole);
     const effectiveFrom=effective?explicitDate(effective[1]!):null;
-    const label='(?:(?:revised|amended|contractual|contract|original|current)\\s+)*(?:date\\s+(?:for|of)\\s+completion|completion\\s+date|time\\s+for\\s+completion|contractual\\s+completion|revised\\s+completion)';
+    const label='(?:(?:revised|amended|contractual|contract|original|current)\\s+)*(?:date\\s+(?:for|of)\\s+completion|completion\\s+date|time\\s+for\\s+completion|(?:contractual|original|revised|amended|current)\\s+completion)';
     const pattern=new RegExp('\\b'+label+'\\s*(?:(?:shall\\s+be|is|on)\\s*)?[:|=\\t]?\\s*('+dateToken+')','gi');
     for(const section of sections){
       const text=[section.heading??'',section.text].join('\n');

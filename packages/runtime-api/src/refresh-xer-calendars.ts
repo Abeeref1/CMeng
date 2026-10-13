@@ -4,7 +4,7 @@ import {canonicalScheduleFromXer} from '../../schedule-analysis-core/src';
 import {parseXerBytes} from '../../xer-parser/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-v3';
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-v4';
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 
 /** Refresh calendar interpretations and unresolved single-project links from the unchanged retained
@@ -41,6 +41,7 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
       const previousDiagnostics=old.diagnostics.filter(isCalendarDiagnostic);
       const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
       old.calendars=fresh.calendars;
+      old.declaredProjectFinishIso=fresh.declaredProjectFinishIso??null;
       old.diagnostics=[...old.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       stored.calendarReaderVersion=XER_CALENDAR_READER_VERSION;

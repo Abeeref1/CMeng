@@ -145,6 +145,8 @@ export interface CanonicalScheduleModel {
   source: CanonicalScheduleSource;
   sourceRevisionId: string;
   dataDateIso: string | null;
+  /** Explicit project header finish; distinct from activity-derived forecast. */
+  declaredProjectFinishIso?: string | null;
   activities: CanonicalScheduleActivity[];
   relationships: CanonicalScheduleRelationship[];
   wbs: CanonicalWbsNode[];

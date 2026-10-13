@@ -2203,7 +2203,8 @@ function renderPmoVisual(data){
   const knownValue=(total,value)=>total??(typeof value==='number'?fmt(value)+' known':null);
   const kpis=planningKpis([
     ["Baseline finish",planningShortDate(p.programmeBaselineCompletionIso),"controlled baseline",""],
-    ["Submitted finish",planningShortDate(p.forecast.sourceCompletionIso),"current programme",""],
+    ["Submitted activity finish",planningShortDate(p.forecast.sourceCompletionIso),"latest activity finish in the current programme",""],
+    ["Declared project finish",planningShortDate(data.projectFacts?.schedule?.declaredProjectFinishIso?.value),"project header in the submitted programme",""],
     ["Critical",knownValue(p.schedule.criticalCount,known.critical),"activities","danger"],
     ["Near-critical",knownValue(p.schedule.nearCriticalCount,known.nearCritical),"activities","warning"],
     ["Negative float",knownValue(p.schedule.negativeFloatCount,known.negativeFloat),"activities","danger"],

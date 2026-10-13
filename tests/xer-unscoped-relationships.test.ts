@@ -33,3 +33,11 @@ test('existing retained schedules receive link repairs without a new upload',asy
  assert.equal(refreshStoredXerCalendars(state),true);assert.deepEqual(saved.relationships,fresh.relationships);assert.deepEqual(saved.activities,activities);
  assert.equal(state.schedules[0].calendarReadRefresh.repairedRelationshipCount,1);assert.equal(refreshStoredXerCalendars(state),false);
 });
+
+test('project header finish is retained separately and never selected arbitrarily across projects',()=>{
+ const rows=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tplan_end_date','%R\t1\tFirst\t2029-05-15 17:00','%E'];
+ const read=()=>canonicalScheduleFromXer(parseXerBytes(Buffer.from(rows.join('\n'))),{sourceRevisionId:'source'});
+ assert.equal(read().declaredProjectFinishIso?.slice(0,10),'2029-05-15');
+ rows.splice(4,0,'%R\t2\tSecond\t2030-01-01 17:00');
+ assert.equal(read().declaredProjectFinishIso,null);
+});

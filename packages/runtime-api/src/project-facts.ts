@@ -48,6 +48,7 @@ export interface ProjectFactsSnapshot {
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
+    declaredProjectFinishIso?:ProjectFact<string>;
     /** Canonical management criticality. Deterministic independent CPM governs
      * when established; submitted/source float remains separately visible. */
     floatBasis:'independent_cpm'|'source_total_float'|'qualified_scenario'|'missing';
@@ -352,6 +353,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         dataDateIso!==null,
         current?['schedule-revision:'+current.revision.revisionId]:[],
       ),
+      declaredProjectFinishIso:fact(model?.declaredProjectFinishIso??null,
+        'Project finish explicitly recorded in the submitted programme header; separate from activity-derived completion and independent CPM.',
+        model?.declaredProjectFinishIso?'confirmed':'missing',model?.declaredProjectFinishIso!=null,
+        model?.declaredProjectFinishIso?['schedule-revision:'+model.sourceRevisionId+':PROJECT.plan_end_date']:[]),
       submittedProgrammeCompletionIso:fact(
         submittedFinish?.dateIso??null,
         submittedFinish?.method??'Current submitted programme completion is not established.',

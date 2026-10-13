@@ -34,6 +34,9 @@ The requested scope remains the whole CMeng system and all 23 existing projects.
 - Variation status distribution is produced before paging. Contract clause/amendment totals and future/undated insurance and retention counts use full response populations.
 - Navigation preserves a completed specialist result with no warning instead of replacing its null warning with an incorrect “not yet recorded” message.
 
+- A subsequent check against the supplied source archive identified the actual cover heading `Original Completion` and the XER `PROJECT.plan_end_date` field. The completion reader now recognizes that heading. The XER adapter retains the explicit project-header finish separately, shared project facts expose it, and Programme Review displays it without replacing activity-derived or independent completion. Stored XER recovery version `p6-source-aliases-links-finish-v4` refreshes that field from the same verified bytes.
+- Direct reading of the supplied contract cover and amendment establishes original 2028-12-31 and amended 2029-03-01; the supplied latest XER retains declared finish 2029-05-15 with 9,500 activities. This is a source-reader check, not a live project rerun. The focused reader and recovery checks pass (37 checks); build fingerprint `67aaf470e038b30b`.
+
 ## Evidence and checks
 
 The changes were traced to the retained ABB page-by-page workbook and shared implementation paths, including its paging, role-view, claim-rule, recovery, procurement, risk, quality and cost-reading findings.
