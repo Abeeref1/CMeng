@@ -34,6 +34,16 @@ export async function parsePdfDocument(
   const parser = new (await import('pdf-parse')).PDFParse({ data: Buffer.from(bytes) as any });
   const pages: PdfPageResult[] = [];
   const diagnostics: string[] = [];
+  const reviewPage=async(input:Parameters<AiPageVerifier['review']>[0])=>{
+    if(!options.aiVerifier)return null;
+    try{return await options.aiVerifier.review(input);}
+    catch(error){
+      const code=error instanceof Error&&/^MODEL_[A-Z_]+$/.test(error.message)?error.message:'PDF_AI_REVIEW_FAILED';
+      // Verification availability cannot erase physically extracted source text
+      // or prevent later pages from being read. Never treat a failed review as acceptance.
+      return {status:'review_required' as const,diagnostics:[code],proposedText:null,confidence:null};
+    }
+  };
 
   try {
     const textResult = await parser.getText();
@@ -78,14 +88,12 @@ export async function parsePdfDocument(
       const qualityDiagnostics = fragmented ? ['PDF_NATIVE_TEXT_FRAGMENTED_REQUIRES_OCR'] : [];
 
       if (nativeCharacterCount >= threshold && !fragmented) {
-        const aiReview = options.aiVerifier
-          ? await options.aiVerifier.review({
+        const aiReview = await reviewPage({
               pageNumber,
               method: "native",
               extractedText: nativeText,
               ocrConfidence: null,
-            })
-          : null;
+            });
 
         append({
           pageNumber,
@@ -164,14 +172,12 @@ export async function parsePdfDocument(
           continue;
         }
 
-        const aiReview = options.aiVerifier
-          ? await options.aiVerifier.review({
+        const aiReview = await reviewPage({
               pageNumber,
               method: "ocr",
               extractedText: ocrText,
               ocrConfidence: ocr.confidence,
-            })
-          : null;
+            });
 
         append({
           pageNumber,

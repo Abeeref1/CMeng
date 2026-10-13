@@ -31,6 +31,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const auditSecret=await retainedAuditSessionKey(root);
   const externalWorkerKey=randomBytes(32).toString('hex');
   const askSettingsPath=process.env.CMENG_ASK_AI_CONFIG_FILE??join(root,'ask-ai-provider.json');
+  const aiUsageDirectory=process.env.CMENG_AI_USAGE_DIR?.trim()||join(root,'ai-usage');
   let externalHttp:ExternalHttp|undefined;
   const externalPolicy=():ExternalPolicy|null=>process.env.CMENG_EXTERNAL_POLICY_JSON?JSON.parse(process.env.CMENG_EXTERNAL_POLICY_JSON):filePolicy(process.env.CMENG_EXTERNAL_POLICY_FILE)();
   function externalController(){
@@ -54,8 +55,15 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const explicitlyParallel=Number(process.env.CMENG_PROJECT_CONCURRENT_LANES??0);
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured,undefined,explicitlyParallel);
   const readStores=new Map<string,ProjectReadCache>();
+  const pendingReadPublications=new Map<string,Promise<void>>();
   const reads=(id:string)=>{let cache=readStores.get(id);if(!cache)cache=new ProjectReadCache(projectDirectory(root,id));readStores.delete(id);readStores.set(id,cache);while(readStores.size>16)readStores.delete(readStores.keys().next().value!);return cache;};
-  async function retainCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
+  function retainCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
+    const publication=storeCalculatedRead(id,port,version,path,body);
+    pendingReadPublications.set(id,publication);
+    const done=()=>{if(pendingReadPublications.get(id)===publication)pendingReadPublications.delete(id);};
+    void publication.then(done,done);return publication;
+  }
+  async function storeCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
     await reads(id).put(calculationRelease(),version,path,body);
     const pathname=new URL(path,'http://localhost').pathname;
     if(!/\/(?:management\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+|management-surfaces|director-position)$/.test(pathname))return;
@@ -96,7 +104,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if(closing)throw new Error('SERVICE_RESTARTING');
       }
       const directory=projectDirectory(root,id);
-      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath};
+      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory};
       if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
       const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env,...(options.workerExecArgv?{execArgv:[...options.workerExecArgv]}:{})});
       const lane:Lane={worker,ready:Promise.resolve(0),tail:Promise.resolve(),pending:1,lastUsed:Date.now()};
@@ -314,7 +322,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -356,6 +364,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       // Retained analyses of unchanged versions stay available from the volume.
       lastForegroundProjectRequestAt=Date.now();
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
+      // A completed calculation may already have reached the browser while its
+      // durable Overview snapshot is still being published. Never return the
+      // previous same-version navigation in that short interval.
+      if(req.method==='GET'&&match[2]==='/overview')await pendingReadPublications.get(id)?.catch(()=>{});
       const version=catalog.get(id)?.metadata?.version;
       if(cacheableProjectRead(req.method,projectPath)&&version!==undefined&&!(updating.get(id)??0)){
         const cached=await reads(id).get(calculationRelease(),version,projectPath);
@@ -418,7 +430,11 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // request pay for loading/parsing a full project snapshot. Remaining workers
   // and calculation-versioned pages warm incrementally without blocking health.
   const firstProject=[...catalog.values()].find(e=>e.metadata&&!e.metadata.demo)?.projectId;
-  if(firstProject){
+  const firstVersion=firstProject?catalog.get(firstProject)?.metadata?.version:undefined;
+  const retainedFirstViews=firstProject&&firstVersion!==undefined&&
+    await reads(firstProject).get(calculationRelease(),firstVersion,'/api/projects/'+encodeURIComponent(firstProject)+'/overview')&&
+    await reads(firstProject).get(calculationRelease(),firstVersion,'/api/projects/'+encodeURIComponent(firstProject)+'/management/master-dashboard');
+  if(firstProject&&!retainedFirstViews){
     let startupTimer:NodeJS.Timeout|undefined;
     const workerReady=work(firstProject,async()=>{}).catch(error=>console.warn('[project-worker-prime] '+firstProject+': '+String(error)));
     await Promise.race([workerReady,new Promise<void>(resolve=>{startupTimer=setTimeout(resolve,8000);})]);
@@ -426,7 +442,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   // The full portfolio remains accessible even if another project's warmup fails.
   const initialWarmup=setTimeout(warmSweep,4000);initialWarmup.unref();
-  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 

@@ -35,7 +35,7 @@ function newTelemetry(result:AnalysisResult):AskTelemetry{return {route:result.r
 /** Provider owns language only. All evidence selection/retrieval/validation is local and reusable. */
 export interface ModelTransportOptions {baseUrl?:string;protocol?:'responses'|'chat-completions'}
 export class OpenAiAskModel implements AskModel, StructuredModel {
-  constructor(private key:string,private model:string,private request:typeof fetch=fetch,private limits:ModelLimits=configuredModelLimits(),private transport:ModelTransportOptions={}){}
+  constructor(private key:string,private model:string,private request:typeof fetch=fetch,private limits:ModelLimits=configuredModelLimits(),private transport:ModelTransportOptions={},private budgetEnvironment?:NodeJS.ProcessEnv){}
   async structured(name:string,schema:unknown,prompt:string,input:unknown):Promise<unknown>{
     return this.generate(name,schema,prompt,input);
   }
@@ -44,12 +44,14 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
     if(estimated+this.limits.outputTokens>this.limits.contextTokens)throw new Error('MODEL_CONTEXT_LIMIT');
     if(telemetry&&(telemetry.calls.length>=this.limits.maxCalls||telemetry.calls.reduce((n,c)=>n+c.estimatedInputTokens,0)+estimated>this.limits.totalInputTokens))throw new Error('MODEL_USAGE_LIMIT');
     const call={stage:name,estimatedInputTokens:estimated,inputTokens:null as number|null,outputTokens:null as number|null};
-    if(telemetry){telemetry.calls.push(call);telemetry.aiInvoked=true;}
+    if(telemetry)telemetry.calls.push(call);
     let response:Response;
     const chat=this.transport.protocol==='chat-completions',base=(this.transport.baseUrl??'https://api.openai.com/v1').replace(/\/$/,'');
     const endpoint=new URL(base+(chat?'/chat/completions':'/responses'));if(!['http:','https:'].includes(endpoint.protocol)||endpoint.username||endpoint.password||endpoint.search||endpoint.hash)throw new Error('MODEL_ENDPOINT_INVALID');
     const payload=chat?{model:this.model,store:false,max_tokens:this.limits.outputTokens,messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify(input)}],response_format:{type:'json_schema',json_schema:{name,strict:true,schema}}}:{model:this.model,store:false,max_output_tokens:this.limits.outputTokens,instructions:prompt,input:JSON.stringify(input),text:{format:{type:'json_schema',name,strict:true,schema}}};
-    const reservation=reserveModelUsage(this.model,this.limits.contextTokens,this.limits.outputTokens);
+    if(this.budgetEnvironment&&!this.budgetEnvironment.CMENG_AI_USAGE_DIR?.trim())throw new Error('MODEL_BUDGET_DIRECTORY_NOT_CONFIGURED');
+    const reservation=reserveModelUsage(this.model,this.limits.contextTokens,this.limits.outputTokens,this.budgetEnvironment??process.env);
+    if(telemetry)telemetry.aiInvoked=true;
     try{response=await this.request(endpoint.toString(),{method:'POST',redirect:'error',headers:{...(this.key?{authorization:'Bearer '+this.key}:{}),'content-type':'application/json'},signal:AbortSignal.timeout(45000),body:JSON.stringify(payload)});}catch{throw new Error('MODEL_PROVIDER_UNAVAILABLE');}
     if(!response.ok)throw new Error('MODEL_PROVIDER_UNAVAILABLE');
     if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('MODEL_RESPONSE_TOO_LARGE');
@@ -109,7 +111,7 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
       }
       result.coverage.representedToModel=true;return final;
     }catch(error){const code=error instanceof Error&&/^(MODEL|RETRIEVAL)_/.test(error.message)?error.message:'MODEL_RESPONSE_INVALID';
-      if(/PROVIDER|RESPONSE|CONTEXT|LIMIT/.test(code))telemetry.providerFailures.push(code);else telemetry.validationFailures.push(code);throw new Error(code);}
+      if(/PROVIDER|RESPONSE|CONTEXT|LIMIT|BUDGET/.test(code))telemetry.providerFailures.push(code);else telemetry.validationFailures.push(code);throw new Error(code);}
   }
 }
 function validateScope(output:any,result:AnalysisResult,evidenceHash:string){if(output.projectId!==result.scope.projectId||output.projectVersion!==result.scope.projectVersion||output.dataDate!==result.scope.dataDate||output.evidenceHash!==evidenceHash)throw new Error('MODEL_SCOPE_INVALID');}
@@ -154,5 +156,5 @@ export function configuredProviderState(env:NodeJS.ProcessEnv=process.env){
 }
 export function configuredAskModel(env:NodeJS.ProcessEnv=process.env){
  const config=configuredModelSettings(env);if(!config)return null;
- return new OpenAiAskModel(config.key,config.model,fetch,configuredModelLimits(env),{...(config.baseUrl?{baseUrl:config.baseUrl}:{}),protocol:config.protocol});
+ return new OpenAiAskModel(config.key,config.model,fetch,configuredModelLimits(env),{...(config.baseUrl?{baseUrl:config.baseUrl}:{}),protocol:config.protocol},{CMENG_AI_USAGE_DIR:env.CMENG_AI_USAGE_DIR,CMENG_AI_MONTHLY_USD:env.CMENG_AI_MONTHLY_USD,CMENG_AI_INPUT_USD_PER_MILLION:env.CMENG_AI_INPUT_USD_PER_MILLION,CMENG_AI_OUTPUT_USD_PER_MILLION:env.CMENG_AI_OUTPUT_USD_PER_MILLION});
 }

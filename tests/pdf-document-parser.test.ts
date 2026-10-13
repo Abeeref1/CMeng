@@ -168,3 +168,18 @@ test("resumable PDF checkpoint requires and reuses persisted page result", async
     ),
   );
 });
+
+test('AI review failure retains native and OCR text and checkpoints every later page',async()=>{
+ const pdf=await makePdf(['Native first source page with its retained evidence.',null,'Native third page must still be read.',null]);
+ const ocr=new FakeOcr({2:{text:'Recovered second page original quantity 123',confidence:.92,language:'eng',diagnostics:[]},4:{text:'Recovered fourth page original quantity 456',confidence:.93,language:'eng',diagnostics:[]}});
+ const checkpoints:Array<{page:number;text:string}>=[];
+ const aiVerifier:AiPageVerifier={name:'unavailable',async review(input){throw new Error(input.pageNumber===1?'MODEL_PROVIDER_UNAVAILABLE':'provider error containing private transport details');}};
+ const parsed=await parsePdfDocument(pdf,{ocrProvider:ocr,aiVerifier,onPageRead:page=>checkpoints.push({page:page.pageNumber,text:page.text})});
+ assert.equal(parsed.totalPages,4);assert.equal(parsed.processedPages,4);assert.equal(parsed.failedPages,0);
+ assert.equal(parsed.coveragePercent,100);assert.equal(parsed.complete,false);assert.equal(parsed.unresolvedPages,4);
+ assert.equal(parsed.nativePages,2);assert.equal(parsed.ocrPages,2);assert.deepEqual(ocr.calls,[2,4]);
+ assert.deepEqual(checkpoints.map(page=>page.page),[1,2,3,4]);assert.match(checkpoints[1]!.text,/original quantity 123/);assert.match(checkpoints[3]!.text,/original quantity 456/);
+ assert.equal(parsed.pages[0]!.aiReview!.diagnostics[0],'MODEL_PROVIDER_UNAVAILABLE');
+ assert.ok(parsed.pages.every(page=>page.aiReview?.status==='review_required'&&page.diagnostics.includes('PDF_AI_REVIEW_REQUIRED')));
+ assert.doesNotMatch(JSON.stringify(parsed),/private transport|PDF_OCR_FAILURE/);
+});

@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gate: [regression, raster, acceptance, independent, operations]
+        gate: [regression, raster, concurrency, acceptance, independent, operations]
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
@@ -63,6 +63,9 @@ jobs:
                 ;;
               raster)
                 node scripts/run-unit-tests.cjs raster
+                ;;
+              concurrency)
+                node scripts/run-unit-tests.cjs concurrency
                 ;;
               acceptance)
                 node scripts/run-unit-tests.cjs acceptance

@@ -19,7 +19,7 @@ test('Candidate API denies anonymous spending; owner proposal requires explicit 
  const before=JSON.stringify(state.quantities),data=linkDataset(state,'boq_activity');assert.ok(data.sources.length&&data.targets.length);
  const fetchOriginal=globalThis.fetch;let calls=0;
  const saved={key:process.env.CMENG_ASK_AI_API_KEY,model:process.env.CMENG_ASK_AI_MODEL,protocol:process.env.CMENG_ASK_AI_PROTOCOL,file:process.env.CMENG_ASK_AI_CONFIG_FILE,usage:process.env.CMENG_AI_USAGE_DIR};
- process.env.CMENG_ASK_AI_API_KEY='test-key-not-real';process.env.CMENG_ASK_AI_MODEL='gpt-4.1-mini';process.env.CMENG_ASK_AI_PROTOCOL='responses';delete process.env.CMENG_ASK_AI_CONFIG_FILE;delete process.env.CMENG_AI_USAGE_DIR;
+ process.env.CMENG_ASK_AI_API_KEY='test-key-not-real';process.env.CMENG_ASK_AI_MODEL='gpt-4.1-mini';process.env.CMENG_ASK_AI_PROTOCOL='responses';delete process.env.CMENG_ASK_AI_CONFIG_FILE;const budgetDir=mkdtempSync(join(tmpdir(),'link-budget-'));process.env.CMENG_AI_USAGE_DIR=budgetDir;t.after(()=>rmSync(budgetDir,{recursive:true,force:true}));
  globalThis.fetch=(async(url:any,options:any)=>{
   if(!String(url).startsWith('https://api.openai.com/'))return fetchOriginal(url,options);
   calls++;const payload=JSON.parse(options.body),input=JSON.parse(payload.input),target=input.targets[0];

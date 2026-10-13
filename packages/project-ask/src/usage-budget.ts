@@ -11,11 +11,14 @@ const write=(path:string,value:unknown)=>{const temp=path+'.'+randomUUID()+'.tmp
 export function reserveModelUsage(model:string,inputUpper:number,outputUpper:number,env:NodeJS.ProcessEnv=process.env):BudgetReservation|null{
  const directory=env.CMENG_AI_USAGE_DIR;if(!directory)return null;
  const cap=Number(env.CMENG_AI_MONTHLY_USD??20);if(!Number.isFinite(cap)||cap<0||cap>20)throw Error('MODEL_BUDGET_CONFIGURATION_INVALID');
- const configuredIn=Number(env.CMENG_AI_INPUT_USD_PER_MILLION),configuredOut=Number(env.CMENG_AI_OUTPUT_USD_PER_MILLION);
- const rate=Number.isFinite(configuredIn)&&configuredIn>=0&&Number.isFinite(configuredOut)&&configuredOut>=0?[configuredIn,configuredOut]:rates[model];
+ const inputRate=env.CMENG_AI_INPUT_USD_PER_MILLION,outputRate=env.CMENG_AI_OUTPUT_USD_PER_MILLION;
+ const configuredIn=Number(inputRate),configuredOut=Number(outputRate),hasRates=inputRate!==undefined||outputRate!==undefined;
+ if(hasRates&&(!inputRate?.trim()||!outputRate?.trim()||!Number.isFinite(configuredIn)||configuredIn<0||!Number.isFinite(configuredOut)||configuredOut<0))throw Error('MODEL_BUDGET_RATE_NOT_CONFIGURED');
+ const rate=hasRates?[configuredIn,configuredOut]:rates[model];
  if(!rate)throw Error('MODEL_BUDGET_RATE_NOT_CONFIGURED');
  if(!Number.isSafeInteger(inputUpper)||inputUpper<0||!Number.isSafeInteger(outputUpper)||outputUpper<0)throw Error('MODEL_BUDGET_ESTIMATE_INVALID');
  const upper=Math.ceil(inputUpper*rate[0]!+outputUpper*rate[1]!);
+ if(!Number.isSafeInteger(upper))throw Error('MODEL_BUDGET_ESTIMATE_INVALID');
  const month=new Date().toISOString().slice(0,7);mkdirSync(directory,{recursive:true,mode:0o700});
  const path=join(directory,month+'.json'),lock=join(directory,month+'.lock');
  const transact=(change:(v:Ledger)=>void)=>{let fd:number;try{fd=openSync(lock,'wx',0o600);}catch{throw Error('MODEL_BUDGET_BUSY');}

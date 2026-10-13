@@ -9,7 +9,7 @@ export function providerProbeState(root:string,release:string){
  * release; no project records, passwords or API keys are sent as evidence. */
 export async function probeConfiguredProvider(root:string,release:string){
  if(process.env.CMENG_AI_PROBE_ON_START!=='1'||providerProbeState(root,release))return;
- const env={...process.env,CMENG_ASK_AI_CONFIG_FILE:process.env.CMENG_ASK_AI_CONFIG_FILE??join(root,'ask-ai-provider.json')};
+ const env={...process.env,CMENG_ASK_AI_CONFIG_FILE:process.env.CMENG_ASK_AI_CONFIG_FILE??join(root,'ask-ai-provider.json'),CMENG_AI_USAGE_DIR:process.env.CMENG_AI_USAGE_DIR?.trim()||join(root,'ai-usage')};
  const config=configuredProviderState(env),model=configuredAskModel(env);let successful=false,error:string|null=null;
  try{if(!model)throw Error('MODEL_NOT_CONFIGURED');const nonce=randomUUID();const v:any=await model.structured('cmeng_provider_connectivity_check',{type:'object',properties:{nonce:{type:'string'}},required:['nonce'],additionalProperties:false},'Echo only the supplied synthetic nonce as JSON. This is a connectivity test with no project evidence.',{nonce});successful=v?.nonce===nonce;if(!successful)error='MODEL_PROBE_RESPONSE_INVALID';}
  catch(e){const code=e instanceof Error?e.message:'';error=/^MODEL_[A-Z_]+$/.test(code)?code:'MODEL_PROVIDER_UNAVAILABLE';}

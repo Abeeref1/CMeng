@@ -3918,7 +3918,9 @@ export class RuntimeProjectStore {
   touchEvidence(
     state: ProjectRuntimeState,
   ): void {
-    state.sourceIntegrationVersion = "canonical-source-v3";
+    // Evidence edits do not roll back completed source-schema migrations.
+    // Downgrading v7 to v3 made the next worker restart migrate unchanged
+    // records again, bump the project version and discard valid saved analysis.
     synchronizeCanonicalTimeClaims(state, true);
     this.staleFinalizedBoardPublications(
       state,

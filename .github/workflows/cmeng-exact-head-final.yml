@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gate: [regression, raster, acceptance, independent, operations]
+        gate: [regression, raster, concurrency, acceptance, independent, operations]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +40,9 @@ jobs:
               ;;
             raster)
               node scripts/run-unit-tests.cjs raster
+              ;;
+            concurrency)
+              node scripts/run-unit-tests.cjs concurrency
               ;;
             acceptance)
               node scripts/run-unit-tests.cjs acceptance
