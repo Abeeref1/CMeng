@@ -9,9 +9,10 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  // The status is evidence of completion, not proof of an actual delivery date or on-time delivery.
  // A recorded future actual date takes precedence over a stale completed-status label.
  const deliveredStatusOnly=!!cutoff&&terminal&&!actualDelivery;
+ const deliveryDateConflict=!!cutoff&&terminal&&(!!actualDelivery&&actualDelivery>cutoff||!actualDelivery&&!!forecastDelivery&&forecastDelivery>cutoff);
  const knownUndelivered=!!cutoff&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!input.status.trim()&&!terminal);
  const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;
  const headroomCalendarDays=needDate&&forecastDelivery?(Date.parse(needDate)-Date.parse(forecastDelivery))/86400000:null;
  const forecastLate=!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
- return {programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,headroomCalendarDays,forecastLate};
+ return {programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,headroomCalendarDays,forecastLate};
 }

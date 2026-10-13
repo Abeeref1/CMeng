@@ -608,3 +608,34 @@ test('late procurement forecasts do not create already-overdue escalation before
  assert.ok(action);assert.equal(action.escalation,null);assert.equal(action.sourceOverdueCount,0);assert.equal(action.sourceOverdueDays,null);
  assert.ok(p.details.every(d=>d.overdueDays===null));
 });
+
+test('reported delivery stays unresolved when its date conflicts; forecast source points remain qualified and reviewable',async t=>{
+ const f=await fixture(t);
+ const pkg=f.create('package','CONFLICT',{status:'Delivered','forecast delivery':'2031-09-05','required on site':'2031-08-10'},{activityIds:['A1']});
+ const before=JSON.stringify(f.state.controls),p=deliveryPosition(f.state),row=p.packageRows.find(r=>r.recordId===pkg.recordId)!;
+ assert.equal(row.deliveryDateConflict,true);assert.equal(row.deliveredAtDataDate,false);assert.equal(row.deliveredStatusOnly,true);assert.equal(row.forecastLate,false);
+ assert.equal(row.readiness!.state,'unknown');assert.equal(row.readiness!.readinessPercent,null);
+ assert.ok(p.findings.some(r=>r.code==='PROCUREMENT_DELIVERY_DATE_CONFLICT'&&r.recordId===pkg.recordId));
+ const curve=p.curves.find(c=>c.kind==='throughput'&&c.stage==='delivery'&&c.series==='forecast')!;
+ assert.equal(curve.points[0]!.dateIso,'2031-09-05');assert.equal(curve.sourceDateConflictCount,1);assert.deepEqual(curve.sourceDateConflictRecordIds,[pkg.recordId]);assert.match(curve.qualification!,/Source forecast retained/);
+ const page=deliveryModule(f.state,'procurement-readiness').data as any;
+ assert.equal(page.metrics.find((m:any)=>m.label==='Ready · known subset').value,0);assert.equal(page.metrics.find((m:any)=>m.label==='Unknown readiness').value,1);
+ assert.equal(JSON.stringify(f.state.controls),before);
+ f.review(pkg,{'actual delivery':'2031-08-20'});
+ const corrected=deliveryPosition(f.state).packageRows.find(r=>r.recordId===pkg.recordId)!;
+ assert.equal(corrected.deliveryDateConflict,false);assert.equal(corrected.readiness!.state,'ready');
+ assert.equal(deliveryRecords(f.state).records.find(r=>r.recordId===pkg.recordId)!.fields['forecast delivery'],'2031-09-05','review does not erase the retained original forecast');
+});
+
+test('package readiness requires linked submittal evidence even when delivery is dated',async t=>{
+ const f=await fixture(t),pkg=f.create('package','DELIVERED-WITH-DESIGN',{status:'Delivered','actual delivery':'2031-08-20'});
+ const sub=f.create('submittal','SUB-PENDING',{status:'Under Review'},{packageIds:[pkg.recordId]});
+ const ready=()=>deliveryPosition(f.state).packageRows.find(r=>r.recordId===pkg.recordId)!.readiness!;
+ assert.equal(ready().state,'unknown');assert.equal(ready().linkedSubmittals[0]!.approvedAtDataDate,null);
+ f.review(sub,{status:'Approved','approval date':'2031-09-05'});assert.equal(ready().state,'unknown');
+ let current=deliveryRecords(f.state).records.find(r=>r.recordId===sub.recordId)!;
+ f.review(current,{status:'Approved','approval date':'2031-08-25'});assert.equal(ready().state,'ready');
+ current=deliveryRecords(f.state).records.find(r=>r.recordId===sub.recordId)!;
+ f.review(current,{status:'Rejected','rejection date':'2031-08-30'});assert.equal(ready().state,'blocked');assert.equal(ready().linkedSubmittals[0]!.approvedAtDataDate,false);
+ assert.equal(ready().readinessPercent,null,'linked submittals cannot invent a gate denominator');
+});

@@ -390,6 +390,7 @@ export function deriveReadinessFromCsv(
       else if(timing.overdueUndelivered){state='blocked';scopeNote='Assessed need date ('+timing.needDateBasis+') '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
       else if(timing.forecastLate){state='blocked';scopeNote='Forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis;}
       else {state='unknown';scopeNote=timing.needDate?'No date-based delivery blocker is established; physical readiness still requires delivery evidence.':'The selected need date is not established; confirm the missing programme link or register date.';}
+      if(timing.deliveryDateConflict){diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote+='; the completed status conflicts with a delivery date after the reporting date. Review the source receipt and dates.';}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
       if(procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }

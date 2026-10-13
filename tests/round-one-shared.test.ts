@@ -37,7 +37,10 @@ for(let sample=0;sample<10;sample++)test('Round one shared population and presen
  const narrative='due=2026-08-29T11:42:30.123Z; payment_register status=open; quantity '+(12.123456+sample)+'; null; undefined';
  const text=managementText(narrative);
  assert.match(text,/Aug 29, 2026/);assert.match(text,/Status: Open/);
- assert.doesNotMatch(text,/\d{4}-\d{2}-\d{2}|_register status=|\bnull\b|\bundefined\b|\.\d{5,}/);
+ assert.doesNotMatch(text,/\d{4}-\d{2}-\d{2}|_register status=|\bnull\b|\bundefined\b/);
+ assert.ok(text.includes('quantity '+(12.123456+sample)),'source narrative precision remains unchanged');
+ assert.equal(managementNumber(12.123456+sample),String(12+sample)+'.12','typed measures are formatted at their numeric renderer');
+ assert.equal(managementText('BOQ 001.00200 / 1.0001'),'BOQ 001.00200 / 1.0001');
  assert.equal(managementValue({value:null,valueState:'not_in_source'},'days'),'Not in source');
  assert.equal(managementNumber(0.0001),'<0.01');assert.equal(managementNumber(0),'0');
  const model=state.schedules.at(-1)!.revision.model;

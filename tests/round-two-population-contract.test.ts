@@ -69,7 +69,7 @@ test('reader-facing due labels and partial timestamp suffix preserve the actual 
  assert.equal(managementText('Status: Open; due=Sep 12, 2026'),'Status: Open; Due: Sep 12, 2026');
  assert.equal(managementText('2026-09-12T17:00:00Z'),'Sep 12, 2026');
  assert.equal(managementText('Sep 12, 2026T17:00:00'),'Sep 12, 2026 · 17:00');
- assert.doesNotMatch(managementText('due=2026-09-12T17:00:00.123Z; quantity=4.123456'),/due=|T17:|2026-09-12|\.\d{5,}/);
+ assert.equal(managementText('due=2026-09-12T17:00:00.123Z; quantity=4.123456'),'Due: Sep 12, 2026; quantity=4.123456');
 });
 
 test('activity pressure matrix retains the full population after register paging',()=>{
