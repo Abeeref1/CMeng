@@ -315,3 +315,16 @@ test('delay evidence shows dated awards and excludes completed work from current
  assert.equal(chain.programmeContext.delayedActivityCount,1);assert.equal(chain.programmeContext.negativeFloatActivityCount,1);assert.equal(chain.rows[0]!.links.find(row=>row.key==='eot')!.value,4);
  input.determinations[0].determinationDate='2036-09-10';assert.equal(buildDelayEotEvidenceChain(input).rows[0]!.links.find(row=>row.key==='eot')!.value,null);
 });
+
+test('undated risk snapshot counts the complete undated subset before response paging',async()=>{
+ const {pageProjectResponse}=await import('../packages/runtime-api/src/response-paging');
+ const folder=mkdtempSync(join(tmpdir(),'cmeng-risk-population-'));
+ try{
+  const state=loadCertifiedDemoProject('RISK-POPULATION-'+randomUUID()),path=join(folder,'Risk.csv');
+  const csv='Risk ID,Status,Rating,Identified Date\n'+Array.from({length:600},(_,i)=>'R-'+i+','+(i<400?'Open':'Closed')+',High,').join('\n')+'\nR-DATED,Open,Low,2020-01-01\n';
+  writeFileSync(path,csv);state.evidenceDocuments=[{documentId:'RISK-POPULATION',documentType:'risk_register',sourceFilename:'Risk.csv',mediaType:'text/csv',sourceHashSha256:createHash('sha256').update(csv).digest('hex'),storedPath:path,basisState:'active',parserState:'parsed'} as any];state.version++;
+  const report=operationalReporting(state);assert.equal(report.risk.undatedRecordCount,600);assert.deepEqual(report.risk.undatedStatusCounts,{Open:400,Closed:200});
+  const page=pageProjectResponse({data:{report}},'/api/projects/P/management/command-center') as any;
+  assert.equal(page.data.report.risk.sourceRows.length,25);assert.deepEqual(page.data.report.risk.undatedStatusCounts,{Open:400,Closed:200});
+ }finally{rmSync(folder,{recursive:true,force:true});}
+});

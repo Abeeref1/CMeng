@@ -815,6 +815,7 @@ export function buildWindowsAnalysisProjection(
 
       delayEvents:
         overlappingEvents.map(eventRef),
+      delayEventCount: overlappingEvents.length,
       employerEventIds,
       contractorEventIds,
       neutralEventIds,
@@ -879,6 +880,7 @@ export function buildWindowsAnalysisProjection(
       null,
     revisionCount: ordered.length,
     windowCount: windows.length,
+    associatedEventCount: windows.reduce((sum,window)=>sum+window.delayEvents.length,0),
     completeWindowCount:
       windows.filter(
         (window) =>

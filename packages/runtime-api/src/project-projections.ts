@@ -27,7 +27,7 @@ import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
-import {scheduleScopeClassification} from "./schedule-scope-classification";
+import {scheduleScopeClassification,scopeClassificationGroups} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
 import {tenderReadinessForState} from './tender-readiness';
@@ -7456,7 +7456,7 @@ function resolveProjectModuleUncertified(
     const materiallyClassified=classification.coverage.filter(row=>!['wbsId','wbsPath','wbsLevel'].includes(String(row.key))&&row.classified>0);
     return {key,status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',reason:null,dependencies:['adopted programme','source WBS/activity text'],
       data:{projectionKey:'scope_classification',schemaVersion:'1.0',projectId:state.projectId,sourceRevisionId:current.revision.revisionId,dataDateIso:current.revision.model.dataDateIso,
-        ...classification,classificationState:materiallyClassified.length?'source_derived_available':'wbs_only',
+        ...classification,dimensionGroups:scopeClassificationGroups(classification),classificationState:materiallyClassified.length?'source_derived_available':'wbs_only',
         basis:'Classifications are deterministic readings of explicit source WBS/activity text. They support filtering but do not silently become governed location, discipline, package or contractor master data.'}};
   }
   const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);

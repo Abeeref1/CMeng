@@ -41,6 +41,15 @@ export interface ScheduleScopeClassification {
   coverage:ClassificationCoverage[];
 }
 
+/** Group complete classification rows before HTTP response paging. */
+export function scopeClassificationGroups(classification:ScheduleScopeClassification){
+ return Object.fromEntries(classification.coverage.map(({key})=>{
+  const counts=new Map<string,number>();
+  for(const row of classification.rows){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())counts.set(String(value),(counts.get(String(value))??0)+1);}
+  return [key,{valueCount:counts.size,rows:[...counts].map(([value,activityCount])=>({value,activityCount})).sort((a,b)=>b.activityCount-a.activityCount||a.value.localeCompare(b.value))}];
+ }));
+}
+
 const clean=(value:string)=>value.replace(/\s+/g,' ').trim();
 const first=(text:string,patterns:RegExp[])=>{
   for(const pattern of patterns){const match=pattern.exec(text);if(match?.[1])return clean(match[1]);}

@@ -94,6 +94,7 @@ export interface ScheduleWindowResult {
   toDrivingActivityIds?:string[];
 
   delayEvents: WindowEventRef[];
+  delayEventCount?: number;
   employerEventIds: string[];
   contractorEventIds: string[];
   neutralEventIds: string[];
@@ -113,6 +114,8 @@ export interface WindowsAnalysisProjection {
   projectId: string | null;
   revisionCount: number;
   windowCount: number;
+  /** Temporal event-window associations, not distinct events or entitlement. */
+  associatedEventCount?: number;
   completeWindowCount: number;
   partialWindowCount: number;
   unresolvedWindowCount: number;

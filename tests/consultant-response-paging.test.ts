@@ -170,3 +170,17 @@ test('an explicitly paged activity response keeps every row in its advertised pa
  const result:any=pageProjectResponse(body,'/api/projects/P/schedule/modules/activity-analytics');
  assert.equal(result.rows.length,50);assert.equal(result.rows[49].activityId,'A99');
 });
+
+test('scope group counts use every source activity before rows and value groups are paged',async()=>{
+ const {scopeClassificationGroups}=await import('../packages/runtime-api/src/schedule-scope-classification');
+ const rows=Array.from({length:9600},(_,i)=>({activityId:'A'+i,zone:'Zone '+(i%60),discipline:i<9500?'Electrical':'ICT'}));
+ const classification={activityCount:rows.length,rows,coverage:[{key:'zone',label:'Zone',classified:9600,total:9600,coveragePercent:100,basis:'source'},{key:'discipline',label:'Discipline',classified:9600,total:9600,coveragePercent:100,basis:'source'}]} as any;
+ const dimensionGroups=scopeClassificationGroups(classification);
+ const source={key:'scope-classification',data:{projectionKey:'scope_classification',...classification,dimensionGroups}};
+ const page=pageProjectResponse(source,'/api/projects/P/schedule/modules/scope-classification') as any;
+ assert.equal(page.data.rows.length,25);assert.equal(page.data.dimensionGroups.zone.valueCount,60);
+ assert.ok(page.data.dimensionGroups.zone.rows.every((r:any)=>r.activityCount===160));
+ assert.deepEqual(page.data.dimensionGroups.discipline.rows,[{value:'Electrical',activityCount:9500},{value:'ICT',activityCount:100}]);
+ const last=recordDetailPage(source,'/data/dimensionGroups/zone/rows',50);assert.ok(Array.isArray(last.rows));assert.equal(last.rows.length,10);
+ assert.equal(source.data.rows.length,9600);
+});

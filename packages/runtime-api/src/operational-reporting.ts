@@ -66,6 +66,9 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const snapshotRows=new Set(snapshotCandidates);
   const reportingRisks=risks.map(row=>snapshotRows.has(row)&&riskSnapshotDate?{...row,statusAsOfIso:riskSnapshotDate,sourceRefs:[...row.sourceRefs,'user-confirmation:risk-status-snapshot:'+riskBasis.sourceFingerprint]}:row);
   const risk={...scope(reportingRisks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId)),sourceRows:risks};
+  const undatedRiskStates=new Map<string,number>();
+  for(const row of risk.undated){const status=row.sourceStatus||row.status||'Unknown';undatedRiskStates.set(status,(undatedRiskStates.get(status)??0)+1);}
+  const undatedRiskStatusCounts=Object.fromEntries(undatedRiskStates);
   const scoreRows=rows('risk_register').map(row=>{
     const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact')),sourceScore=numberValue(cell(row,'score'));
     const calculatedScore=probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null;
@@ -113,7 +116,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     overdueDays:row.dueIso&&date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(row.dueIso.slice(0,10)))/86400000)):null,
     missingActionFields:[...(!row.owner?['Owner']:[]),...(!row.dueIso?['Due date']:[])]}))
     .sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(b.overdueDays??-1)-(a.overdueDays??-1)||(b.ageDays??-1)-(a.ageDays??-1)||a.recordId.localeCompare(b.recordId));
-  return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,snapshotCandidates,validation:riskValidation},knownCounts:{
+  return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,undatedStatusCounts:undatedRiskStatusCounts,snapshotCandidates,validation:riskValidation},knownCounts:{
     openNcrCount:quality.current.filter(r=>r.status==='open').length,
     overdueNcrCount:quality.current.filter(r=>r.status==='open'&&dueBefore(dateValue(date??''),r.dueIso)).length,
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,

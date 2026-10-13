@@ -337,3 +337,13 @@ test('shared revision comparisons preserve complete windows and never match diff
   assert.notDeepEqual(changedFresh,fresh);
   assert.deepEqual(buildWindowsAnalysisProjection(changed,delay,{...input,precomputedComparisons:comparisons}),changedFresh);
 });
+
+test('window association counts retain the complete events when HTTP paging trims the preview',async()=>{
+ const {pageProjectResponse}=await import('../packages/runtime-api/src/response-paging');
+ const events=Array.from({length:240},(_,i)=>({eventId:'E'+i,title:'Event '+i,description:'Source event',startIso:'2020-01-01',endIso:'2035-01-01',responsibility:'unknown',category:'other',linkedActivityIds:[],sourceRefs:[],diagnostics:[]}));
+ const projection=buildWindowsAnalysisProjection(revisions,{projectId:'WINDOWS',evidenceRevisionId:'events',events,claims:[],notices:[],noticeRequirements:[],diagnostics:[]} as any,{generatedAt:'2026-09-21T00:00:00Z',producerVersion:'population-test'});
+ assert.ok(projection.windows.length>1);assert.ok(projection.windows.every(w=>w.delayEventCount===240));
+ assert.equal(projection.associatedEventCount,240*projection.windows.length);
+ const page=pageProjectResponse({key:'windows-analysis',data:projection},'/api/projects/WINDOWS/schedule/modules/windows-analysis') as any;
+ assert.equal(page.data.windows[0].delayEvents.length,25);assert.equal(page.data.windows[0].delayEventCount,240);assert.equal(page.data.associatedEventCount,projection.associatedEventCount);
+});
