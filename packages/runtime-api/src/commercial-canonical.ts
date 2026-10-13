@@ -120,9 +120,27 @@ export interface CommercialRetentionRecord {
   amount:CommercialMoney;
   receipt:SourceReceipt;
 }
+export interface CommercialRegisterCohort<T> {
+  rows:T[];
+  summary:{recordCount:number;approvedByDataDateCount?:number;recordedPaidAmountCount?:number;reconciledBalanceCount?:number};
+}
+export interface CommercialRegisterScope<T> {
+  asOf:CommercialRegisterCohort<T>;
+  future:CommercialRegisterCohort<T>;
+  undated:CommercialRegisterCohort<T>;
+}
+/** Partition source rows once, before display paging; each cohort retains its
+ * own exact records and scalar counts. This does not change money authority. */
+export function commercialRegisterScope<T>(rows:readonly T[],dataDateIso:string|null,date:(row:T)=>string|null,summarize?:(rows:T[],scope:'as_of'|'future'|'undated')=>Record<string,number>):CommercialRegisterScope<T> {
+  const grouped:{as_of:T[];future:T[];undated:T[]}={as_of:[],future:[],undated:[]};
+  for(const row of rows)grouped[reportingScope(date(row),dataDateIso)].push(row);
+  const cohort=(scope:'as_of'|'future'|'undated')=>({rows:grouped[scope],summary:{recordCount:grouped[scope].length,...summarize?.(grouped[scope],scope)}});
+  return {asOf:cohort('as_of'),future:cohort('future'),undated:cohort('undated')};
+}
 export interface CanonicalCommercialModel {
   schemaVersion:'1.0'; producerVersion:'commercial-canonical-v1'; dataDateIso:string|null;
   costMetrics:CostMetricRecord[];
+  registerScopes?:{payments:CommercialRegisterScope<PaymentStageRecord>;variations:CommercialRegisterScope<CommercialVariation>;costMetrics:CommercialRegisterScope<CostMetricRecord>};
   payments:PaymentStageRecord[];
   advancePayments?:PaymentStageRecord[];
   variations:CommercialVariation[];
@@ -467,6 +485,11 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const variationPopulation=partitionAsOf(variations.filter(r=>/approved/i.test(r.status)),{...populationOptions,name:'Variation approvals by Data Date',entity:'variation',dateBasis:'approvalDate',id:r=>r.variationId,date:r=>r.approvalDate}).population;
  const retentionPopulation=partitionAsOf(payments,{...populationOptions,name:'Retention deductions by certificate period',entity:'retention_deduction',dateBasis:'periodEnd, not cash release',id:r=>r.paymentId,date:r=>r.periodEnd}).population;
  const populations={payments:paymentPopulation,variations:variationPopulation,retentionDeductions:retentionPopulation};
- const model:CanonicalCommercialModel={populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,bonds,obligations,retentions,costPosition,temporalPosition,diagnostics};
+ const registerScopes={
+   payments:commercialRegisterScope(payments,dataDateIso,r=>r.periodEnd,rows=>({recordedPaidAmountCount:rows.filter(r=>r.amounts.paidAmount.value!==null).length,reconciledBalanceCount:rows.filter(r=>r.calculatedOutstandingAmount.state==='official').length})),
+   variations:commercialRegisterScope(variations,dataDateIso,r=>r.approvalDate,(rows,scope)=>({approvedByDataDateCount:scope==='as_of'?rows.filter(r=>/^approved$/i.test(r.status)).length:0})),
+   costMetrics:commercialRegisterScope(costMetrics,dataDateIso,r=>r.amount.asOf),
+ };
+ const model:CanonicalCommercialModel={registerScopes,populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,bonds,obligations,retentions,costPosition,temporalPosition,diagnostics};
  cache.set(state,{version:state.version,value:model});return model;
 }
