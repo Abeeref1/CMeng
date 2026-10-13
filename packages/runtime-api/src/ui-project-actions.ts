@@ -72,12 +72,13 @@ function programmePurposeOptions(current='update'){
 function actionResolutionHtml(a){
  const t=a.target||{},r=a.resolution||{};
  if(t.type==='module')return '<div class="action-resolution"><button class="btn" data-action-module="'+escapeHtml(t.moduleKey)+'">'+escapeHtml(t.label||'Open supporting record')+'</button></div>';
- if(['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value'].includes(t.kind??'')){
+ if(['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates'].includes(t.kind??'')){
   const choices=(t.reviewOptions||[]).map(x=>'<option value="'+escapeHtml(x.value)+'"'+(x.value===t.reviewChoice?' selected':'')+'>'+escapeHtml(x.label)+'</option>').join('');
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction)+'</p><label>Your decision<select class="review-choice">'+choices+'</select></label>'+
    (t.kind==='review-risk'?'<label>Approved score-to-rating matrix (only if selecting the matrix option)<textarea class="review-matrix" placeholder="One score per line, e.g. 0.4=High">'+escapeHtml(t.reviewMatrixText||'')+'</textarea></label>':'')+
    (t.kind==='review-risk-snapshot'?'<label>Register status as-of date<input type="date" class="review-as-of" value="'+escapeHtml((t.reviewDateIso||'').slice(0,10))+'"></label>':'')+
    (t.kind==='review-eot-overlap'?'<label>Additional awarded days<input type="number" min="0" step="any" class="review-additional-days" value="'+escapeHtml(t.reviewAdditionalDays??'')+'"></label><label>Supporting decision reference<input class="review-reference" value="'+escapeHtml(t.reviewReference||'')+'"></label>':'')+
+   (t.kind==='review-hse-rates'?'<div class="action-resolution-grid">'+[['trir','Reviewed TRIR'],['trirBasisHours','TRIR basis in exposure hours'],['ltifr','Reviewed LTIFR'],['ltifrBasisHours','LTIFR basis in exposure hours']].map(([key,label])=>'<label>'+label+'<input type="number" min="0" step="any" class="review-hse-'+key+'" value="'+escapeHtml(t.reviewedRates?.[key]??'')+'"></label>').join('')+'</div><label>Supporting HSE review reference<input class="review-reference" value="'+escapeHtml(t.reviewReference||'')+'"></label><p>Enter rates only when selecting reviewed rates. Leave both rate and basis blank where unavailable.</p>':'')+
    '<button class="btn primary" data-resolve-review="'+escapeHtml(a.id)+'">Record decision</button><p class="action-inline-message" role="status"></p></div>';
  }
  if(!r.requiresUserAction&&!(a.category==='follow_up'&&t.type==='upload'))return '';
@@ -138,7 +139,7 @@ async function resolveReviewDecision(id){
  if(!choice){actionMessage(id,'Select the applicable decision.');return;}
  setActionBusy(id,true);actionMessage(id,'Recording the decision…');
  try{
-  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,sourceFingerprint:a.reviewFingerprint,choice,matrixText,asOfIso:node?.querySelector('.review-as-of')?.value,additionalDays:node?.querySelector('.review-additional-days')?.value,reference:node?.querySelector('.review-reference')?.value})});
+  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,sourceFingerprint:a.reviewFingerprint,choice,matrixText,asOfIso:node?.querySelector('.review-as-of')?.value,additionalDays:node?.querySelector('.review-additional-days')?.value,reference:node?.querySelector('.review-reference')?.value,reviewedRates:Object.fromEntries(['trir','trirBasisHours','ltifr','ltifrBasisHours'].map(key=>[key,node?.querySelector('.review-hse-'+key)?.value]))})});
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }

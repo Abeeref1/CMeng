@@ -5,7 +5,7 @@ import type {StoredEvidenceDocument,ProjectRuntimeState} from './project-state-t
 import {weeklyResourceCapacityEvidence} from './canonical-resource-evidence';
 
 export interface HseReportSummary {
-  producerVersion:'hse-summary-v1'|'hse-summary-v2'|'hse-summary-v3'; sourceHashSha256:string; periodEndIso:string|null;
+  producerVersion:'hse-summary-v1'|'hse-summary-v2'|'hse-summary-v3'|'hse-summary-v4'; sourceHashSha256:string; periodEndIso:string|null;
   metrics:Record<string,number|null>; sourceRefs:string[]; diagnostics:string[]; periods?:HseReportSummary[]; sourceTableRead?:boolean;
   metricBasis?:'cumulative'|'reported_period'; monthlyMetrics?:Record<string,number|null>; rateBasisHours?:{ltifr:number;trir:number};
 }
@@ -43,7 +43,7 @@ export function parseHseStatisticsTable(text:string,hash:string,sourceRef:string
 }
 export function parseHseSummary(text:string,hash:string,sourceRef:string):HseReportSummary {
   const metrics:Record<string,number|null>={};const diagnostics:string[]=[];
-  const patterns:Record<string,string>={manHours:'(?:total\\s+)?man[ -]?hours',lostTimeInjuries:'lost[ -]time\\s+injur(?:y|ies)',medicalTreatmentCases:'medical\\s+treatment\\s+cases',firstAidCases:'first\\s+aid\\s+cases',nearMisses:'near\\s+misses',ltifr:'LTIFR',trir:'TRIR'};
+  const patterns:Record<string,string>={manHours:'(?:total\\s+)?man[ -]?hours',lostTimeInjuries:'lost[ -]time\\s+injur(?:y|ies)',medicalTreatmentCases:'medical\\s+treatment\\s+cases',restrictedWorkCases:'restricted[ -]work\\s+cases',firstAidCases:'first\\s+aid\\s+cases',nearMisses:'near\\s+misses',ltifr:'LTIFR',trir:'TRIR'};
   for(const [key,pattern] of Object.entries(patterns)){
     const values=[...text.matchAll(new RegExp('\\b'+pattern+'\\s*[:|]?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\b','gi'))].map(m=>Number(m[1]!.replaceAll(',','')));
     const unique=[...new Set(values)];metrics[key]=unique.length===1?unique[0]!:null;
@@ -59,13 +59,13 @@ export async function refreshHseSummary(document:StoredEvidenceDocument):Promise
   if(!['active','additive','candidate'].includes(document.basisState))return false;
   const tabular=/csv|spreadsheetml/.test(document.mediaType);
   if(!tabular&&document.documentType!=='hse_report')return false;
-  if(document.hseSummary?.producerVersion==='hse-summary-v3'&&document.hseSummary.sourceHashSha256===document.sourceHashSha256)return false;
+  if(document.hseSummary?.producerVersion==='hse-summary-v4'&&document.hseSummary.sourceHashSha256===document.sourceHashSha256)return false;
   const bytes=readFileSync(document.storedPath);
   if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('HSE_SOURCE_HASH_MISMATCH');
   if(tabular){
     const tables=sourceTables([document],[]).filter(table=>table.document.documentType==='hse_report');
     if(!tables.length)return false;
-    const names:Record<string,string>={'man hours':'manHours','lost time injuries':'lostTimeInjuries','medical treatment cases':'medicalTreatmentCases','first aid cases':'firstAidCases','near misses':'nearMisses',ltifr:'ltifr',trir:'trir'};
+    const names:Record<string,string>={'man hours':'manHours','lost time injuries':'lostTimeInjuries','medical treatment cases':'medicalTreatmentCases','restricted work cases':'restrictedWorkCases','first aid cases':'firstAidCases','near misses':'nearMisses',ltifr:'ltifr',trir:'trir'};
     const periods=new Map<string,{seen:Map<string,Set<number>>;sourceRefs:string[]}>();
     for(const table of tables)for(const row of table.rows){
       const date=dateValue(cell(row,'report date','period end','as of'))??'';
@@ -81,12 +81,12 @@ export async function refreshHseSummary(document:StoredEvidenceDocument):Promise
       return {producerVersion:'hse-summary-v2',sourceHashSha256:document.sourceHashSha256,periodEndIso:date||null,metrics,sourceRefs:[...new Set(period.sourceRefs)],sourceTableRead:tables.length>0,diagnostics:date?diagnostics:[...diagnostics,'HSE_REPORT_PERIOD_UNRESOLVED']};
     });
     const latest=summaries.sort((a,b)=>(b.periodEndIso??'').localeCompare(a.periodEndIso??''))[0];
-    document.hseSummary={producerVersion:'hse-summary-v2',sourceHashSha256:document.sourceHashSha256,periodEndIso:latest?.periodEndIso??null,metrics:latest?.metrics??{},sourceRefs:latest?.sourceRefs??[],diagnostics:latest?.diagnostics??[],periods:summaries,sourceTableRead:tables.length>0};
+    document.hseSummary={producerVersion:'hse-summary-v4',sourceHashSha256:document.sourceHashSha256,periodEndIso:latest?.periodEndIso??null,metrics:latest?.metrics??{},sourceRefs:latest?.sourceRefs??[],diagnostics:latest?.diagnostics??[],periods:summaries,sourceTableRead:tables.length>0};
     return true;
   }
   if(!/pdf/i.test(document.mediaType))return false;
   const parser=new (await import('pdf-parse')).PDFParse({data:bytes as any});
-  try{const parsed=await parser.getText();const ref='evidence-document:'+document.documentId+':native-pdf-summary';document.hseSummary={...(parseHseStatisticsTable(parsed.text,document.sourceHashSha256,ref)??parseHseSummary(parsed.text,document.sourceHashSha256,ref)),producerVersion:'hse-summary-v3',sourceTableRead:parsed.pages.every(p=>p.text.trim().length>0)};return true;}finally{await parser.destroy();}
+  try{const parsed=await parser.getText();const ref='evidence-document:'+document.documentId+':native-pdf-summary';document.hseSummary={...(parseHseStatisticsTable(parsed.text,document.sourceHashSha256,ref)??parseHseSummary(parsed.text,document.sourceHashSha256,ref)),producerVersion:'hse-summary-v4',sourceTableRead:parsed.pages.every(p=>p.text.trim().length>0)};return true;}finally{await parser.destroy();}
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ReturnType<typeof calculateHsePosition>}>();
 export function hseReportPosition(state:ProjectRuntimeState,dataDateIso:string|null){
@@ -115,20 +115,48 @@ function calculateHsePosition(state:ProjectRuntimeState,dataDateIso:string|null)
   const reportedRates={trir:metrics.trir??null,ltifr:metrics.ltifr??null};
   const rateReason=sourceTableUnread?'Rate unconfirmed, source table unread':!countsConfirmed?'Rate unconfirmed, incident counts or exposure hours unresolved':null;
   if(!countsConfirmed){metrics.trir=null;metrics.ltifr=null;}
-  const rates=[200000,1000000].map(basisHours=>({basisHours,fromReportedCases:countsConfirmed&&hours&&recordable!==null?recordable/hours*basisHours:null}));
+  const completeRecordableCounts=countsConfirmed&&restricted!==null;
+  const rates=[200000,1000000].map(basisHours=>({basisHours,comparisonBasis:completeRecordableCounts?'All reported recordable case types':'Minimum from supplied LTI and medical counts; restricted-work cases unresolved',fromReportedCases:countsConfirmed&&hours&&recordable!==null?recordable/hours*basisHours:null}));
   const supplied=metrics.trir??null;
-  const unexplained=supplied!==null&&rates.every(r=>r.fromReportedCases!==null&&Math.abs(Number(r.fromReportedCases.toFixed(2))-supplied)>0.005);
+  const calculatedTrir=completeRecordableCounts&&hours&&latest?.rateBasisHours?recordable!/hours*latest.rateBasisHours.trir:null;
+  const calculatedLtifr=countsConfirmed&&hours&&latest?.rateBasisHours?lti!/hours*latest.rateBasisHours.ltifr:null;
+  const differs=(reported:number|null,calculated:number|null)=>reported!==null&&calculated!==null&&Math.abs(Number(calculated.toFixed(2))-reported)>0.005;
+  const unexplained=latest?.rateBasisHours?differs(reportedRates.trir,calculatedTrir):supplied!==null&&rates.every(r=>differs(supplied,r.fromReportedCases));
+  const ltifrUnexplained=differs(reportedRates.ltifr,calculatedLtifr);
+  const sourceFingerprint=createHash('sha256').update(JSON.stringify({cutoff,reports,documents:state.evidenceDocuments.filter(d=>d.hseSummary||d.documentType==='hse_report').map(d=>[d.documentId,d.sourceHashSha256,d.basisState])})).digest('hex');
+  const retained=state.controls.reviewDecisions?.['hse-rate-basis'];
+  const decision=retained?.sourceFingerprint===sourceFingerprint&&retained.reference?.trim()&&['keep_reported','confirm_rates'].includes(retained.choice)?retained:null;
+  const reportingRates=decision?.choice==='confirm_rates'&&decision.reviewedRates?decision.reviewedRates:{...reportedRates,trirBasisHours:latest?.rateBasisHours?.trir??null,ltifrBasisHours:latest?.rateBasisHours?.ltifr??null};
+  const review={sourceFingerprint,decision,required:!!latest&&(reportedRates.trir!==null||reportedRates.ltifr!==null)&&(unexplained||ltifrUnexplained||!latest.rateBasisHours||!completeRecordableCounts),
+    basis:decision?.choice==='confirm_rates'?'User-confirmed rates; original source and calculated comparisons retained':decision?'User chose to retain reported rates; calculation qualifications retained':'Unreviewed reported rates'};
   const weekly=weeklyResourceCapacityEvidence(state.evidenceDocuments,dataDateIso);
   const labor=weekly.points.filter(p=>p.resourceClass==='labor'&&p.unit==='labor_hour'&&p.weekStartIso&&cutoff&&p.weekStartIso<=cutoff&&p.actualApprovedUsage!==null);
   const approvedLaborHours=labor.length?labor.reduce((n,p)=>n+p.actualApprovedUsage!,0):null;
   return {state:conflicting?'conflicted':latest?'source_report':'not_established',periodEndIso:latest?.periodEndIso??null,metrics,sourceRefs:latest?.sourceRefs??[],
     scope:latest?.metricBasis==='cumulative'?'Cumulative exposure and incidents through the reported month; monthly rows retained separately.':'Reported period totals; incident closure status and cumulative/monthly exposure basis are not inferred.',
+    review,reportingRates,
+    reportedPeriodRows:eligible.map((r):{periodEndIso:string|null;basis:string;sourceRefs:string[];[key:string]:number|string|string[]|null}=>({periodEndIso:r.periodEndIso,basis:r.metricBasis==='cumulative'?'Cumulative through period end':'Reported period totals; cumulative/monthly basis unconfirmed',...r.metrics,sourceRefs:r.sourceRefs})),
+    monthlyRows:eligible.filter(r=>r.monthlyMetrics).map(r=>({periodEndIso:r.periodEndIso,...r.monthlyMetrics,sourceRefs:r.sourceRefs})),
     monthlyMetrics:latest?.monthlyMetrics??null,periods:eligible,metricBasis:latest?.metricBasis??'reported_period',
-    rates:{state:countsConfirmed?'counts_available':'unresolved',reason:rateReason,reportedRates,recordableCasesFromLtiAndMedical:countsConfirmed?recordable:null,restrictedWorkCases:restricted,suppliedTrir:supplied,comparisons:rates,basisEstablished:!!latest?.rateBasisHours,sourceBasisHours:latest?.rateBasisHours??null,
-      calculatedTrir:countsConfirmed&&hours&&latest?.rateBasisHours?recordable!/hours*latest.rateBasisHours.trir:null,
-      calculatedLtifr:countsConfirmed&&hours&&latest?.rateBasisHours?lti!/hours*latest.rateBasisHours.ltifr:null},
+    rates:{recordablePopulationComplete:completeRecordableCounts,state:countsConfirmed?'counts_available':'unresolved',reason:rateReason,reportedRates,recordableCasesFromLtiAndMedical:countsConfirmed?recordable:null,restrictedWorkCases:restricted,suppliedTrir:supplied,comparisons:rates,basisEstablished:!!latest?.rateBasisHours,sourceBasisHours:latest?.rateBasisHours??null,
+      calculatedTrir,calculatedLtifr},
     laborComparison:{reportedManHours:hours,approvedLaborHoursToDataDate:approvedLaborHours,resourceWeekCount:labor.length,ratio:hours!==null&&approvedLaborHours?hours/approvedLaborHours:null,basis:'Report exposure and approved labor usage have different stated populations; reconcile coverage and period before asserting a same-basis contradiction.'},
     futureReportCount:reports.filter(r=>cutoff&&r.periodEndIso&&r.periodEndIso>cutoff).length,
-    diagnostics:[...(latest?.diagnostics??[]),...(conflicting?['HSE_REPORT_SAME_PERIOD_CONFLICT']:[]),...(unexplained?['HSE_TRIR_RECONCILIATION_REQUIRED']:[])],
+    diagnostics:[...(latest?.diagnostics??[]),...(conflicting?['HSE_REPORT_SAME_PERIOD_CONFLICT']:[]),...(unexplained?['HSE_TRIR_RECONCILIATION_REQUIRED']:[]),...(ltifrUnexplained?['HSE_LTIFR_RECONCILIATION_REQUIRED']:[]),...(countsConfirmed&&!completeRecordableCounts?['HSE_RESTRICTED_WORK_CASES_UNRESOLVED']:[])],
   };
+}
+
+
+/** Validate a reviewed reporting treatment without writing over source evidence. */
+export function hseRateDecisionInput(input:{choice:string;reference?:unknown;reviewedRates?:unknown}){
+ const reference=String(input.reference??'').trim();
+ if(!reference)throw new Error('Enter the supporting HSE report or review reference.');
+ if(input.choice==='keep_reported')return {reference};
+ if(input.choice!=='confirm_rates')throw new Error('Select an available HSE reporting treatment.');
+ const raw=input.reviewedRates as Record<string,unknown>|null;
+ const read=(key:string)=>{const v=raw?.[key];if(v===null||v===undefined||String(v).trim()==='')return null;if(typeof v!=='number'&&typeof v!=='string')throw new Error('Enter a numeric rate or exposure basis.');const n=Number(v);if(!Number.isFinite(n)||n<0)throw new Error('Rates and exposure bases must be finite non-negative numbers.');return n;};
+ const trir=read('trir'),ltifr=read('ltifr'),trirBasisHours=read('trirBasisHours'),ltifrBasisHours=read('ltifrBasisHours');
+ if(trir===null&&ltifr===null)throw new Error('Enter at least one reviewed rate. Leave unavailable rates blank.');
+ for(const [value,basis] of [[trir,trirBasisHours],[ltifr,ltifrBasisHours]] as const)if(value!==null&&(basis===null||basis<=0)||value===null&&basis!==null)throw new Error('Provide a positive exposure-hours basis for each entered rate and leave both fields blank for an unavailable rate.');
+ return {reference,reviewedRates:{trir,ltifr,trirBasisHours,ltifrBasisHours}};
 }

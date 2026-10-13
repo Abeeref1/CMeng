@@ -1,3 +1,4 @@
+import {hseReportPosition} from './hse-report-evidence';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
@@ -29,7 +30,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -336,6 +337,17 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+c.amount+' · '+c.sourceRefs.join('; ')),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the value against the cited contract and amendment, then confirm the applicable value. Original source candidates are retained.',completionRule:'The selected amount and currency become the shared reporting value for these contract sources.'},
       target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??null,reviewOptions:valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')}))}};
+    (saved?information:actions).push(item);
+  }
+
+  const hse=hseReportPosition(state,projectDataDate(state));
+  if(hse.review.required||hse.review.decision){
+    const saved=hse.review.decision;
+    const item:ProjectAction={id:'matter:hse-rate-basis',category:saved?'information':'confirmation',title:'Review HSE reporting rates',owner:'HSE Manager',recordCount:hse.periods.length,
+      reason:'Reported rates, incident counts and exposure basis need reconciliation. Original report values remain visible.',reviewFingerprint:hse.review.sourceFingerprint,reviewSourceRefs:hse.sourceRefs,
+      evidenceSummary:['Period ending '+hse.periodEndIso,'Reported TRIR '+(hse.rates.reportedRates.trir??'not supplied')+'; LTIFR '+(hse.rates.reportedRates.ltifr??'not supplied'),...hse.rates.comparisons.map(r=>'TRIR comparison per '+r.basisHours+' hours: '+(r.fromReportedCases??'not calculable')+' — '+r.comparisonBasis)],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the cited HSE report and case/exposure population. Keep its stated rates or enter reviewed rates with their exposure-hours bases and a supporting reference. Missing rates stay unknown.',completionRule:'The reporting treatment is saved for these HSE sources and reporting date; source changes require review again.'},
+      target:{type:'inline',kind:'review-hse-rates',label:'Record HSE rate review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewedRates:saved?.reviewedRates??hse.reportingRates,reviewOptions:[{value:'keep_reported',label:'Keep the reported rates with their qualifications'},{value:'confirm_rates',label:'Enter reviewed reporting rates and bases'}]}};
     (saved?information:actions).push(item);
   }
 

@@ -247,3 +247,28 @@ test('EOT review validates additional days and reference and retains a manual co
  assert.equal((await request({additionalDays:12,reference:'Revised Engineer decision'})).status,200);
  workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-eot-overlap');assert.equal(action.target.reviewAdditionalDays,12);
 });
+
+test('HSE rate review is editable after gateway restart and preserves reported values',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'hse-review-action-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await post('/api/projects',{projectId:'HSE-REVIEW'})).status,201);
+ assert.equal((await fetch(base+'/api/projects/HSE-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Update.xer','x-upload-intent':'replace_current_basis'},body:xer('2031-08-31','Current work')})).status,201);
+ assert.equal((await fetch(base+'/api/projects/HSE-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'HSE Statistics.csv'},body:'Report Date,Man Hours,LTI,MTC,Restricted Work Cases,First Aid Cases,Near Misses,TRIR,LTIFR\n2031-08-31,10250000,1,5,0,21,74,0.29,0.1'})).status,201);
+ const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/HSE-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
+ let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-hse-rates');assert.ok(action);
+ const request=(values:any)=>post('/api/projects/HSE-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_rates',reference:'HSE-CHECK-1',...values});
+ assert.equal((await request({reviewedRates:{trir:0.59}})).status,409);
+ assert.equal((await request({sourceFingerprint:'stale'})).status,409);
+ assert.equal((await request({expectedVersion:workflow.projectVersion-1})).status,409);
+ assert.equal((await request({reviewedRates:{trir:0.59,trirBasisHours:1000000,ltifr:0.1,ltifrBasisHours:1000000}})).status,200);
+ let page=await get('/delivery/modules/delivery-hse');assert.equal(page.data.reportedHse.reportingRates.trir,0.59);assert.equal(page.data.reportedHse.rates.reportedRates.trir,0.29);
+ assert.equal(page.data.reportedHse.reportedPeriodRows[0].firstAidCases,21);assert.equal(page.data.reportedHse.reportedPeriodRows[0].nearMisses,74);
+ await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
+ workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-hse-rates');assert.ok(action);assert.equal(action.target.reviewedRates.trir,0.59);assert.equal(action.target.reviewReference,'HSE-CHECK-1');
+ const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/review-hse-trir/);assert.match(html,/value="0.59"/);assert.match(html,/HSE-CHECK-1/);
+ assert.equal((await request({choice:'keep_reported',reference:'HSE-CHECK-2'})).status,200);
+ page=await get('/delivery/modules/delivery-hse');assert.equal(page.data.reportedHse.reportingRates.trir,0.29);assert.equal(page.data.reportedHse.rates.reportedRates.trir,0.29);
+ const management=await get('/management/command-center');assert.equal(management.data.sourceInterpretation.hse.reportingRates.trir,0.29);assert.equal(management.data.sourceInterpretation.hse.review.decision.reference,'HSE-CHECK-2');
+});

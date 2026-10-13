@@ -29,6 +29,15 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String,SCREEN_STATUS_LABELS:STATUS_LABELS,currentModuleResult:null};
 const briefFunctions=functions(['aggregateCount','experienceRecordCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('HSE source-rate reconciliation renders the original values, calculation qualification and review route',()=>{
+ const nodes:Record<string,{innerHTML:string;textContent:string}>={};
+ const h={review:{required:true,basis:'User-confirmed rates; original source retained',decision:{reference:'HSE-CHECK-1'}},rates:{reportedRates:{trir:0.29,ltifr:0.1},calculatedTrir:null,calculatedLtifr:null,comparisons:[{basisHours:1000000,fromReportedCases:6/10.25,comparisonBasis:'Minimum; restricted-work cases unresolved'}]}};
+ const panel=runInNewContext(deliveryScript()+`;const panel=renderHseRateReview(h);refreshDeliveryTable('hseRates');refreshDeliveryTable('hseRateComparisons');panel`,{...common,h,el:(id:string)=>nodes[id]??=( {innerHTML:'',textContent:''}),document:{querySelectorAll:()=>[]}});
+ assert.match(panel,/openProjectActions\(\)/);assert.match(panel,/HSE-CHECK-1/);
+ assert.match(nodes.hseRatesBody!.innerHTML,/>0\.29</);assert.match(nodes.hseRatesBody!.innerHTML,/>0\.1</);
+ assert.match(nodes.hseRatesBody!.innerHTML,/Calculated on the source basis/);assert.match(nodes.hseRatesBody!.innerHTML,/Not established/);
+ assert.match(nodes.hseRateComparisonsBody!.innerHTML,/restricted-work cases unresolved/);
+});
 test('S-30 milestone view separates overdue open dates, baseline-late and completed historical milestones',()=>{
   assert.match(script,/Late milestone commitments — active versus history/);
   assert.match(script,/openOverdueMilestones=.*status!=='completed'/);

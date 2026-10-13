@@ -414,10 +414,11 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
   if(/hse|injur|ltifr|trir/.test(q)){
     const h=data('command-center')?.sourceInterpretation?.hse;
     add('command-center.sourceInterpretation.hse.metrics.lostTimeInjuries','Reported lost-time injuries · period total, not open incidents',h?.metrics?.lostTimeInjuries,{authority:'source',dataDateIso:h?.periodEndIso});
-    add('command-center.sourceInterpretation.hse.metrics.trir','Source TRIR · method reconciliation required',h?.metrics?.trir,{authority:'source',dataDateIso:h?.periodEndIso});
+    add('command-center.sourceInterpretation.hse.rates.reportedRates.trir','Original reported TRIR · source qualifications retained',h?.rates?.reportedRates?.trir,{authority:'source',dataDateIso:h?.periodEndIso});
+    for(const rate of ['trir','ltifr'])add('command-center.sourceInterpretation.hse.reportingRates.'+rate,'Reporting '+rate.toUpperCase()+' · '+(h?.review?.basis??'source')+' · exposure basis '+(h?.reportingRates?.[rate+'BasisHours']??'not supplied')+' hours',h?.reportingRates?.[rate],{authority:h?.review?.decision?.choice==='confirm_rates'?'user_confirmed':'source',dataDateIso:h?.periodEndIso});
     add('command-center.sourceInterpretation.hse.metrics.manHours','Reported exposure hours · period and coverage require reconciliation',h?.metrics?.manHours,{authority:'source',dataDateIso:h?.periodEndIso});
-    add('command-center.sourceInterpretation.hse.rates.recordableCasesFromLtiAndMedical','Reported LTI plus medical-treatment cases',h?.rates?.recordableCasesFromLtiAndMedical,{authority:'calculated'});
-    for(const [i,r] of (h?.rates?.comparisons??[]).entries())add('command-center.sourceInterpretation.hse.rates.comparisons['+i+'].fromReportedCases','Rate from those cases per '+r.basisHours+' hours · definition not assumed',r.fromReportedCases,{authority:'calculated'});
+    add('command-center.sourceInterpretation.hse.rates.recordableCasesFromLtiAndMedical','Supplied recordable cases · '+(h?.rates?.recordablePopulationComplete?'all reported case types':'minimum; restricted-work cases unresolved'),h?.rates?.recordableCasesFromLtiAndMedical,{authority:'calculated'});
+    for(const [i,r] of (h?.rates?.comparisons??[]).entries())add('command-center.sourceInterpretation.hse.rates.comparisons['+i+'].fromReportedCases','Rate from supplied cases per '+r.basisHours+' hours · '+(r.comparisonBasis??'definition not assumed'),r.fromReportedCases,{authority:'calculated'});
     add('command-center.sourceInterpretation.hse.laborComparison.approvedLaborHoursToDataDate','Approved labor hours through DD · different source population',h?.laborComparison?.approvedLaborHoursToDataDate,{authority:'calculated'});
   }
   return facts;
