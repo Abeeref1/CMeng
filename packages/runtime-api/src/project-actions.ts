@@ -1,3 +1,4 @@
+import {programmeTaskReviewBasis} from './programme-task-review';
 import {handoverSourceComparison} from './handover-source-review';
 import {locationReviewBasis} from './location-review';
 import {scheduleScopeClassification} from './schedule-scope-classification';
@@ -410,6 +411,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       resolution:{kind:'choose',requiresUserAction:required,instruction:'Open Location / Floor / Zone for all WBS and asset candidates. Enter one WBS ID per line to use its source name, or WBS ID | exact candidate location to map an asset location. The nearest selected WBS ancestor supplies otherwise-unclassified activities; explicit source locations remain unchanged.',completionRule:'This review is saved against the programme and asset source versions and can be edited here.'},
       target:{type:'inline',kind:'review-locations',label:'Save location review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewLocationsText:(saved?.locationAssignments??[]).map(a=>a.wbsId+' | '+a.location).join('\n'),
         reviewOptions:[{value:'confirm_wbs_locations',label:'Use the entered WBS-to-location mappings'},{value:'keep_source_locations',label:'Keep explicit source locations only'}]}};
+    (required?actions:information).push(item);
+  }
+
+  for(const kind of ['testing','handover'] as const){
+    const scope=programmeTaskReviewBasis(state,kind);if(!scope)continue;
+    const saved=scope.decision,required=!saved&&(scope.nameMatches.length>0||scope.additionalCandidates.length>0);
+    const item:ProjectAction={id:'matter:programme-tasks-'+kind,category:required?'confirmation':'information',title:'Review programme '+(kind==='testing'?'testing and commissioning':'handover')+' task scope',owner:'Construction Manager',recordCount:scope.rows.length,
+      reason:scope.basis,reviewFingerprint:scope.sourceFingerprint,reviewSourceRefs:scope.sourceRefs,
+      evidenceSummary:['Programme: '+scope.sourceFilename,scope.rows.length+' selected tasks; '+scope.additionalCandidates.length+' additional validation name candidates',scope.qualification],
+      resolution:{kind:'choose',requiresUserAction:required,instruction:'Review the programme activity IDs below. Add or remove exact IDs to define this reporting scope, including relevant Validation tasks. Open Activity Review for the complete source register. This changes reporting scope only and preserves source activities, progress and formal acceptance.',completionRule:'The editable scope is saved for this programme source and reporting date. A new programme requires review again.'},
+      target:{type:'inline',kind:'review-programme-tasks',label:'Save task scope',reviewChoice:saved?.choice??'selected_tasks',reviewActivityIds:scope.rows.map(a=>a.activityId),reviewReference:saved?.reference??null,
+        reviewOptions:[{value:'selected_tasks',label:'Use these programme task IDs'},{value:'no_tasks',label:'Confirm no programme tasks for this scope'}]}};
     (required?actions:information).push(item);
   }
 

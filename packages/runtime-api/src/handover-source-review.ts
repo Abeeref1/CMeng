@@ -4,7 +4,8 @@ import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {registerDate} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-export const programmeTaskPatterns={testing:/testing|commissioning|\btest\b/i,handover:/handover|taking[- ]over|section(?:al)? completion|practical completion/i};
+import {programmeTaskPatterns,programmeTaskReviewBasis,type ProgrammeTaskKind} from './programme-task-review';
+export {programmeTaskPatterns} from './programme-task-review';
 const sourceFlag=(value:unknown)=>{
  const text=String(value??'').trim().toLowerCase();
  return /^(yes|y|true|1|installed|commissioned|complete|completed)$/.test(text)?true:/^(no|n|false|0|not installed|not commissioned|incomplete)$/.test(text)?false:null;
@@ -15,15 +16,14 @@ function buildComparison(state:ProjectRuntimeState){
  const source=deliveryRecords(state).records.filter(r=>r.kind==='asset'&&r.sourceActive&&deliveryCurrentRecord(r));
  if(!source.length)return null;
  const schedule=projectControlSchedule(state),model=schedule?.revision.model,cutoff=model?.dataDateIso?.slice(0,10)??null;
- const execution=(model?.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType));
  const taskIds=new Set<string>();
- const programme=Object.entries(programmeTaskPatterns).map(([key,pattern])=>{
-  const rows=execution.filter(a=>pattern.test(a.name??''));rows.forEach(a=>taskIds.add(a.activityId));
+ const programme=Object.keys(programmeTaskPatterns).map(key=>{
+  const scope=programmeTaskReviewBasis(state,key as ProgrammeTaskKind),rows=scope?.rows??[];rows.forEach(a=>taskIds.add(a.activityId));
   const completed=rows.filter(a=>a.status==='completed').length,unknown=rows.filter(a=>a.status==='unknown').length;
   const futureCompletionDates=rows.filter(a=>a.status==='completed'&&a.actualFinishIso&&cutoff&&a.actualFinishIso.slice(0,10)>cutoff).length;
   const missingCompletionDates=rows.filter(a=>a.status==='completed'&&!a.actualFinishIso).length;
   return {key,source:'programme',label:key==='testing'?'Programme testing tasks':'Programme handover tasks',numerator:model?completed:null,denominator:model?rows.length:null,unknownCount:model?unknown:null,percent:rows.length&&!unknown?percent(completed,rows.length):null,
-   statusDate:cutoff,futureCompletionDates,missingCompletionDates,basis:'Source programme status for activities identified by name; task completion is not asset commissioning or formal acceptance. '+futureCompletionDates+' completed task dates fall after the Data Date; '+missingCompletionDates+' have no actual finish date.'};
+   statusDate:cutoff,futureCompletionDates,missingCompletionDates,basis:(scope?.basis??'Current programme is unavailable.')+' Task completion is not asset commissioning or formal acceptance. '+futureCompletionDates+' completed task dates fall after the Data Date; '+missingCompletionDates+' have no actual finish date.'};
  });
  const assetDates=source.map(r=>registerDate(String(r.fields['status as of']??'')));
  const undatedCount=assetDates.filter(d=>!d).length,futureCount=assetDates.filter(d=>d&&cutoff&&d>cutoff).length;
@@ -35,8 +35,8 @@ function buildComparison(state:ProjectRuntimeState){
  });
  const linkedAssetCount=source.filter(r=>r.links.activityIds.some(id=>taskIds.has(id))).length;
  const sourceRefs=[...new Set([...(schedule?['schedule:'+schedule.revision.revisionId]:[]),...source.flatMap(r=>r.receipts.map(receipt=>'evidence-document:'+receipt.documentId))])];
- const sourceFingerprint=createHash('sha256').update(JSON.stringify(['handover-source-review-v1',state.projectId,schedule?.sourceHashSha256,model?.sourceRevisionId,cutoff,source.map(r=>[r.recordId,r.revision,r.fields,r.links.activityIds,r.receipts.map(x=>[x.documentId,x.sourceHash])])])).digest('hex');
- const saved=state.controls.reviewDecisions?.['handover-source-basis'];
+ const sourceFingerprint=createHash('sha256').update(JSON.stringify(['handover-source-review-v1',state.projectId,schedule?.sourceHashSha256,model?.sourceRevisionId,cutoff,Object.keys(programmeTaskPatterns).map(key=>[key,programmeTaskReviewBasis(state,key as ProgrammeTaskKind)?.rows.map(a=>a.activityId)]),source.map(r=>[r.recordId,r.revision,r.fields,r.links.activityIds,r.receipts.map(x=>[x.documentId,x.sourceHash])])])).digest('hex');
+ const saved=state.controls?.reviewDecisions?.['handover-source-basis'];
  const decision=saved?.sourceFingerprint===sourceFingerprint&&saved.reference?.trim()?saved:null;
  const programmeAvailable=programme.some(row=>(row.denominator??0)>0),reviewAvailable=programmeAvailable&&source.length>0;
  const rows=decision?.choice==='asset_focus'?[...assetRows,...programme]:[...programme,...assetRows];

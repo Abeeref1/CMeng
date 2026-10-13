@@ -375,3 +375,13 @@ test('Ask retains programme and asset comparison populations without summing the
  assert.match(table.basis,/different populations/);assert.match(table.basis,/no status date/);
  assert.ok(section.metrics.every(m=>m.unit!=='%'||m.value===null),'source flags do not turn into handover acceptance');
 });
+
+test('Ask uses the reviewed handover task scope without converting task completion into acceptance',async t=>{
+ const f=await fixture(t);await f.upload('Review.xer',programme().replace('Install plant','Handover plant').replace('Install finishes','Validation finishes'),'replace_current_basis');
+ const {programmeTaskReviewBasis,programmeTaskReviewInput}=await import('../packages/runtime-api/src/programme-task-review');
+ const basis=programmeTaskReviewBasis(f.state,'handover')!,input=programmeTaskReviewInput(f.state,'handover',{choice:'selected_tasks',activityIds:['ACT1','ACT2'],reference:'ASK-SCOPE'});
+ runtimeProjects.updateControls(f.id,{reviewDecisions:{'programme-tasks-handover':{...input,choice:'selected_tasks',sourceFingerprint:basis.sourceFingerprint,confirmedAt:'2036-08-31',sourceRefs:basis.sourceRefs}}});
+ const answer=await f.ask('handover readiness'),section=answer.sections.find(s=>s.authorityId==='handover')!;
+ const scope=section.tables.find(t=>t.id==='handover.programme-task-scope')!;assert.equal(scope.rows[0]!.selectedCount,2);assert.equal(scope.rows[0]!.reference,'ASK-SCOPE');assert.match(section.explanation,/ASK-SCOPE/);
+ assert.ok(section.metrics.every(m=>m.unit!=='%'||m.value===null));assert.equal(scope.columns.find(c=>c.key==='selectedCount')!.aggregate,'none');
+});

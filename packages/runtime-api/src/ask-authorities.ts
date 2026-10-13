@@ -173,6 +173,7 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
     b.table('curve-'+curve.key,curve.kind==='throughput'?'Procurement Throughput':label(curve.kind)+' · '+curve.stage,curve.points,
       [curve.weighting,'Series '+curve.series,'Unit '+curve.unit,'Records '+curve.population.length,'Coverage '+String(curve.coveragePercent??'not established')].join('. '),{value:{unit:curve.unit},dateIso:{type:'date'}});
   }
+  if(d?.programmeTaskScope){const scope=d.programmeTaskScope;b.result.explanation+=' '+scope.basis+' '+scope.qualification;b.table('programme-task-scope','Programme task scope',[{kind:scope.kind,selectedCount:scope.selectedCount,reviewed:scope.reviewed,reference:scope.reference,sourceRefs:scope.sourceRefs}],scope.basis+' '+scope.qualification,{selectedCount:{aggregate:'none'}});}
   if(d?.handoverSourceComparison){
     const comparison=d.handoverSourceComparison;
     b.table('source-comparison','Programme and asset source comparison',comparison.rows.map((r:any)=>({...r,sourceRefs:comparison.sourceRefs})),comparison.basis+' '+comparison.dateQualification,

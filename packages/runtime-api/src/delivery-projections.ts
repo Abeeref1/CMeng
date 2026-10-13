@@ -1,4 +1,5 @@
-import {handoverSourceComparison,programmeTaskPatterns} from './handover-source-review';
+import {handoverSourceComparison} from './handover-source-review';
+import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from './programme-task-review';
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -593,8 +594,10 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
  const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition&&(!riskPage||risk.state==='missing');
  let rows:any[]=useBoqCandidates?boqCandidateRows:governedRows;
- const programmeFallbackPattern=key==='delivery-commissioning'?programmeTaskPatterns.testing:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?programmeTaskPatterns.handover:null;
- const programmeFallback=!rows.length&&programmeFallbackPattern?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&programmeFallbackPattern.test(a.name??'')).map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'From programme, not yet verified as acceptance',basis:'Programme task and progress only; inspection results, snag closure and acceptance need their own evidence.'})):[];
+ const taskKind:ProgrammeTaskKind|null=key==='delivery-commissioning'?'testing':['handover-readiness','delivery-assets'].includes(key)?'handover':null;
+ const taskScope=taskKind?programmeTaskScope(state,taskKind):null;
+ const programmeRows=taskKind?programmeTaskReviewBasis(state,taskKind)?.rows??[]:key==='delivery-closeout'?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&/\bsnag(?:ging)?\b|punch list/i.test(a.name??'')):[];
+ const programmeFallback=!rows.length?programmeRows.map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'Programme progress; acceptance remains separate',basis:taskScope?.basis??'Programme activities with snag or punch list names; scope has not been confirmed.'})):[];
  if(programmeFallback.length)rows=programmeFallback;
  const disruptionEvents=key==='delivery-weather'&&!rows.length?(claimsReporting(state)?.current.events??[]).filter(event=>/weather|climat|rain|wind|heat|disrupt/i.test(event.category+' '+event.title)).map(event=>({
   reference:event.eventId,description:event.title,eventStart:event.startIso,eventEnd:event.endIso,
@@ -729,12 +732,12 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   metrics=[metric('Suppliers in available records',p.supplierRows.length,'suppliers','Distinct supplier identities from supplier and procurement registers.'),metric('Linked procurement packages',linked.size,'packages','Each linked package counted once.'),metric('Suppliers with known late packages',p.supplierRows.filter(row=>(row.lateKnownPackageCount??0)>0).length,'suppliers','Known late delivery against the programme or register need date.')];
   managementPosition=p.supplierRows.length+' suppliers are identified in the available supplier and procurement registers, linked to '+linked.size+' packages. Formal supplier approval and population completeness remain separate.';
  }
- if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities','Current programme fallback'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition='The programme provides '+programmeFallback.length+' relevant tasks and their current dates. Verification and formal acceptance are not established by programme progress.';}
+ if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities',taskScope?.basis??'Programme activities with snag or punch list names'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition=programmeFallback.length+' programme tasks and their current dates. '+(taskScope?.basis??'Selected by snag or punch list names.')+' Verification and formal acceptance are not established by programme progress.';}
  if(reportedHse?.periodEndIso){extras.reportedHse=reportedHse;managementPosition='Reported HSE position through '+reportedHse.periodEndIso+'. '+reportedHse.scope+(reportedHse.review.required?' Rate reconciliation or the exposure basis requires review below.':reportedHse.rates.basisEstablished&&reportedHse.rates.recordablePopulationComplete&&!reportedHse.diagnostics.length?' The reported rates reconcile with the incident and exposure table.':' The original rates and their calculation qualifications are retained below.');}
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
- if(['delivery-commissioning','handover-readiness','delivery-assets'].includes(key))extras.handoverSourceComparison=handoverSourceComparison(state);
+ if(taskKind){extras.handoverSourceComparison=handoverSourceComparison(state);extras.programmeTaskScope=taskScope;}
  if(['delivery-commissioning','handover-readiness'].includes(key))extras.assetSourceRows=p.assetRows.map(row=>({...row,projectId:state.projectId}));
  if(key==='delivery-control'){extras.readiness=p.readiness;extras.managementActions=deliveryControlActions;}
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
