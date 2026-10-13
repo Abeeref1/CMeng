@@ -1,4 +1,5 @@
 import {naturalCompare} from '../../shared/src/natural-order';
+import {programmeLongLeadScope} from './long-lead-scope';
 import { schedulePlanPositions } from "../../progress-scurve/src/projector";
 import { resolveRevisionActivityCorrespondence } from "../../schedule-revision-core/src";
 import {
@@ -197,11 +198,10 @@ function buildProgressBreakdownProjectionImpl(
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
   const dataDateMs = model.dataDateIso ? Date.parse(model.dataDateIso) : NaN;
-  const longLeadPattern = /\blong[\s-]?lead\b|\bprocurement\b|\bmaterial\b|\bvendor\b|\bmanufactur(?:e|ing)\b|\bfabrication\b/i;
+  const programmeLongLead=programmeLongLeadScope(model);
   const effectiveFinish = (a:CanonicalScheduleActivity) => a.status==="completed"
     ? a.actualFinishIso ?? a.forecastFinishIso ?? a.currentFinishIso
     : a.forecastFinishIso ?? a.currentFinishIso;
-  const wbsNameForSignals = new Map(model.wbs.map(wbs=>[wbs.wbsId,wbs.name]));
   const milestoneThreatsByWbs = new Map<string,string[]>();
   for(const activity of model.activities){
     if(!["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||
@@ -216,13 +216,17 @@ function buildProgressBreakdownProjectionImpl(
     const finishMs=finishIso?Date.parse(finishIso):NaN;
     const baselineMs=activity.baselineFinishIso?Date.parse(activity.baselineFinishIso):NaN;
     const readiness=input.readinessEvidence?.[activity.activityId];
+    const sourceLongLead=!!readiness?.procurement_material?.records?.some(record=>record.longLead===true);
+    const programmeCandidate=programmeLongLead.activityIds.has(activity.activityId);
     return [activity.activityId,{
       finishIso,
       delayed:activity.status!=="completed"&&(
         (Number.isFinite(dataDateMs)&&Number.isFinite(finishMs)&&finishMs<dataDateMs)||
         (Number.isFinite(baselineMs)&&Number.isFinite(finishMs)&&finishMs>baselineMs)
       ),
-      longLead:!!readiness?.procurement_material?.records?.some(record=>record.longLead)||longLeadPattern.test([activity.name,activity.wbsId?wbsNameForSignals.get(activity.wbsId):null].filter(Boolean).join(" ")),
+      longLead:sourceLongLead||programmeCandidate,
+      longLeadSourceLinked:sourceLongLead,
+      longLeadProgrammeCandidate:programmeCandidate,
       procurementBlocked:activity.status!=="completed"&&readiness?.procurement_material?.state==="blocked",
       designBlocked:activity.status!=="completed"&&readiness?.design_submittal?.state==="blocked",
       completedRecordCleanup:activity.status==="completed"&&(readiness?.procurement_material?.state==="blocked"||readiness?.design_submittal?.state==="blocked"),
@@ -232,7 +236,7 @@ function buildProgressBreakdownProjectionImpl(
   }));
   const managementSignals = (activities:readonly CanonicalScheduleActivity[]) => {
     const wbsIds=new Set<string>();
-    let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0;
+    let forecastFinishIso:string|null=null,delayedActivityCount=0,longLeadActivityCount=0,longLeadSourceLinkedCount=0,longLeadProgrammeCandidateCount=0;
     let procurementBlockerCount=0,designBlockerCount=0,criticalOrNegative=0,completedRecordCleanupCount=0;const owners=new Set<string>();
     for(const activity of activities){
       if(activity.wbsId)wbsIds.add(activity.wbsId);
@@ -241,6 +245,8 @@ function buildProgressBreakdownProjectionImpl(
       if(signal.finishIso&&(!forecastFinishIso||signal.finishIso>forecastFinishIso))forecastFinishIso=signal.finishIso;
       if(signal.delayed)delayedActivityCount++;
       if(signal.longLead)longLeadActivityCount++;
+      if(signal.longLeadSourceLinked)longLeadSourceLinkedCount++;
+      if(signal.longLeadProgrammeCandidate)longLeadProgrammeCandidateCount++;
       if(signal.completedRecordCleanup)completedRecordCleanupCount++;
       for(const owner of signal.owners)owners.add(owner);
       if(signal.procurementBlocked)procurementBlockerCount++;
@@ -269,6 +275,8 @@ function buildProgressBreakdownProjectionImpl(
       delayedActivityCount,
       milestoneThreatIds,
       longLeadActivityCount,
+      longLeadSourceLinkedCount,
+      longLeadProgrammeCandidateCount,
       procurementBlockerCount,
       designBlockerCount,
       completedRecordCleanupCount,
@@ -475,6 +483,8 @@ function buildProgressBreakdownProjectionImpl(
       delayedActivityCount: row.delayedActivityCount ?? 0,
       milestoneThreatIds: row.milestoneThreatIds ?? [],
       longLeadActivityCount: row.longLeadActivityCount ?? 0,
+      longLeadSourceLinkedCount: row.longLeadSourceLinkedCount ?? 0,
+      longLeadProgrammeCandidateCount: row.longLeadProgrammeCandidateCount ?? 0,
       procurementBlockerCount: row.procurementBlockerCount ?? 0,
       designBlockerCount: row.designBlockerCount ?? 0,
       owner: row.owner ?? null,

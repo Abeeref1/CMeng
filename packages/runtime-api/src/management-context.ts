@@ -4,6 +4,7 @@ import type {CommercialControlPosition} from '../../commercial-control/src';
 import {projectControlSchedule} from './canonical-time-claims';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {managementSourceInventory} from './management-source-inventory';
+import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 
 export interface ScheduleLongLeadEvidence {
   activityId: string;
@@ -42,21 +43,14 @@ function wbsPathById(model: CanonicalScheduleModel): Map<string,string> {
   return cache;
 }
 
-const longLeadPattern = /\blong[\s-]?lead\b|\bprocurement\b|\bmaterial procurement\b|\bprocure(?:ment|d)?\b|\bmanufactur(?:e|ing)\b|\bfabrication\b|\bvendor\b/i;
-
 export function scheduleLongLeadEvidence(
   model: CanonicalScheduleModel,
 ): ScheduleLongLeadEvidence[] {
   const paths = wbsPathById(model);
+  const explicit=programmeLongLeadScope(model);
   return model.activities
     .filter(activity => !['level_of_effort','wbs_summary'].includes(activity.activityType))
-    .filter(activity => {
-      const text = [
-        activity.name,
-        activity.wbsId ? paths.get(activity.wbsId) : null,
-      ].filter(Boolean).join(' | ');
-      return longLeadPattern.test(text);
-    })
+    .filter(activity => explicit.activityIds.has(activity.activityId))
     .map(activity => ({
       activityId: activity.activityId,
       name: activity.name,

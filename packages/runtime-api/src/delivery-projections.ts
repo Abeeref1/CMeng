@@ -12,6 +12,7 @@ import {deliveryAuthorityCatalog} from './delivery-authorities';
 import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
+import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 import {schedulePlanPositions} from '../../progress-scurve/src/projector';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
 import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord} from './delivery-records';
@@ -206,7 +207,8 @@ function buildDelivery(state:ProjectRuntimeState){
     populationConfirmed:gate.population.state==='established'});
  }
  const scheduleWbs=model?.wbs??[];
- const longLeadRoots=scheduleWbs.filter(w=>/\blong[\s_-]*lead\b/i.test([w.wbsId,w.name].filter(Boolean).join(' ')));
+ const explicitProgrammeLongLead=model?programmeLongLeadScope(model):{roots:[] as typeof scheduleWbs,activityIds:new Set<string>()};
+ const longLeadRoots=explicitProgrammeLongLead.roots;
  const descendantWbs=(rootId:string)=>{
   const ids=new Set<string>([rootId]);let changed=true;
   while(changed){changed=false;for(const w of scheduleWbs)if(w.parentWbsId&&ids.has(w.parentWbsId)&&!ids.has(w.wbsId)){ids.add(w.wbsId);changed=true;}}
@@ -234,7 +236,7 @@ function buildDelivery(state:ProjectRuntimeState){
   });
  }
  for(const activity of model?.activities??[]){
-  if(representedActivities.has(activity.activityId)||!/\blong[\s_-]*lead\b/i.test(activity.name??''))continue;
+  if(representedActivities.has(activity.activityId)||!explicitProgrammeLongLead.activityIds.has(activity.activityId))continue;
   const activityIds=new Set([activity.activityId]);
   scheduleLongLeadCandidates.push({
    recordId:'schedule-long-lead-activity:'+activity.activityId,reference:activity.activityId,description:activity.name,

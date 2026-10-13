@@ -11,6 +11,10 @@ export interface ProgressBreakdownRow {
   delayedActivityCount?: number;
   milestoneThreatIds?: string[];
   longLeadActivityCount?: number;
+  /** Linked procurement records marked long-lead; no implicit approval. */
+  longLeadSourceLinkedCount?: number;
+  /** Explicit programme/WBS long-lead references; still candidates. */
+  longLeadProgrammeCandidateCount?: number;
   procurementBlockerCount?: number;
   designBlockerCount?: number;
   completedRecordCleanupCount?:number;
@@ -100,6 +104,10 @@ export interface ProgressBreakdownGroupRow {
   delayedActivityCount?: number;
   milestoneThreatIds?: string[];
   longLeadActivityCount?: number;
+  /** Linked procurement records marked long-lead; no implicit approval. */
+  longLeadSourceLinkedCount?: number;
+  /** Explicit programme/WBS long-lead references; still candidates. */
+  longLeadProgrammeCandidateCount?: number;
   procurementBlockerCount?: number;
   designBlockerCount?: number;
   owner?: string | null;
