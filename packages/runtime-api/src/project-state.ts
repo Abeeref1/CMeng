@@ -2346,11 +2346,12 @@ export class RuntimeProjectStore {
     }
   }
 
-  async refreshDeferredPdfReads(projectId?:string,onPageRead?:(pageNumber:number,totalPages:number)=>void) {
+  async refreshDeferredPdfReads(projectId?:string,onPageRead?:(pageNumber:number,totalPages:number)=>void,onlyDocumentId?:string) {
     let refreshedDocumentCount=0;const diagnostics:string[]=[];const changedProjects:string[]=[];
     for(const state of this.projects.values()){
       if(projectId&&state.projectId!==projectId)continue;
       for(const document of [...state.evidenceDocuments]){
+        if(onlyDocumentId&&document.documentId!==onlyDocumentId)continue;
         try{
           const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
           if(contractRead?.complete&&!contractRead.pages.some(p=>p.method==='native'&&fragmentedPdfText(p.text)))continue;

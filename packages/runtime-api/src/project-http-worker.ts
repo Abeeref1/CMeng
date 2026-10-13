@@ -2,6 +2,7 @@ import {parentPort,workerData} from 'node:worker_threads';
 import {createCmengServer,projectDocumentRegister} from './server';
 import {runtimeProjects} from './project-state';
 import {projectMetadata} from './project-catalog';
+import {scheduleIdleProjectWork} from './project-idle-work';
 import type {AddressInfo} from 'node:net';
 
 void (async()=>{
@@ -11,16 +12,45 @@ void (async()=>{
   await runtimeProjects.refreshSpreadsheetRegisters();
   await runtimeProjects.refreshHseReports();
   await runtimeProjects.refreshCorrespondenceNarratives();
-  await runtimeProjects.refreshDeferredPdfReads(undefined,(pageNumber,totalPages)=>parentPort?.postMessage({type:'initializing',pageNumber,totalPages}));
+
   let documentVersion:number|null=null;
   const publishDocuments=()=>{
     const state=runtimeProjects.get(id);if(!state||state.version===documentVersion)return;
     const documents=projectDocumentRegister(id);
     parentPort?.postMessage({type:'documents',version:state.version,documents});documentVersion=state.version;
   };
+  const publishMetadata=()=>{
+    const state=runtimeProjects.get(id);if(!state)return;
+    const metadata={...projectMetadata(state),latestDataDateIso:runtimeProjects.latestSchedule(id)?.revision.model.dataDateIso??null};
+    parentPort?.postMessage({type:'metadata',metadata});
+  };
   publishDocuments();
+
+  // Full PDF/OCR work used to block the project worker from listening, sometimes
+  // for the duration of a large appendix. Keep the durable reader and its
+  // authority rules, but open the project immediately after lightweight refresh.
+  // Read one retained PDF per idle turn, after foreground page requests finish.
+  const pendingPdfIds=(runtimeProjects.get(id)?.evidenceDocuments??[])
+    .filter(document=>/pdf/i.test(document.mediaType??''))
+    .map(document=>document.documentId);
+  const deferredReading=scheduleIdleProjectWork(async()=>{
+    const documentId=pendingPdfIds.shift();
+    if(!documentId)return false;
+    const result=await runtimeProjects.refreshDeferredPdfReads(id,undefined,documentId);
+    if(result.diagnostics.length)console.warn(JSON.stringify({
+      event:'deferred_pdf_read_diagnostics',
+      projectId:id,
+      documentId,
+      diagnosticCodes:result.diagnostics.map(item=>item.split(':')[0]),
+    }));
+    if(result.changedProjects.includes(id)){publishDocuments();publishMetadata();}
+    return pendingPdfIds.length>0;
+  },{idleMillis:4000,onError:error=>console.error('CMENG_DEFERRED_PDF_WORK_FAILED:'+String(error))});
+
   const server=createCmengServer();server.requestTimeout=0;
   server.prependListener('request',(_req,res)=>{
+    deferredReading.requestStarted();
+    res.once('close',()=>deferredReading.requestFinished());
     const writeHead=res.writeHead;
     res.writeHead=function(...args:any[]){
       const version=runtimeProjects.get(id)?.version;
@@ -29,9 +59,12 @@ void (async()=>{
     } as typeof res.writeHead;
   });
   server.on('request',(_req,res)=>res.on('finish',()=>{
-    const state=runtimeProjects.get(id);if(!state)return;
-    const metadata={...projectMetadata(state),latestDataDateIso:runtimeProjects.latestSchedule(id)?.revision.model.dataDateIso??null};parentPort?.postMessage({type:'metadata',metadata});
+    publishMetadata();
     publishDocuments();
   }));
-  server.listen(0,'127.0.0.1',()=>parentPort?.postMessage({type:'ready',port:(server.address() as AddressInfo).port}));
+  server.on('close',()=>deferredReading.close());
+  server.listen(0,'127.0.0.1',()=>{
+    parentPort?.postMessage({type:'ready',port:(server.address() as AddressInfo).port});
+    deferredReading.start();
+  });
 })().catch(error=>{throw error;});
