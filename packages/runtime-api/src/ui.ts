@@ -218,6 +218,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .milestone-date-values{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;line-height:1.6;padding-top:8px}
 .milestone-date-legend{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:14px;font-size:13px}
 .milestone-date-legend b{color:#a94438}
+.decision-panel .table-wrap .decision-inputs{min-width:280px;white-space:normal}
 .table-wrap{overflow:auto!important} .table-wrap th{white-space:normal;min-width:85px} .table-wrap td{word-break:normal!important;overflow-wrap:normal!important;min-width:85px}
 .currency-card:only-child{grid-column:1/-1}
 @media(max-width:850px){.milestone-date-row{grid-template-columns:1fr}.module-bar-row,.visual-bar-row,.waterfall-row{grid-template-columns:minmax(0,1fr) minmax(55px,1fr) auto!important}}

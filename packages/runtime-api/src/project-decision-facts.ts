@@ -155,6 +155,13 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const now=xs.at(-1),prior=xs.filter(s=>date(s.asOfIso)!<date(now?.asOfIso)!).at(-1);
   const installed=finite(now?.installedQuantity),before=finite(prior?.installedQuantity),contract=finite(item.contractQuantity),price=priced.get(item.quantityItemId);
   const rate=finite(price?.rate),currency=price?.currency??null;
+  // Use the admissible source amount, including an explicit zero. Multiplying
+  // rounded quantities and rates can disagree with the BOQ's stated value.
+  // resolveBoqSource has already withheld unconfirmed numeric readings.
+  const sourceAmount=finite(price?.amount);
+  const calculatedAmount=contract!==null&&rate!==null?finite(contract*rate):null;
+  const contractValue=sourceAmount??calculatedAmount;
+  const contractValueBasis=sourceAmount!==null?'Source BOQ amount':calculatedAmount!==null?'Calculated from BOQ quantity × rate; source amount not supplied':'Priced scope not established';
   const period=installed!==null&&before!==null?installed-before:null,periodDays=days(date(prior?.asOfIso),date(now?.asOfIso));
   const linked=(linksByItem.get(item.quantityItemId) as any)?.activityIds??[];
   let target:string|null=null;for(const id of linked){const a=modelById.get(id) as any;const d=date(a?.forecastFinishIso??a?.currentFinishIso);if(d&&(!target||d>target))target=d;}
@@ -186,10 +193,10 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    periodEarnedHours:period!==null&&hpu!==null?period*hpu:null,actualHours,
    productivityPerActualHour:period!==null&&actualHours!==null&&actualHours>0?period/actualHours:null,
    installedValue,certifiedValue,installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
-   contractValue:contract!==null&&rate!==null?contract*rate:null,
+   contractValue,contractValueBasis,
    sourceRefs:[...new Set([...(price?.sourceRefs??[]),...(now?.sourceRefs??[]).map((r:any)=>r.locator),...sourceRows.flatMap(rowRefs),...itemCertification.sourceRefs])],
    missingInputs:[installed===null?'Dated measured installation':null,prior?null:'Previous comparable installed measurement',hpu===null?'Unique budget labour hours per unit':null,actualHours===null?'Actual labour hours for the measurement interval':null,target?null:'Linked activity forecast finish',rate===null?'BOQ unit rate':null,certifiedValue===null?'Item-level certified value with certificate number, date and amount basis':null].filter(Boolean),
-   basis:'Installed values use measured cumulative quantities, never schedule percentage. An item-certified value requires a dated certificate that explicitly identifies this BOQ item. A whole-project certificate without item references cannot establish the certified value for an individual BOQ item. Rates use stated calendar days. Earned hours use a supplied budget labour-hours-per-unit rate; actual productivity requires measured output and actual hours for the same interval.'};
+   basis:'Priced scope uses the admissible source BOQ amount; quantity × rate is used only when no amount is supplied. Installed values use measured cumulative quantities × the unit rate, never schedule percentage or a rescaled source amount. An item-certified value requires a dated certificate that explicitly identifies this BOQ item. A whole-project certificate without item references cannot establish the certified value for an individual BOQ item. Rates use stated calendar days. Earned hours use a supplied budget labour-hours-per-unit rate; actual productivity requires measured output and actual hours for the same interval.'};
  });
  const areaMap=new Map<string,typeof items>();for(const r of items){const key=JSON.stringify([r.area,r.currency]);const group=areaMap.get(key)??[];group.push(r);areaMap.set(key,group);}
  const certificates=(commercial.sourceLedger?.payments??[]).filter((r:any)=>date(r.certificationDate)&&(!cutoff||date(r.certificationDate)!<=cutoff)&&!/applied|application|draft|submitted/i.test(r.sourceStatus??''));
@@ -215,7 +222,10 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
 
   return {area:area??'Area not recorded',currency,itemCount:xs.length,measuredItemCount:measuredRows.length,pricedItemCount:pricedRows.length,
    contractValue,installedValue,physicalProgressPercent:installedValue!==null&&contractValue!==null&&contractValue>0?100*installedValue/contractValue:null,
-   physicalBasis:'Measured installed value / priced BOQ scope value in this area and currency. Unmeasured items remain a coverage qualification, not a recorded zero.',
+   sourceAmountItemCount:xs.filter(r=>r.contractValueBasis==='Source BOQ amount').length,
+   calculatedAmountItemCount:xs.filter(r=>r.contractValue!==null&&r.contractValueBasis!=='Source BOQ amount').length,
+   pricedScopeBasis:'Source BOQ amounts; quantity × rate only for items without a supplied amount. Unpriced items are excluded from this qualified subtotal.',
+   physicalBasis:'Measured installed quantity × unit rate / priced BOQ scope value in this area and currency. Source BOQ amounts take precedence in priced scope; rounding can therefore differ from measured value at full quantity. Unmeasured and unpriced items remain coverage qualifications, not recorded zeros.',
    certifiedValue,certifiedProgressPercent:certifiedValue!==null&&contractValue!==null&&contractValue>0?100*certifiedValue/contractValue:null,
    installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
    certificationBasis:'Explicit certificate number, dated certification and area allocation. Whole-project certificates are not apportioned to areas.',
