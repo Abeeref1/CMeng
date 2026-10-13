@@ -18,6 +18,7 @@ function applicableRequirement(
   requirements: readonly NoticeRequirement[],
 ): NoticeRequirement | null {
   const applicable = requirements
+    .filter(requirement=>requirement.applicabilityState!=='unresolved'&&requirement.sourceDayBasis!=='working')
     .filter((requirement) =>
       requirement.eventCategories.length === 0 ||
       requirement.eventCategories.includes(event.category),

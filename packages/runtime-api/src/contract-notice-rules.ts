@@ -1,14 +1,17 @@
 import {dateValue} from '../../truth-kernel/src';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
-import {contractTermVersions} from './contract-term-versions';
+import {noticeReviewBasis,reportingContractTermVersions} from './notice-review';
 
 /** Extract explicit initial-claim periods with their contract version. Never
  * turn a document-wide topic count into a notice rule or apply an amendment
  * retrospectively merely because its period is shorter. */
 export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_notice'|'detailed_claim'='claim_notice'):NoticeRequirement[] {
   const rules:NoticeRequirement[]=[];
-  const labelledTerms=noticeKind==='claim_notice'?contractTermVersions(state).filter(v=>v.term==='noticePeriodDays'):[];
+  const review=noticeKind==='claim_notice'?noticeReviewBasis(state):null;
+  const labelledTerms=noticeKind==='claim_notice'?reportingContractTermVersions(state).filter(v=>v.term==='noticePeriodDays'):[];
+  const selected=review?.decision?.choice==='choose_provisions';
+  const interpretationUnresolved=noticeKind==='claim_notice'&&(review?.decision?.choice==='refer_contracts'||labelledTerms.some(t=>t.applicability==='unresolved'));
   for(const document of state.contractDocuments){
     if(!['main','amendment','replacement'].includes(document.role))continue;
     const evidence=state.evidenceDocuments.find(d=>d.documentId===document.documentId);
@@ -24,17 +27,22 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     for(const term of labelledTerms.filter(v=>v.documentId===document.documentId)){
       for(const ref of term.sourceRefs)matches.push({days:term.value,locator:ref.split(':').slice(-2).join(':'),context:text});
     }
-    const periods=[...new Set(matches.map(m=>m.days))];
+    const periods=[...new Set(matches.map(m=>m.days))].filter(days=>!selected||labelledTerms.some(t=>t.documentId===document.documentId&&t.value===days));
     const effective=/Effective Date\s*[:|\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(text);
-    const from=effective?dateValue(effective[1]!):null;
+    const from=(effective?dateValue(effective[1]!):null)??labelledTerms.find(t=>t.documentId===document.documentId)?.effectiveFromIso??null;
     // An undated amendment must not overwrite the original rule.
     if(document.role==='amendment'&&!from)continue;
     for(const days of periods){
+      const term=labelledTerms.find(t=>t.documentId===document.documentId&&t.value===days);
+      const conflictingDayBasis=new Set(labelledTerms.filter(t=>t.documentId===document.documentId&&t.value===days).map(t=>t.unit)).size>1;
       const ruleText=matches.filter(m=>m.days===days).map(m=>m.context).join(' ');
       rules.push({requirementId:document.documentId+':'+noticeKind+':'+days,
         sourceFilename:evidence?.sourceFilename??document.documentId,
         noticeKind,eventCategories:[],noticePeriodDays:days,
-        effectiveFromIso:from,effectiveToIso:null,
+        effectiveFromIso:term?.effectiveFromIso??from,effectiveToIso:term?.effectiveToIso??null,
+        ...(term?.reviewReference?{reviewReference:term.reviewReference}:{}),
+        applicabilityState:interpretationUnresolved||conflictingDayBasis||/retrospective|retroactive/i.test(text)?'unresolved':'established',
+        ...(term?.unit.includes('working')?{sourceDayBasis:'working' as const}:{}),
         triggerBasis:/became aware|become aware|should have become aware/i.test(ruleText)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(ruleText)?'event_start':'not_stated',
         state:periods.length===1&&Boolean(evidence)&&sections.some(s=>s.sourceMode==='deterministic')?'official':'candidate',
         clauseIdentifiers:[...new Set([...text.matchAll(/(?:Sub[- ]Clause|Clause|Article)\s+(\d+(?:\.\d+)*)/gi)].map(m=>m[1]!))],
@@ -43,7 +51,9 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     }
   }
   const changes=[...new Set(rules.map(r=>r.effectiveFromIso).filter((v):v is string=>Boolean(v)))].sort();
-  return rules.map(rule=>({...rule,effectiveToIso:changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null}));
+  // Preserve source intervals even when a later provision is not selected:
+  // excluding it cannot silently extend the earlier rule into that gap.
+  return rules.map(rule=>({...rule,effectiveToIso:rule.effectiveToIso??changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null}));
 }
 
 export function noticeVersionCohorts(notices:readonly {kind:string;actualIssuedAt:string|null}[],rules:readonly NoticeRequirement[]){

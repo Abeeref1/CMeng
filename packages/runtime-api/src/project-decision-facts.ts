@@ -235,6 +235,7 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
   const awareness=date(cell(r,'awareness date','date of awareness','became aware date'));
   const eventStart=date(cell(r,'event start','event start date','event date'));
   const candidates=rules.filter(rule=>{
+   if(rule.applicabilityState==='unresolved'||rule.sourceDayBasis==='working')return false;
    const trigger=rule.triggerBasis==='awareness'?awareness:rule.triggerBasis==='event_start'?eventStart:null;
    return trigger&&(!rule.effectiveFromIso||trigger>=rule.effectiveFromIso)&&(!rule.effectiveToIso||trigger<rule.effectiveToIso);
   });

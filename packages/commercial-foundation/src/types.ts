@@ -232,6 +232,7 @@ export interface CommercialAmendmentRecord {
 
 export interface CommercialTermsProjection {
   datedTerms?: import('../../runtime-api/src/contract-term-versions').ContractTermVersion[];
+  noticeReview?: {sourceTerms:import('../../runtime-api/src/contract-term-versions').ContractTermVersion[];reference:string|null;treatment:string|null};
   eventTerms?: Array<{eventId:string;eventDate:string|null;terms:Record<string,ReturnType<typeof import('../../runtime-api/src/contract-term-versions').termAtEvent>>}>;
   noticeVersions?: import("../../delay-analysis-core/src").NoticeRequirement[];
   capabilityKey: "commercial-terms";

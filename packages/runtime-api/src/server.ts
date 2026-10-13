@@ -2038,12 +2038,7 @@ async function route(
         invalidateProject(projectId);json(res,200,{...reviewed,completedActionId:action.id});return;
       }
       let matrix:Record<string,string>|undefined;
-      if(choice==='confirm_versions'){
-        const {contractTermVersions}=await import('./contract-term-versions');
-        const terms=contractTermVersions(state).filter(t=>t.term==='noticePeriodDays');
-        if(!terms.length||terms.some(t=>t.role==='amendment'&&t.applicability!=='prospective'))
-          throw new Error('The amendment effective date is not confirmed from the source. Refer this interpretation to the Contracts Manager.');
-      }
+      const noticeReview=key==='notice-term-versions'?(await import('./notice-review')).noticeReviewInput(state,{...input,choice}):{};
       if(choice==='enter_matrix'){
         const {operationalControlsAsOf}=await import('./operational-reporting');
         const dates=state.schedules.at(-1)?.revision.model.dataDateIso??null;
@@ -2080,7 +2075,7 @@ async function route(
       const hseReview=key==='hse-rate-basis'?(await import('./hse-report-evidence')).hseRateDecisionInput({...input,choice}):{};
       const sourceRefs=[...new Set([...(action.reviewSourceRefs??[]),...(action.findings??[]).flatMap(f=>f.sourceRefs)])];
       runtimeProjects.updateControls(projectId,{reviewDecisions:{...(state.controls.reviewDecisions??{}),[key]:{
-        sourceFingerprint:action.reviewFingerprint,choice,...hseReview,...milestoneReview,...locationReview,...handoverReview,...(matrix?{matrix}:{}),...(asOfIso?{asOfIso}:{}),...(additionalDays!==undefined?{additionalDays,reference:reference!}:{}),
+        sourceFingerprint:action.reviewFingerprint,choice,...noticeReview,...hseReview,...milestoneReview,...locationReview,...handoverReview,...(matrix?{matrix}:{}),...(asOfIso?{asOfIso}:{}),...(additionalDays!==undefined?{additionalDays,reference:reference!}:{}),
         confirmedAt:new Date().toISOString(),sourceRefs
       }}});
       invalidateProject(projectId);

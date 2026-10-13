@@ -1,7 +1,7 @@
 import {numberValue,registerDate} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 export type ContractTermKey='ldRate'|'ldCap'|'retentionPercent'|'retentionCapPercent'|'paymentPeriodDays'|'noticePeriodDays'|'performanceSecurity'|'advanceSecurity';
-export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';}
+export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;}
 const labels:Array<[ContractTermKey,RegExp]>=[
  ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|LD)|(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
  ['retentionCapPercent',/(?:limit of retention(?: money)?|retention\s*(?:cap|maximum|limit))/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)?/i],

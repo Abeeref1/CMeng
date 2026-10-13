@@ -8,7 +8,7 @@ import {sourceTables} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
-import {contractTermVersions} from './contract-term-versions';
+import {noticeReviewBasis} from './notice-review';
 import {operationalControlsAsOf} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
@@ -36,7 +36,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -240,7 +240,22 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
   const information:ProjectAction[]=[...classificationInformation];
-  const noticeVersions=contractTermVersions(state).filter(v=>v.term==='noticePeriodDays').sort((a,b)=>(a.effectiveFromIso??'').localeCompare(b.effectiveFromIso??''));
+  const noticeBasis=noticeReviewBasis(state),noticeVersions=noticeBasis.candidates;
+  // The saved selection can resolve the original conflict. Keep the decision
+  // reachable from its source provisions independently of stale issue groups.
+  const noticeFindings=groups.get('notice-term-versions')?.issues??[];
+  groups.delete('notice-term-versions');
+  if(noticeFindings.length||state.controls.reviewDecisions?.['notice-term-versions']||noticeVersions.some(v=>v.applicability==='unresolved')||new Set(noticeVersions.map(v=>v.value+'|'+v.unit)).size>1){
+    const saved=noticeBasis.decision;
+    const item:ProjectAction={id:'matter:notice-term-versions',category:saved?'information':'confirmation',title:'Review claim notice provisions',owner:'Contracts Manager',recordCount:noticeVersions.length,
+      reason:saved?.choice==='refer_contracts'?'Interpretation remains unresolved for Contracts review. The saved choice can be revised here.':'Compare the source periods and their effective intervals before choosing the reporting provisions.',
+      findings:noticeFindings,reviewFingerprint:noticeBasis.sourceFingerprint,reviewSourceRefs:noticeBasis.sourceRefs,
+      evidenceSummary:noticeVersions.map(v=>v.value+' '+v.unit+' · '+v.sourceFilename+' · '+v.sourceRefs.map(ref=>ref.split(':').slice(-2).join(' ')).join('; ')+(v.effectiveFromIso?' · from '+v.effectiveFromIso:' · original provision')+(v.effectiveToIso?' · replaced from '+v.effectiveToIso:'')),
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Confirm the source intervals, choose the applicable retained provisions, or retain the unresolved interpretation. Original periods, triggers and source dates remain unchanged; this is not an entitlement decision.',completionRule:'Saved against these source files and editable after saving. Source changes reopen review.'},
+      target:{type:'inline',kind:'review-notice',label:'Record notice review',reviewChoice:saved?.choice??'confirm_versions',reviewReference:saved?.reference??null,noticeCandidates:noticeVersions,noticeSourceKeys:saved?.noticeSourceKeys??noticeVersions.map(v=>v.sourceKey),
+        reviewOptions:[{value:'confirm_versions',label:'Confirm all dated source provisions'},{value:'choose_provisions',label:'Use selected source provisions'},{value:'refer_contracts',label:'Keep interpretation unresolved'}]}};
+    (saved?information:actions).push(item);
+  }
   const riskValidation=operationalControlsAsOf(state,projectControlSchedule(state)?.revision.model.dataDateIso??null).risk.validation;
   for(const {group,issues} of groups.values()){
     // Once a contractual completion date has been explicitly governed, stale
@@ -253,15 +268,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const refs=[...new Set(subset.flatMap(i=>i.sourceRefs))],pages=[...new Set(subset.flatMap(i=>i.moduleKeys))];
       let resolution=actionResolution(group,subset,context);
       const evidenceSummary:string[]=[];
-      if(group.key==='notice-term-versions')for(const v of noticeVersions){
-        const filename=state.evidenceDocuments.find(d=>d.documentId===v.documentId)?.sourceFilename??'Contract';
-        evidenceSummary.push(v.value+' '+v.unit+' ('+filename+(v.clauseIdentifier?', clause '+v.clauseIdentifier:'')+')'+(v.effectiveFromIso?', from '+v.effectiveFromIso.slice(0,10):', original provision')+(v.effectiveToIso?' until '+v.effectiveToIso.slice(0,10):''));
-      }
       if(group.key==='risk-rating-rule')for(const row of (riskValidation.ratingInconsistencyGroups??[]))
         evidenceSummary.push('Score '+row.score+': '+row.recordCount+' risks — '+row.counts.filter(x=>x.rating).map(x=>x.count+' '+x.rating).join(', '));
-      const fingerprint=group.key==='notice-term-versions'
-        ?identity(noticeVersions.map(v=>[v.documentId,v.value,v.unit,v.effectiveFromIso,v.effectiveToIso,v.sourceRefs]))
-        :group.key==='risk-rating-rule'?riskReviewBasis(state).sourceFingerprint:undefined;
+      const fingerprint=group.key==='risk-rating-rule'?riskReviewBasis(state).sourceFingerprint:undefined;
       const saved=fingerprint?state.controls.reviewDecisions?.[group.key]:undefined;
       if(saved&&saved.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
         resolution={category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Contracts Manager to determine the applicable interpretation.',completionRule:'A contracts determination is required.'},target:{type:'module',moduleKey:'contract-particulars-bonds',label:'Review the contract terms'}};

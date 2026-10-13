@@ -229,6 +229,9 @@ export interface NoticeRequirement {
   effectiveToIso?: string | null;
   triggerBasis?: "event_start" | "awareness" | "not_stated";
   applicabilityNote?: string;
+  applicabilityState?: "established" | "unresolved";
+  sourceDayBasis?: "working";
+  reviewReference?: string;
   state: GovernanceState;
   clauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];

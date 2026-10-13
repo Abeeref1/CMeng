@@ -61,10 +61,15 @@ function renderCommercialExceptions(position,key,data){
       '<p>Gross work '+escapeHtml(money(t.grossWork,g.currency))+' + variations '+escapeHtml(money(t.variations,g.currency))+' − retention '+escapeHtml(money(t.retentionDeduction,g.currency))+' − advance recovery '+escapeHtml(money(t.advanceRecovery,g.currency))+'.</p><p>Certification dates unconfirmed for '+fmt(g.certificationUnconfirmedIds?.length)+' of '+fmt(g.as_of?.length)+' current-period records. These source sums do not establish cash or a dated certification balance.</p>'+managementModuleLink('payments','Review certificate exceptions and future plan'));
   }
   if(['contract-particulars-bonds','commercial-claims-notices'].includes(key)){
+    const review=position.foundation?.commercialTerms?.noticeReview;
+    if(review?.sourceTerms?.length)html+=basisPanel('Retained initial notice provisions','Original source values and intervals stay visible after a reporting selection.',
+      basisTable(['Days','Unit','From','Replaced from','Source references'],review.sourceTerms.map(t=>[t.value,t.unit,t.effectiveFromIso||'Original provision',t.effectiveToIso||'No later source date',t.sourceRefs.join('; ')]))+
+      (review.reference?'<p>Saved notice review: '+escapeHtml(review.reference)+'</p>':'')+
+      (review.treatment||new Set(review.sourceTerms.map(t=>t.value+'|'+t.unit)).size>1||review.sourceTerms.some(t=>t.applicability==='unresolved')?'<button class="btn" onclick="openProjectActions()">Review notice provisions</button>':''));
     const rules=position.contractNoticeRules||[];
     if(rules.length)html+=basisPanel('Contract notice periods by version','The original and amended rules are separate. Notice dates alone cannot establish the applicable trigger date.',
       basisTable(['Requirement','Days','Effective from','Replaced from','Trigger','Source'],rules.map(r=>[r.noticeKind==='detailed_claim'?'Fully detailed claim':'Initial claim notice',r.noticePeriodDays,r.effectiveFromIso?planningShortDate(r.effectiveFromIso):'Original / date not stated',r.effectiveToIso?planningShortDate(r.effectiveToIso):'No later version supplied',humanizeKey(r.triggerBasis||'not_stated'),(r.sourceFilename||'Contract source')+' · '+(r.evidenceRefs||[]).map(e=>e.locator).slice(0,2).join('; ')]))+
-      '<p>The notice assessment uses each recorded event or awareness date and the rule applicable on that date. Missing inputs are identified against the affected claim. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>');
+      '<p>The notice assessment uses each recorded event or awareness date and the rule applicable on that date. Missing inputs are identified against the affected claim. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>'+(rules.some(r=>r.applicabilityState==='unresolved'||r.sourceDayBasis==='working')?'<p>Unresolved applicability or a working-day period without a notice calendar cannot establish a calendar-day compliance conclusion.</p>':''));
   }
   return html;
 }

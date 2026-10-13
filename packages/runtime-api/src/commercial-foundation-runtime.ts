@@ -1,3 +1,4 @@
+import {noticeReviewBasis,reportingContractTermVersions} from './notice-review';
 import {reportingContractValue} from './source-review-decisions';
 import {contractTermSelectionFactState,contractTermVersions,termAtEvent,type ContractTermKey} from './contract-term-versions';
 import {
@@ -514,8 +515,10 @@ export function commercialFoundationForState(
         ),
     });
 
-  const datedTerms=contractTermVersions(state);
+  const datedTerms=reportingContractTermVersions(state);
   foundation.commercialTerms.datedTerms=datedTerms;
+  const noticeReview=noticeReviewBasis(state);
+  foundation.commercialTerms.noticeReview={sourceTerms:noticeReview.candidates,reference:noticeReview.decision?.reference??null,treatment:noticeReview.decision?.choice??null};
   const termKeys=[...new Set(datedTerms.map(v=>v.term))];
   foundation.commercialTerms.eventTerms=(timeClaims.delayClaims?.events??[]).map(event=>({eventId:event.eventId,eventDate:event.startIso,terms:Object.fromEntries(termKeys.map(key=>[key,termAtEvent(datedTerms,key,event.startIso)]))}));
   const mapping:Partial<Record<ContractTermKey,keyof typeof foundation.commercialTerms>>={ldRate:'ldRate',ldCap:'ldCap',retentionPercent:'retentionPercent',retentionCapPercent:'retentionCapPercent',paymentPeriodDays:'paymentPeriodDays',noticePeriodDays:'noticePeriodDays',performanceSecurity:'performanceBondRequirement',advanceSecurity:'advancePaymentBondRequirement'};
@@ -529,7 +532,7 @@ export function commercialFoundationForState(
     const old=(foundation.commercialTerms as any)[target];
     const stringValue=['ldRate','ldCap','performanceSecurity','advanceSecurity'].includes(key);
     const termFact=contractTermSelectionFactState(selected);
-    (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state:termFact.state,authority:termFact.authority,basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:'explicit_dated_contract_data'},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
+    (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state:termFact.state,authority:termFact.authority,basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:selected.versions.some(v=>v.reviewReference)?'reviewed_source_notice_provisions':'explicit_dated_contract_data',reviewReferences:[...new Set(selected.versions.flatMap(v=>v.reviewReference??[]))]},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
   }
   foundation.commercialTerms.noticeVersions=[...contractNoticeRules(state),...contractNoticeRules(state,"detailed_claim")];
   cache.set(state, {

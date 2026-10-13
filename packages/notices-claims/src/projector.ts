@@ -33,6 +33,12 @@ function sumByState(
   );
 }
 
+export function noticeComplianceAssessable(projection:NoticesClaimsProjection):boolean {
+  return projection.eventCount!==null&&projection.eventCount>0&&
+    projection.events.length===projection.eventCount&&projection.events.every(event=>
+      event.requirementState==='official'&&['timely','late','not_issued'].includes(event.noticeTimeliness));
+}
+
 export function buildNoticesClaimsProjection(
   model: DelayClaimsModel,
   input: {

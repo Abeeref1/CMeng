@@ -112,6 +112,7 @@ import {
 } from "../../near-critical-analysis/src";
 import {
   buildNoticesClaimsProjection,
+  noticeComplianceAssessable,
 } from "../../notices-claims/src";
 import {
   buildPmoAnalysisProjection,
@@ -2084,7 +2085,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     analyticalDelayModel.noticeRequirements.length > 0;
   const noticeAssessable =
     noticeAssessmentAvailable &&
-    noticesClaims.noticeRequirementMissingCount === 0;
+    noticeComplianceAssessable(noticesClaims);
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
     determinations:canonicalTimeClaims(state).determinations,
     schedule: model,
@@ -5631,9 +5632,7 @@ function buildSpecialistModuleFast(
             .length > 0;
         const noticeAssessable =
           noticeAssessmentAvailable &&
-          notices
-            .noticeRequirementMissingCount ===
-            0;
+          noticeComplianceAssessable(notices);
         claimsOnlyResult =
           available(
             key,
@@ -6466,9 +6465,7 @@ function buildSpecialistModuleFast(
           .length > 0;
       const noticeAssessable =
         noticeAssessmentAvailable &&
-        notices
-          .noticeRequirementMissingCount ===
-          0;
+        noticeComplianceAssessable(notices);
 
       result = available(
         key,
@@ -7566,7 +7563,7 @@ function resolveProjectModuleCandidate(
           const late=(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000;
           return {allIncludedLatenessDays:late,noneIncludedLatenessDays:late-time.effectiveDeterminationDays,determinedDays:time.effectiveDeterminationDays,
             basis:'Conditional arithmetic only: if all effective register determinations are already inside the amendment, no further days apply; if none are incorporated and all can be applied on a calendar-day basis, the alternative subtracts those days. Award-letter evidence, overlap and entitlement still require confirmation.'};})()}:{}),
-      ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays}:{}),
+      ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays,contractNoticeReview:commercialFoundationForState(state).commercialTerms.noticeReview}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
         contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
         effectiveDeterminationDays: time.effectiveDeterminationDays,
