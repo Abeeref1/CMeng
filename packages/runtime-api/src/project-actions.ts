@@ -1,3 +1,4 @@
+import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
 import {contractTermVersions} from './contract-term-versions';
 import {operationalControlsAsOf} from './operational-reporting';
@@ -27,7 +28,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -278,6 +279,19 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       pushMatter(correctionIssues,':correction');
       pushMatter(supportingIssues,':information');
     }else pushMatter(issues);
+  }
+
+  const dateDifferences=delivery.packageRows.filter(row=>row.programmeNeedDate&&row.sourceRequiredOnSite&&row.programmeNeedDate!==row.sourceRequiredOnSite);
+  if(dateDifferences.length){
+    const basis=procurementDateBasis(state);
+    const action:ProjectAction={id:'matter:procurement-date-basis',category:basis.choice?'information':'confirmation',
+      title:'Choose the procurement reporting date basis',owner:'Procurement Manager',recordCount:dateDifferences.length,
+      reason:dateDifferences.length+' packages have different register and programme need dates. Both source dates remain visible.',
+      reviewFingerprint:basis.sourceFingerprint,
+      evidenceSummary:dateDifferences.slice(0,10).map(row=>row.reference+': register '+row.sourceRequiredOnSite+'; programme '+row.programmeNeedDate),
+      resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose the date basis for all procurement packages in these source revisions. Where the chosen date is missing, timing remains not established. Until you choose, the earlier date is used only for screening.'+(basis.choice?' Current choice: '+(basis.choice==='programme'?'programme need dates':'register required-on-site dates')+'.':''),completionRule:'Saved against these programme and procurement records; new source versions require a new decision.'},
+      target:{type:'inline',kind:'review-procurement-date',label:'Confirm procurement date basis',reviewChoice:basis.choice,reviewOptions:[{value:'programme',label:'Use linked programme need dates'},{value:'register',label:'Use register required-on-site dates'}]}};
+    (basis.choice?information:actions).push(action);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];

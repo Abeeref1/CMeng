@@ -1,3 +1,4 @@
+import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {cachedIndependentForecast} from './forecast-cache';
 import {procurementTiming,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
@@ -133,15 +134,16 @@ function buildDelivery(state:ProjectRuntimeState){
  const readinessByRecord=new Map(readiness.map(r=>[r.recordId,r]));
  const lifecycleById=new Map(byKind('lifecycle').map(r=>[r.recordId,r]));
  mark('cpm_and_record_readiness');
+ const procurementDateChoice=procurementDateBasis(state).choice;
  const packageRows=byKind('package').map(r=>{
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
   const registerCleanup=linkedActivities.length>0&&linkedActivities.every(a=>a?.status==='completed');
   const unfinishedDrivingLink=drivingIds&&linkedActivities.length&&linkedActivities.every(Boolean)?r.links.activityIds.some(id=>drivingIds.has(id)&&activities.get(id)?.status!=='completed'):null;
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
+  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
   if(forecastLate&&headroom!==null&&!registerCleanup)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
-  if(overdueUndelivered&&!registerCleanup)add('PACKAGE_REQUIRED_DATE_MISSED',r,'The screening date ('+needDateBasis+', '+needDate+') has passed and delivery is not recorded at the reporting date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
+  if(overdueUndelivered&&!registerCleanup)add('PACKAGE_REQUIRED_DATE_MISSED',r,'The assessed need date ('+needDateBasis+', '+needDate+') has passed and delivery is not recorded at the reporting date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(!r.links.boqItemIds.length&&!field(r,'scope basis'))add('PROCUREMENT_SCOPE_UNMAPPED',r,'Procurement package has no controlled BOQ relationship.','Map the applicable scope or document a governed non-BOQ scope basis.');
   const template=lifecycleById.get(field(r,'lifecycle id'));
   const stages=template?ids(field(template,'stages')):[];

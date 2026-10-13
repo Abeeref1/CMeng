@@ -177,3 +177,20 @@ test('Shared specialist-page management summary uses established figures, never 
  assert.ok(result.includes('Confirm the missing cost data'));
  assert.ok(!result.includes('Earned value: <strong>0'));
 });
+
+test('procurement date decision can be saved, revised and restored through the action endpoint',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'procurement-date-action-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ const get=async()=>{const r=await fetch(base+'/api/projects/DATE-BASIS/actions');assert.equal(r.status,200);return await r.json() as any;};
+ assert.equal((await post('/api/projects',{projectId:'DATE-BASIS'})).status,201);
+ assert.equal((await fetch(base+'/api/projects/DATE-BASIS/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Installation').replace('target_start_date\ttarget_end_date','early_start_date\tearly_end_date')})).status,201);
+ assert.equal((await fetch(base+'/api/projects/DATE-BASIS/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Procurement.csv'},body:'Package ID,Description,Required On Site,Forecast Delivery,Status,Linked Activity\nP1,Pump,2031-09-05,2031-09-02,Ordered,A1'})).status,201);
+ let workflow=await get();let action=workflow.actions.find((a:any)=>a.target.kind==='review-procurement-date');assert.ok(action);
+ const request=(choice:string)=>post('/api/projects/DATE-BASIS/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice});
+ assert.equal((await request('programme')).status,200);workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-procurement-date');assert.equal(action.target.reviewChoice,'programme');
+ assert.equal((await request('register')).status,200);workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-procurement-date');assert.equal(action.target.reviewChoice,'register');
+ await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
+ workflow=await get();assert.equal(workflow.information.find((a:any)=>a.target.kind==='review-procurement-date').target.reviewChoice,'register');
+});

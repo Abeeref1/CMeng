@@ -2024,12 +2024,13 @@ async function route(
     if(req.method==='POST'&&actionsMatch[2]==='confirm-review'){try{
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
       if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
-      const action=projectActionRegisterForState(state).workflow.actions.find(a=>a.id===input.actionId);
-      if(!action||!['review-notice','review-risk'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+      const reviewWorkflow=projectActionRegisterForState(state).workflow;
+      const action=[...reviewWorkflow.actions,...reviewWorkflow.information].find(a=>a.id===input.actionId);
+      if(!action||!['review-notice','review-risk','review-procurement-date'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
         throw new Error('The supporting records or review request changed. Refresh Project Review.');
-      const key=action.target.kind==='review-notice'?'notice-term-versions':'risk-rating-rule';
+      const key=action.target.kind==='review-notice'?'notice-term-versions':action.target.kind==='review-procurement-date'?'procurement-date-basis':'risk-rating-rule';
       const choice=String(input.choice??'');
-      const allowed=key==='notice-term-versions'?['confirm_versions','refer_contracts']:['keep_source_ratings','enter_matrix'];
+      const allowed=key==='notice-term-versions'?['confirm_versions','refer_contracts']:key==='procurement-date-basis'?['programme','register']:['keep_source_ratings','enter_matrix'];
       if(!allowed.includes(choice))throw new Error('Select one of the available decisions.');
       let matrix:Record<string,string>|undefined;
       if(choice==='confirm_versions'){

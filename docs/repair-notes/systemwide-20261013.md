@@ -16,7 +16,7 @@ The requested scope remains the whole CMeng system and all 23 existing projects.
 - Source claim charts use counts calculated before paging and preserve the source status wording. Dated lifecycle conclusions remain separate.
 - Detailed-claim deadlines use the uniquely applicable official contract rule and its recorded starting event. There is no implicit 42-day rule. Missing or conflicting rules/triggers leave the deadline unresolved. This is not an entitlement determination.
 - Procurement recovery does not treat a past need date as an achievable future target or count historical lateness as recoverable days.
-- Procurement tables show register required-on-site dates, linked programme dates and the earlier screening date separately. The overdue message identifies the date it used. A user-selected governing-date workflow is not implemented by this presentation change.
+- Procurement tables show register required-on-site dates, linked programme dates and the earlier screening date separately. The overdue message identifies the date it used. A subsequent repair adds the source-bound reporting-date choice described below.
 - Missing driving-network results remain unknown through Look-Ahead and delivery projections.
 - Unclear quality statuses are excluded from known open counts and displayed separately.
 - Undated supplied risk records remain visible in the main risk register. Reported source status and dated reporting position remain distinct; BOQ candidates do not replace an existing register.
@@ -36,6 +36,11 @@ The requested scope remains the whole CMeng system and all 23 existing projects.
 
 - A subsequent check against the supplied source archive identified the actual cover heading `Original Completion` and the XER `PROJECT.plan_end_date` field. The completion reader now recognizes that heading. The XER adapter retains the explicit project-header finish separately, shared project facts expose it, and Programme Review displays it without replacing activity-derived or independent completion. Stored XER recovery version `p6-source-aliases-links-finish-v4` refreshes that field from the same verified bytes.
 - Direct reading of the supplied contract cover and amendment establishes original 2028-12-31 and amended 2029-03-01; the supplied latest XER retains declared finish 2029-05-15 with 9,500 activities. This is a source-reader check, not a live project rerun. The focused reader and recovery checks pass (37 checks); build fingerprint `67aaf470e038b30b`.
+
+- Procurement date conflicts now create a direct Project Review choice between linked programme dates and register required-on-site dates. The choice applies to the supporting source revisions, preserves both dates, remains editable after saving, and is persisted. Delivery and source-derived readiness use the same selected basis. Missing selected dates remain unresolved; no silent fallback is applied. Changing supporting records invalidates the choice. The earlier date remains a disclosed screening basis while no decision is recorded.
+- Procurement readiness no longer retains a stale source “late” blocker when the selected dates do not support lateness. Physical readiness still requires delivery evidence.
+- Review findings retain their source detail and numeric comparisons instead of replacing ordinary colon-labelled text with a generic message. Supporting information includes editable saved decisions.
+- Build fingerprint `12b8d317e428aac5`; 55 focused delivery/action checks pass, including endpoint save, amendment of the choice, restart persistence, shared readiness behaviour and changed-source invalidation. No deployment or live acceptance is claimed.
 
 ## Evidence and checks
 

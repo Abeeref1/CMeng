@@ -1,3 +1,4 @@
+import {procurementDateBasis} from './procurement-date-basis';
 import {cell,csv as parseCsv,sourceTables,procurementTiming} from "../../truth-kernel/src";
 import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
@@ -208,6 +209,7 @@ export function deriveReadinessFromCsv(
     return {};
   }
 
+  const procurementDateChoice=input.document.documentType==='procurement_register'?procurementDateBasis(input.state).choice:null;
   const text =
     Buffer.from(
       input.bytes,
@@ -382,13 +384,14 @@ export function deriveReadinessFromCsv(
     }
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
-      const timing=procurementTiming({dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status});
+      const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status});
       if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
       else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
-      else if(timing.overdueUndelivered){state='blocked';scopeNote='Required-on-site date '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
+      else if(timing.overdueUndelivered){state='blocked';scopeNote='Assessed need date ('+timing.needDateBasis+') '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
       else if(timing.forecastLate){state='blocked';scopeNote='Forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis;}
+      else {state='unknown';scopeNote=timing.needDate?'No date-based delivery blocker is established; physical readiness still requires delivery evidence.':'The selected need date is not established; confirm the missing programme link or register date.';}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
-      if(due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
+      if(procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }
 
     result[activityId] ??=

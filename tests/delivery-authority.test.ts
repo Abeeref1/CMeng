@@ -94,7 +94,7 @@ test('procurement protects the earlier recorded need and identifies overdue unde
  const row=deliveryPosition(f.state).packageRows.find(r=>r.reference==='EARLY-NEED')!;
  assert.equal(row.programmeNeedDate,'2031-09-30');assert.equal(row.needDate,'2031-08-29');
  assert.equal(row.headroomCalendarDays,-21);assert.equal(row.overdueUndelivered,true);
- assert.equal(row.needDateBasis,'the required-on-site date from the register');
+ assert.equal(row.needDateBasis,'the required-on-site date from the register (screening)');
  f.create('package','RECEIVED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19','actual delivery date':'2031-08-28',status:'Delivered'},{activityIds:['A1']});
  const received=deliveryPosition(f.state).packageRows.find(r=>r.reference==='RECEIVED')!;
  assert.equal(received.deliveredAtDataDate,true);assert.equal(received.overdueUndelivered,false);
@@ -389,7 +389,7 @@ test('Delivery Risks uses the existing risk population, not unrelated procuremen
  let report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'blocked');assert.match(report.reason!,/No confirmed Project Risk Register is available/);assert.equal((report.data as any).reviewRecords.length,0);
  await f.upload('Risks.csv','Risk ID,Description,Status,Identified Date,Probability,Impact,Rating\nR1,Current risk,Open,2031-08-01,0.4,3,Medium\nR2,Future risk,Open,2031-09-10,0.2,2,Low');
  report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'ready');assert.match(report.reason!,/2 risk records are supplied: 1 current, 1 after/);
- assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open risks').value,1);assert.equal((report.data as any).reviewRecords.length,0);
+ assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open at reporting date').value,1);assert.equal((report.data as any).reviewRecords.length,0);
  const linked=f.create('workfront','WF1',{}, {riskIds:['R1']});report=deliveryModule(f.state,'delivery-risks');assert.deepEqual((report.data as any).reviewRecords.map((r:any)=>r.recordId),[linked.recordId]);
  const exported=deliveryExportResult(f.state,report).data as any;
  assert.deepEqual(exported.sourceRecords.map((r:any)=>r.recordId),[linked.recordId]);
@@ -510,4 +510,23 @@ test('undated supplied risks remain the main risk register instead of being repl
  assert.equal(page.metrics.find((m:any)=>m.label==='Reported open / mitigating').value,1);
  assert.equal(page.metrics.find((m:any)=>m.label==='Open at reporting date').value,null);
  assert.equal(page.metrics.find((m:any)=>m.label==='Reporting date missing').value,2);
+});
+
+test('one source-bound procurement decision changes delivery and readiness without rewriting source dates',async t=>{
+ const {procurementDateBasis}=await import('../packages/runtime-api/src/procurement-date-basis');
+ const {reportingReadinessEvidence}=await import('../packages/runtime-api/src/evidence-readiness');
+ const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Required On Site,Forecast Delivery,Status,Linked Activity\nP1,Pump,2031-08-29,2031-09-19,Ordered,A1');
+ const before=deliveryPosition(f.state).packageRows[0]!;assert.equal(before.overdueUndelivered,true);
+ const workflow=projectActions(f.state,{issues:[]} as any);const action=workflow.actions.find(a=>a.target.kind==='review-procurement-date');assert.ok(action);
+ const fingerprint=procurementDateBasis(f.state).sourceFingerprint;
+ f.store.updateControls(f.state.projectId,{reviewDecisions:{'procurement-date-basis':{choice:'programme',sourceFingerprint:fingerprint,confirmedAt:'2031-09-01',sourceRefs:[]}}});
+ assert.equal(procurementDateBasis(f.state).choice,'programme');
+ const after=deliveryPosition(f.state).packageRows[0]!;assert.equal(after.needDate,'2031-09-30');assert.equal(after.sourceRequiredOnSite,'2031-08-29');assert.equal(after.overdueUndelivered,false);assert.equal(after.forecastLate,false);
+ const readiness=reportingReadinessEvidence(f.state,'2031-08-31');assert.ok(Object.values(readiness.A1??{}).every(value=>value?.state!=='blocked'));
+ const reloaded=new RuntimeProjectStore({dataDir:f.dir,durable:false}).get(f.state.projectId)!;assert.equal(procurementDateBasis(reloaded).choice,'programme');
+ const revised=projectActions(f.state,{issues:[]} as any);assert.ok(revised.information.some(a=>a.target.kind==='review-procurement-date'));
+ f.state.evidenceDocuments.find(d=>d.documentType==='procurement_register')!.sourceHashSha256='changed-source';f.state.version++;
+ assert.equal(procurementDateBasis(f.state).choice,null);
 });
