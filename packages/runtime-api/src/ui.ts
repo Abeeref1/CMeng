@@ -1,5 +1,6 @@
 import {linkCandidateScript} from './ui-link-candidates';
 import {recoveryScenarioScript} from './ui-recovery-scenario';
+import {boqSectionReviewScript} from './ui-boq-section-review';
 import {decisionFactsScript} from './ui-decision-facts';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {pmcRoleOwner} from './action-priority';
@@ -450,6 +451,7 @@ ${boqNumericReviewScript}
 ${boqPageReviewScript}
 ${basisReviewScript}
 ${recoveryScenarioScript}
+${boqSectionReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},

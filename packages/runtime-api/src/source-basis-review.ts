@@ -3,6 +3,7 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {sourceProductivityForecastEvidence} from './source-productivity-forecast';
 import {resolveBoqSource} from './boq-source';
 import type {ProjectRuntimeState} from './project-state-types';
+import {boqSectionSuggestions} from './boq-section-review';
 
 const normalize=(s:string)=>s.toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 const phrase=(whole:string,part:string)=>(' '+normalize(whole)+' ').includes(' '+normalize(part)+' ');
@@ -13,10 +14,7 @@ function calculateQuantityReview(state:ProjectRuntimeState){
   const model=projectControlSchedule(state)?.revision.model;
   const items=resolveBoqSource(state,model?.sourceRevisionId??'').quantities?.items??[];
   const parents=new Set(model?.wbs.map(w=>w.parentWbsId).filter(Boolean)??[]);
-  const wbs=model?.wbs.filter(w=>parents.has(w.wbsId))??[];
-  const sections=[...new Set(items.map(i=>i.section).filter((s):s is string=>!!s))].map(section=>({section,
-    itemCount:items.filter(i=>i.section===section).length,
-    suggestions:wbs.filter(w=>w.name&&phrase(w.name,section)).map(w=>({wbsId:w.wbsId,name:w.name,sourceRefs:w.sourceRefs}))}));
+  const sections=boqSectionSuggestions(items,model);
   const units=[...new Set(items.map(i=>i.unit??'Unit not stated'))].map(unit=>{const rows=items.filter(i=>(i.unit??'Unit not stated')===unit),known=rows.filter(r=>r.contractQuantity!==null);return {unit,itemCount:rows.length,knownQuantityCount:known.length,quantity:rows.length===1?known[0]?.contractQuantity??null:null};});
   const forecast=sourceProductivityForecastEvidence(state);
   const forecastUnits=[...new Set(forecast.rows.map(r=>r.unit??'Unit not stated'))].map(unit=>{const rows=forecast.rows.filter(r=>(r.unit??'Unit not stated')===unit),known=rows.filter(r=>r.remainingQuantity!==null);return {unit,rowCount:rows.length,remainingQuantity:rows.length===1?known[0]?.remainingQuantity??null:null};});

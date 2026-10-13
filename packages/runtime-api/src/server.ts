@@ -1864,6 +1864,30 @@ async function route(
   // Proposed BOQ relationships are review candidates only. The governed
   // allocation table is unchanged until a separate explicit approval.
   const boqLinkRoute=/^\/api\/projects\/([^/]+)\/boq\/activity-link-candidates$/.exec(url.pathname);
+  const boqSectionRoute=/^\/api\/projects\/([^/]+)\/boq\/section-links$/.exec(url.pathname);
+  if(boqSectionRoute){
+    const state=runtimeProjects.get(decodeURIComponent(boqSectionRoute[1]!));if(!state){json(res,404,{error:'project_not_found'});return;}
+    const {boqSectionContext,boqSectionDecisionInput}=await import('./boq-section-review');
+    const view=()=>{
+      const context=boqSectionContext(state),offset=Math.max(0,Math.floor(Number(url.searchParams.get('offset')??0)||0)),q=(url.searchParams.get('q')??'').trim().toLowerCase();
+      if(!context)return {projectId:state.projectId,projectVersion:state.version,available:false,rows:[],reason:'Load or select the current BOQ and programme before reviewing section scope.'};
+      if(url.searchParams.get('kind')==='wbs'){
+        const matches=context.wbsOptions.filter(w=>!q||[w.wbsId,w.name,w.code].join(' ').toLowerCase().includes(q));
+        return {projectId:state.projectId,projectVersion:state.version,available:true,sourceFingerprint:context.sourceFingerprint,options:matches.slice(offset,offset+25),offset,total:matches.length,hasMore:offset+25<matches.length};
+      }
+      const rows=context.rows.filter(r=>!q||r.section.toLowerCase().includes(q));
+      return {projectId:state.projectId,projectVersion:state.version,available:true,sourceFingerprint:context.sourceFingerprint,sourceRefs:context.sourceRefs,programmeFilename:context.programmeFilename,boqFilename:context.boqFilename,itemCount:context.itemCount,unsectionedItemCount:context.unsectionedItemCount,previousReviewNeedsRefresh:context.previousReviewNeedsRefresh,
+        sectionCount:context.rows.length,reviewedSectionCount:context.review?.decisions.length??0,total:rows.length,offset,hasMore:offset+25<rows.length,rows:rows.slice(offset,offset+25).map(row=>({...row,suggestionCount:row.suggestions.length,suggestions:row.suggestions.slice(0,25)})),
+        basis:'Review an exact BOQ section against a current programme WBS. Confirmation applies only where no explicit source WBS code resolves and no current activity allocation is recorded. Rejection suppresses section-based matching; explicit source codes and recorded quantity allocations remain unchanged. No item quantity is distributed by this decision.'};
+    };
+    if(req.method==='GET'){json(res,200,view());return;}
+    if(req.method==='POST'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));if(input.expectedVersion!==state.version)throw new Error('Project records changed. Reopen section review before saving.');
+      const decision=boqSectionDecisionInput(state,input),previous=state.controls.boqSectionReview;
+      runtimeProjects.updateControls(state.projectId,{boqSectionReview:decision,boqSectionReviewHistory:[...(state.controls.boqSectionReviewHistory??[]),...(previous?[previous]:[])]});invalidateProject(state.projectId);json(res,200,view());
+    }catch(err){json(res,409,{error:'boq_section_review_not_saved',message:err instanceof Error?err.message:'Section scope was not saved.'});}return;}
+    json(res,405,{error:'method_not_allowed'});return;
+  }
   if(boqLinkRoute&&['GET','POST'].includes(req.method??'')){
     const state=runtimeProjects.get(decodeURIComponent(boqLinkRoute[1]!));
     if(!state){json(res,404,{error:'project_not_found'});return;}
@@ -2756,6 +2780,7 @@ async function route(
         Partial<ProjectControlState>
       >(req);
     if(Object.hasOwn(update,'recoveryScenario')||Object.hasOwn(update,'recoveryScenarioHistory')){json(res,409,{error:'use_recovery_scenario_review',message:'Save recovery assumptions through the version-checked scenario editor.'});return;}
+    if(Object.hasOwn(update,'boqSectionReview')||Object.hasOwn(update,'boqSectionReviewHistory')){json(res,409,{error:'use_boq_section_review',message:'Save section relationships through the version-checked scope editor.'});return;}
     const controls =
       runtimeProjects
         .updateControls(

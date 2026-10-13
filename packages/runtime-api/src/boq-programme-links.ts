@@ -18,6 +18,6 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
  const rows=(quantity?.items??[]).map(item=>({itemId:item.quantityItemId,itemNumber:item.itemNumber,activityIds:[...(links.get(item.quantityItemId)??[])],basis:approved.has(item.quantityItemId)?'Recorded activity allocation':confirmedScope.has(item.quantityItemId)?'User-confirmed BOQ/activity scope relationship; no quantity split approved':sourceLinks.get(item.quantityItemId)?.basis??'No unique source code relationship'}));
  const linkedItemCount=rows.filter(r=>r.activityIds.length).length;
  const value={itemCount:quantity?rows.length:null,linkedItemCount:quantity?linkedItemCount:null,coveragePercent:rows.length?linkedItemCount/rows.length*100:null,approvedAllocatedItemCount:quantity?approved.size:null,confirmedScopeLinkCount:confirmedScope.size,rows,
- basis:'Complete BOQ population. Links use exact source WBS codes or a unique source section match to the current programme, plus recorded activity allocations. A WBS scope association is not an approved quantity split.'};
+ basis:'Complete BOQ population. Links use exact source WBS codes, unique source section matches, current user-reviewed section scope and recorded activity allocations. A WBS scope association is not an approved quantity split.'};
  cache.set(state,{version:state.version,model,value});return value;
 }

@@ -103,6 +103,7 @@ async function openBoqLinkEditor(){
  const panel=document.createElement('section');panel.id=id;panel.className='planning-panel primary';
  panel.innerHTML='<h4>Create BOQ links</h4><p>Select source items by number and programme activities by their reference. The saved relationship is a candidate for review, not an approved quantity allocation.</p><div class="delivery-toolbar"><label>Find BOQ item <input id="boqLinkItemSearch" type="search" placeholder="BOQ item number or description"></label><select id="boqCandidateItem" aria-label="BOQ item"></select><label>Find activity <input id="boqLinkActivitySearch" type="search" placeholder="Activity reference or name"></label><select id="boqCandidateActivity" aria-label="Programme activity"></select><label>Proposed by <input id="boqCandidateProposer"></label><label>Evidence reference <input id="boqCandidateSource"></label><label>Reason <input id="boqCandidateReason"></label><button class="btn" id="boqLinkSave">Save link candidate</button><button class="btn" id="boqLinkClose">Close</button></div><p id="boqCandidateFeedback" role="status"></p>';
  el('moduleContent').prepend(panel);panel.scrollIntoView({block:'start'});
+ panel.insertAdjacentHTML('afterbegin','<p><button class="btn" onclick="openBoqSectionReview()">Review section-to-WBS scope suggestions</button></p>');
  const owner=project();let itemTicket=0,activityTicket=0;
  async function choices(kind,query){
   const ticket=kind==='items'?++itemTicket:++activityTicket;
@@ -170,7 +171,7 @@ function renderBasisReviews(data,key){
     html+=basisPanel('Link quantities and productivity work packages to programme activities',q.interpretation,
       (key==='quantity-scurve'?basisTable(['BOQ unit','Items','Items with quantities'],q.unitTotals.map(r=>[r.unit,r.itemCount,r.knownQuantityCount])):'')+
       '<p>'+fmt(q.uniqueSectionSuggestionCount)+' of '+fmt(q.sections.length)+' BOQ sections have one WBS-parent name match. These suggestions do not allocate any item.</p>'+
-      '<details><summary>Review section-to-WBS suggestions</summary>'+basisTable(['BOQ section','Items','WBS suggestions'],q.sections.map(r=>[r.section,r.itemCount,r.suggestions.map(w=>w.wbsId+' · '+w.name).join('; ')||'No name match']))+'</details>'+
+      '<button class="btn" onclick="openBoqSectionReview()">Confirm or reject section-to-WBS suggestions</button><details><summary>Review section-to-WBS suggestions</summary>'+basisTable(['BOQ section','Items','WBS suggestions'],q.sections.map(r=>[r.section,r.itemCount,r.suggestions.map(w=>w.wbsId+' · '+w.name).join('; ')||'No name match']))+'</details>'+
       '<p>Productivity source finish: '+escapeHtml(planningShortDate(f.completionIso))+'. '+fmt(f.explicitActivityLinkCount)+' of '+fmt(f.workPackageCount)+' rows explicitly link to a schedule activity. Same-number review: '+fmt(f.sameNumberDisciplineMatches)+' of '+fmt(f.sameNumberReviewedCount)+' have a matching discipline name. Number resemblance is not a link.</p>'+
       basisTable(['Productivity source unit','Work packages'],f.units.map(r=>[r.unit,r.rowCount]))+
       basisTable(['Latest-finish input','Discipline','Start','Remaining quantity','Unit','Multiple of same-unit median'],f.drivers.map(r=>[r.workPackageId,r.discipline,planningShortDate(r.startIso),fmt(r.remainingQuantity),r.unit,percent2(r.remainingToUnitMedian)]))+

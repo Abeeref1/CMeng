@@ -400,6 +400,8 @@ export interface DerivedControlEvidence {
 }
 
 export interface ProjectControlState {
+  boqSectionReview?: import('./boq-section-review').BoqSectionReview;
+  boqSectionReviewHistory?: import('./boq-section-review').BoqSectionReview[];
   recoveryScenario?: import('./recovery-scenario').RecoveryScenarioDecision;
   recoveryScenarioHistory?: import('./recovery-scenario').RecoveryScenarioDecision[];
   delayClaims: DelayClaimsModel | null;

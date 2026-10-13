@@ -41,7 +41,7 @@ export interface QuantityActivityMappingCandidate {
 
 export interface QuantityScheduleMappingResult {
   userCandidateLinks?:Array<{quantityItemId:string;activityId:string;state:'candidate';reason:string;sourceRef:string;proposedBy:string}>;
-  sourceWbsLinks?:Array<{quantityItemId:string;wbsCode:string|null;wbsId:string|null;activityIds:string[];basis:string;sourceRefs:string[]}>;
+  sourceWbsLinks?:Array<{quantityItemId:string;wbsCode:string|null;wbsId:string|null;activityIds:string[];basis:string;sourceRefs:string[];sectionReview?:{decision:'confirm'|'reject';reference:string}}>;
   sourceWbsCoveragePercent?:number|null;
   schemaVersion: "1.0";
   projectId: string | null;

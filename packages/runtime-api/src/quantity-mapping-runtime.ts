@@ -5,6 +5,7 @@ import {cell,governedTables} from '../../truth-kernel/src';
 import {resolveBoqSource} from './boq-source';
 import {reportingState} from './reporting-state';
 import {projectControlSchedule} from './canonical-time-claims';
+import {reviewedBoqSections} from './boq-section-review';
 
 /** Resolve only punctuation/space variants of *explicit* WBS identifiers.
  * Codes are not matched by similarity, suffix, activity title or number order.
@@ -67,6 +68,8 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     const wbsByName=new Map<string,typeof schedule.wbs>();
     for(const node of schedule.wbs){const k=sectionName(node.name);if(k)wbsByName.set(k,[...(wbsByName.get(k)??[]),node]);}
     const originalItems=new Map((source?.canonicalItems??[]).map(item=>[item.itemId,item]));
+    const sectionReviews=reviewedBoqSections(state,schedule,quantities);
+    const allocatedItemIds=new Set(quantities.scheduleRevisionId===schedule.sourceRevisionId?quantities.allocations.map(a=>a.quantityItemId):[]);
     result.sourceWbsLinks=quantities.items.map(item=>{
       const sourceRows=byItem.get(normalized(item.itemNumber))??[];
       const original=originalItems.get(item.quantityItemId) as any;
@@ -81,18 +84,24 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
       const sectionKeys=[...new Set([item.section,original?.section,...sourceRows.map(r=>cell(r,'section','section name','bill section','work section','work package','package'))].map(sectionName).filter(Boolean))];
       const exactSections=[item.section,original?.section].map(normalized).filter(Boolean);
       const sectionMatches=[...new Map([...sectionKeys.flatMap(section=>wbsByName.get(section)??[]),...exactSections.flatMap(section=>wbsByCode.get(section)??[])].map(node=>[node.wbsId,node])).values()];
+      const review=item.section?sectionReviews.get(item.section):undefined;
+      const canReviewSection=!sourceCodeConflict&&explicit.length===0&&separatorMatches.length===0&&!allocatedItemIds.has(item.quantityItemId);
+      const reviewed=canReviewSection&&review;
       const selected=sourceCodeConflict?null:explicit.length===1?explicit[0]!:
         explicit.length===0&&separatorMatches.length===1?separatorMatches[0]!:
+        reviewed?review.decision==='confirm'?wbs.get(review.wbsId!)??null:null:
         explicit.length===0&&separatorMatches.length===0&&sectionMatches.length===1?sectionMatches[0]!:null;
       const under=(id:string|null)=>{const seen=new Set<string>();while(id&&!seen.has(id)){if(id===selected?.wbsId)return true;seen.add(id);id=wbs.get(id)?.parentWbsId??null;}return false;};
       return {quantityItemId:item.quantityItemId,wbsCode:code,wbsId:selected?.wbsId??null,activityIds:selected?activitiesByWbs.get(selected.wbsId)??[]:[],
+        ...(reviewed?{sectionReview:{decision:review.decision,reference:review.reference}}:{}),
         basis:sourceCodeConflict?'Conflicting source WBS codes':
           selected&&explicit.length===1?'Source WBS code matches the programme':
           selected&&separatorMatches.length===1?'Source WBS code uniquely matches the programme with separator normalisation; no item quantity allocated':
+          reviewed?'User-'+(review.decision==='confirm'?'confirmed section-to-WBS scope association':'rejected section-based association')+'; reference: '+review.reference+'. No item quantity allocated':
           selected?'Source BOQ section matches one programme WBS name'+(code?'; supplied code '+code+' has no exact programme match':'')+'; quantity allocation remains separate':
           separatorMatches.length>1?'Ambiguous programme WBS code after separator normalisation; no mapping assigned':
           'WBS relationship is missing or does not resolve uniquely',
-        sourceRefs:sourceRows.map(r=>'evidence-document:'+r.receipt.documentId+':'+r.receipt.locator)};
+        sourceRefs:[...sourceRows.map(r=>'evidence-document:'+r.receipt.documentId+':'+r.receipt.locator),...(reviewed?['section-scope-review:'+review.reference]:[])]};
     });
     result.sourceWbsCoveragePercent=result.sourceWbsLinks.length?result.sourceWbsLinks.filter(r=>r.wbsId).length/result.sourceWbsLinks.length*100:null;
   }
