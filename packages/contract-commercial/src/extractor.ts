@@ -549,21 +549,15 @@ function uniqueContractValues(
   values:
     readonly ContractValueCandidate[],
 ): ContractValueCandidate[] {
-  const seen =
-    new Set<string>();
-  return values.filter(
-    (value) => {
-      const key = [
-        value.amount,
-        value.currency,
-      ].join("|");
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    },
-  );
+  const grouped = new Map<string, ContractValueCandidate>();
+  for (const value of values) {
+    const key = [value.amount, value.currency].join("|");
+    const previous = grouped.get(key);
+    grouped.set(key, previous
+      ? {...previous, sourceRefs: [...new Set([...previous.sourceRefs, ...value.sourceRefs])]}
+      : value);
+  }
+  return [...grouped.values()];
 }
 
 export function extractContractValue(

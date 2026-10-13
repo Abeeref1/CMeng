@@ -2026,11 +2026,12 @@ async function route(
       if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
       const reviewWorkflow=projectActionRegisterForState(state).workflow;
       const action=[...reviewWorkflow.actions,...reviewWorkflow.information].find(a=>a.id===input.actionId);
-      if(!action||!['review-notice','review-risk','review-procurement-date'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
         throw new Error('The supporting records or review request changed. Refresh Project Review.');
-      const key=action.target.kind==='review-notice'?'notice-term-versions':action.target.kind==='review-procurement-date'?'procurement-date-basis':'risk-rating-rule';
+      const keys:Record<string,string>={'review-notice':'notice-term-versions','review-procurement-date':'procurement-date-basis','review-risk':'risk-rating-rule','review-risk-snapshot':'risk-status-snapshot','review-eot-overlap':'eot-overlap','review-contract-value':'contract-value'};
+      const key=keys[action.target.kind!]!;
       const choice=String(input.choice??'');
-      const allowed=key==='notice-term-versions'?['confirm_versions','refer_contracts']:key==='procurement-date-basis'?['programme','register']:['keep_source_ratings','enter_matrix'];
+      const allowed=action.target.reviewOptions?.map(option=>option.value)??[];
       if(!allowed.includes(choice))throw new Error('Select one of the available decisions.');
       let matrix:Record<string,string>|undefined;
       if(choice==='confirm_versions'){
@@ -2054,9 +2055,24 @@ async function route(
         if(!affected.length||affected.some(g=>!Object.hasOwn(matrix!,String(g.score))))
           throw new Error('Provide a rating for every affected score. Open the full findings for the score list.');
       }
-      const sourceRefs=[...new Set((action.findings??[]).flatMap(f=>f.sourceRefs))];
+      let asOfIso:string|undefined,additionalDays:number|undefined,reference:string|undefined;
+      if(key==='risk-status-snapshot'){
+        const date=String(input.asOfIso??'');
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date+'T00:00:00Z'))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date)throw new Error('Enter a valid register status date.');
+        asOfIso=date;
+      }
+      if(key==='eot-overlap'){
+        const {canonicalTimeClaims}=await import('./canonical-time-claims');
+        const {reportingTimeBasis}=await import('./source-review-decisions');
+        const basis=reportingTimeBasis(state,canonicalTimeClaims(state).contractTimeBasis);
+        if(input.additionalDays===null||input.additionalDays===undefined||String(input.additionalDays).trim()==='')throw new Error('Enter the additional awarded days, including zero when none are additional.');
+        additionalDays=Number(input.additionalDays);reference=String(input.reference??'').trim();
+        if(!Number.isFinite(additionalDays)||additionalDays<0||basis?.officialApprovedEotDays==null||additionalDays>basis.officialApprovedEotDays)throw new Error('Additional days must be between zero and the established awards effective at the reporting date.');
+        if(!reference)throw new Error('Enter the supporting contract or determination reference.');
+      }
+      const sourceRefs=[...new Set([...(action.reviewSourceRefs??[]),...(action.findings??[]).flatMap(f=>f.sourceRefs)])];
       runtimeProjects.updateControls(projectId,{reviewDecisions:{...(state.controls.reviewDecisions??{}),[key]:{
-        sourceFingerprint:action.reviewFingerprint,choice,...(matrix?{matrix}:{}),
+        sourceFingerprint:action.reviewFingerprint,choice,...(matrix?{matrix}:{}),...(asOfIso?{asOfIso}:{}),...(additionalDays!==undefined?{additionalDays,reference:reference!}:{}),
         confirmedAt:new Date().toISOString(),sourceRefs
       }}});
       invalidateProject(projectId);

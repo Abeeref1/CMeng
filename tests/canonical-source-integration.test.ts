@@ -1309,3 +1309,77 @@ test('an amended completion alone is never reused as an original date for anothe
  assert.notEqual(facts.time.extendedContractCompletionIso.value,'2030-04-26');
  assert.ok(!facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
 });
+
+for(const sample of [0,26])test('source-bound EOT overlap decision updates reporting without adding incorporated days '+sample,t=>{
+ const {state,csvDoc,store}=fixture(t);csvDoc(claims,'delay_eot_claims_register');csvDoc(determinations,'delay_eot_claims_register');amendment(state);
+ const {eotOverlapReview}=require('../packages/runtime-api/src/source-review-decisions');
+ const before=canonicalTimeClaims(state).contractTimeBasis!;const review=eotOverlapReview(state,before);
+ store.updateControls(state.projectId,{reviewDecisions:{'eot-overlap':{sourceFingerprint:review.sourceFingerprint,choice:'confirm_additional_days',additionalDays:sample,reference:'Engineer reconciliation '+sample,confirmedAt:stamp,sourceRefs:[]}}});
+ const after=canonicalTimeClaims(state).contractTimeBasis!;
+ assert.equal(after.additionalApprovedEotDays,sample);assert.equal(after.overlapResolution,'resolved');assert.equal(after.incorporatedEotDays,90);assert.equal(after.contractualCompletionIso,'2030-03-31');
+ assert.equal(eotOverlapReview(state,after).decision?.additionalDays,sample,'saved choice stays editable after resolution');
+ const {reportingState}=require('../packages/runtime-api/src/reporting-state');
+ synchronizeCanonicalTimeClaims(state,true);
+ assert.equal(reportingState(state).controls.contractTimeBasis.additionalApprovedEotDays,sample);
+ state.evidenceDocuments.find(d=>d.documentId==='AMD')!.sourceHashSha256='changed-amendment';state.version++;
+ assert.equal(canonicalTimeClaims(state).contractTimeBasis!.overlapResolution,'unresolved','replaced supporting evidence requires a new decision');
+ assert.equal(reportingState(state).controls.contractTimeBasis.overlapResolution,'unresolved','a synchronized prior confirmation cannot freeze reporting');
+});
+
+for(const sample of [0,10])test('risk date and matrix decisions affect shared reporting without editing source '+sample,t=>{
+ const {state,csvDoc,store}=fixture(t);
+ csvDoc('Risk ID,Description,Status,Probability,Impact,Score,Rating,Owner\nR1,Access,Open,2,3,6,High,Owner\nR2,Design,Closed,2,3,6,Low,Owner','risk_register');
+ const {riskReviewBasis}=require('../packages/runtime-api/src/source-review-decisions');
+ const {operationalControlsAsOf}=require('../packages/runtime-api/src/operational-reporting');
+ const before=operationalControlsAsOf(state,'2026-08-31');assert.equal(before.counts.openRiskCount,null);
+ const fingerprint=riskReviewBasis(state).sourceFingerprint;
+ store.updateControls(state.projectId,{reviewDecisions:{
+  'risk-status-snapshot':{sourceFingerprint:fingerprint,choice:'confirm_snapshot',asOfIso:'2026-08-'+String(10+sample).padStart(2,'0'),confirmedAt:stamp,sourceRefs:[]},
+  'risk-rating-rule':{sourceFingerprint:fingerprint,choice:'enter_matrix',matrix:{'6':'Moderate'},confirmedAt:stamp,sourceRefs:[]}
+ }});
+ const after=operationalControlsAsOf(state,'2026-08-31');assert.equal(after.counts.openRiskCount,1);assert.ok(after.risk.current.every((r:any)=>r.rating==='Moderate'));
+ assert.deepEqual(after.risk.sourceRows.map((r:any)=>r.rating),['High','Low']);
+ assert.ok(after.risk.sourceRows.every((r:any)=>!r.statusAsOfIso),'original dates are not overwritten');
+ assert.ok(!after.risk.validation.diagnostics.includes('RISK_RATING_SCORE_CONFLICT'));
+ assert.ok(after.risk.validation.sourceDiagnostics.includes('RISK_RATING_SCORE_CONFLICT'));
+ assert.equal(operationalControlsAsOf(state,'2026-08-01').counts.openRiskCount,0,'later snapshot is not backdated');
+ state.evidenceDocuments[0]!.sourceHashSha256+='new';state.version++;
+ assert.equal(riskReviewBasis(state).snapshot,null);assert.equal(operationalControlsAsOf(state,'2026-08-31').counts.openRiskCount,null);
+});
+
+test('confirmed contract amount is shared, editable and invalidated without mutating extracted candidates',t=>{
+ const {state,store}=fixture(t);
+ state.contract={semanticComplete:true,pdf:{pages:[]},sections:[
+  {sectionKey:'amount-1',kind:'clause',text:'Accepted Contract Amount AED 1,000',startPage:1,diagnostics:[]},
+  {sectionKey:'amount-2',kind:'clause',text:'Contract Sum AED 1,200',startPage:2,diagnostics:[]},
+  {sectionKey:'amount-copy',kind:'clause',text:'Contract Sum AED 1,000',startPage:3,diagnostics:[]}
+ ].map((s,index)=>({...s,sourceSpans:[{sourceKind:'pdf_page',sourceIndex:index+1,start:0,end:40}],status:'verified',sourceMode:'deterministic'}))} as any;
+ const {contractValueReview,reportingContractValue}=require('../packages/runtime-api/src/source-review-decisions');
+ const {reportingState}=require('../packages/runtime-api/src/reporting-state');
+ const {commercialFoundationForState}=require('../packages/runtime-api/src/commercial-foundation-runtime');
+ const before=JSON.stringify(state.contract),review=contractValueReview(state);
+ assert.equal(review.candidates.length,2);assert.equal(reportingContractValue(state),null);
+ assert.equal(review.candidates.find((c:any)=>c.amount===1000).sourceRefs.length,2,'all agreeing source sections stay traceable');
+ for(const amount of [1000,1200]){
+  store.updateControls(state.projectId,{reviewDecisions:{'contract-value':{sourceFingerprint:review.sourceFingerprint,choice:'value:AED:'+amount,confirmedAt:stamp,sourceRefs:[]}}});
+  assert.equal(reportingState(state).controls.contractValue.amount,amount);
+  assert.equal(reportingContractValue(state).amount,amount);
+  assert.ok(JSON.stringify(commercialFoundationForState(state)).includes('user-confirmation:contract-value:'+review.sourceFingerprint));
+  assert.equal(state.controls.contractValue,null,'derived reporting never overwrites the original governed control');
+  assert.equal(JSON.stringify(state.contract),before);
+ }
+ state.contract!.sections[0]!.text='Accepted Contract Amount AED 1,500';state.version++;
+ assert.equal(contractValueReview(state).decision,null);assert.equal(reportingState(state).controls.contractValue,null);
+});
+
+test('a risk snapshot does not overwrite a supplied invalid status date',t=>{
+ const {state,csvDoc,store}=fixture(t);
+ csvDoc('Risk ID,Description,Status,Status Date,Probability,Impact,Score,Rating\nBAD,Access,Open,not-a-date,2,3,6,High\nEMPTY,Design,Open,,2,3,6,High','risk_register');
+ const {riskReviewBasis}=require('../packages/runtime-api/src/source-review-decisions');
+ const {operationalControlsAsOf}=require('../packages/runtime-api/src/operational-reporting');
+ store.updateControls(state.projectId,{reviewDecisions:{'risk-status-snapshot':{sourceFingerprint:riskReviewBasis(state).sourceFingerprint,choice:'confirm_snapshot',asOfIso:'2026-08-20',confirmedAt:stamp,sourceRefs:[]}}});
+ const risk=operationalControlsAsOf(state,'2026-08-31').risk;
+ assert.deepEqual(risk.current.map((r:any)=>r.riskId),['EMPTY']);
+ assert.deepEqual(risk.snapshotCandidates.map((r:any)=>r.riskId),['EMPTY']);
+ assert.equal(risk.undatedRecordCount,1);assert.equal(risk.complete,false);
+});

@@ -1,3 +1,4 @@
+import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {contractCompletionPosition} from './contract-completion';
 import { createHash } from 'node:crypto';
@@ -912,6 +913,16 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(!explicitWorking&&!explicitCalendar)diagnostics.push('EOT_CALENDAR_DAYS_ASSUMED_CHECK_CONTRACT_DEFINITION');
   }
 
+  if(contractTimeBasis?.overlapResolution==='unresolved'){
+    const confirmed=applyEotOverlapDecision(state,contractTimeBasis);
+    if(confirmed?.overlapResolution==='resolved'){
+      contractTimeBasis=confirmed;
+      const index=diagnostics.indexOf('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
+      if(index>=0)diagnostics.splice(index,1);
+      diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_CONFIRMED:'+confirmed.additionalApprovedEotDays);
+    }
+  }
+
   for(const claim of claims){
     const reported=reportedClaim(claim);
     const conflict=reported.state==='determined'&&!trustedDeterminations.some(d=>d.claimId===claim.claimId);
@@ -943,6 +954,6 @@ export function synchronizeCanonicalTimeClaims(state:ProjectRuntimeState,force=f
   }
   if (!model.delayClaims && existing?.evidenceRevisionId.startsWith('canonical-evidence:')) state.controls.delayClaims = null;
   const existingTime=state.controls.contractTimeBasis;
-  if (!model.contractTimeBasis && existingTime?.overlapResolution && existingTime.sourceRefs.length && existingTime.sourceRefs.every(r => r.startsWith('evidence-document:'))) state.controls.contractTimeBasis = null;
-  if(model.contractTimeBasis && (!existingTime||(existingTime.sourceRefs.length>0&&existingTime.sourceRefs.every(r=>r.startsWith('evidence-document:')))))state.controls.contractTimeBasis=model.contractTimeBasis;
+  if (!model.contractTimeBasis && existingTime?.overlapResolution && isSourceDerivedTimeBasis(existingTime)) state.controls.contractTimeBasis = null;
+  if(model.contractTimeBasis && (!existingTime||isSourceDerivedTimeBasis(existingTime)))state.controls.contractTimeBasis=model.contractTimeBasis;
 }

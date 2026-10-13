@@ -103,10 +103,11 @@ export function evmByWbsForState(state:ProjectRuntimeState):ModuleRuntimeResult{
 
 export function riskRegisterForState(state:ProjectRuntimeState):ModuleRuntimeResult{
   const reporting=operationalReporting(state),risk=reporting.risk,score=new Map((risk.validation?.scoreRows??[]).map((r:any)=>[r.riskId,r]));
+  const sourceRatings=new Map(risk.sourceRows.map(row=>[row.riskId,row.rating]));
   const rows=(risk.current??[]).map((r:any)=>{const s:any=score.get(r.riskId);const inconsistent=(risk.validation?.ratingInconsistencyGroups??[]).some((g:any)=>g.riskIds?.includes(r.riskId));return {
     riskId:r.riskId,subject:r.subject??null,category:r.category??null,status:r.status,owner:r.owner??null,dueIso:r.dueIso??null,linkedActivityId:r.linkedActivityId??null,
-    probability:s?.probability??null,impact:s?.impact??null,calculatedScore:s?.score??null,suppliedRating:r.rating??s?.rating??null,
-    ratingCheck:inconsistent?'conflict':'not contradicted by equal-score check',sourceRefs:(r.sourceRefs??[]).join('; ')
+    probability:s?.probability??null,impact:s?.impact??null,calculatedScore:s?.score??null,suppliedRating:sourceRatings.get(r.riskId)??s?.rating??null,reportingRating:r.rating??null,
+    ratingCheck:inconsistent?(risk.validation.diagnostics.includes('RISK_RATING_SCORE_CONFLICT')?'conflict':'source difference retained; reporting treatment confirmed'):'not contradicted by equal-score check',sourceRefs:(r.sourceRefs??[]).join('; ')
   };});
   return {key:'risk-register',status:risk.state==='established'?'ready':rows.length?'partial':'blocked',engineState:'ready',evidenceState:rows.length?(risk.complete?'established':'partial'):'missing',
     professionalState:risk.validation?.state==='conflicted'?'review_required':rows.length?'defensible':'not_defensible',

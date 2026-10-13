@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {runInNewContext} from 'node:vm';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
-import {projectActionsScript} from '../packages/runtime-api/src/ui-project-actions';
+import {projectActionsScript,projectActionsStyles} from '../packages/runtime-api/src/ui-project-actions';
 const xer=(date:string,name:string)=>['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tCONTROL\t'+date,'%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttarget_start_date\ttarget_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt','%R\t1\t1\tA1\t'+name+'\t2031-01-01\t2031-12-31\t80\t80','%E'].join('\n');
 test('project actions require decisions only for non-current programme candidates and remain project/phase scoped',async t=>{
   const root=mkdtempSync(join(tmpdir(),'project-actions-'));let gateway=await createProjectGateway(root,{maxWorkers:2}),base='';
@@ -193,4 +193,57 @@ test('procurement date decision can be saved, revised and restored through the a
  assert.equal((await request('register')).status,200);workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-procurement-date');assert.equal(action.target.reviewChoice,'register');
  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
  workflow=await get();assert.equal(workflow.information.find((a:any)=>a.target.kind==='review-procurement-date').target.reviewChoice,'register');
+});
+
+test('risk review rejects stale evidence, updates shared reporting and remains editable after restart',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'risk-review-action-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ const get=async(path='/actions')=>{const r=await fetch(base+'/api/projects/RISK-REVIEW'+path);assert.equal(r.status,200);return await r.json() as any;};
+ assert.equal((await post('/api/projects',{projectId:'RISK-REVIEW'})).status,201);
+ assert.equal((await fetch(base+'/api/projects/RISK-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Current')})).status,201);
+ assert.equal((await fetch(base+'/api/projects/RISK-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Risk Register.csv'},body:'Risk ID,Description,Status,Probability,Impact,Score,Rating,Owner\nR1,Access,Open,2,3,6,High,Owner\nR2,Design,Closed,2,3,6,Low,Owner'})).status,201);
+ let workflow=await get();let action=workflow.actions.find((a:any)=>a.target.kind==='review-risk-snapshot');assert.ok(action);
+ const request=(values:any)=>post('/api/projects/RISK-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,...values});
+ assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-02-30'})).status,409);
+ assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20',sourceFingerprint:'stale'})).status,409);
+ assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20',expectedVersion:workflow.projectVersion-1})).status,409);
+ assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20'})).status,200);
+ workflow=await get();action=workflow.actions.find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
+ assert.equal((await request({choice:'enter_matrix',matrixText:'7=Moderate'})).status,409);
+ assert.equal((await request({choice:'enter_matrix',matrixText:'6=Moderate'})).status,200);
+ let risk=await get('/schedule/modules/risk-register');
+ assert.equal(risk.data.currentRecordCount,2);
+ assert.deepEqual(risk.data.rows.map((r:any)=>r.suppliedRating),['High','Low']);
+ assert.deepEqual(risk.data.rows.map((r:any)=>r.reportingRating),['Moderate','Moderate']);
+ assert.equal(risk.data.validation.state,'consistent_in_checked_scores');
+ await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
+ workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
+ assert.equal(action.resolution.requiresUserAction,false);assert.equal(action.target.reviewMatrixText,'6=Moderate');
+ const script=projectActionsScript+'\nprojectActionState={projectId:"RISK-REVIEW",status:"ready",data:'+JSON.stringify({...workflow,actions:[],information:[action]})+'};renderProjectActionList()';
+ const html=runInNewContext(script,{project:()=> 'RISK-REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String,renderActionFindings:()=>''});
+ assert.match(html,/action-information action-review-recorded/);assert.match(html,/6=Moderate<\/textarea>/);
+ assert.match(projectActionsStyles,/\.action-information\.action-review-recorded \.action-resolution\{display:grid\}/);
+ assert.equal((await request({choice:'keep_source_ratings'})).status,200);
+ risk=await get('/schedule/modules/risk-register');assert.deepEqual(risk.data.rows.map((r:any)=>r.reportingRating),['High','Low']);
+});
+
+test('EOT review validates additional days and reference and retains a manual contractual basis',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'eot-review-action-'));const gateway=await createProjectGateway(root,{maxWorkers:1});
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+(gateway.server.address() as any).port;
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await post('/api/projects',{projectId:'EOT-REVIEW'})).status,201);
+ const basis={contractualCompletionIso:'2031-12-31',contractualCompletionState:'official',officialApprovedEotDays:20,officialApprovedEotState:'official',eotDayBasis:'calendar_days',eotDayBasisState:'official',incorporatedEotDays:90,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays:20,registerDeterminationCount:2,sourceRefs:['governed:Engineer determination and amendment']};
+ assert.equal((await fetch(base+'/api/projects/EOT-REVIEW/controls',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({contractTimeBasis:basis})})).status,200);
+ const get=async()=>await (await fetch(base+'/api/projects/EOT-REVIEW/actions')).json() as any;
+ let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-eot-overlap');assert.ok(action);
+ const request=(values:any)=>post('/api/projects/EOT-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_additional_days',...values});
+ for(const additionalDays of ['',-1,21,'bad'])assert.equal((await request({additionalDays,reference:'Engineer decision'})).status,409);
+ assert.equal((await request({additionalDays:0,reference:''})).status,409);
+ assert.equal((await request({additionalDays:0,reference:'Engineer decision'})).status,200);
+ workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-eot-overlap');assert.equal(action.target.reviewAdditionalDays,0);
+ assert.equal((await request({additionalDays:12,reference:'Revised Engineer decision'})).status,200);
+ workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-eot-overlap');assert.equal(action.target.reviewAdditionalDays,12);
 });

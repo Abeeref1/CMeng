@@ -1,3 +1,4 @@
+import {reportingContractValue} from './source-review-decisions';
 import {contractTermSelectionFactState,contractTermVersions,termAtEvent,type ContractTermKey} from './contract-term-versions';
 import {
   buildCommercialFoundation,
@@ -209,6 +210,7 @@ export function commercialFoundationForState(
       },
     );
 
+  const confirmedContractValue=reportingContractValue(state);
   const foundation =
     buildCommercialFoundation({
       datedTermVersions:contractTermVersions(state),
@@ -218,22 +220,18 @@ export function commercialFoundationForState(
       dataDateIso:
         projectDataDate(state),
       contractValue:
-        state.controls
-          .contractValue
+        confirmedContractValue
           ? {
               amount:
-                state.controls
-                  .contractValue
+                confirmedContractValue
                   .amount,
               currency:
-                state.controls
-                  .contractValue
+                confirmedContractValue
                   .currency
                   .trim()
                   .toUpperCase(),
               sourceRefs: [
-                ...state.controls
-                  .contractValue
+                ...confirmedContractValue
                   .sourceRefs,
               ],
               authority:

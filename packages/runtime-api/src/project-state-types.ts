@@ -425,7 +425,7 @@ export interface ProjectControlState {
   rfis: RfiRecord[];
   permits: PermitRecord[];
   risks: RiskControlRecord[];
-  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;matrix?:Record<string,string>;confirmedAt:string;sourceRefs:string[]}>;
+  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;matrix?:Record<string,string>;asOfIso?:string;additionalDays?:number;reference?:string;confirmedAt:string;sourceRefs:string[]}>;
   boardPublication:
     | BoardReportPublicationInput
     | null;

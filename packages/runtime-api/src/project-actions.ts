@@ -1,3 +1,4 @@
+import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
 import {contractTermVersions} from './contract-term-versions';
@@ -8,7 +9,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
-import {projectControlSchedule} from './canonical-time-claims';
+import {projectControlSchedule,canonicalTimeClaims,projectDataDate} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
 import type {ControlIssueAssessment,ControlIssue} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
@@ -28,11 +29,11 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
-  evidenceSummary?:string[];reviewFingerprint?:string;
+  evidenceSummary?:string[];reviewFingerprint?:string;reviewSourceRefs?:string[];
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -235,12 +236,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         evidenceSummary.push('Score '+row.score+': '+row.recordCount+' risks — '+row.counts.filter(x=>x.rating).map(x=>x.count+' '+x.rating).join(', '));
       const fingerprint=group.key==='notice-term-versions'
         ?identity(noticeVersions.map(v=>[v.documentId,v.value,v.unit,v.effectiveFromIso,v.effectiveToIso,v.sourceRefs]))
-        :group.key==='risk-rating-rule'?identity(state.evidenceDocuments.filter(d=>/risk/i.test(d.documentType+' '+d.category)).map(d=>[d.documentId,d.sourceHashSha256,d.basisState])):undefined;
+        :group.key==='risk-rating-rule'?riskReviewBasis(state).sourceFingerprint:undefined;
       const saved=fingerprint?state.controls.reviewDecisions?.[group.key]:undefined;
       if(saved&&saved.sourceFingerprint===fingerprint&&saved.choice==='refer_contracts')
         resolution={category:'follow_up',resolution:{kind:'information',requiresUserAction:false,instruction:'Contracts Manager to determine the applicable interpretation.',completionRule:'A contracts determination is required.'},target:{type:'module',moduleKey:'contract-particulars-bonds',label:'Review the contract terms'}};
-      else if(saved&&saved.sourceFingerprint===fingerprint)
-        resolution=informationResolution('Recorded on '+saved.confirmedAt.slice(0,10)+'. The original contract and register records remain unchanged.');
+      else if(saved&&saved.sourceFingerprint===fingerprint){
+        resolution={...resolution,category:'information',target:{...resolution.target,reviewChoice:saved.choice,reviewMatrixText:Object.entries(saved.matrix??{}).map(([score,rating])=>score+'='+rating).join('\n')}};
+        if(resolution.resolution)resolution.resolution={...resolution.resolution,requiresUserAction:false};
+      }
       const missing=subset.some(issue=>issue.kind==='missing_information');
       // Missing optional or source-unproven fields remain visible as information.
       // Only explicit decisions and proven conflicting records create actions.
@@ -292,6 +295,48 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose the date basis for all procurement packages in these source revisions. Where the chosen date is missing, timing remains not established. Until you choose, the earlier date is used only for screening.'+(basis.choice?' Current choice: '+(basis.choice==='programme'?'programme need dates':'register required-on-site dates')+'.':''),completionRule:'Saved against these programme and procurement records; new source versions require a new decision.'},
       target:{type:'inline',kind:'review-procurement-date',label:'Confirm procurement date basis',reviewChoice:basis.choice,reviewOptions:[{value:'programme',label:'Use linked programme need dates'},{value:'register',label:'Use register required-on-site dates'}]}};
     (basis.choice?information:actions).push(action);
+  }
+
+  const riskBasis=riskReviewBasis(state),ops=operationalControlsAsOf(state,projectDataDate(state));
+  if(ops.risk.validation.ratingInconsistencyGroups.length&&![...actions,...information].some(a=>a.target.kind==='review-risk')){
+    const saved=riskBasis.rating;
+    const item:ProjectAction={id:'matter:risk-rating-rule',category:saved?'information':'confirmation',title:'Risk score and rating method',owner:'Risk Manager',recordCount:ops.risk.sourceRecordCount,
+      reason:'Equal source scores have different supplied ratings. The source ratings remain available beside the selected reporting treatment.',
+      reviewFingerprint:riskBasis.sourceFingerprint,reviewSourceRefs:ops.risk.validation.sourceRefs,
+      evidenceSummary:ops.risk.validation.ratingInconsistencyGroups.map(g=>'Score '+g.score+': '+g.ratings.join(', ')),
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Keep the supplied ratings or enter the approved score-to-rating matrix.',completionRule:'The treatment applies only to the reviewed source revision.'},
+      target:{type:'inline',kind:'review-risk',label:'Confirm risk rating basis',reviewChoice:saved?.choice??null,reviewMatrixText:Object.entries(saved?.matrix??{}).map(([score,rating])=>score+'='+rating).join('\n'),reviewOptions:[{value:'keep_source_ratings',label:'Keep the ratings entered in the register'},{value:'enter_matrix',label:'Enter the project risk rating matrix'}]}};
+    (saved?information:actions).push(item);
+  }
+  const undatedRisks=ops.risk.snapshotCandidates;
+  if(undatedRisks.length){
+    const saved=riskBasis.snapshot;
+    const item:ProjectAction={id:'matter:risk-status-snapshot',category:saved?'information':'confirmation',title:'Confirm the risk register status date',owner:'Risk Manager',recordCount:undatedRisks.length,
+      reason:undatedRisks.length+' risks have no recorded raised or status date. Confirm when the supplied statuses represent the project position.',
+      evidenceSummary:['Current reporting date: '+(projectDataDate(state)??'Not established'),...state.evidenceDocuments.filter(d=>d.documentType==='risk_register').map(d=>d.sourceFilename)],
+      reviewFingerprint:riskBasis.sourceFingerprint,reviewSourceRefs:undatedRisks.flatMap(row=>row.sourceRefs),resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Enter the date represented by these register statuses. This does not invent individual raised or closure dates.',completionRule:'The confirmed snapshot date is used for this source revision only.'},
+      target:{type:'inline',kind:'review-risk-snapshot',label:'Confirm register status date',reviewChoice:saved?.choice??null,reviewDateIso:saved?.asOfIso??null,reviewOptions:[{value:'confirm_snapshot',label:'Use the supplied statuses at the date I enter'}]}};
+    (saved?information:actions).push(item);
+  }
+  const time=canonicalTimeClaims(state),basis=reportingTimeBasis(state,time.contractTimeBasis);
+  if(basis?.incorporatedEotDays!=null&&basis.registerDeterminationCount&&basis.officialApprovedEotDays!==null){
+    const review=eotOverlapReview(state,basis),saved=review.decision;
+    const item:ProjectAction={id:'matter:eot-overlap',category:saved?'information':'confirmation',title:'Reconcile the amendment and EOT awards',owner:'Contracts Manager',recordCount:basis.registerDeterminationCount,
+      reason:'Confirm which awarded days are additional to the completion date already stated in the amendment.',reviewFingerprint:review.sourceFingerprint,reviewSourceRefs:basis.sourceRefs,
+      evidenceSummary:['Amended completion: '+basis.contractualCompletionIso,'Days already incorporated in the amendment: '+basis.incorporatedEotDays,'Determination days effective at the reporting date: '+basis.officialApprovedEotDays,'Full register days: '+basis.registerDeterminationDays,...basis.sourceRefs.filter(r=>!r.startsWith('user-confirmation:'))],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Compare the amendment and determinations. Enter the additional awarded days to apply after the amended completion on the stated contractual day basis and the supporting decision reference.',completionRule:'Every time and commercial view uses the same source-bound reconciliation.'},
+      target:{type:'inline',kind:'review-eot-overlap',label:'Confirm EOT reconciliation',reviewChoice:saved?.choice??null,reviewAdditionalDays:saved?.additionalDays??null,reviewReference:saved?.reference??null,reviewOptions:[{value:'confirm_additional_days',label:'Confirm additional awarded days after the amendment'}]}};
+    (saved?information:actions).push(item);
+  }
+  const valueReview=contractValueReview(state);
+  if(!state.controls.contractValue&&valueReview.candidates.length){
+    const saved=valueReview.decision;
+    const item:ProjectAction={id:'matter:contract-value',category:saved?'information':'confirmation',title:'Confirm the contract value already read',owner:'Commercial Manager',recordCount:valueReview.candidates.length,
+      reason:'Select the contract value to use for reporting from the retained source candidates.',reviewFingerprint:valueReview.sourceFingerprint,reviewSourceRefs:valueReview.candidates.flatMap(c=>c.sourceRefs),
+      evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+c.amount+' · '+c.sourceRefs.join('; ')),
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the value against the cited contract and amendment, then confirm the applicable value. Original source candidates are retained.',completionRule:'The selected amount and currency become the shared reporting value for these contract sources.'},
+      target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??null,reviewOptions:valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')}))}};
+    (saved?information:actions).push(item);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];

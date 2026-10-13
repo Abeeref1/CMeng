@@ -1,3 +1,4 @@
+import {riskReviewBasis} from './source-review-decisions';
 import {cell,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
 import type {ProjectRuntimeState,RiskControlRecord} from './project-state-types';
@@ -46,6 +47,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     status:ncrStatus(cell(row,'status')),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
   const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
     status:rfiStatus(cell(row,'status')),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
+  const riskBasis=riskReviewBasis(state);
   const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>({riskId:cell(row,'risk id'),
     ...responsibility(row),category:cell(row,'category','risk category','discipline')||null,
     status:(/^(open|active|mitigating|in progress)$/.test(norm(cell(row,'status')))?'open':/^(closed|resolved)$/.test(norm(cell(row,'status')))?'closed':'unknown') as RiskControlRecord['status'],
@@ -58,7 +60,12 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   };
   const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
   const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
-  const risk=scope(risks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId));
+  const riskSnapshotDate=dateValue(riskBasis.snapshot?.asOfIso??'');
+  const suppliedDateRefs=new Set(rows('risk_register').filter(row=>cell(row,'raised date','opened date','issue date','identified date')||cell(row,'status as of','status date','snapshot date','as of date','last reviewed')).flatMap(refs));
+  const snapshotCandidates=risks.filter(row=>!row.raisedIso&&!row.statusAsOfIso&&!row.sourceRefs.some(ref=>suppliedDateRefs.has(ref)));
+  const snapshotRows=new Set(snapshotCandidates);
+  const reportingRisks=risks.map(row=>snapshotRows.has(row)&&riskSnapshotDate?{...row,statusAsOfIso:riskSnapshotDate,sourceRefs:[...row.sourceRefs,'user-confirmation:risk-status-snapshot:'+riskBasis.sourceFingerprint]}:row);
+  const risk={...scope(reportingRisks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId)),sourceRows:risks};
   const scoreRows=rows('risk_register').map(row=>{
     const probability=numberValue(cell(row,'probability')),impact=numberValue(cell(row,'impact')),sourceScore=numberValue(cell(row,'score'));
     const calculatedScore=probability!==null&&impact!==null&&probability>=0&&impact>=0?Number((probability*impact).toFixed(6)):null;
@@ -67,13 +74,22 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     return {riskId:cell(row,'risk id'),probability,impact,sourceScore,calculatedScore,score,scoreConflict,
       rating:cell(row,'rating')||null,dueIso:dateValue(cell(row,'due date')),sourceRefs:refs(row)};
   });
+  const ratingDecision=riskBasis.rating;
+  const currentRisks=new Map(risk.current.map(row=>[row.riskId,row]));
+  for(const row of scoreRows){
+    const confirmedRating=ratingDecision?.choice==='enter_matrix'&&row.score!==null?ratingDecision.matrix?.[String(row.score)]:undefined;
+    if(confirmedRating){
+      const current=currentRisks.get(row.riskId);if(current)current.rating=confirmedRating;
+    }
+  }
   const scoreGroups=[...new Set(scoreRows.map(r=>r.score).filter((n):n is number=>n!==null))].sort((a,b)=>a-b).map(score=>{
     const members=scoreRows.filter(r=>r.score===score);return {score,recordCount:members.length,ratings:[...new Set(members.map(r=>r.rating).filter(Boolean))],counts:[...new Set(members.map(r=>r.rating))].map(rating=>({rating,count:members.filter(r=>r.rating===rating).length})),riskIds:members.map(r=>r.riskId)};
   });
   const ratingInconsistencyGroups=scoreGroups.filter(g=>g.ratings.length>1);
   const scoreConflictRows=scoreRows.filter(r=>r.scoreConflict);
   const missingProbabilityCount=scoreRows.filter(r=>r.probability===null).length,missingImpactCount=scoreRows.filter(r=>r.impact===null).length;
-  const riskValidation={state:scoreConflictRows.length||ratingInconsistencyGroups.length?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
+  const ratingConflictsUnresolved=ratingDecision?.choice==='keep_source_ratings'?false:ratingInconsistencyGroups.some(g=>ratingDecision?.choice!=='enter_matrix'||!ratingDecision.matrix?.[String(g.score)]);
+  const riskValidation={ratingDecision:ratingDecision?.choice??null,statusSnapshotDate:riskSnapshotDate,state:scoreConflictRows.length||ratingConflictsUnresolved?'conflicted':scoreRows.length&&scoreRows.every(r=>r.score!==null&&r.rating!==null)?'consistent_in_checked_scores':'review_required',sourceRecordCount:risks.length,
     missingProbabilityCount,missingImpactCount,
     sourceFactKey:'RISK_RATING_SCORE_CONFLICT',
     scoreBasis:'Supplied risk Score is retained when present and reconciled against probability × impact. When Score is absent, probability × impact is a calculated comparison value. No rating thresholds are invented.',
@@ -81,7 +97,8 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     statusDateMissingCount:risk.undatedRecordCount,
     dueAfterDataDateCount:scoreRows.filter(r=>dateValue(date??'')&&r.dueIso&&r.dueIso>dateValue(date??'')!).length,
     sourceRefs:scoreRows.flatMap(r=>r.sourceRefs),
-    diagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[])],
+    diagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingConflictsUnresolved?['RISK_RATING_SCORE_CONFLICT']:[])],
+    sourceDiagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[])],
     explanation:risks.length+' risk records are present. '+(scoreConflictRows.length?scoreConflictRows.length+' supplied Score value(s) differ from probability × impact. ':'')+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' equal score values have inconsistent supplied ratings. ':'')+
       (missingProbabilityCount||missingImpactCount?'Risk score validation is unresolved: probability is missing or unreadable in '+missingProbabilityCount+' rows; impact is missing or unreadable in '+missingImpactCount+' rows. Provide those source values to assess the scores. ':'')+
       risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
@@ -96,7 +113,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     overdueDays:row.dueIso&&date?Math.max(0,Math.floor((Date.parse(date.slice(0,10))-Date.parse(row.dueIso.slice(0,10)))/86400000)):null,
     missingActionFields:[...(!row.owner?['Owner']:[]),...(!row.dueIso?['Due date']:[])]}))
     .sort((a,b)=>Number(b.priority==='critical')-Number(a.priority==='critical')||(b.overdueDays??-1)-(a.overdueDays??-1)||(b.ageDays??-1)-(a.ageDays??-1)||a.recordId.localeCompare(b.recordId));
-  return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,validation:riskValidation},knownCounts:{
+  return {actions:actionRows,dataDateIso:dateValue(date??''),quality,rfi,risk:{...risk,snapshotCandidates,validation:riskValidation},knownCounts:{
     openNcrCount:quality.current.filter(r=>r.status==='open').length,
     overdueNcrCount:quality.current.filter(r=>r.status==='open'&&dueBefore(dateValue(date??''),r.dueIso)).length,
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
