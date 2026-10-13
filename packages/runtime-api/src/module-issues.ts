@@ -21,6 +21,18 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     issues.push({kind,code,summary,detail,action,owner,moduleKeys:[result.key],evidencePaths:[path],sourceRefs,checkIds});
   };
   const dateReview=d?.registerDateReview ? scopeRegisterDateReview(d.registerDateReview, result.key) : null;
+  if(result.key==='forecast-history'){
+    const checks=new Map<string,Array<{point:any;check:any;index:number}>>();
+    for(const [index,point] of (d?.points??[]).entries())for(const check of point.calculationChecks??[]){
+      if(check.state==='passed')continue;
+      const group=checks.get(check.key)??[];group.push({point,check,index});checks.set(check.key,group);
+    }
+    for(const [key,rows] of checks)add('verification_pending','HISTORY_CALCULATION_'+key.toUpperCase(),
+      rows[0]!.check.label+' needs review in '+rows.length+' revision(s)',
+      rows.map(({point,check})=>(d.revisionLabels?.[point.sourceRevisionId]??point.sourceRevisionId)+': '+check.detail).join('; '),
+      'Review Calculation checks by revision and the retained source evidence before adopting a recalculated finish.',
+      'points['+rows[0]!.index+'].calculationChecks','CMeng',rows.map(({point})=>'schedule-revision:'+point.sourceRevisionId));
+  }
   if(dateReview?.likelyMappingFault)add('verification_pending','REGISTER_DATE_READING_REVIEW','Register dates need a system reading check',dateReview.message,
     'CMeng must compare the supplied date columns with the reader before requesting replacement files.','registerDateReview','CMeng');
   const integrity=d?.systemEvidenceContract;

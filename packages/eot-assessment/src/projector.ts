@@ -84,7 +84,7 @@ function assessWindow(
   policy: EotScenarioPolicy,
 ): EotWindowCandidate {
   const positiveIndependentMovement = window.independentForecastMovementDays === null ? null : Math.max(0, window.independentForecastMovementDays);
-  const positiveProgrammeMovement = window.strongestProgrammeMovementDays === null ? null : Math.max(0, window.strongestProgrammeMovementDays);
+  const positiveProgrammeMovement = window.netCompletionMovementDays === null ? null : Math.max(0, window.netCompletionMovementDays);
   const eventRows =
     eventRowsForWindow(window, delay);
 
@@ -133,7 +133,7 @@ function assessWindow(
         positiveProgrammeMovement,
       programmeMovementBasis:
         window
-          .strongestProgrammeMovementBasis,
+          .netCompletionMovementBasis,
       analyticalTimeImpactCandidateDays:
         null,
       state: "review",
@@ -233,7 +233,7 @@ function assessWindow(
       positiveProgrammeMovement,
     programmeMovementBasis:
       window
-        .strongestProgrammeMovementBasis,
+        .netCompletionMovementBasis,
     analyticalTimeImpactCandidateDays,
     state: include
       ? "included"

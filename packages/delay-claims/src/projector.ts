@@ -125,7 +125,7 @@ export function buildDelayClaimsProjection(
           (sum, window) =>
             sum +
             (window
-              .strongestProgrammeMovementDays ??
+              .netCompletionMovementDays ??
               0),
           0,
         );
@@ -137,7 +137,7 @@ export function buildDelayClaimsProjection(
             Math.max(
               0,
               window
-                .strongestProgrammeMovementDays ??
+                .netCompletionMovementDays ??
                 0,
             ),
           0,
@@ -149,7 +149,7 @@ export function buildDelayClaimsProjection(
             .map(
               (window) =>
                 window
-                  .strongestProgrammeMovementBasis,
+                  .netCompletionMovementBasis,
             )
             .filter(
               (basis) =>
@@ -297,9 +297,9 @@ export function buildDelayClaimsProjection(
         observedPositiveIndependentMovementDays:
           overlapping.length>0&&overlapping.every(w=>w.independentForecastMovementDays!==null)?Number(positive.toFixed(6)):null,
         observedNetProgrammeMovementDays:
-          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(programmeNet.toFixed(6)),
+          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.netCompletionMovementDays===null)?null:Number(programmeNet.toFixed(6)),
         observedPositiveProgrammeMovementDays:
-          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(programmePositive.toFixed(6)),
+          programmeMovementBasis==='unavailable'||overlapping.some(w=>w.netCompletionMovementDays===null)?null:Number(programmePositive.toFixed(6)),
         programmeMovementBasis,
         concurrencyCandidate,
         candidateClass: classify(
@@ -332,7 +332,7 @@ export function buildDelayClaimsProjection(
   for (const window of windows.windows) {
     const positive = Math.max(
       0,
-      window.strongestProgrammeMovementDays ??
+      window.netCompletionMovementDays ??
         0,
     );
 
@@ -448,15 +448,15 @@ export function buildDelayClaimsProjection(
     projectCompletionMovementBasis:
       windows.projectCompletionMovementBasis,
     unattributedProgrammeMovementDays:
-      !windows.windows.length||windows.windows.some(w=>w.strongestProgrammeMovementDays===null)?null:Number(
+      !windows.windows.length||windows.windows.some(w=>w.netCompletionMovementDays===null)?null:Number(
         unattributed.toFixed(6),
       ),
     employerOrNeutralCandidateWindowMovementDays:
-      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(employerOrNeutral.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.netCompletionMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(employerOrNeutral.toFixed(6)):null,
     contractorRiskWindowMovementDays:
-      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(contractor.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.netCompletionMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(contractor.toFixed(6)):null,
     concurrentReviewWindowMovementDays:
-      windows.windows.length>0&&windows.windows.every(w=>w.strongestProgrammeMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
+      windows.windows.length>0&&windows.windows.every(w=>w.netCompletionMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
 
     events: rows,
     diagnostics: [

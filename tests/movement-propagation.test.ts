@@ -139,6 +139,24 @@ const emptyDelay:
   diagnostics: [],
 };
 
+test('Delay and EOT retain completion movement when individual activities shift farther',()=>{
+ const events:DelayClaimsModel={...emptyDelay,events:[{eventId:'E1',title:'Reported event',category:'other',startIso:'2031-01-01',endIso:'2031-03-01',responsibility:'unknown',responsibilityState:'missing',describedImpactDays:null,describedImpactState:'missing',relatedActivityIds:[],relatedClauseIdentifiers:[],evidenceRefs:[],diagnostics:[]}]};
+ const windows=buildWindowsAnalysisProjection([
+  revision('R1',1,'2031-01-01','2031-08-01'),revision('R2',2,'2031-02-01','2031-08-05'),revision('R3',3,'2031-03-01','2031-08-06')],events,{generatedAt:'2031-03-01',producerVersion:'test'});
+ windows.windows.forEach((w,i)=>{w.strongestProgrammeMovementDays=[9,16][i]!;w.strongestProgrammeMovementBasis='matched_activity_finish_shift';});
+ const before=JSON.stringify(windows),delay=buildDelayClaimsProjection(windows,events,{generatedAt:'2031-03-01',producerVersion:'test'});
+ const eot=buildEotAssessmentProjection(windows,delay,contractTime,{generatedAt:'2031-03-01',producerVersion:'test'});
+ assert.equal(delay.events[0]!.observedNetProgrammeMovementDays,5);assert.equal(delay.events[0]!.observedPositiveProgrammeMovementDays,5);assert.equal(delay.events[0]!.programmeMovementBasis,'source_forecast');
+ assert.equal(delay.observedPositiveProgrammeMovementDays,5);assert.equal(delay.unattributedProgrammeMovementDays,5);
+ assert.deepEqual(eot.windowCandidates.map(w=>w.positiveProgrammeMovementDays),[4,1]);assert.deepEqual(eot.windowCandidates.map(w=>w.programmeMovementBasis),['source_forecast','source_forecast']);
+ assert.equal(eot.candidateAdditionalEotDays,null);assert.equal(JSON.stringify(windows),before,'original activity-shift evidence remains intact');
+ windows.windows[0]!.netCompletionMovementDays=null;windows.windows[0]!.netCompletionMovementBasis='unavailable';
+ const unknownDelay=buildDelayClaimsProjection(windows,events,{generatedAt:'2031-03-01',producerVersion:'test'});
+ const unknownEot=buildEotAssessmentProjection(windows,unknownDelay,contractTime,{generatedAt:'2031-03-01',producerVersion:'test'});
+ assert.equal(unknownDelay.events[0]!.observedPositiveProgrammeMovementDays,null);
+ assert.equal(unknownDelay.unattributedProgrammeMovementDays,null);assert.equal(unknownEot.windowCandidates[0]!.positiveProgrammeMovementDays,null);
+});
+
 const contractTime:
   ContractTimeBasis = {
   contractualCompletionIso:

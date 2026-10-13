@@ -1717,13 +1717,14 @@ function renderDelayClaimsVisual(data){
   const currentEventCount=sourcePopulationEstablished?(reporting?.events?.asOf?.length??p.eventCount??0):null;
   const futureEventCount=sourcePopulationEstablished?(reporting?.events?.future?.length??0):null;
   const undatedEventCount=sourcePopulationEstablished?(reporting?.events?.undated?.length??0):null;
+  const eventDateMissingCount=sourcePopulationEstablished?(data?.projectFacts?.claims?.eventDateMissingCount?.value??null):null;
   const events=Array.isArray(p.events)?p.events:[],linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
   const linked=!sourcePopulationEstablished?null:(p.linkedClaimCount??linkedClaimIds.size),unlinked=!sourcePopulationEstablished?null:(p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-(linked||0)));
   const activityGapCount=!sourcePopulationEstablished?null:(p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length);
   const incompleteDeterminationCount=!sourcePopulationEstablished?null:(p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length);
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number",populationValue=value=>sourcePopulationEstablished?value:withheld;
   const kpis=planningKpis([
-    ["Current delay events",populationValue(currentEventCount),"evidenced contractual event population"],["Source delay-event rows",populationValue(sourceEventCount),"retained contractual event population"],["After Data Date",populationValue(futureEventCount),"retained outside current position"],["Event date missing",populationValue(undatedEventCount),"retained but excluded from current position"],
+    ["Current delay events",populationValue(currentEventCount),"evidenced contractual event population"],["Source delay-event rows",populationValue(sourceEventCount),"retained contractual event population"],["After Data Date",populationValue(futureEventCount),"retained outside current position"],["Event / awareness dates missing",eventDateMissingCount===null?withheld:eventDateMissingCount,"notice trigger dates in the current event population"],["No dated event evidence",populationValue(undatedEventCount),"no dated event, awareness or notice evidence; excluded from current position"],
     ["Claims",quarantined?"Under review":p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Not established":p.claimCount,quarantined?"source population quarantined":"claim records",quarantined?"warning":""],
     ...(quarantined?[["Quarantined source claim rows",integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount,"retained for audit; excluded from management truth","warning"]]:[]),
     ["Claims linked to events",linked===null?withheld:linked,"identity association; causation unproven"],["Claims without event links",unlinked===null?withheld:unlinked,"identity gap; linked claims still need causation"],
@@ -3354,8 +3355,17 @@ function claimStateCounts(claims){
   return [...map.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value}));
 }
 
+function renderForecastCalculationChecks(p){
+  const points=(p.points||[]),labels=p.revisionLabels||{};
+  const groups=points.map(point=>{const checks=point.calculationChecks||[];
+    const rows=checks.map(check=>'<tr><td>'+escapeHtml(check.label||humanizeKey(check.key))+'</td><td>'+escapeHtml(humanizeKey(check.state))+'</td><td>'+escapeHtml(check.detail||'Not established')+'</td><td>'+escapeHtml(check.count==null?'Not established':fmt(check.count))+'</td></tr>').join('');
+    return '<section><h5>'+escapeHtml(shortRevision(point.sourceRevisionId,labels))+' · '+escapeHtml(planningShortDate(point.dataDateIso))+'</h5><p>'+escapeHtml(point.calculationReason||'Calculation qualification not supplied for this snapshot.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Calculation check</th><th>State</th><th>Evidence</th><th>Count</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>Calculation checks are not supplied for this snapshot.</p>')+'</section>';
+  }).join('');
+  return groups?'<section class="planning-panel"><div class="planning-panel-head"><h4>Calculation checks by revision</h4></div><div class="planning-panel-body">'+groups+'</div></section>':'';
+}
 function renderForecastHistoryVisual(data){
   const p=projectionFor(data,"forecast_history");
+  const calculationChecks=renderForecastCalculationChecks(p);
   if(!Array.isArray(p.points))return"";
   const labels=p.revisionLabels||{};
   const availability=data?.featureAvailability||p.featureAvailability||null;
@@ -3367,7 +3377,7 @@ function renderForecastHistoryVisual(data){
       ["Submitted finish",planningShortDate(current.sourceForecastCompletionIso),"source programme forecast"],
       ["Programme calendar recalculation",(current.independentForecastCompletionIso?planningShortDate(current.independentForecastCompletionIso):'Not calculated'),"calculated only when available"]
     ]):"";
-    return '<section class="planning-view forecast-history-view"><div class="notice info"><b>Completion history is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable programme revisions are required.")+'</p></div>'+currentPosition+'<details class="management-detail"><summary>History prerequisite</summary><p>CMeng keeps the current completion position visible, but does not draw a movement trend from a single observation.</p></details></section>';
+    return '<section class="planning-view forecast-history-view"><div class="notice info"><b>Completion history is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable programme revisions are required.")+'</p></div>'+currentPosition+calculationChecks+'<details class="management-detail"><summary>History prerequisite</summary><p>CMeng keeps the current completion position visible, but does not draw a movement trend from a single observation.</p></details></section>';
   }
   const points=p.points.map((x,index)=>({...x,dateIso:x.dataDateIso||("Revision "+(index+1))}));
   const sourceCount=p.sourceForecastCount??p.points.filter(x=>x.sourceForecastCompletionIso).length;
@@ -3385,7 +3395,7 @@ function renderForecastHistoryVisual(data){
     ["Revisions",p.snapshotCount,"controlled"],
     ["Submitted forecasts",sourceCount,"Recorded in programme revisions"],
     ["Calendar calculations",independentCount,"calculated snapshots",independentCount?"accent":"warning"]
-   ])+inherited+note+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Forecast values by revision</h4><p>Exact dates first; source finishes and calendar recalculations remain separate.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div></div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast movement</h4><p>Later vertical position means a later finish date.</p></div></div><div class="planning-panel-body">'+trend+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Forecast history detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Data date</th><th>Revision</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Calendar movement vs previous d</th><th>Calendar movement vs first d</th><th>Basis</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+   ])+inherited+note+calculationChecks+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Forecast values by revision</h4><p>Exact dates first; source finishes and calendar recalculations remain separate.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div></div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast movement</h4><p>Later vertical position means a later finish date.</p></div></div><div class="planning-panel-body">'+trend+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Forecast history detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Data date</th><th>Revision</th><th>Submitted finish</th><th>Programme calendar recalculation</th><th>Calendar movement vs previous d</th><th>Calendar movement vs first d</th><th>Basis</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderNoticesClaimsVisual(data){
   const p=projectionFor(data,"notices_claims");if(!Array.isArray(p.events)||!Array.isArray(p.claims))return"";

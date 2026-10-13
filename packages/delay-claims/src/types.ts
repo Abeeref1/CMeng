@@ -81,7 +81,7 @@ export interface DelayClaimsProjection {
   activityCorrespondenceUnresolvedCount: number;
 
   observedPositiveIndependentMovementDays: number | null;
-  /** Gross positive analytical movement summed across windows. Not project delay or EOT. */
+  /** Positive submitted completion shifts summed across windows; recoveries remain separate. Not causal delay or EOT. */
   observedPositiveProgrammeMovementDays: number | null;
   /** Net submitted Project Completion movement from first to latest controlled revision. */
   projectCompletionMovementDays: number | null;

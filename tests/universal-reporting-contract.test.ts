@@ -52,6 +52,31 @@ test('temporal partition preserves boundary, invalid, future and undated records
  assert.equal(partitionAsOf(rows,{...options,dataDateIso:null}).asOf.length,0);
 });
 
+test('Delay and EOT runtime fallbacks share submitted completion movement and full missing-event counts',t=>{
+ const {state,model,csv}=fixture(t);
+ const previous=structuredClone(state.schedules[0]!);previous.sourceHashSha256='previous';previous.revision.revisionId='PREVIOUS';previous.revision.sequence=1;previous.revision.effectiveAt='2031-04-01';previous.revision.model.dataDateIso='2031-04-01';previous.revision.model.sourceRevisionId='PREVIOUS';
+ previous.revision.model.activities[0]!.currentFinishIso='2031-05-05';
+ previous.revision.model.activities.push({...structuredClone(previous.revision.model.activities[0]!),activityId:'SIDE',nativeId:'2',currentFinishIso:'2031-04-20'});
+ model.activities.push({...structuredClone(model.activities[0]!),activityId:'SIDE',nativeId:'2',currentFinishIso:'2031-05-06'});
+ state.schedules[0]!.revision.sequence=2;state.schedules.unshift(previous);state.version++;
+ for(const withEvents of [false,true]){
+  if(withEvents)csv('Claim ID,Event,Notice Date,Days Claimed,Status\n'+Array.from({length:240},(_,i)=>'CASE-'+i+',Event '+i+',2031-04-15,8,Under Assessment').join('\n'),'delay_eot_claims_register');
+  const windows=moduleForProject(state.projectId,'windows-analysis').data as any,eot=moduleForProject(state.projectId,'eot-assessment').data as any;
+  assert.equal(windows.windows[0].netCompletionMovementDays,4);assert.equal(windows.windows[0].strongestProgrammeMovementDays,16);
+  assert.equal(eot.windowCandidates[0].positiveProgrammeMovementDays,4);assert.equal(eot.windowCandidates[0].programmeMovementBasis,windows.windows[0].netCompletionMovementBasis);
+  assert.equal(eot.windowCandidates[0].analyticalTimeImpactCandidateDays,null);
+  if(withEvents){const delay=moduleForProject(state.projectId,'delay-claims').data as any;
+    assert.equal(delay.projectFacts.claims.eventDateMissingCount.value,240);assert.equal(delay.claimsReporting.events.undated.length,0);
+    assert.equal(delay.unattributedProgrammeMovementDays,4);
+    assert.ok(delay.events.every((e:any)=>e.observedPositiveProgrammeMovementDays===null||e.observedPositiveProgrammeMovementDays===4));
+  }
+ }
+ const history=moduleForProject(state.projectId,'forecast-history');
+ const checks=(history.data as any).points.flatMap((p:any)=>p.calculationChecks);
+ assert.ok(checks.some((c:any)=>c.state!=='passed'));
+ assert.ok(history.issueAssessment?.issues.some(i=>i.code.startsWith('HISTORY_CALCULATION_')),'failed historical checks must reach Review findings');
+});
+
 test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboard and command center',t=>{
  const {state,csv}=fixture(t);
  csv('NCR ID,Raised Date,Close Date,Severity,Status\nN1,2031-04-01,2031-04-16,Major,Closed\nN2,2031-04-15,,Critical,Open\nN3,2031-04-16,,Critical,Open\nN4,2031-04-01,2031-04-15,Major,Closed','quality_ncr_register');

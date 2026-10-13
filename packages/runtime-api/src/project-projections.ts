@@ -2339,23 +2339,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           (window) => ({
             windowId:
               window.windowId,
-            positiveIndependentMovementDays:
-              Math.max(
-                0,
-                window
-                  .independentForecastMovementDays ??
-                  0,
-              ),
-            positiveProgrammeMovementDays:
-              Math.max(
-                0,
-                window
-                  .strongestProgrammeMovementDays ??
-                  0,
-              ),
+            positiveIndependentMovementDays: window.independentForecastMovementDays===null?null:Math.max(0,window.independentForecastMovementDays),
+            positiveProgrammeMovementDays: window.netCompletionMovementDays===null?null:Math.max(0,window.netCompletionMovementDays),
             programmeMovementBasis:
               window
-                .strongestProgrammeMovementBasis,
+                .netCompletionMovementBasis,
             analyticalTimeImpactCandidateDays:
               null,
             state:
@@ -6680,23 +6668,11 @@ function buildSpecialistModuleFast(
                       windowId:
                         window
                           .windowId,
-                      positiveIndependentMovementDays:
-                        Math.max(
-                          0,
-                          window
-                            .independentForecastMovementDays ??
-                            0,
-                        ),
-                      positiveProgrammeMovementDays:
-                        Math.max(
-                          0,
-                          window
-                            .strongestProgrammeMovementDays ??
-                            0,
-                        ),
+                      positiveIndependentMovementDays: window.independentForecastMovementDays===null?null:Math.max(0,window.independentForecastMovementDays),
+                      positiveProgrammeMovementDays: window.netCompletionMovementDays===null?null:Math.max(0,window.netCompletionMovementDays),
                       programmeMovementBasis:
                         window
-                          .strongestProgrammeMovementBasis,
+                          .netCompletionMovementBasis,
                       analyticalTimeImpactCandidateDays:
                         null,
                       state:

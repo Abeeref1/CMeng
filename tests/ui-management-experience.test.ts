@@ -29,6 +29,21 @@ function functions(names:string[]) {
 }
 const common={apiKeys:{},fmt:String,fmtExecutive:String,escapeHtml:(s:unknown)=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!)),humanizeKey:String,planningShortDate:(s:unknown)=>s==null?'Not available':String(s),planningRevisionLabel:String,SCREEN_STATUS_LABELS:STATUS_LABELS,currentModuleResult:null};
 const briefFunctions=functions(['aggregateCount','experienceRecordCount','experienceBrief','experienceValue','findProjectionRoot']);
+test('Delay Event Register distinguishes missing trigger dates from entirely undated records',()=>{
+ const data:any={projectionKey:'delay_claims',events:[],eventCount:240,claimCount:240,contractorClaimEvidenceSubmitted:true,projectFacts:{claims:{eventDateMissingCount:{value:240}}},claimsReporting:{events:{population:{sourceCount:240},asOf:Array(240).fill({}),future:[],undated:[]}}};
+ let kpis:any[]=[];
+ const code=functions(['renderDelayClaimsVisual','delayClaimsProjectionFor','projectionFor'])+';renderDelayClaimsVisual(data)';
+ runInNewContext(code,{...common,data,planningKpis:(rows:any[])=>{kpis=rows;return '';}});
+ assert.equal(kpis.find(r=>r[0]==='Event / awareness dates missing')[1],240);assert.equal(kpis.find(r=>r[0]==='No dated event evidence')[1],0);
+ data.delayEotEvidenceChain={populationState:'quarantined'};
+ runInNewContext(code,{...common,data,planningKpis:(rows:any[])=>{kpis=rows;return '';}});
+ assert.match(kpis.find(r=>r[0]==='Event / awareness dates missing')[1],/Withheld/);
+});
+test('Completion History shows retained calculation evidence even for a single unavailable calculation',()=>{
+ const data={projectionKey:'forecast_history',featureAvailability:{state:'evidence_only'},points:[{sourceRevisionId:'R1',dataDateIso:'2031-04-15',sourceForecastCompletionIso:'2031-05-09',independentForecastCompletionIso:null,calculationReason:'Source calendar is unresolved',calculationChecks:[{key:'calendar_coverage',label:'Calendar coverage',state:'review_required',detail:'40 execution activities require a source-calendar result.',count:40},{key:'graph_validity',label:'Graph validity',state:'passed',detail:'No graph errors.',count:0}]}]};
+ const html=runInNewContext(functions(['renderForecastHistoryVisual','renderForecastCalculationChecks','projectionFor','shortRevision'])+';renderForecastHistoryVisual(data)',{...common,data,planningKpis:()=>''});
+ assert.match(html,/Calculation checks by revision/);assert.match(html,/40 execution activities/);assert.match(html,/No graph errors/);assert.match(html,/Source calendar is unresolved/);
+});
 test('HSE source-rate reconciliation renders the original values, calculation qualification and review route',()=>{
  const nodes:Record<string,{innerHTML:string;textContent:string}>={};
  const h={review:{required:true,basis:'User-confirmed rates; original source retained',decision:{reference:'HSE-CHECK-1'}},rates:{reportedRates:{trir:0.29,ltifr:0.1},calculatedTrir:null,calculatedLtifr:null,comparisons:[{basisHours:1000000,fromReportedCases:6/10.25,comparisonBasis:'Minimum; restricted-work cases unresolved'}]}};
