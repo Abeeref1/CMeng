@@ -13,10 +13,12 @@ export interface DeliveryRecord {
  receipts:SourceReceipt[];diagnostics:string[];sourceActive:boolean;evidenceRevision?:string;
 }
 export interface DeliveryDecision {
+ batchId?:string;
  recordId:string;sourceRevision:string;state:'working'|'governed'|'verified'|'scenario';note:string;
  fields:DeliveryFields;links:DeliveryLinks;receipts?:SourceReceipt[];supersedesId:string|null;actorId:string;recordedAt:string;
 }
 export interface DeliveryPopulation {
+ sourceReviewBatchId?:string;
  kind:DeliveryKind;scopeId:string|null;recordIds:string[];fingerprint:string;note:string;actorId:string;recordedAt:string;
 }
 export interface DeliveryStateStore {

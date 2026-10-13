@@ -1,5 +1,6 @@
 import {boqItemContinuity} from './boq-item-continuity';
 import {createHash,randomUUID} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {sourceTables,cell,canonicalHeader,registerDate,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
 import {deliveryKinds,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
@@ -127,16 +128,42 @@ export function deliveryRecords(state:ProjectRuntimeState){
  return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
-export function validateDeliveryLinks(state:ProjectRuntimeState,records:DeliveryRecord[],links:DeliveryLinks){
- const model=projectControlSchedule(state)?.revision.model;const boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;
- const has=(ids:string[],available:string[],label:string)=>{const set=new Set(available);if(ids.some(id=>!set.has(id)))throw new Error(label+' link is not an established ID in this project.');};
- has(links.activityIds,model?.activities.map(a=>a.activityId)??[],'Activity');has(links.boqItemIds,boq?.items.map(i=>i.quantityItemId)??[],'BOQ item');
- const eligible=records.filter(r=>['governed','verified'].includes(r.state));
- for(const [field,kind] of [['packageIds','package'],['supplierIds','supplier'],['locationIds','location'],['assetIds','asset']] as const)has(links[field],eligible.filter(r=>r.kind===kind).map(r=>r.recordId),kind);
- has(links.recordIds,eligible.map(r=>r.recordId),'Delivery record');
- for(const [key,kind] of [['riskIds','risk'],['claimIds','claim'],['noticeIds','notice'],['variationIds','variation']] as const)if(links[key].length)has(links[key],deliveryAuthorityCatalog(state,kind).map(r=>r.id),kind);
- const allocated=new Set<string>();for(const allocation of links.boqAllocations){const item=allocation&&boq?.items.find(i=>i.quantityItemId===allocation.boqItemId);if(!item||item.unit!==allocation.unit||!Number.isFinite(allocation.quantity)||allocation.quantity<0||!links.boqItemIds.includes(allocation.boqItemId)||allocated.has(allocation.boqItemId))throw new Error('Scope allocations require one entry per linked BOQ item, its exact unit and a non-negative quantity.');allocated.add(allocation.boqItemId);}
+function deliveryLinkValidator(state:ProjectRuntimeState,records:DeliveryRecord[]){
+ const model=projectControlSchedule(state)?.revision.model,boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;
+ const eligible=records.filter(r=>['governed','verified'].includes(r.state)),items=new Map(boq?.items.map(i=>[i.quantityItemId,i])??[]);
+ const available=new Map<string,Set<string>>([
+  ['activityIds',new Set(model?.activities.map(a=>a.activityId)??[])],['boqItemIds',new Set(items.keys())],['recordIds',new Set(eligible.map(r=>r.recordId))],
+  ...(['package','supplier','location','asset'] as const).map(kind=>[kind+'Ids',new Set(eligible.filter(r=>r.kind===kind).map(r=>r.recordId))] as [string,Set<string>]),
+ ]);
+ return (links:DeliveryLinks)=>{
+  const has=(ids:string[],field:string,label:string)=>{const idsAvailable=available.get(field)!;if(ids.some(id=>!idsAvailable.has(id)))throw new Error(label+' link is not an established ID in this project.');};
+  has(links.activityIds,'activityIds','Activity');has(links.boqItemIds,'boqItemIds','BOQ item');has(links.recordIds,'recordIds','Delivery record');
+  for(const kind of ['package','supplier','location','asset'] as const)has(links[(kind+'Ids') as 'packageIds'],kind+'Ids',kind);
+  for(const kind of ['risk','claim','notice','variation'] as const){const key=(kind+'Ids') as 'riskIds';if(links[key].length){if(!available.has(key))available.set(key,new Set(deliveryAuthorityCatalog(state,kind).map(r=>r.id)));has(links[key],key,kind);}}
+  const allocated=new Set<string>(),linkedItems=new Set(links.boqItemIds);for(const allocation of links.boqAllocations){const item=allocation&&items.get(allocation.boqItemId);if(!item||item.unit!==allocation.unit||!Number.isFinite(allocation.quantity)||allocation.quantity<0||!linkedItems.has(allocation.boqItemId)||allocated.has(allocation.boqItemId))throw new Error('Scope allocations require one entry per linked BOQ item, its exact unit and a non-negative quantity.');allocated.add(allocation.boqItemId);}
+ };
 }
+export function validateDeliveryLinks(state:ProjectRuntimeState,records:DeliveryRecord[],links:DeliveryLinks){deliveryLinkValidator(state,records)(links);}
+export function deliveryBatchReview(state:ProjectRuntimeState,input:{documentId:string;sourceHash:string;kind:string}){
+ if(input.kind!=='asset')throw new Error('Batch source review is available for asset registers.');
+ const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);if(!doc)throw new Error('Source document changed; reload its review.');
+ if(doc.storedPath&&createHash('sha256').update(readFileSync(doc.storedPath)).digest('hex')!==doc.sourceHashSha256)throw new Error('Retained source bytes do not match the document hash.');
+ const source=deliveryRecords(state),records=source.records.filter(r=>r.kind==='asset'&&r.receipts.some(s=>s.documentId===doc.documentId&&s.sourceHash===doc.sourceHashSha256));
+ const decided=new Set(deliveryStore(state).decisions.map(d=>d.recordId)),validateLinks=deliveryLinkValidator(state,source.records);
+ const lifecycles=new Set(source.records.filter(r=>r.kind==='lifecycle'&&['governed','verified'].includes(r.state)).map(r=>r.recordId));
+ const incomplete=source.documents.some(d=>d.documentId===doc.documentId&&d.readingComplete===false);
+ const rows=records.map(r=>{
+  let reason=incomplete?'Physical-page reading is incomplete.':decided.has(r.recordId)?'Existing individual or batch decision retained.':r.state!=='extracted_candidate'?'Record state requires individual review: '+r.state:!r.sourceActive?'Source is no longer current.':!r.reference?'Record reference is missing.':r.diagnostics.length?r.diagnostics.join('; '):null;
+  if(!reason){try{validateLinks(r.links);if(r.fields['lifecycle id']&&!lifecycles.has(String(r.fields['lifecycle id'])))throw new Error('Lifecycle template is not governed.');}catch(e){reason=e instanceof Error?e.message:'Relationships require individual review.';}}
+  return {recordId:r.recordId,reference:r.reference,description:r.description,sourceRevision:r.revision,state:r.state,eligible:!reason,reason:reason??'Source fields and relationships can be retained as reviewed.',fields:r.fields,sourceRefs:r.receipts};
+ });
+ const eligibleIds=new Set(rows.filter(r=>r.eligible).map(r=>r.recordId));
+ const previewFingerprint=deliveryHash(['asset-batch-review-v1',state.projectId,doc.documentId,doc.sourceHashSha256,deliveryPopulationFingerprint(records),rows.map(r=>[r.recordId,r.eligible,r.reason])]);
+ return {projectId:state.projectId,projectVersion:state.version,kind:'asset',documentId:doc.documentId,sourceHash:doc.sourceHashSha256,filename:doc.sourceFilename,previewFingerprint,total:rows.length,eligibleCount:eligibleIds.size,retainedCount:rows.length-eligibleIds.size,rows,
+  basis:'Review the listed source records together. Original fields and unknown values remain unchanged. Existing decisions and exceptions remain separate; this review does not verify commissioning, accept handover or establish population completeness.',
+  eligibleRecords:records.filter(r=>eligibleIds.has(r.recordId))};
+}
+
 function cleanLinks(input:unknown,previous:DeliveryLinks):DeliveryLinks {
  if(input===undefined)return structuredClone(previous);
  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Invalid relationship lists.');
@@ -188,6 +215,20 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   const seen=new Set([r.recordId]);let predecessor=old?.recordId;
   while(predecessor){if(seen.has(predecessor))throw new Error('Record supersession cannot contain a cycle.');seen.add(predecessor);predecessor=latest.get(predecessor)?.supersedesId??undefined;}
   store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:input.state,note:String(input.note),fields,links,...(receipts.length?{receipts}:{}),supersedesId:old?.recordId??null,actorId,recordedAt});
+ }else if(input.action==='review_source_batch'){
+  if(!String(input.note??'').trim())throw new Error('Enter the source batch review reference.');
+  if(input.state!==undefined&&input.state!=='governed'||input.fields!==undefined||input.links!==undefined||input.recordIds!==undefined)throw new Error('Batch review retains the previewed source fields and relationships; it cannot verify or edit records.');
+  const preview=deliveryBatchReview(state,input);
+  if(input.previewFingerprint!==preview.previewFingerprint)throw new Error('The source review population changed; reload its preview.');
+  if(!preview.eligibleCount)throw new Error('No source records are eligible for this batch review.');
+  const batchId='delivery-batch:'+randomUUID(),ids=new Set(preview.eligibleRecords.map(r=>r.recordId));
+  // Preserve an existing explicit completeness decision only when its exact
+  // population was valid before this source-only state transition.
+  const latestPopulations=new Map(store.populations.map(p=>[p.kind+'|'+(p.scopeId??''),p]));
+  const preserved=[...latestPopulations.values()].filter(p=>p.kind==='asset').map(p=>({p,rows:all.filter(r=>r.kind===p.kind&&deliveryCurrentRecord(r)&&(!p.scopeId||r.links.packageIds.includes(p.scopeId)||r.links.recordIds.includes(p.scopeId)))})).filter(({p,rows})=>p.fingerprint===deliveryPopulationFingerprint(rows));
+  for(const r of preview.eligibleRecords)store.decisions.push({recordId:r.recordId,sourceRevision:r.revision,state:'governed',note:String(input.note).trim(),fields:{},links:structuredClone(r.links),supersedesId:null,actorId,recordedAt,batchId});
+  for(const {p,rows} of preserved){const fingerprint=deliveryPopulationFingerprint(rows.map(r=>ids.has(r.recordId)?{...r,state:'governed' as const}:r));if(fingerprint!==p.fingerprint)store.populations.push({...p,fingerprint,sourceReviewBatchId:batchId});}
+  state.delivery=store;return {action:input.action,recordedAt,batchId,reviewedRecordCount:preview.eligibleCount,retainedRecordCount:preview.retainedCount};
  }else if(input.action==='map_document'){
   const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId);if(!doc||doc.sourceHashSha256!==input.sourceHash||!deliveryKinds.includes(input.kind))throw new Error('Select the current source document and Delivery record type.');
   const columns=cleanFields(input.columns),tables=deliverySourceTables(state,[]).filter(t=>t.document.documentId===doc.documentId);const headers=new Set(tables.flatMap(t=>t.headers));

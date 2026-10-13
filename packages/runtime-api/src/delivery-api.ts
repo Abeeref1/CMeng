@@ -1,6 +1,6 @@
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import {runtimeProjects} from './project-state';
-import {changeDelivery,deliveryRecords,deliveryStore} from './delivery-records';
+import {changeDelivery,deliveryRecords,deliveryStore,deliveryBatchReview} from './delivery-records';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
@@ -11,7 +11,7 @@ import {pageProjectResponse} from './response-paging';
 import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-core/src/types';
 
 export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url:URL):Promise<boolean>{
- const match=/^\/api\/projects\/([^/]+)\/delivery\/(records|catalog|sources)(?:\/([^/]+))?$/.exec(url.pathname);if(!match)return false;
+ const match=/^\/api\/projects\/([^/]+)\/delivery\/(records|catalog|sources|batch-review)(?:\/([^/]+))?$/.exec(url.pathname);if(!match)return false;
  const send=(status:number,data:unknown)=>{sendHttpBody(res,status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'},JSON.stringify(status===200&&req.method==='GET'?pageProjectResponse(data,url.pathname):data));};
  const projectId=decodeURIComponent(match[1]!),state=runtimeProjects.get(projectId);if(!state){send(404,{error:'Project not found.'});return true;}
  try{
@@ -21,6 +21,11 @@ export async function deliveryRequest(req:IncomingMessage,res:ServerResponse,url
   }
   if(req.method!=='GET'){send(405,{error:'Method not supported.'});return true;}
   const source=deliveryRecords(state),q=(url.searchParams.get('q')??'').toLowerCase(),kind=url.searchParams.get('kind');
+  if(match[2]==='batch-review'){
+   const {eligibleRecords,rows,...preview}=deliveryBatchReview(state,{documentId:url.searchParams.get('documentId')??'',sourceHash:url.searchParams.get('sourceHash')??'',kind:kind??''});
+   const filter=url.searchParams.get('filter'),matched=rows.filter(r=>(filter==='eligible'?r.eligible:filter==='retained'?!r.eligible:true)&&(!q||JSON.stringify(r).toLowerCase().includes(q))),offset=Math.max(0,Number(url.searchParams.get('offset'))||0),limit=25;
+   send(200,{...preview,matchedCount:matched.length,offset,limit,rows:matched.slice(offset,offset+limit)});return true;
+  }
   if(match[2]==='sources'){
    const tables=deliverySourceTables(state,[]);send(200,{projectId,projectVersion:state.version,documents:state.evidenceDocuments.map(d=>({documentId:d.documentId,filename:d.sourceFilename,sourceHash:d.sourceHashSha256,basisState:d.basisState,mediaType:d.mediaType,reading:d.fullTextRead?{completedAt:d.fullTextRead.completedAt,sourceHash:d.fullTextRead.sourceHashSha256}:null,headers:[...new Set(tables.filter(t=>t.document.documentId===d.documentId).flatMap(t=>t.headers))]})),readingStates:source.documents});return true;
   }
