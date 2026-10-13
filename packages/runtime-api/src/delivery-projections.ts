@@ -343,7 +343,18 @@ function buildDelivery(state:ProjectRuntimeState){
  // Index the retained relationships once rather than scanning every row for each asset.
  const rowsByAsset=new Map<string,typeof registerRows>();
  for(const row of registerRows)for(const assetId of row.links.assetIds){const related=rowsByAsset.get(assetId)??[];related.push(row);rowsByAsset.set(assetId,related);}
- const rates=(rows:typeof registerRows,complete:boolean)=>{const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,passRatePercent:complete?pct(pass,rows.length):null,basis:complete?'Rate uses the confirmed current applicable population at the Data Date; future and undated rows are excluded.':'Known current outcomes remain visible, but the rate is withheld until the applicable population and outcome coverage are complete.'};};
+ const rates=(rows:typeof registerRows,complete:boolean)=>{
+  const outcomes=rows.filter(r=>['passed','failed','accepted','rejected'].includes(r.currentStatus));
+  const pass=outcomes.filter(r=>['passed','accepted'].includes(r.currentStatus)).length;
+  const outcomesComplete=complete&&outcomes.length===rows.length;
+  const knownPassedCount=outcomes.filter(r=>r.currentStatus==='passed').length;
+  const knownFailedCount=outcomes.filter(r=>r.currentStatus==='failed').length;
+  return {knownOutcomeCount:outcomes.length,unknownOutcomeCount:rows.length-outcomes.length,
+   knownPassedCount,knownFailedCount,
+   passedCount:outcomesComplete?knownPassedCount:null,failedCount:outcomesComplete?knownFailedCount:null,
+   passRatePercent:outcomesComplete?pct(pass,rows.length):null,
+   basis:outcomesComplete?'Rate uses the confirmed current applicable population at the Data Date; future and undated rows are excluded.':'Known current outcomes remain visible, but the rate is withheld until the applicable population and outcome coverage are complete.'};
+ };
  const allHandover=registerRows.filter(r=>r.kind==='handover'),handoverRows=allHandover.filter(r=>r.scope==='current'),handoverKnown=allHandover.every(r=>r.scope==='future'||r.currentStatus!=='not_established'&&r.scope!=='undated'&&!r.verificationRequired);
  const handover={population:populations.handover!,acceptedKnownCount:handoverRows.filter(r=>r.currentStatus==='accepted').length,readinessPercent:populations.handover!.state==='established'&&handoverKnown?pct(handoverRows.filter(r=>r.currentStatus==='accepted').length,handoverRows.length):null,rows:handoverRows};
  const hsePosition=deliveryHsePosition(byKind('hse'),dataDateIso,populations.hse!.state==='established');
@@ -413,13 +424,15 @@ function buildDelivery(state:ProjectRuntimeState){
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
   const rows=registerRows.filter(r=>r.kind===kind),currentRows=rows.filter(r=>r.scope==='current'),complete=populations[kind]!.state==='established'&&!!dataDateIso&&rows.every(r=>r.scope==='future'||r.scope==='current'&&r.currentStatus!=='not_established'&&!r.verificationRequired);
   const count=(condition:(r:typeof rows[number])=>boolean)=>complete?currentRows.filter(condition).length:null;
-  const closeCount=count(r=>['closed','accepted'].includes(r.currentStatus));
+  // Dated source approval closes a submittal review. It is not a test outcome
+  // or general acceptance/closure of other kinds of delivery record.
+  const closeCount=count(r=>['closed','accepted'].includes(r.currentStatus)||kind==='submittal'&&r.currentStatus==='source_approved');
    const knownOpenCount=currentRows.filter(r=>!['closed','accepted','source_approved','passed','not_established','verification_required'].includes(r.currentStatus)).length;
    const knownOverdueCount=currentRows.length&&currentRows.every(r=>r.overdue!==null)?currentRows.filter(r=>r.overdue===true).length:null;
   const reviewPeriods=currentRows.flatMap(row=>{const r=byId.get(row.recordId)!,submitted=date(r,'actual submission date','submitted date','actual issue'),response=date(r,'response date','approval date');if(!isOnDate(submitted,dataDateIso)||!isOnDate(response,dataDateIso))return [];const period=days(response,submitted);if(period!==null&&period<0){add('REVIEW_DATE_ORDER_INVALID',r,'The response date precedes the submission date.','Reconcile the dated source; this interval is excluded from completed review statistics.');return [];}return period===null?[]:[period];});
   return [kind,{totalRequired:populations[kind]!.denominator,currentCount:complete?currentRows.length:null,knownCurrentCount:currentRows.length,knownOpenCount,unknownStatusCount:currentRows.filter(r=>['not_established','verification_required'].includes(r.currentStatus)).length,knownOverdueCount,futureCount:rows.filter(r=>r.scope==='future').length,undatedCount:rows.filter(r=>r.scope==='undated').length,
    openCount:count(r=>!['closed','accepted','source_approved','passed','not_established','verification_required'].includes(r.currentStatus)),overdueCount:rows.every(r=>r.scope==='future'||r.overdue!==null)?count(r=>r.overdue===true):null,
-   closedCount:closeCount,closurePercent:complete?pct(closeCount,currentRows.length):null,passedCount:count(r=>r.currentStatus==='passed'),failedCount:count(r=>r.currentStatus==='failed'),retestCount:count(r=>r.currentStatus==='retest required'),
+   closedCount:closeCount,closurePercent:complete?pct(closeCount,currentRows.length):null,retestCount:count(r=>r.currentStatus==='retest required'),
    ...rates(currentRows,complete),reviewPeriodCalendarDays:reviewPeriods.length?round(reviewPeriods.reduce((a,b)=>a+b,0)/reviewPeriods.length):null,reviewPeriodKnownCount:reviewPeriods.length}];
  }));
  const permitRows=byKind('permit').map(r=>{

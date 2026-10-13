@@ -288,6 +288,55 @@ test('Batch H Quality and Commissioning rates require complete current populatio
  }
 });
 
+test('original ABB outcome rates stay unknown when status coverage has no complete outcome coverage',async t=>{
+ for(const kind of ['design','quality','commissioning'] as const){
+  const f=await fixture(t);
+  const pending=f.create(kind,'PENDING',{'raised date':'2031-08-01',status:'open'});
+  f.population(kind);
+  let summary=deliveryPosition(f.state).summaries[kind]!;
+  assert.equal(summary.currentCount,1,'current status is established independently of an outcome');
+  assert.equal(summary.knownOutcomeCount,0);assert.equal(summary.unknownOutcomeCount,1);
+  assert.equal(summary.passRatePercent,null,'no known outcomes cannot establish zero passed');
+  assert.equal(summary.passedCount,null);assert.equal(summary.failedCount,null);
+  assert.equal(summary.knownPassedCount,0);assert.equal(summary.knownFailedCount,0);
+  assert.match(summary.basis,/rate is withheld/);
+  if(kind==='design')continue;
+  f.create(kind,'FAIL',{'raised date':'2031-08-01','actual date':'2031-08-10','outcome date':'2031-08-10',outcome:'failed'});
+  f.population(kind);summary=deliveryPosition(f.state).summaries[kind]!;
+  assert.equal(summary.knownOutcomeCount,1);assert.equal(summary.unknownOutcomeCount,1);assert.equal(summary.passRatePercent,null);
+  assert.equal(summary.failedCount,null);assert.equal(summary.knownFailedCount,1);
+  f.review(pending,{status:'failed','actual date':'2031-08-11','outcome date':'2031-08-11'});
+  f.population(kind);summary=deliveryPosition(f.state).summaries[kind]!;
+  assert.equal(summary.knownOutcomeCount,2);assert.equal(summary.unknownOutcomeCount,0);
+  assert.equal(summary.passRatePercent,0,'complete known failed outcomes establish an actual zero');
+  assert.equal(summary.passedCount,0);assert.equal(summary.failedCount,2);
+ }
+});
+
+test('original ABB approved submittals close their dated review across the full retained population',async t=>{
+ const f=await fixture(t);
+ const csv=['Submittal ID,Description,Status,Submitted Date,Approval Date',
+  ...Array.from({length:620},(_,i)=>['SUB-'+i,'Drawing '+i,i<600?(i%2?'Approved with Comments':'Approved'):'Under Review','2031-08-01',i<600?'2031-08-20':''].join(',')),
+  'FUTURE,Future review,Approved,2031-09-01,2031-09-10'].join('\n');
+ await f.upload('Submittal-register.csv',csv);
+ const originals=f.state.evidenceDocuments.map(d=>[d.storedPath,readFileSync(d.storedPath)] as const);
+ const source=deliveryRecords(f.state).records.filter(r=>r.kind==='submittal');
+ assert.equal(source.length,621);
+ for(const r of source)f.review(r);
+ f.population('submittal');
+ const position=deliveryPosition(f.state),summary=position.summaries.submittal!;
+ assert.equal(summary.currentCount,620);assert.equal(summary.futureCount,1);
+ assert.equal(summary.closedCount,600);assert.equal(summary.openCount,20);
+ assert.equal(summary.closurePercent,Math.round(600/620*100*10000)/10000);
+ assert.equal(summary.knownOutcomeCount,0);assert.equal(summary.passRatePercent,null,'approval is not a test result');
+ const module=deliveryModule(f.state,'delivery-submittals'),data=module.data as any;
+ assert.equal(data.summary.closedCount,600);assert.equal(data.summary.passRatePercent,null);
+ const html=runInNewContext(deliveryScript()+';deliveryObjectDetail(summary)',{summary:data.summary,Intl,escapeHtml:(v:unknown)=>String(v),fmt:(v:unknown)=>String(v),humanizeKey:(v:string)=>v});
+ assert.match(html,/Closed Count<\/dt><dd>600/);
+ assert.match(html,/Pass Rate Percent<\/dt><dd>Not established/);
+ for(const [path,bytes] of originals)assert.deepEqual(readFileSync(path),bytes,'original source bytes retained');
+});
+
 test('Batch H readiness reconciles applicable, unknown and N/A gates and scope items',async t=>{
  const f=await fixture(t),ready=f.create('workfront','READY'),na=f.create('workfront','NA');
  f.create('gate','READY-G',{applicable:'yes','satisfied date':'2031-08-20'},{recordIds:[ready.recordId]});
