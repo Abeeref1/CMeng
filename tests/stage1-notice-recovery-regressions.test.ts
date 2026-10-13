@@ -114,7 +114,7 @@ test("Stage 1 Recovery distinguishes absent supporting evidence from checked evi
   assert.equal(absent.scenarios.length,0);
   assert.equal(absent.eligibility.supportingBasisAvailable,false);
   assert.equal(absent.eligibilityAssessmentState,"supporting_basis_absent");
-  assert.match(absent.managementPosition,/No recovery option currently meets the calculation criteria/);
+  assert.match(absent.managementPosition,/No supporting recovery basis is established/);
 
   const state=runtimeProjects.getOrCreate("STAGE1-RECOVERY-CHECKED");
   changeDelivery(state,{
@@ -144,8 +144,11 @@ test("Stage 1 Recovery distinguishes absent supporting evidence from checked evi
   assert.equal(checked.scenarios.length,0);
   assert.equal(checked.eligibility.supportingBasisAvailable,true);
   assert.ok(checked.eligibility.deliveryPackagePopulationCount>0);
-  assert.equal(checked.eligibilityAssessmentState,"checked_no_eligible_basis");
-  assert.match(checked.managementPosition,/no eligible scenario basis was found/i);
+  assert.equal(checked.eligibilityAssessmentState,"supporting_basis_incomplete");
+  assert.match(checked.managementPosition,/Eligibility remains incomplete/i);
+  assert.equal(checked.eligibility.activityFeasibilityCheckCount,null);
+  assert.equal(checked.eligibility.governedResequencingWorkfrontCount,null);
+  assert.equal(checked.eligibility.lateProcurementPackageCount,null);
 });
 
 test('an undelivered package with a past forecast requires a new recovery date, not a zero-day calculated option',()=>{

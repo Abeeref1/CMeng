@@ -197,3 +197,14 @@ test('Recovery and Acceleration explains eligibility instead of presenting a bar
  assert.match(html,/No eligible quantified recovery scenario/i);
  assert.doesNotMatch(html,/Calculated recovery options 0\b/);
 });
+
+test('Recovery renders each missing domain and driving network independently of known zero and candidate subsets',()=>{
+ const script=functions(['renderRecoveryAccelerationVisual']);
+ const data:any={projectionKey:'recovery_acceleration',scenarios:[],eligibilityAssessmentState:'supporting_basis_incomplete',calculatedScenarioCount:0,assumptionRequiredCount:0,
+  drivingChainShortfall:{drivingOpenActivityCount:null,fiveDayDrivingActivityCount:null,workingDays:null,calendarDays:null},
+  eligibility:{activityFeasibilityCheckCount:null,crewAccelerationCandidateCount:null,knownCrewAccelerationCandidateCount:4,lateProcurementPackageCount:0,unresolvedFeasibilityCheckCount:null,governedResequencingWorkfrontCount:null,actualEligibilityChecksPerformed:3,unlinkedFeasibilityRowCount:7}};
+ const render=()=>runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:(v:any)=>v==null?'0':String(v),planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' ')});
+ const html=render();assert.match(html,/Activity feasibility checks Not assessable/);assert.match(html,/Crew acceleration candidates Not assessable · 4 known/);assert.match(html,/Late procurement packages 0/);assert.match(html,/Resequencing-enabled workfronts Not assessable/);assert.match(html,/Unfinished driving activities: Not established/);assert.match(html,/7 source item\(s\) still need activity links/);assert.match(html,/Eligibility checks performed 3/);
+ data.drivingChainShortfall.drivingOpenActivityCount=0;data.drivingChainShortfall.fiveDayDrivingActivityCount=0;assert.match(render(),/Unfinished driving activities: 0/);
+ data.eligibility={};const legacy=render();assert.match(legacy,/Activity feasibility checks Not assessable/);assert.match(legacy,/Eligibility checks performed Not assessable/);
+});
