@@ -17,22 +17,22 @@ import type {AskSession,AnalysisResult} from '../packages/project-ask/src/types'
 
 const user:AskSession={userId:'diagnosis-reader',workspaceId:'cmeng-projects',name:null,title:null,company:null,allowModel:false};
 let sequence=0;
-function programme(date='2030-01-01',shift=0,chainLength=0){
+function programme(date='2030-01-01',shift=0,chainLength=0,calendarReadable=true){
  const calendar='(0||CalendarData()((0||DaysOfWeek()('+[1,2,3,4,5,6,7].map(d=>'(0||'+d+'()((0||0(s|08:00|f|16:00)())))').join('')+'))))';
  const rows=chainLength?Array.from({length:chainLength},(_,i)=>({id:'N'+String(i).padStart(3,'0'),name:'Work '+i,rd:8,float:0,wbs:'MEP',start:1,finish:2})):
   [{id:'A',name:'Structure East',rd:16,float:-16,wbs:'STRUCT',start:1,finish:2},{id:'ALT',name:'Structure West',rd:16,float:0,wbs:'STRUCT',start:1,finish:2},{id:'B',name:'MEP riser',rd:8,float:-8,wbs:'MEP',start:3,finish:3},{id:'C',name:'Commissioning',rd:8,float:0,wbs:'COM',start:4,finish:4},{id:'SLACK',name:'Unrelated short preparation',rd:1,float:80,wbs:'MEP',start:1,finish:1}];
  const day=(n:number)=>'2030-01-'+String(n+shift).padStart(2,'0');
  const links=chainLength?rows.slice(1).map((r,i)=>[i+1,i+2]):[[1,3],[2,3],[3,4],[5,3]];
- return Buffer.from(['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tDIAGNOSIS\t'+date+' 08:00','%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data','%R\t1\tSeven days eight hours\t8\t56\t'+calendar,
+ return Buffer.from(['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tDIAGNOSIS\t'+date+' 08:00','%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data','%R\t1\tSeven days eight hours\t8\t56\t'+(calendarReadable?calendar:''),
  '%T\tPROJWBS','%F\twbs_id\tproj_id\twbs_short_name\twbs_name\tparent_wbs_id','%R\tSTRUCT\t1\tSTRUCT\tStructure\t','%R\tMEP\t1\tMEP\tMEP\t','%R\tCOM\t1\tCOM\tCommissioning\t',
  '%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttask_type\tstatus_code\tclndr_id\twbs_id\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tearly_start_date\tearly_end_date',
  ...rows.map((r,i)=>['%R',i+1,1,r.id,r.name,'TT_Task','TK_NotStart',1,r.wbs,r.rd,r.rd,r.float,day(r.start)+' 08:00',day(r.finish)+' 16:00'].join('\t')),
  '%T\tTASKPRED','%F\ttask_pred_id\ttask_id\tpred_task_id\tpred_type\tlag_hr_cnt\tproj_id\tpred_proj_id',...links.map(([pre,post],i)=>['%R',i+1,post,pre,'PR_FS',0,1,1].join('\t')),'%E'].join('\n'));
 }
-async function fixture(t:any,chainLength=0){
+async function fixture(t:any,chainLength=0,calendarReadable=true){
  const id='DIAGNOSIS-'+(++sequence),root=mkdtempSync(join(tmpdir(),'cmeng-diagnosis-'));t.after(()=>rmSync(root,{recursive:true,force:true}));let calls=0;
  const engine=new ProjectAskEngine(new AskStore(root),{plan:async()=>{calls++;throw new Error('Unexpected paid planning');},explain:async()=>{calls++;throw new Error('Unexpected paid explanation');}});
- const upload=(date='2030-01-01',shift=0,intent:'replace_current_basis'|'add_update'='replace_current_basis')=>runtimeProjects.ingestSchedule({projectId:id,sourceFilename:'same-name.xer',bytes:programme(date,shift,chainLength),mediaType:'text/plain',uploadedAt:'2030-01-03',role:'update',uploadIntent:intent});await upload();
+ const upload=(date='2030-01-01',shift=0,intent:'replace_current_basis'|'add_update'='replace_current_basis')=>runtimeProjects.ingestSchedule({projectId:id,sourceFilename:'same-name.xer',bytes:programme(date,shift,chainLength,calendarReadable),mediaType:'text/plain',uploadedAt:'2030-01-03',role:'update',uploadIntent:intent});await upload();
  const state=runtimeProjects.get(id)!,shown=()=> (moduleForProject(id,'pmo-analysis').data as any).projectDiagnosis,full=()=>projectDiagnosisDetails(shown());
  const change=(input:any)=>{changeDelivery(state,{expectedVersion:state.version,...input});runtimeProjects.touch(state);};
  const record=(kind:string,reference:string,fields:any,activityId:string)=>{change({action:'create',kind,fields:{'record reference':reference,description:reference,...fields}});const row=deliveryRecords(state).records.find(r=>r.recordId===deliveryStore(state).manual.at(-1)!.recordId)!;change({action:'review',recordId:row.recordId,sourceRevision:row.revision,state:'governed',fields:{},links:{activityIds:[activityId]},note:'Hand-checked diagnosis scenario'});return row;};
@@ -122,4 +122,29 @@ test('large path preview pages and exports the complete network with revision an
  assert.equal((await fetch(base+'/api/projects/UNKNOWN/diagnosis')).status,404);assert.equal((await fetch(base+path+'&limit=100000')).status,400);
  runtimeProjects.touch(f.state);assert.equal((await fetch(base+path)).status,409);
  const answer=await f.ask('Show the full critical path');assert.equal(answer.sections[0]!.tables[0]!.rows.length,73);assert.equal(answer.sections[0]!.tables[1]!.rows.length,72);
+});
+
+test('G1-16/69 missing calendar keeps driving counts unknown in diagnosis, Ask and source exports',async t=>{
+ const f=await fixture(t,0,false),source=structuredClone(f.state.schedules.map(s=>s.revision.model));
+ const d=f.full();assert.equal(d.network.state,'unavailable');
+ assert.ok(d.wbsRows.length>0);assert.ok(d.wbsRows.every((r:any)=>r.drivingCount===null));
+ assert.ok(d.actions.length>0);assert.ok(d.actions.every((r:any)=>r.onDrivingNetwork===null));
+ const answer=await f.ask('Which WBS has most schedule pressure?');
+ const table=answer.sections.find(s=>s.authorityId==='project-diagnosis')!.tables.find(t=>t.id==='project-diagnosis.wbs-pressure')!;
+ assert.ok(table.rows.length>0);assert.ok(table.rows.every(r=>r.drivingCount===null));
+ assert.match(answer.narrative.map(n=>n.text).join(' '),/finish-driving count not established/);
+ assert.doesNotMatch(answer.narrative.map(n=>n.text).join(' '),/0 unfinished finish-driving|null unfinished/);
+ const selected=await f.ask('Show all negative-float activities'),grouped=await f.ask('group by WBS',selected);
+ const selectedTable=grouped.sections.find(s=>s.authorityId==='project-diagnosis')!.tables[0]!;
+ assert.equal(selectedTable.rows.reduce((n,r)=>n+Number(r.activityCount),0),2);
+ assert.ok(selectedTable.rows.every(r=>r.drivingCount===null));
+ const server=createCmengServer();await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));t.after(()=>server.close());
+ const url='http://127.0.0.1:'+(server.address() as any).port+'/api/projects/'+f.id+'/diagnosis?section=wbs&version='+f.state.version;
+ const page=await fetch(url+'&offset=2&limit=1');assert.equal(page.status,200);
+ const body:any=await page.json();assert.equal(body.total,3);assert.equal(body.rows.length,1);assert.equal(body.rows[0].drivingCount,null);
+ const file=await fetch(url+'&format=xlsx');assert.equal(file.status,200);
+ const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await file.arrayBuffer()) as any);
+ const sheet=workbook.worksheets[0]!,headers=sheet.getRow(3).values as any[],column=headers.indexOf('drivingCount');assert.ok(column>0);
+ for(let row=4;row<=sheet.rowCount;row++)assert.ok(sheet.getRow(row).getCell(column).value==null||sheet.getRow(row).getCell(column).value==='');
+ assert.deepEqual(f.state.schedules.map(s=>s.revision.model),source);assert.equal(f.calls(),0);
 });

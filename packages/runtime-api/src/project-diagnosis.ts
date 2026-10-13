@@ -76,7 +76,7 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    remainingDurationHours:r.remainingDurationHours,totalFloatHours:r.totalFloatHours,percentComplete:r.percentComplete,
    baselineVarianceCalendarDays:r.finishVarianceDays,previousFinishMovementCalendarDays:previousMovement(r.activityId),
    criticality:r.criticality,missedPlannedStart:r.missedPlannedStart,finishOverdue:r.finishOverdue,scheduleDelayed:r.scheduleDelayed,delayStatus:r.delayStatus,
-   onDrivingNetwork:drivingIds.has(r.activityId),predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; '),
+   onDrivingNetwork:network?drivingIds.has(r.activityId):null,predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; '),
    constraints:(sourceById.get(r.activityId)?.sourceConstraints??[]).map(c=>c.type+(c.dateIso?' '+c.dateIso:'')).join('; '),
    previousPredecessorSlippage:(incoming.get(r.activityId)??[]).flatMap(rel=>{const movement=previousMovement(rel.predecessorActivityId);return numeric(movement)&&movement>0?[rel.predecessorActivityId+' moved '+movement+' elapsed days later']:[];}).join('; ')});
  const networkRows=(network?.activityIds??[]).flatMap((id:string,index:number)=>{const r=byId.get(id);if(!r)return [];const calculated=calculatedById.get(id);return [{...describe(r),sequence:index+1,
@@ -98,7 +98,8 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const pressureSet=new Set(pressureRows.map(r=>r.activityId));
  for(const r of rows){const id=r.wbsId??'',g=wbsGroups.get(id)??{wbsId:r.wbsId,wbs:wbsPath(r.wbsId),activityCount:0,pressureCount:0,drivingCount:0,criticalCount:0,negativeFloatCount:0,nearCriticalCount:0,missedStartCount:0,overdueFinishCount:0,previousSlippageCount:0,worstFloatHours:null};
    g.activityCount++;if(pressureSet.has(r.activityId))g.pressureCount++;if(unfinished(r)&&drivingIds.has(r.activityId))g.drivingCount++;if(r.criticality==='critical')g.criticalCount++;if(numeric(r.totalFloatHours)&&r.totalFloatHours<0)g.negativeFloatCount++;if(r.criticality==='near_critical')g.nearCriticalCount++;if(r.missedPlannedStart)g.missedStartCount++;if(r.finishOverdue)g.overdueFinishCount++;if((previousMovement(r.activityId)??0)>0)g.previousSlippageCount++;if(numeric(r.totalFloatHours))g.worstFloatHours=g.worstFloatHours===null?r.totalFloatHours:Math.min(g.worstFloatHours,r.totalFloatHours);wbsGroups.set(id,g);}
- const wbsRows=[...wbsGroups.values()].sort((a,b)=>b.drivingCount-a.drivingCount||b.pressureCount-a.pressureCount||(a.worstFloatHours??Infinity)-(b.worstFloatHours??Infinity)||a.wbs.localeCompare(b.wbs));
+ const wbsRows=[...wbsGroups.values()].sort((a,b)=>b.drivingCount-a.drivingCount||b.pressureCount-a.pressureCount||(a.worstFloatHours??Infinity)-(b.worstFloatHours??Infinity)||a.wbs.localeCompare(b.wbs))
+   .map(row=>({...row,drivingCount:network?row.drivingCount:null}));
  timed('wbs_grouping');
  // Programme-only projects have no current source delivery records. Their
  // delivery position would still rebuild programme-based workfront breakdowns,

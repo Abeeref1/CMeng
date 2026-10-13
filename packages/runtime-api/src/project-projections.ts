@@ -7915,7 +7915,7 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   const actions=prioritizeActions(
     [...recordPosition.actions,...reviewRows],
     model,
-    forecast?.drivingNetwork?.activityIds??[],
+    forecast?.complete===true?forecast.drivingNetwork?.activityIds??null:null,
     independentRanking?'independent_cpm':'source_total_float',
     independentRanking?independentFloatById:undefined,
   );

@@ -142,6 +142,18 @@ test('plot location is parsed from source text without project-specific assumpti
  assert.equal(classifyScheduleActivity(model,{...model.activities[0]!,wbsId:null,name:'Internal plaster - Plot B 42'}).plot,'Plot B 42');
 });
 
+test('action driving status needs a calculated network and a linked activity; explicit empty paths remain false',()=>{
+ const model=loadCertifiedDemoProject('PRIORITY-UNKNOWN-'+randomUUID()).schedules.at(-1)!.revision.model,sample=model.activities[0]!;
+ model.activities=[{...sample,activityId:'OPEN',status:'not_started',totalFloatHours:0},{...sample,activityId:'DONE',status:'completed',totalFloatHours:0}];
+ const row=(id:string,scope:string[])=>managementAction({actionId:id,recordKey:'rfi|'+id,issue:id,affectedScope:scope,affectedMilestones:[],owner:'Design Lead',organisation:null,requiredAction:'Review',dueIso:null,escalation:null,severity:'high',authority:'source',consequence:null,sourceRefs:[id]});
+ const rows=[row('OPEN',['OPEN']),row('DONE',['DONE']),row('NO-LINK',[])],before=structuredClone({rows,model});
+ assert.ok(prioritizeActions(rows,model).every(r=>r.priorityBasis.drivingPath===null));
+ const empty=prioritizeActions(rows,model,[]);assert.equal(empty.find(r=>r.actionId==='OPEN')!.priorityBasis.drivingPath,false);
+ assert.equal(empty.find(r=>r.actionId==='DONE')!.priorityBasis.drivingPath,false);assert.equal(empty.find(r=>r.actionId==='NO-LINK')!.priorityBasis.drivingPath,null);
+ const linked=prioritizeActions(rows,model,['OPEN']);assert.equal(linked.find(r=>r.actionId==='OPEN')!.priorityBasis.drivingPath,true);
+ assert.deepEqual({rows,model},before);
+});
+
 test('connected schedule exceptions form one recovery action while linked NCRs retain their identity',()=>{
  const model=loadCertifiedDemoProject('CHAIN-'+randomUUID()).schedules.at(-1)!.revision.model;
  const template=model.activities[0]!;model.activities=[{...template,activityId:'A'},{...template,activityId:'B'}];

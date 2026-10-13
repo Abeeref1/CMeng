@@ -54,6 +54,17 @@ const deadlineHelper=browserSource.statements.filter(isFunctionDeclaration).find
 function rendered(d:any,data:any){
  return runInNewContext(deadlineHelper+'\n'+projectDiagnosisScript+'\nrenderProjectBrief(d,data)',{...ctx,d,data}) as string;
 }
+test('G1-16/69 dashboard distinguishes unresolved counts, known subsets and calculated zero',()=>{
+ const {d}=fixture();d.network.rows=[];d.tableTotals={network:0};d.counts.nearCritical={value:null,knownCount:0};
+ const before=JSON.stringify(d);
+ const render=()=>runInNewContext(deadlineHelper+'\n'+projectDiagnosisScript+'\nrenderProjectDiagnosis=()=>"";renderProjectDashboardSummary(d)',{...ctx,d}) as string;
+ const unknown=render();assert.match(unknown,/Near-critical:<\/b> Not established · 0 known/);
+ assert.match(unknown,/Driving network:<\/b> Not established/);assert.match(unknown,/Driving count not established/);
+ assert.doesNotMatch(unknown,/0 driving|Driving network:<\/b> 0/);assert.equal(JSON.stringify(d),before);
+ d.network.state='calculated';d.counts.nearCritical={value:0,knownCount:0};
+ const zero=render();assert.match(zero,/Near-critical:<\/b> 0/);assert.match(zero,/Driving network:<\/b> 0/);assert.match(zero,/0 driving/);
+ d.network.state='scenario';assert.match(render(),/Driving network:<\/b> 0/);
+});
 test('Management Brief states original-date headroom without claiming a governing extended deadline',()=>{
  const {d,data}=fixture(),before=JSON.stringify({d,data});
  const html=rendered(d,data);
