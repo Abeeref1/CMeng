@@ -545,8 +545,16 @@ export function buildCommercialControlPosition(
             row.state ===
             "pending",
         );
+      const knownPendingAmount=pendingVariations.length?sum(pendingVariations.map(row=>row.amount)):null;
+      const pendingIds=new Set(pendingVariations.map(row=>row.variationId));
       const variationPopulation=input.contractControls?.variations;
-      const noPendingInRegister=!!variationPopulation&&variationPopulation.sourceRecordCount>0&&variationPopulation.pendingCount===0&&variationPopulation.undatedRecordCount===0&&variationPopulation.unknownAsOfStageCount===0;
+      const relevantCurrency=(row:NonNullable<typeof variationPopulation>['rows'][number])=>{
+        const currencies=[row.source.claimedAmount,row.source.assessedAmount,row.source.agreedAmount,row.source.approvedAmount].map(m=>m.currency?.trim().toUpperCase()).filter(Boolean);
+        return !currencies.length||currencies.includes(currency);
+      };
+      const pendingAmountsComplete=!variationPopulation||
+        !(variationPopulation.undatedRows??[]).some(relevantCurrency)&&
+        variationPopulation.rows.filter(relevantCurrency).every(row=>['approved','rejected'].includes(row.lifecycleStage)||row.lifecycleStage!=='unknown'&&pendingIds.has(row.variationId));
       const invoices =
         input.invoices.filter(
           (row) =>
@@ -807,22 +815,14 @@ export function buildCommercialControlPosition(
           ),
         pendingVariationAmount:
           moneyMetric(
-            pendingVariations
-              .length > 0
-              ? sum(
-                  pendingVariations.map(
-                    (row) =>
-                      row.amount,
-                  ),
-                )
-              : noPendingInRegister?0:null,
+            pendingAmountsComplete?knownPendingAmount:null,
             stateFor(
-              pendingVariations
-                .length > 0||noPendingInRegister,
+              knownPendingAmount!==null&&pendingAmountsComplete,
               sources.variations,
             ),
             variationRefs,
           ),
+        knownPendingVariationAmount:moneyMetric(knownPendingAmount,stateFor(knownPendingAmount!==null,sources.variations),pendingVariations.flatMap(row=>row.sourceRefs)),
         currentContractValue:
           moneyMetric(
             currentContractValue,
@@ -1153,7 +1153,9 @@ export function buildCommercialControlPosition(
   // Apply the distinction once so pages, reports and issue ownership agree.
   for(const position of positions){
     explainMissingInformation(position.approvedVariationAmount,"Approved amount not supported for this currency and cutoff.","Review the approved variation amounts, currency and effective dates in the supplied register.");
-    explainMissingInformation(position.pendingVariationAmount,"Pending-variation amount not in the current data.","Confirm the pending variation register and supply its dated amounts; an empty subset is not proof of zero exposure.");
+    explainMissingInformation(position.pendingVariationAmount,
+      position.knownPendingVariationAmount?.value!=null?"Known pending amounts are retained, but incomplete lifecycle, date or amount coverage prevents a complete total.":"Pending-variation amount not in the current data.",
+      position.knownPendingVariationAmount?.value!=null?"Review undated, unknown-stage and missing-amount variation records for this currency; keep the established source amounts unchanged.":"Confirm the pending variation register and supply its dated amounts; an empty subset is not proof of zero exposure.");
     explainMissingInformation(position.claimedAmount,"Claimed money is missing or incomplete for this currency; reported claim days remain separate.","Supply the monetary claim valuation by claim ID, currency and reporting date.");
     explainMissingInformation(position.assessedClaimAmount,"Assessed money is missing or incomplete for this currency; assessed days remain separate.","Supply the monetary assessment by claim ID, currency and reporting date.");
     explainMissingInformation(position.interimCertificateCount,"Dated certification count is not supported by the source periods.","Supply the certification dates and retain the source-period count separately.");

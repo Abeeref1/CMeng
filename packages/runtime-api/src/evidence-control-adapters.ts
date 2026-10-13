@@ -361,7 +361,7 @@ export function deriveControlsFromCsv(
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
   const currencyIndex=indexOf(headers,['currency']);
-  const rowCurrencies=[...new Set(rows.slice(1).map(r=>value(r,currencyIndex)).filter(c=>/^[A-Z]{3}$/.test(c)))];
+  const rowCurrencies=[...new Set(rows.slice(1).map(r=>value(r,currencyIndex).toUpperCase()).filter(c=>/^[A-Z]{3}$/.test(c)))];
   const sourceCurrency =
     (rowCurrencies.length===1?rowCurrencies[0]:null)??
     currencyFromHeaders(
@@ -422,8 +422,7 @@ export function deriveControlsFromCsv(
       (
         approvedAmountIndex < 0 &&
         submittedAmountIndex < 0
-      ) ||
-      !sourceCurrency
+      )
     ) {
       return {};
     }
@@ -445,6 +444,9 @@ export function deriveControlsFromCsv(
           idIndex,
         );
       if (!variationId) continue;
+      const explicitCurrency=value(row,currencyIndex).toUpperCase();
+      const variationCurrency=explicitCurrency?(/^[A-Z]{3}$/.test(explicitCurrency)?explicitCurrency:null):rowCurrencies.length>1?currencyFromHeaders(headers):sourceCurrency;
+      if(!variationCurrency)continue;
 
       const state =
         variationState(
@@ -481,7 +483,7 @@ export function deriveControlsFromCsv(
         variationId,
         amount,
         currency:
-          sourceCurrency,
+          variationCurrency,
         state,
         sourceRefs: [
           evidenceRef(

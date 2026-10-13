@@ -4047,14 +4047,14 @@ function renderCommercialVisual(key,data){
       );
       const agingVisual=renderVisualPanel(
         "Pending and unknown-stage aging",
-        "Known pending stages use dated lifecycle events. Unknown stages remain age-unassessable; closed variations are excluded.",
-        variationPopulationEstablished?renderVisualBars([
+        "Aging covers identified pending and unknown-stage rows only; it does not establish the complete pending exposure. Closed variations are excluded.",
+        ((vo.knownPendingCount??vo.pendingCount??0)>0||(vo.unknownAsOfStageCount??0)>0)?renderVisualBars([
           {label:"0–30 days",value:ageBands.upTo30Days??0,tone:"success"},
           {label:"31–60 days",value:ageBands.days31To60??0,tone:"accent"},
           {label:"61–90 days",value:ageBands.days61To90??0,tone:"warning"},
           {label:">90 days",value:ageBands.over90Days??0,tone:"danger"},
           {label:"Age not confirmed",value:ageBands.unknown??0,tone:"neutral"}
-        ],"items"):'<div class="empty-visual">Variation aging is not assessable until a confirmed variation population is established.</div>'
+        ],"items"):'<div class="empty-visual">No pending lifecycle population is established for aging. Approved-only or rejected-only rows do not prove that no other variations are pending.</div>'
       );
       const bridgeVisuals=(position.currencies||[]).map(row=>renderVisualPanel(
         row.currency+" · Contract value & change bridge",
@@ -4115,7 +4115,7 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Variations by Data Date",variationPopulationEstablished?(vo.recordCount??0):"Not established",fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
           ["Approved by Data Date",variationPopulationEstablished?(vo.approvedCount??0):"Not established","dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??0)+" / "+fmt(vo.undatedRecordCount??0),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
-          ["Known pending",variationPopulationEstablished?(vo.pendingCount??0):"Not established","dated pre-approval stages only"],
+          ["Known pending",(vo.knownPendingCount??vo.pendingCount)>0?vo.knownPendingCount??vo.pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate"],
           ["Rejected",variationPopulationEstablished?(vo.rejectedCount??0):"Not established","closed without approval"],
           ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
           ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],

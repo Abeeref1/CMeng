@@ -630,6 +630,7 @@ function variations(
             null,
       ).length,
   };
+  const knownPendingCount=rows.filter(row=>!['approved','rejected','unknown'].includes(row.lifecycleStage)).length;
   return {
     capabilityKey:
       "variations",
@@ -662,17 +663,8 @@ function variations(
           row.lifecycleStage ===
           "approved",
       ).length,
-    pendingCount:
-      rows.filter(
-        (row) =>
-          ![
-            "approved",
-            "rejected",
-            "unknown",
-          ].includes(
-            row.lifecycleStage,
-          ),
-      ).length,
+    pendingCount: knownPendingCount>0&&sourceRows.every(r=>r.reportingScope!=='undated')&&rows.every(r=>r.lifecycleStage!=='unknown')?knownPendingCount:null,
+    knownPendingCount,
     rejectedCount:
       rows.filter(
         (row) =>

@@ -48,6 +48,7 @@ export interface CommercialMoneyPosition {
     CommercialMetric<number>;
   pendingVariationAmount:
     CommercialMetric<number>;
+  knownPendingVariationAmount?: CommercialMetric<number>;
   currentContractValue:
     CommercialMetric<number>;
   interimCertificateCount:

@@ -12,6 +12,8 @@ import {moduleForProject, directorForProject, overviewForProject, managementSurf
 import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
 import {commercialFoundationForState} from '../packages/runtime-api/src/commercial-foundation-runtime';
 import {commercialContractControlsForState} from '../packages/runtime-api/src/commercial-contract-controls-runtime';
+import {commercialPositionForState} from '../packages/runtime-api/src/commercial-runtime';
+import {finalAccountForState} from '../packages/runtime-api/src/advanced-controls';
 import {reportingState,claimsReporting,scheduleActualReporting,operationalReporting} from '../packages/runtime-api/src/reporting-state';
 import {ingestBoq} from '../packages/boq-ingestion/src';
 import {quantityModelFromBoq} from '../packages/runtime-api/src/boq-source';
@@ -220,7 +222,7 @@ test('future approvals are separated and never contaminate pending aging or curr
  csv('Variation ID,Description,Status,Submitted Date,Approval Date,Approved Amount,Claimed Amount,Currency,Tax Basis\nV1,Known request,Approved,2031-04-10,2031-04-20,900,950,USD,exclusive\nV2,Future request,Approved,2031-04-22,2031-05-01,1200,1250,USD,exclusive\nV3,Undated,Approved,,,400,450,EUR,exclusive');
  const source=commercialCanonical(state),vo=commercialContractControlsForState(state).variations;
  assert.equal(vo.sourceRecordCount,3);assert.equal(vo.recordCount,1);assert.equal(vo.futureRecordCount,1);assert.equal(vo.undatedRecordCount,1);
- assert.equal(vo.approvedCount,0);assert.equal(vo.pendingCount,1);assert.equal(vo.unknownAsOfStageCount,0);assert.equal(vo.pendingAgeBands.unknown,0);
+ assert.equal(vo.approvedCount,0);assert.equal(vo.pendingCount,null);assert.equal(vo.knownPendingCount,1);assert.equal(vo.unknownAsOfStageCount,0);assert.equal(vo.pendingAgeBands.unknown,0);
  assert.equal(vo.rows[0]!.lifecycleStage,'submitted');assert.equal(vo.rows[0]!.cost.approved.value,null);assert.equal(source.variations[0]!.approvedAmount.value,900);
  assert.equal(vo.rows[0]!.cost.approved.reportingScope,'future');assert.equal(vo.rows[0]!.cost.approved.submitted,900);assert.equal(vo.rows[0]!.cost.approved.state,'partial');assert.equal(vo.rows[0]!.cost.approved.action,null);
  assert.equal(vo.futureRows[0]!.source.approvedAmount.value,1200);assert.equal(vo.futureRows[0]!.source.submittedDate,'2031-04-22');assert.equal(vo.futureRows[0]!.cost.approved.value,null);
@@ -229,6 +231,36 @@ test('future approvals are separated and never contaminate pending aging or curr
  state.schedules[0]!.revision.model.dataDateIso='2031-05-01';state.version++;
  const advanced=commercialContractControlsForState(state).variations;
  assert.equal(advanced.futureRecordCount,0);assert.equal(advanced.approvedCount,2);assert.equal(advanced.rows.find(r=>r.variationId==='V2')!.cost.approved.value,1200);
+});
+
+test('approved-only variation sources cannot establish zero pending money or clear final-account exposure',t=>{
+ const {state,csv}=fixture(t);
+ csv('Variation ID,Description,Status,Approval Date,Approved Amount,Currency,Tax Basis\nAPP-A,Approved item,Approved,2031-04-10,500,AED,exclusive\nAPP-U,Approved dollar item,Approved,2031-04-11,700,USD,exclusive');
+ const source=JSON.stringify(commercialCanonical(state).variations),vo=commercialContractControlsForState(state).variations;
+ assert.equal(vo.approvedCount,2);assert.equal(vo.knownPendingCount,0);assert.equal(vo.pendingCount,null);
+ const position=commercialPositionForState(state);for(const row of position.currencies){assert.equal(row.pendingVariationAmount.value,null,row.currency);assert.equal(row.pendingVariationAmount.state,'missing_information');}
+ assert.equal(projectFactsForState(state).commercial.pendingVariationCount.value,null);
+ for(const key of ['commercial-overview','variations-change']){
+  const page=moduleForProject(state.projectId,key).data as any;assert.equal(page.position.contractControls.variations.pendingCount,null,key);
+  assert.ok(page.position.currencies.every((row:any)=>row.pendingVariationAmount.value===null),key);
+ }
+ const account=finalAccountForState(state).data as any;assert.equal(account.checks.find((row:any)=>row.key==='variations').state,'unresolved');
+ assert.equal(JSON.stringify(commercialCanonical(state).variations),source);
+});
+
+test('explicit zero-valued pending variation remains zero in its own currency while partial lifecycle coverage retains known subsets',async t=>{
+ const {state,csv}=fixture(t);
+ await runtimeProjects.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from('Variation ID,Description,Status,Submitted Date,Approval Date,Approved Amount,Claimed Amount,Currency,Tax Basis\nZERO,Pending scope change,Submitted,2031-04-10,,,0,AED,exclusive\nCLOSED,Approved dollar item,Approved,,2031-04-11,700,,USD,exclusive'),mediaType:'text/csv',sourceFilename:'Variations.csv',uploadedAt:'2031-04-15'});
+ assert.deepEqual(state.controls.variations.map(row=>[row.variationId,row.amount,row.currency]),[['ZERO',0,'AED'],['CLOSED',700,'USD']]);
+ let vo=commercialContractControlsForState(state).variations;assert.equal(vo.knownPendingCount,1);assert.equal(vo.pendingCount,1);
+ let position=commercialPositionForState(state);assert.equal(position.currencies.find(row=>row.currency==='AED')!.pendingVariationAmount.value,0);assert.equal(position.currencies.find(row=>row.currency==='USD')!.pendingVariationAmount.value,null);
+ assert.equal(projectFactsForState(state).commercial.pendingVariationCount.value,1);assert.equal(projectFactsForState(state).commercial.pendingVariationCount.complete,false);
+ csv('Variation ID,Description,Status,Claimed Amount,Currency,Tax Basis\nUNRESOLVED,Undated submission,Submitted,50,AED,exclusive');
+ vo=commercialContractControlsForState(state).variations;assert.equal(vo.knownPendingCount,1);assert.equal(vo.pendingCount,null);assert.equal(vo.undatedRecordCount,1);
+ assert.equal(projectFactsForState(state).commercial.pendingVariationCount.value,null);
+ const account=finalAccountForState(state).data as any;assert.equal(account.checks.find((row:any)=>row.key==='variations').state,'open');assert.match(account.checks.find((row:any)=>row.key==='variations').detail,/1 known pending/);
+ position=commercialPositionForState(state);assert.equal(position.currencies.find(row=>row.currency==='USD')!.pendingVariationAmount.value,null);
+ assert.equal(position.currencies.find(row=>row.currency==='AED')!.pendingVariationAmount.value,null);assert.equal(position.currencies.find(row=>row.currency==='AED')!.knownPendingVariationAmount!.value,0);
 });
 
 test('certificate, retention, report payload and capability populations use the same cutoff',t=>{

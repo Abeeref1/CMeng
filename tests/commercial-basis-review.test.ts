@@ -13,6 +13,7 @@ import type {SourceRow} from '../packages/truth-kernel/src';
 import {buildCommercialControlPosition, type CommercialControlInput} from '../packages/commercial-control/src';
 import {assessEventNotice, type CanonicalDelayEvent, type NoticeRequirement} from '../packages/delay-analysis-core/src';
 import {commercialIntegrityChecks} from '../packages/runtime-api/src/commercial-integrity';
+import {deriveControlsFromCsv} from '../packages/runtime-api/src/evidence-control-adapters';
 
 const receipt={documentId:'new-project-register',sourceHash:'hash',revision:'R',locator:'row:2',basisState:'active',authority:'source_record'} as const;
 const money=(value:number|null,currency='AED'):CommercialMoney=>({value,currency,taxBasis:'exclusive',amountBasis:'source',state:value===null?'missing':'official',asOf:'2028-04-30',receipts:[receipt]});
@@ -50,6 +51,15 @@ test('source read status survives missing fields, currency partitions and report
   const issues=(metric:unknown)=>assessModuleIssues({key:'payments',data:{focus:metric,systemEvidenceContract:{state:'verified_for_checked_metrics'},challenge:{reconciliationState:'within_tolerance'}}} as ModuleRuntimeResult,{state:'pass',failedCheckIds:[],checkCount:1});
   assert.equal(issues(read.currencies[0]!.advanceBalance).issues[0]!.owner,'Project evidence owner');
   assert.equal(issues(unread.currencies[0]!.advanceBalance).issues[0]!.owner,'CMeng');
+});
+
+test('variation reader preserves each explicit currency and zero without assigning mixed or invalid currency rows to the contract currency',()=>{
+ const state:any={controls:{contractValue:{amount:1000,currency:'SAR'}}},document:any={documentId:'VAR-MIXED',documentType:'variation_register'};
+ const bytes=Buffer.from('Variation ID,Status,Submitted Amount,Currency\nA,Submitted,0,AED\nU,Submitted,25,usd\nBLANK,Submitted,80,\nBAD,Submitted,90,AED/USD\nMISSING,Submitted,,AED');
+ const original=Buffer.from(bytes),result=deriveControlsFromCsv({state,document,bytes});
+ assert.deepEqual(result.variations?.map(row=>[row.variationId,row.amount,row.currency]),[['A',0,'AED'],['U',25,'USD']]);assert.deepEqual(bytes,original);assert.equal(state.controls.contractValue.currency,'SAR');
+ const header=deriveControlsFromCsv({state,document,bytes:Buffer.from('Variation ID,Status,Submitted Amount (AED)\nHEADER,Submitted,0')});
+ assert.equal(header.variations?.[0]?.amount,0);assert.equal(header.variations?.[0]?.currency,'AED');
 });
 
 test('notice rules present but awaiting trigger dates are not counted as missing requirements',()=>{

@@ -67,3 +67,11 @@ test('variation lifecycle uses full badges and a browse control from the origina
  const {html}=render(page,"renderCommercialVisual('variations-change',data)");assert.match(html,/150 current rows/);assert.match(html,/Showing 25 of 150 records/);assert.match(html,/Browse all variation lifecycle records/);
  assert.equal((recordDetailPage(full,'/data/position/contractControls/variations/rows',125) as any).rows.at(-1).variationId,'VO149');
 });
+
+test('approved-only lifecycle display withholds pending exposure and empty aging bars while keeping identified subsets visible',()=>{
+ const vo:any={state:'established',recordCount:620,sourceRecordCount:620,approvedCount:620,pendingCount:null,knownPendingCount:0,unknownAsOfStageCount:0,rows:[],pendingAgeBands:{upTo30Days:0,days31To60:0,days61To90:0,over90Days:0,unknown:0}};
+ const full:any={data:{projectionKey:'variations_change',position:{currencies:[],contractControls:{variations:vo,siteInstructions:{}},registers:{}}}};
+ const show=()=>render(full,"renderCommercialVisual('variations-change',data)");
+ let result=show();assert.equal(result.kpis.find(row=>row[0]==='Known pending')[1],'Not established');assert.match(result.html,/Approved-only or rejected-only rows do not prove/);
+ vo.knownPendingCount=4;vo.pendingAgeBands.upTo30Days=4;vo.unknownAsOfStageCount=2;result=show();assert.equal(result.kpis.find(row=>row[0]==='Known pending')[1],4);assert.doesNotMatch(result.html,/No pending lifecycle population is established/);assert.match(result.html,/does not establish the complete pending exposure/);
+});

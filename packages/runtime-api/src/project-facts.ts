@@ -498,8 +498,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       ),
       pendingVariationCount:projectedCount(
         variations?.pendingCount,
-        variations?.state,
-        'Current variation lifecycle stages that remain pending.',
+        'partial',
+        'Identified current pending lifecycle stages in the supplied register; complete pending exposure is not established by an approved-only list.',
         variationRefs,
       ),
       rejectedVariationCount:projectedCount(

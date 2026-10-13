@@ -307,7 +307,9 @@ export interface VariationsProjection {
   state: CommercialFindingState;
   recordCount: number;
   approvedCount: number;
-  pendingCount: number;
+  /** Identified pending subset; an approved-only list cannot establish zero exposure. */
+  pendingCount: number | null;
+  knownPendingCount: number;
   rejectedCount: number;
   /** Coverage that a current/final lifecycle stage can be identified. */
   finalStageCoveragePercent:
