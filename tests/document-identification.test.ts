@@ -271,3 +271,12 @@ test('retained reference tables are classified by their headers without a re-upl
  assert.equal(evm.documentType,'cost_evm_report');assert.equal(evm.reviewRequired,false);
  assert.equal(legacy.documentType,'supporting_document','display repair must retain historical metadata');
 });
+
+test('uncertain classification requests a source review and a saved choice is bound to the exact file',()=>{
+ const document:any={documentId:'COST01',documentType:'cost_evm_report',category:'boq_cost',sourceHashSha256:'original',mediaType:'text/plain',assertions:[],identification:{confidence:0.38,needsReview:true,detectedTitle:'Cost estimate'}};
+ const before=JSON.stringify(document),review=documentClassificationForReview(document);assert.equal(review.reviewRequired,true);assert.match(review.reason??'',/uncertain/);assert.equal(JSON.stringify(document),before);
+ document.classificationDecision={sourceHash:'original',documentType:'cost_evm_report',category:'boq_cost',reference:'Reviewed page 1'};
+ assert.equal(documentClassificationForReview(document).reviewRequired,false);
+ document.sourceHashSha256='replaced';assert.equal(documentClassificationForReview(document).reviewRequired,true);
+ const headers=documentClassificationForReview(document,[['Period End','PV','EV','AC','Currency'],['2034-04-30','100','90','95','QAR']]);assert.equal(headers.reviewRequired,false,'strong source headers resolve the original low-confidence guess');
+});

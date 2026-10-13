@@ -1,4 +1,6 @@
 import {hseReportPosition} from './hse-report-evidence';
+import {documentClassificationForReview,documentClassificationChoices} from './document-identification';
+import {sourceTables} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
@@ -167,6 +169,24 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
 }
 export function projectActions(state:ProjectRuntimeState,assessment:ControlIssueAssessment,context:{completionPosition?:unknown}={}){
   const actions=programmeActions(state);
+  const classificationInformation:ProjectAction[]=[];
+  const uncertainTables=new Map(sourceTables(state.evidenceDocuments.filter(d=>d.identification?.needsReview),[],{includeHistorical:true}).map(t=>[t.document.documentId,t]));
+  for(const document of state.evidenceDocuments){
+    if(document.category==='schedule'||['superseded','scenario'].includes(document.basisState))continue;
+    const table=uncertainTables.get(document.documentId);
+    const classification=documentClassificationForReview(document,table?[table.headers,...table.rows.slice(0,3).map(row=>table.headers.map(header=>row.cells[header]??''))]:undefined);
+    const saved=document.classificationDecision?.sourceHash===document.sourceHashSha256?document.classificationDecision:null;
+    if(!classification.reviewRequired&&!saved)continue;
+    const choices=documentClassificationChoices(document);
+    const item:ProjectAction={id:'classification:'+document.documentId,category:saved?'information':'confirmation',title:'Review document type: '+document.sourceFilename,
+      reason:classification.reason??'Check the retained source before selecting its document type.',recordCount:1,
+      reviewFingerprint:identity([document.documentId,document.sourceHashSha256,document.documentType,document.category]),reviewSourceRefs:['evidence-document:'+document.documentId],
+      evidenceSummary:['Recorded type: '+document.documentType,'Reader confidence: '+(document.identification?.confidence??'not established'),'Original reader type: '+(document.identification?.detectedDocumentType??'not established')],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the source, confirm or correct its type, and record your review reference. Type selection does not adopt, approve or replace the document.',completionRule:'The source-bound classification decision is retained and can be edited here.'},
+      target:{type:'inline',kind:'review-document-classification',documentId:document.documentId,sourceHash:document.sourceHashSha256,label:'Record document type review',reviewChoice:saved?.documentType??classification.documentType,
+        reviewReference:saved?.reference??null,reviewOptions:choices.map(choice=>({value:choice.documentType,label:choice.documentType.replaceAll('_',' ')}))}};
+    (saved?classificationInformation:actions).push(item);
+  }
   const numericReview=boqNumericReview(state);
   if(numericReview.pendingCount)actions.push({id:'boq-numeric-review',category:'review',title:'Review BOQ readings together',
     reason:numericReview.pendingCount+' item readings remain to check across '+numericReview.sources.filter(s=>s.pendingCount).length+' source(s). '+numericReview.automaticCount+' native rows need no numeric confirmation; '+numericReview.confirmedCount+' reviewed rows are already saved.',
@@ -215,7 +235,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const dataDate=projectControlSchedule(state)?.revision.model.dataDateIso?.slice(0,10)??null;
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
-  const information:ProjectAction[]=[];
+  const information:ProjectAction[]=[...classificationInformation];
   const noticeVersions=contractTermVersions(state).filter(v=>v.term==='noticePeriodDays').sort((a,b)=>(a.effectiveFromIso??'').localeCompare(b.effectiveFromIso??''));
   const riskValidation=operationalControlsAsOf(state,projectControlSchedule(state)?.revision.model.dataDateIso??null).risk.validation;
   for(const {group,issues} of groups.values()){

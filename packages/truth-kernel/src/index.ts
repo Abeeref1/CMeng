@@ -33,6 +33,7 @@ export interface EvidenceTableSemantic {
   columnMeanings?:EvidenceSemanticColumnMeaning[];
 }
 export interface EvidenceDocument {
+  classificationDecision?:{sourceHash:string;documentType:string};
   documentId: string; sourceHashSha256: string; storedPath: string;
   sourceFilename: string; mediaType: string; basisState: string;
   linkedArtifactId: string | null; uploadedAt: string; familyKey?: string; documentType?: string;
@@ -484,7 +485,8 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const stat = statSync(doc.storedPath);
       const confirmationFingerprint=createHash('sha256').update(JSON.stringify(doc.tableConfirmations??[])).digest('hex').slice(0,16);
       const semanticFingerprint=createHash('sha256').update(JSON.stringify([doc.csvSemantic??null,...(doc.tabularRead?.sheets.map(sheet=>('semantic' in sheet?sheet.semantic:null))??[])])).digest('hex').slice(0,16);
-      const key = [doc.documentId, identity, doc.documentType, doc.tabularRead?.producerVersion, semanticFingerprint, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
+      const reviewedType=doc.classificationDecision&&doc.classificationDecision.sourceHash===identity&&doc.classificationDecision.documentType!=='mixed_register_workbook'?doc.classificationDecision.documentType:undefined;
+      const key = [doc.documentId, identity, doc.documentType, reviewedType, doc.tabularRead?.producerVersion, semanticFingerprint, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
       const cached = tableCache.get(key); if (cached) { result.push(cached); continue; }
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }
@@ -494,7 +496,7 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
         const storedSemantic=('semantic' in sheet&&sheet.semantic?.documentType)?sheet.semantic:undefined;
         const inferred=storedSemantic?null:inferTableSemanticRoute(sheet.rows,doc.documentType,confirmations);
-        const semanticType=storedSemantic?.documentType??inferred?.documentType??doc.documentType;
+        const semanticType=reviewedType??storedSemantic?.documentType??inferred?.documentType??doc.documentType;
         const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations,storedSemantic?.columnMeanings??[]),{headers,rows,intelligence}=prepared;
         const effectiveDocument=(storedSemantic||inferred)
           ?({...doc,documentType:semanticType} as EvidenceDocument)

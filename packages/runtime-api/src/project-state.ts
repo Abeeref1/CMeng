@@ -123,6 +123,7 @@ import {
 } from "./evidence";
 import {
   identifyEvidenceDocument,
+  documentClassificationChoices,
   type EvidenceIdentificationResult,
 } from "./document-identification";
 import {
@@ -250,6 +251,7 @@ function semanticDocumentForSheet(
   document:StoredEvidenceDocument,
   semantic:NonNullable<NonNullable<StoredEvidenceDocument['tabularRead']>['sheets'][number]['semantic']>|undefined,
 ):StoredEvidenceDocument {
+  if(document.classificationDecision&&document.classificationDecision.sourceHash===document.sourceHashSha256&&document.classificationDecision.documentType!=='mixed_register_workbook')return document;
   return semantic?{...document,category:semantic.category as EvidenceCategory,documentType:semantic.documentType}:document;
 }
 
@@ -2411,7 +2413,8 @@ export class RuntimeProjectStore {
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
           const next={...document,identification:{...document.identification,diagnostics:[...document.identification.diagnostics]}};
-          if(identified.identification.method==='tabular_content'&&identified.identification.confidence>=0.95){
+          const reviewed=!!document.classificationDecision&&document.classificationDecision.sourceHash===document.sourceHashSha256;
+          if(!reviewed&&identified.identification.method==='tabular_content'&&identified.identification.confidence>=0.95){
             next.category=identified.identification.detectedCategory;next.documentType=identified.identification.detectedDocumentType;
             next.identification=identified.identification;
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
@@ -2420,7 +2423,7 @@ export class RuntimeProjectStore {
           if(isWorkbook){
             next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics:next.identification.diagnostics});
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
-            next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;
+            if(!reviewed){next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;}
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
@@ -5441,6 +5444,33 @@ export class RuntimeProjectStore {
     const updated=this.get(projectId)!;
     const refreshed=updated.evidenceDocuments.find(d=>d.documentId===input.documentId)!;
     return {projectId,projectVersion:updated.version,documentId:refreshed.documentId,sourceHash:refreshed.sourceHashSha256,confirmations:refreshed.tableConfirmations??[]};
+  }
+
+  async reviewDocumentClassification(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;documentType:string;reference:string}){
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    if(state.version!==input.expectedVersion)throw new Error('PROJECT_VERSION_CONFLICT');
+    const document=state.evidenceDocuments.find(d=>d.documentId===input.documentId&&d.sourceHashSha256===input.sourceHash);
+    if(!document)throw new Error('DOCUMENT_REVISION_CHANGED');
+    if(document.category==='schedule'||['superseded','scenario'].includes(document.basisState))throw new Error('DOCUMENT_CLASSIFICATION_NOT_APPLICABLE');
+    const choice=documentClassificationChoices(document).find(c=>c.documentType===input.documentType);
+    if(!choice||typeof input.reference!=='string'||!input.reference.trim())throw new Error('DOCUMENT_TYPE_AND_REVIEW_REFERENCE_REQUIRED');
+    if(hashBytes(readFileSync(document.storedPath))!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
+    const prior=document.classificationDecision;
+    const decision={sourceHash:document.sourceHashSha256,documentType:choice.documentType,category:choice.category,reference:input.reference.trim(),recordedAt:new Date().toISOString(),
+      originalDocumentType:prior?.originalDocumentType??document.documentType,originalCategory:prior?.originalCategory??document.category};
+    document.classificationDecision=decision;document.classificationHistory=[...(document.classificationHistory??[]),decision];
+    document.category=choice.category;document.documentType=choice.documentType;
+    const family=evidenceFamily({category:choice.category,documentType:choice.documentType,scheduleRole:null,textSample:document.identification.detectedTitle??'',sourceFilename:document.sourceFilename});
+    document.familyKey=family.familyKey;document.logicalDocumentKey=family.logicalDocumentKey;
+    delete document.derivedRegisterRead;
+    delete state.derivedControlsByDocument[document.documentId];delete state.derivedReadinessByDocument[document.documentId];
+    rebuildReadinessEvidence(state);rebuildDerivedControls(state);
+    // Persist the decision before re-reading. A reading error keeps the source
+    // and explicit type choice available, with its extraction gap unresolved.
+    this.touchEvidence(state);
+    const refreshed=await this.refreshSpreadsheetRegisters(projectId);
+    rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);
+    return {projectId,projectVersion:state.version,documentId:document.documentId,decision,diagnostics:refreshed.diagnostics};
   }
 
   reviewEvidenceRelationship(projectId:string,input:{documentId:string;sourceHash:string;expectedVersion:number;kind:'new_record'|'replacement'|'amendment';targetDocumentId?:string|null;note:string}){

@@ -2026,13 +2026,17 @@ async function route(
       if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
       const reviewWorkflow=projectActionRegisterForState(state).workflow;
       const action=[...reviewWorkflow.actions,...reviewWorkflow.information].find(a=>a.id===input.actionId);
-      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates','review-document-classification'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
         throw new Error('The supporting records or review request changed. Refresh Project Review.');
       const keys:Record<string,string>={'review-notice':'notice-term-versions','review-procurement-date':'procurement-date-basis','review-risk':'risk-rating-rule','review-risk-snapshot':'risk-status-snapshot','review-eot-overlap':'eot-overlap','review-contract-value':'contract-value','review-hse-rates':'hse-rate-basis'};
       const key=keys[action.target.kind!]!;
       const choice=String(input.choice??'');
       const allowed=action.target.reviewOptions?.map(option=>option.value)??[];
       if(!allowed.includes(choice))throw new Error('Select one of the available decisions.');
+      if(action.target.kind==='review-document-classification'){
+        const reviewed=await runtimeProjects.reviewDocumentClassification(projectId,{documentId:action.target.documentId!,sourceHash:action.target.sourceHash!,expectedVersion:input.expectedVersion,documentType:choice,reference:input.reference});
+        invalidateProject(projectId);json(res,200,{...reviewed,completedActionId:action.id});return;
+      }
       let matrix:Record<string,string>|undefined;
       if(choice==='confirm_versions'){
         const {contractTermVersions}=await import('./contract-term-versions');
@@ -2178,6 +2182,17 @@ async function route(
     const result=await runtimeProjects.confirmTableColumnMeaning(projectId,{...input,documentId});
     invalidateProject(projectId);json(res,200,result);
   }catch(error){json(res,409,{error:'table_column_confirmation_not_completed',message:error instanceof Error?error.message:String(error)});}return;}
+
+  const originalDocumentMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/source$/.exec(url.pathname);
+  if(req.method==='GET'&&originalDocumentMatch){try{
+    const state=runtimeProjects.get(decodeURIComponent(originalDocumentMatch[1]!));
+    const document=state?.evidenceDocuments.find(d=>d.documentId===decodeURIComponent(originalDocumentMatch[2]!));
+    if(!document){json(res,404,{error:'original_source_not_available'});return;}
+    if(url.searchParams.get('hash')!==document.sourceHashSha256)throw new Error('The source version changed. Refresh Project Review.');
+    const bytes=readFileSync(document.storedPath);
+    if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)throw new Error('The retained source does not match its recorded identity.');
+    res.writeHead(200,{'Content-Type':document.mediaType,'Content-Length':bytes.length,'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(document.sourceFilename),'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});res.end(bytes);
+  }catch(error){json(res,409,{error:'source_not_available',message:error instanceof Error?error.message:String(error)});}return;}
 
   const relationshipMatch=/^\/api\/projects\/([^/]+)\/evidence\/documents\/([^/]+)\/relationship$/.exec(url.pathname);
   if(req.method==='POST'&&relationshipMatch){try{const projectId=decodeURIComponent(relationshipMatch[1]!),input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));const effect=runtimeProjects.reviewEvidenceRelationship(projectId,{...input,documentId:decodeURIComponent(relationshipMatch[2]!)});invalidateProject(projectId);json(res,200,{projectId,effect});}catch(error){json(res,409,{error:'document_relationship_not_completed',message:error instanceof Error?error.message:String(error)});}return;}

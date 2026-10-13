@@ -266,6 +266,8 @@ export interface CorrespondenceNarrativeRefreshReceipt {
 }
 
 export interface StoredEvidenceDocument {
+  classificationDecision?:{sourceHash:string;documentType:string;category:EvidenceCategory;reference:string;recordedAt:string;originalDocumentType:string;originalCategory:EvidenceCategory};
+  classificationHistory?:NonNullable<StoredEvidenceDocument['classificationDecision']>[];
   scheduleRoleConfirmed?:boolean;
   scheduleApprovalReference?:string;
   relationshipDecision?:{kind:'new_record'|'replacement'|'amendment';targetDocumentId:string|null;targetSourceHash:string|null;sourceHash:string;note:string;recordedAt:string};

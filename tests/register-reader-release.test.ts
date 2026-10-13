@@ -14,6 +14,16 @@ import {moduleRegistry,pageApiKey,publicModuleResult,resolveModuleKey,titleForMo
 import {buildModuleJsonDownload} from '../packages/runtime-api/src/module-report';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
 const hash=(b:string|Uint8Array)=>createHash('sha256').update(b).digest('hex');
+test('reviewed table type overrides inferred routing only for its exact source hash',t=>{
+ const root=mkdtempSync(join(tmpdir(),'reviewed-table-type-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const bytes='Period End,PV,EV,AC,Currency\n2034-04-30,100,90,95,QAR',storedPath=join(root,'source.csv');writeFileSync(storedPath,bytes);
+ const document:any={documentId:'REVIEWED',sourceHashSha256:hash(bytes),storedPath,sourceFilename:'source.csv',mediaType:'text/csv',basisState:'active',linkedArtifactId:null,uploadedAt:'2034-04-30',documentType:'supporting_document'};
+ const original=sourceTables([document],[])[0]!;assert.equal(original.document.documentType,'cost_evm_report');
+ document.classificationDecision={sourceHash:document.sourceHashSha256,documentType:'supporting_document'};
+ const reviewed=sourceTables([document],[])[0]!;assert.equal(reviewed.document.documentType,'supporting_document');assert.deepEqual(reviewed.rows,original.rows);assert.equal(readFileSync(storedPath,'utf8'),bytes);
+ const replacement=bytes+'\n2034-05-31,200,180,190,QAR';writeFileSync(storedPath,replacement);document.sourceHashSha256=hash(replacement);
+ const changed=sourceTables([document],[])[0]!;assert.equal(changed.document.documentType,'cost_evm_report');assert.equal(changed.rows.length,2);
+});
 test('Stage 1 fresh quality cohort retains every reordered noisy workbook row and upgrades prior reader snapshots',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'quality-header-cohort-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  let store=new RuntimeProjectStore({dataDir:dir,durable:false});

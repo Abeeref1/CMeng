@@ -2179,6 +2179,11 @@ function classifyText(
 /** Correct a legacy display classification from retained content, without promoting
  * the document, replacing its evidence family, or changing any official facts. */
 export function documentClassificationForReview(document: StoredEvidenceDocument, tableRows?:readonly string[][]) {
+  const decision=document.classificationDecision;
+  if(decision&&decision.sourceHash===document.sourceHashSha256&&decision.documentType===document.documentType&&decision.category===document.category)return {
+    documentType:decision.documentType,category:decision.category,recordedDocumentType:document.documentType,reviewRequired:false,
+    reason:'Document type confirmed from source review: '+decision.reference,
+  };
   const headerRoute=tableRows?inferTableSemanticRoute(tableRows,document.documentType):null;
   if(headerRoute)return {
     documentType:headerRoute.documentType,category:headerRoute.category,
@@ -2196,15 +2201,20 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
     documentType:'supporting_document',category:document.category,recordedDocumentType:document.documentType,reviewRequired:true,
     reason:'A filename is not evidence of a bond or guarantee. Retain this document for content review without establishing security authority.',
   };
-  const text = [document.identification?.detectedTitle ?? "", ...document.assertions.map(a => a.sourceText)].join("\n");
+  const text = [document.identification?.detectedTitle ?? "", ...(document.assertions??[]).map(a => a.sourceText)].join("\n");
   const detected = classifyText(text, document.mediaType);
   const compatibleScheduleRole=detected?.documentType==='schedule_file'&&/^schedule_(baseline|update|recovery)$/.test(document.documentType);
   const changed = detected && detected.confidence >= 0.9 && detected.documentType !== document.documentType&&!compatibleScheduleRole;
   return { documentType: changed ? detected.documentType : document.documentType,
     category: changed ? detected.category : document.category,
     recordedDocumentType: document.documentType,
-    reviewRequired: Boolean(changed),
-    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : null };
+    reviewRequired: Boolean(changed||document.identification?.needsReview),
+    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : document.identification?.needsReview?'The source reader is uncertain about this document type. Confirm or correct the type after checking the retained source.':null };
+}
+
+export function documentClassificationChoices(document:StoredEvidenceDocument){
+  const choices=[{documentType:document.documentType,category:document.category},...rules,{documentType:'supporting_document',category:'other' as EvidenceCategory}];
+  return [...new Map(choices.filter(choice=>choice.category!=='schedule').map(choice=>[choice.documentType,{documentType:choice.documentType,category:choice.category}])).values()];
 }
 
 function firstTitle(
