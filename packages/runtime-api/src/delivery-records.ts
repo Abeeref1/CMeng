@@ -138,6 +138,16 @@ export function deliveryRecords(state:ProjectRuntimeState){
  return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
+/** Shared source-bound population authority. Callers may provide indexed scope
+ * rows; reading them here must not reclassify source facts as reviewed facts. */
+export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null,scope:DeliveryRecord[],documents:DeliveryDocumentReceipt[],decision:DeliveryStateStore['populations'][number]|undefined){
+ const rows=scope.filter(deliveryCurrentRecord);
+ const pending=scope.filter(r=>!deliveryCurrentRecord(r)&&!['superseded','scenario'].includes(r.state));
+ const unread=documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
+ const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
+ return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
+  recordIds:rows.map(r=>r.recordId),basis:decision?.note??'Confirm that all applicable records have been captured before relying on a percentage.',confirmedAt:decision?.recordedAt??null};
+}
 function deliveryLinkValidator(state:ProjectRuntimeState,records:DeliveryRecord[]){
  const model=projectControlSchedule(state)?.revision.model,boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;
  const eligible=records.filter(r=>['governed','verified'].includes(r.state)),items=new Map(boq?.items.map(i=>[i.quantityItemId,i])??[]);

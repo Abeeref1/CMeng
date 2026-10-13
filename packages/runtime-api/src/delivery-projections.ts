@@ -14,7 +14,7 @@ import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/sr
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
 import {schedulePlanPositions} from '../../progress-scurve/src/projector';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 
@@ -71,13 +71,9 @@ function buildDelivery(state:ProjectRuntimeState){
  const recordsByScope=new Map<string,DeliveryRecord[]>();for(const r of records)for(const scope of new Set(['',...r.links.packageIds,...r.links.recordIds])){const key=r.kind+'|'+scope;const rows=recordsByScope.get(key)??[];rows.push(r);recordsByScope.set(key,rows);}
  const latestPopulation=new Map(store.populations.map(p=>[p.kind+'|'+(p.scopeId??''),p]));
  const population=(kind:DeliveryKind,scopeId:string|null=null)=>{
-  const scope=recordsByScope.get(kind+'|'+(scopeId??''))??[],rows=scope.filter(currentRecord);
+  const scope=recordsByScope.get(kind+'|'+(scopeId??''))??[];
   const decision=latestPopulation.get(kind+'|'+(scopeId??''));
-  const pending=scope.filter(r=>!currentRecord(r)&&!['superseded','scenario'].includes(r.state));
-  const unread=source.documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
-  const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
-  return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
-   recordIds:rows.map(r=>r.recordId),basis:decision?.note??'Confirm that all applicable records have been captured before relying on a percentage.',confirmedAt:decision?.recordedAt??null};
+  return deliveryPopulationPosition(kind,scopeId,scope,source.documents,decision);
  };
  mark('record_population');
  const populations=Object.fromEntries(deliveryKinds.map(k=>[k,population(k)]));

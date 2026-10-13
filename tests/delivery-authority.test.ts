@@ -231,6 +231,39 @@ test('formal Interface Register upload is identified and mapped to interface can
  assert.equal((page.data as any).confirmedCount,0);
 });
 
+test('Interface totals distinguish absent and reviewed-empty populations and reopen after new records',async t=>{
+ const f=await fixture(t),position=()=>deliveryModule(f.state,'delivery-interfaces').data as any;
+ let data=position();for(const key of ['openCount','blockerCount','overdueCount','linkedActivityCount'])assert.equal(data[key],null,key);
+ assert.match(data.managementPosition,/Upload the register in Add documents/);
+ f.population('interface');data=position();for(const key of ['openCount','blockerCount','overdueCount','linkedActivityCount'])assert.equal(data[key],0,key);
+ const r=f.create('interface','IF-NEW',{'current status':'Open','required date':'2031-08-31'},{activityIds:['A1']});
+ data=position();assert.equal(data.population.state,'not_established');assert.equal(data.blockerCount,null);assert.equal(data.knownBlockerCount,0);assert.equal(data.linkedActivityCount,null);assert.equal(data.knownLinkedActivityCount,1);
+ f.population('interface');data=position();assert.equal(data.blockerCount,0,'due on the reporting date is not overdue');assert.equal(data.openCount,1);assert.equal(data.linkedActivityCount,1);
+ f.review(r,{'current status':'Unknown','required date':'2031-08-01'});f.population('interface');data=position();assert.equal(data.rows[0].state,'unknown');assert.equal(data.openCount,null);assert.equal(data.overdueCount,null);assert.equal(data.blockerCount,null);
+});
+
+test('Interface missing dates do not erase known blockers or fabricate assessed zero, and source records keep their authority',async t=>{
+ const f=await fixture(t);
+ await f.upload('Interfaces.csv','Interface ID,Current Status,Required Date,Linked Activity\nIF-BLOCKED,Blocked,,A1\nIF-OPEN,Open,,A2\nIF-CLOSED,Closed,,A2\nIF-MISSING,,,A1');
+ f.population('interface');let data=deliveryModule(f.state,'delivery-interfaces').data as any;
+ assert.equal(data.confirmedCount,0);assert.ok(data.rows.every((row:any)=>row.authority==='source'));
+ assert.equal(data.knownBlockerCount,1);assert.equal(data.blockerCount,null);assert.equal(data.overdueCount,null);assert.equal(data.openCount,null);assert.equal(data.knownOpenCount,2);assert.equal(data.linkedActivityCount,2);
+ assert.doesNotMatch(data.managementPosition,/confirmed interface/);assert.match(data.managementPosition,/source or reviewed/);
+ const before=readFileSync(f.state.evidenceDocuments.find(d=>d.sourceFilename==='Interfaces.csv')!.storedPath!);
+ const open=deliveryRecords(f.state).records.find(row=>row.reference==='IF-OPEN')!,missing=deliveryRecords(f.state).records.find(row=>row.reference==='IF-MISSING')!;
+ f.review(open,{'required date':'2031-09-10'});f.review(missing,{'current status':'Closed'});f.population('interface');
+ data=deliveryModule(f.state,'delivery-interfaces').data as any;assert.equal(data.blockerCount,1);assert.equal(data.overdueCount,null,'undated blocked item still has unknown overdue status');assert.equal(data.openCount,2);
+ assert.deepEqual(readFileSync(f.state.evidenceDocuments.find(d=>d.sourceFilename==='Interfaces.csv')!.storedPath!),before);
+});
+
+test('Interface counts cover every source row and confirmed reviewed zero does not hide missing activity linkage',async t=>{
+ const f=await fixture(t),csv='Interface ID,Current Status,Required Date,Linked Activity\n'+Array.from({length:620},(_,i)=>'IF-'+i+','+(i===619?'Blocked':'Closed')+',2031-09-10,'+(i===618?'':'A1')).join('\n');
+ await f.upload('Full-Interfaces.csv',csv);f.population('interface');
+ const data=deliveryModule(f.state,'delivery-interfaces').data as any;assert.equal(data.rows.length,620);assert.equal(data.blockerCount,1);assert.equal(data.openCount,1);assert.equal(data.overdueCount,0);assert.equal(data.linkedActivityCount,null);assert.equal(data.knownLinkedActivityCount,1);
+ const last=deliveryRecords(f.state).records.find(r=>r.reference==='IF-619')!;f.review(last,{'current status':'Closed'});f.population('interface');
+ assert.equal((deliveryModule(f.state,'delivery-interfaces').data as any).blockerCount,0);
+});
+
 test('Batch H Interface columns remain explicit after governance and never render undefined',async t=>{
  const f=await fixture(t);
  await f.upload('Interfaces.csv','Interface ID,Giving Party,Receiving Party,Package,Discipline,System,Location,Required Deliverable,Required Date,Current Status,Responsible Party,Consequence,Escalation\nIF-H,Designer,Contractor,MEP,Electrical,BMS,Zone 2,Approved sequence,2031-08-20,Blocked,Interface Manager,Workfront cannot proceed,Escalate coordination');

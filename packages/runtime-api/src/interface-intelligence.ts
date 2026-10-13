@@ -1,5 +1,5 @@
 import {canonicalHeader,registerDate} from '../../truth-kernel/src';
-import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
+import {deliveryRecords,deliveryCurrentRecord,deliveryPopulationPosition,deliveryStore} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {scheduleAuthorityReview} from './schedule-authority';
 import {contractCompletionDependencies,projectContractSections} from './project-contract-sections';
@@ -23,6 +23,7 @@ export interface InterfaceIntelligenceRow {
 export function interfaceIntelligence(state:ProjectRuntimeState){
   const source=deliveryRecords(state),records=source.records,governed=records.filter(current),byId=new Map(governed.map(r=>[r.recordId,r]));
   const programme=projectControlSchedule(state)?.revision.model??null,dataDateIso=projectDataDate(state);
+  const population=deliveryPopulationPosition('interface',null,records.filter(r=>r.kind==='interface'),source.documents,deliveryStore(state).populations.filter(p=>p.kind==='interface'&&!p.scopeId).at(-1));
   const activities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
   const packages=governed.filter(r=>r.kind==='package'),workfronts=governed.filter(r=>r.kind==='workfront');
   const rows:InterfaceIntelligenceRow[]=[];
@@ -39,11 +40,12 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
   });}
   for(const r of governed.filter(r=>r.kind==='interface')){
     const raw=field(r,'current status','status'),requiredDate=registerDate(field(r,'required date','due date'));
-    const overdue=!!dataDateIso&&!!requiredDate&&requiredDate<dataDateIso&&!closed(raw);
+    const statusKnown=!!raw&&!/^(unknown|not established|not recorded|unavailable|n\/a|tbd)$/i.test(raw);
+    const overdue=statusKnown&&!!dataDateIso&&!!requiredDate&&requiredDate.slice(0,10)<dataDateIso.slice(0,10)&&!closed(raw);
     const blocked=/blocked|hold|stopped|unresolved/i.test(raw);
     const linkedKinds=(kind:string)=>r.links.recordIds.map(id=>byId.get(id)).filter(x=>x?.kind===kind).map(x=>x!.reference??x!.recordId);
     const pkgRefs=r.links.packageIds.map(id=>byId.get(id)?.reference??id),locRefs=r.links.locationIds.map(id=>byId.get(id)?.description??byId.get(id)?.reference??id);
-    rows.push({interfaceId:recordLabel(r.reference,r.recordId),authority:r.state==='extracted_candidate'?'source':'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':raw?'open':'unknown',
+    rows.push({interfaceId:recordLabel(r.reference,r.recordId),authority:r.state==='extracted_candidate'?'source':'confirmed',state:closed(raw)?'closed':overdue?'overdue':blocked?'blocked':statusKnown?'open':'unknown',
       givingParty:field(r,'giving party')||null,receivingParty:field(r,'receiving party')||null,package:field(r,'package')||pkgRefs.map(x=>cleanText(x)).filter(Boolean).join('; ')||null,
       discipline:field(r,'discipline')||null,system:field(r,'system')||null,location:field(r,'location')||locRefs.join('; ')||null,
       requiredDeliverable:field(r,'required deliverable','description')||cleanText(r.description)||null,requiredDate,currentStatus:raw||null,
@@ -73,15 +75,26 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
         packageIds:[a.recordId,b.recordId],workfrontIds:workfront?[workfront.recordId]:[],sourceRecordIds:[a.recordId,b.recordId],sourceRefs:[...a.receipts,...b.receipts].map(x=>x.documentId+':'+x.locator)});
     }
   }
-  const confirmed=rows.filter(r=>r.authority!=='candidate'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>!['closed'].includes(r.state));
+  const confirmed=rows.filter(r=>r.authority!=='candidate'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>['open','blocked','overdue'].includes(r.state));
   const blockers=confirmed.filter(r=>['blocked','overdue'].includes(r.state));
   const overdue=confirmed.filter(r=>r.state==='overdue');
-  const linkedActivityCount=new Set(rows.flatMap(r=>r.linkedActivity?r.linkedActivity.split(';').map(x=>x.trim()).filter(Boolean):[])).size;
+  const links=(row:InterfaceIntelligenceRow)=>row.linkedActivity?row.linkedActivity.split(';').map(x=>x.trim()).filter(Boolean):[];
+  const knownLinkedActivityCount=new Set(rows.flatMap(links).filter(id=>activities.has(id))).size;
+  const populationComplete=population.state==='established';
+  const openComplete=populationComplete&&confirmed.every(r=>r.state!=='unknown');
+  const overdueComplete=populationComplete&&confirmed.every(r=>r.state==='closed'||r.state!=='unknown'&&!!r.requiredDate&&!!dataDateIso);
+  const blockerComplete=populationComplete&&confirmed.every(r=>['closed','blocked','overdue'].includes(r.state)||r.state==='open'&&!!r.requiredDate&&!!dataDateIso);
+  const linkageComplete=populationComplete&&rows.every(r=>links(r).length>0&&links(r).every(id=>activities.has(id)));
   return {schemaVersion:'1.0',projectionKey:'interface_intelligence',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,
-    managementPosition:blockers.length?blockers.length+' confirmed interface'+(blockers.length===1?'':'s')+' require management action now. '+candidates.length+' additional interface candidate'+(candidates.length===1?' is':'s are')+' retained for review.':
-      confirmed.length?open.length+' confirmed interfaces remain open; no confirmed overdue/blocked interface is established from the current records. '+candidates.length+' candidates require review.':
-      candidates.length?candidates.length+' interfaces were identified from contract completion dependencies or package-to-activity relationships. Confirm ownership and completion evidence.':'No confirmed or derivable interface population is available from the current Project information.',
-    rows,knownCount:confirmed.length,confirmedCount:rows.filter(r=>r.authority==='confirmed').length,candidateCount:candidates.length,openCount:open.length,blockerCount:blockers.length,overdueCount:overdue.length,linkedActivityCount,
+    managementPosition:blockers.length?blockers.length+' known interface'+(blockers.length===1?'':'s')+' from source or reviewed records require management action. '+(!blockerComplete?'The complete blocked/overdue count is not established. ':'')+candidates.length+' additional candidate(s) remain for review.':
+      confirmed.length?open.length+' known open interface(s) are retained from source or reviewed records. '+(blockerComplete?'The checked interface population has no blocked/overdue records.':'The complete blocked/overdue count needs population, status and date evidence.'):
+      candidates.length?candidates.length+' candidate interface(s) were identified from contract completion dependencies or package-to-activity relationships. Supply the Interface Register and confirm ownership, dates and completion evidence.':
+      populationComplete?'The current review confirms no applicable Interface Register records. New source records will require the population to be reviewed again.':'No Interface Register is established. Upload the register in Add documents, including interface ID, giving/receiving parties, required deliverable, required date, status and activity links.',
+    rows,population,knownCount:confirmed.length,confirmedCount:rows.filter(r=>r.authority==='confirmed').length,candidateCount:candidates.length,
+    openCount:openComplete?open.length:null,knownOpenCount:open.length,
+    blockerCount:blockerComplete?blockers.length:null,knownBlockerCount:blockers.length,
+    overdueCount:overdueComplete?overdue.length:null,knownOverdueCount:overdue.length,
+    linkedActivityCount:linkageComplete?knownLinkedActivityCount:null,knownLinkedActivityCount,
     blockers,candidates,basis:'Confirmed interfaces come from Interface records. Other interfaces retain explicit contract completion dependencies or identify packages converging on the same programme activity. These links do not establish responsibility, causation or delay.'};
 }
 export function interfaceModule(state:ProjectRuntimeState):ModuleRuntimeResult{

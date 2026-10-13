@@ -31,5 +31,17 @@ test('Delivery HTTP workflow preserves project ownership, rejects conflicting ed
  const commercial=(await call('/api/projects/HTTP-A/commercial/modules/commercial-claims-notices')).data.data;
  assert.equal(notices.eventCount,null);assert.equal(notices.noticeEventDateMissingCount,null);assert.equal(commercial.position.claimsNotices.noticeTimelinessCounts.event_date_missing,null);
  const exportResponse=await fetch(base+'/api/projects/HTTP-A/delivery/modules/delivery-submittals/report.xlsx');assert.equal(exportResponse.status,200);assert.match(exportResponse.headers.get('content-type')!,/spreadsheetml/);assert.ok((await exportResponse.arrayBuffer()).byteLength>1000);
+ const interfacePage='/api/projects/HTTP-A/delivery/modules/delivery-interfaces';
+ const noInterfaces=(await call(interfacePage)).data.data;assert.equal(noInterfaces.blockerCount,null);assert.equal(noInterfaces.linkedActivityCount,null);
+ const interfaces='Interface ID,Current Status,Required Date,Linked Activity\n'+Array.from({length:620},(_,i)=>'IF-'+i+','+(i===619?'Blocked':'Closed')+',2031-09-10,A1').join('\n');
+ const uploadedInterfaces=await fetch(base+'/api/projects/HTTP-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Interfaces.csv'},body:interfaces});assert.equal(uploadedInterfaces.status,201);
+ const beforeConfirmation=(await call(interfacePage)).data.data;assert.equal(beforeConfirmation.blockerCount,null);assert.equal(beforeConfirmation.knownBlockerCount,1);
+ const currentVersion=(await call(path)).data.projectVersion;assert.equal((await call(path,{action:'confirm_population',kind:'interface',expectedVersion:currentVersion,note:'Complete interface register checked.'})).status,200);
+ const interfaceView=(await call(interfacePage+'?view=page')).data;assert.equal(interfaceView.data.blockerCount,1);assert.equal(interfaceView.data.linkedActivityCount,1);assert.ok(interfaceView.data.rows.length<620);
+ const meta=interfaceView.responsePaging,params=new URLSearchParams({source:meta.source,pointer:'/data/rows',offset:'600',limit:'25',version:String(meta.projectVersion)});
+ const finalInterfaces=await call('/api/projects/HTTP-A/record-page?'+params);assert.equal(finalInterfaces.status,200);assert.equal(finalInterfaces.data.total,620);assert.equal(finalInterfaces.data.rows.at(-1).interfaceId,'IF-619');assert.equal(finalInterfaces.data.rows.at(-1).authority,'source');
  await g.close();g=await createProjectGateway(root,{maxWorkers:2});await start();assert.equal((await call(path+'?kind=submittal')).data.total,63);assert.equal((await call('/api/projects/HTTP-B/delivery/records')).data.total,0);
+ assert.equal((await call(interfacePage)).data.data.blockerCount,1);
+ const extra=await fetch(base+'/api/projects/HTTP-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Extra-Interfaces.csv'},body:'Interface ID,Current Status,Required Date,Linked Activity\nIF-EXTRA,,,A1'});assert.equal(extra.status,201);
+ const changed=(await call(interfacePage)).data.data;assert.equal(changed.blockerCount,null);assert.equal(changed.knownBlockerCount,1);assert.equal((await call('/api/projects/HTTP-A/record-page?'+params)).status,409);
 });

@@ -98,7 +98,7 @@ test('Interface Management uses its dedicated renderer and never prints undefine
  };
  const html=runInNewContext(functions(['interfaceDisplay','renderInterfaceIntelligenceVisual'])+';renderInterfaceIntelligenceVisual(data)',{
   data,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String,humanizeKey:String,planningShortDate:String,
-  planningKpis:()=>'<div>KPI</div>'
+  planningKpis:()=>'<div>KPI</div>',responseListPopulation:(rows:any[])=>({total:rows.length}),sourcePopulationControl:()=>''
  });
  assert.match(html,/Interface position/);
  assert.match(html,/No confirmed or derivable interface population/);
@@ -175,12 +175,22 @@ test('Interface Management sanitizes literal undefined, null and NaN values',()=
    linkedActivity:'A-1',linkedRfi:null,linkedSubmittal:null,linkedRisk:null,consequence:'undefined',escalation:null
  }]};
  const html=runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{
-   data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,planningKpis:()=>''
+   data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,planningKpis:()=>'',responseListPopulation:(rows:any[])=>({total:rows.length}),sourcePopulationControl:()=>''
  });
  assert.doesNotMatch(html,/>undefined</i);
  assert.doesNotMatch(html,/>null</i);
  assert.doesNotMatch(html,/>NaN</i);
  assert.match(html,/Not established/);
+});
+
+test('Interface page exposes unknowns, retained candidate browsing and the existing register upload flow',()=>{
+ const script=functions(['interfaceDisplay','renderInterfaceIntelligenceVisual']);
+ const data:any={interfaceProjectionKey:'interface_intelligence',rows:[],population:{state:'not_established'},knownCount:0,candidateCount:0,blockerCount:null,linkedActivityCount:null};
+ const render=()=>runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{data,projectionFor:(v:any)=>v,escapeHtml:(v:any)=>String(v??''),fmt:String,humanizeKey:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' '),responseListPopulation:()=>({total:620}),sourcePopulationControl:(_:any,label:string)=>'<button>'+label+'</button>'});
+ let html=render();assert.match(html,/Blocked \/ overdue Not established/);assert.match(html,/Linked activities Not established/);assert.match(html,/Upload Interface Register/);
+ let opened=0,clicked=0;const handler=/onclick="([^"]+)"/.exec(html)![1]!;runInNewContext(handler,{openEvidenceWorkspace:()=>opened++,el:(id:string)=>{assert.equal(id,'evidenceFiles');return {click:()=>clicked++};}});assert.equal(opened,1);assert.equal(clicked,1);
+ data.knownCount=620;data.knownBlockerCount=19;data.knownLinkedActivityCount=11;html=render();assert.match(html,/Blocked \/ overdue Not established · 19 known/);assert.match(html,/Linked activities Not established · 11 known/);assert.match(html,/Showing 0 of 620 rows/);assert.match(html,/Browse all interfaces and candidates/);assert.doesNotMatch(html,/Upload Interface Register/);
+ data.population.state='established';data.knownCount=0;data.blockerCount=0;data.linkedActivityCount=0;html=render();assert.match(html,/Blocked \/ overdue 0/);assert.match(html,/Linked activities 0/);assert.doesNotMatch(html,/Upload Interface Register/);
 });
 
 test('Recovery and Acceleration explains eligibility instead of presenting a bare zero-scenario result',()=>{
