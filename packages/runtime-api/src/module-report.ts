@@ -1,3 +1,6 @@
+import {PassThrough} from 'node:stream';
+import {setImmediate as yieldExport} from 'node:timers/promises';
+import {collectReportArrays as collectArrays,reportArrayRows,type ReportArraySection as ArraySection} from './report-tables';
 import {buildDeliveryWorkbook} from './delivery-export';
 import {createHash} from 'node:crypto';
 import {exportAskAnalysis,type AskExportView} from './ask-export';
@@ -17,10 +20,6 @@ type FlatValue =
   | boolean
   | null;
 
-interface ArraySection {
-  path: string;
-  rows: unknown[];
-}
 
 function safeFilenamePart(
   value: string,
@@ -216,91 +215,6 @@ function flattenRecord(
   return out;
 }
 
-function collectArrays(
-  value: unknown,
-  prefix = "",
-  out: ArraySection[] = [],
-  depth = 0,
-): ArraySection[] {
-  if (
-    depth > 6 ||
-    value === null ||
-    value === undefined ||
-    typeof value !== "object"
-  ) {
-    return out;
-  }
-
-  if (Array.isArray(value)) {
-    out.push({
-      path:
-        prefix || "records",
-      rows: value,
-    });
-    return out;
-  }
-
-  for (
-    const [key, child] of
-      Object.entries(
-        value as Record<
-          string,
-          unknown
-        >,
-      )
-  ) {
-    const path =
-      prefix
-        ? prefix + "." + key
-        : key;
-    if (Array.isArray(child)) {
-      out.push({
-        path,
-        rows: child,
-      });
-      for (
-        const row of child.slice(
-          0,
-          20,
-        )
-      ) {
-        if (
-          row &&
-          typeof row ===
-            "object" &&
-          !Array.isArray(row)
-        ) {
-          collectArrays(
-            row,
-            path,
-            out,
-            depth + 1,
-          );
-        }
-      }
-    } else {
-      collectArrays(
-        child,
-        path,
-        out,
-        depth + 1,
-      );
-    }
-  }
-
-  const seen = new Set<string>();
-  return out.filter(
-    (section) => {
-      if (
-        seen.has(section.path)
-      ) {
-        return false;
-      }
-      seen.add(section.path);
-      return true;
-    },
-  );
-}
 
 function styleHeader(
   row: ExcelJS.Row,
@@ -324,145 +238,42 @@ function styleHeader(
   };
 }
 
-function fitColumns(
-  sheet: ExcelJS.Worksheet,
-  maxWidth = 42,
-): void {
-  sheet.columns.forEach(
-    (column) => {
-      let width = 10;
-      if (!column.eachCell) {
-        column.width = width;
-        return;
-      }
-      column.eachCell(
-        {
-          includeEmpty: false,
-        },
-        (cell) => {
-          const text =
-            cell.value === null ||
-            cell.value ===
-              undefined
-              ? ""
-              : typeof cell.value ===
-                  "object"
-                ? JSON.stringify(
-                    cell.value,
-                  )
-                : String(
-                    cell.value,
-                  );
-          width = Math.max(
-            width,
-            Math.min(
-              maxWidth,
-              text.length + 2,
-            ),
-          );
-        },
-      );
-      column.width = width;
-    },
-  );
+const EXCEL_DATA_ROWS=1_048_575; // One header plus data must fit a worksheet.
+function flatArrayRow(row:unknown):Record<string,FlatValue> {
+ return row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)};
 }
-
-function addArraySheet(
+async function addArraySheet(
   workbook: ExcelJS.Workbook,
   section: ArraySection,
   usedNames: Set<string>,
-): void {
-  const sheet =
-    workbook.addWorksheet(
-      worksheetName(
-        section.path
-          .split(".")
-          .at(-1) ??
-          section.path,
-        usedNames,
-      ),
-    );
-
-  if (section.rows.length === 0) {
-    sheet.addRow([
-      "No records",
-    ]);
-    return;
-  }
-
-  const flatRows =
-    section.rows.map(
-      (row) => {
-        if (
-          row &&
-          typeof row ===
-            "object" &&
-          !Array.isArray(row)
-        ) {
-          return flattenRecord(
-            row,
-          );
-        }
-        return {
-          value:
-            primitiveValue(row),
-        };
-      },
-    );
-
-  const headers: string[] =
-    [];
-  const seen =
-    new Set<string>();
-  for (
-    const row of flatRows
-  ) {
-    for (
-      const key of
-        Object.keys(row)
-    ) {
-      if (!seen.has(key)) {
-        seen.add(key);
-        headers.push(key);
-      }
+): Promise<void> {
+  const headers:string[]=[],widths=new Map<string,number>();
+  let inspected=0;
+  // Discover late-row columns before writing a streaming worksheet. No source
+  // row is sampled away, and the flat values are not retained in memory.
+  for(const record of reportArrayRows(section)){
+    for(const[key,value]of Object.entries(flatArrayRow(record))){
+      if(!widths.has(key)){headers.push(key);widths.set(key,10);}
+      widths.set(key,Math.max(widths.get(key)!,Math.min(42,String(value??'').length+2)));
     }
+    if(++inspected%2000===0)await yieldExport();
   }
-
-  sheet.addRow(headers);
-  styleHeader(sheet.getRow(1));
-  sheet.views = [
-    {
-      state: "frozen",
-      ySplit: 1,
-    },
-  ];
-  sheet.autoFilter = {
-    from: {
-      row: 1,
-      column: 1,
-    },
-    to: {
-      row: 1,
-      column:
-        Math.max(
-          1,
-          headers.length,
-        ),
-    },
+  const base=section.path.split('.').at(-1)??section.path;
+  if(!section.rowCount){const empty=workbook.addWorksheet(worksheetName(base,usedNames));empty.addRow(['No records']).commit();empty.commit();return;}
+  const open=()=>{
+    const sheet=workbook.addWorksheet(worksheetName(base,usedNames),{views:[{state:'frozen',ySplit:1}]});
+    sheet.columns=headers.map(key=>({header:key,key,width:widths.get(key)!}));
+    styleHeader(sheet.getRow(1));sheet.getRow(1).commit();return sheet;
   };
-
-  for (
-    const row of flatRows
-  ) {
-    sheet.addRow(
-      headers.map(
-        (key) =>
-          row[key] ?? null,
-      ),
-    );
+  let sheet=open(),written=0,total=0;
+  const finish=()=>{sheet.autoFilter={from:{row:1,column:1},to:{row:written+1,column:Math.max(1,headers.length)}};sheet.commit();};
+  for(const record of reportArrayRows(section)){
+    if(written===EXCEL_DATA_ROWS){finish();sheet=open();written=0;}
+    const row=flatArrayRow(record);
+    sheet.addRow(headers.map(key=>row[key]??null)).commit();written++;
+    if(++total%2000===0)await yieldExport();
   }
-
-  fitColumns(sheet);
+  finish();
 }
 
 export async function buildModuleWorkbook(
@@ -472,8 +283,9 @@ export async function buildModuleWorkbook(
 ): Promise<Buffer> {
   if((result.data as any)?.projectionKey==="delivery")return buildDeliveryWorkbook(projectId,result);
   const {default:ExcelJS}=await import('exceljs');
-  const workbook =
-    new ExcelJS.Workbook();
+  const output=new PassThrough(),chunks:Buffer[]=[];
+  output.on('data',(chunk:Buffer)=>chunks.push(chunk));
+  const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({stream:output,useStyles:true,useSharedStrings:false});
   workbook.creator = "CMeng";
   workbook.company = "CMeng";
   workbook.subject =
@@ -618,21 +430,20 @@ export async function buildModuleWorkbook(
     },
   );
 
+  summary.commit();
   for (
     const section of
       collectArrays(data)
   ) {
-    addArraySheet(
+    await addArraySheet(
       workbook,
       section,
       usedNames,
     );
   }
 
-  const buffer =
-    await workbook.xlsx
-      .writeBuffer();
-  return Buffer.from(buffer);
+  await workbook.commit();
+  return Buffer.concat(chunks);
 }
 
 export function buildModuleJsonDownload(
@@ -753,7 +564,9 @@ function applyModuleFilters(value:unknown,filters:Record<string,string>,depth=0)
       if(!hasSearch)return true;
       return String(v??'').toLowerCase().includes(filters.search!.trim().toLowerCase());
     }):value;
-    return rows.map(v=>applyModuleFilters(v,filters,depth+1));
+    // A matching business record keeps its history and related evidence.
+    // Reapplying a parent item search to each dated point erased its curve.
+    return recognized||hasSearch?rows:rows.map(v=>applyModuleFilters(v,filters,depth+1));
   }
   return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v])=>[k,
     reportEvidenceFields.has(normalizedKey(k))?v:applyModuleFilters(v,filters,depth+1)]));
@@ -824,9 +637,9 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
     metrics:metricRows.map(([key,value],i)=>{const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);return {id:'module.'+key,label:key.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[._-]+/g,' '),value:value as Cell,unit:contract?.unit??null,state,classification:['source','submitted','official'].includes(String(contract?.authority))?'project_fact':'calculated_intelligence',traceId:'module:metric:'+key,basis:reportMetricBasis(contract)};}),
     tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState},...metricTraces]});
-  arrays.forEach((section,index)=>{const flatRows=section.rows.map(row=>row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)}),columns=analysisColumns(flatRows),tableId='module-table-'+index;
+  arrays.forEach((section,index)=>{const flatRows=Array.from(reportArrayRows(section),flatArrayRow),columns=analysisColumns(flatRows),tableId='module-table-'+index;
     const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
-    const charts:AnalysisChart[]=category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:section.path.replace(/[._-]+/g,' '),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+section.path+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
+    const charts:AnalysisChart[]=!section.nested&&category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:section.path.replace(/[._-]+/g,' '),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+section.path+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
     sections.push({authorityId:'table-'+index,title:section.path.replace(/[._-]+/g,' '),state:authorityState,explanation:'Same retained module population at '+section.path+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+section.path+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
   });
   const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
