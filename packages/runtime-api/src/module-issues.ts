@@ -134,24 +134,22 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // them without rebuilding paths for tens of thousands of repeated rows.
   // Findings themselves are never cached: each module retains its own paths.
   const eligibility=scanContext?.eligibility??new WeakMap<object,boolean>();
-  const inspecting=new WeakSet<object>();
   const arrayItemCanContainIssue=(item:any,depth=0):boolean=>{
     if(!item||typeof item!=='object')return false;
     const hit=eligibility.get(item);if(hit!==undefined)return hit;
     // Keep eligibility conservative for unusually deep source structures.
     // The owning walker still applies its established inspection depth.
     if(depth>=64)return true;
-    // Conservatively inspect cycles; a cycle must never hide a descendant
-    // finding or cache an incomplete negative answer for another module.
-    if(inspecting.has(item))return true;
-    if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length){eligibility.set(item,true);return true;}
-    inspecting.add(item);
+    // A provisional positive contains cycles in the same shared lookup.
+    // Only a completed inspection may replace it with a negative result;
+    // re-entry can therefore never hide a later descendant finding.
+    eligibility.set(item,true);
+    if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
     let answer=false;
     if(Array.isArray(item)){
       for(const child of item)if(child&&typeof child==='object'&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
     }else{
-      for(const key in item){
-        if(!Object.hasOwn(item,key))continue;
+      for(const key of Object.keys(item)){
         const child=item[key];
         // Scalar cells cannot hold nested issue evidence. Most source-row
         // fields are scalar; avoid recursive calls and key-set lookups for
@@ -159,7 +157,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         if(child&&typeof child==='object'&&!excludedKeys.has(key)&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
       }
     }
-    inspecting.delete(item);eligibility.set(item,answer);return answer;
+    eligibility.set(item,answer);return answer;
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value)||!arrayItemCanContainIssue(value))return;
@@ -232,8 +230,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs);
     }
     }
-    for(const key in value) {
-      if(!Object.hasOwn(value,key))continue;
+    for(const key of Object.keys(value)) {
       const child=value[key];
       if(!child||typeof child!=='object'||excludedKeys.has(key))continue;
       walk(child,path?path+'.'+key:key,depth+1);

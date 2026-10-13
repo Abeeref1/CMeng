@@ -29,6 +29,19 @@ test('shared neutral subtrees and cycles cannot hide a reachable source finding'
  let deep:any={state:'invalid'};for(let i=0;i<10000;i++)deep={child:deep};
  assert.doesNotThrow(()=>assessModuleIssues(input({deep}),pass),'deep retained structures cannot overflow eligibility scanning');
 });
+test('cycle eligibility stays conservative when a finding appears after the back-reference',()=>{
+ const first:any={label:'first'},second:any={label:'second'};first.next=second;second.previous=first;
+ second.late={state:'conflicted',diagnostics:['SOURCE_CONFLICT'],sourceRefs:['SOURCE:AFTER-CYCLE']};
+ const nested:any[]=['ordinary',first];(nested as any).state='candidate';
+ const inherited=Object.create({unowned:{state:'invalid',sourceRefs:['NOT_OWN']}});inherited.owned={payload:nested};
+ const context={eligibility:new WeakMap<object,boolean>()};
+ for(const [key,root] of [['activity-analytics',inherited],['lookahead-schedule',second]] as const){
+  const result=assessModuleIssues({...input({root}),key},pass,context);
+  assert.equal(result.counts.source_conflict,1);assert.deepEqual(result.issues.find(i=>i.kind==='source_conflict')!.sourceRefs,['SOURCE:AFTER-CYCLE']);
+  assert.deepEqual(result.issues[0]!.moduleKeys,[key]);assert.equal(result.counts.data_quality,0);
+ }
+ assert.equal(first.next,second);assert.equal(second.previous,first);assert.equal(second.late.state,'conflicted');
+});
 test('source review pages can be ready without an advisory comparison while real conflicts still block',()=>{
  const activity={...input({challenge:{reconciliationState:'submitted_missing',items:[{metric:'activity_count'}]}}),key:'activity-analytics'};
  const result=enforceModuleReadiness(activity,pass);
