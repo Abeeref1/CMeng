@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {projectDiagnosisScript} from '../packages/runtime-api/src/ui-project-diagnosis';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import {experienceScript} from '../packages/runtime-api/src/ui-experience';
 
 const plain=(value:unknown)=>String(value??'');
@@ -47,8 +49,10 @@ function fixture(){
  }};
  return {d,data};
 }
+const browserSource=createSourceFile('browser.js',cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!,ScriptTarget.Latest,true);
+const deadlineHelper=browserSource.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='actionDeadlineText')!.getText(browserSource);
 function rendered(d:any,data:any){
- return runInNewContext(projectDiagnosisScript+'\nrenderProjectBrief(d,data)',{...ctx,d,data}) as string;
+ return runInNewContext(deadlineHelper+'\n'+projectDiagnosisScript+'\nrenderProjectBrief(d,data)',{...ctx,d,data}) as string;
 }
 test('Management Brief states original-date headroom without claiming a governing extended deadline',()=>{
  const {d,data}=fixture(),before=JSON.stringify({d,data});
@@ -95,7 +99,8 @@ test('Manager gets decisions separately from a short, accountable team follow-up
  assert.match(html,/Highest-ranked delegated follow-ups/);
  assert.match(html,/1 other ranked groups/); // four team groups with three shown leaves one
  assert.doesNotMatch(html,/same ranking as Command Center|11 project actions/);
- assert.equal((html.match(/Earliest reported due/g)||[]).length,2);
+ assert.equal((html.match(/Action due/g)||[]).length,2,'explicit action deadlines retain their deadline label');
+ assert.doesNotMatch(html,/Earliest reported due/);
 });
 test('Verified contract adjustment and available CPM are distinguished from qualified source warnings',()=>{
  const {d,data}=fixture();

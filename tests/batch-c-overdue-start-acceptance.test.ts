@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import type {CanonicalScheduleActivity, CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -84,7 +85,11 @@ function renderLookAhead(p:ReturnType<typeof buildLookAheadProjection>):string {
   const start=script.indexOf('function renderLookAheadVisual(data){');
   const end=script.indexOf('function renderMonteCarloRiskVisual(data){',start);
   assert.ok(start>=0&&end>start);
+  const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+  const required=['sourcePopulationControl','responseListPopulation','indexResponsePopulations'];
+  const helpers=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&required.includes(n.name.text));assert.equal(helpers.length,required.length);
   const scope:Record<string,unknown>={
+    currentModuleResult:null,responsePopulationRoot:null,responsePopulationIndex:new WeakMap(),responseRowPopulationIndex:new WeakMap(),
     p,projectionFor:(value:unknown)=>value,
     escapeHtml:(value:unknown)=>String(value??''),fmt:(value:unknown)=>String(value??''),
     planningShortDate:(value:unknown)=>String(value??''),humanizeKey:(value:unknown)=>String(value??''),
@@ -93,7 +98,7 @@ function renderLookAhead(p:ReturnType<typeof buildLookAheadProjection>):string {
     planningStatusBand:()=>'',planningLookAheadBlockers:()=>'',
     managementPanel:(title:string,description:string,content:string)=>'<section><h4>'+title+'</h4>'+description+content+'</section>',
   };
-  return vm.runInNewContext(script.slice(start,end)+';renderLookAheadVisual(p);',scope) as string;
+  return vm.runInNewContext(helpers.map(n=>n.getText(source)).join('\n')+'\n'+script.slice(start,end)+';renderLookAheadVisual(p);',scope) as string;
 }
 
 test('Batch C: overdue-start screen reports start lateness, never absolute future-finish days',()=>{
