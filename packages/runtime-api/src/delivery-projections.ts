@@ -101,6 +101,8 @@ function buildDelivery(state:ProjectRuntimeState){
  });
  const actualOn=(r:DeliveryRecord,stage:string)=>{const m=milestone(r,stage);return isOnDate(m.actual,dataDateIso)?m.actual:null;};
  const gatesByScope=new Map<string,DeliveryRecord[]>();for(const g of byKind('gate'))for(const id of new Set([...g.links.packageIds,...g.links.recordIds])){const rows=gatesByScope.get(id)??[];rows.push(g);gatesByScope.set(id,rows);}
+ const submittalsByPackage=new Map<string,DeliveryRecord[]>();
+ for(const submittal of byKind('submittal'))for(const id of submittal.links.packageIds){const rows=submittalsByPackage.get(id)??[];rows.push(submittal);submittalsByPackage.set(id,rows);}
  const gatesFor=(r:DeliveryRecord)=>{
   const gates=gatesByScope.get(r.recordId)??[];
   // A record without gate links or a scope decision has no gate denominator.
@@ -126,7 +128,9 @@ function buildDelivery(state:ProjectRuntimeState){
   return {state:blocked?'blocked':!complete?'unknown':applicable.some(g=>g.outcome==='at risk')?'at_risk':applicable.length?'ready':'not_applicable',
    satisfiedKnownCount:ready,applicableCount:complete?applicable.length:null,notApplicableCount:p.state==='established'?notApplicable.length:null,knownNotApplicableCount:notApplicable.length,
    readinessPercent:complete&&applicable.length?pct(ready,applicable.length):null,unknownCount:p.state==='established'?unknown.length:null,knownUnknownCount:unknown.length,
-   population:p,rows};
+   population:p,rows,
+   linkedSubmittals:(submittalsByPackage.get(r.recordId)??[]).map(s=>({recordId:s.recordId,reference:s.reference,description:s.description,sourceStatus:field(s,'status')||null,approvalDate:date(s,'approval date'),approvedAtDataDate:date(s,'approval date')&&dataDateIso?isOnDate(date(s,'approval date'),dataDateIso):null,receipts:s.receipts})),
+  };
  };
  const readiness=byKind('package').concat(byKind('workfront'),byKind('commissioning'),byKind('asset')).map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,discipline:field(r,'discipline')||null,...gatesFor(r)}));
  const drivingNetwork=model?cachedIndependentForecast(model,new Date().toISOString()).drivingNetwork:undefined;
@@ -301,7 +305,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const operationalRows=new Map([...operations.rfi.current,...operations.quality.current].flatMap(row=>row.sourceRefs.map(ref=>[ref,row] as const)));
  const registerRows=governed.map(r=>{const raised=date(r,'raised date','identified date','submitted date','actual issue','incident date','event start','report date','effective date');const actual=date(r,'actual date','actual issue'),approval=date(r,'approval date'),verified=date(r,'verification date'),closed=date(r,'closed date','close date'),rectified=date(r,'rectified date'),accepted=date(r,'acceptance date','handover acceptance date');
   const statusAsOf=date(r,'status as of');const rawStatus=field(r,'status','outcome').toLowerCase();
-  const due=date(r,'due date','required by','required response');
+  const due=date(r,'due date','required by','required response',...(r.kind==='package'?['required on site','required on site date']:[]));
   const verifiedEvidence=r.state==='verified'&&r.sourceActive&&r.receipts.length>0&&isOnDate(verified,dataDateIso);
   const sourceRegisterCandidate=r.state==='extracted_candidate'&&r.sourceActive;
   const sourceOperational=sourceRegisterCandidate&&['design','quality'].includes(r.kind)?r.receipts.map(receipt=>operationalRows.get('evidence-document:'+receipt.documentId+':'+receipt.locator)).find(Boolean):undefined;
@@ -320,7 +324,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
   const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
   const programmeContext=registerProgrammeContext(r.links.activityIds,activities);
-  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
+  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,linkedPackages:r.links.packageIds.map(id=>({recordId:byId.get(id)?.kind==='package'?id:null,reference:byId.get(id)?.reference??id})),links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
  });
  const registerById=new Map(registerRows.map(r=>[r.recordId,r] as const));
  const registerOrder=new Map(registerRows.map((r,i)=>[r.recordId,i] as const));
@@ -431,6 +435,9 @@ function buildDelivery(state:ProjectRuntimeState){
   for(const id of r.links.recordIds){const item=registerById.get(id);if(item)linked.set(item.recordId,item);}
   const related=[...linked.values()].sort((a,b)=>(registerOrder.get(a.recordId)??0)-(registerOrder.get(b.recordId)??0));
   return {...registerById.get(r.recordId)!,readiness:gatesFor(r),installationDate:actualOn(r,'installation'),inspectionAcceptance:actualOn(r,'inspection acceptance'),commissioningDate:actualOn(r,'commissioning'),takingOverDate:actualOn(r,'taking over'),
+   system:field(r,'system')||null,location:field(r,'location')||null,criticality:field(r,'criticality')||null,
+   tagInstalledStatus:field(r,'tag installed')||null,commissionedStatus:field(r,'commissioned')||null,omManualStatus:field(r,'o m manual')||null,warrantyStatus:field(r,'warranty')||null,
+   statusAsOfIso:date(r,'status as of'),sourceStatusBasis:date(r,'status as of')?'Reported asset flags as of '+date(r,'status as of')+'. Dated installation, testing and formal acceptance remain separate.':'Reported asset flags have no status date. They do not establish completion or acceptance at the Data Date.',
    tests:related.filter(q=>q.kind==='commissioning'),requirements:related.filter(q=>q.kind==='handover'),snags:related.filter(q=>q.kind==='snag'),spares:spareRows.filter(q=>q.links.assetIds.includes(r.recordId)),acceptanceAuthority:'Dated source position; commissioning and handover acceptance are separate.'};
  });
  const locations=byKind('location').map(r=>{const path:string[]=[];const visited=new Set<string>();let current:DeliveryRecord|undefined=r;while(current&&!visited.has(current.recordId)){visited.add(current.recordId);path.unshift(current.description??current.reference??current.recordId);current=byId.get(field(current,'parent location id'));}return {recordId:r.recordId,reference:r.reference,description:r.description,parentId:field(r,'parent location id')||null,level:field(r,'location type')||null,path:path.join(' / ')};});
@@ -711,6 +718,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
+ if(key==='handover-readiness')extras.assetSourceRows=p.assetRows.map(row=>({...row,projectId:state.projectId}));
  if(key==='delivery-control'){extras.readiness=p.readiness;extras.managementActions=deliveryControlActions;}
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
  if(key==='delivery-hse')extras.hsePosition=p.hsePosition;

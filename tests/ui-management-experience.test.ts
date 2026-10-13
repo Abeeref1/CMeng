@@ -1,5 +1,6 @@
 import {runInNewContext} from './browser-context';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
+import {managementNumber,managementText} from '../packages/runtime-api/src/management-values';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createContext, runInContext} from 'node:vm';
@@ -570,4 +571,10 @@ test('role page record counts use full response populations instead of visible r
  const rows=Array.from({length:25},(_,id)=>({id}));
  const count=runInNewContext(functions(['experienceRecordCount'])+';experienceRecordCount(rows)',{rows,responseListPopulation:()=>({total:240})});
  assert.equal(count,240);
+});
+
+test('numeric-looking BOQ identifiers and source references survive shared display cleanup',()=>{
+ assert.equal(managementText('BOQ item 1.0001; cost code 001.0020'),'BOQ item 1.0001; cost code 001.0020');
+ const format=runInNewContext(script.slice(script.indexOf('const fmt=v=>'),script.indexOf('const SCREEN_STATUS_LABELS='))+';fmt',{managementNumber,managementText});
+ assert.equal(format('1.0001'),'1.0001');assert.equal(format('001.0020'),'001.0020');assert.equal(format(1234.56789),'1,234.57');
 });

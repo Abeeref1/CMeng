@@ -109,6 +109,20 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const governed=records.filter(deliveryCurrentRecord),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
  for(const group of references.values())if(group.length>1)for(const r of group){r.state='conflicted';r.diagnostics.push('Multiple current source records share this reference; select the current revision explicitly.');}
+ // Source registers name related records by their exact reference, while the
+ // shared delivery views use stable record IDs. Resolve only one current
+ // record of the required kind. Raw cells/receipts and reviewed links remain
+ // intact; a missing or ambiguous target stays unresolved.
+ const currentById=new Map(records.filter(deliveryCurrentRecord).map(r=>[r.recordId,r]));
+ for(const r of records)if(r.state==='extracted_candidate'&&!latest.has(r.recordId)){
+  for(const [link,kind] of [['packageIds','package'],['supplierIds','supplier'],['locationIds','location'],['assetIds','asset']] as const){
+   r.links[link]=[...new Set(r.links[link].map(value=>{
+    if(currentById.get(value)?.kind===kind)return value;
+    const matches=references.get(kind+'|'+value)?.filter(deliveryCurrentRecord)??[];
+    return matches.length===1?matches[0]!.recordId:value;
+   }))];
+  }
+ }
  const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value});
  return value;
 }

@@ -527,8 +527,6 @@ ${pmcRoleOwner.toString()}
 const fmt=v=>{
  if(v===null||v===undefined)return "Not in source";
  if(typeof v==='number')return managementNumber(v);
- if(typeof v==='string'&&/^[+-]?[0-9]+[.][0-9]{3,}$/.test(v.trim()))
-  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v));
  const value=String(v).trim();
  if(/^(?:null|undefined)$/i.test(value))return "Not established";
  

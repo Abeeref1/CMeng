@@ -543,3 +543,43 @@ test('older BOQ imports recover cost codes from retained source without new quan
  const {linkDataset}=await import('../packages/runtime-api/src/link-candidates');
  assert.match(linkDataset(f.state,'boq_activity').sources[0]!.description,/Cost code CC-002/);
 });
+
+test('source procurement references resolve uniquely and remain visible in package readiness without invented gate authority',async t=>{
+ const f=await fixture(t);
+ await f.upload('Procurement.csv','Package ID,Description,Status,Required On Site\nPKG-1,Pump,Ordered,2031-09-30');
+ await f.upload('Submittals.csv','Submittal ID,Description,Procurement Package,Revision,Actual Issue,Approval Date,Status\nSUB-1,Pump drawing,PKG-1,A,2031-08-01,2031-08-20,Approved\nSUB-2,Pump revision,PKG-1,B,2031-08-20,2031-09-10,Approved\nSUB-3,Missing package,PKG-MISSING,A,2031-08-01,,Pending');
+ const original=JSON.stringify(f.state.evidenceDocuments);
+ const all=deliveryRecords(f.state).records,pack=all.find(r=>r.reference==='PKG-1')!,sub=all.find(r=>r.reference==='SUB-1')!;
+ assert.equal(sub.kind,'submittal');assert.equal(sub.fields['package id'],'PKG-1');assert.deepEqual(sub.links.packageIds,[pack.recordId]);
+ const row=deliveryPosition(f.state).readiness.find(r=>r.recordId===pack.recordId)!;
+ assert.deepEqual(row.linkedSubmittals.map(r=>[r.reference,r.approvedAtDataDate]),[['SUB-1',true],['SUB-2',false]]);
+ assert.equal(row.readinessPercent,null,'two linked approvals cannot establish a complete gate denominator');
+ assert.notEqual(row.state,'ready');assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
+ assert.ok(deliveryPosition(f.state).findings.some(r=>r.code==='STALE_RELATIONSHIP'&&r.recordId===all.find(r=>r.reference==='SUB-3')!.recordId));
+ f.create('package','PKG-1',{'required on site':'2031-09-30'});
+ assert.deepEqual(deliveryRecords(f.state).records.find(r=>r.reference==='SUB-1')!.links.packageIds,['PKG-1'],'duplicate package references never pick an arbitrary record');
+ assert.ok(deliveryPosition(f.state).findings.some(r=>r.code==='STALE_RELATIONSHIP'&&r.recordId===sub.recordId));
+});
+
+test('asset register flags, criticality and text locations reach asset and handover views without invented dates or acceptance',async t=>{
+ const f=await fixture(t);
+ await f.upload('Assets.csv','Asset ID,System,Description,Location,Criticality,Tag Installed,Commissioned,O&M Manual,Warranty\nAS-1,HVAC,Air handling unit,Level 2,High,Yes,No,Received,Valid\nAS-2,ICT,Network cabinet,Control room,Medium,No,Yes,Pending,Pending');
+ const original=JSON.stringify(f.state.evidenceDocuments),assets=deliveryModule(f.state,'delivery-assets').data as any;
+ assert.equal(assets.rows.length,2);
+ const a=assets.rows.find((r:any)=>r.reference==='AS-1');
+ assert.deepEqual([a.system,a.location,a.criticality,a.tagInstalledStatus,a.commissionedStatus,a.omManualStatus,a.warrantyStatus],['HVAC','Level 2','High','Yes','No','Received','Valid']);
+ assert.equal(a.installationDate,null);assert.equal(a.commissioningDate,null);assert.equal(a.takingOverDate,null);assert.equal(a.statusAsOfIso,null);assert.match(a.sourceStatusBasis,/no status date/);
+ const handover=deliveryModule(f.state,'handover-readiness').data as any;
+ assert.deepEqual(handover.assetSourceRows,assets.rows);assert.equal(handover.handover.readinessPercent,null);
+ const ui=runInNewContext(deliveryScript()+';({columns:deliveryColumns("delivery-assets"),ready:deliveryColumns("procurement-readiness"),submittals:deliveryColumns("delivery-submittals")})',{Intl});
+ for(const key of ['location','criticality','tagInstalledStatus','commissionedStatus','omManualStatus','warrantyStatus'])assert.ok(ui.columns.some(([k]:string[])=>k===key));
+ assert.ok(ui.ready.some(([k]:string[])=>k==='linkedSubmittals'));assert.ok(ui.submittals.some(([k]:string[])=>k==='linkedPackages'));
+ const book=new ExcelJS.Workbook();await book.xlsx.load(await buildDeliveryWorkbook(f.state.projectId,deliveryModule(f.state,'handover-readiness')) as any);
+ const sheet=book.worksheets.find(s=>s.name.endsWith('assetSourceRows'))!;assert.ok(sheet);assert.equal(sheet.rowCount,3);assert.ok((sheet.getRow(1).values as any[]).includes('tagInstalledStatus'));assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
+});
+
+test('procurement lateness checks recognize the supplied required-on-site date',async t=>{
+ const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description,Status,Required On Site\nPKG-LATE,Pump,Late,2031-08-20');
+ const p=deliveryPosition(f.state),r=p.registerRows.find(r=>r.reference==='PKG-LATE')!;
+ assert.equal(r.dueDate,'2031-08-20');assert.equal(p.findings.some(x=>x.recordId===r.recordId&&x.code==='DELIVERY_LATENESS_DUE_DATE_REQUIRED'),false);
+});

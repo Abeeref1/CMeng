@@ -47,7 +47,8 @@ export function managementText(input:unknown):string {
   .replace(/\bdue\s*=\s*/gi,'Due: ')
   .replace(/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,match=>managementDate(match))
   .replace(/T([0-2]\d:[0-5]\d)(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?(?=$|[\s;,)])/g,' · $1')
-  .replace(/(^|[\s=:(])([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{3,})(?=$|[\s%,;:)])/g,(_,prefix,value)=>prefix+managementNumber(Number(value.replaceAll(',',''))))
+  // Numeric-looking text can be a BOQ item, cost code or source reference.
+  // Round typed measures at their value renderer, never narrative/identifier text.
   .replace(/(?:\b(?:[a-z][a-z0-9_]*_)?register|_register)\s+status\s*=\s*([a-z][a-z0-9 _-]*?)(?=[,;\n]|$)/gi,(_,value)=>'Status: '+value.trim().replaceAll('_',' ').replace(/^./,(s:string)=>s.toUpperCase()))
   .replace(/\b(?:null|undefined)\b/g,'Not established')
   .replace(/\bNaN\b/g,'Not calculable')

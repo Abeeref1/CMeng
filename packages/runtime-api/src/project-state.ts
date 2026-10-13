@@ -1044,9 +1044,10 @@ function hydrateProject(
         assertions:
           document.assertions ??
           [],
-        textSegments:
-          document.textSegments ??
-          [],
+        // Preserve absence on sources that have no narrative segments. Adding
+        // an empty field during hydration rewrites otherwise unchanged projects
+        // when a different project's migration saves the shared snapshot.
+        ...(document.textSegments ? {textSegments:document.textSegments} : {}),
         uploadIntent:
           document.uploadIntent ??
           "add_update",
