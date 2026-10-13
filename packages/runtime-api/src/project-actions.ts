@@ -1,3 +1,4 @@
+import {handoverSourceComparison} from './handover-source-review';
 import {locationReviewBasis} from './location-review';
 import {scheduleScopeClassification} from './schedule-scope-classification';
 import {milestoneReviewBasis} from './milestone-review';
@@ -396,6 +397,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       target:{type:'inline',kind:'review-locations',label:'Save location review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewLocationsText:(saved?.locationAssignments??[]).map(a=>a.wbsId+' | '+a.location).join('\n'),
         reviewOptions:[{value:'confirm_wbs_locations',label:'Use the entered WBS-to-location mappings'},{value:'keep_source_locations',label:'Keep explicit source locations only'}]}};
     (required?actions:information).push(item);
+  }
+
+  const handoverComparison=handoverSourceComparison(state);
+  if(handoverComparison?.reviewAvailable){
+    const saved=handoverComparison.decision;
+    const item:ProjectAction={id:'matter:handover-source-basis',category:saved?'information':'confirmation',title:'Review asset and programme reporting bases',owner:'Construction Manager',recordCount:handoverComparison.assetRecordCount,
+      reason:handoverComparison.basis,reviewFingerprint:handoverComparison.sourceFingerprint,reviewSourceRefs:handoverComparison.sourceRefs,
+      evidenceSummary:[...handoverComparison.rows.map(r=>r.label+': '+r.numerator+' / '+r.denominator+'; '+r.unknownCount+' unknown'),handoverComparison.dateQualification],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Review both source populations on Testing & Commissioning, Handover Readiness or Asset & System Handover. Choose the source to lead the comparison or retain equal presentation. Both sources remain visible; this choice does not resolve date/scope gaps or confer acceptance.',completionRule:'The editable presentation choice is saved against these source versions; new programme or asset records require review again.'},
+      target:{type:'inline',kind:'review-handover-sources',label:'Save source basis review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,
+        reviewOptions:[{value:'keep_separate',label:'Keep both source positions side by side'},{value:'programme_focus',label:'Lead with programme task progress'},{value:'asset_focus',label:'Lead with reported asset status flags'}]}};
+    (saved?information:actions).push(item);
   }
 
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];

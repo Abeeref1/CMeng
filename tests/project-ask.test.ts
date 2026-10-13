@@ -363,3 +363,15 @@ test('NCR counts include dated failed outcomes still open, but exclude future an
  const result=await f.ask('How many NCRs are open?');const table=result.sections.find(s=>s.authorityId==='quality')!.tables[0]!;
  assert.deepEqual(table.rows.map(r=>r.reference),['NCR-1']);assert.equal(result.sections.flatMap(s=>s.metrics).find(m=>m.id.endsWith('matching-count'))!.value,1,JSON.stringify({gaps:result.unresolved,table}));
 });
+
+test('Ask retains programme and asset comparison populations without summing their percentages',async t=>{
+ const f=await fixture(t);
+ await f.upload('Review.xer',programme().replace('Install plant','Testing plant').replace('Install finishes','Handover finishes'),'replace_current_basis');
+ await f.upload('Assets.csv','Asset ID,Tag Installed,Commissioned\nAS1,Yes,Yes\nAS2,Yes,No');
+ const answer=await f.ask('handover readiness'),section=answer.sections.find(s=>s.authorityId==='handover')!;
+ const table=section.tables.find(t=>t.id==='handover.source-comparison')!;assert.ok(table);
+ assert.equal(table.rows.find(r=>r.key==='commissioned')!.percent,50);assert.equal(table.rows.find(r=>r.key==='handover')!.denominator,1);
+ assert.equal(table.columns.find(c=>c.key==='percent')!.aggregate,'none');assert.equal(table.columns.find(c=>c.key==='numerator')!.aggregate,'none');
+ assert.match(table.basis,/different populations/);assert.match(table.basis,/no status date/);
+ assert.ok(section.metrics.every(m=>m.unit!=='%'||m.value===null),'source flags do not turn into handover acceptance');
+});

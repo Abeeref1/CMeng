@@ -684,3 +684,10 @@ test('location review shows source candidates and saved mappings without asserti
  assert.match(html,/LOCATION-CHECK/);assert.match(html,/Existing source location classifications remain unchanged/);assert.match(html,/openProjectActions\(\)/);
  assert.match(nodes.locationWbsCandidatesBody!.innerHTML,/North wing/);assert.match(nodes.locationAssetCandidatesBody!.innerHTML,/FM plant/);assert.match(nodes.locationSavedMappingsBody!.innerHTML,/W-A/);
 });
+
+test('handover comparison displays separate source denominators and review qualification',()=>{
+ const nodes:Record<string,{innerHTML:string;textContent:string}>={};
+ const p={basis:'Different source populations; no acceptance is inferred.',dateQualification:'100 asset records have no status date.',assetRecordCount:100,linkedAssetCount:0,reviewAvailable:true,decision:{choice:'asset_focus',reference:'SCOPE-CHECK'},rows:[{label:'Asset flags',numerator:91,denominator:100,unknownCount:0,percent:91,statusDate:null,basis:'Source flags only'},{label:'Programme testing tasks',numerator:172,denominator:678,unknownCount:0,percent:25.37,statusDate:'2031-08-31',basis:'Source task statuses'}]};
+ const html=runInNewContext(deliveryScript()+`;const panel=renderHandoverSourceComparison(p);refreshDeliveryTable('handoverSourceComparison');panel`,{...common,p,el:(id:string)=>nodes[id]??={innerHTML:'',textContent:''},document:{querySelectorAll:()=>[]}});
+ assert.match(html,/SCOPE-CHECK/);assert.match(html,/no acceptance is inferred/);assert.match(html,/no status date/);assert.match(html,/openProjectActions\(\)/);assert.match(nodes.handoverSourceComparisonBody!.innerHTML,/678/);assert.match(nodes.handoverSourceComparisonBody!.innerHTML,/91/);
+});

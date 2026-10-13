@@ -173,6 +173,12 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
     b.table('curve-'+curve.key,curve.kind==='throughput'?'Procurement Throughput':label(curve.kind)+' · '+curve.stage,curve.points,
       [curve.weighting,'Series '+curve.series,'Unit '+curve.unit,'Records '+curve.population.length,'Coverage '+String(curve.coveragePercent??'not established')].join('. '),{value:{unit:curve.unit},dateIso:{type:'date'}});
   }
+  if(d?.handoverSourceComparison){
+    const comparison=d.handoverSourceComparison;
+    b.table('source-comparison','Programme and asset source comparison',comparison.rows.map((r:any)=>({...r,sourceRefs:comparison.sourceRefs})),comparison.basis+' '+comparison.dateQualification,
+      {numerator:{aggregate:'none'},denominator:{aggregate:'none'},unknownCount:{aggregate:'none'},futureCompletionDates:{aggregate:'none'},missingCompletionDates:{aggregate:'none'},undatedCount:{aggregate:'none'},futureCount:{aggregate:'none'},percent:{unit:'%',aggregate:'none'},source:{dimension:true},label:{dimension:true}});
+    b.result.explanation+=' '+comparison.basis+' '+comparison.dateQualification;
+  }
   if(!useBoqCandidates&&governedRows.length!==(d?.rows??[]).length)b.finding('dated-records','Future and undated records excluded',((d?.rows??[]).length-governedRows.length)+' records are outside the current reporting period.','Use the current dated records for this answer; future/undated records remain separate.');
   if(!useBoqCandidates&&d?.population?.state!=='established')b.result.explanation+=' The complete register list is not confirmed; known rows are a subset.';
   return b.result;

@@ -1,3 +1,4 @@
+import {handoverSourceComparison,programmeTaskPatterns} from './handover-source-review';
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -592,7 +593,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const reviewedSpecialistPosition=!riskPage&&records.some(r=>['working','conflicted','stale','superseded'].includes(r.state));
  const useBoqCandidates=governedRows.length===0&&boqCandidateRows.length>0&&!reviewedSpecialistPosition&&(!riskPage||risk.state==='missing');
  let rows:any[]=useBoqCandidates?boqCandidateRows:governedRows;
- const programmeFallbackPattern=key==='delivery-commissioning'?/testing|commissioning|\btest\b/i:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?/handover|taking[- ]over|section(?:al)? completion|practical completion/i:null;
+ const programmeFallbackPattern=key==='delivery-commissioning'?programmeTaskPatterns.testing:key==='delivery-closeout'?/\bsnag(?:ging)?\b|punch list/i:['handover-readiness','delivery-assets'].includes(key)?programmeTaskPatterns.handover:null;
  const programmeFallback=!rows.length&&programmeFallbackPattern?(projectControlSchedule(state)?.revision.model.activities??[]).filter(a=>!['wbs_summary','level_of_effort'].includes(a.activityType)&&programmeFallbackPattern.test(a.name??'')).map(a=>({activityId:a.activityId,reference:a.activityId,description:a.name,status:a.status,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,actualFinishIso:a.actualFinishIso,percentComplete:a.percentComplete,authority:'From programme, not yet verified as acceptance',basis:'Programme task and progress only; inspection results, snag closure and acceptance need their own evidence.'})):[];
  if(programmeFallback.length)rows=programmeFallback;
  const disruptionEvents=key==='delivery-weather'&&!rows.length?(claimsReporting(state)?.current.events??[]).filter(event=>/weather|climat|rain|wind|heat|disrupt/i.test(event.category+' '+event.title)).map(event=>({
@@ -733,7 +734,8 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
- if(key==='handover-readiness')extras.assetSourceRows=p.assetRows.map(row=>({...row,projectId:state.projectId}));
+ if(['delivery-commissioning','handover-readiness','delivery-assets'].includes(key))extras.handoverSourceComparison=handoverSourceComparison(state);
+ if(['delivery-commissioning','handover-readiness'].includes(key))extras.assetSourceRows=p.assetRows.map(row=>({...row,projectId:state.projectId}));
  if(key==='delivery-control'){extras.readiness=p.readiness;extras.managementActions=deliveryControlActions;}
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
  if(key==='delivery-hse')extras.hsePosition=p.hsePosition;

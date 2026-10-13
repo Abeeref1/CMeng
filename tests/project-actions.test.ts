@@ -348,3 +348,25 @@ test('location review persists through restart and source replacement reopens th
  assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-locations'));
  projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,null);
 });
+
+test('asset/programme source review remains editable after restart without creating handover acceptance',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'handover-source-api-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ const listen=async()=>{await new Promise<void>(r=>gateway.server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await post('/api/projects',{projectId:'ASSET-REVIEW'})).status,201);
+ const upload=(date:string)=>fetch(base+'/api/projects/ASSET-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'replace_current_basis'},body:xer(date,'Testing and handover work')});
+ assert.equal((await upload('2031-08-31')).status,201);
+ assert.equal((await fetch(base+'/api/projects/ASSET-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Assets.csv'},body:'Asset ID,Tag Installed,Commissioned\nA1,Yes,Yes\nA2,Yes,No'})).status,201);
+ const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/ASSET-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
+ let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-handover-sources');assert.ok(action);
+ const request=(values:any)=>post('/api/projects/ASSET-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'asset_focus',reference:'ASSET-CHECK',...values});
+ for(const invalid of [{sourceFingerprint:'old'},{expectedVersion:workflow.projectVersion-1},{choice:'accepted'},{reference:''}])assert.equal((await request(invalid)).status,409);
+ assert.equal((await request({})).status,200);
+ await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
+ workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-handover-sources');assert.ok(action);assert.equal(action.target.reviewChoice,'asset_focus');assert.equal(action.target.reviewReference,'ASSET-CHECK');
+ const page=(await get('/delivery/modules/handover-readiness')).data;assert.equal(page.handover.readinessPercent,null);assert.equal(page.handoverSourceComparison.rows[0].source,'asset_register');assert.equal(page.handoverSourceComparison.rows[0].numerator,2);assert.equal(page.handoverSourceComparison.rows[0].denominator,2);
+ const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/Source basis review reference/);
+ assert.equal((await request({choice:'keep_separate',reference:'ASSET-CHECK-2'})).status,200);
+ assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-handover-sources'));
+});

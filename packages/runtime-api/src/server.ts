@@ -2026,9 +2026,9 @@ async function route(
       if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
       const reviewWorkflow=projectActionRegisterForState(state).workflow;
       const action=[...reviewWorkflow.actions,...reviewWorkflow.information].find(a=>a.id===input.actionId);
-      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates','review-document-classification','review-milestones','review-locations'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates','review-document-classification','review-milestones','review-locations','review-handover-sources'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
         throw new Error('The supporting records or review request changed. Refresh Project Review.');
-      const keys:Record<string,string>={'review-notice':'notice-term-versions','review-procurement-date':'procurement-date-basis','review-risk':'risk-rating-rule','review-risk-snapshot':'risk-status-snapshot','review-eot-overlap':'eot-overlap','review-contract-value':'contract-value','review-hse-rates':'hse-rate-basis','review-milestones':'milestone-selection','review-locations':'location-grouping'};
+      const keys:Record<string,string>={'review-notice':'notice-term-versions','review-procurement-date':'procurement-date-basis','review-risk':'risk-rating-rule','review-risk-snapshot':'risk-status-snapshot','review-eot-overlap':'eot-overlap','review-contract-value':'contract-value','review-hse-rates':'hse-rate-basis','review-milestones':'milestone-selection','review-locations':'location-grouping','review-handover-sources':'handover-source-basis'};
       const key=keys[action.target.kind!]!;
       const choice=String(input.choice??'');
       const allowed=action.target.reviewOptions?.map(option=>option.value)??[];
@@ -2074,12 +2074,13 @@ async function route(
         if(!Number.isFinite(additionalDays)||additionalDays<0||basis?.officialApprovedEotDays==null||additionalDays>basis.officialApprovedEotDays)throw new Error('Additional days must be between zero and the established awards effective at the reporting date.');
         if(!reference)throw new Error('Enter the supporting contract or determination reference.');
       }
+      const handoverReview=key==='handover-source-basis'?(await import('./handover-source-review')).handoverSourceReviewInput(input):{};
       const locationReview=key==='location-grouping'?(await import('./location-review')).locationReviewInput(state,{...input,choice}):{};
       const milestoneReview=key==='milestone-selection'?(await import('./milestone-review')).milestoneReviewInput(state,{...input,choice}):{};
       const hseReview=key==='hse-rate-basis'?(await import('./hse-report-evidence')).hseRateDecisionInput({...input,choice}):{};
       const sourceRefs=[...new Set([...(action.reviewSourceRefs??[]),...(action.findings??[]).flatMap(f=>f.sourceRefs)])];
       runtimeProjects.updateControls(projectId,{reviewDecisions:{...(state.controls.reviewDecisions??{}),[key]:{
-        sourceFingerprint:action.reviewFingerprint,choice,...hseReview,...milestoneReview,...locationReview,...(matrix?{matrix}:{}),...(asOfIso?{asOfIso}:{}),...(additionalDays!==undefined?{additionalDays,reference:reference!}:{}),
+        sourceFingerprint:action.reviewFingerprint,choice,...hseReview,...milestoneReview,...locationReview,...handoverReview,...(matrix?{matrix}:{}),...(asOfIso?{asOfIso}:{}),...(additionalDays!==undefined?{additionalDays,reference:reference!}:{}),
         confirmedAt:new Date().toISOString(),sourceRefs
       }}});
       invalidateProject(projectId);

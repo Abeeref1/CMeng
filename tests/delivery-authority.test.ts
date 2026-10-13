@@ -639,3 +639,26 @@ test('package readiness requires linked submittal evidence even when delivery is
  f.review(current,{status:'Rejected','rejection date':'2031-08-30'});assert.equal(ready().state,'blocked');assert.equal(ready().linkedSubmittals[0]!.approvedAtDataDate,false);
  assert.equal(ready().readinessPercent,null,'linked submittals cannot invent a gate denominator');
 });
+
+test('testing, handover and asset pages share complete source comparisons without merging populations or acceptance',async t=>{
+ const f=await fixture(t),model=projectControlSchedule(f.state)!.revision.model;
+ model.activities[0]!.name='Testing equipment';model.activities[0]!.status='completed';model.activities[1]!.name='Handover systems';f.store.touch(f.state);
+ const rows=Array.from({length:260},(_,i)=>'AS-'+i+',Pump '+i+','+(i<244?'Yes':'No')+','+(i<237?'Yes':'No')+','+(i===259?'2031-10-01':''));
+ await f.upload('Assets.csv','Asset ID,Description,Tag Installed,Commissioned,Status As Of\n'+rows.join('\n'));
+ const original=JSON.stringify(f.state.evidenceDocuments),pages=['delivery-commissioning','handover-readiness','delivery-assets'].map(k=>deliveryModule(f.state,k).data as any);
+ const comparison=pages[0].handoverSourceComparison;
+ for(const p of pages)assert.deepEqual(p.handoverSourceComparison,comparison);
+ assert.equal(comparison.assetRecordCount,260);assert.equal(comparison.unlinkedAssetCount,260);assert.equal(comparison.comparability,'different_populations');
+ const testing=comparison.rows.find((r:any)=>r.key==='testing'),handover=comparison.rows.find((r:any)=>r.key==='handover'),installed=comparison.rows.find((r:any)=>r.key==='installed'),commissioned=comparison.rows.find((r:any)=>r.key==='commissioned');
+ assert.equal(testing.numerator,1);assert.equal(testing.denominator,1);assert.equal(testing.missingCompletionDates,1);assert.equal(handover.numerator,0);
+ assert.deepEqual([installed.numerator,installed.denominator,installed.percent],[244,260,93.85]);assert.deepEqual([commissioned.numerator,commissioned.denominator,commissioned.percent],[237,260,91.15]);
+ assert.equal(installed.undatedCount,259);assert.equal(installed.futureCount,1);assert.match(comparison.basis,/different populations/);
+ assert.equal(pages[1].handover.readinessPercent,null);assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
+});
+test('unrecognized asset flags remain unknown and no programme source produces null programme counts',async t=>{
+ const f=await fixture(t);await f.upload('Assets.csv','Asset ID,Tag Installed,Commissioned\nA1,Yes,Under review\nA2,,No');
+ f.state.schedules=[];f.store.touch(f.state);
+ const comparison=(deliveryModule(f.state,'delivery-assets').data as any).handoverSourceComparison;
+ assert.equal(comparison.rows.find((r:any)=>r.key==='installed').percent,null);assert.equal(comparison.rows.find((r:any)=>r.key==='commissioned').unknownCount,1);
+ assert.equal(comparison.rows.find((r:any)=>r.key==='testing').numerator,null);assert.equal(comparison.reviewAvailable,false);assert.match(comparison.dateQualification,/Data Date is unavailable/);
+});
