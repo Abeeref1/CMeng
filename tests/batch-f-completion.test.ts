@@ -35,6 +35,29 @@ test("Task 37 keeps contextual programme intelligence when no formal delay-event
  assert.equal(chain.populationState,"missing");assert.equal(chain.rows.length,0);assert.equal(chain.programmeContext.projectCompletionMovementDays,10);
  assert.equal(chain.programmeContext.delayedActivityCount,2);assert.equal(chain.programmeContext.negativeFloatActivityCount,1);assert.equal(chain.programmeContext.pressuredMilestoneCount,1);
 });
+
+test('G5-11 programme context preserves unknown milestone population and source pressure fields',()=>{
+ const source=structuredClone(schedule),before=structuredClone(source);
+ const build=(value:any,review?:any)=>buildDelayEotEvidenceChain({schedule:value,milestoneReview:review,windows,delay:{events:[]} as any,notices:{events:[]} as any,populationState:'missing',sourceClaimCount:null,quarantinedClaimCount:null}).programmeContext;
+ const unknown={...source.activities[1],activityId:'UNKNOWN',baselineStartIso:null,baselineFinishIso:null,currentFinishIso:null,forecastFinishIso:null,totalFloatHours:null};
+ const partial=build({...source,activities:[...source.activities,unknown]});
+ assert.equal(partial.pressuredMilestoneCount,null);assert.equal(partial.knownPressuredMilestoneCount,1);
+ assert.equal(partial.delayedActivityCount,null);assert.equal(partial.knownDelayedActivityCount,2);
+ assert.equal(partial.negativeFloatActivityCount,null);assert.equal(partial.knownNegativeFloatActivityCount,1);
+ const noMilestones={...source,activities:[source.activities[0]]},empty=build(noMilestones);
+ assert.equal(empty.pressuredMilestoneCount,null);assert.equal(empty.knownPressuredMilestoneCount,0);assert.equal(empty.milestonePopulationState,'partial');
+ const review={sourceRevisionId:source.sourceRevisionId,sourceFingerprint:'original',choice:'no_programme_milestones',activityIds:[],reference:'CHECK',confirmedAt:'2026-09-01'};
+ assert.equal(build(noMilestones,review).pressuredMilestoneCount,0);
+ assert.equal(build(noMilestones,{...review,sourceRevisionId:'OLD'}).pressuredMilestoneCount,null);
+ const selected=build(noMilestones,{...review,choice:'track_key_dates',activityIds:['A1']});assert.equal(selected.pressuredMilestoneCount,1);assert.equal(selected.pressureRows[0]!.milestone,true);
+ const summaryDate={...noMilestones,activities:[{...source.activities[0],activityType:'wbs_summary'}]};
+ assert.equal(build(summaryDate,{...review,choice:'track_key_dates',activityIds:['A1']}).pressuredMilestoneCount,1,'reviewed key dates retain the same source population as the milestone producer');
+ const done=build({...source,activities:[{...unknown,status:'completed'}]});assert.equal(done.pressuredMilestoneCount,0);assert.equal(done.delayedActivityCount,0);assert.equal(done.negativeFloatActivityCount,0);
+ const unknownTypes=build({...source,activities:[...source.activities,{...source.activities[0],activityId:'UNTYPED',activityType:'unknown'}]});assert.equal(unknownTypes.pressuredMilestoneCount,null);assert.equal(unknownTypes.knownPressuredMilestoneCount,1);
+ const unknownStatus=build({...source,activities:[{...source.activities[1],status:'unknown'}]});assert.equal(unknownStatus.pressuredMilestoneCount,null);assert.equal(unknownStatus.knownPressuredMilestoneCount,0);
+ const large=build({...source,activities:Array.from({length:620},(_,i)=>({...source.activities[1],activityId:'M'+i}))});assert.equal(large.pressuredMilestoneCount,620);assert.equal(large.pressureRows.length,25);
+ assert.deepEqual(source,before);
+});
 test("Task 38 preserves six Notice Compliance dimensions as withheld when the population is not established",()=>{
  const model:DelayClaimsModel={projectId:"F-TEST",evidenceRevisionId:"R",dataDateIso:"2026-08-31",events:[],notices:[],claims:[],noticeRequirements:[],diagnostics:[]};
  const p=buildNoticesClaimsProjection(model,{generatedAt:"2026-09-30",producerVersion:"F",populationEstablished:false});

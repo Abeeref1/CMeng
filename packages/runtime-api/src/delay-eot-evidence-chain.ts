@@ -3,6 +3,8 @@ import type { CanonicalScheduleModel } from "../../schedule-analysis-core/src";
 import type { DelayClaimEventAssessmentRow, DelayClaimsProjection } from "../../delay-claims/src";
 import type { NoticesClaimsProjection } from "../../notices-claims/src";
 import type { WindowsAnalysisProjection } from "../../windows-analysis/src";
+import type {MilestonesProjection} from '../../milestones-analysis/src';
+import {aggregateCount} from '../../truth-kernel/src/aggregates';
 
 export type DelayEvidencePopulationState = "established" | "partial" | "missing" | "quarantined";
 export type DelayEvidenceLinkState = "established" | "candidate" | "partial" | "missing" | "conflicted" | "review_required" | "quarantined";
@@ -37,9 +39,13 @@ export interface DelayProgrammeContext {
   projectCompletionMovementBasis: WindowsAnalysisProjection["projectCompletionMovementBasis"];
   revisionCount: number;
   windowCount: number;
-  delayedActivityCount: number;
-  negativeFloatActivityCount: number;
-  pressuredMilestoneCount: number;
+  delayedActivityCount: number|null;
+  negativeFloatActivityCount: number|null;
+  pressuredMilestoneCount: number|null;
+  knownDelayedActivityCount:number;
+  knownNegativeFloatActivityCount:number;
+  knownPressuredMilestoneCount:number;
+  milestonePopulationState:'established'|'partial';
   pressureRows: DelayProgrammePressureRow[];
   basis: "contextual_programme_intelligence_not_contractual_delay_event";
 }
@@ -75,13 +81,13 @@ function effectiveFinish(activity:CanonicalScheduleModel["activities"][number]):
     ? activity.actualFinishIso??activity.currentFinishIso??activity.forecastFinishIso
     : activity.forecastFinishIso??activity.currentFinishIso;
 }
-function activityPressure(model:CanonicalScheduleModel):DelayProgrammePressureRow[] {
+function activityPressure(model:CanonicalScheduleModel,reviewedIds:ReadonlySet<string>):DelayProgrammePressureRow[] {
   return model.activities
-    .filter(activity=>activity.status!=="completed"&&activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort")
+    .filter(activity=>activity.status!=="completed"&&((activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort")||reviewedIds.has(activity.activityId)))
     .map(activity=>{
       const finish=effectiveFinish(activity),baseline=activity.baselineFinishIso??activity.baselineStartIso;
       const varianceDays=daysBetween(baseline,finish);
-      const milestone=["milestone","start_milestone","finish_milestone"].includes(activity.activityType);
+      const milestone=["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||reviewedIds.has(activity.activityId);
       return {activityId:activity.activityId,name:activity.name??activity.activityId,wbsId:activity.wbsId,
         baselineFinishIso:baseline,currentFinishIso:activity.currentFinishIso,forecastFinishIso:activity.forecastFinishIso,
         varianceDays,totalFloatHours:activity.totalFloatHours,milestone};
@@ -117,6 +123,7 @@ function eotState(event:DelayClaimEventAssessmentRow):DelayEvidenceLinkState {
 
 export function buildDelayEotEvidenceChain(input:{
   schedule:CanonicalScheduleModel;
+  milestoneReview?:MilestonesProjection['review'];
   determinations?:readonly DeterminationRecord[];
   windows:WindowsAnalysisProjection;
   delay:DelayClaimsProjection;
@@ -154,21 +161,38 @@ export function buildDelayEotEvidenceChain(input:{
     return {eventId:event.eventId,title:event.title,links,
       chainState:determination.state==="established"?"determined":eot.state==="candidate"?"candidate":review?"review_required":"incomplete"};
   });
-  const pressureRows=activityPressure(input.schedule);
-  const activities=input.schedule.activities.filter(activity=>activity.status!=="completed"&&activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort");
-  const delayedActivityCount=activities.filter(activity=>{const v=daysBetween(activity.baselineFinishIso??activity.baselineStartIso,effectiveFinish(activity));return v!==null&&v>0;}).length;
-  const negativeFloatActivityCount=activities.filter(activity=>activity.totalFloatHours!==null&&activity.totalFloatHours<0).length;
-  const pressuredMilestoneCount=activities.filter(activity=>{
-    const milestone=["milestone","start_milestone","finish_milestone"].includes(activity.activityType);if(!milestone)return false;
-    const v=daysBetween(activity.baselineFinishIso??activity.baselineStartIso,effectiveFinish(activity));
-    return (v!==null&&v>0)||(activity.totalFloatHours!==null&&activity.totalFloatHours<=0);
-  }).length;
+  const review=input.milestoneReview?.sourceRevisionId===input.schedule.sourceRevisionId&&input.milestoneReview.reference?.trim()?input.milestoneReview:null;
+  const reviewedIds=new Set(review?.choice==='track_key_dates'?review.activityIds:[]);
+  const pressureRows=activityPressure(input.schedule,reviewedIds);
+  const activities=input.schedule.activities.filter(activity=>activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort");
+  const knownOpen=(a:typeof activities[number])=>a.status==='not_started'||a.status==='in_progress';
+  const delayed=aggregateCount(activities,activity=>{
+    if(activity.status==='completed')return false;
+    if(!knownOpen(activity)||activity.activityType==='unknown')return null;
+    const v=daysBetween(activity.baselineFinishIso??activity.baselineStartIso,effectiveFinish(activity));return v===null?null:v>0;
+  });
+  const negative=aggregateCount(activities,activity=>activity.status==='completed'?false:!knownOpen(activity)||activity.activityType==='unknown'||!Number.isFinite(activity.totalFloatHours)?null:activity.totalFloatHours!<0);
+  const milestones=input.schedule.activities.filter(activity=>["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||reviewedIds.has(activity.activityId));
+  const absenceConfirmed=review?.choice==='no_programme_milestones'&&milestones.length===0;
+  const milestonePopulationEstablished=absenceConfirmed||(milestones.length>0&&!input.schedule.activities.some(a=>a.activityType==='unknown'));
+  const milestonePressure=aggregateCount(milestones,activity=>{
+    if(activity.status==='completed')return false;
+    if(!knownOpen(activity))return null;
+    const v=daysBetween(activity.baselineFinishIso??activity.baselineStartIso,effectiveFinish(activity)),float=activity.totalFloatHours;
+    if(v!==null&&v>0||Number.isFinite(float)&&float!<=0)return true;
+    return v===null||!Number.isFinite(float)?null:false;
+  });
+  const delayedActivityCount=input.schedule.activities.length?delayed.value:null;
+  const negativeFloatActivityCount=input.schedule.activities.length?negative.value:null;
+  const pressuredMilestoneCount=milestonePopulationEstablished?milestonePressure.value:null;
   return {
     producerVersion:"delay-eot-evidence-chain-v1",projectId:input.schedule.projectId,populationState:input.populationState,
     sourceClaimCount:input.sourceClaimCount,quarantinedClaimCount:input.quarantinedClaimCount,rows,
     programmeContext:{projectCompletionMovementDays:input.windows.projectCompletionMovementDays,
       projectCompletionMovementBasis:input.windows.projectCompletionMovementBasis,revisionCount:input.windows.revisionCount,
       windowCount:input.windows.windowCount,delayedActivityCount,negativeFloatActivityCount,pressuredMilestoneCount,pressureRows,
+      knownDelayedActivityCount:delayed.knownCount!,knownNegativeFloatActivityCount:negative.knownCount!,knownPressuredMilestoneCount:milestonePressure.knownCount!,
+      milestonePopulationState:milestonePopulationEstablished?'established':'partial',
       basis:"contextual_programme_intelligence_not_contractual_delay_event"},
     linkOrder,basis:"event_notice_activity_window_impact_responsibility_eot_determination",
   };

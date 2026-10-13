@@ -687,6 +687,15 @@ test('milestone status bands retain unknown due/status and assessment groups rat
  const legacy=runInNewContext(code,{...common,full:null});assert.match(legacy.statusBand,/not established/);assert.match(legacy.priorityBand,/not established/);
 });
 
+test('Delay programme context presents unresolved counts and complete zero without deriving totals from its preview',()=>{
+ const context:any={projectCompletionMovementDays:null,delayedActivityCount:null,knownDelayedActivityCount:2,negativeFloatActivityCount:null,knownNegativeFloatActivityCount:1,pressuredMilestoneCount:null,knownPressuredMilestoneCount:0,revisionCount:2,windowCount:0,pressureRows:[]};
+ let kpis:any[]=[];const render=()=>runInNewContext(functions(['renderDelayProgrammeContext'])+';renderDelayProgrammeContext(data)',{...common,data:{delayEotEvidenceChain:{programmeContext:context}},planningKpis:(rows:any[])=>{kpis=rows;return '';}});
+ render();assert.equal(kpis.find(r=>r[0]==='Pressured milestones')[1],'Not established · 0 known');assert.equal(kpis.find(r=>r[0]==='Delayed open execution activities')[1],'Not established · 2 known');assert.equal(kpis.find(r=>r[0]==='Analytical windows')[1],'0');
+ context.pressuredMilestoneCount=0;render();assert.equal(kpis.find(r=>r[0]==='Pressured milestones')[1],'0');
+ context.pressuredMilestoneCount=620;render();assert.equal(kpis.find(r=>r[0]==='Pressured milestones')[1],'620');
+ delete context.pressuredMilestoneCount;delete context.knownPressuredMilestoneCount;render();assert.equal(kpis.find(r=>r[0]==='Pressured milestones')[1],'Not established');
+});
+
 test('location review shows source candidates and saved mappings without asserting automatic assignment',()=>{
  const nodes:Record<string,{innerHTML:string;textContent:string}>={};
  const review={wbsCandidates:[{wbsId:'W-A',location:'North wing',path:'Project / North wing',activityCount:240}],assetCandidates:[{location:'FM plant',assetCount:120,basis:'Reported source location'}],decision:{choice:'confirm_wbs_locations',reference:'LOCATION-CHECK',locationAssignments:[{wbsId:'W-A',location:'FM plant'}]}};

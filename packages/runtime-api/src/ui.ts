@@ -1683,15 +1683,16 @@ function delayClaimsProjectionFor(data){
 function renderDelayProgrammeContext(data){
   const chain=data?.delayEotEvidenceChain||null,context=chain?.programmeContext||data?.contextualProgrammeIntelligence||null;
   if(!context)return "";
+  const count=(value,known)=>value==null?'Not established'+(known==null?'':' · '+fmt(known)+' known'):fmt(value);
   const movement=context.projectCompletionMovementDays,rows=Array.isArray(context.pressureRows)?context.pressureRows:[];
   const detail=rows.length?'<details class="source-scope"><summary>Review '+escapeHtml(fmt(rows.length))+' leading programme-pressure activities</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>WBS</th><th>Baseline finish</th><th>Current / forecast finish</th><th>Movement</th><th>Float</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.baselineFinishIso?planningShortDate(row.baselineFinishIso):"—")+'</td><td>'+escapeHtml(planningShortDate(row.forecastFinishIso||row.currentFinishIso))+'</td><td>'+escapeHtml(row.varianceDays===null?"—":(row.varianceDays>0?"+":"")+fmt(row.varianceDays)+" d")+'</td><td>'+escapeHtml(row.totalFloatHours===null?"—":fmt(row.totalFloatHours)+" h")+'</td></tr>').join("")+'</tbody></table></div></details>':"";
   return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Best available programme context</h4><p><b>Schedule pressure is contextual programme intelligence, not a contractual delay event.</b> It remains visible even when a formal delay-event register is absent, incomplete or quarantined.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Project Completion movement",movement===null||movement===undefined?"Not established":(movement>0?"+":"")+fmt(movement)+" d","net submitted first-to-latest movement"],
-    ["Delayed open execution activities",fmt(context.delayedActivityCount??0),"unfinished execution work later than baseline"],
-    ["Negative-float activities",fmt(context.negativeFloatActivityCount??0),"programme pressure; not contractual responsibility"],
-    ["Pressured milestones",fmt(context.pressuredMilestoneCount??0),"late and/or non-positive-float milestones"],
-    ["Comparable revisions",fmt(context.revisionCount??0),"controlled schedule states"],
-    ["Analytical windows",fmt(context.windowCount??0),"window availability; causation separate"]
+    ["Delayed open execution activities",count(context.delayedActivityCount,context.knownDelayedActivityCount),"unfinished execution work later than baseline"],
+    ["Negative-float activities",count(context.negativeFloatActivityCount,context.knownNegativeFloatActivityCount),"programme pressure; not contractual responsibility"],
+    ["Pressured milestones",count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount),"late and/or non-positive-float milestones and reviewed key dates"],
+    ["Comparable revisions",count(context.revisionCount),"controlled schedule states"],
+    ["Analytical windows",count(context.windowCount),"window availability; causation separate"]
   ])+detail+'</div></section>';
 }
 function renderDelayEvidenceChain(data){

@@ -326,8 +326,10 @@ test('programme milestone review persists without editing source types and expir
  assert.equal(empty.exposure.value,0);assert.equal(empty.exposure.absenceConfirmed,true);
  assert.equal(empty.challenge.items.find((r:any)=>r.metric==='milestone_count').independent.value,0);
  const diagnosis=(await get('/schedule/modules/pmo-analysis')).data.projectDiagnosis;assert.equal(diagnosis.milestoneExposure.absenceConfirmed,true);
+ const pressure=(await get('/schedule/modules/delay-claims')).data.delayEotEvidenceChain.programmeContext;assert.equal(pressure.pressuredMilestoneCount,0);assert.equal(pressure.milestonePopulationState,'established');
  assert.equal((await upload('2031-09-30')).status,201);
  const changed=(await get('/schedule/modules/milestones')).data;assert.equal(changed.populationState,'partial');assert.equal(changed.review.choice,null);assert.equal(changed.reviewedKeyDateCount,0);
+ assert.equal((await get('/schedule/modules/delay-claims')).data.delayEotEvidenceChain.programmeContext.pressuredMilestoneCount,null);
  workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-milestones'));
 });
 

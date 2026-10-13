@@ -2090,6 +2090,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
     determinations:canonicalTimeClaims(state).determinations,
     schedule: model,
+    milestoneReview:milestoneReviewForProjection(state,model),
     windows,
     delay: delayClaims,
     notices: noticesClaims,
@@ -5286,6 +5287,7 @@ function claimsFastContext(
   const delayEotEvidenceChain = buildDelayEotEvidenceChain({
     determinations:canonicalTimeClaims(state).determinations,
     schedule: current.revision.model,
+    milestoneReview:milestoneReviewForProjection(state,current.revision.model),
     windows,
     delay,
     notices,
