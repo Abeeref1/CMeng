@@ -219,6 +219,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .milestone-date-values{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;line-height:1.6;padding-top:8px}
 .milestone-date-legend{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:14px;font-size:13px}
 .milestone-date-legend b{color:#a94438}
+.recovery-basis-list{list-style:none;padding:0;display:grid;gap:14px}.recovery-basis-list li{scroll-margin-top:80px;border:1px solid var(--line);border-radius:8px;padding:12px}.recovery-basis-list dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:5px 12px;margin-bottom:0}.recovery-basis-list dt{font-weight:650}.recovery-basis-list dd{margin:0;overflow-wrap:anywhere}
 .decision-panel .table-wrap .decision-inputs{min-width:280px;white-space:normal}
 .table-wrap{overflow:auto!important} .table-wrap th{white-space:normal;min-width:85px} .table-wrap td{word-break:normal!important;overflow-wrap:normal!important;min-width:85px}
 .currency-card:only-child{grid-column:1/-1}
@@ -5035,6 +5036,19 @@ function renderManagementControlVisual(key,data){
   return"";
 }
 
+function recoveryScenarioTable(scenarios){
+  const groups=[],byBasis=new Map();
+  const groupFor=scenario=>{
+    const basis={assumption:scenario.assumption??null,effectBasis:scenario.effectBasis??null,costBasis:scenario.costBasis??null,constraints:scenario.constraints??[],risks:scenario.risks??[]};
+    const key=JSON.stringify(basis);let group=byBasis.get(key);
+    if(!group){group={label:'A'+(groups.length+1),basis,count:0};groups.push(group);byBasis.set(key,group);}
+    group.count++;return group;
+  };
+  const rows=scenarios.map(s=>{const group=groupFor(s);return '<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==='calculated'?'Calculated scenario':'Needs assumption')+'</span></td><td>'+escapeHtml(s.subject)+(s.drivingPath?'<br><b>Linked to the driving path</b>':'')+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered==null?'Not calculable':fmt(s.possibleDaysRecovered)+' d')+'</td><td>'+escapeHtml(s.additionalResources||'Not established')+'</td><td>'+escapeHtml(s.estimatedCost==null?'Not established':fmt(s.estimatedCost)+' '+(s.currency||''))+'</td><td><a href="#recoveryBasis-'+group.label+'">'+group.label+'</a></td></tr>';}).join('');
+  const field=(label,value)=>'<dt>'+escapeHtml(label)+'</dt><dd>'+escapeHtml(Array.isArray(value)?value.length?value.join('; '):'None recorded':value||'Not established')+'</dd>';
+  const basis=groups.map(g=>'<li id="recoveryBasis-'+g.label+'"><b>'+g.label+' · '+fmt(g.count)+' shown option'+(g.count===1?'':'s')+'</b><dl>'+field('Assumption',g.basis.assumption)+field('Local effect',g.basis.effectBasis)+field('Cost basis',g.basis.costBasis)+field('Constraints',g.basis.constraints)+field('Risks',g.basis.risks)+'</dl></li>').join('');
+  return '<p>Showing '+fmt(scenarios.length)+' of '+fmt(responseListPopulation(scenarios).total)+' recovery options. Basis references apply to the shown options only.</p><div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Basis</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(scenarios,'Browse all recovery options')+'<h5>Assumptions and limits for shown options</h5><ol class="recovery-basis-list">'+basis+'</ol>';
+}
 function renderRecoveryAccelerationVisual(data){
   const p=projectionFor(data,"recovery_acceleration");if(!p)return "";
   const scenarios=Array.isArray(p.scenarios)?p.scenarios:[],eligibility=p.eligibility||{};
@@ -5047,14 +5061,14 @@ function renderRecoveryAccelerationVisual(data){
       :assessment==="supporting_basis_absent"
         ?"No supporting recovery basis is established; eligibility counts are not presented as assessed zeros."
         :"No eligible quantified recovery scenario is available after the current eligibility checks.";
-  const rows=scenarios.map(s=>'<tr><td><b>'+escapeHtml(humanizeKey(s.type))+'</b><br><span class="muted">'+escapeHtml(s.state==="calculated"?"Calculated scenario":"Needs assumption")+'</span></td><td>'+escapeHtml(s.subject)+(s.drivingPath?'<br><b>Linked to the driving path</b>':'')+'</td><td><details><summary>Scenario assumptions</summary>'+escapeHtml(s.assumption)+'</details>'+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.targetPosition)+'</td><td>'+escapeHtml(s.possibleDaysRecovered===null?"Not calculable":fmt(s.possibleDaysRecovered)+" d")+'</td><td>'+escapeHtml(s.additionalResources||"Not established")+'</td><td>'+escapeHtml(s.estimatedCost===null?"Not established":fmt(s.estimatedCost)+" "+(s.currency||""))+'<br><span class="muted">'+escapeHtml(s.costBasis)+'</span></td><td>'+escapeHtml((s.constraints||[]).join("; "))+'</td><td>'+escapeHtml((s.risks||[]).join("; "))+'</td></tr>').join("");
+
   const targets=p.recoveryTargets;
   const targetPanel=targets?managementPanel('Recovery target',targets.basis,planningKpis([['Submitted completion',planningShortDate(targets.submittedCompletionIso),'current programme'],['Contract including awarded EOT',planningShortDate(targets.extended.dateIso),'required completion'],['Driving-chain shortfall to extended contract date',targets.extended.workingDays==null?'Working-time basis not established':fmt(targets.extended.workingDays)+' working days',targets.extended.calendarDays==null?'Calendar difference not established':fmt(targets.extended.calendarDays)+' calendar days'],['Recovery to original date',targets.original.workingDays==null?'Missing working-time basis':fmt(targets.original.workingDays)+' working days',planningShortDate(targets.original.dateIso)]]),true):'';
   const driving=p.drivingChainShortfall||null;
   const sixthDayControl=driving?
     '<div class="notice info"><b>Sixth-working-day option and driving-chain shortfall</b><p>Unfinished driving activities: '+escapeHtml(fmt(driving.drivingOpenActivityCount))+'. Of these, '+escapeHtml(fmt(driving.fiveDayDrivingActivityCount))+' have an explicit five-working-day source calendar. Required catch-up: '+escapeHtml(driving.workingDays===null?'Not established':fmt(driving.workingDays)+' source-calendar working days')+' ('+escapeHtml(driving.calendarDays===null?'calendar-day comparison not established':fmt(driving.calendarDays)+' calendar days')+'). This is the shortfall, not a predicted gain from the sixth day. The additional day is a scenario requiring approved crews, time arrangements and a recalculated CPM.</p></div>':'';
   const count=(value)=>basisAbsent?"Not assessable":fmt(value??0);
-  const table=scenarios.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Assumption</th><th>Current position</th><th>Target</th><th>Possible days recovered</th><th>Additional resources</th><th>Estimated cost</th><th>Constraints</th><th>Risks</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
+  const table=scenarios.length?recoveryScenarioTable(scenarios):'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
   return '<section class="planning-view recovery-view">'+targetPanel+sixthDayControl+'<div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+planningKpis([
     ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":"None qualify","evidence-supported local scenarios"],
     ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None","not quantified until assumptions are established"],
@@ -5218,7 +5232,7 @@ function renderModuleReadiness(data,reason=''){
   const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey));
   const checks=r?'<p>Calculation: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Consistency: '+escapeHtml(r.consistency)+' · Comparison: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><p>'+escapeHtml(r.scope)+'</p>':'';
   const notes=reason?'<p>'+escapeHtml(reason)+'</p>':'';
-  return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Actions and supporting details<span>Documents, date rules and calculation checks</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+(data?.positionVerdict?.specific===false?renderPositionVerdict(data,true):'')+renderRegisterScope(data,true)+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download the full register</a></p></div></details>';
+  return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Actions and supporting details<span>Documents, date rules and calculation checks</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+(data?.positionVerdict?.specific===false?renderPositionVerdict(data,true):'')+renderRegisterScope(data,true)+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download calculation workbook</a></p></div></details>';
 }
 function renderModuleBasis(data,detail=false,contextOnly=false){
   const root=findProjectionRoot(data);
