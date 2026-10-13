@@ -27,11 +27,12 @@ function buildComparison(state:ProjectRuntimeState){
  });
  const assetDates=source.map(r=>registerDate(String(r.fields['status as of']??'')));
  const undatedCount=assetDates.filter(d=>!d).length,futureCount=assetDates.filter(d=>d&&cutoff&&d>cutoff).length;
+ const flagReviewRefs=[...new Set(source.map(r=>r.sourceValueReview?.reference).filter(Boolean))];
  const assetRows=[['installed','tag installed','Asset register installed flags'],['commissioned','commissioned','Asset register commissioned flags']].map(([key,field,label])=>{
   const flags=source.map(r=>sourceFlag(r.fields[field!])),yes=flags.filter(v=>v===true).length,unknown=flags.filter(v=>v===null).length;
   return {key:key!,source:'asset_register',label:label!,numerator:yes,denominator:source.length,unknownCount:unknown,percent:unknown?null:percent(yes,source.length),
    statusDate:[...new Set(assetDates.filter((d):d is string=>!!d))].sort().join(', ')||null,undatedCount,futureCount,
-   basis:'Reported flags in the retained asset register. Unknown flags remain unknown; this is not a complete project asset population or dated acceptance position.'};
+   basis:(flagReviewRefs.length?'Reviewed source flag interpretations: '+flagReviewRefs.join('; ')+'. Original source values remain available. ':'')+'Reported flags in the retained asset register. Unknown flags remain unknown; this is not a complete project asset population or dated acceptance position.'};
  });
  const linkedAssetCount=source.filter(r=>r.links.activityIds.some(id=>taskIds.has(id))).length;
  const sourceRefs=[...new Set([...(schedule?['schedule:'+schedule.revision.revisionId]:[]),...source.flatMap(r=>r.receipts.map(receipt=>'evidence-document:'+receipt.documentId))])];

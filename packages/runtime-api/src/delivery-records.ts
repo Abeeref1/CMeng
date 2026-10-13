@@ -11,6 +11,7 @@ import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryFields} from '../../delivery-core/src/fields';
+import {assetValueMapping} from './delivery-value-mapping';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
@@ -71,8 +72,17 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const documents:Array<{documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[]}>=[];
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
-  for(const original of t.rows){const row=mapping?{...original,cells:{...original.cells,...Object.fromEntries(Object.entries(mapping.columns).map(([target,source])=>[canonicalHeader(target),original.cells[canonicalHeader(source)]??'']))}}:original;
+  const mappedColumns=Object.entries(mapping?.columns??{}).map(([target,source])=>[canonicalHeader(target),canonicalHeader(source)] as const),flagMappings=Object.entries(mapping?.valueMappings??{});
+  for(const original of t.rows){let row=mapping?{...original,cells:{...original.cells,...Object.fromEntries(mappedColumns.map(([target,source])=>[target,original.cells[source]??'']))}}:original;
    const k=classifyDeliveryRowKind(row,t.document.documentType??'',mapping?.kind??null);if(!k)continue;kind=k;count++;kindCounts.set(k,(kindCounts.get(k)??0)+1);
+   let sourceValueReview:DeliveryRecord['sourceValueReview'];
+   if(k==='asset'&&flagMappings.length){
+    const originalValues:Record<string,string>={},interpreted:Record<string,string>={};
+    for(const [field,values] of flagMappings){const raw=String(row.cells[field]??'');originalValues[field]=raw;if(Object.hasOwn(values,raw))interpreted[field]=values[raw]??'';}
+    if(Object.keys(interpreted).length)row={...row,cells:{...row.cells,...interpreted}};
+    sourceValueReview={reference:mapping!.reference!,recordedAt:mapping!.recordedAt,actorId:mapping!.actorId,originalValues};
+   }
+
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
    const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
@@ -85,7 +95,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
    const reclassified=!!previousId&&decidedIds.has(previousId);
    if(reclassified)recordId=previousId!; // Retain the decision history, but require a fresh review of the corrected kind.
    records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test',...(k==='permit'?['permit type']:[]))||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},...(sourceValueReview?{sourceFields:{...original.cells},sourceValueReview}:{}),links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
   }
   const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
   for(const [documentKind,documentCount] of kindCounts.size?[...kindCounts]:[[null,0] as const])documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind:documentKind,rowCount:documentCount,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':/^(boq|installed_measurement_register|risk_register|variation_register|payment_certificates)$/.test(t.document.documentType??'')?'existing_authority':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[])]});
@@ -231,9 +241,13 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   state.delivery=store;return {action:input.action,recordedAt,batchId,reviewedRecordCount:preview.eligibleCount,retainedRecordCount:preview.retainedCount};
  }else if(input.action==='map_document'){
   const doc=state.evidenceDocuments.find(d=>d.documentId===input.documentId);if(!doc||doc.sourceHashSha256!==input.sourceHash||!deliveryKinds.includes(input.kind))throw new Error('Select the current source document and Delivery record type.');
+  if(doc.storedPath&&createHash('sha256').update(readFileSync(doc.storedPath)).digest('hex')!==doc.sourceHashSha256)throw new Error('Retained source bytes do not match the document hash.');
   const columns=cleanFields(input.columns),tables=deliverySourceTables(state,[]).filter(t=>t.document.documentId===doc.documentId);const headers=new Set(tables.flatMap(t=>t.headers));
   if(!Object.keys(columns).length||Object.values(columns).some(v=>typeof v!=='string'||!headers.has(canonicalHeader(v))))throw new Error('Select source columns from the retained table.');
-  (store.mappings??=[]).push({documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:input.kind,columns:columns as Record<string,string>,actorId,recordedAt});
+  const values=assetValueMapping(input.valueMappings,columns as Record<string,string>,tables.flatMap(t=>t.rows),input.kind,input.reference);
+  const previous=store.mappings?.filter(m=>m.documentId===doc.documentId&&m.sourceHash===doc.sourceHashSha256).at(-1);
+  if(Object.keys(previous?.valueMappings??{}).length&&!String(input.reference??'').trim())throw new Error('Enter the source interpretation reference when changing or clearing a saved value mapping.');
+  (store.mappings??=[]).push({documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:input.kind,columns:columns as Record<string,string>,...values,...(input.reference?{reference:String(input.reference).trim()}:{}),actorId,recordedAt});
  }else if(input.action==='confirm_population'){
   if(!deliveryKinds.includes(input.kind)||!String(input.note??'').trim())throw new Error('Select a population and record its completeness basis.');
   const rows=all.filter(r=>r.kind===input.kind&&deliveryCurrentRecord(r)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));

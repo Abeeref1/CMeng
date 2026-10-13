@@ -11,6 +11,8 @@ export interface DeliveryRecord {
  recordId:string;projectId:string;kind:DeliveryKind;reference:string|null;description:string|null;
  revision:string;state:DeliveryState;fields:DeliveryFields;links:DeliveryLinks;
  receipts:SourceReceipt[];diagnostics:string[];sourceActive:boolean;evidenceRevision?:string;
+ sourceFields?:DeliveryFields;
+ sourceValueReview?:{reference:string;recordedAt:string;actorId:string;originalValues:DeliveryFields};
 }
 export interface DeliveryDecision {
  batchId?:string;
@@ -23,7 +25,7 @@ export interface DeliveryPopulation {
 }
 export interface DeliveryStateStore {
  schemaVersion:1;manual:DeliveryRecord[];decisions:DeliveryDecision[];populations:DeliveryPopulation[];
- mappings?:Array<{documentId:string;sourceHash:string;kind:DeliveryKind;columns:Record<string,string>;actorId:string;recordedAt:string}>;
+ mappings?:Array<{documentId:string;sourceHash:string;kind:DeliveryKind;columns:Record<string,string>;valueMappings?:Record<string,Record<string,'Yes'|'No'|null>>;reference?:string;actorId:string;recordedAt:string}>;
 }
 export const emptyLinks=():DeliveryLinks=>({activityIds:[],boqItemIds:[],packageIds:[],supplierIds:[],locationIds:[],assetIds:[],recordIds:[],riskIds:[],claimIds:[],noticeIds:[],variationIds:[],boqAllocations:[]});
 export const deliveryLabels:Record<DeliveryKind,string>={package:'Procurement packages',supplier:'Suppliers & subcontractors',submittal:'Submittals',design:'RFI & design',workfront:'Construction workfronts',interface:'Interfaces',quality:'Quality & inspections',permit:'Permits & authorities',hse:'Construction HSE',commissioning:'Testing & commissioning',asset:'Asset & system handover',snag:'Snag & closeout',spare:'Spares & special tools',handover:'Handover requirements',weather:'Weather & disruption',location:'Locations',lifecycle:'Lifecycle templates',gate:'Readiness gates'};
