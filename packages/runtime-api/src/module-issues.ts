@@ -116,46 +116,37 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // separate headcount review does not govern readiness of an hours/capacity
   // source position; the primary challenge is classified above on its basis.
   const excludedKeys=new Set(['source','sourceLedger','futureRows','undatedRows','futureInsurances','undatedInsurances','claimsReporting','challenge','manpowerRequirementComparison','reportingContract','moduleReadiness','issueAssessment','systemEvidenceContract','controlBasis','sourceRefs','diagnostics','receipts','population','populations','model']);
-  // Large schedule/register projections contain thousands of flat row objects.
-  // Most rows have only scalar values plus empty diagnostics/sourceRefs arrays.
-  // Recursing into those rows can never discover an issue, so screen them before
-  // constructing paths/entering the recursive walker. This is semantics-preserving:
-  // every row with a direct issue signal or any non-excluded nested object still
-  // follows the exact existing inspection path.
-  const inspectArrayItem=(item:any)=>{
+  // Scan each immutable subtree once per resolution batch. Eligibility depends
+  // on actual issue signals, not the page name or a whitelist of row fields.
+  // Most large register trees are neutral; the owning walker can then skip
+  // them without rebuilding paths for tens of thousands of repeated rows.
+  // Findings themselves are never cached: each module retains its own paths.
+  const eligibility=scanContext?.eligibility??new WeakMap<object,boolean>();
+  const inspecting=new WeakSet<object>();
+  const arrayItemCanContainIssue=(item:any,depth=0):boolean=>{
     if(!item||typeof item!=='object')return false;
-    if(Array.isArray(item))return item.length>0;
-    if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
-    // Activity Review contains tens of thousands of flat schedule rows. When a
-    // row has no diagnostic/state signal and no nested review object, every
-    // remaining field is scalar or a scalar-ID list and cannot produce an issue.
-    // Keep diagnostic/nested rows on the normal walker so late findings are
-    // still discovered anywhere in the full population.
-    if(result.key==='activity-analytics'&&typeof item.activityId==='string'){
-      const nestedReviewKeys=['review','challenge','readiness','population','position','result','basis'];
-      if(!nestedReviewKeys.some(key=>item[key]&&typeof item[key]==='object'))return false;
+    const hit=eligibility.get(item);if(hit!==undefined)return hit;
+    // Keep eligibility conservative for unusually deep source structures.
+    // The owning walker still applies its established inspection depth.
+    if(depth>=64)return true;
+    // Conservatively inspect cycles; a cycle must never hide a descendant
+    // finding or cache an incomplete negative answer for another module.
+    if(inspecting.has(item))return true;
+    if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length){eligibility.set(item,true);return true;}
+    inspecting.add(item);
+    let answer=false;
+    if(Array.isArray(item)){
+      for(const child of item)if(arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+    }else{
+      for(const key in item){
+        if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
+        if(arrayItemCanContainIssue(item[key],depth+1)){answer=true;break;}
+      }
     }
-    for(const key in item){
-      if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
-      const child=item[key];
-      // Empty arrays and arrays of scalar IDs/dates cannot produce an issue in
-      // the recursive walker. Schedule rows commonly have several such arrays;
-      // preserve inspection of every object-bearing array and every direct signal.
-      if(Array.isArray(child)&&!child.some(value=>value&&typeof value==='object'))continue;
-      if(child&&typeof child==='object')return true;
-    }
-    return false;
-  };
-  // A resolution batch visits immutable shared source subtrees in several
-  // modules. Memoise only issue eligibility within that batch, never findings
-  // or their owning paths, so no module can lose its own diagnostic context.
-  const arrayItemCanContainIssue=(item:any)=>{
-    if(!item||typeof item!=='object')return false;
-    const hit=scanContext?.eligibility.get(item);if(hit!==undefined)return hit;
-    const answer=inspectArrayItem(item);scanContext?.eligibility.set(item,answer);return answer;
+    inspecting.delete(item);eligibility.set(item,answer);return answer;
   };
   const walk=(value:any,path:string,depth:number)=>{
-    if(!value||typeof value!=='object'||depth>9||visited.has(value))return;
+    if(!value||typeof value!=='object'||depth>9||visited.has(value)||!arrayItemCanContainIssue(value))return;
     if(optionalForecastAbsent(path,value))return;
     if(path.endsWith('.advancePaymentBondRequirement')&&value.state==='missing'){
       const held=d?.position?.heldEvidence?.advancePaymentBonds??d?.heldEvidence?.advancePaymentBonds;

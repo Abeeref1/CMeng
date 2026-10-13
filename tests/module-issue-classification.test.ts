@@ -6,6 +6,29 @@ import type {ModuleRuntimeResult} from '../packages/runtime-api/src/project-stat
 import {enforceModuleReadiness} from '../packages/runtime-api/src/module-readiness';
 
 const pass={state:'pass' as const,failedCheckIds:[],checkCount:8};
+test('full-population scan retains late nested activity findings and module ownership',()=>{
+ const rows=Array.from({length:20001},(_,i)=>({activityId:'A'+i,dates:{current:'2031-01-01'},tags:['Civil']}));
+ (rows[20000] as any).inspection={result:{state:'conflicted',diagnostics:['SOURCE_CONFLICT'],sourceRefs:['REGISTER:last-row']}};
+ const context={eligibility:new WeakMap<object,boolean>()};
+ for(const key of ['activity-analytics','lookahead-schedule']){
+   const assessed=assessModuleIssues({...input({rows}),key},pass,context);
+   const conflict=assessed.issues.find(i=>i.kind==='source_conflict');
+   assert.ok(conflict,'an unfamiliar nested field on the final row remains inspected');
+   assert.deepEqual(conflict.moduleKeys,[key]);assert.deepEqual(conflict.sourceRefs,['REGISTER:last-row']);
+   assert.ok(conflict.evidencePaths.some(p=>p.endsWith('.inspection.result')));
+ }
+ assert.equal(rows.length,20001,'source population is retained');
+});
+test('shared neutral subtrees and cycles cannot hide a reachable source finding',()=>{
+ const cycle:any={label:'source link'};cycle.self=cycle;cycle.review={state:'invalid',diagnostics:['INVALID_DATE'],sourceRefs:['REGISTER:cycle']};
+ const neutral={rows:[{fields:{date:'2031-01-01'},sourceRefs:['SOURCE:1']}]};
+ const context={eligibility:new WeakMap<object,boolean>()};
+ assert.equal(assessModuleIssues(input({neutral}),pass,context).issues.length,0);
+ const assessed=assessModuleIssues(input({neutral,cycle}),pass,context);
+ assert.ok(assessed.issues.some(i=>i.kind==='data_quality'&&i.sourceRefs.includes('REGISTER:cycle')));
+ let deep:any={state:'invalid'};for(let i=0;i<10000;i++)deep={child:deep};
+ assert.doesNotThrow(()=>assessModuleIssues(input({deep}),pass),'deep retained structures cannot overflow eligibility scanning');
+});
 test('source review pages can be ready without an advisory comparison while real conflicts still block',()=>{
  const activity={...input({challenge:{reconciliationState:'submitted_missing',items:[{metric:'activity_count'}]}}),key:'activity-analytics'};
  const result=enforceModuleReadiness(activity,pass);
