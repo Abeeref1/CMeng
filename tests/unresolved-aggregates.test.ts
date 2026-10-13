@@ -234,3 +234,18 @@ test('float trend compares shares of remaining work so completed activities do n
  runInNewContext(fn+';renderFloatPressureTrend(points)',{points:[{criticalCount:50,unfinishedExecutionActivityCount:100},{criticalCount:25,unfinishedExecutionActivityCount:50}],fmt:String,renderVisualPanel:()=>'',renderLineChart:(points:any[])=>{captured.push(points);return '';}});
  assert.equal(captured[0][0].criticalCount,50);assert.equal(captured[0][1].criticalCount,50);
 });
+
+test('weighted progress retains reference arithmetic for complete, partial and excluded populations',async()=>{
+ const {scheduleProgress}=await import('../packages/schedule-analysis-core/src/population');
+ const reference=(rows:any[])=>{
+  const eligible=rows.filter(a=>!['wbs_summary','level_of_effort','milestone','start_milestone','finish_milestone'].includes(a.activityType));
+  const known=eligible.filter(a=>a.originalDurationHours!==null&&Number.isFinite(a.originalDurationHours)&&a.originalDurationHours>0&&a.percentComplete!==null&&Number.isFinite(a.percentComplete)&&a.percentComplete>=0&&a.percentComplete<=100);
+  const weight=known.reduce((n,a)=>n+a.originalDurationHours,0),value=weight>0?known.reduce((n,a)=>n+a.originalDurationHours*a.percentComplete,0)/weight:null;
+  return {value:value===null?null:Number(value.toFixed(6)),knownCount:known.length,totalCount:eligible.length,coveragePercent:eligible.length?Number((100*known.length/eligible.length).toFixed(4)):null,knownWeightHours:weight,state:known.length===0?'missing':known.length===eligible.length?'established':'partial'};
+ };
+ const rows:any[]=[];
+ for(const activityType of ['task','unknown','wbs_summary','level_of_effort','milestone','start_milestone','finish_milestone'])for(const originalDurationHours of [null,NaN,Infinity,-1,0,0.1,1,13.7])for(const percentComplete of [null,NaN,Infinity,-1,0,33.333333,100,101])rows.push(Object.freeze({activityType,originalDurationHours,percentComplete}));
+ for(let end=0;end<=rows.length;end+=7){const subset=rows.slice(0,end);assert.deepEqual(scheduleProgress(Object.freeze(subset)),reference(subset));}
+ assert.deepEqual(scheduleProgress(rows),reference(rows));
+ assert.deepEqual(scheduleProgress([...rows].reverse()),reference([...rows].reverse()));
+});

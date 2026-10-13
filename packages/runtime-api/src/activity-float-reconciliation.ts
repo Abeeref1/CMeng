@@ -86,7 +86,8 @@ export function attachActivityFloatReconciliation<T>(data:T,review:ReturnType<ty
    memo.set(value,result);return result;
   }
   let result=value;
-  for(const key of Object.keys(value)){
+  for(const key in value){
+   if(!Object.hasOwn(value,key))continue;
    const original=value[key];if(!original||typeof original!=='object')continue;
    const child=visit(original);
    if(child!==original){if(result===value)result={...value};result[key]=child;}

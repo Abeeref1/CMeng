@@ -148,11 +148,15 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     inspecting.add(item);
     let answer=false;
     if(Array.isArray(item)){
-      for(const child of item)if(arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+      for(const child of item)if(child&&typeof child==='object'&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
     }else{
       for(const key in item){
-        if(!Object.hasOwn(item,key)||excludedKeys.has(key))continue;
-        if(arrayItemCanContainIssue(item[key],depth+1)){answer=true;break;}
+        if(!Object.hasOwn(item,key))continue;
+        const child=item[key];
+        // Scalar cells cannot hold nested issue evidence. Most source-row
+        // fields are scalar; avoid recursive calls and key-set lookups for
+        // them while retaining inspection of every own object-valued field.
+        if(child&&typeof child==='object'&&!excludedKeys.has(key)&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
       }
     }
     inspecting.delete(item);eligibility.set(item,answer);return answer;

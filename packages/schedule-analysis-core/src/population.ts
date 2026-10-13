@@ -61,17 +61,20 @@ export function activityPopulation(model:CanonicalScheduleModel,basis:ActivityPo
 
 /** Partial progress is a known-population estimate, never zero-filled missing progress. */
 export function scheduleProgress(activities: readonly CanonicalScheduleActivity[]) {
-  const eligible = activities.filter(isProgressActivity);
-  const known = eligible.filter(a => a.originalDurationHours !== null && Number.isFinite(a.originalDurationHours)
-    && a.originalDurationHours > 0 && a.percentComplete !== null && Number.isFinite(a.percentComplete)
-    && a.percentComplete >= 0 && a.percentComplete <= 100);
-  const knownWeight = known.reduce((sum, a) => sum + a.originalDurationHours!, 0);
-  const value = knownWeight > 0 ? known.reduce((sum, a) => sum + a.originalDurationHours! * a.percentComplete!, 0) / knownWeight : null;
+  let totalCount=0,knownCount=0,knownWeight=0,weightedProgress=0;
+  for(const activity of activities){
+    if(!isProgressActivity(activity))continue;
+    totalCount++;
+    const weight=activity.originalDurationHours,progress=activity.percentComplete;
+    if(weight===null||!Number.isFinite(weight)||weight<=0||progress===null||!Number.isFinite(progress)||progress<0||progress>100)continue;
+    knownCount++;knownWeight+=weight;weightedProgress+=weight*progress;
+  }
+  const value = knownWeight > 0 ? weightedProgress / knownWeight : null;
   return {
-    value: value === null ? null : Number(value.toFixed(6)), knownCount: known.length, totalCount: eligible.length,
-    coveragePercent: eligible.length ? Number((100 * known.length / eligible.length).toFixed(4)) : null,
+    value: value === null ? null : Number(value.toFixed(6)), knownCount, totalCount,
+    coveragePercent: totalCount ? Number((100 * knownCount / totalCount).toFixed(4)) : null,
     knownWeightHours: knownWeight,
-    state: known.length === 0 ? "missing" as const : known.length === eligible.length ? "established" as const : "partial" as const,
+    state: knownCount === 0 ? "missing" as const : knownCount === totalCount ? "established" as const : "partial" as const,
   };
 }
 
