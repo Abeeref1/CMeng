@@ -10,6 +10,8 @@ import {crossDomainAccountability} from '../packages/runtime-api/src/accountabil
 import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
 import {pmcRoleOwner} from '../packages/runtime-api/src/action-priority';
 import {parseScheduleInstant} from '../packages/schedule-cpm/src/calendar';
+import {systemReviewScript} from '../packages/runtime-api/src/ui-system-review';
+import {runInNewContext} from './browser-context';
 
 for(let i=0;i<10;i++)test('shared value and population rules preserve exact source evidence '+i,()=>{
  const source=0.0001*(i+1);assert.equal(managementNumber(source),'<0.01');assert.ok(source>0);
@@ -41,6 +43,39 @@ test('future cash keeps missing deductions separate and never truncates the forw
  assert.ok(scenario.groups[0]!.missingInputs.includes('Contract retention percentage'));
  const response=pageProjectResponse({data:{programmeCashScenario:scenario}},'/api/projects/P/commercial/modules/cash-flow') as any;
  assert.equal(response.data.programmeCashScenario.groups[0].curvePoints.at(-1).dateIso,'2030-03-31');
+ assert.equal(JSON.stringify(position),before);
+});
+
+test('original ABB cash-flow missing basis lists receipt terms before certification can be calculated',()=>{
+ const position:any={foundation:{commercialTerms:{}},currencies:[
+  {currency:'SAR',currentContractValue:{value:1000},grossCertifiedAmount:{value:null},advanceBalance:{value:null},interimCertificateCount:{value:12}},
+  {currency:'USD',currentContractValue:{value:null},grossCertifiedAmount:{value:0},advanceBalance:{value:0}}
+ ]};
+ const before=JSON.stringify(position),scenario=programmeCashScenario(position,'2026-08-31','2026-11-30');
+ const sar=scenario.groups[0]!,usd=scenario.groups[1]!;
+ assert.deepEqual(new Set(sar.missingInputs),new Set(['Dated gross certification','Contract retention percentage','Contract payment period','Remaining advance recovery balance']));
+ assert.deepEqual(new Set(usd.missingInputs),new Set(['Current contract value','Contract retention percentage','Contract payment period']));
+ assert.equal(sar.certificateCount,12);assert.equal(sar.remainingGross,null);assert.equal(sar.netReceipts,null);assert.equal(sar.rows.length,0);
+ assert.equal(scenario.missingInputs.filter(value=>value==='Contract payment period').length,1);
+ const html=runInNewContext(systemReviewScript+';renderProgrammeCashScenario(scenario)',{scenario,escapeHtml:(value:unknown)=>String(value),planningKpis:()=>''});
+ for(const value of sar.missingInputs)assert.ok(html.includes(value),'the real Cash Flow renderer must expose '+value);
+ assert.ok(html.includes('12 payment certificates retained'));assert.equal(JSON.stringify(position),before);
+ const noProgramme=programmeCashScenario(position,null,null);
+ for(const value of ['Programme Data Date','Submitted programme forecast finish','Contract retention percentage','Contract payment period','Dated gross certification'])assert.ok(noProgramme.missingInputs.includes(value));
+ const noCurrencies=programmeCashScenario({foundation:{commercialTerms:{}}} as any,'2026-08-31','2026-11-30');
+ assert.ok(noCurrencies.missingInputs.includes('Currency-specific contract and certification records'));
+ assert.ok(noCurrencies.missingInputs.includes('Contract retention percentage'));assert.ok(noCurrencies.missingInputs.includes('Contract payment period'));
+});
+
+test('cash-flow explicitly supplied zero terms and currency balances stay usable',()=>{
+ const position:any={foundation:{commercialTerms:{retentionPercent:{value:0},paymentPeriodDays:{value:0}}},currencies:[
+  {currency:'SAR',currentContractValue:{value:1000},grossCertifiedAmount:{value:400},advanceBalance:{value:0}},
+  {currency:'USD',currentContractValue:{value:0},grossCertifiedAmount:{value:0},advanceBalance:{value:0}}
+ ]};
+ const before=JSON.stringify(position),scenario=programmeCashScenario(position,'2026-08-31','2026-11-30');
+ assert.deepEqual(scenario.missingInputs,[]);
+ assert.deepEqual(scenario.groups.map(g=>[g.currency,g.remainingGross,g.retention,g.advanceRecovery,g.netReceipts]),[['SAR',600,0,0,600],['USD',0,0,0,0]]);
+ assert.ok(scenario.groups.every(group=>group.rows.every(row=>row.assumedReceiptIso===row.periodEndIso)));
  assert.equal(JSON.stringify(position),before);
 });
 test('unique resource links remain per activity without promoting capacity approval',()=>{
