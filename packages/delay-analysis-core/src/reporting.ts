@@ -16,10 +16,11 @@ export function reportedClaimSummary(claims: readonly CanonicalClaimRecord[]) {
     const known=rows.map(r=>r[key]).filter((n):n is number=>n!==null);
     return {value:known.length?known.reduce((a,b)=>a+b,0):null,knownCount:known.length,recordCount:rows.length};
   };
+  const conflictingRows=rows.filter(r=>r.diagnostics.some(d=>/CONFLICT|DIFFER|NOT_IN_DETERMINATION_REGISTER/.test(d)));
   return {recordCount:rows.length,claimedDays:sum('claimedDays'),assessedDays:sum('assessedDays'),
     employerDelayDays:sum('employerDelayDays'),contractorDelayDays:sum('contractorDelayDays'),
     states:[...new Set(rows.map(r=>r.sourceStatus))].map(status=>({status,count:rows.filter(r=>r.sourceStatus===status).length})),
-    conflictingRows:rows.filter(r=>r.diagnostics.some(d=>/CONFLICT|DIFFER|NOT_IN_DETERMINATION_REGISTER/.test(d))),
+    conflictingRows,conflictingRowCount:conflictingRows.length,
     rows,basis:'Source register values for claim identities known by the Data Date. Undated values and statuses are not confirmed historical decisions; claim-day sums are not project delay or EOT.'};
 }
 
@@ -52,5 +53,11 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
     notices:notices.asOf,
     diagnostics:[...source.diagnostics,'POST_DATA_DATE_AND_UNDATED_RECORDS_RETAINED_OUTSIDE_CURRENT_POSITION'],
   };
-  return {current,source,events,claims,notices,reported:reportedClaimSummary(claims.asOf)};
+  const noticeCounts=(rows:typeof notices.asOf)=>{
+    const determinations=rows.filter(n=>n.kind==='determination').length;
+    return {claimNotices:rows.length-determinations,determinations};
+  };
+  return {current,source,events,claims,notices,
+    noticeTypeCounts:{asOf:noticeCounts(notices.asOf),future:noticeCounts(notices.future),undated:noticeCounts(notices.undated)},
+    reported:reportedClaimSummary(claims.asOf)};
 }
