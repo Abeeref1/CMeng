@@ -103,3 +103,14 @@ test('known register EOT remains present even when amendment text is missing',as
  assert.match(result,/181 days awarded in the determination register/);assert.match(result,/amendment text not found/);
  assert.doesNotMatch(result,/Not in source days|undefined|null/);assert.equal(facts.awardedEotDays.value,181);
 });
+
+test('explicit ICT automation and process disciplines survive mixed parent scope without guessing generic processes',()=>{
+ const state=loadCertifiedDemoProject('SOURCE-DISCIPLINE-'+randomUUID()),model=state.schedules.at(-1)!.revision.model;
+ model.wbs=[{wbsId:'MIXED',name:'Electrical & ICT Systems',parentWbsId:null,sourceRefs:[]},{wbsId:'PROCESS',name:'Process',parentWbsId:null,sourceRefs:[]}];
+ const template={...model.activities[0]!,wbsId:'MIXED'};
+ for(const [name,expected] of [['ICT Activity 001','ICT'],['Automation Activity 002','Automation'],['Process Activity 003','Process'],['Clean Utilities Activity 004','Process'],['Electrical Activity 005','Electrical'],['ICT and Electrical installation',null],['Process payment',null]] as const){
+  const row=classifyScheduleActivity(model,{...template,activityId:'SOURCE',name});assert.equal(row.discipline,expected,name);
+  assert.equal(row.classificationBasis.discipline,expected?'source_derived':'unavailable');
+ }
+ assert.equal(classifyScheduleActivity(model,{...template,activityId:'SOURCE',name:'Install equipment',wbsId:'PROCESS'}).discipline,'Process');
+});

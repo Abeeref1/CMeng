@@ -80,3 +80,20 @@ test('activity pressure matrix retains the full population after register paging
  const html=runInNewContext(functions(['planningActivityPressure'])+';planningActivityPressure(rows,matrix)',{rows:response.data.analysisRows,matrix,escapeHtml:String,fmt:String});
  assert.match(html,/All 200 unfinished execution activities/);assert.match(html,/40 completed activities/);
 });
+
+test('live criticality and float filters reconcile with unfinished summaries and preserve completed source rows',()=>{
+ const rows=Array.from({length:330},(_,i)=>({activityId:'A'+i,activityType:'task',status:i<110?'completed':'not_started',criticality:i%3===0?'near_critical':'critical',totalFloatHours:i%3===0?8:i%3===1?0:-8,floatRiskWatchlist:true}));
+ const before=JSON.stringify(rows),summary=activityRegisterView({rows}).activitySummary;
+ for(const criticality of ['critical','near_critical']){
+  const filtered=activityRegisterPage(rows,new URLSearchParams({criticality}));
+  assert.equal(filtered.matchingCount,summary.criticalityCounts[criticality]);assert.ok(filtered.rows.every(row=>row.status!=='completed'));
+ }
+ for(const [condition,predicate] of [['negative_float',(r:any)=>r.totalFloatHours<0],['zero_float',(r:any)=>r.totalFloatHours===0],['float_risk',()=>true]] as const){
+  const filtered=activityRegisterPage(rows,new URLSearchParams({condition}));
+  assert.equal(filtered.matchingCount,rows.filter(r=>r.status!=='completed'&&predicate(r)).length);
+  assert.ok(filtered.rows.every(row=>row.status!=='completed'));
+ }
+ assert.equal(activityRegisterPage(rows,new URLSearchParams('status=completed')).matchingCount,110);
+ assert.equal(activityRegisterPage(rows,new URLSearchParams('status=completed&condition=negative_float')).matchingCount,0);
+ assert.equal(activityRegisterPage(rows,new URLSearchParams()).matchingCount,330);assert.equal(JSON.stringify(rows),before);
+});

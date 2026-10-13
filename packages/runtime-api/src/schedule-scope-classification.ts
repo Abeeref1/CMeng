@@ -69,11 +69,14 @@ const disciplineRules:[string,RegExp[]][]=[
   ['Fire Fighting',[/\bfire[ -]?fighting\b/i,/\bsprinkler\b/i,/\bfire pump\b/i]],
   ['Fire Alarm',[/\bfire alarm\b/i]],
   ['ELV',[/\belv\b/i,/\bextra low voltage\b/i,/\bcctv\b/i,/\baccess control\b/i,/\bstructured cabling\b/i]],
+  ['ICT',[/\bict\b/i,/\binformation (?:and |& )?communications? technology\b/i]],
+  ['Automation',[/\bautomation\b/i,/\bscada\b/i,/\bprogrammable logic controller\b/i]],
+  ['Process',[/\bprocess (?:engineering|systems?|equipment|piping|activity)\b/i,/(?:^|[|>])\s*process\s*(?:$|[|>])/i,/\bclean utilities\b/i]],
   ['Structural',[/\bstructur(?:al|e)\b/i,/\brebar\b/i,/\bconcrete\b/i,/\bsteel structure\b/i]],
   ['Architectural',[/\barchitectural\b/i,/\bfinishes?\b/i,/\bblockwork\b/i,/\bplaster\b/i,/\bceiling\b/i,/\btil(?:e|ing)\b/i]],
   ['Facade',[/\bfa[cç]ade\b/i,/\bcurtain wall\b/i,/\bcladding\b/i]],
   ['Civil',[/\bcivil\b/i,/\bearthworks?\b/i,/\broadworks?\b/i]],
-  ['Infrastructure',[/\binfrastructure\b/i,/\butilities\b/i]],
+  ['Infrastructure',[/\binfrastructure\b/i,/(?<!clean )\butilities\b/i]],
   ['Landscape',[/\blandscap(?:e|ing)\b/i]],
   ['MEP',[/\bmep\b/i]]
 ];
