@@ -754,7 +754,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   for (
     const finalCommercialVisual of [
       "Financial claim review",
-      "Source claim lifecycle distribution",
+      "Source claim statuses",
       "Notice timeliness position",
       "Notice / correspondence lifecycle",
       "Contract Particulars, Securities & Obligations Management Position",

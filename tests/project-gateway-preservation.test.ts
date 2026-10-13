@@ -54,8 +54,25 @@ test('worker gateway preserves all module, management, source and audit results 
       const response=await fetch(url+'/api/projects/PRESERVE/overview');
       return {status:response.status,body:await response.json()};
     }));
-    for(let i=0;i<2;i++)assert.deepEqual(comparable(afterSpecialists[i]),comparable(firstOverview[i]),
-      'The same retained project overview must not change merely because specialist pages warmed in this worker');
+    // Finished calculations can replace a cold "not yet checked" navigation
+    // state. They must not rewrite source identity, authority or project data.
+    const sourceOverview=(reply:any)=>{
+      const {moduleStates,managementStates,roleLensContext,responsePaging,...source}=reply.body;
+      if(responsePaging)assert.equal(responsePaging.sourcePreserved,true,'paging must retain full source records');
+      return {status:reply.status,body:source};
+    };
+    for(let i=0;i<2;i++)assert.deepEqual(comparable(sourceOverview(afterSpecialists[i])),comparable(sourceOverview(firstOverview[i])),
+      'Calculating specialists must preserve every retained source and authority field');
+    assert.deepEqual(comparable(afterSpecialists[1]),comparable(afterSpecialists[0]),
+      'Identical completed calculations must give identical navigation and role facts in both servers');
+    const overview=afterSpecialists[0]!.body as any;
+    for(const item of [...overview.moduleStates,...overview.managementStates]){
+      const descriptor=moduleRegistry.find(m=>m.key===item.key)!;
+      const path=descriptor.area==='management'?'/management/'+item.key:'/'+descriptor.area+'/modules/'+item.key;
+      const result=await (await fetch(base+'/api/projects/PRESERVE'+path)).json() as any;
+      assert.deepEqual(item,{key:item.key,status:result.status,reason:result.reason,issueAssessment:result.issueAssessment},
+        item.key+' navigation must show its actual completed check');
+    }
 
     const before=JSON.parse(await readFile(join(original,'cmeng-project-state.json'),'utf8')).projects[0];
     const after=JSON.parse(await readFile(join(projectDirectory(isolated,'PRESERVE'),'cmeng-project-state.json'),'utf8')).projects[0];

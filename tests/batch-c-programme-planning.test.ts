@@ -8,11 +8,11 @@ const html=cmengUatHtml();
 const script=html.match(/<script>([\s\S]*?)<\/script>/)![1]!;
 
 test('Management Brief is decision-oriented and not a repeated activity dump',()=>{
-  assert.match(script,/What is driving the current position/);
-  assert.match(script,/Milestones to protect/);
+  assert.match(script,/Schedule pressure and affected workfronts/);
+  assert.match(script,/Milestones requiring protection/);
   assert.match(script,/What changed since the previous programme/);
-  assert.match(script,/Decisions and actions/);
-  assert.match(script,/Distinct WBS\/workfront concentrations/);
+  assert.match(script,/Management decisions and delegated actions/);
+  assert.match(script,/Where schedule pressure is concentrated/);
 });
 
 test('Programme Review and Activity Review have distinct purposes',()=>{

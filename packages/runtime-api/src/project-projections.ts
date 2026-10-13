@@ -42,7 +42,7 @@ import { managementAction, reportingScope, summarizeControlIssues, type ControlI
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
 import {projectSourceLabels} from './project-presentation';
-import {attachProjectFacts,projectFactsForState} from "./project-facts";
+import {attachProjectFacts,projectFactsForState,completedProjectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
 import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
@@ -8939,48 +8939,46 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // Overview must not depend on which specialist or management page happened
-  // to warm first. Only a saved certification for this exact project version
-  // may change readiness in the lightweight navigation summary. Detailed live
-  // findings remain available on the specialist pages, never used to mutate
-  // an unchanged source-version Overview merely by visiting another page.
+  // Source facts do not change when a page opens, but completion of a checked
+  // calculation must be visible. Reuse the same finished result as its owning
+  // page, never invent readiness from source presence or start cold analysis.
+  const finished=resolvedProjectCache.get(projectId);
+  const calculated=finished?.version===state.version?finished.modules:null;
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
+    const live=calculated?.get(module.key);
     const recorded=receiptStates.get(module.key);
     return {
       key:module.key,
-      status:recorded??'partial' as const,
-      reason:recorded
+      status:live?.status??recorded??'partial' as const,
+      reason:live?live.reason:recorded
         ?'The recorded specialist check is available for this project version; open its page to review the basis.'
         :'Specialist check not yet recorded for this project version; open the specialist page for its current findings.',
-      issueAssessment:undefined,
+      issueAssessment:live?.issueAssessment,
     };
   });
+  const managementEntry=managementProjectionCache.get(projectId);
+  const management=managementEntry?.version===state.version?managementEntry.data:null;
   const overviewManagementStates=managementModuleKeys.map(key=>{
+    const live=management?managementSurfaceForProject(projectId,key):null;
     const recorded=receiptStates.get(key);
     return {
       key,
-      status:recorded??'partial' as const,
-      reason:recorded
+      status:live?.status??recorded??'partial' as const,
+      reason:live?live.reason:recorded
         ?'The recorded management check is available for this project version; open its page to review the basis.'
         :'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
-      issueAssessment:undefined,
+      issueAssessment:live?.issueAssessment,
     };
   });
 
-  // These richer role-specific analyses are intentionally left to their
-  // dedicated pages. They are NOT used to invent an unfinished project
-  // forecast or a false all-clear in this source-version summary.
-  const roleDiagnosis:any=null,roleCompletion:any=null;
-  const roleContext:any=null,roleInterfaces:any=null;
-  const forecastData:any=null;
-  // The full source-facts producer recalculates CPM, Delivery and Commercial.
-  // Do not silently launch this expensive work from the lightweight Overview
-  // merely to fill role previews. The portfolio and owning module pages
-  // publish those full figures after their own source-version calculation.
-  // Report unknown here, never an invented zero or a worker-cache-dependent
-  // figure. Overview's document and programme metadata remain source backed.
-  const projectFacts:any=null;
-  const canonicalActions:ReturnType<typeof projectActionRegisterForState>['actions']=[];
+  const pmo=calculated?.get('pmo-analysis')?.data as any;
+  const roleDiagnosis=pmo?.projectDiagnosis??null,roleCompletion=pmo?.completionPosition??null;
+  const roleContext=(management?.masterDashboard as any)?.managementContext??null;
+  const roleInterfaces=(management?.commandCenter as any)?.interfaces??null;
+  const forecastData=calculated?.get('independent-forecast')?.data as any;
+  const projectFacts=completedProjectFactsForState(state);
+  const actionEntry=projectActionCache.get(reportingState(state));
+  const canonicalActions=actionEntry?.version===state.version?actionEntry.value.actions:[];
   const compactActions=canonicalActions.slice(0,12).map(action=>({
     issue:action.issue??null,
     consequence:action.consequence??null,

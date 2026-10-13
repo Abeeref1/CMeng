@@ -35,3 +35,20 @@ No T01–T12 task, stage, SW root or full defect inventory is represented as clo
 - Correction: current-version **saved certification receipts** alone determine lightweight Overview readiness; specialist and management pages still provide their own independently calculated live position. The Overview never treats a transient warm result as adopted or confirmed project state.
 - Existing regression remains unchanged and must pass on the next integrated candidate; no source records, roles, login settings, decisions or contractual authority changed.
 - Status: code saved; automated verification still pending, not yet independently accepted or deployed.
+
+## Resumed batch — T05/T09/T10/T11, after `8d1e0e2`
+
+The latest section supersedes the receipts-only Overview implementation above.
+
+- Recovered exact remote head `8d1e0e2d5a2c3806adbc213bd09685895d4289f6` and CI run `38370353141`. Acceptance, raster and independent groups passed. Regression: 1,468/1,479 passed, 11 failed. Operations failed the unchanged five-second cold workload; four concurrent realistic project shapes took up to 12.397 seconds in CI. This is not release acceptance.
+- **Real defect, T05/T11, R1/R8, F07/F08/F09:** the previous receipts-only correction suppressed completed current-version results. Restore the same status/reason/issues as owning pages, and completed source facts for existing professional lenses, without triggering a cold full calculation from Overview. Source-version changes invalidate all reused facts; no account roles or authority decisions are added.
+- **Shared cache root:** the gateway retained the cold Overview for the same source version after specialists completed. Store a fresh lightweight Overview in the same worker turn after retaining calculated specialist/management results. It survives worker eviction using the existing release/version-scoped cache. Source inputs remain unchanged.
+- **Real presentation issue, T10/R7/F10:** management pages requested generic guidance before useful results. Lead only with a specific finding; generic guidance does not precede the primary view.
+- Reconciled obsolete wording assertions with current visible terminology (Not established, Responsible role, Next step, source claim statuses and current management headings). Missing payment checks still prohibit zero and fabricated balances. Project-review tests reconcile owner decisions plus team follow-ups to the entire shared register; no source/team actions are deleted.
+- Corrected the preservation test's contradictory requirement that navigation never change after a calculation finishes. It now verifies unchanged source/authority fields, exact original-server/worker parity, and equality of every completed navigation status/reason/issue assessment with its owning page. Paging still must report source preservation. Added stale-version and completed role-fact assertions.
+- Added root `AGENTS.md` so future coding sessions read this checkpoint first and preserve the owner's no-sign-in and one-candidate instructions.
+- Local verification: build/browser-bootstrap passes; targeted gateway/source/action suite 26/26 passes. The complete affected nine-file set passes 145/145, including the real HTTP gateway/source preservation check and every previously failing regression. Full CI remains required on the new commit.
+
+### Exact next unfinished action
+
+Continue **T11** with the existing `scripts/release-latency.cjs` profiles and unchanged 5,000 ms gate. The recovered local baseline took 5,466 ms for four realistic cold shapes (CI 12,397 ms); the 20,000-activity upload-to-ready was 4,803 ms locally. Investigate repeated full-project calculations/cold worker scheduling and measured bundle hotspots; retain all records and semantic outputs. Then continue T02/T03, T04, T05, T06–T08, T09/T10, and T12 as recorded above. This batch does not close those tasks, deploy anything, enable paid AI, or substitute local tests for the owner's final live review.

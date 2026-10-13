@@ -38,7 +38,7 @@ test('payment view keeps reported and calculated balances visible without doing 
 test('payment view preserves a missing calculated balance rather than deriving it from Paid status',()=>{
   const html=ledgerHtml(sourceRow(null,null,'missing'));
   // S-40: typed missing source stays missing, never computed from Paid status.
-  assert.match(html,/Not in source/);assert.doesNotMatch(html,/<b>820<\/b>/);
+  assert.match(html,/Not established/);assert.doesNotMatch(html,/<b>(?:820|0)<\/b>/);
   assert.match(html,/source figures, not verified receipt count/);
 });
 test('payment evidence references are escaped rather than executed as markup',()=>{

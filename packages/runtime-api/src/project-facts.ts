@@ -192,6 +192,13 @@ function projectedCount(
   return fact(value,basis,'from_register_not_confirmed',false,refs);
 }
 
+/** Read completed facts without starting a cold calculation for navigation. */
+export function completedProjectFactsForState(state:ProjectRuntimeState):ProjectFactsSnapshot|null{
+  state=reportingState(state);
+  const cached=cache.get(state);
+  return cached?.version===state.version?cached.value:null;
+}
+
 export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnapshot{
   // Facts are reporting facts. Cache them on the canonical read-only reporting
   // view so callers that start from persisted state and callers already working

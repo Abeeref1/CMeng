@@ -79,7 +79,7 @@ test("browser root serves CMeng UAT application", async () => {
         await response.text();
       assert.match(
         html,
-        /More management detail/,
+        /Project Director's additional controls/,
       );
       assert.match(
         html,

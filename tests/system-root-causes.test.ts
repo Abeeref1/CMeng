@@ -157,12 +157,17 @@ test('all management surfaces, the Director and project review use one complete 
  const state=loadCertifiedDemoProject('ONE-ACTION-REGISTER-'+randomUUID());
  const snapshot=projectFactsForState(state),register=projectActionRegisterForState(state);
  assert.equal(snapshot.actions.openCount.value,register.actions.length);
- assert.equal(register.workflow.actionCount,register.actions.length);
- assert.deepEqual(register.workflow.actions.map(a=>a.id),register.actions.map(a=>a.actionId));
+ assert.equal(register.workflow.actionCount,register.workflow.actions.length);
+ assert.equal(register.workflow.actionCount+register.workflow.teamFollowUpCount,register.actions.length);
+ assert.deepEqual(register.workflow.actions.map(a=>a.id),register.actions.filter(a=>register.workflow.actions.some(d=>d.id===a.actionId)).map(a=>a.actionId));
+ assert.ok(register.workflow.actions.every(a=>a.resolution?.requiresUserAction===true),'only actual owner decisions enter Project review');
  assert.equal(new Set(register.actions.map(a=>a.recordKey)).size,register.actions.length);
  for(const key of ['master-dashboard','command-center','cross-domain-accountability']){
    const data=moduleForProject(state.projectId,key).data as any;
-   assert.deepEqual(data.actions.map((a:any)=>a.actionId),register.actions.map(a=>a.actionId));
+   const decisionIds=new Set(register.workflow.actions.map(a=>a.id));
+   const expected=key==='cross-domain-accountability'?register.actions.filter(a=>!decisionIds.has(a.actionId)):register.actions;
+   assert.deepEqual(data.actions.map((a:any)=>a.actionId),expected.map(a=>a.actionId));
+   if(key==='cross-domain-accountability')assert.equal(data.actions.length+decisionIds.size,register.actions.length,'team work plus owner decisions covers the complete register');
    assert.equal(data.projectFacts.actions.openCount.value,register.actions.length);
  }
  const brief=moduleForProject(state.projectId,'pmo-analysis').data as any;

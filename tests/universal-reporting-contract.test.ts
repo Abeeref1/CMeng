@@ -312,10 +312,14 @@ test('a cold project overview reuses only finished version-matched calculations,
  assert.equal(matching.status,specialist.status);
  assert.equal(matching.reason,specialist.reason);
  assert.deepEqual(matching.issueAssessment,specialist.issueAssessment);
+ assert.equal(warm.roleLensContext.planning.criticalCount,(specialist.data as any).projectFacts.schedule.criticalActivityCount.value);
+ assert.ok(warm.roleLensContext.executive.metrics.length>0,'finished source facts remain available to existing management views');
  state.version++;
  const changed=overviewForProject(state.projectId)!;
  assert.equal(changed.moduleStates.find(item=>item.key==='pmo-analysis')?.status,'partial',
    'stale results from an earlier project version must not be presented as current');
+ assert.equal(changed.roleLensContext.planning.criticalCount,null);
+ assert.equal(changed.roleLensContext.executive.metrics.length,0,'stale role facts cannot survive a source-version change');
 });
 
 test('all specialist and management status surfaces use the same fail-closed readiness result',t=>{

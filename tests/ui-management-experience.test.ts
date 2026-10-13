@@ -442,7 +442,7 @@ test('generic guidance and complete date counts remain available without precedi
  const context={...common,data};
  assert.equal(runInNewContext(code+';renderPositionVerdict(data)+renderRegisterScope(data)',context),'');
  const detail=runInNewContext(code+';renderPositionVerdict(data,true)+renderRegisterScope(data,true)',context);
- assert.match(detail,/General guidance/);assert.match(detail,/Assign to/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
+ assert.match(detail,/General guidance/);assert.match(detail,/Responsible role/);assert.match(detail,/Certificates/);assert.match(detail,/2 \/ 2/);
 });
 
 test('resource unit labels translate known register codes and preserve other project units exactly',()=>{
@@ -502,7 +502,7 @@ test('primary findings hide internal codes and the banner action needs no click'
  const html=runInNewContext(code+';renderIssueAssessment({issues:[issue],counts:{}})',{...common,issue,issueBadge:()=>'',names:{},issueLabel:String});
  const main=html.replace(/<details[\s\S]*?<\/details>/g,'');assert.doesNotMatch(main,/CALENDAR_CYCLE|CLAUSE_PARSE_FAILURE|ACTIVITY_1/);assert.doesNotMatch(html,/CLAUSE_PARSE_FAILURE/,'screen details use the same plain vocabulary');assert.match(html,/clause parse failure/);
  const banner=runInNewContext(code+';renderPositionVerdict(data)',{...common,data:{positionVerdict:{specific:true,rag:'red',label:'Action required',text:'Completion is 53 days late.',nextAction:'Review the recovery plan.',assignTo:'Project Director',owner:'Not assigned',basis:'Completion dates'}}});
- const first=banner.split('<details')[0];assert.match(first,/Assign to:.*Project Director/);assert.match(first,/Next:.*recovery plan/);assert.doesNotMatch(banner,/assign a person/);
+ const first=banner.split('<details')[0];assert.match(first,/Responsible role:.*Project Director/);assert.match(first,/Next step:.*recovery plan/);assert.doesNotMatch(banner,/assign a person/);
 });
 
 test('executive date rollup has no technical table and normalized population labels occur once',()=>{

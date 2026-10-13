@@ -55,6 +55,22 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured,undefined,explicitlyParallel);
   const readStores=new Map<string,ProjectReadCache>();
   const reads=(id:string)=>{let cache=readStores.get(id);if(!cache)cache=new ProjectReadCache(projectDirectory(root,id));readStores.delete(id);readStores.set(id,cache);while(readStores.size>16)readStores.delete(readStores.keys().next().value!);return cache;};
+  async function retainCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
+    await reads(id).put(calculationRelease(),version,path,body);
+    const pathname=new URL(path,'http://localhost').pathname;
+    if(!/\/(?:management\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+|management-surfaces|director-position)$/.test(pathname))return;
+    // A source-version cache can contain a cold Overview even after specialist
+    // calculations finish. Publish their lightweight current navigation snapshot
+    // in the same worker turn, retaining it across worker eviction/restart.
+    // This reads existing results only; Overview never starts full analysis.
+    const overviewPath='/api/projects/'+encodeURIComponent(id)+'/overview';
+    try{
+      const response=await fetch('http://127.0.0.1:'+port+overviewPath,{signal:AbortSignal.timeout(5000)});
+      if(!response.ok||Number(response.headers.get('x-cmeng-project-version'))!==version)return;
+      const snapshot=Buffer.from(await response.arrayBuffer());
+      if(snapshot.length<=MAX_PROJECT_READ_BYTES)await reads(id).put(calculationRelease(),version,overviewPath,snapshot);
+    }catch(error){console.warn('[overview-snapshot] '+id+': '+String(error));}
+  }
   let closing=false,catalogWrites=Promise.resolve();
   let lastForegroundProjectRequestAt=Date.now();
   let activeForegroundRequests=0;
@@ -161,7 +177,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           const responseVersion=Number(page.headers.get('x-cmeng-project-version'));
           if(responseVersion===version&&catalog.get(id)?.metadata?.version===version&&
             !(updating.get(id)??0)&&bytes.length<=MAX_PROJECT_READ_BYTES)
-            await reads(id).put(calculationRelease(),version,route,bytes);
+            await retainCalculatedRead(id,port,version,route,bytes);
         });
       }catch{/* Background warming never blocks an interactive request. */}
     }
@@ -275,7 +291,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
               const key=id+'::'+uploadId,prior=progress.get(key);
               if(prior?.state!=='complete'&&prior?.state!=='failed')progress.set(key,{...prior,state:succeeded?'complete':'failed',percent:succeeded?100:prior?.percent??0,message:succeeded?'File processed · check Documents for the reading result':'The upload could not finish. Check the document register before retrying.',updatedAt:new Date().toISOString()});
             }
-            if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void reads(id).put(calculationRelease(),version,path,Buffer.concat(chunks)).then(resolve,resolve);
+            if(retain&&bytes<=MAX_PROJECT_READ_BYTES)void retainCalculatedRead(id,port,version,path,Buffer.concat(chunks)).then(resolve,resolve);
             else resolve();
           });forwardHttpBody(res,incoming);
         });
