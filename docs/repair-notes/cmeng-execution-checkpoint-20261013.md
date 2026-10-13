@@ -28,3 +28,10 @@ Source baseline: `8a34a6f6972b8c950ad46fd7b64995fdf3f344fb`. Do not use `main` a
 
 ## Current acceptance
 No T01–T12 task, stage, SW root or full defect inventory is represented as closed by this checkpoint. No new user approvals have been made.
+
+## Continued repair — T05 / R1 / R8 project Overview stability
+- Identified directly from existing failing regression `tests/project-gateway-preservation.test.ts` in the exact previous release CI: the Overview's `issueAssessment` and navigation status changed after visiting specialist pages despite no source/version change.
+- Shared root cause: `overviewForProject` read volatile resolved/management projection caches whose population depended on page-opening order.
+- Correction: current-version **saved certification receipts** alone determine lightweight Overview readiness; specialist and management pages still provide their own independently calculated live position. The Overview never treats a transient warm result as adopted or confirmed project state.
+- Existing regression remains unchanged and must pass on the next integrated candidate; no source records, roles, login settings, decisions or contractual authority changed.
+- Status: code saved; automated verification still pending, not yet independently accepted or deployed.

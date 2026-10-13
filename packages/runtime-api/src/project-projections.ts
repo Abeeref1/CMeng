@@ -8939,40 +8939,32 @@ export function overviewForProject(
   const scheduleEstablished =
     programmeSchedules.length > 0;
 
-  // Overview is a stable view of the retained project revision, NOT the
-  // incidental order in which workers or browser pages calculated specialist
-  // reports. Its current management facts are the canonical source facts;
-  // specialist pages hold their own more detailed calculations.
-  // Only a durable same-version rerun receipt may establish a specialist
-  // status in this light-weight summary. Warming another page cannot promote
-  // or rewrite the overview for unchanged source evidence.
-  // A controlled baseline requires an explicit project rerun/certification
-  // before opening a specialist can change the navigation readiness status.
-  // Without that baseline, current specialist calculations can be reflected
-  // as a working (not adopted) assessment, but only after they actually exist.
-  const baselineControlled=state.schedules.some(item=>item.role==='baseline'||item.role==='revised_baseline');
-  const finished=resolvedProjectCache.get(projectId);
-  // A completed calculation for this exact project version is authoritative
-  // for navigation regardless of whether a baseline exists. This does not
-  // create or promote an uncalculated specialist check; stale and absent
-  // results remain unavailable, and each module retains its own readiness.
-  const calculated=finished?.version===state.version?finished.modules:null;
+  // Overview must not depend on which specialist or management page happened
+  // to warm first. Only a saved certification for this exact project version
+  // may change readiness in the lightweight navigation summary. Detailed live
+  // findings remain available on the specialist pages, never used to mutate
+  // an unchanged source-version Overview merely by visiting another page.
   const overviewModuleStates=certifiedAnalyticalModules.map(module=>{
-    const live=calculated?.get(module.key);
-    const stored=receiptStates.get(module.key);
-    return {key:module.key,status:live?.status??stored??'partial' as const,
-      reason:live?live.reason:(stored?'The recorded specialist check is available for this project version; open its page to review the basis.':
-        'Specialist check not yet recorded for this project version; open the specialist page for its current findings.'),
-      issueAssessment:live?.issueAssessment};
+    const recorded=receiptStates.get(module.key);
+    return {
+      key:module.key,
+      status:recorded??'partial' as const,
+      reason:recorded
+        ?'The recorded specialist check is available for this project version; open its page to review the basis.'
+        :'Specialist check not yet recorded for this project version; open the specialist page for its current findings.',
+      issueAssessment:undefined,
+    };
   });
-  // Reuse ONLY already-calculated management positions from this exact source
-  // version. Do not start specialist work just to populate a cold Overview.
-  const managementCalculated=!baselineControlled&&managementProjectionCache.get(projectId)?.version===state.version;
   const overviewManagementStates=managementModuleKeys.map(key=>{
-    const existing=managementCalculated?managementSurfaceForProject(projectId,key):null;
-    return {key,status:existing?.status??'partial' as const,
-      reason:existing?.reason??'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
-      issueAssessment:existing?.issueAssessment};
+    const recorded=receiptStates.get(key);
+    return {
+      key,
+      status:recorded??'partial' as const,
+      reason:recorded
+        ?'The recorded management check is available for this project version; open its page to review the basis.'
+        :'Open this management page to review its current source-backed position. An overview does not certify a specialist page.',
+      issueAssessment:undefined,
+    };
   });
 
   // These richer role-specific analyses are intentionally left to their
