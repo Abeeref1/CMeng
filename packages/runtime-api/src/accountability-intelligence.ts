@@ -1,8 +1,9 @@
+import {projectScopeClassification} from './location-review';
 import {canonicalHeader,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
 import {operationalReporting,claimsReporting,reportingState} from './reporting-state';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
-import {scheduleScopeClassification} from './schedule-scope-classification';
+
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
 import {actionRecordKey,prioritizeActions,pmcRoleOwner} from './action-priority';
@@ -97,7 +98,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   const programme=projectControlSchedule(state)?.revision.model??null;
   const programmeActivities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
   if(programme){
-    const classification=scheduleScopeClassification(programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
+    const classification=projectScopeClassification(state,programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
     for(const a of programme.activities){
       if(a.status==='completed'||['wbs_summary','level_of_effort'].includes(a.activityType))continue;
       const missedStart=!!a.currentStartIso&&!!dataDateIso&&a.currentStartIso.slice(0,10)<dataDateIso&&a.status==='not_started';

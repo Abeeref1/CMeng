@@ -1,3 +1,4 @@
+import {projectScopeClassification} from './location-review';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
 import {buildForecastReconciliationGate} from './forecast-control';
@@ -28,7 +29,7 @@ import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
 import {sourceInterpretation} from "./source-interpretation";
-import {scheduleScopeClassification,scopeClassificationGroups} from "./schedule-scope-classification";
+import {scopeClassificationGroups} from "./schedule-scope-classification";
 import {scheduleRiskMonteCarlo} from "./schedule-risk-monte-carlo";
 import {earnedScheduleForState,evmByWbsForState,riskRegisterForState,contractRiskForState,finalAccountForState} from "./advanced-controls";
 import {tenderReadinessForState} from './tender-readiness';
@@ -1377,7 +1378,7 @@ function buildBundle(
       {
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
-      scopeClassification: scheduleScopeClassification(model),
+      scopeClassification: projectScopeClassification(state,model),
       readinessEvidence: state.controls.readinessEvidence,
           config: scheduleAnalysisConfig,
         generatedAt,
@@ -5767,7 +5768,7 @@ function buildSpecialistModuleFast(
         {
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
-      scopeClassification: scheduleScopeClassification(model),
+      scopeClassification: projectScopeClassification(state,model),
       readinessEvidence: state.controls.readinessEvidence,
           config: scheduleAnalysisConfig,
           generatedAt,
@@ -7433,12 +7434,12 @@ function resolveProjectModuleUncertified(
   if(key==='scope-classification'){
     const current=projectControlSchedule(state);
     if(!current)return blocked(key,'Select an adopted reporting programme to establish schedule scope classifications.',['adopted programme']);
-    const classification=scheduleScopeClassification(current.revision.model);
+    const classification=projectScopeClassification(state,current.revision.model);
     const materiallyClassified=classification.coverage.filter(row=>!['wbsId','wbsPath','wbsLevel'].includes(String(row.key))&&row.classified>0);
     return {key,status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',reason:null,dependencies:['adopted programme','source WBS/activity text'],
       data:{projectionKey:'scope_classification',schemaVersion:'1.0',projectId:state.projectId,sourceRevisionId:current.revision.revisionId,dataDateIso:current.revision.model.dataDateIso,
-        ...classification,dimensionGroups:scopeClassificationGroups(classification),classificationState:materiallyClassified.length?'source_derived_available':'wbs_only',
-        basis:'Classifications are deterministic readings of explicit source WBS/activity text. They support filtering but do not silently become governed location, discipline, package or contractor master data.'}};
+        ...classification,dimensionGroups:scopeClassificationGroups(classification),classificationState:classification.rows.some(row=>row.classificationBasis.location==='user_reviewed')?'reviewed_location_mapping':materiallyClassified.length?'source_derived_available':'wbs_only',
+        basis:'Classifications retain explicit source WBS/activity readings. Location grouping can additionally use an explicitly reviewed WBS mapping, labelled user reviewed on each affected row. These classifications support filtering and do not establish master data or contractual authority.'}};
   }
   const sourceResource = canonicalResourceModule(state, key) ?? canonicalCommercialModule(state, key);
   if (sourceResource) {
@@ -7661,10 +7662,10 @@ function resolveProjectModuleCandidate(
       })() : {}),
       ...(key === "milestones" ? { movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.varianceDays)) } : {}),
       ...(key === "activity-analytics" ? {
-        rows:(()=>{const classification=scheduleScopeClassification(model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),
+        rows:(()=>{const classification=projectScopeClassification(state,model),byId=new Map(classification.rows.map(row=>[row.activityId,row]));return (data.rows??[]).map((row:any)=>{const scope=byId.get(row.activityId);return {...row,...activityDelayStatus(row),
           wbsPath:scope?.wbsPath??null,wbsLevel:scope?.wbsLevel??null,plot:scope?.plot??null,location:scope?.location??null,zone:scope?.zone??null,floor:scope?.floor??null,level:scope?.level??null,tower:scope?.tower??null,building:scope?.building??null,area:scope?.area??null,workFront:scope?.workFront??null,
           phase:scope?.phase??null,section:scope?.section??null,chainage:scope?.chainage??null,discipline:scope?.discipline??null,trade:scope?.trade??null,system:scope?.system??null,package:scope?.package??null,cbs:scope?.cbs??null,contractor:scope?.contractor??null,subcontractor:scope?.subcontractor??null};});})(),
-        scopeClassification:scheduleScopeClassification(model),
+        scopeClassification:projectScopeClassification(state,model),
         counts: activityAnalyticsCounts(data.rows ?? []),
         movementDistribution: numericDistribution((data.rows ?? []).map((row: any)=>row.finishVarianceDays)),
         movementAnalysis: (()=>{const history=analyticalHistory(state);const current=projectControlSchedule(state)!;const index=history.findIndex(r=>r.revision.revisionId===current.revision.revisionId);const previous=index>0?history[index-1]:null;const baseline=state.schedules.find(r=>r.revision.revisionId===data.controlledBaselineRevisionId);return activityMovementAnalysis(data.rows??[],{dataDateIso:model.dataDateIso,currentRevisionId:current.revision.revisionId,currentLabel:current.revision.label??current.sourceFilename??current.revision.revisionId,baselineRevisionId:data.controlledBaselineRevisionId??null,baselineLabel:baseline?.revision.label??null,previousRevisionId:previous?.revision.revisionId??null,previousLabel:previous?.revision.label??null,previousRows:previous?.revision.model.activities??[]});})(),

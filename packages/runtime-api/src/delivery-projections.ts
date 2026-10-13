@@ -1,3 +1,4 @@
+import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {cachedIndependentForecast} from './forecast-cache';
@@ -14,7 +15,7 @@ import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type 
 import {deliveryRecords,deliveryStore,deliveryPopulationFingerprint,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
-import {scheduleScopeClassification} from './schedule-scope-classification';
+
 import {registerProgrammeContext} from './register-programme-context';
 import {buildLookAheadProjection} from '../../lookahead-schedule/src';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
@@ -354,7 +355,7 @@ function buildDelivery(state:ProjectRuntimeState){
  // not hide programme progress that is already classified in Activity Review.
  if(model)for(const dimension of ['discipline','location'] as const){
   if([...scopeGroups.values()].some(group=>group.dimension===dimension))continue;
-  for(const row of scheduleScopeClassification(model).rows){
+  for(const row of projectScopeClassification(state,model).rows){
    const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
    group.activityIds.add(row.activityId);scopeGroups.set(key,group);
@@ -603,7 +604,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const scopedProgramme=key==='construction-readiness'&&!rows.length?reportingState(state):null;
  const readinessModel=scopedProgramme?projectControlSchedule(scopedProgramme)?.revision.model:null;
  const programmeReadiness=readinessModel?buildLookAheadProjection(readinessModel,{generatedAt:new Date().toISOString(),producerVersion:'shared-lookahead-readiness',drivingActivityIds:cachedIndependentForecast(readinessModel,new Date().toISOString()).drivingNetwork?.activityIds,readinessEvidence:scopedProgramme!.controls.readinessEvidence}):null;
- const readinessClassifications=readinessModel?new Map(scheduleScopeClassification(readinessModel).rows.map(row=>[row.activityId,row])):new Map();
+ const readinessClassifications=readinessModel?new Map(projectScopeClassification(state,readinessModel).rows.map(row=>[row.activityId,row])):new Map();
  if(programmeReadiness)rows=programmeReadiness.rows.map(row=>({...row,reference:row.activityId,description:row.name,
   discipline:readinessClassifications.get(row.activityId)?.discipline??null,readinessPercent:pct(row.readiness.readyCount,row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length),
   state:row.readiness.state==='conditional'?'unknown':row.readiness.state,unknownCount:row.readiness.unknownCount,
@@ -736,7 +737,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(key==='delivery-control'){extras.readiness=p.readiness;extras.managementActions=deliveryControlActions;}
  if(['procurement-scurves','delivery-submittals','material-tracking'].includes(key)){extras.curves=p.curves.filter(c=>key==='procurement-scurves'||key==='delivery-submittals'&&c.kind==='submittal_throughput'||key==='material-tracking'&&c.kind==='material_quantity');extras.weightedGroups=p.weightedGroups;}
  if(key==='delivery-hse')extras.hsePosition=p.hsePosition;
- if(key==='construction-locations')extras.locations=p.locations;
+ if(key==='construction-locations'){extras.locations=p.locations;extras.locationReview=locationReviewSummary(state);}
  if(key==='delivery-risks')extras.riskBasis=p.existingAuthorities.risk;
  if(key==='delivery-commissioning')extras.systems=p.commissioningSystems;
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];

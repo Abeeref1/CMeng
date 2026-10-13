@@ -1,3 +1,5 @@
+import {locationReviewBasis} from './location-review';
+import {scheduleScopeClassification} from './schedule-scope-classification';
 import {milestoneReviewBasis} from './milestone-review';
 import {hseReportPosition} from './hse-report-evidence';
 import {documentClassificationForReview,documentClassificationChoices} from './document-identification';
@@ -33,7 +35,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewActivityIds?:string[];reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -381,6 +383,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       resolution:{kind:'choose',requiresUserAction:required,instruction:'Review the current activity register. Enter exact activity IDs to track their finish dates as key dates, or explicitly confirm no programme milestones when none are identified in the source. This does not change activity types, dates or contractual commitments.',completionRule:'The editable selection is saved for this programme source and reporting date. A new programme requires review again.'},
       target:{type:'inline',kind:'review-milestones',label:'Save milestone review',reviewChoice:saved?.choice??null,reviewActivityIds:saved?.activityIds??[],reviewReference:saved?.reference??null,
         reviewOptions:[{value:'track_key_dates',label:'Track selected programme activities as key dates'},...(milestoneReview.sourceMilestoneCount?[]:[{value:'no_programme_milestones',label:'Confirm this programme has no milestones'}])]}};
+    (required?actions:information).push(item);
+  }
+
+  const locations=locationReviewBasis(state),locationModel=projectControlSchedule(state)?.revision.model;
+  if(locations&&locationModel&&(locations.wbsCandidates.length||locations.assetCandidates.length)){
+    const saved=locations.decision,unclassified=scheduleScopeClassification(locationModel).rows.filter(r=>!r.location).length,required=!saved&&unclassified>0;
+    const item:ProjectAction={id:'matter:location-grouping',category:required?'confirmation':'information',title:'Review candidate programme locations',owner:'Construction Manager',recordCount:unclassified,
+      reason:'Source WBS area names and asset locations can support reviewed grouping; their names alone do not establish programme location assignments.',reviewFingerprint:locations.sourceFingerprint,reviewSourceRefs:locations.sourceRefs,
+      evidenceSummary:['Programme: '+locations.sourceFilename,locations.wbsCandidates.length+' WBS candidates; '+locations.assetCandidates.length+' asset location values; '+unclassified+' activities without a source location',...locations.wbsCandidates.slice(0,8).map(c=>c.wbsId+': '+c.location)],
+      resolution:{kind:'choose',requiresUserAction:required,instruction:'Open Location / Floor / Zone for all WBS and asset candidates. Enter one WBS ID per line to use its source name, or WBS ID | exact candidate location to map an asset location. The nearest selected WBS ancestor supplies otherwise-unclassified activities; explicit source locations remain unchanged.',completionRule:'This review is saved against the programme and asset source versions and can be edited here.'},
+      target:{type:'inline',kind:'review-locations',label:'Save location review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewLocationsText:(saved?.locationAssignments??[]).map(a=>a.wbsId+' | '+a.location).join('\n'),
+        reviewOptions:[{value:'confirm_wbs_locations',label:'Use the entered WBS-to-location mappings'},{value:'keep_source_locations',label:'Keep explicit source locations only'}]}};
     (required?actions:information).push(item);
   }
 

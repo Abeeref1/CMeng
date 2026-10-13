@@ -676,3 +676,11 @@ test('Milestones offers a source-bound review route and labels a reviewed absenc
  const pending=runInNewContext(functions(['renderMilestonesVisual','renderMilestoneReview','projectionFor'])+';renderMilestonesVisual(data)',{...common,data:{projectionKey:'milestones',rows:[],populationState:'partial',unknownActivityTypeCount:9500,milestoneCount:0,review:{choice:null}}});
  assert.match(pending,/9500/);assert.match(pending,/Review milestone selection/);assert.match(pending,/does not establish zero milestones/);
 });
+
+test('location review shows source candidates and saved mappings without asserting automatic assignment',()=>{
+ const nodes:Record<string,{innerHTML:string;textContent:string}>={};
+ const review={wbsCandidates:[{wbsId:'W-A',location:'North wing',path:'Project / North wing',activityCount:240}],assetCandidates:[{location:'FM plant',assetCount:120,basis:'Reported source location'}],decision:{choice:'confirm_wbs_locations',reference:'LOCATION-CHECK',locationAssignments:[{wbsId:'W-A',location:'FM plant'}]}};
+ const html=runInNewContext(deliveryScript()+`;const panel=renderLocationCandidateReview(review);refreshDeliveryTable('locationWbsCandidates');refreshDeliveryTable('locationAssetCandidates');refreshDeliveryTable('locationSavedMappings');panel`,{...common,review,el:(id:string)=>nodes[id]??={innerHTML:'',textContent:''},document:{querySelectorAll:()=>[]}});
+ assert.match(html,/LOCATION-CHECK/);assert.match(html,/Existing source location classifications remain unchanged/);assert.match(html,/openProjectActions\(\)/);
+ assert.match(nodes.locationWbsCandidatesBody!.innerHTML,/North wing/);assert.match(nodes.locationAssetCandidatesBody!.innerHTML,/FM plant/);assert.match(nodes.locationSavedMappingsBody!.innerHTML,/W-A/);
+});

@@ -326,3 +326,25 @@ test('programme milestone review persists without editing source types and expir
  const changed=(await get('/schedule/modules/milestones')).data;assert.equal(changed.populationState,'partial');assert.equal(changed.review.choice,null);assert.equal(changed.reviewedKeyDateCount,0);
  workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-milestones'));
 });
+
+test('location review persists through restart and source replacement reopens the same candidate decision',async t=>{
+ const root=mkdtempSync(join(tmpdir(),'location-review-api-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+ t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+ const listen=async()=>{await new Promise<void>(r=>gateway.server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
+ const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+ assert.equal((await post('/api/projects',{projectId:'LOC-REVIEW'})).status,201);
+ const schedule=(date:string)=>xer(date,'Concrete work').replace('%T\tTASK','%T\tPROJWBS\n%F\twbs_id\tproj_id\tparent_wbs_id\twbs_name\n%R\tW1\t1\t\tManufacturing North\n%T\tTASK').replace('task_name\ttarget_start_date','task_name\twbs_id\ttarget_start_date').replace('Concrete work\t2031','Concrete work\tW1\t2031');
+ const upload=(date:string)=>fetch(base+'/api/projects/LOC-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'replace_current_basis'},body:schedule(date)});
+ assert.equal((await upload('2031-08-31')).status,201);
+ const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/LOC-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
+ let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-locations');assert.ok(action);
+ const request=(values:any)=>post('/api/projects/LOC-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_wbs_locations',locationAssignmentsText:'W1',reference:'LOC-CHECK',...values});
+ for(const invalid of [{expectedVersion:workflow.projectVersion-1},{sourceFingerprint:'old'},{locationAssignmentsText:'INVALID'},{reference:''}])assert.equal((await request(invalid)).status,409);
+ assert.equal((await request({})).status,200);
+ let projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,'Manufacturing North');assert.equal(projection.rows[0].classificationBasis.location,'user_reviewed');
+ await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-locations');assert.ok(action);assert.equal(action.target.reviewLocationsText,'W1 | Manufacturing North');
+ const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/review-location-assignments/);assert.match(html,/LOC-CHECK/);
+ projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,'Manufacturing North');
+ assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-locations'));
+ projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,null);
+});

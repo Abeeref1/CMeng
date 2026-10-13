@@ -1,6 +1,6 @@
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,CanonicalWbsNode} from '../../schedule-analysis-core/src';
 
-export type ScopeClassificationBasis='source_wbs'|'source_activity_text'|'source_derived'|'unavailable';
+export type ScopeClassificationBasis='source_wbs'|'source_activity_text'|'source_derived'|'user_reviewed'|'unavailable';
 export interface ActivityScopeClassification {
   activityId:string;
   wbsId:string|null;
