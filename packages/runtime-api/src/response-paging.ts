@@ -164,6 +164,10 @@ export function pageProjectResponse(
    if(typeof value!=='object')return String(value);
    if(key==='projectFacts')return normalizedFacts;
    if(key==='filterOptions'||key==='filterDomains'||key==='activitySummary'||key==='completionMilestoneConstraints'||key==='briefCommercialPosition')return value;
+   // These values populate editable controls. Paging an ID list or clipping a
+   // saved mapping/reference can turn a later save into an unintended partial
+   // replacement. Keep the complete decision input; findings remain pageable.
+   if(key==='target'&&/\/(?:actions|information|dataGaps)\/\d+\/target$/.test(pointer)&&value.type==='inline'&&typeof value.kind==='string'&&value.kind.startsWith('review-'))return value;
    if(key==='sourceLabels'){changed=true;return {};}
    if(seen.has(value))return {detailAvailable:true};
    if(depth>budget.depth){

@@ -12,6 +12,7 @@ import {createProjectGateway} from '../packages/runtime-api/src/project-gateway'
 import {runInNewContext} from 'node:vm';
 import {projectActionsScript} from '../packages/runtime-api/src/ui-project-actions';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
+import {pageProjectResponse,PROJECT_SCREEN_MAX_BYTES} from '../packages/runtime-api/src/response-paging';
 
 function fixture(t:any){
  const root=mkdtempSync(join(tmpdir(),'task-scope-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -80,4 +81,12 @@ test('task and milestone review submit real multiline activity IDs from the rend
   await runInNewContext(projectActionsScript+`;projectActionState={projectId:'P',status:'ready',data:{projectVersion:4,actions:[action]}};resolveReviewDecision('scope')`,{...context});
   assert.equal(sent.length,1);assert.deepEqual(sent[0].activityIds,['A1','A2']);assert.equal(sent[0].reference,'CHECK');
  }
+});
+
+test('screen paging preserves complete editable task, milestone and location decisions',()=>{
+ const ids=Array.from({length:20000},(_,i)=>'ACT-'+i),mapping=Array.from({length:500},(_,i)=>'WBS-'+i+' | Source area '+i).join('\n');
+ const actions=[{id:'scope',target:{type:'inline',kind:'review-programme-tasks',reviewActivityIds:ids,reviewReference:'SCOPE-CHECK'}},{id:'milestones',target:{type:'inline',kind:'review-milestones',reviewActivityIds:ids}},{id:'locations',target:{type:'inline',kind:'review-locations',reviewLocationsText:mapping,reviewReference:'REFERENCE '.repeat(1000)}}];
+ const result=pageProjectResponse({projectId:'P',projectVersion:1,actions:actions.slice(0,1),information:actions.slice(1),dataGaps:actions.slice(1)},'/api/projects/P/actions') as any;
+ assert.deepEqual(result.actions[0].target.reviewActivityIds,ids);assert.deepEqual(result.information[0].target.reviewActivityIds,ids);assert.equal(result.dataGaps[1].target.reviewLocationsText,mapping);assert.equal(result.information[1].target.reviewReference,actions[2]!.target.reviewReference);assert.ok(Buffer.byteLength(JSON.stringify(result))<PROJECT_SCREEN_MAX_BYTES);
+ const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action:result.actions[0],escapeHtml:String});assert.match(html,/ACT-19999/);
 });
