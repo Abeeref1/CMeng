@@ -87,6 +87,8 @@ export interface CommercialClaimsNoticesPosition {
   commercialLifecycleLinkCoveragePercent:
     number | null;
   claimStateCounts: Record<ClaimState, number>;
+  /** Full retained source population, including future and undated identities. */
+  sourceClaimCount?: number;
   sourceClaimStateCounts?: Record<ClaimState, number>;
   sourceClaimStatusCounts?: Record<string, number>;
   noticeKindCounts: Record<NoticeKind, number>;

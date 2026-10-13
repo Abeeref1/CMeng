@@ -3676,7 +3676,7 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
   }
-  const performance=position.performance||null;
+  const performance=position.performance||(key==="cost-forecast"?{}:null);
   if(key==='contract-particulars-bonds'&&foundation?.commercialTerms?.datedTerms?.length){
     const terms=foundation.commercialTerms.datedTerms;
     const labels={ldRate:'Delay damages rate',ldCap:'Delay damages cap',retentionPercent:'Retention rate',retentionCapPercent:'Retention cap',paymentPeriodDays:'Payment period',noticePeriodDays:'Initial claim notice',performanceSecurity:'Performance security',advanceSecurity:'Advance payment security'};
@@ -3789,8 +3789,8 @@ function renderCommercialVisual(key,data){
           ],null,{unit:series.currency,yLabel:"Cost",xLabel:"Reporting date"})
         );
       }).join("");
-      performanceDetail='<section class="planning-panel primary cost-forecast-primary"><div class="planning-panel-head"><div><h4>Cost Snapshot & Forecast Position</h4><p>PV, EV, AC and source EAC are the primary cost-control view. Source and calculated positions remain explicitly separated.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+costCurveSections+'</div></div></section>'+
-        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>EVM Curves & Performance Indices</h4><p>PV / EV / AC and calculated SPI / CPI require at least two comparable observations to establish a trend.</p></div></div><div class="planning-panel-body">'+evmSections+'</div></section>'+
+      performanceDetail='<section class="planning-panel primary cost-forecast-primary"><div class="planning-panel-head"><div><h4>Cost Snapshot & Forecast Position</h4><p>PV, EV, AC and source EAC are the primary cost-control view. Source and calculated positions remain explicitly separated.</p></div></div><div class="planning-panel-body"><div class="commercial-visual-grid">'+(costCurveSections||'<div class="empty-visual"><b>No cost snapshot is established for the current reporting scope.</b> Dated PV, EV, AC or source EAC observations with a currency and tax basis are needed. Review the Cost source ledger below for retained records and unresolved source mapping. Missing observations remain unavailable.</div>')+'</div></div></section>'+
+        '<section class="planning-panel"><div class="planning-panel-head"><div><h4>EVM Curves & Performance Indices</h4><p>PV / EV / AC and calculated SPI / CPI require at least two comparable observations to establish a trend.</p></div></div><div class="planning-panel-body">'+(evmSections||'<div class="empty-visual"><b>No EVM observations are established for the current reporting scope.</b> Confirm dated PV, EV and AC records on a comparable currency and tax basis. A single observation can show a snapshot; at least two comparable observations are needed for a trend. SPI and CPI remain unavailable when their required values are missing.</div>')+'</div></section>'+ 
         controlSections;
     }
     if(key==="cash-flow"){
@@ -4269,13 +4269,13 @@ function renderCommercialVisual(key,data){
     const sourceStatusCounts=cn.sourceClaimStatusCounts;
     const timeliness=cn.noticeTimelinessCounts||{};
     const kindCounts=cn.noticeKindCounts||{};
-    const lifecyclePopulationEstablished=cn.lifecycleClaimCount>0&&!!cn.sourceClaimStateCounts;
+    const lifecyclePopulationEstablished=(cn.sourceClaimCount??cn.lifecycleClaimCount)>0&&!!cn.sourceClaimStateCounts;
     const noticeAssessmentPopulationEstablished=Array.isArray(cn.noticeAssessments)&&cn.noticeAssessments.length>0;
     const noticePopulationEstablished=Array.isArray(cn.notices)&&cn.notices.length>0;
     const noticeEvidenceGapCount=(timeliness.requirement_conflicted??0)+(timeliness.requirement_missing??0)+(timeliness.event_date_missing??0)+(timeliness.notice_date_missing??0);
     const claimLifecycleVisual=renderVisualPanel(
       "Source claim statuses",
-      "Status wording and counts come from the full claim register. A reported acceptance does not by itself establish a formal determination or award.",
+      "Status wording and counts come from the full claim register, including future and undated records. These are source descriptions, not reconstructed stages at the Data Date. A reported acceptance does not by itself establish a formal determination or award.",
       lifecyclePopulationEstablished?renderVisualBars(sourceStatusCounts?Object.entries(sourceStatusCounts).map(([label,value])=>({label,value,tone:'accent'})):[
         {label:"Draft",value:stateCounts.draft??0,tone:"neutral"},
         {label:"Submitted",value:stateCounts.submitted??0,tone:"accent"},
@@ -4325,6 +4325,7 @@ function renderCommercialVisual(key,data){
     detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Financial claim review</h4><p>This is the financial view of the same claim identities used in Delay & Time Entitlement. Counts are shared, not additional claims; reported register amounts and dated decisions remain separate.</p></div></div><div class="planning-panel-body">'+
       planningKpis([
         ["Lifecycle claims by Data Date",countPosition(cn.state,cn.lifecycleClaimCount,"claims"),"current population; historical stage dates incomplete"],
+        ["Full source claim register",countPosition(cn.state,cn.sourceClaimCount??cn.lifecycleClaimCount,"claims"),"includes future and undated claim identities"],
         ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register"],
         ["Events",countPosition(cn.state,cn.eventCount,"events"),"recorded delay events"],
         ["Notices by Data Date",cn.asOfNoticeCount??"Not established","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",fmt(cn.futureNoticeCount??0)+" / "+fmt(cn.undatedNoticeCount??0),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not established","overlaps other evidence gaps"],

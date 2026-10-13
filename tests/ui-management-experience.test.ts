@@ -631,3 +631,39 @@ test('grouped management actions distinguish follow-up deadlines from overdue so
  const deadline=runInNewContext(functions(['actionDeadlineText'])+';actionDeadlineText(action)',{...common,action:{...action,dueIso:'2031-04-20'}});
  assert.match(deadline,/Action due 2031-04-20/);assert.match(deadline,/Earliest source due 2031-04-10/);
 });
+
+function commercialRenderContext(position:any){
+ const names=new Set<string>();
+ const node=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderCommercialVisual')!;
+ function visit(n:Node){if(isCallExpression(n)&&isIdentifier(n.expression))names.add(n.expression.text);forEachChild(n,visit);}
+ visit(node);
+ const layout=Object.fromEntries([...names].filter(n=>!['Number','String','Array','Object'].includes(n)).map(n=>[n,()=> '']));
+ const charts:any[]=[];
+ return {...layout,...common,charts,data:{position},projectionFor:(d:any)=>d,metricValue:(m:any)=>m?.value??null,
+  renderVisualPanel:(title:string,description:string,body:string)=>'<h5>'+title+'</h5><p>'+description+'</p>'+body,
+  renderLineChart:(points:any,series:any)=>{charts.push({points,series});return '<svg>Source observations</svg>';},
+  renderVisualBars:(rows:any[])=>rows.map(r=>r.label+': '+r.value).join('; ')};
+}
+test('Cost Outlook explains empty snapshots and EVM data while retaining a partial source series',()=>{
+ const code=functions(['renderCommercialVisual'])+';renderCommercialVisual("cost-forecast",data)';
+ for(const performance of [undefined,{costControl:{positions:[]},costScurve:{series:[]},evmPerformance:{series:[]}}]){
+  const ctx=commercialRenderContext({currencies:[],performance});
+  const html=runInNewContext(code,ctx);
+  assert.match(html,/No cost snapshot is established/);assert.match(html,/No EVM observations are established/);
+  assert.match(html,/Cost source ledger below/);assert.equal(ctx.charts.length,0);
+ }
+ const position={currencies:[],performance:{costScurve:{series:[{currency:'EUR',points:[{asOf:'2031-02-01',plannedCost:{value:500},actualCost:{value:null}}]}]},evmPerformance:{series:[]}}};
+ const before=JSON.stringify(position),ctx=commercialRenderContext(position);
+ const html=runInNewContext(code,ctx);
+ assert.match(html,/EUR · Cost snapshot/);assert.match(html,/Source observations/);assert.match(html,/No EVM observations/);
+ assert.doesNotMatch(html,/No cost snapshot is established/);
+ assert.equal(ctx.charts[0].points[0].planned,500);assert.equal(ctx.charts[0].points[0].actual,null);
+ assert.equal(JSON.stringify(position),before);
+});
+test('Financial Claims renders full accepted source counts even when none are dated by the cutoff',()=>{
+ const ctx=commercialRenderContext({currencies:[],claimsNotices:{state:'candidate',sourceClaimCount:14,lifecycleClaimCount:0,sourceClaimStateCounts:{unknown:14},sourceClaimStatusCounts:{Accepted:14},claims:[]}});
+ const html=runInNewContext(functions(['renderCommercialVisual'])+';renderCommercialVisual("commercial-claims-notices",data)',ctx);
+ assert.match(html,/Accepted: 14/);assert.match(html,/including future and undated records/);
+ assert.match(html,/does not by itself establish a formal determination or award/);
+ assert.doesNotMatch(html,/Unknown: 14/);assert.doesNotMatch(html,/No confirmed claim lifecycle population/);
+});

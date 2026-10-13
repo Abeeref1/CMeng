@@ -191,10 +191,10 @@ function commercialClaimsNotices(
 
   const sourceClaimStateCounts={...claimStateCounts};
   for(const key of Object.keys(sourceClaimStateCounts) as Array<keyof typeof sourceClaimStateCounts>)sourceClaimStateCounts[key]=0;
-  for(const claim of lifecycle?.claims??[])sourceClaimStateCounts[claim.sourceRegister?.state??claim.state]++;
+  for(const claim of sourceLifecycle?.claims??[])sourceClaimStateCounts[claim.sourceRegister?.state??claim.state]++;
 
   const sourceStatuses=new Map<string,number>();
-  for(const claim of lifecycle?.claims??[]){const status=claim.sourceRegister?.sourceStatus.trim()||claim.state.replaceAll('_',' ');sourceStatuses.set(status,(sourceStatuses.get(status)??0)+1);}
+  for(const claim of sourceLifecycle?.claims??[]){const status=claim.sourceRegister?.sourceStatus.trim()||claim.state.replaceAll('_',' ');sourceStatuses.set(status,(sourceStatuses.get(status)??0)+1);}
   const sourceClaimStatusCounts=Object.fromEntries(sourceStatuses);
 
   const noticeKindCounts:
@@ -323,6 +323,7 @@ function commercialClaimsNotices(
     commercialLifecycleLinkCoveragePercent:
       linkCoverage,
     claimStateCounts,
+    sourceClaimCount: sourceLifecycle?.claims.length ?? 0,
     sourceClaimStateCounts,
     sourceClaimStatusCounts,
     noticeKindCounts,

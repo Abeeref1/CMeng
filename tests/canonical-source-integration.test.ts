@@ -1383,3 +1383,22 @@ test('a risk snapshot does not overwrite a supplied invalid status date',t=>{
  assert.deepEqual(risk.snapshotCandidates.map((r:any)=>r.riskId),['EMPTY']);
  assert.equal(risk.undatedRecordCount,1);assert.equal(risk.complete,false);
 });
+
+test('Financial Claims preserves accepted source wording across full, future and undated populations without an award',t=>{
+ const {state,csvDoc}=fixture(t);
+ csvDoc('Claim ID,Event,Notice Date,Days Claimed,Source Granted Days,Status\nACCESS-DELTA,Client access restriction,2026-07-02,31,17,Accepted\nDESIGN-ORBIT,Revision of process design,2026-10-09,46,29,Accepted\nUTIL-GAMMA,Undated utility diversion,,23,11,Accepted','delay_eot_claims_register');
+ const source=canonicalTimeClaims(state).delayClaims!;
+ const original=JSON.stringify(source);
+ const position=(canonicalCommercialModule(state,'commercial-claims-notices')!.data as any).position;
+ const claims=position.claimsNotices;
+ assert.equal(claims.sourceClaimCount,3);
+ assert.deepEqual(claims.sourceClaimStatusCounts,{Accepted:3});
+ assert.equal(claims.lifecycleClaimCount,1);
+ assert.equal(claims.claimStateCounts.determined,0);
+ assert.equal(claims.noticeKindCounts.determination,0);
+ assert.equal(claims.claims[0].sourceRegister.sourceStatus,'Accepted');
+ assert.equal(claims.claims[0].sourceRegister.registerGrantedDays,17);
+ assert.equal(claims.claims[0].assessedDays,null);
+ assert.equal(claims.claims[0].assessedDaysState,'missing');
+ assert.equal(JSON.stringify(source),original,'projection preserves the source register and candidate amounts');
+});
