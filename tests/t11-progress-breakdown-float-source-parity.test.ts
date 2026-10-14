@@ -64,6 +64,7 @@ test('T06/T11 WBS, ancestor and complete progress breakdown float counts match u
     check('direct '+row.wbsId,row,subset);
    }
    const ancestors=new Map(wbs.map(w=>[w.wbsId,w.parentWbsId] as const));
+   assert.ok(result.hierarchyRows,'complete specialist hierarchy must remain present');
    for(const row of result.hierarchyRows){
     const subset=activities.filter((a:any)=>{
      let current=a.wbsId;
