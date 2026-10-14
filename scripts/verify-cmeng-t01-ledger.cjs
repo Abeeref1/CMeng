@@ -101,6 +101,62 @@ assert.equal(new Set(overlap.distinctSwCandidateRootIds).size,15);
 for(const id of overlap.distinctSwCandidateRootIds)
  assert.ok(ledger.sw.some(item=>item.id===id),'proposed ABB root exists in original SW population: '+id);
 
+// The exact owner workbook supplied 522 candidate SW overlaps, with 57
+// problem observations still lacking a SW label. These are proposed root
+// hypotheses, not passed checks or signed acceptance. Retain every dual root.
+assert.equal(overlap.individualSourceOverlapImported,true);
+assert.equal(overlap.individualMappedProblemCount,522);
+assert.equal(overlap.individualUnmappedProblemCount,57);
+const rootToIds=new Map();
+let proposedMapped=0,notMapped=0,untouchedCorrect=0,multiRoot=0;
+for(const row of ledger.abb.individualObservations){
+  const roots=row.proposedSwRootIds??[];
+  assert.equal(new Set(roots).size,roots.length,'duplicate cause label on '+row.id);
+  if(row.historicalVerdict==='Originally correct'){
+    untouchedCorrect++;
+    assert.equal(roots.length,0,'originally passing ABB case must not be converted into a defect');
+    assert.equal(row.originalSwLinkState,'originally_correct_regression');
+    continue;
+  }
+  if(!roots.length){
+    notMapped++;
+    assert.equal(row.originalSwLinkState,'original_problem_no_proposed_sw_root');
+    continue;
+  }
+  proposedMapped++;
+  if(roots.length>1)multiRoot++;
+  assert.equal(row.originalSwLinkState,'source_proposed_overlap_unverified');
+  for(const root of roots){
+    assert.ok(overlap.distinctSwCandidateRootIds.includes(root),'unapproved SW root '+root);
+    const list=rootToIds.get(root)??[];
+    list.push(row.id);
+    rootToIds.set(root,list);
+  }
+  assert.equal(row.implementation.status,'not_reconciled',
+    'grouping proposal is not proof the ABB finding has been fixed: '+row.id);
+  assert.equal(row.independentVerification.status,'not_certified',
+    'grouping proposal is not independent evidence: '+row.id);
+}
+assert.equal(proposedMapped,522);
+assert.equal(notMapped,57);
+assert.equal(untouchedCorrect,62);
+assert.ok(multiRoot>0,'preserve overlapping original SW causes, never force single ownership');
+const expectedRootCounts={
+  'SW-01':64,'SW-04':26,'SW-05':25,'SW-06':48,'SW-09':20,
+  'SW-11':38,'SW-13':38,'SW-28':12,'SW-36':34,'SW-37':12,
+  'SW-39':36,'SW-40':36,'SW-44':83,'SW-45':184,'SW-46':136,
+};
+assert.equal(rootToIds.size,15);
+for(const [root,total] of Object.entries(expectedRootCounts)){
+  const sw=ledger.sw.find(row=>row.id===root);
+  assert.ok(sw,'source label has original SW root '+root);
+  assert.equal((rootToIds.get(root)??[]).length,total,'fixed owner source workbook overlap count '+root);
+  assert.deepEqual(sw.candidateAbbObservationIds,[...rootToIds.get(root)].sort(),
+   'original SW root must link both directions to exactly its ABB observations '+root);
+  assert.ok(sw.guardRules,'source root must retain its original guard/independent reference '+root);
+}
+assert.equal(proposedMapped+notMapped+untouchedCorrect,641);
+
 const historicallyCorrect=new Set((
  'G1_MANAGEMENT-36,G1_MANAGEMENT-37,G1_MANAGEMENT-38,G1_MANAGEMENT-39,G1_MANAGEMENT-40,G1_MANAGEMENT-41,G1_MANAGEMENT-56,G1_MANAGEMENT-65,G1_MANAGEMENT-66,G1_MANAGEMENT-81,G1_MANAGEMENT-93,G2_PLANNING-21,G2_PLANNING-39,G2_PLANNING-54,G2_PLANNING-62,G2_PLANNING-67,G2_PLANNING-70,G2_PLANNING-83,G3_CHANGES_FORECAST-13,G3_CHANGES_FORECAST-20,G3_CHANGES_FORECAST-32,G3_CHANGES_FORECAST-38,G3_CHANGES_FORECAST-53,G3_CHANGES_FORECAST-69,G3_CHANGES_FORECAST-78,G4_PROGRESS-11,G4_PROGRESS-28,G4_PROGRESS-35,G4_PROGRESS-40,G4_PROGRESS-49,G4_PROGRESS-54,G5_DELAY-25,G5_DELAY-26,G5_DELAY-37,G5_DELAY-38,G5_DELAY-50,G5_DELAY-62,G6_COMMERCIAL-17,G6_COMMERCIAL-19,G6_COMMERCIAL-29,G6_COMMERCIAL-38,G6_COMMERCIAL-62,G6_COMMERCIAL-75,G7_PROCUREMENT-16,G7_PROCUREMENT-30,G7_PROCUREMENT-38,G7_PROCUREMENT-45,G7_PROCUREMENT-53,G7_PROCUREMENT-60,G7_PROCUREMENT-65,G8_DESIGN_CONSTRUCTION_QUALITY-16,G8_DESIGN_CONSTRUCTION_QUALITY-17,G8_DESIGN_CONSTRUCTION_QUALITY-18,G8_DESIGN_CONSTRUCTION_QUALITY-31,G8_DESIGN_CONSTRUCTION_QUALITY-39,G8_DESIGN_CONSTRUCTION_QUALITY-53,G8_DESIGN_CONSTRUCTION_QUALITY-76,G8_DESIGN_CONSTRUCTION_QUALITY-83,G9_HANDOVER_RISK-20,G9_HANDOVER_RISK-22,G9_HANDOVER_RISK-30,G9_HANDOVER_RISK-48'
 ).split(','));
