@@ -136,6 +136,11 @@ function buildProgressBreakdownProjectionImpl(
     // Fully calculated at the same revision and Data Date by Delivery.
     // Each workfront consumes a subset of identical per-activity positions.
     sharedPlanPositions?:ReturnType<typeof schedulePlanPositions>;
+    // Delivery already classified the complete source programme long-lead WBS
+    // and activity set. Reuse that exact full-population membership in its
+    // per-workfront subset projections instead of walking the same WBS tree
+    // once for every workfront. Specialist calls still calculate it normally.
+    sharedProgrammeLongLeadActivityIds?:ReadonlySet<string>;
     previousModel?: CanonicalScheduleModel | null;
     readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
@@ -198,7 +203,7 @@ function buildProgressBreakdownProjectionImpl(
   const previousById = new Map(input.previousModel?.activities.map(a=>[a.activityId,a]) ?? []);
   const previous = new Map(previousMatches?.matches.map(match=>[match.toActivityId,previousById.get(match.fromActivityId)!]) ?? []);
   const dataDateMs = model.dataDateIso ? Date.parse(model.dataDateIso) : NaN;
-  const programmeLongLead=programmeLongLeadScope(model);
+  const programmeLongLeadActivityIds=input.sharedProgrammeLongLeadActivityIds??programmeLongLeadScope(model).activityIds;
   const effectiveFinish = (a:CanonicalScheduleActivity) => a.status==="completed"
     ? a.actualFinishIso ?? a.forecastFinishIso ?? a.currentFinishIso
     : a.forecastFinishIso ?? a.currentFinishIso;
@@ -217,7 +222,7 @@ function buildProgressBreakdownProjectionImpl(
     const baselineMs=activity.baselineFinishIso?Date.parse(activity.baselineFinishIso):NaN;
     const readiness=input.readinessEvidence?.[activity.activityId];
     const sourceLongLead=!!readiness?.procurement_material?.records?.some(record=>record.longLead===true);
-    const programmeCandidate=programmeLongLead.activityIds.has(activity.activityId);
+    const programmeCandidate=programmeLongLeadActivityIds.has(activity.activityId);
     return [activity.activityId,{
       finishIso,
       delayed:activity.status!=="completed"&&(
