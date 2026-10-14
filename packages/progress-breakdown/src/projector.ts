@@ -46,7 +46,8 @@ function buildRow(
   wbsName: string | null,
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
-  progressFor: typeof scheduleProgress = scheduleProgress,
+  progressFor: typeof scheduleProgress,
+  sourceFloat:(activity:CanonicalScheduleActivity)=>{criticality:ReturnType<typeof sourceFloatCriticality>;thresholdHours:number|null},
 ): ProgressBreakdownRow {
   const pctKnown = activities.filter(
     (activity) =>
@@ -105,12 +106,12 @@ function buildRow(
       ),
     criticalCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
       (activity) =>
-        sourceFloatCriticality(model, activity, config) ===
+        sourceFloat(activity).criticality ===
         "critical",
     ).length,
-    nearCriticalCount: floatKnown.length!==unfinished.length||floatKnown.some(a=>activityNearCriticalThresholdHours(model,a,config)===null)?null:floatKnown.filter(
+    nearCriticalCount: floatKnown.length!==unfinished.length||floatKnown.some(a=>sourceFloat(a).thresholdHours===null)?null:floatKnown.filter(
       (activity) =>
-        sourceFloatCriticality(model, activity, config) ===
+        sourceFloat(activity).criticality ===
         "near_critical",
     ).length,
     negativeFloatCount: floatKnown.length!==unfinished.length?null:floatKnown.filter(
@@ -165,6 +166,17 @@ function buildProgressBreakdownProjectionImpl(
   const config =
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
+  // Reuse classifications across WBS, ancestor, overall and dimension views.
+  // Scope this first-source-calendar index to the current source evaluation.
+  const calendars=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+  for(const c of model.calendars)if(!calendars.has(c.calendarId))calendars.set(c.calendarId,c);
+  const floatCache=new WeakMap<CanonicalScheduleActivity,{criticality:ReturnType<typeof sourceFloatCriticality>;thresholdHours:number|null}>();
+  const sourceFloat=(a:CanonicalScheduleActivity)=>{
+    const existing=floatCache.get(a);if(existing)return existing;
+    const result={criticality:sourceFloatCriticality(model,a,config,calendars),
+      thresholdHours:activityNearCriticalThresholdHours(model,a,config,calendars)};
+    floatCache.set(a,result);return result;
+  };
   // Scope this cache to one source evaluation, never to a project or process.
   const progressCache = new WeakMap<readonly CanonicalScheduleActivity[], ReturnType<typeof scheduleProgress>>();
   const progressFor = (rows: readonly CanonicalScheduleActivity[]) => {
@@ -336,6 +348,7 @@ function buildProgressBreakdownProjectionImpl(
         activities,
         config,
         progressFor,
+        sourceFloat,
       ), activities),
     )
     .sort(
@@ -350,7 +363,7 @@ function buildProgressBreakdownProjectionImpl(
     // specialist's six additional dimension/hierarchy views. The specialist
     // continues using the complete original producer unchanged.
     const scopeActivities=model.activities.filter(isExecutionActivity);
-    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config,progressFor),scopeActivities);
+    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config,progressFor,sourceFloat),scopeActivities);
     mark('scope_summary');
     if(profiling)process.stdout.write(JSON.stringify({event:'workfront_breakdown_profile',projectId:model.projectId,activities:model.activities.length,
       baselineActivities:input.baselineModel?.activities.length??0,stages,totalMs:stages.reduce((n,part)=>n+part.ms,0)})+'\n');
@@ -378,7 +391,7 @@ function buildProgressBreakdownProjectionImpl(
     const node = nodes.get(id); let depth = 0, parent = node?.parentWbsId ?? null;
     const seen = new Set([id]);
     while (parent !== null && !seen.has(parent)) { seen.add(parent); depth++; parent = nodes.get(parent)?.parentWbsId ?? null; }
-    return { ...enrich(buildRow(model, id, node?.name ?? null, activities, config, progressFor), activities),
+    return { ...enrich(buildRow(model, id, node?.name ?? null, activities, config, progressFor,sourceFloat), activities),
       parentWbsId: node?.parentWbsId ?? null, depth,
       directActivityCount: groups.get(id)?.length ?? 0,
       progressAuthority: "submitted_schedule" as const,
@@ -387,7 +400,7 @@ function buildProgressBreakdownProjectionImpl(
   }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   const executionActivities = model.activities.filter(isExecutionActivity);
-  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config,progressFor),executionActivities);
+  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config,progressFor,sourceFloat),executionActivities);
   const progressPosition = progressFor(executionActivities);
   const overallKnownWeightHours = progressPosition.knownWeightHours;
   const scopeByActivity = new Map((input.scopeClassification?.rows ?? []).map(row => [row.activityId, row]));
@@ -477,7 +490,7 @@ function buildProgressBreakdownProjectionImpl(
     // Reuse the full calculations, while retaining the dimension's own label.
     const fullPopulation=activities.length===executionActivities.length;
     const progress = fullPopulation ? progressPosition : progressFor(activities);
-    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config, progressFor), activities);
+    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config, progressFor,sourceFloat), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;

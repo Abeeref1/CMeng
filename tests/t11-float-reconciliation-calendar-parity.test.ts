@@ -11,7 +11,7 @@ test('T06/T11 SW-54: every source-vs-independent float row retains original scal
    activities:Array.from({length:5101},(_,i)=>({
     projectId,activityId:'ROW-'+i,nativeId:String(i),name:'Task '+i,wbsId:'W',
     calendarId:['C','SHIFT','UNKNOWN','INCOMPLETE',null][i%5],
-    activityType:['task','start_milestone','wbs_summary','level_of_effort','finish_milestone'][i%5],
+    activityType:['task','start_milestone','wbs_summary','level_of_effort','finish_milestone'][Math.floor(i/7)%5],
     status:i%31===0?'completed':i%37===0?'unknown':'in_progress',
     totalFloatHours:i%19===0?null:[-24,-1,0,8,16,24,40,64][i%8],
     freeFloatHours:null,percentComplete:15,
