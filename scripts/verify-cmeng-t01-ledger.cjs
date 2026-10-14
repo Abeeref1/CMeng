@@ -86,6 +86,21 @@ for(const x of ledger.abb.individualObservations){
  verdictCounts[x.historicalVerdict]++;
 }
 assert.deepEqual(verdictCounts,{Problem:579,'Originally correct':62});
+// Candidate mappings from the unchanged original ABB workbook are a
+// prioritization crosswalk, NEVER a substitute for current-release verification.
+// One finding may have two distinct shared causes, so do not discard overlaps.
+const overlap=ledger.abb.proposedOverlapAudit;
+assert.ok(overlap,'original candidate root mapping audit retained');
+assert.equal(overlap.candidateSwMappedProblemObservations,522);
+assert.equal(overlap.problemObservationsPendingDetailedRootMapping,57);
+assert.equal(overlap.originallyCorrectObservationsWithNoProblemMapping,62);
+assert.equal(overlap.candidateSwMappedProblemObservations+overlap.problemObservationsPendingDetailedRootMapping,ledger.abb.problems);
+assert.equal(overlap.originallyCorrectObservationsWithNoProblemMapping,ledger.abb.historicalPasses);
+assert.equal(overlap.originalSourceWorkbookSha256,ledger.abb.sourceRef.originalWorkbookSha256);
+assert.equal(new Set(overlap.distinctSwCandidateRootIds).size,15);
+for(const id of overlap.distinctSwCandidateRootIds)
+ assert.ok(ledger.sw.some(item=>item.id===id),'proposed ABB root exists in original SW population: '+id);
+
 const historicallyCorrect=new Set((
  'G1_MANAGEMENT-36,G1_MANAGEMENT-37,G1_MANAGEMENT-38,G1_MANAGEMENT-39,G1_MANAGEMENT-40,G1_MANAGEMENT-41,G1_MANAGEMENT-56,G1_MANAGEMENT-65,G1_MANAGEMENT-66,G1_MANAGEMENT-81,G1_MANAGEMENT-93,G2_PLANNING-21,G2_PLANNING-39,G2_PLANNING-54,G2_PLANNING-62,G2_PLANNING-67,G2_PLANNING-70,G2_PLANNING-83,G3_CHANGES_FORECAST-13,G3_CHANGES_FORECAST-20,G3_CHANGES_FORECAST-32,G3_CHANGES_FORECAST-38,G3_CHANGES_FORECAST-53,G3_CHANGES_FORECAST-69,G3_CHANGES_FORECAST-78,G4_PROGRESS-11,G4_PROGRESS-28,G4_PROGRESS-35,G4_PROGRESS-40,G4_PROGRESS-49,G4_PROGRESS-54,G5_DELAY-25,G5_DELAY-26,G5_DELAY-37,G5_DELAY-38,G5_DELAY-50,G5_DELAY-62,G6_COMMERCIAL-17,G6_COMMERCIAL-19,G6_COMMERCIAL-29,G6_COMMERCIAL-38,G6_COMMERCIAL-62,G6_COMMERCIAL-75,G7_PROCUREMENT-16,G7_PROCUREMENT-30,G7_PROCUREMENT-38,G7_PROCUREMENT-45,G7_PROCUREMENT-53,G7_PROCUREMENT-60,G7_PROCUREMENT-65,G8_DESIGN_CONSTRUCTION_QUALITY-16,G8_DESIGN_CONSTRUCTION_QUALITY-17,G8_DESIGN_CONSTRUCTION_QUALITY-18,G8_DESIGN_CONSTRUCTION_QUALITY-31,G8_DESIGN_CONSTRUCTION_QUALITY-39,G8_DESIGN_CONSTRUCTION_QUALITY-53,G8_DESIGN_CONSTRUCTION_QUALITY-76,G8_DESIGN_CONSTRUCTION_QUALITY-83,G9_HANDOVER_RISK-20,G9_HANDOVER_RISK-22,G9_HANDOVER_RISK-30,G9_HANDOVER_RISK-48'
 ).split(','));
