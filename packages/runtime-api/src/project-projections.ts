@@ -4935,13 +4935,16 @@ const specialistModuleCache =
     }
   >();
 
+/** The source-only fallback is a project-version fact, not a global
+ * revision-name fact. Different projects can use the same source revision ID;
+ * a global string cache previously returned one project's dates for another.
+ * Retain the complete source calculation and invalidate on state/model change. */
 const sourceOnlyForecastCache =
-  new Map<
-    string,
-    ReturnType<
-      typeof buildIndependentForecastProjection
-    >
-  >();
+  new WeakMap<ProjectRuntimeState,{
+    version:number;
+    model:ProjectRuntimeState["schedules"][number]["revision"]["model"];
+    result:ReturnType<typeof buildIndependentForecastProjection>;
+  }>();
 
 const specialistChallengeCache =
   new Map<
@@ -5030,24 +5033,17 @@ function specialistChallengeContext(
   return context;
 }
 
-function sourceOnlyForecast(
+export function sourceOnlyForecast(
+  state:ProjectRuntimeState,
   model:
     ProjectRuntimeState["schedules"][number]["revision"]["model"],
   generatedAt: string,
 ): ReturnType<
   typeof buildIndependentForecastProjection
 > {
-  const key =
-    model.sourceRevisionId;
-  const cached =
-    sourceOnlyForecastCache.get(
-      key,
-    );
-  if (cached) {
-    return {
-      ...cached,
-      generatedAt,
-    };
+  const cached=sourceOnlyForecastCache.get(state);
+  if(cached&&cached.version===state.version&&cached.model===model){
+    return {...cached.result,generatedAt};
   }
 
   let latestFinishMs:
@@ -5172,10 +5168,7 @@ function sourceOnlyForecast(
     complete: false,
   };
 
-  sourceOnlyForecastCache.set(
-    key,
-    projection,
-  );
+  sourceOnlyForecastCache.set(state,{version:state.version,model,result:projection});
   return projection;
 }
 
@@ -5372,7 +5365,7 @@ function eotCompletionAuthorityContext(
     amendedContractualCompletionIso,
     amendedContractualCompletionState,
     currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
-    sourceForecastCompletionIso: sourceOnlyForecast(model, generatedAt).sourceForecastCompletionIso,
+    sourceForecastCompletionIso: sourceOnlyForecast(state,model, generatedAt).sourceForecastCompletionIso,
   };
 }
 
@@ -7571,7 +7564,7 @@ function resolveProjectModuleCandidate(
       }:null,boqSource:boqSourceReporting(state)}:{}),
       ...(["pmo-analysis","delay-claims","notices-claims","eot-assessment","windows-analysis","commercial-claims-notices"].includes(key) ? { claimsReporting: claimsReporting(state) } : {}),
       ...(key==='eot-assessment'?{...eotCompletionAuthorityContext(state,time,model,calculationSnapshotTime(state)),
-        determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(model,calculationSnapshotTime(state)).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
+        determinationOverlapScenario:(()=>{const finish=sourceOnlyForecast(state,model,calculationSnapshotTime(state)).sourceForecastCompletionIso,contract=time.contractTimeBasis?.contractualCompletionIso;
           if(!finish||!contract||time.effectiveDeterminationDays===null||data.timeBasisReconciliation?.overlapResolution!=='unresolved')return null;
           const late=(Date.parse(finish.slice(0,10))-Date.parse(contract.slice(0,10)))/86400000;
           return {allIncludedLatenessDays:late,noneIncludedLatenessDays:late-time.effectiveDeterminationDays,determinedDays:time.effectiveDeterminationDays,
