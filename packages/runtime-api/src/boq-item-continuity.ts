@@ -1,9 +1,25 @@
 type IdentifiedItem={id:string;itemNumber:string|null;section:string|null;description:string|null;unit:string|null};
-const normalized=(value:string|null)=>(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
-function identity(item:IdentifiedItem){return item.itemNumber&&item.description&&item.unit?JSON.stringify([normalized(item.itemNumber),normalized(item.section),normalized(item.description),normalized(item.unit)]):null;}
 /** Identity is exact, unique in both revisions and independent of filename and row
  * position. Changed scope/unit, missing identifiers and duplicate item codes stay unresolved. */
 export function boqItemContinuity(previous:IdentifiedItem[],current:IdentifiedItem[]){
+  // A full retained BOQ can repeat its section, item description and unit
+  // tens of thousands of times. Normalize each exact source string once for
+  // this invocation, without storing evidence or decisions outside this call.
+  // This is a bounded read cache, not an identity shortcut: source rows and
+  // ambiguity checks below remain complete and unchanged.
+  const normalizedValues=new Map<string,string>();
+  const normalized=(value:string|null)=>{
+    const raw=value??'';
+    const cached=normalizedValues.get(raw);
+    if(cached!==undefined)return cached;
+    const clean=raw.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+    if(normalizedValues.size>=4096)normalizedValues.clear();
+    normalizedValues.set(raw,clean);
+    return clean;
+  };
+  const identity=(item:IdentifiedItem)=>item.itemNumber&&item.description&&item.unit
+    ?JSON.stringify([normalized(item.itemNumber),normalized(item.section),normalized(item.description),normalized(item.unit)])
+    :null;
   // Retain the complete identity comparison but not duplicate source rows in
   // each index entry. Repeated BOQ numbers/sections used to copy the whole
   // existing group on every insert (quadratic work for large source packets).
