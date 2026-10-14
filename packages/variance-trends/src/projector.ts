@@ -155,7 +155,13 @@ export function buildVarianceTrendsProjection(
             item.basis === "forecast",
         )?.dateIso ?? null;
 
+      // One independent source/date comparison per row. Both the full
+      // activity history and every aggregate consume this same measured value.
+      // Missing dates remain null and never enter a numerical denominator.
+      const controlledValues: number[] = [];
       for (const activity of revision.model.activities) {
+        const measuredVariance = controlledVarianceDays(activity);
+        if (measuredVariance !== null) controlledValues.push(measuredVariance);
         const series =
           activitySeries.get(
             activity.activityId,
@@ -168,10 +174,7 @@ export function buildVarianceTrendsProjection(
         series.points.push({
           revisionId: revision.revisionId,
           sequence: revision.sequence,
-          finishVarianceDays:
-            controlledVarianceDays(
-              activity,
-            ),
+          finishVarianceDays: measuredVariance,
           totalFloatHours:
             activity.totalFloatHours,
         });
@@ -181,17 +184,6 @@ export function buildVarianceTrendsProjection(
         );
       }
 
-      const controlledValues =
-        revision.model.activities
-          .map(
-            controlledVarianceDays,
-          )
-          .filter(
-            (
-              value,
-            ): value is number =>
-              value !== null,
-          );
       const comparable =
         controlledValues.length;
       const totalActivities =
