@@ -71,7 +71,7 @@ test('T11 full 8,501-activity source classification reuses the exact spatial rea
   assert.equal(full.rows[0]?.discipline,'Mechanical','source WBS provides discipline without a task label');
   assert.equal(full.rows[1]?.discipline,'Mechanical','explicit task evidence outranks Electrical WBS');
   assert.equal(full.rows[2]?.discipline,'Electrical','explicit Electrical task overrides mixed-discipline parent');
-  assert.equal(full.rows[3]?.discipline,null,'unknown discipline must not be fabricated from Arabic level text');
+  assert.equal(full.rows[3]?.discipline,'Infrastructure','the source WBS names Utilities, so infrastructure is established even when the activity name is Arabic-only');
   for(const coverage of full.coverage){
     const independentCount=independentlyParsed.filter(row=>row[coverage.key]!==null).length;
     assert.equal(coverage.classified,independentCount,'coverage uses the full source population for '+coverage.key);
