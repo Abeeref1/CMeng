@@ -3013,8 +3013,12 @@ function renderProgressBreakdownVisual(data){
     const available=view.available===true;
     const rows=(view.rows||[]).map(row=>{
       const search=[row.groupLabel,row.groupKey].filter(Boolean).join(" ").toLowerCase();
-      const open=row.activityCount-row.completedCount;
-      return '<tr data-progress-row data-progress-search="'+escapeHtml(search)+'" data-progress-open="'+(open>0?"1":"0")+'" data-progress-critical="'+(typeof row.criticalCount==="number"&&row.criticalCount>0?"1":"0")+'" data-progress-negative="'+(typeof row.negativeFloatCount==="number"&&row.negativeFloatCount>0?"1":"0")+'" data-progress-unclassified="'+(row.classified?"0":"1")+'">'+
+      // Do not let JavaScript coerce an unknown completed count to zero.
+      // A missing status population cannot establish an "open" workfront.
+      const open=typeof row.activityCount==="number"&&Number.isFinite(row.activityCount)&&
+        typeof row.completedCount==="number"&&Number.isFinite(row.completedCount)
+        ? row.activityCount-row.completedCount : null;
+      return '<tr data-progress-row data-progress-search="'+escapeHtml(search)+'" data-progress-open="'+(open===null?"unknown":open>0?"1":"0")+'" data-progress-critical="'+(typeof row.criticalCount==="number"&&row.criticalCount>0?"1":"0")+'" data-progress-negative="'+(typeof row.negativeFloatCount==="number"&&row.negativeFloatCount>0?"1":"0")+'" data-progress-unclassified="'+(row.classified?"0":"1")+'">'+
         '<td><b>'+escapeHtml(row.groupLabel)+'</b>'+(row.groupKey&&row.groupKey!==row.groupLabel&&row.groupKey!=="__UNCLASSIFIED__"?'<br><span class="muted">'+escapeHtml(row.groupKey)+'</span>':'')+'</td>'+
         '<td>'+escapeHtml(fmt(row.activityCount))+'</td>'+
         '<td>'+escapeHtml(fmt(row.completedCount))+'</td>'+
