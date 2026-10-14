@@ -43,7 +43,8 @@ jobs:
             dist/tests/t11-source-completion-base-parity.test.js \
             dist/tests/t11-revision-date-reuse.test.js \
             dist/tests/t05-governed-screen-counts.test.js \
-            dist/tests/t05-t09-diagnosis-missing-values.test.js
+            dist/tests/t05-t09-diagnosis-missing-values.test.js \
+            dist/tests/t05-progress-workfront-null-display.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements
