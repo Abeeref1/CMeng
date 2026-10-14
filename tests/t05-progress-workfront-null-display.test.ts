@@ -76,3 +76,17 @@ test('T05 mixed source knowledge never turns missing material blockers into know
  assert.match(html,/0<br><small>Linked long-lead records Not established · explicit programme candidates 7/);
  assert.match(html,/<td>Not established \/ 0<\/td>/);
 });
+
+test('T05 an unknown completed population cannot become five apparently open activities',()=>{
+ const html=render([row({
+  activityCount:5,completedCount:null,delayedActivityCount:null,
+  longLeadActivityCount:null,longLeadSourceLinkedCount:null,
+  longLeadProgrammeCandidateCount:null,procurementBlockerCount:null,
+  designBlockerCount:null,
+ })]);
+ assert.match(html,/data-progress-open="unknown"/,
+  'open-only filter must not promote an unestablished workfront population');
+ assert.match(html,/<td>5<\/td><td>Not established<\/td><td>Not established<\/td>/,
+  'known total, unknown completed and unknown open counts must remain separate');
+ assert.doesNotMatch(html,/data-progress-open="1"/);
+});
