@@ -86,6 +86,15 @@ for(const x of ledger.abb.individualObservations){
  verdictCounts[x.historicalVerdict]++;
 }
 assert.deepEqual(verdictCounts,{Problem:579,'Originally correct':62});
+const historicallyCorrect=new Set((
+ 'G1_MANAGEMENT-36,G1_MANAGEMENT-37,G1_MANAGEMENT-38,G1_MANAGEMENT-39,G1_MANAGEMENT-40,G1_MANAGEMENT-41,G1_MANAGEMENT-56,G1_MANAGEMENT-65,G1_MANAGEMENT-66,G1_MANAGEMENT-81,G1_MANAGEMENT-93,G2_PLANNING-21,G2_PLANNING-39,G2_PLANNING-54,G2_PLANNING-62,G2_PLANNING-67,G2_PLANNING-70,G2_PLANNING-83,G3_CHANGES_FORECAST-13,G3_CHANGES_FORECAST-20,G3_CHANGES_FORECAST-32,G3_CHANGES_FORECAST-38,G3_CHANGES_FORECAST-53,G3_CHANGES_FORECAST-69,G3_CHANGES_FORECAST-78,G4_PROGRESS-11,G4_PROGRESS-28,G4_PROGRESS-35,G4_PROGRESS-40,G4_PROGRESS-49,G4_PROGRESS-54,G5_DELAY-25,G5_DELAY-26,G5_DELAY-37,G5_DELAY-38,G5_DELAY-50,G5_DELAY-62,G6_COMMERCIAL-17,G6_COMMERCIAL-19,G6_COMMERCIAL-29,G6_COMMERCIAL-38,G6_COMMERCIAL-62,G6_COMMERCIAL-75,G7_PROCUREMENT-16,G7_PROCUREMENT-30,G7_PROCUREMENT-38,G7_PROCUREMENT-45,G7_PROCUREMENT-53,G7_PROCUREMENT-60,G7_PROCUREMENT-65,G8_DESIGN_CONSTRUCTION_QUALITY-16,G8_DESIGN_CONSTRUCTION_QUALITY-17,G8_DESIGN_CONSTRUCTION_QUALITY-18,G8_DESIGN_CONSTRUCTION_QUALITY-31,G8_DESIGN_CONSTRUCTION_QUALITY-39,G8_DESIGN_CONSTRUCTION_QUALITY-53,G8_DESIGN_CONSTRUCTION_QUALITY-76,G8_DESIGN_CONSTRUCTION_QUALITY-83,G9_HANDOVER_RISK-20,G9_HANDOVER_RISK-22,G9_HANDOVER_RISK-30,G9_HANDOVER_RISK-48'
+).split(','));
+assert.equal(historicallyCorrect.size,62,'all 62 original passing cases locked by source ID');
+for(const item of ledger.abb.individualObservations){
+ assert.equal(item.historicalVerdict,
+  historicallyCorrect.has(item.id)?'Originally correct':'Problem',
+  'original ABB observation verdict cannot be swapped or silently promoted: '+item.id);
+}
 const all=[...ledger.sw,...ledger.f,...ledger.s,...ledger.abb.individualObservations];
 for(const item of all){
  assert.ok(['not_reconciled','partial_source_repair_saved','source_fix_verified','independently_certified'].includes(item.implementation.status),
