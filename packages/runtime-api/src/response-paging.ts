@@ -128,6 +128,9 @@ export function pageProjectResponse(
    (/\/delayEotEvidenceChain\/rows\/\d+\/links$/.test(pointer)&&value.length<=8)
    ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
+   // A source record-page has already been bounded, sorted and filtered.
+   // Do not turn the requested 50 original rows into a 25-row preview.
+   ||(pointer==='/rows'&&item.kind==='array'&&Number.isInteger(item.offset)&&Number.isInteger(item.total)&&Number.isInteger(item.pageSize)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
    ||(screenKey==='activity-analytics'&&pointer==='/data/rows'&&!!item?.data?.activitySummary&&value.length<=50)
@@ -227,7 +230,7 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
 
   const value=jsonPointer(root,pointer);
   const at=Math.max(0,Math.min(1_000_000,Math.floor(Number.isFinite(offset)?offset:0)));
-  const size=Math.max(1,Math.min(25,Math.floor(Number.isFinite(limit)?limit:25)));
+  const size=Math.max(1,Math.min(50,Math.floor(Number.isFinite(limit)?limit:25)));
   if(Array.isArray(value)){
     const quantityItems=pointer.endsWith('/series')&&
       (jsonPointer(root,pointer.slice(0,-'/series'.length)) as any)?.projectionKey==='quantity_scurve';

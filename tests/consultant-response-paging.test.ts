@@ -184,3 +184,36 @@ test('scope group counts use every source activity before rows and value groups 
  const last=recordDetailPage(source,'/data/dimensionGroups/zone/rows',50);assert.ok(Array.isArray(last.rows));assert.equal(last.rows.length,10);
  assert.equal(source.data.rows.length,9600);
 });
+
+test('T05 N1/N9 source record endpoint serves requested 50 original rows without a second 25-row truncation',()=>{
+ const source={data:{records:Array.from({length:121},(_,i)=>({
+   recordId:'T05-ROW-'+i,state:i%2===0?'completed':'open',
+   value:i,sourceRefs:['source:row:'+i],
+ }))}};
+ const before=JSON.stringify(source);
+ const detail=recordDetailPage(source,'/data/records',50,50) as any;
+ assert.equal(detail.total,121,'full source population, not preview length');
+ assert.equal(detail.sourceTotal,121);
+ assert.equal(detail.rows.length,50);
+ assert.equal(detail.rows[0].recordId,'T05-ROW-50');
+ assert.equal(detail.rows[49].recordId,'T05-ROW-99');
+ assert.equal(detail.hasMore,true);
+ const http=pageProjectResponse({...detail,pageSize:50,projectVersion:2},
+   '/api/projects/P/schedule/modules/payments') as any;
+ assert.equal(http.rows.length,50,'the transport may not cut an existing source page');
+ assert.equal(http.total,121);
+ const last=recordDetailPage(source,'/data/records',100,50) as any;
+ assert.equal(last.rows.length,21);
+ assert.equal(last.hasMore,false);
+ const filtered=recordDetailPage(source,'/data/records',0,50,{status:'open',sort:'value',direction:'desc'}) as any;
+ assert.equal(filtered.total,60,'filtered total comes from all original records');
+ assert.equal(filtered.sourceTotal,121);
+ assert.equal(filtered.rows.length,50);
+ assert.equal(filtered.rows[0].value,119);
+ assert.equal(filtered.rows[49].value,21);
+ const capped=recordDetailPage(source,'/data/records',0,500) as any;
+ assert.equal(capped.rows.length,50,'bounded source paging remains mandatory');
+ const defaultPage=recordDetailPage(source,'/data/records',0) as any;
+ assert.equal(defaultPage.rows.length,25,'original 25-row consumers remain unchanged');
+ assert.equal(JSON.stringify(source),before,'source identity, order and values remain immutable');
+});

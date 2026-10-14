@@ -2499,14 +2499,18 @@ async function route(
     }
     const pointer=url.searchParams.get('pointer')??'';
     const offset=Number(url.searchParams.get('offset')??0);
-    const page=recordDetailPage(result,pointer,offset,25,{
+    // Honour the requested source page size. Totals always use the original
+    // filtered population, never the transport preview.
+    const requestedLimit=Number(url.searchParams.get('limit')??25);
+    const pageSize=Math.max(1,Math.min(50,Math.floor(Number.isFinite(requestedLimit)?requestedLimit:25)));
+    const page=recordDetailPage(result,pointer,offset,pageSize,{
       query:url.searchParams.get('q')??'',
       status:url.searchParams.get('filter')??url.searchParams.get('status')??'',
       groupKey:url.searchParams.get('group')??'',
       sort:url.searchParams.get('sort')??'',
       direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
     });
-    json(res,200,pageProjectResponse({...page,projectVersion:state.version},rawSource));
+    json(res,200,pageProjectResponse({...page,pageSize,projectVersion:state.version},rawSource));
     return;
   }
 
