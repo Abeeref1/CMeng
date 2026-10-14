@@ -1110,11 +1110,15 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "a315db7651c80b60dd341cf6f2ccb45d4cb0e54e",
-          "e076358397ec6c9dfc1bbcbbe9fb59bc83fa42b0"
+          "e076358397ec6c9dfc1bbcbbe9fb59bc83fa42b0",
+          "78324421d1c31620354d1f60718b64eb1de1fc0b",
+          "7c1d356a86fb8680994831a8216c50bf1e948a41",
+          "64553c3211ac48db40939d4cd9136d94c14e3642"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
-          "tests/t11-variance-full-population.test.ts"
+          "tests/t11-variance-full-population.test.ts",
+          "tests/t11-source-completion-base-parity.test.ts"
         ]
       },
       "independentVerification": {
