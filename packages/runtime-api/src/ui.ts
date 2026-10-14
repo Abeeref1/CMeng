@@ -541,6 +541,13 @@ const fmt=v=>{
  return managementText(value);
 };
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
+/** A zero is a verified register count only when both the applicable
+ * population and the field's own number are established. A missing producer
+ * value is not an empty source population. Keep the reader-facing uncertainty
+ * without changing any source or calculated rows. */
+function governedDisplayCount(populationEstablished,value){
+  return populationEstablished===true&&typeof value==="number"&&Number.isFinite(value)?value:"Not established";
+}
 function fmtForField(key,value){
   if(value===null||value===undefined)return"Not established";
   if(typeof value==="string"){
@@ -3686,7 +3693,7 @@ function renderCommercialVisual(key,data){
       );
       foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Certificate periods by Data Date",paymentPopulationEstablished?(paymentRegister.asOfRecordCount??0):"Not established","certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.sourceRecordCount??paymentRegister.recordCount??0)+" full source records retained"],
+          ["Certificate periods by Data Date",governedDisplayCount(paymentPopulationEstablished,paymentRegister.asOfRecordCount),"certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.sourceRecordCount??paymentRegister.recordCount??0)+" full source records retained"],
           ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
           ["Stated component arithmetic",paymentPopulationEstablished?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount??0):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
           ["Overdue unpaid",slaCounts.overdueUnpaid===null||slaCounts.overdueUnpaid===undefined?"Not assessable":slaCounts.overdueUnpaid,"past confirmed payment due date"],
@@ -4113,10 +4120,10 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Variations by Data Date",variationPopulationEstablished?(vo.recordCount??0):"Not established",fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
-          ["Approved by Data Date",variationPopulationEstablished?(vo.approvedCount??0):"Not established","dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??0)+" / "+fmt(vo.undatedRecordCount??0),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
+          ["Variations by Data Date",governedDisplayCount(variationPopulationEstablished,vo.recordCount),fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
+          ["Approved by Data Date",governedDisplayCount(variationPopulationEstablished,vo.approvedCount),"dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??"Not established")+" / "+fmt(vo.undatedRecordCount??"Not established"),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
           ["Known pending",(vo.knownPendingCount??vo.pendingCount)>0?vo.knownPendingCount??vo.pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate"],
-          ["Rejected",variationPopulationEstablished?(vo.rejectedCount??0):"Not established","closed without approval"],
+          ["Rejected",governedDisplayCount(variationPopulationEstablished,vo.rejectedCount),"closed without approval"],
           ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
           ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
           ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
@@ -4601,7 +4608,7 @@ function renderManagementEvidenceGaps(gaps){
 }
 function renderManagementConsistency(c){
   if(!c)return '<div class="notice warn">Cross-module consistency has not been checked.</div>';
-  return '<div class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount||0)+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Information & Actions for details"):"")+'</span></div>';
+  return '<div class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Information & Actions for details"):"")+'</span></div>';
 }
 function renderManagementVariationReconciliation(rows){
   if(!rows.length)return "";
