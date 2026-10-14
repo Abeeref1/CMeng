@@ -775,3 +775,51 @@ test("revision module registry routes Schedule Change, Revision Trend and Varian
     "variance_trends",
   );
 });
+
+test("T11 variance trends reuse exact source-grounded measurements for every record and summary", () => {
+  const baselineModel=revision1Model();
+  baselineModel.activities=Array.from({length:1500},(_,i)=>activity("SRC-"+i,{
+    baselineFinishIso:"2026-01-08",currentFinishIso:"2026-01-08",
+    totalFloatHours:i%5===0?null:i%3,
+  }));
+  const actualModel:CanonicalScheduleModel={
+    ...baselineModel,sourceRevisionId:"CURRENT",dataDateIso:"2026-02-01",
+    activities:baselineModel.activities.map((row,i)=>({
+      ...row,
+      currentFinishIso:i%13===0?null:i%3===0?"2026-01-11":i%3===1?"2026-01-06":"2026-01-08",
+      totalFloatHours:i%5===0?null:i%3,
+    })).concat([activity("NEW-WITHOUT-BASELINE",{currentFinishIso:"2026-01-15"})]),
+  };
+  const history:ScheduleRevision[]=[
+    {revisionId:"BASE",label:"Controlled baseline",sequence:1,effectiveAt:"2026-01-08",model:baselineModel},
+    {revisionId:"CURRENT",label:"Current revision",sequence:2,effectiveAt:"2026-02-01",model:actualModel},
+  ];
+  const original=JSON.stringify(history);
+  const result=buildVarianceTrendsProjection(history,{
+    generatedAt:"2026-02-01T00:00:00Z",
+    producerVersion:"independent-source-regression",
+    controlledBaselineRevision:history[0],
+  });
+  const baselineById=new Map(baselineModel.activities.map(row=>[row.activityId,row]));
+  const expected=new Map(actualModel.activities.map(row=>{
+    const before=baselineById.get(row.activityId);
+    return [row.activityId,!before||!row.currentFinishIso?null:
+      (Date.parse(row.currentFinishIso)-Date.parse(before.baselineFinishIso!))/86400000] as const;
+  }));
+  const measurements=[...expected.values()].filter((n):n is number=>n!==null);
+  const last=result.points[1]!;
+  assert.equal(last.sourceActivityCount,1501);
+  assert.equal(last.comparableActivities,measurements.length);
+  assert.equal(last.unmatchedActivityCount,1501-measurements.length);
+  assert.equal(last.lateActivityCount,measurements.filter(n=>n>0).length);
+  assert.equal(last.earlyActivityCount,measurements.filter(n=>n<0).length);
+  assert.equal(last.onTimeActivityCount,measurements.filter(n=>n===0).length);
+  assert.equal(last.maximumDelayDays,Math.max(...measurements));
+  assert.equal(last.averageFinishVarianceDays,Number((measurements.reduce((a,b)=>a+b,0)/measurements.length).toFixed(6)));
+  for(const trend of result.activityTrends){
+    const current=trend.points.find(p=>p.revisionId==="CURRENT");
+    if(current)assert.equal(current.finishVarianceDays,expected.get(trend.activityId)??null,"independent source delta for "+trend.activityId);
+  }
+  assert.equal(result.activityTrends.find(t=>t.activityId==="NEW-WITHOUT-BASELINE")?.points.at(-1)?.finishVarianceDays,null);
+  assert.equal(JSON.stringify(history),original,"a read-only analytical projection must never edit source revisions");
+});
