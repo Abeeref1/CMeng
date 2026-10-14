@@ -1949,7 +1949,8 @@
           "7c1d356a86fb8680994831a8216c50bf1e948a41",
           "64553c3211ac48db40939d4cd9136d94c14e3642",
           "8ae4f95884624938caca507334ef8d8bf1896f96",
-          "986f7ed178daa9b5fc0c7dbc19ae2f45318290fc"
+          "986f7ed178daa9b5fc0c7dbc19ae2f45318290fc",
+          "7ba5640d2d1611597d2a39b7edfb82b7cfba4ffc"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
