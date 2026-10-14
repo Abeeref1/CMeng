@@ -9,6 +9,7 @@ import {schedulePlanPositions,buildProgressScurveProjection,compareProgressScope
 import {buildProgressBreakdownProjection,buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
+import {scheduleProgress} from '../packages/schedule-analysis-core/src';
 
 test('T11 versioned full-programme phasing is identical to a fresh independent calculation, and invalidates on edits',t=>{
  const root=mkdtempSync(join(tmpdir(),'cmeng-shared-phasing-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -65,6 +66,41 @@ test('T11 versioned full-programme phasing is identical to a fresh independent c
  const sharedBreakdown=buildProgressBreakdownProjection(model,{
   generatedAt:'2031-04-01T00:00:00Z',producerVersion:'source-parity',baselineModel:baseline,sharedPlanPositions:first});
  assert.deepEqual(sharedBreakdown,directBreakdown,'specialist WBS/dimensions and unknowns must not change');
+
+ // Independent source calculations (not the projector) certify every
+ // evaluated WBS, hierarchy and dimension, including missing work weights.
+ const full=scheduleProgress(model.activities);
+ assert.equal(directBreakdown.totalActivityCount,1200);
+ assert.equal(directBreakdown.overallSummary?.durationWeightedProgressPercent,full.value);
+ assert.equal(directBreakdown.overallSummary?.durationWeightedCoveragePercent,full.coveragePercent);
+ assert.equal(directBreakdown.overallKnownWeightHours,full.knownWeightHours);
+ for(const row of directBreakdown.rows){
+  const source=model.activities.filter(activity=>activity.wbsId===row.wbsId);
+  const expected=scheduleProgress(source);
+  assert.equal(row.activityCount,source.length,'all WBS source activities survive paging');
+  assert.equal(row.durationWeightedProgressPercent,expected.value);
+  assert.equal(row.durationWeightedCoveragePercent,expected.coveragePercent);
+  assert.equal(row.completedCount,source.filter(activity=>activity.status==='completed').length);
+ }
+ for(const view of directBreakdown.dimensionViews??[]){
+  assert.equal(view.sourcePopulation,model.activities.length);
+  assert.equal(view.rows.reduce((sum,row)=>sum+row.activityCount,0),model.activities.length);
+  for(const row of view.rows){
+   const source=view.dimension==='wbs'
+    ?model.activities.filter(activity=>activity.wbsId===row.groupKey)
+    :model.activities;
+   const expected=scheduleProgress(source);
+   assert.equal(row.activityCount,source.length);
+   assert.equal(row.scheduleProgressPercent,expected.value);
+   assert.equal(row.progressCoveragePercent,expected.coveragePercent);
+   assert.equal(row.knownWeightHours,expected.knownWeightHours);
+  }
+ }
+ for(const row of directBreakdown.hierarchyRows??[]){
+  const expected=scheduleProgress(model.activities.filter(activity=>activity.wbsId===row.wbsId));
+  assert.equal(row.durationWeightedProgressPercent,expected.value);
+ }
+
  const subset={...model,activities:model.activities.filter(row=>row.wbsId==='W3')};
  const directDelivery=buildDeliveryWorkfrontBreakdown(subset,{
   generatedAt:'2031-04-01T00:00:00Z',producerVersion:'source-parity',baselineModel:baseline});

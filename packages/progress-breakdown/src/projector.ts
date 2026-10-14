@@ -46,6 +46,7 @@ function buildRow(
   wbsName: string | null,
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
+  progressFor: typeof scheduleProgress = scheduleProgress,
 ): ProgressBreakdownRow {
   const pctKnown = activities.filter(
     (activity) =>
@@ -59,7 +60,7 @@ function buildRow(
     (activity) =>
       activity.totalFloatHours !== null,
   );
-  const progress = scheduleProgress(activities);
+  const progress = progressFor(activities);
 
   return {
     wbsId,
@@ -164,6 +165,15 @@ function buildProgressBreakdownProjectionImpl(
   const config =
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
+  // Scope this cache to one source evaluation, never to a project or process.
+  const progressCache = new WeakMap<readonly CanonicalScheduleActivity[], ReturnType<typeof scheduleProgress>>();
+  const progressFor = (rows: readonly CanonicalScheduleActivity[]) => {
+    const previous = progressCache.get(rows);
+    if (previous) return previous;
+    const calculated = scheduleProgress(rows);
+    progressCache.set(rows, calculated);
+    return calculated;
+  };
   const wbsNames = new Map(
     model.wbs.map((row) => [
       row.wbsId,
@@ -292,7 +302,7 @@ function buildProgressBreakdownProjectionImpl(
     };
   };
   const enrich = (row: ProgressBreakdownRow, activities: readonly CanonicalScheduleActivity[]) => {
-    const eligibleCount = scheduleProgress(activities).totalCount;
+    const eligibleCount = progressFor(activities).totalCount;
     const weighted = (basis: "baseline" | "current") => {
       if (basis === "baseline" && !input.baselineModel) {
         return { value: null, coverage: null };
@@ -325,6 +335,7 @@ function buildProgressBreakdownProjectionImpl(
           : wbsNames.get(wbsId) ?? null,
         activities,
         config,
+        progressFor,
       ), activities),
     )
     .sort(
@@ -339,7 +350,7 @@ function buildProgressBreakdownProjectionImpl(
     // specialist's six additional dimension/hierarchy views. The specialist
     // continues using the complete original producer unchanged.
     const scopeActivities=model.activities.filter(isExecutionActivity);
-    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config),scopeActivities);
+    const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,scopeActivities,config,progressFor),scopeActivities);
     mark('scope_summary');
     if(profiling)process.stdout.write(JSON.stringify({event:'workfront_breakdown_profile',projectId:model.projectId,activities:model.activities.length,
       baselineActivities:input.baselineModel?.activities.length??0,stages,totalMs:stages.reduce((n,part)=>n+part.ms,0)})+'\n');
@@ -367,7 +378,7 @@ function buildProgressBreakdownProjectionImpl(
     const node = nodes.get(id); let depth = 0, parent = node?.parentWbsId ?? null;
     const seen = new Set([id]);
     while (parent !== null && !seen.has(parent)) { seen.add(parent); depth++; parent = nodes.get(parent)?.parentWbsId ?? null; }
-    return { ...enrich(buildRow(model, id, node?.name ?? null, activities, config), activities),
+    return { ...enrich(buildRow(model, id, node?.name ?? null, activities, config, progressFor), activities),
       parentWbsId: node?.parentWbsId ?? null, depth,
       directActivityCount: groups.get(id)?.length ?? 0,
       progressAuthority: "submitted_schedule" as const,
@@ -376,8 +387,8 @@ function buildProgressBreakdownProjectionImpl(
   }).sort((a, b) => a.depth - b.depth || naturalCompare(a.wbsId, b.wbsId));
 
   const executionActivities = model.activities.filter(isExecutionActivity);
-  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config),executionActivities);
-  const progressPosition = scheduleProgress(executionActivities);
+  const overallSummary=enrich(buildRow(model,'DELIVERY_SCOPE',null,executionActivities,config,progressFor),executionActivities);
+  const progressPosition = progressFor(executionActivities);
   const overallKnownWeightHours = progressPosition.knownWeightHours;
   const scopeByActivity = new Map((input.scopeClassification?.rows ?? []).map(row => [row.activityId, row]));
   const wbsNodeById = new Map(model.wbs.map(node => [node.wbsId, node]));
@@ -465,8 +476,8 @@ function buildProgressBreakdownProjectionImpl(
     // same activity population as the previously calculated scope summary.
     // Reuse the full calculations, while retaining the dimension's own label.
     const fullPopulation=activities.length===executionActivities.length;
-    const progress = fullPopulation ? progressPosition : scheduleProgress(activities);
-    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config), activities);
+    const progress = fullPopulation ? progressPosition : progressFor(activities);
+    const row = fullPopulation ? overallSummary : enrich(buildRow(model, groupKey, groupLabel, activities, config, progressFor), activities);
     const weightSharePercent = overallKnownWeightHours > 0
       ? Number((progress.knownWeightHours / overallKnownWeightHours * 100).toFixed(6))
       : null;
