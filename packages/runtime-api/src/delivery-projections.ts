@@ -396,11 +396,29 @@ function buildDelivery(state:ProjectRuntimeState){
    sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
+ // A source workfront may be indexed by both its discipline and location.
+ // When both dimensions have the *identical ordered set* of governed activity
+ // rows, recomputing its WBS/working-calendar progress cannot change a figure.
+ // Share only this exact subpopulation; each distinct group, project, version
+ // and source snapshot still receives its own complete calculation.
+ // JSON encoding avoids ambiguous separators in user-supplied activity IDs.
+ const workfrontProjectionCache=new Map<string,ReturnType<typeof buildDeliveryWorkfrontBreakdown>>();
+ let workfrontBuildCount=0,workfrontReuseCount=0;
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   // Workfront decisions consume precisely rows and overallSummary. The full
   // specialist Progress Breakdown continues returning its complete dimensions.
-  const progress=model&&selected.length?buildDeliveryWorkfrontBreakdown({...model,activities:selected},workfrontConfig):null;
+  let progress:ReturnType<typeof buildDeliveryWorkfrontBreakdown>|null=null;
+  if(model&&selected.length){
+   const orderedSourceIds=JSON.stringify(selected.map(activity=>activity.activityId));
+   const prior=workfrontProjectionCache.get(orderedSourceIds);
+   if(prior){progress=prior;workfrontReuseCount++;}
+   else{
+    progress=buildDeliveryWorkfrontBreakdown({...model,activities:selected},workfrontConfig);
+    workfrontProjectionCache.set(orderedSourceIds,progress);
+    workfrontBuildCount++;
+   }
+  }
   const rows=progress?.rows??[];
   const total=progress?.overallSummary??null;
   const linkedBlockers=selected.filter(a=>a.status!=='completed').flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
@@ -427,6 +445,11 @@ function buildDelivery(state:ProjectRuntimeState){
   return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
  mark('workfront_and_supplier');
+ if(profiling)process.stdout.write(JSON.stringify({
+  event:'delivery_workfront_scope_reuse',projectId:state.projectId,
+  sourceGroupCount:scopeGroups.size,uniqueSourceScopeCount:workfrontBuildCount,
+  reusedIdenticalScopeCount:workfrontReuseCount,
+ })+'\n');
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
