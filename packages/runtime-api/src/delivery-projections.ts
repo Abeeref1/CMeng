@@ -442,6 +442,11 @@ function buildDelivery(state:ProjectRuntimeState){
    authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',
    progressAuthority:'Shared Progress Breakdown calculation; programme progress is separate from installed physical quantities and workfront acceptance.',wbsRows:rows,readiness:gates};
  });
+ if(profiling)process.stdout.write(JSON.stringify({
+  event:'delivery_workfront_scope_reuse',projectId:state.projectId,
+  sourceGroupCount:scopeGroups.size,uniqueSourceScopeCount:workfrontBuildCount,
+  reusedIdenticalScopeCount:workfrontReuseCount,
+ })+'\n');
   return workfrontMatrix;
  };
  let cachedWorkfrontMatrix:ReturnType<typeof calculateWorkfrontMatrix>|undefined;
@@ -459,11 +464,6 @@ function buildDelivery(state:ProjectRuntimeState){
   return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
  mark('supplier_rows');
- if(profiling)process.stdout.write(JSON.stringify({
-  event:'delivery_workfront_scope_reuse',projectId:state.projectId,
-  sourceGroupCount:scopeGroups.size,uniqueSourceScopeCount:workfrontBuildCount,
-  reusedIdenticalScopeCount:workfrontReuseCount,
- })+'\n');
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
