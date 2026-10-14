@@ -15,11 +15,21 @@ interface WeightedActivity { activityId: string; weight: number; start: number; 
 
 function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalScheduleActivity) => [string | null, string | null], diagnostics: string[]): WeightedActivity[] {
   const rows: WeightedActivity[] = [];
+  // Within one unchanged source model, calendar resolution is identical for
+  // all activities referencing the same original ID. Preserve ambiguous and
+  // missing calendars as null rather than assuming a working-day pattern.
+  const calendarBySourceId=new Map<string|null,CanonicalCalendar|null>();
   for (const activity of model.activities.filter(isProgressActivity)) {
     if (activity.originalDurationHours === null || !Number.isFinite(activity.originalDurationHours) || activity.originalDurationHours <= 0) continue;
     const [startDate, finishDate] = dates(activity), start = ms(startDate), finish = ms(finishDate);
     if (start === null || finish === null || finish <= start) continue;
-    const calendar = resolveWorkingCalendar(activity.calendarId, model.calendars, false)?.calendar ?? null;
+    const calendarId=activity.calendarId;
+    let calendar:CanonicalCalendar|null;
+    if(calendarBySourceId.has(calendarId))calendar=calendarBySourceId.get(calendarId)!;
+    else{
+      calendar=resolveWorkingCalendar(calendarId,model.calendars,false)?.calendar??null;
+      calendarBySourceId.set(calendarId,calendar);
+    }
     if (!calendar) diagnostics.push("PROGRESS_WORKING_CALENDAR_UNRESOLVED:" + activity.activityId);
     rows.push({ activityId: activity.activityId, weight: activity.originalDurationHours, start, finish, calendar });
   }
@@ -97,7 +107,10 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
   anchors.push(...observations.map(([at]) => at)); if (cutoff !== null) anchors.push(cutoff);
   let first = Infinity, last = -Infinity;
   for (const at of anchors) { first = Math.min(first, at); last = Math.max(last, at); }
-  const dates = new Set<number>(anchors.filter(at => observations.some(([date]) => at === date) || at === cutoff));
+  // Full snapshot population, identical date membership without multiplying
+  // activity anchor count by the number of retained report observations.
+  const observationDates=new Set(observations.map(([date])=>date));
+  const dates = new Set<number>(anchors.filter(at => observationDates.has(at) || at === cutoff));
   if (Number.isFinite(first) && Number.isFinite(last)) {
     for (let at = first; at <= last; at += intervalDays * DAY) dates.add(at);
     dates.add(last);
