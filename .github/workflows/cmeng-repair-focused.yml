@@ -38,7 +38,8 @@ jobs:
             dist/tests/t11-scurve-calendar-and-observation-scale.test.js \
             dist/tests/t11-milestone-calendar-join-scale.test.js \
             dist/tests/t11-workfront-identical-source-reuse.test.js \
-            dist/tests/t11-variance-full-population.test.js
+            dist/tests/t11-variance-full-population.test.js \
+            dist/tests/lookahead-procurement-linked-readiness.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements
