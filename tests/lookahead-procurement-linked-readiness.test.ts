@@ -72,3 +72,28 @@ test('T05 F12 source-linked blockers preserve an unknown owner and subsequently 
  assert.equal(withOwner?.records?.find(r=>r.recordId==='PKG1')?.owner,'Procurement Lead');
  assert.equal(JSON.stringify(state.schedules),originalProgramme,'the original programme must not be modified by readiness');
 });
+
+test('T11 stale/superseded/ambiguous package links never establish a current driving blocker or erase retained evidence',t=>{
+ const root=mkdtempSync(join(tmpdir(),'cmeng-source-package-authority-'));
+ t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:root,durable:false});
+ const state=store.getOrCreate('PROC-HISTORICAL-AUTHORITY');
+ const retained={state:'blocked' as const,sourceRefs:['source:already-reviewed'],note:'Existing user-reviewed readiness must remain'};
+ state.controls.readinessEvidence={DRIVE:{procurement_material:retained}};
+ const recorded=state.controls.readinessEvidence;
+ const statuses=['stale','superseded','conflicted'] as const;
+ const packages:DeliveryRecord[]=statuses.map((status,i)=>{
+  const links=emptyLinks();links.activityIds=['DRIVE'];
+  return {recordId:'PKG-'+i,projectId:state.projectId,kind:'package',
+   reference:'REFERENCE-'+i,description:'Retained historical package '+i,revision:'R-'+i,
+   state:status,fields:{status:'Ordered','forecast delivery':'2031-12-01',
+    'required on site':'2031-01-01'},links,receipts:[],diagnostics:[],sourceActive:status==='conflicted'};
+ });
+ state.delivery={schemaVersion:1,manual:packages,decisions:[],populations:[]};
+ store.touch(state);
+ const originalSource=JSON.stringify(state.delivery);
+ const found=lookAheadReadinessWithProcurement(state,['DRIVE']);
+ assert.strictEqual(found,recorded,'only current package authority can change a driving path');
+ assert.deepEqual(found.DRIVE?.procurement_material,retained);
+ assert.equal(JSON.stringify(state.delivery),originalSource,'retained historical packages never deleted or promoted');
+});
