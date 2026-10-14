@@ -13,7 +13,7 @@ import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-ana
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
-import {schedulePlanPositions} from '../../progress-scurve/src/projector';
+import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
 import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -391,7 +391,7 @@ function buildDelivery(state:ProjectRuntimeState){
  // Every workfront uses the same full programme revision, baseline and Data Date.
  // Calculate its unchanged per-activity working-calendar positions once, not
  // again for each discipline/location workfront and the same 8,000+ activity baseline.
- const sharedPlanPositions=model&&scopeGroups.size?schedulePlanPositions(model,workfrontBaseline):undefined;
+ const sharedPlanPositions=model&&scopeGroups.size?sharedProjectPlanPositions(state,model,workfrontBaseline):undefined;
  const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),
    sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
