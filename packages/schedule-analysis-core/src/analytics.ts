@@ -456,11 +456,62 @@ function completionBases(
   ];
 }
 
-/** The exact existing source completion bases, without repeating schedule
- * graph, float, progress or variance analysis after independent CPM runs.
- * Same activity-population and source date rules as analyzeSchedule(). */
+/** Exact original source completion facts, without graph/float/progress work
+ * after CPM. Visit each executable source record once; keep the original
+ * analyzeSchedule().completionBases as an independent, unchanged parity oracle.
+ * Invalid dates remain missing and tied maximum dates retain their first
+ * source record, never a fabricated finish or a different authority. */
 export function sourceScheduleCompletionBases(model: CanonicalScheduleModel): CompletionBasisValue[] {
-  return completionBases(activityPopulation(model).activities);
+  const activities=activityPopulation(model).activities;
+  const total=activities.length;
+  type Selected={time:number;dateIso:string;activityId:string;sourceRef:string};
+  const choose=(prior:Selected|null,dateIso:string|null,activityId:string,field:string):Selected|null=>{
+    const time=validIsoDate(dateIso);
+    if(time===null||!dateIso||prior&&time<=prior.time)return prior;
+    return {time,dateIso,activityId,sourceRef:"activity:"+activityId+":"+field};
+  };
+  let programme:Selected|null=null,forecast:Selected|null=null,actual:Selected|null=null;
+  let programmeKnown=0,forecastKnown=0,actualKnown=0,completed=0;
+  for(const activity of activities){
+    const baselineTime=validIsoDate(activity.baselineFinishIso);
+    if(baselineTime!==null){
+      programmeKnown++;
+      programme=choose(programme,activity.baselineFinishIso,activity.activityId,"baselineFinish");
+    }
+    const effectiveFinish=effectiveCurrentFinish(activity);
+    const forecastTime=validIsoDate(effectiveFinish);
+    if(forecastTime!==null){
+      forecastKnown++;
+      forecast=choose(forecast,effectiveFinish,activity.activityId,"effectiveCurrentFinish");
+    }
+    if(activity.status==="completed"){
+      completed++;
+      const actualTime=validIsoDate(activity.actualFinishIso);
+      if(actualTime!==null){
+        actualKnown++;
+        actual=choose(actual,activity.actualFinishIso,activity.activityId,"actualFinish");
+      }
+    }
+  }
+  const stateFor=(known:number):"available"|"partial"|"missing"=>
+    known===0?"missing":known===total?"available":"partial";
+  const actualEstablished=total>0&&completed===total&&actualKnown===total;
+  return [
+    {basis:"programme",dateIso:programme?.dateIso??null,activityId:programme?.activityId??null,
+      state:stateFor(programmeKnown),coveragePercent:coveragePercent(programmeKnown,total),
+      method:"latest source baseline/programme finish across executable activities",
+      sourceRefs:programme?[programme.sourceRef]:[]},
+    {basis:"forecast",dateIso:forecast?.dateIso??null,activityId:forecast?.activityId??null,
+      state:stateFor(forecastKnown),coveragePercent:coveragePercent(forecastKnown,total),
+      method:"latest completed actual finish, otherwise explicit forecast/current finish",
+      sourceRefs:forecast?[forecast.sourceRef]:[]},
+    {basis:"actual",dateIso:actualEstablished?actual?.dateIso??null:null,
+      activityId:actualEstablished?actual?.activityId??null:null,
+      state:actualEstablished?"available":actualKnown>0?"partial":"missing",
+      coveragePercent:coveragePercent(actualKnown,total),
+      method:"actual project completion is published only when all executable activities are complete with actual finish dates",
+      sourceRefs:actualEstablished&&actual?[actual.sourceRef]:[]},
+  ];
 }
 
 export function analyzeSchedule(
