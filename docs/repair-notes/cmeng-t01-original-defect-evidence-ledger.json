@@ -33,9 +33,13 @@
       "guardRules": "N1",
       "originalCheckState": "Automatic, running",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "12cedd6ceadc6da69901e99c70e06d6162670d99"
+        ],
+        "regressionFiles": [
+          "tests/consultant-response-paging.test.ts"
+        ]
       },
       "independentVerification": {
         "status": "not_certified",
@@ -119,9 +123,13 @@
       "guardRules": "N9",
       "originalCheckState": "Automatic, running",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "12cedd6ceadc6da69901e99c70e06d6162670d99"
+        ],
+        "regressionFiles": [
+          "tests/consultant-response-paging.test.ts"
+        ]
       },
       "independentVerification": {
         "status": "not_certified",
@@ -159,9 +167,13 @@
       "guardRules": "N2, S4, N3",
       "originalCheckState": "Automatic, running",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "78b0de051d3929b9c1e60dbcc94460026720535f"
+        ],
+        "regressionFiles": [
+          "tests/t05-governed-screen-counts.test.ts"
+        ]
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1935,12 +1947,15 @@
           "e076358397ec6c9dfc1bbcbbe9fb59bc83fa42b0",
           "78324421d1c31620354d1f60718b64eb1de1fc0b",
           "7c1d356a86fb8680994831a8216c50bf1e948a41",
-          "64553c3211ac48db40939d4cd9136d94c14e3642"
+          "64553c3211ac48db40939d4cd9136d94c14e3642",
+          "8ae4f95884624938caca507334ef8d8bf1896f96",
+          "986f7ed178daa9b5fc0c7dbc19ae2f45318290fc"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
           "tests/t11-variance-full-population.test.ts",
-          "tests/t11-source-completion-base-parity.test.ts"
+          "tests/t11-source-completion-base-parity.test.ts",
+          "tests/t11-shared-plan-positions.test.ts"
         ]
       },
       "independentVerification": {
