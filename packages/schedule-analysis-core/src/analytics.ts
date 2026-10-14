@@ -456,6 +456,13 @@ function completionBases(
   ];
 }
 
+/** The exact existing source completion bases, without repeating schedule
+ * graph, float, progress or variance analysis after independent CPM runs.
+ * Same activity-population and source date rules as analyzeSchedule(). */
+export function sourceScheduleCompletionBases(model: CanonicalScheduleModel): CompletionBasisValue[] {
+  return completionBases(activityPopulation(model).activities);
+}
+
 export function analyzeSchedule(
   model: CanonicalScheduleModel,
   config: ScheduleAnalysisConfig =
