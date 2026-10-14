@@ -1,6 +1,6 @@
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
-  analyzeSchedule,
+  sourceScheduleCompletionBases,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
@@ -257,10 +257,11 @@ export function buildIndependentForecastProjection(
     ...(input.cpmConfig ?? {}),
   });
 
-  const sourceAnalytics =
-    analyzeSchedule(model);
+  // Independent CPM is already calculated above. Preserve the exact
+  // original source-forecast date without running graph, float and progress
+  // analytics again merely for this one source-comparison field.
   const sourceForecastCompletionIso =
-    sourceAnalytics.completionBases.find(
+    sourceScheduleCompletionBases(model).find(
       (basis) =>
         basis.basis === "forecast",
     )?.dateIso ?? null;
