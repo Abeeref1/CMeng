@@ -44,7 +44,7 @@ test('T11 shared near-critical producer retains original every-row float decisio
  assert.deepEqual(sorted(result.watchlistRows.map(r=>r.activityId)),sorted(expectedWatch));
  assert.deepEqual(sorted(result.criticalRows.map(r=>r.activityId)),sorted(expectedCritical));
  assert.deepEqual(sorted(result.negativeFloatRows.map(r=>r.activityId)),sorted(expectedNegative));
- assert.equal(result.population?.denominator,unfinished.length,'full source denominator retained');
+ assert.equal(result.population?.denominator,model.activities.length,'full source denominator retained');
  assert.equal(result.unknownFloatCount,unfinished.length-known.length);
  assert.equal(result.nearCriticalCount,null,'unknown calendar/float withholds full-count conclusion');
  assert.equal(result.floatRiskWatchlistCount,null);
