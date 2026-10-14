@@ -28,7 +28,7 @@ async function diagnosisPage(id,offset){
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
 function milestoneExposureNote(exposure){
  if(exposure?.absenceConfirmed)return 'The source-bound review confirms no programme milestones. Contractual commitments remain separate.';
- if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for the complete population. '+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed; review source types or select key dates.':fmt(exposure.knownCount||0)+' identified priorities; population or assessment fields remain unresolved.');
+ if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for the complete population. '+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed; review source types or select key dates.':(exposure.knownCount==null?'Priority count not established':fmt(exposure.knownCount)+' identified priorities')+'; population or assessment fields remain unresolved.');
  return exposure.value===0?'No identified milestone or reviewed key date is ranked for attention by the available programme checks. This is not a contractual clearance.':fmt(exposure.value)+' identified milestones or reviewed key dates are ranked for attention by the available programme checks.';
 }
 function renderProjectPrioritySummary(register){
@@ -38,7 +38,7 @@ function renderProjectPrioritySummary(register){
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const grouped=team.slice(0,3).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b>'+
    '<p>'+escapeHtml(text(row.consequence||row.requiredAction||''))+'</p>'+
-   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Project Controls Manager')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
+   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Not assigned')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
  return '<p>Contract interpretations and other confirmations are managed in Project Review. Operational work is assigned through Accountability.</p>'+
   '<p><button class="btn small" onclick="openProjectActions()">Open Project Review</button> '+managementModuleLink('cross-domain-accountability','Open Accountability')+'</p>'+
   (decisions.length?'<p><b>'+fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' included in the ranked register.</b> Confirm only after reviewing the original evidence.</p>':'')+
@@ -70,7 +70,7 @@ function renderProjectDashboardSummary(d){
  }
  groupedActions.sort((a,b)=>a.rank-b.rank);
  const actions=groupedActions.slice(0,5);
- const driverRows=drivers.length?'<ul>'+drivers.map(r=>'<li><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / '))+'</b> · '+fmt(r.pressureCount||0)+' pressure · '+(networkEstablished&&r.drivingCount!=null?fmt(r.drivingCount)+' driving':'Driving count not established')+'</li>').join('')+'</ul>':'<p>No concentrated schedule pressure is established.</p>';
+ const driverRows=drivers.length?'<ul>'+drivers.map(r=>'<li><b>'+escapeHtml(String(r.wbs||'').split(' / ').slice(-3).join(' / '))+'</b> · '+fmt(r.pressureCount)+' pressure · '+(networkEstablished&&r.drivingCount!=null?fmt(r.drivingCount)+' driving':'Driving count not established')+'</li>').join('')+'</ul>':'<p>No concentrated schedule pressure is established.</p>';
  const actionRows=actions.length?'<ol>'+actions.map(group=>{
    const unique=[...new Map(group.items.filter(item=>item.activityId||item.name).map(item=>[(item.activityId||item.name),item])).values()];
    const identities=unique.slice(0,3).map(item=>[item.activityId,item.name].filter(Boolean).join(' · ')).filter(Boolean);
@@ -141,9 +141,9 @@ function renderProjectBrief(d,data=null){
  const driversHtml=drivers.length
   ?'<div class="table-wrap"><table><thead><tr><th>Workfront</th><th>Activities under pressure</th><th>Critical</th><th>Negative float</th><th>Lowest reported float</th><th>Confirmed driving activities</th></tr></thead><tbody>'+
     drivers.map(row=>'<tr><td><b>'+escapeHtml(String(row.wbs||'').split(' / ').slice(-3).join(' / ')||'Project workfront')+'</b></td>'+
-      '<td>'+fmt(row.pressureCount??0)+'</td><td>'+fmt(row.criticalCount??0)+'</td><td>'+fmt(row.negativeFloatCount??0)+'</td>'+
+      '<td>'+fmt(row.pressureCount)+'</td><td>'+fmt(row.criticalCount)+'</td><td>'+fmt(row.negativeFloatCount)+'</td>'+
       '<td>'+escapeHtml(row.worstFloatHours==null?'Not established':fmt(row.worstFloatHours)+' hours')+'</td>'+
-      '<td>'+escapeHtml(verifiedNetwork?fmt(row.drivingCount??0):'Not established')+'</td></tr>').join('')+
+      '<td>'+escapeHtml(verifiedNetwork?fmt(row.drivingCount):'Not established')+'</td></tr>').join('')+
     '</tbody></table></div>'
   :'<p>No concentration ranking is established from the available programme data.</p>';
  const milestones=(d.milestoneRows||[]).slice(0,5);
@@ -157,7 +157,7 @@ function renderProjectBrief(d,data=null){
   :'<p>'+escapeHtml(milestoneExposureNote(d.milestoneExposure))+'</p>';
  const revision=d.revision||{};
  const revisionText=revision.state==='available'
-  ?fmt(revision.modified??0)+' activities changed, '+fmt(revision.added??0)+' were added and '+fmt(revision.removed??0)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
+  ?fmt(revision.modified)+' activities changed, '+fmt(revision.added)+' were added and '+fmt(revision.removed)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
   :revision.basis||'No comparable earlier adopted programme is available.';
  const changeNext=revision.state==='available'?'<p><b>Decision needed from Project Controls:</b> Validate material changes and their authority before accepting the update as a recovery commitment.</p>':'';
  const controls=data?.projectFacts?.controls||{};
