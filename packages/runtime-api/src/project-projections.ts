@@ -13,7 +13,7 @@ import {activityFloatReconciliation,attachActivityFloatReconciliation} from './a
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,deliveryPosition} from './delivery-projections';
-import {deliveryRecords} from './delivery-records';
+import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
 import {projectActions,type ProjectAction} from './project-actions';
@@ -182,15 +182,15 @@ export function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,driv
   // Do not build the complete Delivery/BOQ/readiness projections when there
   // is no sourced procurement package to connect to the programme. This
   // does not suppress an existing readiness blocker or a single source row.
-  const records=deliveryRecords(state).records;
-  if(!records.some(record=>record.kind==='package'&&record.sourceActive))return retained;
   const driving=new Set(drivingIds);
-  // Direct programme links are required for an activity-scoped readiness
-  // blocker. When no package record links any driving activity, skip the
-  // full Delivery/BOQ/workfront producer without suppressing existing evidence.
-  // Check every retained package conservatively: the governed Delivery producer
-  // remains responsible for all final source and date authority.
-  if(!records.some(record=>record.kind==='package'&&
+  // The shared Delivery authority itself excludes stale, superseded,
+  // conflicted and inactive source rows. They must remain retained and visible
+  // for review, but cannot justify a current driving readiness blocker.
+  // Check the same current-record population before invoking the expensive
+  // full Delivery/BOQ/workfront calculation: matching *only historical*
+  // package links cannot alter this project's governed Look-Ahead result.
+  const records=deliveryRecords(state).records;
+  if(!records.some(record=>record.kind==='package'&&deliveryCurrentRecord(record)&&
     record.links.activityIds.some(id=>driving.has(id))))return retained;
   const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
   for(const pkg of deliveryPosition(state).packageRows){
