@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
-import {deliveryPosition} from '../packages/runtime-api/src/delivery-projections';
+import {deliveryPosition,deliveryDashboard} from '../packages/runtime-api/src/delivery-projections';
 import {projectScopeClassification} from '../packages/runtime-api/src/location-review';
 import {buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {projectScheduleControlBasis} from '../packages/runtime-api/src/schedule-control-basis';
@@ -54,6 +54,18 @@ test('T11 workfront discipline and location with exactly the same complete sourc
  store.touch(state);
  const before=JSON.stringify({schedules:state.schedules,delivery:state.delivery});
  const result=deliveryPosition(state);
+ // A cold management summary must not calculate the specialist workfront
+ // breakdown; reading that specialist matrix still returns its complete data.
+ const workfrontProperty=Object.getOwnPropertyDescriptor(result,'workfrontMatrix');
+ assert.equal(typeof workfrontProperty?.get,'function','source workfront rows remain available as a deferred producer');
+ let workfrontConsumerReads=0;
+ Object.defineProperty(result,'workfrontMatrix',{
+  ...workfrontProperty,configurable:true,enumerable:true,
+  get(){workfrontConsumerReads++;return workfrontProperty!.get!.call(result);}
+ });
+ const management=deliveryDashboard(state);
+ assert.equal(management.projectId,state.projectId,'source management summary remains available');
+ assert.equal(workfrontConsumerReads,0,'a management summary does not need the full specialist WBS progress population');
  assert.equal(result.workfrontMatrix.length,4);
  const dimension=(type:string,label:string)=>{
   const group=result.workfrontMatrix.find(r=>r.dimension===type&&r.label===label);
