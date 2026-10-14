@@ -27,11 +27,13 @@ function criticality(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
+  calendarById: ReadonlyMap<string,CanonicalScheduleModel['calendars'][number]>,
 ): ActivityCriticality {
   return sourceFloatCriticality(
     model,
     activity,
     config,
+    calendarById,
   );
 }
 
@@ -106,6 +108,12 @@ export function buildActivityAnalyticsProjection(
   const logic =
     buildScheduleActivityLogicIndex(model,true);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
+  // First source occurrence wins even when a submitted calendar ID repeats.
+  // Preserve all source calendars; avoid repeated full-calendar searching for
+  // each of the 8k–100k activity rows of this exact source evaluation.
+  const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+  for(const calendar of model.calendars)
+    if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
 
   const rows: ActivityAnalyticsRow[] =
     model.activities.map((activity) => {
@@ -155,12 +163,13 @@ export function buildActivityAnalyticsProjection(
           activity.freeFloatHours,
 
         criticality:
-          criticality(model, activity, config),
+          criticality(model, activity, config, calendarById),
         floatRiskWatchlist:
           sourceFloatInFloatRiskWatchlist(
             model,
             activity,
             config,
+            calendarById,
           ),
         finishVarianceDays: variance,
         ...dates,

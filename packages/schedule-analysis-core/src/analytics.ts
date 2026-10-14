@@ -4,8 +4,6 @@ import { analyzeScheduleGraph } from "./graph";
 import {
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
-  sourceFloatCriticality,
-  sourceFloatInFloatRiskWatchlist,
 } from "./float-thresholds";
 import type {
   AverageMetric,
@@ -157,21 +155,36 @@ function floatSummary(
   // Earlier independent filters repeated calendar/criticality lookups and
   // full-population walks. Preserve *all* existing count/unknown rules.
   const unfinished=activities.filter(activity=>activity.status!=='completed');
+  // Keep only the FIRST source calendar with a given ID, just as the original
+  // scalar reader does. The index lives for this calculation alone: no mutable
+  // source model, project decision, or calendar authority is cached globally.
+  const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+  for(const calendar of model.calendars)
+    if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
   let knownCount=0,critical=0,nearCritical=0,noncritical=0,unknownClassifications=0;
   let unresolvedThreshold=0,watchlist=0,zeroFloat=0,negativeFloat=0,positiveFloat=0;
   for(const activity of unfinished){
     const value=activity.totalFloatHours;
     if(value===null){unknownClassifications++;continue;}
     knownCount++;
-    const classification=sourceFloatCriticality(model,activity,config);
+    // A single calendar-qualified threshold is sufficient for the original
+    // criticality, near-critical and watchlist definitions. Compare against
+    // the public scalar source functions in the independent regression.
+    const threshold=activityNearCriticalThresholdHours(model,activity,config,calendarById);
+    const classification=value<=config.criticalFloatThresholdHours?'critical'
+      :threshold===null?'unknown':value<=threshold?'near_critical':'noncritical';
     if(classification==='critical')critical++;
     else if(classification==='near_critical')nearCritical++;
     else if(classification==='noncritical')noncritical++;
     else unknownClassifications++;
     // A critical activity can have known criticality but an unresolved
     // calendar-dependent watchlist threshold. That uncertainty is retained.
-    if(activityNearCriticalThresholdHours(model,activity,config)===null)unresolvedThreshold++;
-    if(sourceFloatInFloatRiskWatchlist(model,activity,config)===true)watchlist++;
+    if(threshold===null)unresolvedThreshold++;
+    if(threshold!==null
+      &&(config.floatRiskWatchlistIncludesCriticalThreshold===true
+        ?value>=config.criticalFloatThresholdHours
+        :value>config.criticalFloatThresholdHours)
+      &&value<=threshold)watchlist++;
     if(value===0)zeroFloat++;
     if(value<0)negativeFloat++;
     if(value>0)positiveFloat++;
