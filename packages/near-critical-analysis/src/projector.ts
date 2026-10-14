@@ -96,6 +96,22 @@ export function buildNearCriticalProjection(
     input.config ??
     DEFAULT_SCHEDULE_ANALYSIS_CONFIG;
 
+  // Source calendar identity is stable for this evaluation only. The first
+  // source definition wins exactly as the original Array.find semantics did.
+  // No cross-project or cross-revision cache can promote stale calendar facts.
+  const calendarById=new Map<string,(typeof model.calendars)[number]>();
+  for(const calendar of model.calendars)
+    if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
+  const dayHoursById=new Map<string|null,number|null>();
+  const workingDayHours=(id:string|null)=>{
+    const cached=dayHoursById.get(id);
+    if(cached!==undefined)return cached;
+    const calendar=id===null?null:calendarById.get(id)??null;
+    const hours=calendarWorkingDayHours(calendar);
+    dayHoursById.set(id,hours);
+    return hours;
+  };
+
   const population = activityPopulation(model);
   const unfinished=population.activities.filter(activity=>activity.status!=='completed');
   const wbsPaths=wbsPathLookup(model);
@@ -105,14 +121,14 @@ export function buildNearCriticalProjection(
       activity.totalFloatHours !== null,
   );
 
+  // The entire source-float classification is calculated ONCE per known
+  // activity. Boundary audit, specialist rows and management counts reuse it;
+  // missing calendar semantics still yield null/unknown, not an assumed 24h.
   const classified = known.map((activity) => ({
     activity,
-    threshold:
-      activityNearCriticalThresholdHours(
-        model,
-        activity,
-        config,
-      ),
+    threshold:activityNearCriticalThresholdHours(model,activity,config,calendarById),
+    classification:sourceFloatCriticality(model,activity,config,calendarById),
+    watch:sourceFloatInFloatRiskWatchlist(model,activity,config,calendarById),
   }));
   const rowFor = ({
     activity,
@@ -153,17 +169,11 @@ export function buildNearCriticalProjection(
   const boundaryAuditRowFor = ({
     activity,
     threshold,
+    classification,
+    watch:watchlist,
   }: (typeof classified)[number]) => {
-    const calendar =
-      activity.calendarId === null
-        ? null
-        : model.calendars.find(
-            (candidate) =>
-              candidate.calendarId ===
-              activity.calendarId,
-          ) ?? null;
-    const dayHours =
-      calendarWorkingDayHours(calendar);
+    const calendar=activity.calendarId===null?null:calendarById.get(activity.calendarId)??null;
+    const dayHours=workingDayHours(activity.calendarId);
     const floatWorkingDays =
       dayHours === null
         ? null
@@ -173,18 +183,6 @@ export function buildNearCriticalProjection(
               dayHours
             ).toFixed(6),
           );
-    const classification =
-      sourceFloatCriticality(
-        model,
-        activity,
-        config,
-      );
-    const watchlist =
-      sourceFloatInFloatRiskWatchlist(
-        model,
-        activity,
-        config,
-      );
     const distanceUpperHours =
       threshold === null
         ? null
@@ -296,13 +294,9 @@ export function buildNearCriticalProjection(
 
   const rows = classified
     .filter(
-      ({ activity, threshold }) =>
+      ({ classification, threshold }) =>
         threshold !== null &&
-        sourceFloatCriticality(
-          model,
-          activity,
-          config,
-        ) === "near_critical",
+        classification === "near_critical",
     )
     .map(rowFor)
     .sort(
@@ -314,13 +308,9 @@ export function buildNearCriticalProjection(
 
   const watchlistRows = classified
     .filter(
-      ({ activity, threshold }) =>
+      ({ watch, threshold }) =>
         threshold !== null &&
-        sourceFloatInFloatRiskWatchlist(
-          model,
-          activity,
-          config,
-        ) === true,
+        watch === true,
     )
     .map(rowFor)
     .sort(
@@ -337,7 +327,7 @@ export function buildNearCriticalProjection(
   // Submitted critical/negative float is in hours and does not require a
   // working-day conversion or an independently recalculated driving path.
   // Keep these populations separate from the existing boundary-to-upper band.
-  const criticalRows=classified.filter(({activity})=>sourceFloatCriticality(model,activity,config)==='critical').map(rowFor)
+  const criticalRows=classified.filter(({classification})=>classification==='critical').map(rowFor)
     .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
   const negativeFloatRows=classified.filter(({activity})=>activity.totalFloatHours!<0).map(rowFor)
     .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
