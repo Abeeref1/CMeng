@@ -392,7 +392,8 @@ function buildDelivery(state:ProjectRuntimeState){
  // Calculate its unchanged per-activity working-calendar positions once, not
  // again for each discipline/location workfront and the same 8,000+ activity baseline.
  const sharedPlanPositions=model&&scopeGroups.size?schedulePlanPositions(model,workfrontBaseline):undefined;
- const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),readinessEvidence:state.controls.readinessEvidence,
+ const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),
+   sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:state.controls.readinessEvidence,
    generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
