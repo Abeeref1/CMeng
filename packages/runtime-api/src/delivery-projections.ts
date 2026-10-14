@@ -369,12 +369,18 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
  // A specialist workfront register enriches the programme; its absence must
  // not hide programme progress that is already classified in Activity Review.
- if(model)for(const dimension of ['discipline','location'] as const){
-  if([...scopeGroups.values()].some(group=>group.dimension===dimension))continue;
-  for(const row of projectScopeClassification(state,model).rows){
-   const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
-   const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
-   group.activityIds.add(row.activityId);scopeGroups.set(key,group);
+ // Derive all missing workfront dimensions from one full classified source
+ // population; keep the existing discipline-then-location output order.
+ if(model){
+  const missing=(['discipline','location'] as const).filter(dimension=>
+   ![...scopeGroups.values()].some(group=>group.dimension===dimension));
+  if(missing.length){
+   const rows=projectScopeClassification(state,model).rows;
+   for(const dimension of missing)for(const row of rows){
+    const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
+    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
+    group.activityIds.add(row.activityId);scopeGroups.set(key,group);
+   }
   }
  }
  mark('workfront_index');

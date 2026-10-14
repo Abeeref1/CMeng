@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {deliveryPosition} from '../packages/runtime-api/src/delivery-projections';
+import {projectScopeClassification} from '../packages/runtime-api/src/location-review';
 import {buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {projectScheduleControlBasis} from '../packages/runtime-api/src/schedule-control-basis';
 import {emptyLinks,type DeliveryRecord} from '../packages/delivery-core/src/types';
@@ -97,4 +98,56 @@ test('T11 no workfront source does not create a phantom delivery-ready count',t=
  assert.equal(result.workfrontMatrix.length,0);
  assert.equal(result.populations.workfront?.state,'not_established');
  assert.equal(JSON.stringify(state.delivery),original);
+});
+
+test('T11 source-only 900-activity fallback retains every source-classified discipline and location',t=>{
+ const root=mkdtempSync(join(tmpdir(),'cmeng-source-fallback-'));
+ t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:root,durable:false});
+ const state=store.getOrCreate('SOURCE-ONLY-CLASSIFICATION');
+ const activities:CanonicalScheduleModel['activities']=Array.from({length:900},(_,i)=>({
+  projectId:state.projectId,activityId:'SRC-'+i,nativeId:String(i),
+  name:(i%2?'Electrical':'Civil')+' installation Zone '+(i%3+1),
+  wbsId:'Z'+(i%3),calendarId:'C',activityType:'task' as const,
+  status:i%17===0?'completed' as const:'in_progress' as const,
+  baselineStartIso:'2032-01-01',baselineFinishIso:'2032-06-01',
+  currentStartIso:'2032-01-01',currentFinishIso:'2032-06-01',
+  actualStartIso:null,actualFinishIso:i%17===0?'2032-02-01':null,
+  forecastStartIso:null,forecastFinishIso:null,
+  originalDurationHours:24,remainingDurationHours:i%17===0?0:12,
+  totalFloatHours:i%13===0?null:i%7-3,
+  freeFloatHours:null,percentComplete:i%17===0?100:50,
+  sourceRefs:[],diagnostics:[],
+ }));
+ const model:CanonicalScheduleModel={
+  projectId:state.projectId,source:'xer',sourceRevisionId:'SUBMITTED',
+  dataDateIso:'2032-03-01',activities,relationships:[],
+  wbs:Array.from({length:3},(_,i)=>({wbsId:'Z'+i,name:'Workfront Zone '+(i+1),parentWbsId:null,sourceRefs:[]})),
+  calendars:[{...ELAPSED_24H_CALENDAR,calendarId:'C'}],diagnostics:[],
+ };
+ state.schedules.push({role:'update',format:'xer',sourceFilename:'source.xer',
+  sourceHashSha256:'source-only-900',uploadedAt:'2032-03-01',
+  revision:{revisionId:'SUBMITTED',label:'Source submission',sequence:1,effectiveAt:'2032-03-01',model}});
+ store.touch(state);
+ const retained=JSON.stringify({schedules:state.schedules,delivery:state.delivery,controls:state.controls});
+ const source=projectScopeClassification(state,model).rows;
+ assert.equal(source.length,activities.length);
+ const expected=new Map<string,string[]>();
+ for(const dimension of ['discipline','location'] as const)for(const row of source){
+  const key=dimension+'|'+(row[dimension]??'Unclassified');
+  const list=expected.get(key)??[];list.push(row.activityId);expected.set(key,list);
+ }
+ const result=deliveryPosition(state);
+ assert.equal(result.workfrontMatrix.length,expected.size,'no source-classified dimension omitted');
+ for(const group of result.workfrontMatrix){
+  const ids=expected.get(group.dimension+'|'+group.label);
+  assert.ok(ids,'group comes from source classification only');
+  assert.deepEqual(group.activityIds,ids,'full source population and original source order');
+  assert.equal(group.activityCount,ids.length,'full group counts, not HTTP previews');
+  assert.equal(group.recordIds.length,0,'never invent a workfront register');
+  assert.equal(group.authority,'Calculated from programme classifications');
+ }
+ assert.equal(result.populations.workfront?.state,'not_established','source classification is not population adoption');
+ assert.equal(JSON.stringify({schedules:state.schedules,delivery:state.delivery,controls:state.controls}),retained,
+  'no source, decision or authority mutation during calculations');
 });
