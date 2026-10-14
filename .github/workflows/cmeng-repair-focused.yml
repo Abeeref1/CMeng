@@ -40,3 +40,5 @@ jobs:
             dist/tests/t11-workfront-identical-source-reuse.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
+      - name: Assert complete original T01 defect IDs and evidence requirements
+        run: node scripts/verify-cmeng-t01-ledger.cjs
