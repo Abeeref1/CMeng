@@ -151,7 +151,7 @@ acceptance.
 
 ## Stage 7 — Operations, final blind certification and exact production acceptance
 
-Certify authentication/RBAC, isolation, concurrency, cold start, scale, restart/
+Certify project isolation (without sign-in, user accounts, authentication/RBAC administration or new role control), concurrency, cold start, scale, restart/
 durability, failed writes/retries, backup/restore, rollback, monitoring/graceful
 shutdown and large Schedule/BOQ/Delivery workloads. Require 100+ focused cases
 for critical feature families and at least 100 completely fresh projects for the
