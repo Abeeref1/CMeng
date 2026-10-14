@@ -798,7 +798,7 @@ test("T11 variance trends reuse exact source-grounded measurements for every rec
   const result=buildVarianceTrendsProjection(history,{
     generatedAt:"2026-02-01T00:00:00Z",
     producerVersion:"independent-source-regression",
-    controlledBaselineRevision:history[0],
+    controlledBaselineRevision:history[0]!,
   });
   const baselineById=new Map(baselineModel.activities.map(row=>[row.activityId,row]));
   const expected=new Map(actualModel.activities.map(row=>{
