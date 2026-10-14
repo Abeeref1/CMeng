@@ -83,7 +83,11 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    calculatedStartIso:calculated?.independentEarlyStartIso??null,calculatedFinishIso:calculated?.independentEarlyFinishIso??null,independentTotalFloatHours:calculated?.independentTotalFloatHours??null,
    drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; '),
    drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; ')}];});
- const governed=scheduleCriticalityFacts(state);
+ // Reuse the exact Schedule Analytics source-float population from this
+ // resolved module set. The independent reconciliation still runs in the
+ // shared criticality producer, and missing/unresolved values remain unknown.
+ const sourcedFloat=data(modules,'schedule-analytics')?.float;
+ const governed=scheduleCriticalityFacts(state,sourcedFloat??undefined);
  const asDiagnosticCount=(aggregate:typeof governed.canonicalCritical)=>({knownCount:aggregate.knownCount,value:aggregate.value,unresolvedCount:aggregate.unresolvedCount,population:aggregate.populationCount});
  const counts={critical:asDiagnosticCount(governed.canonicalCritical),negativeFloat:asDiagnosticCount(governed.canonicalNegativeFloat),
    zeroFloat:count(rows,r=>numeric(r.totalFloatHours)?r.totalFloatHours===0:null),nearCritical:asDiagnosticCount(governed.canonicalNearCritical),
