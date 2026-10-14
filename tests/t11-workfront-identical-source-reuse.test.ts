@@ -75,11 +75,13 @@ test('T11 workfront discipline and location with exactly the same complete sourc
    config:projectScheduleControlBasis(state).analysisConfig,
   });
   assert.deepEqual(group.wbsRows,expected.rows,'every source WBS row and unknown/zero position must equal independent producer');
-  assert.equal(group.completedActivityCount,expected.overallSummary.completedCount);
+  const overall=expected.overallSummary!;
+  assert.ok(overall,'independent full-source summary must be present');
+  assert.equal(group.completedActivityCount,overall.completedCount);
   assert.equal(group.scheduleProgressPercent,
-   expected.overallSummary.durationWeightedCoveragePercent===100?expected.overallSummary.durationWeightedProgressPercent:null);
+   overall.durationWeightedCoveragePercent===100?overall.durationWeightedProgressPercent:null);
   assert.equal(group.plannedPercent,
-   expected.overallSummary.currentPlanCoveragePercent===100?expected.overallSummary.currentPlanPercent:null);
+   overall.currentPlanCoveragePercent===100?overall.currentPlanPercent:null);
  }
  assert.equal(JSON.stringify({schedules:state.schedules,delivery:state.delivery}),before,
   'shared Delivery calculation may not mutate source files, review decisions or programmes');
@@ -93,6 +95,6 @@ test('T11 no workfront source does not create a phantom delivery-ready count',t=
  const original=JSON.stringify(state.delivery);
  const result=deliveryPosition(state);
  assert.equal(result.workfrontMatrix.length,0);
- assert.equal(result.populations.workfront.state,'not_established');
+ assert.equal(result.populations.workfront?.state,'not_established');
  assert.equal(JSON.stringify(state.delivery),original);
 });
