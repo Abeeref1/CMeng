@@ -110,10 +110,24 @@ export function buildVarianceTrendsProjection(
           ),
         )
       : null;
-  const baselineProjectFinish = baselineRevision ? baselineRevision.model.activities
-    .map(activity => activity.baselineFinishIso ?? activity.currentFinishIso)
-    .filter((value): value is string => value !== null && ms(value) !== null)
-    .sort((a, b) => ms(a)! - ms(b)!).at(-1) ?? null : null;
+  // The original stable ascending sort selected the final source row among
+  // equal-time finish candidates. Preserve that tie behavior in one source
+  // pass; repeated parsing inside a 9–100k activity comparison sort added CPU
+  // cost without any additional date authority.
+  let baselineProjectFinish:string|null=null;
+  if(baselineRevision){
+    let latestTime:number|null=null;
+    for(const activity of baselineRevision.model.activities){
+      const value=activity.baselineFinishIso??activity.currentFinishIso;
+      if(value===null)continue;
+      const parsed=ms(value);
+      if(parsed===null)continue;
+      if(latestTime===null||parsed>=latestTime){
+        latestTime=parsed;
+        baselineProjectFinish=value;
+      }
+    }
+  }
 
   const points: VarianceTrendPoint[] =
     ordered.map((revision) => {
@@ -184,6 +198,18 @@ export function buildVarianceTrendsProjection(
         );
       }
 
+      // Every controlled variance contributes once to the full source
+      // population. This single pass preserves the previously separate
+      // filter/reduce/maximum results and never counts unknown dates as zero.
+      let sumControlled=0,maximumControlled=-Infinity;
+      let lateControlled=0,earlyControlled=0,onTimeControlled=0;
+      for(const value of controlledValues){
+        sumControlled+=value;
+        if(value>maximumControlled)maximumControlled=value;
+        if(value>0)lateControlled++;
+        else if(value<0)earlyControlled++;
+        else onTimeControlled++;
+      }
       const comparable =
         controlledValues.length;
       const totalActivities =
@@ -227,11 +253,7 @@ export function buildVarianceTrendsProjection(
             ? comparable > 0
               ? Number(
                   (
-                    controlledValues.reduce(
-                      (sum, value) =>
-                        sum + value,
-                      0,
-                    ) /
+                    sumControlled /
                     comparable
                   ).toFixed(6),
                 )
@@ -241,32 +263,21 @@ export function buildVarianceTrendsProjection(
         maximumDelayDays:
           baselineByActivity
             ? comparable > 0
-              ? Math.max(
-                  ...controlledValues,
-                )
+              ? maximumControlled
               : null
             : analytics.finishVariance
                 .maximumDelayDays,
         lateActivityCount:
           baselineByActivity
-            ? controlledValues.filter(
-                (value) =>
-                  value > 0,
-              ).length
+            ? lateControlled
             : null,
         earlyActivityCount:
           baselineByActivity
-            ? controlledValues.filter(
-                (value) =>
-                  value < 0,
-              ).length
+            ? earlyControlled
             : null,
         onTimeActivityCount:
           baselineByActivity
-            ? controlledValues.filter(
-                (value) =>
-                  value === 0,
-              ).length
+            ? onTimeControlled
             : null,
         negativeFloatCount:
           analytics.float
