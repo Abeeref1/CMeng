@@ -8204,7 +8204,7 @@ export function managementSurfacesForProject(
     event:'management_resolved_modules_breakdown',projectId,
     modules:moduleResolutionProfile,
     totalMs:moduleResolutionProfile.reduce((sum,row)=>sum+row.ms,0),
-  })+'\\n');
+  })+'\n');
   const mp2=profiling?performance.now():0;
   const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
     director, boardReport: bundle.boardReport });
