@@ -40,3 +40,48 @@ test('T11 repeated WBS discipline lookups preserve the exact source classificati
   assert.equal(actual[4]?.discipline,null,'source without a discipline must remain unknown');
   assert.strictEqual(scheduleScopeClassification(model).rows,actual,'one immutable source model shares one classification result');
 });
+
+
+test('T11 full 8,501-activity source classification reuses the exact spatial readers without changing independent uncached results',()=>{
+  const projectId='BLIND-SOURCE-CLASSIFICATION';
+  const wbs=[
+    {wbsId:'M',name:'Mechanical Zone 3',parentWbsId:null,sourceRefs:[]},
+    {wbsId:'E',name:'Electrical Tower 2',parentWbsId:null,sourceRefs:[]},
+    {wbsId:'BOTH',name:'Combined Mechanical Electrical',parentWbsId:null,sourceRefs:[]},
+    {wbsId:'U',name:'General Utilities',parentWbsId:null,sourceRefs:[]},
+  ];
+  const names=['General installation','Mechanical pipe fittings','Electrical cable pulling','عمارة مستوى 3','Zone 2 Floor G Package A','منطقة 4 طابق 2','Equipment commissioning'];
+  const ids=['M','E','BOTH','U'];
+  const activities:CanonicalScheduleActivity[]=Array.from({length:8501},(_,i)=>({
+    projectId,activityId:'ROW-'+i,nativeId:String(i),name:names[i%names.length]!,wbsId:ids[i%ids.length]!,
+    calendarId:'C',activityType:'task',status:'not_started',
+    baselineStartIso:'2032-01-01',baselineFinishIso:'2032-08-01',
+    currentStartIso:'2032-01-01',currentFinishIso:'2032-08-01',
+    actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,
+    originalDurationHours:24,remainingDurationHours:24,totalFloatHours:null,
+    freeFloatHours:null,percentComplete:null,sourceRefs:[],diagnostics:[],
+  }));
+  const model:CanonicalScheduleModel={projectId,source:'xer',sourceRevisionId:'SOURCE-1',dataDateIso:'2032-02-01',
+    activities,relationships:[],wbs,calendars:[],diagnostics:[]};
+  const savedSource=JSON.stringify(model);
+  const full=scheduleScopeClassification(model);
+  const independentlyParsed=activities.map(row=>classifyScheduleActivity(model,row));
+  assert.equal(full.rows.length,8501,'none of the source activities are reduced to a preview');
+  assert.deepEqual(full.rows,independentlyParsed,'every spatial field, source basis, discipline and source order match the uncached interpreter');
+  assert.equal(full.rows[0]?.discipline,'Mechanical','source WBS provides discipline without a task label');
+  assert.equal(full.rows[1]?.discipline,'Mechanical','explicit task evidence outranks Electrical WBS');
+  assert.equal(full.rows[2]?.discipline,'Electrical','explicit Electrical task overrides mixed-discipline parent');
+  assert.equal(full.rows[3]?.discipline,null,'unknown discipline must not be fabricated from Arabic level text');
+  for(const coverage of full.coverage){
+    const independentCount=independentlyParsed.filter(row=>row[coverage.key]!==null).length;
+    assert.equal(coverage.classified,independentCount,'coverage uses the full source population for '+coverage.key);
+    assert.equal(coverage.total,8501);
+  }
+  assert.equal(JSON.stringify(model),savedSource,'the source programme must remain byte-for-byte unchanged');
+  const replacement:CanonicalScheduleModel={...model,sourceRevisionId:'SOURCE-2',activities:activities.map((r,i)=>i===0?{...r,name:'Electrical cable works'}:r)};
+  const next=scheduleScopeClassification(replacement);
+  assert.equal(next.rows[0]?.discipline,'Electrical','a new source revision must override the former source evidence');
+  assert.equal(full.rows[0]?.discipline,'Mechanical','the earlier model's result remains unchanged');
+  const unrelated:CanonicalScheduleModel={...model,projectId:'SEPARATE-PROJECT',activities:activities.slice(0,32).map(r=>({...r,projectId:'SEPARATE-PROJECT'}))};
+  assert.deepEqual(scheduleScopeClassification(unrelated).rows,independentlyParsed.slice(0,32),'no classifications leak across projects');
+});

@@ -38,6 +38,7 @@ jobs:
             dist/tests/t11-scurve-calendar-and-observation-scale.test.js \
             dist/tests/t11-milestone-calendar-join-scale.test.js \
             dist/tests/t11-workfront-identical-source-reuse.test.js \
+            dist/tests/t11-wbs-discipline-scale.test.js \
             dist/tests/t11-variance-full-population.test.js \
             dist/tests/lookahead-procurement-linked-readiness.test.js \
             dist/tests/t11-source-completion-base-parity.test.js \

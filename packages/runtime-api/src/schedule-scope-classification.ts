@@ -87,6 +87,31 @@ function derivedDiscipline(text:string){
   if(specific.length>1)return null;
   return hits.includes('MEP')?'MEP':null;
 }
+/** Immutable regex definitions: they contain no global/sticky expressions.
+ * Reusing these source rules avoids allocating the same ~20 spatial readers for
+ * every activity in cold 8k–100k-row schedule and Delivery classification.
+ * No classification, WBS precedence, missing state, or source mutation changes.
+ */
+const sourceScopePatterns={
+  plot: [/\bplot\s*[-:#]?\s*([a-z]?\s*\d+[a-z]?)\b/i],
+  zone: [/\bzone\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمنطق(?:ة|ه)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu],
+  floor: [/\b(?:floor|flr|storey|story)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\b(?:طابق|دور)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu],
+  level: [/\b(?:level|lvl)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\bمستوى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu],
+  tower: [/\btower\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bبرج\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu],
+  building: [/\b(?:building|bldg|block)\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمبنى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu],
+  area: [/\barea\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z][a-z0-9 -]{1,30})\b/i],
+  workFront: [/\bwork\s*front\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i,/\bworkfront\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i],
+  phase: [/\bphase\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i],
+  section: [/\bsection\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i],
+  chainage: [/\b(?:chainage|ch)\s*[-:#]?\s*(\d+\+\d+(?:\.\d+)?)\b/i],
+  trade: [/\btrade\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i],
+  system: [/\bsystem\b\s*[-:#]?\s*([a-z]*\d+[a-z0-9_.\/-]*)\b/i,/\bsystem\b\s*[-:#]\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i],
+  packageValue: [/\bpackage\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bpkg\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i],
+  cbs: [/\bcbs\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bcost\s*code\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i],
+  subcontractor: [/\bsubcontractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i],
+  contractor: [/\b(?<!sub)contractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i],
+};
+
 export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:CanonicalScheduleActivity,nodes=new Map(model.wbs.map(node=>[node.wbsId,node])),
   pathCache?:Map<string,ReturnType<typeof wbsPath>>,
   wbsPickCache?:Map<string,Map<string,string|null>>,
@@ -111,23 +136,23 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
     const fromActivity=first(activityText,patterns);if(fromActivity)return {value:normalizedToken(label,fromActivity),basis:'source_activity_text' as const};
     return {value:null,basis:'unavailable' as const};
   };
-  const plot=pick('Plot',[/\bplot\s*[-:#]?\s*([a-z]?\s*\d+[a-z]?)\b/i]);
-  const zone=pick('Zone',[/\bzone\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمنطق(?:ة|ه)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
-  const floor=pick('Floor',[/\b(?:floor|flr|storey|story)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\b(?:طابق|دور)\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
-  const level=pick('Level',[/\b(?:level|lvl)\s*[-:#]?\s*(B?\d+[A-Z]?|G|GF|LG\d*|UG\d*|P\d*|RF|ROOF)\b/i,/\bمستوى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
-  const tower=pick('Tower',[/\btower\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bبرج\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
-  const building=pick('Building',[/\b(?:building|bldg|block)\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z])\b/i,/\bمبنى\s*[-:#]?\s*([\p{L}\p{N}-]+)/iu]);
-  const area=pick('Area',[/\barea\s*[-:#]?\s*([a-z]?\d+[a-z]?|[a-z][a-z0-9 -]{1,30})\b/i]);
-  const workFront=pick('Work Front',[/\bwork\s*front\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i,/\bworkfront\s*[-:#]?\s*([a-z0-9][a-z0-9 _-]{0,30})\b/i]);
-  const phase=pick('Phase',[/\bphase\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i]);
-  const section=pick('Section',[/\bsection\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,24})\b/i]);
-  const chainage=pick('Chainage',[/\b(?:chainage|ch)\s*[-:#]?\s*(\d+\+\d+(?:\.\d+)?)\b/i]);
-  const trade=pick('Trade',[/\btrade\s*[-:#]?\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
-  const system=pick('System',[/\bsystem\b\s*[-:#]?\s*([a-z]*\d+[a-z0-9_.\/-]*)\b/i,/\bsystem\b\s*[-:#]\s*([a-z0-9][a-z0-9 _\/-]{0,30})\b/i]);
-  const packageValue=pick('Package',[/\bpackage\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bpkg\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
-  const cbs=pick('CBS',[/\bcbs\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i,/\bcost\s*code\s*[-:#]?\s*([a-z0-9][a-z0-9_.\/-]{0,30})\b/i]);
-  const subcontractor=pick('Subcontractor',[/\bsubcontractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
-  const contractor=pick('Contractor',[/\b(?<!sub)contractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
+  const plot=pick('Plot',sourceScopePatterns.plot);
+  const zone=pick('Zone',sourceScopePatterns.zone);
+  const floor=pick('Floor',sourceScopePatterns.floor);
+  const level=pick('Level',sourceScopePatterns.level);
+  const tower=pick('Tower',sourceScopePatterns.tower);
+  const building=pick('Building',sourceScopePatterns.building);
+  const area=pick('Area',sourceScopePatterns.area);
+  const workFront=pick('Work Front',sourceScopePatterns.workFront);
+  const phase=pick('Phase',sourceScopePatterns.phase);
+  const section=pick('Section',sourceScopePatterns.section);
+  const chainage=pick('Chainage',sourceScopePatterns.chainage);
+  const trade=pick('Trade',sourceScopePatterns.trade);
+  const system=pick('System',sourceScopePatterns.system);
+  const packageValue=pick('Package',sourceScopePatterns.packageValue);
+  const cbs=pick('CBS',sourceScopePatterns.cbs);
+  const subcontractor=pick('Subcontractor',sourceScopePatterns.subcontractor);
+  const contractor=pick('Contractor',sourceScopePatterns.contractor);
   // The specific task or nearest WBS wins over a broad multi-discipline parent.
   // A parent containing both civil and MEP work must not erase a clear task label.
   // Task wording has precedence. When it cannot establish one discipline,
