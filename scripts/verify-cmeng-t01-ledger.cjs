@@ -54,7 +54,39 @@ assert.equal(ledger.abb.originalTotal,641);
 assert.equal(ledger.abb.problems,579);
 assert.equal(ledger.abb.historicalPasses,62);
 assert.equal(ledger.abb.problems+ledger.abb.historicalPasses,ledger.abb.originalTotal);
-const all=[...ledger.sw,...ledger.f,...ledger.s];
+assert.deepEqual(ledger.abb.historicalSeverities,{Critical:19,High:153,Medium:291,Low:178});
+assert.equal(ledger.abb.sourceRef.libraryFileId,'libfile_5b34fb78486c81918ed5d038e1912fd0');
+assert.equal(ledger.abb.sourceRef.originalWorkbookSha256,'b30041505c92ce20446ba584a44d69e95d02f7fcb7b98e50abc1e40776e4c296');
+assert.equal(ledger.abb.sourceRef.originalWorkbookSizeBytes,276998);
+const groupCounts={
+ G1_MANAGEMENT:93,G2_PLANNING:83,G3_CHANGES_FORECAST:78,G4_PROGRESS:54,
+ G5_DELAY:62,G6_COMMERCIAL:75,G7_PROCUREMENT:65,
+ G8_DESIGN_CONSTRUCTION_QUALITY:83,G9_HANDOVER_RISK:48,
+};
+assert.deepEqual(ledger.abb.groupCounts,groupCounts,'entire original workbook category population');
+const ids=new Set();
+for(const [group,count] of Object.entries(groupCounts)){
+ for(let i=1;i<=count;i++){
+  const id=group+'-'+String(i).padStart(2,'0');
+  assert.ok(!ids.has(id),'no duplicate ABB IDs');
+  ids.add(id);
+ }
+}
+assert.equal(ids.size,641);
+assertDistinct(ledger.abb.individualObservations,'ABB',641);
+const observed=new Set(ledger.abb.individualObservations.map(x=>x.id));
+assert.deepEqual(observed,ids,'every original ABB finding identifier must be present once');
+const verdictCounts={Problem:0,'Originally correct':0};
+for(const x of ledger.abb.individualObservations){
+ assert.equal(x.sourceRef.libraryFileId,ledger.abb.sourceRef.libraryFileId);
+ assert.equal(x.sourceRef.workbook,ledger.abb.sourceRef.workbook);
+ assert.equal(x.sourceRef.sheet,ledger.abb.sourceRef.sheet);
+ assert.equal(x.sourceRef.findExactId,x.id,'each row must point to exact original workbook ID');
+ assert.ok(Object.hasOwn(verdictCounts,x.historicalVerdict),'source-only verdict');
+ verdictCounts[x.historicalVerdict]++;
+}
+assert.deepEqual(verdictCounts,{Problem:579,'Originally correct':62});
+const all=[...ledger.sw,...ledger.f,...ledger.s,...ledger.abb.individualObservations];
 for(const item of all){
  assert.ok(['not_reconciled','partial_source_repair_saved','source_fix_verified','independently_certified'].includes(item.implementation.status),
   'explicit implementation state for '+item.id);
@@ -68,7 +100,8 @@ for(const item of all){
    'independent evidence and owner receipt required before closure for '+item.id);
 }
 const open=all.filter(x=>x.ownerAcceptance!=='accepted').length;
-console.log('CMENG_T01_TRACEABILITY_CHECK=PASS named='+all.length+' consultant='+defectIds.size+
-  ' sw='+ledger.sw.length+' f='+ledger.f.length+' s='+ledger.s.length+
-  ' abb_pending_row_reconciliation='+ledger.abb.originalTotal+
-  ' not_owner_accepted='+open);
+console.log('CMENG_T01_TRACEABILITY_CHECK=PASS original_items='+all.length+
+  ' sw='+ledger.sw.length+' f='+ledger.f.length+' consultant_findings='+defectIds.size+
+  ' s='+ledger.s.length+' abb_source_rows='+ledger.abb.individualObservations.length+
+  ' abb_problem='+verdictCounts.Problem+' abb_originally_correct='+verdictCounts['Originally correct']+
+  ' owner_acceptance_outstanding='+open);
