@@ -15939,7 +15939,9 @@
       "libraryFileId": "libfile_5b34fb78486c81918ed5d038e1912fd0",
       "workbook": "CMeng_T01_Full_Defect_Traceability_2026-10-14.xlsx",
       "sheet": "04 ABB 641",
-      "originalFields": "A:T"
+      "originalFields": "A:T",
+      "originalWorkbookSha256": "b30041505c92ce20446ba584a44d69e95d02f7fcb7b98e50abc1e40776e4c296",
+      "originalWorkbookSizeBytes": 276998
     },
     "historicalSeverities": {
       "Critical": 19,
