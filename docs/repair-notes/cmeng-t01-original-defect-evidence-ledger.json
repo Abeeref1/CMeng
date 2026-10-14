@@ -1109,10 +1109,12 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "a315db7651c80b60dd341cf6f2ccb45d4cb0e54e"
+          "a315db7651c80b60dd341cf6f2ccb45d4cb0e54e",
+          "e076358397ec6c9dfc1bbcbbe9fb59bc83fa42b0"
         ],
         "regressionFiles": [
-          "tests/t11-workfront-identical-source-reuse.test.ts"
+          "tests/t11-workfront-identical-source-reuse.test.ts",
+          "tests/t11-variance-full-population.test.ts"
         ]
       },
       "independentVerification": {
@@ -15970,5 +15972,5 @@
     "not_accepted": "Owner has not accepted this exact item"
   },
   "itemClosurePolicy": "Only link an original ID to source-grounded code, its test, its current-head guard and independent proof, then the owner's acceptance. No old consultant Fixed state counts as closure.",
-  "evidenceNote": "Source/manifest listing is traceability establishment, not evidence that all findings have been repaired."
+  "evidenceNote": "T11 source variance one-pass repaired and targeted CI focused pass on a484936e61cb; mandatory cold 5000-ms test not certified. The evidence ledger does NOT treat any source item as final closed without independent/owner acceptance."
 }
