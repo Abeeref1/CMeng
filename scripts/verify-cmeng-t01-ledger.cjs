@@ -157,6 +157,31 @@ for(const [root,total] of Object.entries(expectedRootCounts)){
 }
 assert.equal(proposedMapped+notMapped+untouchedCorrect,641);
 
+const expectedVerificationRoutes={
+ root_guard_and_consumer:522,independent_domain_then_screen_export:44,
+ missing_source_and_input_route:11,decision_persistence_and_consumers:1,
+ source_ai_lineage_and_output:1,originally_correct_regression:62,
+};
+const actualVerificationRoutes=Object.fromEntries(Object.keys(expectedVerificationRoutes).map(k=>[k,0]));
+const knownSourceGapIds=new Set('G7_PROCUREMENT-33|G3_CHANGES_FORECAST-31|G3_CHANGES_FORECAST-52|G3_CHANGES_FORECAST-68|G5_DELAY-08|G6_COMMERCIAL-18|G6_COMMERCIAL-45|G6_COMMERCIAL-51|G6_COMMERCIAL-67|G8_DESIGN_CONSTRUCTION_QUALITY-60|G8_DESIGN_CONSTRUCTION_QUALITY-64'.split('|'));
+for(const row of ledger.abb.individualObservations){
+ const route=row.proposedVerificationGroup;
+ assert.ok(route&&Object.hasOwn(expectedVerificationRoutes,route.route),'every original finding has a source-backed proposed verifier route: '+row.id);
+ assert.equal(route.sourceWorkbookSha256,ledger.abb.sourceRef.originalWorkbookSha256);
+ assert.equal(route.status,'not_certified','a candidate root link cannot certify the finding: '+row.id);
+ assert.ok(route.sourceCheck,'verifier must state an exact intended source check: '+row.id);
+ actualVerificationRoutes[route.route]++;
+ if(row.historicalVerdict==='Originally correct')assert.equal(route.route,'originally_correct_regression');
+ else if(row.proposedSwRootIds?.length)assert.equal(route.route,'root_guard_and_consumer','source SW candidate must keep root guard and consumer checks: '+row.id);
+ else if(knownSourceGapIds.has(row.id))assert.equal(route.route,'missing_source_and_input_route','original source gap method retained: '+row.id);
+ else if(row.id==='G3_CHANGES_FORECAST-67')assert.equal(route.route,'decision_persistence_and_consumers');
+ else if(row.id==='G5_DELAY-09')assert.equal(route.route,'source_ai_lineage_and_output');
+ else assert.equal(route.route,'independent_domain_then_screen_export','unmapped original calculation requires independent calculation: '+row.id);
+}
+assert.deepEqual(actualVerificationRoutes,expectedVerificationRoutes);
+assert.deepEqual(overlap.sourceVerificationRoutes,expectedVerificationRoutes);
+
+
 const historicallyCorrect=new Set((
  'G1_MANAGEMENT-36,G1_MANAGEMENT-37,G1_MANAGEMENT-38,G1_MANAGEMENT-39,G1_MANAGEMENT-40,G1_MANAGEMENT-41,G1_MANAGEMENT-56,G1_MANAGEMENT-65,G1_MANAGEMENT-66,G1_MANAGEMENT-81,G1_MANAGEMENT-93,G2_PLANNING-21,G2_PLANNING-39,G2_PLANNING-54,G2_PLANNING-62,G2_PLANNING-67,G2_PLANNING-70,G2_PLANNING-83,G3_CHANGES_FORECAST-13,G3_CHANGES_FORECAST-20,G3_CHANGES_FORECAST-32,G3_CHANGES_FORECAST-38,G3_CHANGES_FORECAST-53,G3_CHANGES_FORECAST-69,G3_CHANGES_FORECAST-78,G4_PROGRESS-11,G4_PROGRESS-28,G4_PROGRESS-35,G4_PROGRESS-40,G4_PROGRESS-49,G4_PROGRESS-54,G5_DELAY-25,G5_DELAY-26,G5_DELAY-37,G5_DELAY-38,G5_DELAY-50,G5_DELAY-62,G6_COMMERCIAL-17,G6_COMMERCIAL-19,G6_COMMERCIAL-29,G6_COMMERCIAL-38,G6_COMMERCIAL-62,G6_COMMERCIAL-75,G7_PROCUREMENT-16,G7_PROCUREMENT-30,G7_PROCUREMENT-38,G7_PROCUREMENT-45,G7_PROCUREMENT-53,G7_PROCUREMENT-60,G7_PROCUREMENT-65,G8_DESIGN_CONSTRUCTION_QUALITY-16,G8_DESIGN_CONSTRUCTION_QUALITY-17,G8_DESIGN_CONSTRUCTION_QUALITY-18,G8_DESIGN_CONSTRUCTION_QUALITY-31,G8_DESIGN_CONSTRUCTION_QUALITY-39,G8_DESIGN_CONSTRUCTION_QUALITY-53,G8_DESIGN_CONSTRUCTION_QUALITY-76,G8_DESIGN_CONSTRUCTION_QUALITY-83,G9_HANDOVER_RISK-20,G9_HANDOVER_RISK-22,G9_HANDOVER_RISK-30,G9_HANDOVER_RISK-48'
 ).split(','));
