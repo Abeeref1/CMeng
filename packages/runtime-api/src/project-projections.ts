@@ -1,4 +1,5 @@
 import {projectScopeClassification} from './location-review';
+import {attachSourceActivityCalendars} from './source-milestone-calendar-join';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
@@ -7579,10 +7580,7 @@ function resolveProjectModuleCandidate(
       ...(key === "milestones" ? {
         independentDrivingPathState: forecastReview ? "review_required" : forecast?.complete ? "calculated_requires_path_validation" : "not_established",
         independentDrivingPathReason: forecastReview ?? "CPM calculation coverage does not by itself validate a milestone driving path.",
-        rows: (data.rows ?? []).map((row: any) => {
-          const activity = model.activities.find(a => a.activityId === row.activityId);
-          return {...row, calendarId: activity?.calendarId ?? null};
-        }),
+        rows: attachSourceActivityCalendars(data.rows??[],model.activities),
       } : {}),
       ...(key === "independent-forecast" ? (() => {
         const control =
