@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   prepareRegisterRows,
+  registerDate,
   type SourceTable,
 } from "../packages/truth-kernel/src";
 import {
@@ -417,4 +418,36 @@ test("known project-control register schemas are read as schemas, not false unre
         ),
     );
   }
+});
+
+
+test("T02/SW-13 source date reading accepts both Arabic digit alphabets without changing evidence or unknowns",()=>{
+  const fixtures:[string,string|null][]=[
+    ["۳۱/۰۸/۲۰۳۴","2034-08-31"],
+    ["٣١/٠٨/٢٠٣٤","2034-08-31"],
+    ["۲۰۳۴-۰۸-۳۱","2034-08-31"],
+    ["2034-08-31","2034-08-31"],
+    ["31 Aug 2034","2034-08-31"],
+    ["۲۰۳۴-۰۲-۳۱",null],
+    ["۳۱/۱۳/۲۰۳۴",null],
+    ["UNKNOWN",null],
+    ["",null],
+  ];
+  for(const [source,expected] of fixtures){
+    for(let i=0;i<5;i++)assert.equal(registerDate(source),expected,"date evidence "+JSON.stringify(source));
+  }
+  // Source table controls retain the supplied cell separately from its dated
+  // projection. Both matched and withheld dates must remain distinguishable.
+  const prepared=prepareRegisterRows([
+    ["Package ID","Required on Site","Forecast Delivery","Status"],
+    ["P-EASTERN","۳۱/۰۸/۲۰۳۴","۲۰۳۴-۰۹-۰۵","Ordered"],
+    ["P-INVALID","۳۱/۱۳/۲۰۳۴","","Unknown"],
+  ],"procurement_register");
+  assert.equal(prepared.recognized,true);
+  assert.deepEqual(prepared.rows.map(row=>row.slice(1,3)),[
+    ["2034-08-31","2034-09-05"],
+    ["۳۱/۱۳/۲۰۳۴",""],
+  ]);
+  for(let i=0;i<5000;i++)assert.equal(registerDate("unreadable-"+i),null);
+  assert.equal(registerDate("۳۱/۰۸/۲۰۳۴"),"2034-08-31","bounded cache eviction must not change date meaning");
 });

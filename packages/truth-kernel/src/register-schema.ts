@@ -162,15 +162,28 @@ export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));
 }
 
+const registerDateMemo=new Map<string,string|null>();
+const memoRegisterDate=(source:string,parsed:string|null)=>{
+  // Source date parsing is pure; bounded memoization avoids parsing identical
+  // lifecycle dates thousands of times while preventing unbounded input caches.
+  if(registerDateMemo.size>=4096)registerDateMemo.clear();
+  registerDateMemo.set(source,parsed);
+  return parsed;
+};
 export function registerDate(value:string):string|null {
-  const text=value.trim().replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660));
+  const existing=registerDateMemo.get(value);
+  if(existing!==undefined)return existing;
+  const text=value.trim().replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x660))
+    .replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x6f0));
   const iso=/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(text);
   const numeric=/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/.exec(text);
   const words=/^(\d{1,2})[ -]+([A-Za-z]+)[ ,\-]+(\d{4})$/.exec(text);
   const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
   let y:number,m:number,d:number;
-  if(iso){y=+iso[1]!;m=+iso[2]!;d=+iso[3]!;}else if(numeric){y=+numeric[3]!;m=+numeric[2]!;d=+numeric[1]!;}else if(words){y=+words[3]!;m=months.indexOf(words[2]!.slice(0,3).toLowerCase())+1;d=+words[1]!;}else return null;
-  const date=new Date(Date.UTC(y,m-1,d));return m>0&&date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?date.toISOString().slice(0,10):null;
+  if(iso){y=+iso[1]!;m=+iso[2]!;d=+iso[3]!;}else if(numeric){y=+numeric[3]!;m=+numeric[2]!;d=+numeric[1]!;}else if(words){y=+words[3]!;m=months.indexOf(words[2]!.slice(0,3).toLowerCase())+1;d=+words[1]!;}else return memoRegisterDate(value,null);
+  const date=new Date(Date.UTC(y,m-1,d));
+  const parsed=m>0&&date.getUTCFullYear()===y&&date.getUTCMonth()===m-1&&date.getUTCDate()===d?date.toISOString().slice(0,10):null;
+  return memoRegisterDate(value,parsed);
 }
 function registerSummaryRow(row:readonly string[]):boolean{
   const values=row.map(value=>value.normalize('NFKC').trim()).filter(Boolean);
