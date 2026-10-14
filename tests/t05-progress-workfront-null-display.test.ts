@@ -19,7 +19,7 @@ function render(rows:Record<string,unknown>[]){
    available:true,classificationCoveragePercent:100,classifiedPopulation:1,unclassifiedPopulation:0,rows}],
  };
  const sourceBefore=JSON.stringify(project);
- const script=renderer.getText(parsed)+';renderProgressBreakdownVisual';
+ const script=renderer!.getText(parsed)+';renderProgressBreakdownVisual';
  const display=runInNewContext(script,{
   projectionFor:(value:unknown)=>value,
   fmt:(value:unknown)=>value===null||value===undefined?'Not established':String(value),
