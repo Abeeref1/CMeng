@@ -75,6 +75,8 @@ function cumulative(rows: readonly WeightedActivity[], at: number): number | nul
 export function buildProgressScurveProjection(model: CanonicalScheduleModel, input: {
   generatedAt: string; producerVersion: string; intervalDays?: number;
   actualHistory?: ActualProgressSnapshot[]; baselineModel?: CanonicalScheduleModel | null;
+  /** Reuse these complete calculated source positions within one project evaluation. */
+  onPlanPositions?: (positions: ReturnType<typeof schedulePlanPositions>)=>void;
 }): ProgressScurveProjection {
   const intervalDays = input.intervalDays ?? 7;
   if (!Number.isSafeInteger(intervalDays) || intervalDays <= 0) throw new Error("Progress S-Curve intervalDays must be a positive integer");
@@ -91,6 +93,22 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     activity.forecastFinishIso ?? activity.currentFinishIso ?? activity.actualFinishIso,
   ], diagnostics);
   const snapshot = scheduleProgress(model.activities), cutoff = ms(model.dataDateIso);
+  // S-curve and WBS/control-scope plans use the identical original activity
+  // dates, calendars, and Data Date. Keep the full per-activity values locally
+  // instead of parsing the same 8k+ programme twice in scope comparisons and
+  // a third time when Progress Breakdown opens. No cross-project cache.
+  const planPositions = input.onPlanPositions || input.baselineModel
+    ? {
+      baseline:new Map(baseline.map(row=>[row.activityId,{
+        value:cutoff===null?null:cumulative([row],cutoff),weight:row.weight,
+      }] as const)),
+      current:new Map(current.map(row=>[row.activityId,{
+        value:cutoff===null?null:cumulative([row],cutoff),weight:row.weight,
+      }] as const)),
+      // S-curve's own baseline diagnostic is not a plan source diagnostic.
+      diagnostics:diagnostics.slice(input.baselineModel?1:0),
+    } : null;
+  if(planPositions)input.onPlanPositions?.(planPositions);
   const supplied = (input.actualHistory ?? []).filter(row => row.progressPercent >= 0 && row.progressPercent <= 100
     && ms(row.asOfIso) !== null && cutoff !== null && ms(row.asOfIso)! <= cutoff).sort((a, b) => ms(a.asOfIso)! - ms(b.asOfIso)!);
   const snapshots: ActualProgressSnapshot[] = supplied.length ? supplied : cutoff !== null && snapshot.value !== null ? [{
@@ -152,21 +170,21 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     actualHistoryMode: snapshots.length > 1 ? "snapshot_history" : snapshots.length === 1 ? "current_snapshot_only" : "missing",
     currentSeriesMeaning: "current_schedule_date_phasing_not_achieved_progress",
     points, actualSnapshots: snapshots, diagnostics,
-    scopeComparison:input.baselineModel?compareProgressScopes(model,input.baselineModel):null,
+    scopeComparison:input.baselineModel?compareProgressScopes(model,input.baselineModel,planPositions??undefined):null,
   };
 }
 
 const scopeCache=new WeakMap<CanonicalScheduleModel,WeakMap<CanonicalScheduleModel,ReturnType<typeof calculateProgressScope>>>();
-export function compareProgressScopes(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel){
+export function compareProgressScopes(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel,precomputed?:ReturnType<typeof schedulePlanPositions>){
   let cache=scopeCache.get(model);if(!cache){cache=new WeakMap();scopeCache.set(model,cache);}
   const existing=cache.get(baseline);if(existing)return existing;
-  const result=calculateProgressScope(model,baseline);cache.set(baseline,result);return result;
+  const result=calculateProgressScope(model,baseline,precomputed);cache.set(baseline,result);return result;
 }
-function calculateProgressScope(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel){
+function calculateProgressScope(model:CanonicalScheduleModel,baseline:CanonicalScheduleModel,precomputed?:ReturnType<typeof schedulePlanPositions>){
   const before=baseline.activities.filter(isProgressActivity),after=model.activities.filter(isProgressActivity);
   const identity=resolveRevisionActivityCorrespondence(before,after);
   const beforeById=new Map(before.map(a=>[a.activityId,a])),afterById=new Map(after.map(a=>[a.activityId,a]));
-  const positions=schedulePlanPositions(model,baseline);
+  const positions=precomputed??schedulePlanPositions(model,baseline);
   const matched=identity.matches.map(m=>({before:beforeById.get(m.fromActivityId)!,after:afterById.get(m.toActivityId)!,
     baselinePlan:positions.baseline.get(m.fromActivityId),currentPlan:positions.current.get(m.toActivityId)}));
   const comparable=matched.filter(r=>r.baselinePlan?.value!=null&&r.currentPlan?.value!=null&&

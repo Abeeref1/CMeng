@@ -5,7 +5,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {sharedProjectPlanPositions} from '../packages/runtime-api/src/shared-plan-positions';
-import {schedulePlanPositions} from '../packages/progress-scurve/src/projector';
+import {schedulePlanPositions,buildProgressScurveProjection,compareProgressScopes} from '../packages/progress-scurve/src/projector';
 import {buildProgressBreakdownProjection,buildDeliveryWorkfrontBreakdown} from '../packages/progress-breakdown/src/projector';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
@@ -35,7 +35,29 @@ test('T11 versioned full-programme phasing is identical to a fresh independent c
   ...row,currentFinishIso:'2031-06-01',baselineFinishIso:'2031-06-01',
  }))};
  const original=JSON.stringify({model,baseline});
- const first=sharedProjectPlanPositions(state,model,baseline),second=sharedProjectPlanPositions(state,model,baseline);
+ let fromScurve:ReturnType<typeof schedulePlanPositions>|undefined;
+ const scurve=buildProgressScurveProjection(model,{generatedAt:'2031-04-01T00:00:00Z',
+  producerVersion:'unchanged-source-phasing',baselineModel:baseline,
+  onPlanPositions:positions=>{fromScurve=positions;}});
+ assert.ok(fromScurve,'S-curve must expose its source-calculated full population');
+ assert.deepEqual(fromScurve,schedulePlanPositions(model,baseline),
+  'no differences in full activity IDs, missing dates, hours, or source calendars');
+ const independentModel={...model,activities:model.activities.map(row=>({...row}))};
+ const independentBaseline={...baseline,activities:baseline.activities.map(row=>({...row}))};
+ const independentScurve=buildProgressScurveProjection(independentModel,{
+  generatedAt:'2031-04-01T00:00:00Z',producerVersion:'unchanged-source-phasing',baselineModel:independentBaseline});
+ assert.deepEqual(scurve,independentScurve,
+  'all chart points, histories, diagnostics and scope calculations stay identical');
+ assert.deepEqual(scurve.scopeComparison,compareProgressScopes({...independentModel,activities:independentModel.activities.map(row=>({...row}))},
+  {...independentBaseline,activities:independentBaseline.activities.map(row=>({...row}))}),
+  'source scoped comparison equals its independent full recomputation');
+ let baselineAbsent:ReturnType<typeof schedulePlanPositions>|undefined;
+ buildProgressScurveProjection(model,{generatedAt:'2031-04-01T00:00:00Z',
+  producerVersion:'missing-baseline',onPlanPositions:positions=>{baselineAbsent=positions;}});
+ assert.deepEqual(baselineAbsent,schedulePlanPositions(model,null),
+  'missing controlled baseline retains original null and fallback semantics');
+ const first=sharedProjectPlanPositions(state,model,baseline,fromScurve),
+  second=sharedProjectPlanPositions(state,model,baseline);
  assert.strictEqual(first,second,'unchanged source and baseline share the identical projection');
  assert.deepEqual(first,schedulePlanPositions(model,baseline),'the shared calculation must use the original reader and calendar mathematics');
  const directBreakdown=buildProgressBreakdownProjection(model,{

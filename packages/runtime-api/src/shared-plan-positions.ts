@@ -19,11 +19,14 @@ export function sharedProjectPlanPositions(
  state:ProjectRuntimeState,
  current:CanonicalScheduleModel,
  baseline:CanonicalScheduleModel|null,
+ precomputed?:ReturnType<typeof schedulePlanPositions>,
 ):ReturnType<typeof schedulePlanPositions>{
  const cached=positionsByState.get(state);
  if(cached&&cached.version===state.version&&cached.current===current&&cached.baseline===baseline)
   return cached.result;
- const result=schedulePlanPositions(current,baseline);
+ // Callers may provide positions computed earlier within the same immutable
+ // S-curve evaluation, with this exact source model and baseline identity.
+ const result=precomputed??schedulePlanPositions(current,baseline);
  positionsByState.set(state,{version:state.version,current,baseline,result});
  return result;
 }

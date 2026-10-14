@@ -1173,6 +1173,7 @@ function buildBundle(
   );
 
   measureBundle('lookahead_projection');
+  let sourcePlanPositions:ReturnType<typeof sharedProjectPlanPositions>|undefined;
   const progressScurve =
     buildProgressScurveProjection(
       model,
@@ -1186,6 +1187,7 @@ function buildBundle(
           controlledBaseline
             ?.revision.model ??
           null,
+        onPlanPositions:positions=>{sourcePlanPositions=positions;},
       },
     );
   modules.set(
@@ -1389,7 +1391,7 @@ function buildBundle(
       model,
       {
       baselineModel: controlledBaseline?.revision.model ?? null,
-      sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null),
+      sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null,sourcePlanPositions),
       previousModel: ordered.at(-2)?.revision.model ?? null,
       scopeClassification: projectScopeClassification(state,model),
       readinessEvidence: state.controls.readinessEvidence,
