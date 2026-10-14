@@ -1,5 +1,5 @@
 # CMeng Repair Plan — reconciled controlling execution and T01 board
-> Compiled 14 October 2026 from the recovered **13 October CMeng Repair Plan** text, 12 October SW root register, ABB 641-row workbook and GitHub acceptance documents. This is a reconstructed, clarified working copy; the standalone original file called `CMeng_Repair_Plan.md` was not located. It does **not** replace the original defect/source evidence.
+> Compiled 14 October 2026 from the recovered **13 October CMeng Repair Plan** text, 12 October SW root register, ABB 641-row workbook and GitHub acceptance documents. This is a reconstructed, clarified working copy; the standalone original file called `CMeng_Repair_Plan.md` has not been verified as received in this repository. **Do not call this the original or treat reconstruction as a substitute for original evidence.** The owner reports the actual guard starting point as 11,822 failing of 43,401 executed (31,579 passing); this is a historical owner-supplied reference, not a freshly executed check. It does **not** replace the original defect/source evidence.
 **Working branch:** `fix/cmeng-systemwide-20261013`. Use the GitHub execution checkpoint and exact branch SHA for the current engineering head; the release and live deployment are separate. **Historical production baseline:** `b3c76d6`. Nothing in this document represents production acceptance.
 
 ## The non-negotiable controlling agreement
@@ -25,7 +25,7 @@
 | ABB detailed observations | 641 = 579 reported problems + 62 originally correct checks |
 | Existing project population | 23 |
 | Reviewed page/tab types | 57 |
-| Historic guard run | 39 rules, 51,129 assertions, 11,822 failures on b3c76d6 (13 Oct) |
+| Historic guard run | 39 rules, 43,401 assertions, 11,822 failures on b3c76d6 (13 Oct) |
 | Historic 30 Sep candidate hold | 548 / 548 documents; 171 page prompts |
 | Current sampled cold-load gate | Four cold heavy projects, slowest 9.244 s versus 5.000 s (FAIL on 13 Oct) |
 
@@ -288,7 +288,7 @@ Per the 6 October execution amendment, independent engineering for later stages 
 
 | Control | Recorded date | Verified state |
 |---|---|---|
-| Historical baseline lock | 2026-10-13 | Evidence baseline; owner/verifier controls changes — Recorded only: 39 rules, 11,822 failures / 51,129 assertions; 23 projects; original production b3c76d6 |
+| Historical baseline lock | 2026-10-13 | Evidence baseline; owner/verifier controls changes — Recorded only: 39 rules, 11,822 failures / 43,401 assertions; 23 projects; original production b3c76d6 |
 | T01 board compilation | 2026-10-14 | Board produced; not T01 closed — All 57 SW + 61 F + 8 S + 641 ABB observations imported with independent-verification column. Full overlap mapping and proof still pending. |
 | Candidate branch snapshot | 2026-10-13 | Not released — ddd5bdb6: known repaired code saved; production last independently verified b3c76d6 |
 | T11 speed exit | Not established | Release blocker — Unchanged concurrent heavy project gate < = 5,000 ms; 9,244 ms observed CI on 13 Oct. |
