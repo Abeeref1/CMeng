@@ -1,311 +1,262 @@
-# CMeng Repair Plan — reconciled controlling execution and T01 board
-> Compiled 14 October 2026 from the recovered **13 October CMeng Repair Plan** text, 12 October SW root register, ABB 641-row workbook and GitHub acceptance documents. This is a reconstructed, clarified working copy; the standalone original file called `CMeng_Repair_Plan.md` has not been verified as received in this repository. **Do not call this the original or treat reconstruction as a substitute for original evidence.** The owner reports the actual guard starting point as 11,822 failing of 43,401 executed (31,579 passing); this is a historical owner-supplied reference, not a freshly executed check. It does **not** replace the original defect/source evidence.
-**Working branch:** `fix/cmeng-systemwide-20261013`. Use the GitHub execution checkpoint and exact branch SHA for the current engineering head; the release and live deployment are separate. **Historical production baseline:** `b3c76d6`. Nothing in this document represents production acceptance.
+# CMeng Repair Plan
 
-## The non-negotiable controlling agreement
+13 Oct 2026
 
-1. **Product-wide** fixes only, shared producer plus every consumer, across all 23 existing projects and all 57 reviewed page/tab types, documents, portfolio, Ask and downloads. No project-identity conditions or invented expected answers.
-2. **No intermediate deployments.** Complete known-defect repair on the existing branch, run one exact-candidate verification, provide one candidate for owner deployment, then owner live review. This explicitly supersedes the older 13 Oct plan’s sentence calling for continuous partial releases.
-3. No new sign-in, account permission or role-control features. Existing engineering/professional lenses are display perspectives only.
-4. Source → reading (record whether AI was needed/available/called/successful) → linking → authority/decision → calculation → screen/action → Ask/export. Repair at first broken shared boundary and test all downstream uses.
-5. Clear source facts must be usable, **not held candidate-only**. Only genuine conflict, uncertainty, adopted authority and supported manual assumptions require a decision; all decisions editable, revocable, versioned and restart-durable.
-6. AI proposes reading/classification/mapping, not final deterministic calculations or approvals; 0 paid calls in automated tests, cap and source evidence for optional real calls.
-7. False zero, green, No, Complete, Closed, Approved or confirmed status is a defect. Units, data date, population, and authority must accompany qualified results.
-8. Wording, look, controls, page usefulness and professional exports are mandatory correctness, including Medium/Low issues. No silent disappearance.
-9. The **5,000 ms four concurrent cold-project gate** stays unchanged; no reduced workload, more hardware, hidden outputs or passing via weakened tests.
-10. Owner/verifier alone may modify the independent starting point or guard rules, and an item closes only with actual source-grounded screen/interaction/export/independent release proof.
+Fix every CMeng defect once, in shared code, wording included, and stop each one from coming back. The original seven-stage agreement stays the acceptance standard, T01 to T12 are the work, and the automatic guard protects against defects coming back without replacing engineering acceptance.
 
-## Scope and baseline — historical facts, not present-defect count
+## Where we start
 
-| Inventory | Historical amount |
-|---|---:|
-| SW defect IDs | 57: SW-01–SW-56 from 12 Oct source, SW-57 from 13 Oct plan |
-| Consultant F repair items | 61 (274 D/N original findings) |
-| Independent S obligations | 8: S-02, 06, 07, 17, 21, 32, 35, 45 |
-| ABB detailed observations | 641 = 579 reported problems + 62 originally correct checks |
-| Existing project population | 23 |
-| Reviewed page/tab types | 57 |
-| Historic guard run | 39 rules, 43,401 assertions, 11,822 failures on b3c76d6 (13 Oct) |
-| Historic 30 Sep candidate hold | 548 / 548 documents; 171 page prompts |
-| Current sampled cold-load gate | Four cold heavy projects, slowest 9.244 s versus 5.000 s (FAIL on 13 Oct) |
+The live release is b3c76d6. The repair branch fix/cmeng-systemwide-20261013 is at ddd5bdb6, with 64 saved commits that are not live. Nothing is deployed until the single release candidate. Stage 1 is open; 0 of 7 stages are accepted.
 
-SW-56 severity conflict: 12 October root register records **Medium**, while the 13 October plan records **High**. The later priority is used for execution; neither historical classification is deleted.
+| Item | Position today |
+| --- | --- |
+| Scope | All 23 existing projects, all 57 pages and tabs per project, plus drawers, documents, portfolio, Ask, reports and downloads |
+| Defect records | 274 consultant findings (F01 to F61), 57 system defects (SW-01 to SW-57), 8 open S-items (S02, S06, S07, S17, S21, S32, S35, S45), 641 findings from the 57-page detailed review |
+| Automatic check, starting point | 11,822 failing checks out of 43,401 run (33 page rules on 1,311 pages, plus 6 project rules on 23 projects) |
+| Rules failing | 36 of 39 fail on at least one project; 20 fail on all 23 projects |
+| Read results held back | 548 of 548 documents held as "candidate only"; 171 pages say records wait for confirmation |
+| AI | Set up but needs owner permission; not used for reading |
+| Speed | Accountability takes 5 to 18 seconds to open on 12 projects (4 projects open at once); Notice Compliance and Cost Outlook went over once each; other pages open in under 1 second. On the repair branch, the fixer's own check measures 9.24 seconds for 4 cold projects at once |
 
-Overlap between SW, F and ABB is expected. These are **separately preserved traceable observation records**, not 57+274+641 independent defects. The exact crosswalk remains T01 work; do not invent links.
+## Rules for all the work
 
+These rules apply to every task and every release.
 
-## Guard, starting point and nonregression — mandatory from first change
+1. **System-wide only.** Every fix goes into shared code. No fix for one project, no project names in code or tests.
+2. **One evidence chain for every defect:** source, reading (and AI), linking, decision, calculation, screen, export. The fix goes where the chain first breaks, and every later step is checked again.
+3. **Reading is not the same as authority.** Every fact carries one of three states:
+   1. **Read:** taken correctly from a source, with its file and place.
+   2. **Used in analysis:** a clearly read fact is used straight away, labelled with its source and document status (contractor submission, draft, superseded, current). No confirmation is asked for clear facts.
+   3. **Formally adopted:** an approved programme, a contract term, an awarded EOT. This status is never assumed from reading alone.
+4. **Ask only on real conflicts or unsure readings.** Show both values with their sources and what each changes. You pick one, type your own, change it later or undo it. Your choice is saved, survives a restart, and updates every page, role view, Ask answer and download.
+5. **AI reads and matches, never calculates.** Each reading step shows whether AI was needed, available, called, worked or blocked. Spending has a monthly cap. Routine test runs use recorded AI answers; one controlled real AI test per release candidate proves the live AI path, within the cap.
+6. **Unknown is never 0, "No" or "Good".** Zero, unknown, not applicable and disputed look different and say why. A missing owner or date shows as missing, with a way to set it.
+7. **Wording and look are part of every fix.** Labels, buttons, empty messages, tooltips, charts and layout count. Low severity is no reason to leave a defect open. Checks test useful, correct behaviour: nothing is hidden or removed just to pass a check.
+8. **Results change only for a reason.** A figure changes only when a source, a decision or the calculation version changes, and the change is recorded with its reason.
+9. **Access.** No sign-in, no user accounts and no role control, by the owner's final decision; this replaces the authentication and RBAC item in Stage 7. Projects stay isolated from each other. Role views are views only and show the same facts for the same scope and date.
+10. **Speed.** The 5-second gate applies to the release candidate, with 4 projects open at once, cold and warm. It is never lowered.
+11. **A defect closes only on evidence** from the live pages, Ask and downloads, never on a test count.
 
-- Freeze the historical 13 Oct matrix by (rule, project, page, source version). It is a **historical snapshot**, not evidence the repaired branch currently has 11,822 failures.
-- Each previously passing exact case must remain passing. When a rule becomes completely green on all 23 projects, lock it. Historic L4, A2 and P2 start locked. No fixer edits independent baselines, patterns, source answer keys or tolerances to create a pass.
-- Each new legitimate finding becomes a permanent failing-before/passing-after test, preferably source-grounded + actual rendered page and export, and a do-not-use phrase where appropriate.
-- New named checks N10, N12, C2, W10 remain explicit additions; the 13 Oct source mentions 11 more in total but identifies only four in its table. Recover other definitions under T01 rather than fabricating IDs.
-- Separate standalone source reader and independent calculators create expected figures without consuming CMeng calculated answers; verify every page, role, Ask answer and export within the same scope/date.
-- All test groups, including scanned/raster, acceptance, regression, concurrency, operations and independent challenge, run against the **same release SHA**. The final owner live review remains additional, not substituted by green CI.
+## The seven stages: the acceptance standard
 
-## Priority and dependencies (no replacement phases)
+The stages and their closure requirements are the ones in the agreed document (docs/cmeng-fixed-seven-stage-readiness.md), unchanged except for the access item in rule 9. Under the 6 October amendment, engineering for all stages can run side by side; acceptance stays stage by stage, and a finding from the independent challenge reopens its stage.
 
-**P0**: T01 baseline and T12 permanent checks start first; **T11 cold-load failure is a hard release blocker and begins concurrently**. **P1**: T02 source coverage → T03 optional AI reading/matching → T04 removal of the 30 September candidate hold and real user-decision controls → T05 canonical versioned facts. **P2**: T06/T07/T08 independent domain engine correctness based on qualified facts. **P3**: T09 actions/navigation and T10 page wording/Ask/filters/reports; independent wording-only fixes may run alongside domains. T12 runs throughout and closes only on a single verified candidate.
+| Stage | What it requires | Closes when | Main tasks | Guard rules that support it |
+| --- | --- | --- | --- | --- |
+| 1. Close all known defects | Every known defect reproduced and classed as a real defect or an invalid expectation; shared root cause fixed; exact regression and negative cases added | Every known defect fixed or disproved, the register reconciles all earlier findings, a fresh unseen cohort passes, independent challenge passed | T01, all repair tasks | All rules at their starting point or better |
+| 2. Strict-suite root causes and fresh reacceptance | Every suite failure classed; source identity, authority, BOQ preservation, routing and candidate versus current authority protected | No unexplained suite failure or cross-page / source-authority mismatch on at least 10 fresh projects per feature family, independent challenge passed | T02, T03, T04 | R1 to R5, C1, C2, W10 |
+| 3. Independent truth mechanisms | CMeng checked against truth worked out outside CMeng: CPM solver (calendars, FS/SS/FF/SF, lag), EVM workbook and script, commercial ledger, notice and date calculator, delivery state tables; judgment calls on claims and EOT stay human | Canonical facts and calculations reconcile, real basis differences explained, fresh adversarial projects pass, independent challenge passed | T06, T07, T08, T12 | Independent reader (T) |
+| 4. Domain-by-domain certification | Each feature family certified on its own: contract and programme authority; CPM and float; progress, resources and S-curves; forecast and recovery; delay, notices and EOT; commercial and LD; procurement; delivery, quality and handover; risk and HSE | Every feature family works on at least 10 fresh unseen projects, independent challenge passed | T05 to T10 | N1 to N11, S1 to S4 |
+| 5. Cross-domain and management integration | One PMO system: contract with schedule, schedule with progress and BOQ, procurement and delivery, delay with claims and EOT, EOT with LD, risk with forecast; all views agree on facts, Data Date, authority and populations | No unexplained contradiction, silent authority promotion or population mismatch, independent challenge passed | T05, T09 | N4, N5, A1 to A5 |
+| 6. Ask, reports, filters and exports | Calculation first, AI only explains; filters, search, sort, paging, saved views; reports and exports match the screen | Screen, Ask, reports and exports give the same facts, independent challenge passed | T10 | W1 to W10, L1 to L6, X1 to X3 |
+| 7. Operations and final blind acceptance | Isolation, concurrency, cold start, scale, restart, failed writes, backup and restore, rollback, monitoring; 100+ focused cases per critical family; 100 completely fresh projects; full real-project regression | The exact release tested is the release deployed; no known wrong figure, false zero, evidence loss, project-specific logic or screen/report mismatch; independent final acceptance | T11, T12 | P1, P2, N10, V1, every rule at zero |
 
-## T01–T12 repair tracker
+## The work: T01 to T12
 
-| Workstream | Saved implementation | Remaining required full repair | Acceptance proof |
-|---|---|---|---|
-| **T01 Unified defect inventory and starting baseline** | Source SW register, consultant D/N/F records, S-items and ABB workbook recovered. Historic 39-rule baseline identified. | Reconcile each item to root cause, all consumers, code SHA, test ID, owner and exact-head status. Distinguish original baseline from current result; mark test projects. | Every SW/F/S/ABB item traceable with original evidence, shared repair, independent check, actual page/export result and exact SHA. Owner/verifier controls guard. |
-| **T02 Source reading, classification and retention** | XER project finish aliases, BOQ cost codes, document classification review, resumable PDF and procurement/asset source fields recorded. | Independent source inventory for every file, rows, dates, statuses, columns, PDF pages, relations, calendars, current-vs-old records and unresolved fields; preserve 548-document hold trace. | Compare source hashes, 548 item coverage and independent reader across all 23 projects plus fresh layouts; no unread source silently declared complete. |
-| **T03 AI reading, matching and controlled spending** | Source-qualified AI reading retry, shared ledger and cap, paid-provider probe controls documented. | Verify enabled/skipped/failed/budget cases for unfamiliar tables, clauses and BOQ/activities; prove AI invocation rather than mere configuration, recorded outputs, no invented links. | Dry-run recorded AI replies with 0 paid test calls, source/version evidence, optional real controlled probe at final owner live review. |
-| **T04 30 September 548-document candidate hold and decisions** | Risk matrix, milestone, location, classification, EOT, procurement-date, contract-value and HSE source-bound decisions saved. | Eliminate blanket candidate-only hold for clearly read facts; 548/548 historic candidates and 171 page prompts must be reconciled individually; no blanket approval. Genuine conflicts show both sources, scope and what changes; allow edit/undo. | Read clear records immediately without fake approval; real conflict save/edit/undo/restart and cross-page/Ask/export propagation. |
-| **T05 Single source of facts, full totals and evidence states** | Portfolio, claims, full-population metrics, float populations, status unknowns and actions moved toward shared producers. | Eliminate local KPI producers, double paging and missing→zero. Every figure carries reporting date, unit, scope, population, authority and source version. | Independent reader totals across all pages/roles/chart/Ask/download for identical scope; N1-N5 N9 N12 S1 S4 gates. |
-| **T06 Programme, CPM, progress, resources and forecasting** | XER link scope, float classification, revision reuse, milestone review, location mapping, recovery coverage and submitted-vs-independent authority. | Check XER plan_end_date SW-57, FS/SS/FF/SF, lag, calendars, work time, all activities, float in right days, WBS, S-curves, quantities, crew capacity and forecast. | Independent CPM solver with calendars and links; independent EVM/Earned Schedule calculations; fresh adversarial programmes and page/export parity. |
-| **T07 Contract, cost, EOT, claims and commercial** | Contract/EOT date reconciliation, variation currency, pending amounts, HSE and cash-flow evidence repairs saved. | Original/amended/award dates, notice periods, LD, EAC, CPI/SPI, VO, retention, payment dates, certifications, tax/currency, risk and ledger across all pages. | Independent EVM workbook, payment/commercial ledger and claim-notice/date calculator; actual currencies, zero-vs-unknown and source reference. |
-| **T08 Procurement, Delivery, HSE, Risk, assets and handover** | Procurement-submittal links, status flags, dates, interface register, outcome coverage and asset/programme comparison saved. | Required vs forecast dates, delivery status, overdue status, spares over-quantity, inspections, RFI/NCR, HSE, interfaces, test/commissioning and formal handover. | Independent delivery state tables/lifecycle with known/unknown tests, full populations; verify register→screen→export; never promote candidate to approval. |
-| **T09 Actions, owners, due dates and navigation** | Source date vs agreed action deadline, procurement closeout and common action aggregation corrected in saved branch. | One causal issue once with correct priority, consequence, assigned owner or explicit missing owner input; real due date or explicit missing deadline input; actionable route and browser history. | Click every action in real browser, save owner/deadline, back/forward, role consistency, restart, no duplicate or invented date. |
-| **T10 Every page, lens, wording, Ask, filters and downloads** | Known status wording, full row browsing, classified documents, role navigation, commercial empty panels and result guidance improved. | Every label, caption, badge, false notice, formatting, chart/series, top answer, source links, missing-input route, chart gap, keyboard, small text, filters and exports. | Automated rendered-page text + independent values + five-role professional walkthrough; same scope/date/filter/sources in Ask/report/PDF/Excel. |
-| **T11 Cold-load speed, worker stability and preservation** | Deferred PDF worker, resumable state, cache/version and several repeated calculations improved; isolated passes only. | Fix cold four-project 9.244 s → within unchanged 5 s; no output removal or bypass; restart, parallel upload, file limits, no source/decision loss. | Unchanged four-core cold workload on exact release: four concurrent heavy projects all <=5,000ms, plus durability, warm/load and snapshot consistency. |
-| **T12 Guard, regression, independent challenge and release proof** | Exact-head GitHub acceptance, concurrency and automated independent groups passed on ddd5bdb6; operations failed and two groups were still running when checked. | Lock historical 39-rule pass cases, add N10/N12/C2/W10 and every discovered regression, blind ten fresh projects per feature, 100 unseen final; exact-head page/export/ask test. | All requirements pass on same unchanged SHA; independent expert/agent answers from source files; zero unaddressed known defects; owner performs one post-candidate live review. |
+Twelve tasks cover the whole system. A task is done only when its findings are verified on the live pages and its guard rules are at zero.
 
-## SW-01 to SW-57 — preserve every original failure and proof
+| Task | Work | Done when |
+| --- | --- | --- |
+| T01 Repair record | One board for every finding: the 274 consultant findings (F01 to F61), SW-01 to SW-57, the 8 S-items and the 641 page findings. Each row: cause, shared fix, repair reference, verification method (independent calculator, independent reader, guard rule or expert review) and status. Link overlaps, delete nothing. Record what is live and what is saved but not live. Mark test projects as test. Keep this plan in the repository and point every new session to it (AGENTS.md). Record the no-sign-in decision in the seven-stage document. | The board is shared; every finding has a repair reference and a verification method; the starting point is saved. |
+| T02 Source reading | Calendars and hours per day. Programme links whose rows carry no project ID. Duplicate activity IDs. The project finish date in the programme file (SW-57). Contract dates. Current versus older cost report. BOQ IDs. Every register column, including those ignored today (submittal ID, procurement package, location, criticality, cost code, linked letter). Statuses. PDFs. | R1 to R4 at zero; the independent reader's figures match the pages. |
+| T03 AI reading and matching | Use AI where fixed rules fail: unfamiliar tables, clauses, file types, ambiguous links. Explicit references first. Full eligible population, resumable, with a spending cap. Show AI status per step. | R5 at zero; cost per project shown before AI is switched on; one controlled real AI test passes within the cap. |
+| T04 Decisions and inputs | End the 30 Sep hold: clearly read facts are used in analysis with their source and status, while formal adoption stays separate (rule 3). One decision place for real conflicts and unsure readings: both values, sources and effect; pick, type your own, change, undo; kept after restart; every page updates. No approval requests for clear facts and no blanket confirmation of contract values. Input fields for values you can supply. | C1, C2 and W10 at zero; no clearly read fact is left out of analysis; no fact shows as formally adopted without adoption. |
+| T05 Shared facts and totals | Full totals, never the 25-row page. Fix double paging (asks 50 rows, gets 25). Filters against totals. Zero, unknown, not applicable and disputed kept apart. The same measure gives the same value on every page, role view, chart, Ask answer and download. | N1 to N5, N9, N12, S1 and S4 at zero. |
+| T06 Programme, progress and resources | Calendar-based dates, activity types, links, float in days, completed work excluded, milestones, baseline comparison, recovery dates. Discipline and location grouping, resource units and capacity, production rates, installed quantities, earned hours, productivity. | N7 at zero; results match the independent CPM solver and the reader. |
+| T07 Contracts, commercial and claims | Original and revised completion, EOT included versus extra, overlapping awards, notices and periods, claims, variations, payments against certificates, currency, bonds, sectional LD, current cost report, EAC and overrun. Submitted figures kept apart from calculated ones. | Results match the EVM workbook, commercial ledger and notice calculator; judgment items are shown as such. |
+| T08 Procurement, delivery and handover | Need dates, overdue logic, achievable recovery dates, readiness, NCR status (including unclear status), permits, interfaces, asset and handover position from the asset register's status flags, spares over-quantity check. | Results match the delivery state tables and the reader. |
+| T09 Actions and navigation | One entry per problem that opens its evidence and the control that fixes it. No loops or duplicates. Owner and due date shown when known, shown as missing with a way to set them when not. Page addresses, back button, correct button targets. | A1 to A5 at zero. |
+| T10 Wording, look, Ask and reports | Every visible element: labels, repeated text, false fixed notices, field names, internal code words, long tables, missing or empty charts, contrast, keyboard. The first screen answers the page's question, with detail one click away and nothing removed. Role views give the same facts. Reports and downloads are useful and carry the screen's figures, scope, dates and units. | W1 to W10, L1 to L6, S2, S3 and X1 to X3 at zero. |
+| T11 Reliability and speed | Accountability speed first. PDF reading that blocks project start, cold opening, repeated calculation, worker contention, oversized responses, cache. Reading and saved decisions survive restarts and deployments. Separate source, decision and calculation versions. Backup, restore and rollback. | P1, P2, N10 and V1 at zero; 5 seconds with 4 projects open at once. |
+| T12 Checks and closure | Build and validate the independent calculators before using them. Keep the independent reader. Run the guard on every build. Run fresh, blind and 100-project tests automatically. Turn every new finding into a check. Close defects on live evidence. | All calculators validated; the guard runs on every build; all rules at zero at final acceptance. |
 
-| ID | Priority | Recorded system defect | Shared repair / intended proof | Guard / task |
-|---|---|---|---|---|
-| SW-01 | Critical | Preview rows are counted/charted as the complete list. | Compute totals/distributions before paging; consumers read explicit population metadata. Compare each visible total/chart with independently expected full-population results, including records beyond page 1. Initial repair covers management headers; other consumers remain open. | N1 / T05 |
-| SW-02 | Critical | Register navigation skips rows when 50 requested rows become 25. | Apply paging once; returned offset/size governs Next. Enumerate every row exactly once across different sizes. Initial shared transport repair implemented. | N9 / T05 |
-| SW-03 | High | An oversized response becomes an empty, badly titled page. | Keep a bounded management answer and qualified totals; retrieve detail separately with usable controls. Test large real-shaped payloads without losing the answer or records. | N10 / T11 |
-| SW-04 | Critical | Unknown becomes zero, No, safe or green. | Carry explicit evidence states through calculations, screens and exports. Measured zero remains zero; missing or uncalculable values state the cause and next step. | N2, S4, N3 / T05 |
-| SW-05 | Critical | Role views contradict Overall or display empty facts/actions. | Every role reads the opened page's shared facts and action results; roles change emphasis, not values. Initial consumer repair implemented; all-role/live/export acceptance remains. | N5 / T05, T10 |
-| SW-06 | High | Wrong displayed values: BOQ identifiers rounded; planned finish used for completed work. | Typed display fields: identifiers stay text; actual/planned/forecast dates remain separate. Verify source examples and exports. | N11, reader / T02 |
-| SW-07 | High | Screens contradict one another while consistency says Pass. | Compare actual displayed values, basis, date and population, not merely producer objects. Different valid measures must have different labels. | N4, S4 / T05 |
-| SW-08 | High | Useful figures exist but are not presented. | Map each page's required management questions to available facts; present known answers with their qualifications. Missing presentation is not missing source. | reader / T02, T05 |
-| SW-09 | Critical | Programme relationships do not attach to activities. | Check XER identities, project/revision scope and joins; permit single-project inference only when unique and supported. Report attached, missing, external and ambiguous links. A minimal single-project XER reproduces the missing-project-number failure on production source; original-file replay is still needed to establish the full affected population. | R4, reader / T02 |
-| SW-10 | High | Duplicate activity IDs match the wrong activity. | Use project/revision-scoped identity and explicit correspondence; ambiguity creates a review item rather than selecting the first match. | reader / T02 |
-| SW-11 | Critical | Filename guesses silently determine document type. | Classify by content/schema; filename is supporting evidence. Low-confidence/conflicting types enter a working choice workflow with original evidence retained. | R2 / T02, T03 |
-| SW-12 | Critical | Superseded cost data becomes current. | Shared source-selection rules consider effective date, revision, status and authority. Show both selected and excluded versions with reasons. | R2, reader / T02, T07 |
-| SW-13 | High | Relevant register columns are ignored. | Preserve raw headers and cells; use validated aliases, units and column mappings. Unmapped relevant columns become review items. Test unfamiliar headers across domains. | R1 / T02 |
-| SW-14 | High | Uploaded PDFs remain unread or indefinitely OCR pending. | Persistent per-page reading jobs with progress, retry, resumability and explicit failures. Reconcile uploaded/read/failed pages; preserve usable native text and tables. AI is optional assistance, not the only OCR route. | R3 / T02, T03 |
-| SW-15 | High | Claims rows are treated as established delay events. | Separate a financial/time claim from its underlying event; retain source origin and require evidence before asserting causation or duplicating events. | reader / T07 |
-| SW-16 | High | Activity type is unavailable throughout the programme. | Preserve type fields and known code mappings; identify milestones, LOE and summaries from evidence. Ambiguous types remain flagged and excluded only where the rule requires. | S1 / T02, T06 |
-| SW-17 | Critical | Procurement need-date selection silently mixes register and programme dates. | Preserve both dates and their authorities. Use the declared rule or confirmed choice; never label a minimum of two as the register date. | reader / T08 |
-| SW-18 | High | Readiness misuses not-applicable states or elapsed dates. | Evaluate actual completion/acceptance and applicability at the reporting date. An elapsed target alone does not establish an unmet blocker. | design rule / T08 |
-| SW-19 | Critical | Unclear NCR status is counted as open. | Shared status mapping and separate open/closed/unknown populations. Publish known open count and uncertainty; do not add unknown to open. | reader / T08 |
-| SW-20 | Critical | Fixed notice/claim periods replace contract rules. | Versioned terms by effective date, relevant trigger and calendar basis; unresolved applicability goes to review. Test amended and original terms together. | reader / T07 |
-| SW-21 | High | Pending variations become a false zero. | Preserve pending value/count and its authority; show missing valuations separately from confirmed zero exposure. | reader / T07 |
-| SW-22 | Critical | Revised completion is called original, risking double addition of EOT. | Separate original, revised/operative, and further determined dates. Trace whether amendment days are already incorporated before any date addition. | reader, N4 / T07 |
-| SW-23 | High | EOT window movement uses inconsistent measures. | Define net completion movement, gross event effects, overlap and entitlement separately; use the same scope and rule on every output. | reader / T07 |
-| SW-24 | Critical | Recovery is measured against expired need dates. | Model achievable future changes from the data date; distinguish local delivery improvement from recoverable project finish and entitlement. | design rule / T06 |
-| SW-25 | Critical | Float trend improves merely because completed activities leave the population. | Compare like-for-like populations and separately disclose additions, removals and completions. Do not call population change schedule improvement. | reader / T06 |
-| SW-26 | High | Filters and KPI totals count different activities. | Shared classification, population and filter predicates; reconcile visible eligible rows with the displayed KPI under the same filter. | N12 / T05 |
-| SW-27 | High | Discipline and location groups are lost or unclassified. | Retain source hierarchy/classifications; allow evidence-based mapping. Do not substitute blank groups or invent locations. | design rule / T06, T10 |
-| SW-28 | High | Missing calendars remove all planned progress. | Identify what can be established independently of work calendars. Provide an explicit working-time input/scenario where appropriate; qualify or withhold only calculations that require it. | reader, S1 / T06 |
-| SW-29 | High | Calculation failure is blamed on user input. | Separate software failure, invalid source and missing input using actual diagnostics. Retry/resume system failures without falsely requesting a replacement source. | W8 / T06, T10 |
-| SW-30 | High | Submitted figures are labelled independent verification. | Keep submitted, independently calculated and reconciled values distinct. A reconciliation failure cannot promote source float/progress into an independent result. | W8, design rule / T10 |
-| SW-31 | High | Implausible EAC receives no challenge. | Apply disclosed budget/actual/commitment/remaining-scope reasonableness checks. Flag contradictions without fabricating a replacement forecast. | reader / T07 |
-| SW-32 | Critical | Delivery Risks uses BOQ data instead of risk records. | Give the risk register its own authoritative producer; separate BOQ/commercial screening from identified risks. Handle undated risk status explicitly. | reader / T08 |
-| SW-33 | High | Handover ignores supplied asset evidence. | Shared asset/system hierarchy links tests, inspections, defects, handover status and criticality; report coverage and missing links. | reader / T08 |
-| SW-34 | Medium | Package combinations become invented interface candidates. | Generate only evidence-based candidates from actual dependencies, boundaries or shared work; distinguish suggested from confirmed interfaces. | design rule / T08 |
-| SW-35 | Medium | HSE rates conceal denominator or source conflicts. | Display incidents, hours, multiplier, period and source; compare reported vs recalculated rates and request a decision on conflicts. | reader / T08 |
-| SW-36 | Critical | Available candidate values never reach confirmation. | Generate decisions from every unresolved fact/type/mapping conflict; show alternatives, sources and correction controls; confirmation persists and refreshes dependent results. | C1 / T04 |
-| SW-37 | High | Required working-time, crew, productivity and threshold inputs have no controls. | Provide scoped, unit-aware inputs with source/owner/effective date; distinguish confirmed inputs from scenarios and recalculate the affected results. | C2 / T04 |
-| SW-38 | Medium | Confirmed matters continue showing awaiting confirmation. | Derive banner, decision count and page state from the same persisted decision version. Verify reload, restart, superseding evidence and revocation. | W10 / T04, T10 |
-| SW-39 | High | Action loop, duplicates, invented due dates and missing owners. | One causal problem with its linked records; separately retain individual deadlines and an explicitly labelled earliest date. Assign named owners and calculate overdue age only from valid due dates. | A3, A2 / T09 |
-| SW-40 | Medium | Controls open wrong or empty destinations. | Typed action destinations include project, record and review control; click every path and verify the promised content/operation. | A1 / T09 |
-| SW-41 | Medium | No stable page addresses; Back exits the app. | Represent project/module/role/filter state in navigation history; verify direct links, refresh, Back and Forward. | A5 / T09 |
-| SW-42 | High | Packages tied to finished activities disappear from actions. | Evaluate unresolved delivery/acceptance independently of activity completion; completion does not erase an outstanding package obligation. | reader / T08 |
-| SW-43 | High | The first screen does not answer the page's management question. | Present position, cause, consequence and required action first, followed by evidence. Validate with the five agreed professional roles. | L1, design rule / T10 |
-| SW-44 | High | Repeated, extremely long pages and generic raw-record panels. | Purpose-built detail views and shared drill-down; preserve every record while avoiding repeated copies of the same content. | L1, L3, W5 / T10 |
-| SW-45 | High | Internal/developer language appears in the product. | One presentation vocabulary for labels, errors, states and exports; retain technical diagnostics separately for support. | W1, W2, W3, W8 / T10 |
-| SW-46 | High | Fixed notices state facts contradicted by the data. | Generate claims about calendars/resources/blockers from the evidence state and count, never static generic success text. | W8, reader / T10 |
-| SW-47 | High | Missing usable charts; S-curves include unmeasured points. | Use dated observations; separate actuals, plans and explicit forecasts/interpolation. Preserve gaps and distinguish physical, financial and schedule progress. | S3, X3 / T10 |
-| SW-48 | Medium | Registers lack usable filtering and sorting. | Apply filters/sorts to the complete eligible population on the server, with totals and export scope matching the user's selection. | L5 / T05, T10 |
-| SW-49 | Critical | Reports are raw dumps rather than professional outputs. | Shared report model with decision summary, agreed measures, scope, date, qualifications and source references; readable PDF/Word/Excel layouts. Preserve full detailed data separately. | X1 / T10 |
-| SW-50 | High | Exports omit or disagree with screen figures. | Same measure definitions and version for screens/reports/downloads; independently compare visible values, dates, units, classifications and qualifiers. | X2 / T10 |
-| SW-51 | Medium | Contrast and keyboard access problems. | Verify readable contrast, focus order, keyboard controls, labels, open/close behavior and usable tables at supported sizes. | L6 / T10 |
-| SW-52 | Medium | Project version changes without new source. | Define source, decisions and calculation versions separately. Read-only views do not create evidence changes; legitimate decisions have a traceable version event. | V1 / T11 |
-| SW-53 | High | Deployment interrupts pages or loses pending work. | Readiness-aware release transition, durable jobs and retries; clients retain the current route and show an honest updating/error state. Verify during an actual review deployment. | P2 / T11 |
-| SW-54 | High | Cold opening or interactive pages exceed five seconds/hang. | Profile the full path, queue time and browser readiness. Reuse results by source/decision/calculation version, prevent duplicate work, bound background preparation, and test four concurrent cold projects of realistic shapes. The earlier 5.24-second exception did not close S-02. | P1 / T11 |
-| SW-55 | Medium | Test projects appear as live business projects. | Preserve records, mark test/fixture provenance explicitly, and separate them in portfolio views. Unknown historical provenance remains a review task; do not delete records. | V2 / T01 |
-| SW-56 | High (13 Oct; 12 Oct source Medium) | AI capability exists but is not operationally complete. | Separate extraction, mapping, matching and Ask capabilities; persist per-job run/skipped/failed reasons and source coverage. Add resumable bulk suggestions, durable shared spending control, and explicit confirmation; do not auto-approve AI output. | R5 / T03 |
-| SW-57 | High | XER PROJECT.plan_end_date (programme-declared project finish) omitted; revisions can differ despite similar latest activity finish. | Read and retain the original XER PROJECT.plan_end_date with revision identity and source provenance. Display it separately from activity-derived, submitted and independent finishes on every programme and forecast consumer; compare different revisions and restart/rebuild. | reader / T02, T06 |
+## How the work is checked
 
-## F01–F61 consultant scope and exact verification
+Three layers check the work. The first two prove that results are right; the third stops defects coming back. None of them replaces another.
 
-| F ID | Work item | D/N defect crosswalk | Required independent check | Formal acceptance |
-|---|---|---|---|---|
-| F01 | Tests read the screen, with independent answers | N-8 | Check rendered screens against independent answer keys; verify every page, cross-page facts, vocabulary and payload size | Open |
-| F02 | Securities from one rule | D-002,D-018,D-021 | One data-date validity rule for bonds/insurance across all pages and management views | Open |
-| F03 | Schedule counts from one calculation | D-009,D-012,D-052,D-069,D-084,D-136,D-187 | Critical, near-critical, negative float and delayed-open counts reconcile across all schedule consumers | Open |
-| F04 | RFI and NCR counts from one register reading | D-026,D-027,D-030 | Consistent full-register RFI/NCR open, overdue and severity totals on every page | Open |
-| F05 | One action register | D-038,D-042,D-131 | No duplicate action per source record or causal chain; dashboard and Accountability agree | Open |
-| F06 | Claims and EOT facts shared | D-040,D-047,D-083,D-088,D-101,D-188 | Notice timing, event dates, assessed/awarded days and claims consistent on all pages | Open |
-| F07 | Shared inputs and prerequisites | D-064,D-078,D-107,D-178,D-209,D-215,D-216 | Same source prerequisites, calendars, quantities, owners and row coverage on every relevant page | Open |
-| F08 | One programme state and a real consistency check | D-036,D-125 | One current programme revision across Documents, planning, management and integrity checks | Open |
-| F09 | Portfolio uses the same rules for every project | D-129 | Portfolio dates and source facts reconcile with each project dashboard | Open |
-| F10 | One page per question, no duplicate blocks | D-115,D-137,D-170,D-172,D-185,D-193,D-198,D-205,D-206,D-207,D-241,D-244,D-245,D-249 | Remove repeated panels; related views stay navigable as grouped workspaces | Open |
-| F11 | Director drawer and Ask CMeng read the same facts | D-128,D-219 | Ask answers and Director figures equal established page facts with source references | Open |
-| F12 | Owners from the registers, never hard-coded | D-005,D-037,D-133,D-156,D-175,D-226,D-247,N-4 | Record-level accountable owners extracted and used; missing is not default where owner exists | Open |
-| F13 | Claims register fully read | D-015,D-016,D-029,D-082,D-181 | Claims responsibility, days, notices and status from full source rows | Open |
-| F14 | Procurement register fully read; status drives delivered | D-004,D-031,D-045,D-080,D-106,D-109,D-203,N-1 | All packages, source delivered status, suppliers and lateness by correct dates | Open |
-| F15 | Risk register fully read | D-041,D-121,D-122 | All risk rows, scores, source status and current status visible and qualified | Open |
-| F16 | Resource register actual hours | D-011,D-158 | Recorded hours and utilization by trade/time and linked Look-Ahead remain factual | Open |
-| F17 | Classify files by header, not file name | D-092,D-116,D-126,D-171 | Permit and EVM source files classified from content and used in appropriate curves | Open |
-| F18 | Bond register instrument column | D-103 | APG distinguished from performance bond and insurance by source instrument | Open |
-| F19 | VO and IPC registers | D-019,D-195 | Variations/payment linkage, lifecycle status and correct current amounts | Open |
-| F20 | Commercial terms and dated payments | D-066,D-096,D-098,D-149 | Advance, retention, EVM and dated payment/cash evidence across pages | Open |
-| F21 | BOQ to programme mapping | D-072,D-174,D-204 | Correct cost code/quantity/activity/package links; ambiguity never silently confirmed | Open |
-| F22 | Programme (XER) fields | D-113,D-114,D-152,D-230 | Dates, activity types, discipline, plot/WBS, calendars and relationships preserved | Open |
-| F23 | Programme fallback for empty delivery registers | D-211,D-212,D-213,D-214 | Testing, Snag, Handover and Weather retain supported programme-derived observations | Open |
-| F24 | HSE report fields | D-120 | Man-hours, LTI, LTIFR and TRIR reconcile with original report values | Open |
-| F25 | Clean registers used immediately | D-023,D-024,D-025,D-108,D-110,D-111,D-117,D-157,D-221 | Available evidence visible without unnecessary approval/completeness barriers | Open |
-| F26 | A normal constraint does not block CPM or forecast | D-013,D-044,D-049,D-051,D-077 | Compute valid independent CPM and forecast even when normal source constraints exist | Open |
-| F27 | Arithmetic is shown, not withheld | D-035,D-074,D-085,D-087,D-090,D-095,D-190,D-194 | Show established factual dates, money, hours and days without needless unknowns | Open |
-| F28 | Candidate values do not create approval requests | D-124,N-2,N-3 | Request approvals only for genuine authority decisions or conflicting records | Open |
-| F29 | Best-available analyses instead of all-or-nothing | D-079,D-097,D-099,D-180 | Publish defensible partial recovery, cash and payment analysis with explicit unknowns | Open |
-| F30 | Every gap has a named route, or it is not an action | D-028,D-105,D-118,D-145,D-179,N-6 | Useful correction link and actual owner; no fictitious approval or productivity request | Open |
-| F31 | Normal contract structure is not a problem | D-217 | Do not create review actions from ordinary repeated sectional clause numbering | Open |
-| F32 | Stale schedule footer | D-223,D-224,D-225 | Do not show pending new-schedule review after current programme already adopted | Open |
-| F33 | Contract time: extended date everywhere | D-001,D-010,D-048,D-050,D-060,D-075,D-076,D-147 | One original/amended/awarded/completion position and accurate forecast difference across pages | Open |
-| F34 | Sectional completion and delay damages | D-034,D-046,D-061,D-100,D-102,D-208 | Section dates, LD rates/caps and scenario-versus-contractual exposure qualified | Open |
-| F35 | Securities and insurance validity | D-022,D-104 | Expiry and defects-period exposure shown consistently and dated correctly | Open |
-| F36 | Payment rules | D-017,D-020,D-091,D-189,D-191,D-192,D-196,D-197 | Payment amounts, certifications, statuses, interest/due bases and rounding reconciled | Open |
-| F37 | Cost rules | D-033,D-093,D-094,D-202 | Compare EAC against correct current contract and separately source budget/VOs | Open |
-| F38 | CPM, driving path and programme quality checks | D-006,D-008,D-032,D-165,D-234 | Independent CPM, driving chain, calendars, logic, constraints, lags, BEI and CPLI | Open |
-| F39 | Finished work is not open work | D-073,D-112,D-139,D-150,D-151,D-154,D-155,D-162,D-164 | Keep completed activities outside current pressure while preserving close-out actions | Open |
-| F40 | Programme change analysis | D-056,D-057,D-058,D-086,D-153,D-160,D-161,D-169,D-186 | Correct revision movement, logic/lag/duration/constraint contribution and gap counts | Open |
-| F41 | Float trend charts | D-059 | Baseline and revision critical/near-critical/negative series from same populations | Open |
-| F42 | Look-ahead blockers | D-054,D-055,D-119,D-232 | Activity-level float/driving blocker, procurement/NCR/RFI source and due dates | Open |
-| F43 | Recovery options | D-014,D-081 | Genuine driving-chain recovery and crew/scenario feasibility with supported targets | Open |
-| F44 | EOT pending pipeline | D-089 | Pending assessment days and scenario completion qualified without fake entitlement | Open |
-| F45 | Progress and quantity rules | D-067,D-070,D-071,D-168,D-173,D-176,D-240,D-250 | WBS/plot quantities, installed vs certified, actual/earned hours and per-item curves | Open |
-| F46 | Resources against the driving chain | D-065 | Actual resource supply versus driving-chain required hours by trade | Open |
-| F47 | Detailed-claim time bar check | D-184 | Claim submission duration against the applicable contract rule, not assumed 42 days | Open |
-| F48 | Permits against the programme | D-210 | Report permit expiry and affected unfinished driving activities accurately | Open |
-| F49 | Completed-late milestones | D-163 | Display completed-late milestones separately from unfinished milestones/float | Open |
-| F50 | Portfolio card content | D-130 | Date, CPI, late days and top source threat per project, same as inside project | Open |
-| F51 | Priority by consequence, one action per chain | D-003,D-138,D-140 | One causal-chain action, critical schedule/procurement/quality threats ranked correctly | Open |
-| F52 | Summary pages open with the answer | D-007,D-053,D-062,D-063,D-127 | Position, cause, consequence and action first; source tables remain drill-down | Open |
-| F53 | No internal IDs, codes or data paths on screen | D-068,D-123,D-132,D-144,D-146,D-182,D-200,D-222,D-236 | Human-readable labels with no raw hashes, API paths or internal snake-case on pages | Open |
-| F54 | Name the record, the blocker and the issue | D-039,D-134,D-141,D-143,D-148,D-251 | Give actual record identity and issue description for each decision/blocker | Open |
-| F55 | Accountability grouped by owner | D-043 | One accountable-owner grouping with correct priority, record drill-down and due date | Open |
-| F56 | Precision and formats | D-135,D-177,D-227,D-237,D-246,D-248,D-266,N-7 | Consistent dates, units, decimals, CPI precision and whole-day rounding | Open |
-| F57 | Plain state words and empty states | D-142,D-159,D-166,D-167,D-183,D-199,D-201,D-228,D-229,D-233,D-235,D-238,D-239,D-242,D-243,D-252,D-259,D-262 | Use consistent accessible vocabulary; reserve Not established for genuinely unknown evidence | Open |
-| F58 | Documents page shows fields used and ignored | D-218 | Document field/column mapping and ignored content transparently visible | Open |
-| F59 | Test projects out of live portfolio | D-220 | Separate test fixtures from genuine portfolio projects with no record deletion | Open |
-| F60 | Empty modules load normally | D-253,D-254,D-255,D-256,D-257,D-258,D-260,D-261,D-263,D-264,D-265 | Empty and incomplete domains respond normally without HTTP 409 or page failure | Open |
-| F61 | Page weight | D-231,N-5 | Server-page large tables and keep per-page payload under 2 MB with no lost detail | Open |
+| Layer | What it proves | How |
+| --- | --- | --- |
+| 1. Independent truth | Figures and dates are right | Calculators built outside CMeng and validated first: CPM solver, EVM workbook and script, commercial ledger, notice and date calculator, delivery state tables. An independent reader works out register counts, overdue counts, date errors, programme links, calendar hours, project finish dates, contract dates and cost report lines from the source files, finding each file by its columns. None of them use CMeng's answers. Expected answers are never typed into tests. |
+| 2. Independent stage challenge | Each stage meets its standard | A reviewer with a clean context makes its own inputs and expected answers before looking at CMeng, uses unseen projects, and attacks missing, duplicate, future, conflicting and authority cases. A finding reopens the stage. |
+| 3. The regression guard | Nothing that works breaks again | The 39 automatic checks (below) run on every page of every project on every build. |
 
-## Eight S-items retained independently
+**How the guard works.** Today's results are the starting point. A build passes the guard when nothing that passes today starts failing (on any rule, project or page) and the checks for the items in that build are at zero. When a rule reaches zero on all projects, it locks: one failure anywhere then blocks. L4, A2 and P2 are at zero today, so they are locked from day one. Only the owner or the verifier changes the starting point or the rules.
 
-- **S-02** (SW-54 / SW-53): Actual cold opens, four concurrent projects, restart and deploy; under five seconds remains the target.
-- **S-06** (SW-07 / SW-49 / SW-50): Same figures, meanings and source versions on screen and each exported format.
-- **S-07** (SW-39 / SW-44): Remove duplicate presentation/actions at shared level without deleting evidence.
-- **S-17** (SW-13 / SW-36 / SW-56): Full BOQ and programme population, code/WBS/section routes, reviewable AI suggestions where needed; no 20-activity eligibility ceiling.
-- **S-21** (Related to SW-36 / SW-56; not fully described by them): Payment-to-certificate relationships, currency/date/certification checks, durable confirmed links and visible coverage. No source certificate is a source gap, not proof of a matching bug.
-- **S-32** (Related to SW-28 / SW-30 / SW-37 / SW-47; not fully described by them): Measured period progress, required production rate, earned hours, productivity, percentage installed per BOQ item, installed value and source-qualified certified-value comparison. No invented allocation.
-- **S-35** (Related to SW-07 / SW-13 / SW-31; not fully described by them): Full register-versus-contract reconciliation including procurement; explain amounts above contract scope and distinguish legitimate basis differences.
-- **S-45** (SW-43–SW-48): Useful management presentation across pages/roles, preserving detailed evidence.
+**Every new finding becomes a check.** Before a finding closes, it is added as a rule, a phrase on the do-not-use list, or a case for a calculator or the reader.
 
-## Original ABB workbook — 641 observations
+**One release candidate.** Nothing is deployed while the work goes on; the guard runs on every build instead. When all work is done and the stages are accepted, one exact revision goes to you to deploy, operate and inspect across all 23 projects. No build is called a completed repair before that.
 
-The complete original wording, expected/source evidence, root classification, AI relevance, original evidence file paths and per-item verification method are imported **without replacing the source workbook** into sheet `04 ABB 641` of the T01 board. The page summary sheet in the source comprises 57 page types. Each of 579 problems requires an evidence-based disposition; all 62 originally correct cases remain protected in regression. The F/D/N and SW overlaps require evidence-based T01 crosswalking rather than assumed arithmetic.
+## The 39 automatic checks
 
-## 39 historical automatic guard checks and additions
+All 39 rules ran read only on all 23 projects at release b3c76d6 on 13 Oct 2026: 33 page rules on 1,311 pages and 6 project rules once per project, 43,401 checks in all, of which 11,822 failed. 36 rules fail on at least one project and 20 fail on all 23, which shows the defects sit in shared code. This is the first full run; any change to a rule goes through the owner or the verifier.
 
-| ID | Historic rule | Projects failing / 23 | Pages failing |
-|---|---|---:|---:|
-| N1 | A list cut to 25 rows is never counted, totalled or drawn as the whole list. | 16 | 87 |
-| N2 | An unknown value is never shown as 0, "0 of 0", "No" or "No known". | 23 | 407 |
-| N3 | A unit is never printed after an unknown word. | 23 | 224 |
-| N4 | The same measure shows the same value on every page of a project. | 11 | project level |
-| N5 | A role view shows the same value as the overall view for the same measure. | 19 | 192 |
-| N6 | Numbers and dates are formatted for people. | 21 | 218 |
-| N7 | Durations and float are shown in days with the day type, never in hours. | 23 | 218 |
-| N8 | No impossible values. | 14 | 20 |
-| N9 | Paging reaches every row. | 18 | 18 |
-| N11 | An ID column never repeats one value on every row. | 19 | 96 |
-| S1 | Every unknown value says why and what is needed. | 23 | 511 |
-| S2 | An empty table says why it is empty. | 23 | 569 |
-| S3 | A chart is never drawn empty. | 15 | 29 |
-| S4 | A good-news badge never sits on a bad number. | 12 | 24 |
-| W1 | No data field names on screen. | 23 | 1,186 |
-| W2 | No internal or technical words on screen. | 23 | 1,042 |
-| W3 | File names are shown as uploaded, never cut or lower-cased. | 12 | 369 |
-| W4 | Plurals and counts agree; no doubled words. | 23 | 483 |
-| W5 | A sentence is said once per page. | 23 | 999 |
-| W6 | Each page has its own headline. | 23 | 217 |
-| W7 | No raw source row lists or ID dumps in text. | 21 | 185 |
-| W8 | No phrase from the do-not-use list (every wording defect found once is added to it). | 23 | 1,020 |
-| W9 | One unknown word per value. | 23 | 252 |
-| C1 | When two values disagree, the page shows both and lets the user pick one or enter another. | 23 | 650 |
-| L1 | A page fits its purpose: default view 3 screens or less. | 23 | 823 |
-| L2 | No raw data sections. | 23 | 1,149 |
-| L3 | No overloaded pages. | 23 | 614 |
-| L4 | Nothing runs off the screen. | 0 | 0 |
-| A1 | Every button goes to a page that exists. | 7 | 7 |
-| A2 | No button sends the user back to the same page. | 0 | 0 |
-| A3 | An action is listed in one place. | 23 | project level |
-| A4 | No placeholder owner or due date on an action ("not designated", "Suggested", "Not assigned"). | 23 | 84 |
-| R1 | Every source column is read or shown to the user as not used. | 13 | project level |
-| R2 | Every file type is identified from its content. | 19 | project level |
-| R3 | Every file is read completely or says what part was not read. | 23 | project level |
-| R4 | Programme links attach to activities. | 3 | project level |
-| R5 | When reading is incomplete and AI is set up, the screen says so. | 23 | project level |
-| P1 | Every page opens within 5 seconds. | 14 | 14 |
-| P2 | No load errors. | 0 | 0 |
+| ID | Group | Rule | Projects failing (of 23) | Pages failing |
+| --- | --- | --- | --- | --- |
+| N1 | Numbers | A list cut to 25 rows is never counted, totalled or drawn as the whole list. | 16 | 87 |
+| N2 | Numbers | An unknown value is never shown as 0, "0 of 0", "No" or "No known". | 23 | 407 |
+| N3 | Numbers | A unit is never printed after an unknown word. | 23 | 224 |
+| N4 | Numbers | The same measure shows the same value on every page of a project. | 11 | project rule |
+| N5 | Numbers | A role view shows the same value as the overall view for the same measure. | 19 | 192 |
+| N6 | Numbers | Numbers and dates are formatted for people. | 21 | 218 |
+| N7 | Numbers | Durations and float are shown in days with the day type, never in hours. | 23 | 218 |
+| N8 | Numbers | No impossible values. | 14 | 20 |
+| N9 | Numbers | Paging reaches every row. | 18 | 18 |
+| N11 | Numbers | An ID column never repeats one value on every row. | 19 | 96 |
+| S1 | States | Every unknown value says why and what is needed. | 23 | 511 |
+| S2 | States | An empty table says why it is empty. | 23 | 569 |
+| S3 | States | A chart is never drawn empty. | 15 | 29 |
+| S4 | States | A good-news badge never sits on a bad number. | 12 | 24 |
+| W1 | Wording | No data field names on screen. | 23 | 1,186 |
+| W2 | Wording | No internal code words on screen (fallback, deterministic, payload, stub, pointer, session IDs). Engineering terms such as CPM, SPI and EOT are fine. | 23 | 1,042 |
+| W3 | Wording | File names are shown as uploaded, never cut or lower-cased. | 12 | 369 |
+| W4 | Wording | Plurals and counts agree; no doubled words. | 23 | 483 |
+| W5 | Wording | A sentence is said once per page. | 23 | 999 |
+| W6 | Wording | Each page has its own headline. | 23 | 217 |
+| W7 | Wording | No raw source row lists or ID dumps in text. | 21 | 185 |
+| W8 | Wording | No phrase from the do-not-use list (every wording defect found once is added to it). | 23 | 1,020 |
+| W9 | Wording | One unknown word per value. | 23 | 252 |
+| C1 | Choices | When two values disagree, the page shows both and lets the user pick one or enter another. | 23 | 650 |
+| L1 | Look | The first screen answers the page's question; detail stays one click away and nothing is removed. Measured as a default view of 3 screens or less. | 23 | 823 |
+| L2 | Look | No raw data sections. | 23 | 1,149 |
+| L3 | Look | No overloaded pages. | 23 | 614 |
+| L4 | Look | Nothing runs off the screen. | 0 | 0 |
+| A1 | Actions | Every button goes to a page that exists. | 7 | 7 |
+| A2 | Actions | No button sends the user back to the same page. | 0 | 0 |
+| A3 | Actions | An action is listed in one place. | 23 | project rule |
+| A4 | Actions | A missing owner or due date shows as missing with a way to set it, never as a placeholder ("not designated", "Suggested"). | 23 | 84 |
+| R1 | Reading | Every source column is read or shown to the user as not used. | 13 | project rule |
+| R2 | Reading | Every file type is identified from its content. | 19 | project rule |
+| R3 | Reading | Every file is read completely or says what part was not read. | 23 | project rule |
+| R4 | Reading | Programme links attach to activities. | 3 | 3 |
+| R5 | Reading | When reading is incomplete and AI is set up, the screen says so. | 23 | project rule |
+| P1 | Speed | Every page opens within 5 seconds. | 14 | 14 |
+| P2 | Speed | No load errors. | 0 | 0 |
 
-**Named planned checks:** N10 (A large result is never replaced by an empty page.), N12 (Filter counts add up to the page total.), C2 (Every missing value the user can supply has a place to enter it.), W10 (A banner never says something is waiting after it is done.). Every additional finding gets an explicit persistent test ID.
+## Checks still to add
 
+These checks are designed and generic. Each joins the guard when its task starts, and then follows the same ratchet.
 
-## T04 — explicit 30 Sep hold and complete 548-file decision flow
+| ID | Rule | How it is checked | Added with |
+| --- | --- | --- | --- |
+| N10 | A large result is never replaced by an empty page. | Server total above 0 while the page shows no rows or an empty box. | T11 |
+| N12 | Filter counts add up to the page total. | Sum of each filter option's count against the tile total. | T05 |
+| C2 | Every missing value the user can supply has a place to enter it. | An unknown tile with no input or upload control on the page. | T04 |
+| W10 | A banner never says something is waiting after it is done. | Banner text against the confirmation state from the server. | T04 |
+| A5 | Every page has its own address. | The address changes with the page and reopens the same page on reload; the back button works. | T09 |
+| L5 | Every filter has real choices; every table can be sorted. | Filter lists with only "All"; tables with no sort. | T10 |
+| L6 | Readable contrast and keyboard access. | Standard accessibility scan of each page. | T10 |
+| X1 | Downloads and reports pass the same wording rules as the screen. | Rules W1 to W9 run on each download and on Generate report. | T10 |
+| X2 | Every figure on screen is in the download with the same value. | Page figures compared with the downloaded file. | T10 |
+| X3 | Chart numbers match the table beside them. | Chart values against table values on the same page. | T10 |
+| V1 | Results change only for a recorded reason. | A figure changed with no change of source, decision or calculation version, or with no recorded reason. | T11 |
+| V2 | Test projects are marked as test, not live. | Project list flags. | T01 |
+| T | Key figures equal independent truth. | Independent reader and validated calculators on every reference project and every fresh project. | T12 |
+| D | Each page answers its own question on the first screen. | One design decision per page type, then written down as a rule above. | T10 |
 
-Historical baseline: **548/548 documents candidate-only and 171 pages prompting confirmation**. For each source, measure physical pages/read sections, original columns, type confidence, source version, reliability and date. **Known clean rows become usable immediately** in their governed source capacity, not automatically approved as contracts/awards. True conflicting values present both candidates/sources and impacted calculations; controls allow choose/manual input/edit/undo, preserve original, and update all consumers after restart. Re-run exact 548-file evidence after T02/T03/T04 repair; this historical hold cannot be pronounced removed from code alone.
+## Order of work and releases
 
-## T06–T08 independent oracles — cannot reuse CMeng outputs as expected truth
+Shared causes go first because every page depends on them. Speed goes first of all, because the release candidate must pass the 5-second gate and cold loading of 4 projects at once fails it today.
 
-- **Independent file reader:** Source classification, source counts and coverage. Inputs: Read all 23 projects and new inputs by columns/content, not filenames. Proof: Counts by status/overdue, file hashes, calendar hours, XER project finish, contract dates/value, cost report lines. Rule: No CMeng-derived answers consumed.
-- **Stand-alone CPM solver:** Schedule network, calendars, FS/SS/FF/SF, leads/lags, float and criticality. Inputs: Independent engine with own relationship/calendar implementation. Proof: All activities/revisions, differing day types, constrained and missing calendars, negative float. Rule: Do not import CMeng calculated answers.
-- **Independent EVM and progress workbook:** EV/PV/AC, CPI/SPI, forecasts, earned hours and S-curves. Inputs: Independent workbook from source quantities, rates, actuals and data date. Proof: Rounding, units, source-vs-calculated authority, status and scenario separation. Rule: Do not use CMeng results as workbook expected values.
-- **Independent commercial ledger:** IPC, receipts, VO, retention, advance, cost, EAC, currency. Inputs: Source-native ledger and contract terms. Proof: Unpaid amounts, dates, money bases, VAT, no cross-currency addition. Rule: Reconcile source rows not page captions.
-- **Notice / claims date calculator:** Applicable clause, event date, notice days, completion movement. Inputs: Calendar/day-type and revision/effective date rules from actual terms. Proof: Pending/assessed/awarded, overlap, no fake entitlement. Rule: Contractual determinations remain reviewer decisions.
-- **Delivery state tables:** RFI, NCR, procurement, permits, assets, T&C, handover. Inputs: Independent source-state mapping including unknown/outcome. Proof: Overdue excludes undated, outcomes separate from statuses, no candidate approval. Rule: Dated original status, whole register.
+1. **T01 board and starting point, and T11 speed.** Accountability speed and the PDF reading that blocks project start are fixed first. The repairs already saved on the repair branch are run through the guard and kept, or redone.
+2. **T12 calculators and reader.** Built and validated early, before they are used to judge CMeng.
+3. **T02 and T03 reading, then T04 decisions and the hold, then T05 shared facts.** These feed every page.
+4. **T06, T07 and T08 domain results** on top of the repaired shared layer, judged against the calculators.
+5. **T09 and T10 actions, wording, look, Ask and reports.** These show the repaired results. Wording fixes that need no data change can be done at any time.
+6. **One release candidate.** When the stages are accepted, one exact revision goes to you to deploy, operate and inspect in full. Nothing is deployed before that.
 
-## T09 — actions without invented owners or dates
+## Testing limits
 
-Every actionable issue shows problem, consequence, ranked priority, source evidence, owner **if known**, due date **if established**, escalation, and an actual route. If source owner/date is absent, display **“Owner not recorded — Assign owner”** / **“Deadline not agreed — Set deadline”** (final wording reviewed), not a fictional person, historical source date or assumed deadline. The control must save/restart/propagate to action register, relevant project view and export. No duplicate problems or loops.
+Machines do the repeated testing; people review once per stage. Proof is never cut, only repeated manual rounds are.
 
-## Existing fixed seven stages — acceptance does not follow code commits automatically
+- **Automatic, no people needed:** the guard on all 23 projects, the reader and calculators, at least 10 fresh unseen projects per feature family, 100+ focused cases for critical families, the 100-project final blind run, and full regression of the real projects.
+- **A failed blind project becomes regression data** and never counts again as unseen proof.
+- **Independent stage challenge:** one per stage. Its findings go back as checks and fixes, not as new rounds of manual testing.
+- **Twice failed means redesign:** a fix that fails review twice goes back to its cause.
+- **Open stays open:** an unresolved failure stays on the register until fixed or disproved; low severity never closes it.
+- **AI spend in tests:** routine runs use recorded AI answers; one controlled real AI test per release candidate, within the cap.
 
-**Stage 1 — Known-defect closure:** Reconcile every original SW/F/S/ABB item, reproduce, repair shared root, permanent checks and independent challenge. **Status:** 0/7 accepted; engineering active.
-**Stage 2 — Strict suite and fresh reacceptance:** No unexplained failures; 10 new genuinely unseen projects per feature family; preserve evidence and authority. **Status:** Not independently accepted.
-**Stage 3 — Independent calculation truth:** Standalone CPM, EVM workbook, commercial ledger, notice/date calculator and delivery state tables. **Status:** Not independently accepted.
-**Stage 4 — PMO domain-by-domain certification:** Contract/programme; CPM/progress/resources; forecast/recovery; delay/EOT; commercial; procurement/delivery/HSE/handover. **Status:** Not independently accepted.
-**Stage 5 — Cross-domain integration:** Contract–schedule, schedule–resources–BOQ, procurement–delivery, delay–claims, EOT–LD, risk–forecast. **Status:** Not independently accepted.
-**Stage 6 — Ask, filters, reports and exports:** Same governed numbers, Data Date, status and evidence across screen/Ask/download, all WBS/Zone/CBS/packages. **Status:** Not independently accepted.
-**Stage 7 — Operations and 100 fresh-blind acceptance:** Exact release, 100 fully fresh projects, restart/rollback/restore, scale, 5s concurrent gate, 23 preserved project replay. **Status:** Not independently accepted.
+## Who does what
 
-Per the 6 October execution amendment, independent engineering for later stages may proceed while Stage 1 provenance actions remain open. **No stage is formally accepted** and an independent challenge may be performed by a separate clean-context ChatGPT agent. The owner’s final deployed 23-project review follows one candidate.
+| Who | Does | Never does |
+| --- | --- | --- |
+| Fixer | Builds fixes in shared code, builds the calculators, runs the guard on every build, keeps the T01 board up to date, delivers one release candidate | Edits the rules or the starting point; fixes one project; changes wording only to pass a check; supplies inputs or answers to the independent reviewer |
+| Independent reviewer | Runs each stage challenge with a clean context, its own inputs and its own expected answers | Looks at CMeng's outputs before fixing its expected answers |
+| Verifier (read only) | Keeps the guard, the reader and the starting point; checks live pages against the sources; reports findings as issues | Changes CMeng, its code or its settings |
+| Owner | Approves the plan; makes decisions on real conflicts; approves any change to the rules, the starting point or the stage agreement; operates the integrated release | Confirms clear facts one by one |
 
+## Dates
 
-## Dates, evidence points and blockers
+| Milestone | When |
+| --- | --- |
+| T01 board and starting point | Within 2 working days of approval |
+| Accountability under 5 seconds | Date given by the fixer on the T01 board |
+| Release candidate ready for you to deploy | Date given by the fixer on the T01 board |
+| Stage acceptance dates | Set from the T01 board, then kept on it |
 
-| Control | Recorded date | Verified state |
-|---|---|---|
-| Historical baseline lock | 2026-10-13 | Evidence baseline; owner/verifier controls changes — Recorded only: 39 rules, 11,822 failures / 43,401 assertions; 23 projects; original production b3c76d6 |
-| T01 board compilation | 2026-10-14 | Board produced; not T01 closed — All 57 SW + 61 F + 8 S + 641 ABB observations imported with independent-verification column. Full overlap mapping and proof still pending. |
-| Candidate branch snapshot | 2026-10-13 | Not released — ddd5bdb6: known repaired code saved; production last independently verified b3c76d6 |
-| T11 speed exit | Not established | Release blocker — Unchanged concurrent heavy project gate < = 5,000 ms; 9,244 ms observed CI on 13 Oct. |
-| Source / hold verification exit | Not established | Release blocker until separately proven — 548/548 candidate-only historic; prove automatic use of clear data and review only genuine conflict. |
-| One consolidated release candidate | Not established | No interim deployment — Requires all known defects repaired or disproved, evidence of all consumers, no regressed baseline passing checks, independent truth and full strict CI. |
-| Owner live review across 23 projects | After one verified candidate | Not started on repaired candidate — Optional controlled real AI and parsing, all relevant pages/Ask/exports, five professional lenses. |
+## All 57 system defects and the 274 consultant findings
 
-The original 13 October text suggested the T01 board within two working days and stage/release dates set from that board. **This board is issued on 14 October.** Actual T11 clearance and release-candidate dates are *not established*; their prerequisites and evidence gate are explicit above. No guaranteed delivery date or unearned green milestone is invented.
+The 274 consultant findings (F01 to F61) go on the T01 board, each with its repair reference and verification method. Engineering items among them (independent CPM with mixed calendars and relationships, contractual entitlement, sectional LD, productivity, payment reconciliation, recovery feasibility) are verified by the independent calculators and the stage challenge, not by the guard.
 
+Each of the 57 system defects has a task that fixes it and a check that stops it coming back: 23 checks are running now, 18 use the independent reader or calculators, 11 are still to add, and 5 need one design decision first.
 
-## Sources and authority
+| ID | Defect | Severity | Fixed in | Check | Check status |
+| --- | --- | --- | --- | --- | --- |
+| SW-01 | Page size counted as the total | Critical | T05 | N1 | Automatic, running |
+| SW-02 | Register paging skips rows | Critical | T05 | N9 | Automatic, running |
+| SW-03 | Very large results become an empty page | High | T11 | N10 | Automatic, to add |
+| SW-04 | Unknown shown as 0, No or clear | Critical | T05 | N2, S4, N3 | Automatic, running |
+| SW-05 | Role views blank | Critical | T05, T10 | N5 | Automatic, running |
+| SW-06 | Wrong values in columns | High | T02 | N11, reader | Automatic, running |
+| SW-07 | Pages contradict each other while the check says Pass | High | T05 | N4, S4 | Automatic, running |
+| SW-08 | Key figures held but not shown | High | T02, T05 | reader | Independent reader |
+| SW-09 | Programme links do not attach | Critical | T02 | R4, reader | Automatic, running |
+| SW-10 | Duplicate activity ids matched silently | High | T02 | reader | Independent reader |
+| SW-11 | Files filed by file-name guess and never queued for review | Critical | T02, T03 | R2 | Automatic, running |
+| SW-12 | Superseded cost file used as current | Critical | T02, T07 | R2, reader | Independent reader |
+| SW-13 | Register columns ignored or not mapped | High | T02 | R1 | Automatic, running |
+| SW-14 | Uploaded documents left unread | High | T02, T03 | R3 | Automatic, running |
+| SW-15 | Delay events made from the claims register | High | T07 | reader | Independent reader |
+| SW-16 | Activity type unknown for every activity | High | T02, T06 | S1 | Automatic, running |
+| SW-17 | Procurement need date | Critical | T08 | reader | Independent reader |
+| SW-18 | Readiness rules | High | T08 | design rule | Design once, then a rule |
+| SW-19 | NCRs with unclear status counted as open | Critical | T08 | reader | Independent reader |
+| SW-20 | Fixed default periods instead of contract rules | Critical | T07 | notice calculator | Independent calculator |
+| SW-21 | Variation position | High | T07 | commercial ledger | Independent calculator |
+| SW-22 | Contract time | Critical | T07 | reader, N4 | Independent reader |
+| SW-23 | EOT windows | High | T07 | CPM solver | Independent calculator |
+| SW-24 | Recovery options | Critical | T06 | design rule, CPM solver | Design once, then a rule |
+| SW-25 | Float trend | Critical | T06 | CPM solver | Independent calculator |
+| SW-26 | Filters vs KPIs | High | T05 | N12 | Automatic, to add |
+| SW-27 | Grouping | High | T06, T10 | design rule | Design once, then a rule |
+| SW-28 | No planned progress without calendars | High | T06 | CPM solver, S1 | Independent calculator |
+| SW-29 | Failed recalculation shown as the user's input problem | High | T06, T10 | W8 | Automatic, running |
+| SW-30 | Contractor figures called independent checks | High | T10 | W8, design rule | Design once, then a rule |
+| SW-31 | Implausible source EAC not challenged | High | T07 | EVM workbook | Independent calculator |
+| SW-32 | Delivery risks from the wrong source | Critical | T08 | reader | Independent reader |
+| SW-33 | Handover readiness ignores the asset register | High | T08 | delivery state tables | Independent calculator |
+| SW-34 | Interface candidates from package pairs | Medium | T08 | design rule | Design once, then a rule |
+| SW-35 | HSE rates | Medium | T08 | reader | Independent reader |
+| SW-36 | Held values never offered to confirm or choose | Critical | T04 | C1 | Automatic, running |
+| SW-37 | No input fields | High | T04 | C2 | Automatic, to add |
+| SW-38 | Stale confirmation banner | Medium | T04, T10 | W10 | Automatic, to add |
+| SW-39 | Action loop | High | T09 | A3, A2 | Automatic, running |
+| SW-40 | Buttons to wrong or empty places | Medium | T09 | A1 | Automatic, running |
+| SW-41 | No page addresses | Medium | T09 | A5 | Automatic, to add |
+| SW-42 | Packages linked to finished work disappear | High | T08 | delivery state tables | Independent calculator |
+| SW-43 | No answer on the first screen | High | T10 | L1, design rule | Automatic, running |
+| SW-44 | Very long, repeated pages | High | T10 | L1, L3, W5 | Automatic, running |
+| SW-45 | Developer language | High | T10 | W1, W2, W3, W8 | Automatic, running |
+| SW-46 | Fixed notices that state false facts | High | T10 | W8, reader | Automatic, running |
+| SW-47 | Charts | High | T10 | S3, X3 | Automatic, running |
+| SW-48 | Filters and sorting | Medium | T05, T10 | L5 | Automatic, to add |
+| SW-49 | Downloads and Generate report are raw dumps | Critical | T10 | X1 | Automatic, to add |
+| SW-50 | Screen figures missing from export | High | T10 | X2 | Automatic, to add |
+| SW-51 | Contrast and keyboard access | Medium | T10 | L6 | Automatic, to add |
+| SW-52 | Versions change with no new source | Medium | T11 | V1 | Automatic, to add |
+| SW-53 | Pages fail during deployments | High | T11 | P2 | Automatic, running |
+| SW-54 | Speed | High | T11 | P1 | Automatic, running |
+| SW-55 | Test data listed as live projects | Medium | T01 | V2 | Automatic, to add |
+| SW-56 | AI set-up | High | T03 | R5 | Automatic, running |
+| SW-57 | Project finish date in the programme file not read | High | T02, T06 | reader | Independent reader |
 
-- Recovered 13 Oct pasted plan text: `Pasted text(20261013-080942).txt` (the standalone `CMeng_Repair_Plan.md` could not be located).
-- SW register: `CMeng_System_Defects_and_Root_Repairs_2026-10-12.md`.
-- ABB original: `CMeng_ABB-100_Page_by_Page_Review (1).xlsx`, Findings tab A2:N642.
-- Saved checkpoint: https://github.com/Abeeref1/CMeng/blob/fix/cmeng-systemwide-20261013/docs/repair-notes/cmeng-execution-checkpoint-20261013.md
-- 61 consultant tasks: https://github.com/Abeeref1/CMeng/blob/fix/cmeng-systemwide-20261013/docs/acceptance/cmeng-f01-f61-274-defect-plan.md
-- Fixed stages: https://github.com/Abeeref1/CMeng/blob/fix/cmeng-systemwide-20261013/docs/cmeng-fixed-seven-stage-readiness.md
-- CI result: https://github.com/Abeeref1/CMeng/actions/runs/38454972758
-- Traceability spreadsheet: `CMeng_T01_Full_Defect_Traceability_2026-10-14.xlsx`.
+SW-57 in full: from the programme file's project table, CMeng reads only the short name and the data date. The project finish date (plan\_end\_date) is never read, even where it moves from one revision to the next while the latest activity finish barely moves.
