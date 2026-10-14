@@ -1,0 +1,3128 @@
+{
+  "schema": "cmeng-t01-original-inventory-evidence-ledger-v1",
+  "note": "Traceability register only, NOT a substitute for owner's plan, immutable guard, historical consultant observations or acceptance. No source item is deleted, no item is marked accepted.",
+  "originalSources": {
+    "plan": "docs/repair-notes/CMeng_Repair_Plan.md",
+    "consultant": "docs/acceptance/cmeng-f01-f61-274-defect-plan.json",
+    "consultantOriginal": "tests/fixtures/reem-112-review.json",
+    "guard": "docs/repair-notes/CMeng_Repair_Pack_original_20261014.zip",
+    "stageAgreement": "docs/cmeng-fixed-seven-stage-readiness.md"
+  },
+  "requirements": {
+    "sw": 57,
+    "f": 61,
+    "consultantFindings": 274,
+    "s": 8,
+    "abbObservations": 641,
+    "abbDefects": 579,
+    "abbHistoricallyPassing": 62,
+    "projects": 23,
+    "guardRules": 39,
+    "guardChecks": 43401,
+    "guardHistoricalFailing": 11822,
+    "guardHistoricalPassing": 31579
+  },
+  "sw": [
+    {
+      "id": "SW-01",
+      "description": "Page size counted as the total",
+      "priority": "Critical",
+      "tasks": [
+        "T05"
+      ],
+      "guardRules": "N1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-02",
+      "description": "Register paging skips rows",
+      "priority": "Critical",
+      "tasks": [
+        "T05"
+      ],
+      "guardRules": "N9",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-03",
+      "description": "Very large results become an empty page",
+      "priority": "High",
+      "tasks": [
+        "T11"
+      ],
+      "guardRules": "N10",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-04",
+      "description": "Unknown shown as 0, No or clear",
+      "priority": "Critical",
+      "tasks": [
+        "T05"
+      ],
+      "guardRules": "N2, S4, N3",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-05",
+      "description": "Role views blank",
+      "priority": "Critical",
+      "tasks": [
+        "T05",
+        "T10"
+      ],
+      "guardRules": "N5",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-06",
+      "description": "Wrong values in columns",
+      "priority": "High",
+      "tasks": [
+        "T02"
+      ],
+      "guardRules": "N11, reader",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-07",
+      "description": "Pages contradict each other while the check says Pass",
+      "priority": "High",
+      "tasks": [
+        "T05"
+      ],
+      "guardRules": "N4, S4",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "472aba804c8d4db8d3e0f5411604ab0a440edce9"
+        ],
+        "regressionFiles": [
+          "tests/source-only-forecast-isolation.test.ts"
+        ]
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-08",
+      "description": "Key figures held but not shown",
+      "priority": "High",
+      "tasks": [
+        "T02",
+        "T05"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-09",
+      "description": "Programme links do not attach",
+      "priority": "Critical",
+      "tasks": [
+        "T02"
+      ],
+      "guardRules": "R4, reader",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-10",
+      "description": "Duplicate activity ids matched silently",
+      "priority": "High",
+      "tasks": [
+        "T02"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-11",
+      "description": "Files filed by file-name guess and never queued for review",
+      "priority": "Critical",
+      "tasks": [
+        "T02",
+        "T03"
+      ],
+      "guardRules": "R2",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-12",
+      "description": "Superseded cost file used as current",
+      "priority": "Critical",
+      "tasks": [
+        "T02",
+        "T07"
+      ],
+      "guardRules": "R2, reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-13",
+      "description": "Register columns ignored or not mapped",
+      "priority": "High",
+      "tasks": [
+        "T02"
+      ],
+      "guardRules": "R1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-14",
+      "description": "Uploaded documents left unread",
+      "priority": "High",
+      "tasks": [
+        "T02",
+        "T03"
+      ],
+      "guardRules": "R3",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-15",
+      "description": "Delay events made from the claims register",
+      "priority": "High",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-16",
+      "description": "Activity type unknown for every activity",
+      "priority": "High",
+      "tasks": [
+        "T02",
+        "T06"
+      ],
+      "guardRules": "S1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-17",
+      "description": "Procurement need date",
+      "priority": "Critical",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-18",
+      "description": "Readiness rules",
+      "priority": "High",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "design rule",
+      "originalCheckState": "Design once, then a rule",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-19",
+      "description": "NCRs with unclear status counted as open",
+      "priority": "Critical",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-20",
+      "description": "Fixed default periods instead of contract rules",
+      "priority": "Critical",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "notice calculator",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-21",
+      "description": "Variation position",
+      "priority": "High",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "commercial ledger",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-22",
+      "description": "Contract time",
+      "priority": "Critical",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "reader, N4",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-23",
+      "description": "EOT windows",
+      "priority": "High",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "CPM solver",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-24",
+      "description": "Recovery options",
+      "priority": "Critical",
+      "tasks": [
+        "T06"
+      ],
+      "guardRules": "design rule, CPM solver",
+      "originalCheckState": "Design once, then a rule",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-25",
+      "description": "Float trend",
+      "priority": "Critical",
+      "tasks": [
+        "T06"
+      ],
+      "guardRules": "CPM solver",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-26",
+      "description": "Filters vs KPIs",
+      "priority": "High",
+      "tasks": [
+        "T05"
+      ],
+      "guardRules": "N12",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-27",
+      "description": "Grouping",
+      "priority": "High",
+      "tasks": [
+        "T06",
+        "T10"
+      ],
+      "guardRules": "design rule",
+      "originalCheckState": "Design once, then a rule",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-28",
+      "description": "No planned progress without calendars",
+      "priority": "High",
+      "tasks": [
+        "T06"
+      ],
+      "guardRules": "CPM solver, S1",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-29",
+      "description": "Failed recalculation shown as the user's input problem",
+      "priority": "High",
+      "tasks": [
+        "T06",
+        "T10"
+      ],
+      "guardRules": "W8",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-30",
+      "description": "Contractor figures called independent checks",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "W8, design rule",
+      "originalCheckState": "Design once, then a rule",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-31",
+      "description": "Implausible source EAC not challenged",
+      "priority": "High",
+      "tasks": [
+        "T07"
+      ],
+      "guardRules": "EVM workbook",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-32",
+      "description": "Delivery risks from the wrong source",
+      "priority": "Critical",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-33",
+      "description": "Handover readiness ignores the asset register",
+      "priority": "High",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "delivery state tables",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-34",
+      "description": "Interface candidates from package pairs",
+      "priority": "Medium",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "design rule",
+      "originalCheckState": "Design once, then a rule",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-35",
+      "description": "HSE rates",
+      "priority": "Medium",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-36",
+      "description": "Held values never offered to confirm or choose",
+      "priority": "Critical",
+      "tasks": [
+        "T04"
+      ],
+      "guardRules": "C1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-37",
+      "description": "No input fields",
+      "priority": "High",
+      "tasks": [
+        "T04"
+      ],
+      "guardRules": "C2",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-38",
+      "description": "Stale confirmation banner",
+      "priority": "Medium",
+      "tasks": [
+        "T04",
+        "T10"
+      ],
+      "guardRules": "W10",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-39",
+      "description": "Action loop",
+      "priority": "High",
+      "tasks": [
+        "T09"
+      ],
+      "guardRules": "A3, A2",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-40",
+      "description": "Buttons to wrong or empty places",
+      "priority": "Medium",
+      "tasks": [
+        "T09"
+      ],
+      "guardRules": "A1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-41",
+      "description": "No page addresses",
+      "priority": "Medium",
+      "tasks": [
+        "T09"
+      ],
+      "guardRules": "A5",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-42",
+      "description": "Packages linked to finished work disappear",
+      "priority": "High",
+      "tasks": [
+        "T08"
+      ],
+      "guardRules": "delivery state tables",
+      "originalCheckState": "Independent calculator",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-43",
+      "description": "No answer on the first screen",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "L1, design rule",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-44",
+      "description": "Very long, repeated pages",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "L1, L3, W5",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-45",
+      "description": "Developer language",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "W1, W2, W3, W8",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-46",
+      "description": "Fixed notices that state false facts",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "W8, reader",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-47",
+      "description": "Charts",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "S3, X3",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-48",
+      "description": "Filters and sorting",
+      "priority": "Medium",
+      "tasks": [
+        "T05",
+        "T10"
+      ],
+      "guardRules": "L5",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-49",
+      "description": "Downloads and Generate report are raw dumps",
+      "priority": "Critical",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "X1",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-50",
+      "description": "Screen figures missing from export",
+      "priority": "High",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "X2",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-51",
+      "description": "Contrast and keyboard access",
+      "priority": "Medium",
+      "tasks": [
+        "T10"
+      ],
+      "guardRules": "L6",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-52",
+      "description": "Versions change with no new source",
+      "priority": "Medium",
+      "tasks": [
+        "T11"
+      ],
+      "guardRules": "V1",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-53",
+      "description": "Pages fail during deployments",
+      "priority": "High",
+      "tasks": [
+        "T11"
+      ],
+      "guardRules": "P2",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-54",
+      "description": "Speed",
+      "priority": "High",
+      "tasks": [
+        "T11"
+      ],
+      "guardRules": "P1",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "a315db7651c80b60dd341cf6f2ccb45d4cb0e54e"
+        ],
+        "regressionFiles": [
+          "tests/t11-workfront-identical-source-reuse.test.ts"
+        ]
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-55",
+      "description": "Test data listed as live projects",
+      "priority": "Medium",
+      "tasks": [
+        "T01"
+      ],
+      "guardRules": "V2",
+      "originalCheckState": "Automatic, to add",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-56",
+      "description": "AI set-up",
+      "priority": "High",
+      "tasks": [
+        "T03"
+      ],
+      "guardRules": "R5",
+      "originalCheckState": "Automatic, running",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "SW-57",
+      "description": "Project finish date in the programme file not read",
+      "priority": "High",
+      "tasks": [
+        "T02",
+        "T06"
+      ],
+      "guardRules": "reader",
+      "originalCheckState": "Independent reader",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    }
+  ],
+  "f": [
+    {
+      "id": "F01",
+      "originalDefectIds": [
+        "N-8"
+      ],
+      "root": "R9",
+      "step": 0,
+      "title": "Tests read the screen, with independent answers",
+      "repairRequirement": "Add a browser test that opens every REEM page (all 50 menu pages, the 7 tabs, project review, documents, director drawer, portfolio) and compares the displayed text with the answer key. Add three more checks: one fact = one value across pages; banned words; page data size. Expected values come only from source files or consultant sign-off, never from CMeng output (remove actions.openCount 276 as an \"expected\" value).",
+      "originalCodeAreas": "scripts/reem-golden-facts.mjs, tests/fixtures/reem-112-golden-facts.json",
+      "expectedSourceCheck": "All four checks run on the exact release commit and pass before any deploy to the review site.",
+      "consultantObservation": {
+        "historicalStatus": "Open",
+        "evidence": "Answer key exists (251 checks) but reads API data only."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F02",
+      "originalDefectIds": [
+        "D-002",
+        "D-018",
+        "D-021"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Securities from one rule",
+      "repairRequirement": "Active / expired / expiring is decided once from expiry date vs data date; insurance kept separate from bonds; every page shows that result.",
+      "originalCodeAreas": "commercial-contract-controls, security-validity.ts",
+      "expectedSourceCheck": "Active bonds 1 (PB 21M); expired 1 (APG 21M, 25 Jul 2026); CAR insurance 210M expired 01 Aug 2026; same on Dashboard, Commercial Overview, Contract page, Director drawer.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Contract page: APG expired, CAR policy expired; 21M active on all 9 pages that carry it."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F03",
+      "originalDefectIds": [
+        "D-009",
+        "D-012",
+        "D-052",
+        "D-069",
+        "D-084",
+        "D-136",
+        "D-187"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Schedule counts from one calculation",
+      "repairRequirement": "Critical, near-critical, negative float and delayed-open counts come from one calculation over open execution activities; every schedule page, chart and area table reads it.",
+      "originalCodeAreas": "project-facts.ts; duplicate counts in progress-breakdown, schedule-analysis-core, near-critical-analysis",
+      "expectedSourceCheck": "41 critical, 7 near-critical, 41 negative float, 192 delayed open; Villa Type B 40 critical; same on every page.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Revision History 41 / 7 / 41; Progress Breakdown Villa Type B 40 / 40. Delay pages not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F04",
+      "originalDefectIds": [
+        "D-026",
+        "D-027",
+        "D-030"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "RFI and NCR counts from one register reading",
+      "repairRequirement": "Register pages and the dashboard read the same open / overdue / severity counts.",
+      "originalCodeAreas": "operationalReporting, delivery-projections.ts",
+      "expectedSourceCheck": "53 open / 44 overdue RFIs; 29 major or critical NCRs; same on Dashboard, RFI & Design, Quality.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "53 and 29 shown; \"Not established\" still in 83 row cells on RFI & Design."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F05",
+      "originalDefectIds": [
+        "D-038",
+        "D-042",
+        "D-131"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "One action register",
+      "repairRequirement": "One record = one action; same total everywhere; RFI / NCR not duplicated as activity actions.",
+      "originalCodeAreas": "project-actions.ts, action-priority.ts",
+      "expectedSourceCheck": "Same action total on Command Center, Accountability, Project review, Portfolio; no record appears twice.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "276 on Command Center, Accountability and Portfolio."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F06",
+      "originalDefectIds": [
+        "D-040",
+        "D-047",
+        "D-083",
+        "D-088",
+        "D-101",
+        "D-188"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Claims and EOT facts shared",
+      "repairRequirement": "Events, notice timing, determinations and claim days are worked out once and read by every claims page.",
+      "originalCodeAreas": "canonical-time-claims.ts, claimsReporting",
+      "expectedSourceCheck": "16 events, 0 event dates missing, 14 timely / 2 late notices, 13 d awarded, 75 claimed / 34 assessed on every claims page.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Notice Compliance 14 / 2; Delay Event Register \"event date missing 0\". EOT page still shows \"Independent comparison not confirmed\"."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F07",
+      "originalDefectIds": [
+        "D-064",
+        "D-078",
+        "D-107",
+        "D-178",
+        "D-209",
+        "D-215",
+        "D-216"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Shared inputs and prerequisites",
+      "repairRequirement": "Calendars, quantities, CPM coverage, capacity, installed quantities, discipline list, risk owners and row counts are one shared status, not re-decided per page.",
+      "originalCodeAreas": "project-facts.ts",
+      "expectedSourceCheck": "A prerequisite confirmed on one page is confirmed on all; risk register 110 rows; capacity shown for all 12 trades.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F08",
+      "originalDefectIds": [
+        "D-036",
+        "D-125"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "One programme state and a real consistency check",
+      "repairRequirement": "Update02 has one state on every page; the \"cross-module consistency\" check compares the values actually displayed.",
+      "originalCodeAreas": "project-state.ts, projection-integrity.ts",
+      "expectedSourceCheck": "Update02 \"current\" on every page including Documents; the consistency check fails when any page shows a different value.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F09",
+      "originalDefectIds": [
+        "D-129"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Portfolio uses the same rules for every project",
+      "repairRequirement": "Portfolio cards read each project's shared facts.",
+      "originalCodeAreas": "portfolio projection",
+      "expectedSourceCheck": "REEM 112 card shows extended date 21 Sep 2027 like every other project.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Portfolio data: REEM furtherAdjustedCompletion 2027-09-21."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F10",
+      "originalDefectIds": [
+        "D-115",
+        "D-137",
+        "D-170",
+        "D-172",
+        "D-185",
+        "D-193",
+        "D-198",
+        "D-205",
+        "D-206",
+        "D-207",
+        "D-241",
+        "D-244",
+        "D-245",
+        "D-249"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "One page per question, no duplicate blocks",
+      "repairRequirement": "Each topic has one owner page; other pages link to it instead of copying its blocks.",
+      "originalCodeAreas": "ui.ts moduleWorkspaces and page renderers",
+      "expectedSourceCheck": "No block appears on two pages; merged pages are tabs of one workspace.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "7 pages merged into 3 tabbed workspaces (57 to 50 menu items). Duplicate blocks not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F11",
+      "originalDefectIds": [
+        "D-128",
+        "D-219"
+      ],
+      "root": "R1",
+      "step": 1,
+      "title": "Director drawer and Ask CMeng read the same facts",
+      "repairRequirement": "Both read the shared facts only.",
+      "originalCodeAreas": "project-director, project-ask",
+      "expectedSourceCheck": "Director drawer figures equal the dashboard; each suggested Ask question gives the answer-key value.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": "Ask not tested (read-only rule: no questions asked)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F12",
+      "originalDefectIds": [
+        "D-005",
+        "D-037",
+        "D-133",
+        "D-156",
+        "D-175",
+        "D-226",
+        "D-247",
+        "N-4"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Owners from the registers, never hard-coded",
+      "repairRequirement": "Owner = the register's responsible column; if none, the PMC role for that domain. Remove the hard-coded \"Not assigned\".",
+      "originalCodeAreas": "position-review.ts line 92; register column maps",
+      "expectedSourceCheck": "NCR-0042 owner MEP Coordinator; NCR-0259 QA/QC Manager; risk owners shown; no \"Not assigned\" where a name exists.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Quality page shows owners (Package Manager, QA/QC Manager); \"Not assigned\" still 504 times on 30 pages."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F13",
+      "originalDefectIds": [
+        "D-015",
+        "D-016",
+        "D-029",
+        "D-082",
+        "D-181"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Claims register fully read",
+      "repairRequirement": "Event date, awareness date, responsibility claimed, claimed / assessed days, status and determinations all carried through.",
+      "originalCodeAreas": "canonical-time-claims.ts, register-schema.ts",
+      "expectedSourceCheck": "Delay Event Register shows 75 claimed, 34 assessed, status 8 / 6 / 2, EOT 13 d, responsibility per claim.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "75 / 34 / 13 and notices 14 / 2 shown; responsibility column not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F14",
+      "originalDefectIds": [
+        "D-004",
+        "D-031",
+        "D-045",
+        "D-080",
+        "D-106",
+        "D-109",
+        "D-203",
+        "N-1"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Procurement register fully read; status drives delivered",
+      "repairRequirement": "Read all 90 packages, long-lead flag, vendor and status. A terminal status (Delivered, Installed, Closed) means delivered even without an actual date. Undelivered packages on finished work go to register clean-up.",
+      "originalCodeAreas": "truth-kernel/src/procurement-timing.ts; delivery-projections.ts line 650",
+      "expectedSourceCheck": "90 packages, 30 long-lead, 68 delivered, 22 not delivered, 17 late; PKG-0056 and PKG-0004 in top actions; suppliers from vendor field.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Register read (90, 30 long-lead); PKG-0056 / PKG-0004 in actions; but \"44 known late\" counts 27 delivered packages (N-1)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F15",
+      "originalDefectIds": [
+        "D-041",
+        "D-121",
+        "D-122"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Risk register fully read",
+      "repairRequirement": "Impact, Score, Last Reviewed, Action Due Date and Closed status used.",
+      "originalCodeAreas": "register-schema.ts",
+      "expectedSourceCheck": "Scores for 110 rows; 73 open; 37 closed.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Risks page: 73 open."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F16",
+      "originalDefectIds": [
+        "D-011",
+        "D-158"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Resource register actual hours",
+      "repairRequirement": "Actual Approved Usage read by week and linked to the look-ahead.",
+      "originalCodeAreas": "resource-support-evidence.ts",
+      "expectedSourceCheck": "Actual hours by trade and week; Look-Ahead resources column filled.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Actual utilization 30.48% shown; recorded-hours fields still \"Unresolved\" (41 times on Resources)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F17",
+      "originalDefectIds": [
+        "D-092",
+        "D-116",
+        "D-126",
+        "D-171"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Classify files by header, not file name",
+      "repairRequirement": "Permit register and EVM history recognised as registers and used.",
+      "originalCodeAreas": "document-identification.ts",
+      "expectedSourceCheck": "Permit register drives Permits; monthly EVM history drives the cost trend and progress curve.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Both files classified correctly in the data; curves on pages not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F18",
+      "originalDefectIds": [
+        "D-103"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Bond register instrument column",
+      "repairRequirement": "Instrument column sets the instrument type.",
+      "originalCodeAreas": "commercial-contract-controls",
+      "expectedSourceCheck": "APG recognised as the advance payment security; CAR as insurance.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "APG-VLC1-0202 shown as Advance Payment; CAR as insurance policy."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F19",
+      "originalDefectIds": [
+        "D-019",
+        "D-195"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "VO and IPC registers",
+      "repairRequirement": "VO status from the register; IPC variations column links VOs to payment.",
+      "originalCodeAreas": "commercial-foundation, contract-commercial",
+      "expectedSourceCheck": "VO-026 rejected; pending 0; payment linkage 100% (11,776,000 certified by IPC-023).",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "VO-026 rejected, pending 0. Payment linkage not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F20",
+      "originalDefectIds": [
+        "D-066",
+        "D-096",
+        "D-098",
+        "D-149"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Commercial terms and dated payments",
+      "repairRequirement": "Advance amount from Sub-Clause 14.2 less recoveries; payment dates make a dated cash series; brief carries cost line; three progress measures side by side.",
+      "originalCodeAreas": "commercial-performance, commercial-control",
+      "expectedSourceCheck": "Advance outstanding 1,396,548; dated cash curve; brief shows CPI 0.96, EAC 218.4M, unpaid 9.9M; EVM 89.1% / certified 87.7% / schedule 88.6% together.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Payments shows advance balance 1,396,548. Brief and cash series not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F21",
+      "originalDefectIds": [
+        "D-072",
+        "D-174",
+        "D-204"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "BOQ to programme mapping",
+      "repairRequirement": "BOQ WBS Code maps sections to the 14 WBS areas; physical and certified progress by area.",
+      "originalCodeAreas": "quantity-progress-core, boq-ingestion",
+      "expectedSourceCheck": "Mapping 100%; Progress Breakdown physical and certified columns filled; BOQ items linked to packages where the register allows.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Mapping 100% in data; Progress Breakdown shows three progress columns. Package link not checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F22",
+      "originalDefectIds": [
+        "D-113",
+        "D-114",
+        "D-152",
+        "D-230"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Programme (XER) fields",
+      "repairRequirement": "Baseline dates from the baseline file; discipline from the programme; plot and zone parsed from names; clean filter values.",
+      "originalCodeAreas": "xer-parser, schedule-revision-core",
+      "expectedSourceCheck": "Baseline start differs from current start where the baseline says so; plot filter (Plot B 42 ...); discipline list matches the programme.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F23",
+      "originalDefectIds": [
+        "D-211",
+        "D-212",
+        "D-213",
+        "D-214"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "Programme fallback for empty delivery registers",
+      "repairRequirement": "When no register exists, use programme testing, snagging and handover activities and disruption claims, labelled as programme-based.",
+      "originalCodeAreas": "delivery-projections.ts",
+      "expectedSourceCheck": "Testing, Snag, Handover and Weather pages show the programme activities and claims.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F24",
+      "originalDefectIds": [
+        "D-120"
+      ],
+      "root": "R4",
+      "step": 2,
+      "title": "HSE report fields",
+      "repairRequirement": "Native-text HSE report values extracted.",
+      "originalCodeAreas": "hse-report-evidence.ts",
+      "expectedSourceCheck": "Man-hours 831,000, LTI 1, LTIFR 1.2, TRIR 1.68.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Dashboard shows LTIFR 1.2, TRIR 1.68."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F25",
+      "originalDefectIds": [
+        "D-023",
+        "D-024",
+        "D-025",
+        "D-108",
+        "D-110",
+        "D-111",
+        "D-117",
+        "D-157",
+        "D-221"
+      ],
+      "root": "R2",
+      "step": 3,
+      "title": "Clean registers used immediately",
+      "repairRequirement": "Clean rows are used at once with the label \"From register\". Completeness confirmation only adds percentages; it never hides figures.",
+      "originalCodeAreas": "evidence-control.ts, delivery-projections.ts",
+      "expectedSourceCheck": "Procurement, design, permit and readiness figures shown with no gate; no \"confirm complete\" banner in front of numbers.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Figures now shown; \"Confirm these records are complete\" still at the top of 5 pages."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F26",
+      "originalDefectIds": [
+        "D-013",
+        "D-044",
+        "D-049",
+        "D-051",
+        "D-077"
+      ],
+      "root": "R2",
+      "step": 3,
+      "title": "A normal constraint does not block CPM or the forecast",
+      "repairRequirement": "Apply source constraints as P6 does and also run without them; publish both.",
+      "originalCodeAreas": "schedule-cpm/engine.ts",
+      "expectedSourceCheck": "CMeng CPM computed for all open activities; P50 / P80 / P90 shown; stage forecast finishes shown.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "\"Independent CPM not established\" gone (3,032 hits to 0); P50 +17 d, P80 +46 d, P90 +62 d shown."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F27",
+      "originalDefectIds": [
+        "D-035",
+        "D-074",
+        "D-085",
+        "D-087",
+        "D-090",
+        "D-095",
+        "D-190",
+        "D-194"
+      ],
+      "root": "R2",
+      "step": 3,
+      "title": "Arithmetic is shown, not withheld",
+      "repairRequirement": "Sums and date additions are shown with their basis: extended date, unpaid, pending VOs, notice proxy, actual hours.",
+      "originalCodeAreas": "commercial-canonical.ts, project-facts.ts",
+      "expectedSourceCheck": "Unpaid 9,899,013; extended date 21 Sep 2027; pending VOs 0; notice days for CLM-003 (44) and CLM-004 (42); actual 755,452 h plotted.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Unpaid, extended date, pending 0 and notices shown. Actual-hours point not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F28",
+      "originalDefectIds": [
+        "D-124",
+        "N-2",
+        "N-3"
+      ],
+      "root": "R2",
+      "step": 3,
+      "title": "Candidate values do not create approval requests",
+      "repairRequirement": "A value read cleanly from the contract or a register is \"From source\". Approval is raised only when two sources disagree or a user overrides a value. One prompt per fact, not one per page.",
+      "originalCodeAreas": "module-issues.ts line 146; contract term states (LD rate and cap \"candidate\")",
+      "expectedSourceCheck": "\"approval needed\" only on real conflicts; LD cap and APG not requested again on the page that shows them.",
+      "consultantObservation": {
+        "historicalStatus": "Open",
+        "evidence": "\"approval needed\" 37 to 104; \"Review and promote\" 5 to 15."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F29",
+      "originalDefectIds": [
+        "D-079",
+        "D-097",
+        "D-099",
+        "D-180"
+      ],
+      "root": "R2",
+      "step": 3,
+      "title": "Best-available analyses instead of all-or-nothing",
+      "repairRequirement": "Run the feasibility check, recovery scenarios, cash forecast and late-payment test with the data held.",
+      "originalCodeAreas": "delivery-challenge, recovery-acceleration.ts, commercial-performance",
+      "expectedSourceCheck": "Plaster-chain feasibility shown; recovery scenarios generated; cash forecast from remaining value on the programme; 11 of 21 IPCs paid late.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Paid late 11 / on time 10 shown. Cash forecast \"No source rows\"; crew acceleration candidates 0."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F30",
+      "originalDefectIds": [
+        "D-028",
+        "D-105",
+        "D-118",
+        "D-145",
+        "D-179",
+        "N-6"
+      ],
+      "root": "R3",
+      "step": 3,
+      "title": "Every gap has a named route, or it is not an action",
+      "repairRequirement": "Each gap names the missing field, the file and column that would supply it, the owner and one button. Gaps without a route go to a data-gaps list. No re-upload requests for correct files.",
+      "originalCodeAreas": "position-review.ts, ui-project-actions.ts",
+      "expectedSourceCheck": "No action without a route; unlock steps on the page headline; no \"Source productivity forecast\" request on management pages.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Completeness button now prominent; \"Information needed\" still 342 times on 29 pages."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F31",
+      "originalDefectIds": [
+        "D-217"
+      ],
+      "root": "R3",
+      "step": 3,
+      "title": "Normal contract structure is not a problem",
+      "repairRequirement": "Two sections with their own dates and damages are normal; do not raise them.",
+      "originalCodeAreas": "contract-parser, project-contract-sections.ts",
+      "expectedSourceCheck": "No \"section numbers repeat\" item in Project review.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F32",
+      "originalDefectIds": [
+        "D-223",
+        "D-224",
+        "D-225"
+      ],
+      "root": "R3",
+      "step": 3,
+      "title": "Stale schedule footer",
+      "repairRequirement": "Footer only when a schedule is really awaiting review.",
+      "originalCodeAreas": "ui.ts",
+      "expectedSourceCheck": "No \"newly uploaded schedule needs your review\" after adoption.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Footer on 0 of 50 pages (was 56 of 57)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F33",
+      "originalDefectIds": [
+        "D-001",
+        "D-010",
+        "D-048",
+        "D-050",
+        "D-060",
+        "D-075",
+        "D-076",
+        "D-147"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Contract time: extended date everywhere",
+      "repairRequirement": "Extended date = contract + awarded EOT on every page and chart; days late against it; the completion constraint that gives -88 h is named.",
+      "originalCodeAreas": "project-facts.ts time facts; chart renderers",
+      "expectedSourceCheck": "21 Sep 2027 and 15 days late on Dashboard, Brief, Milestones, Completion History, Completion Forecast; contract and extended lines on finish charts.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Dashboard and Completion Forecast show 21 Sep 2027 and 15 days; charts not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F34",
+      "originalDefectIds": [
+        "D-034",
+        "D-046",
+        "D-061",
+        "D-100",
+        "D-102",
+        "D-208"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Sectional completion and delay damages",
+      "repairRequirement": "Section 1 and Section 2 each with date, rate and cap; LD exposure with cap; never a \"conflict\".",
+      "originalCodeAreas": "project-contract-sections.ts, commercial-contract-controls",
+      "expectedSourceCheck": "Section 1 35,000/day; Section 2 60,000/day, cap 21M; LD 0.90M (extended) / 1.68M (original) on Dashboard, Contract, Financial Claims; Section 1 to 2 interface.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Section table correct on Contract page and Milestones; Contract page shows 1,680,000 / 900,000 but marked \"Needs review\"; not on Dashboard or Financial Claims."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F35",
+      "originalDefectIds": [
+        "D-022",
+        "D-104"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Securities and insurance validity",
+      "repairRequirement": "Check cover to completion plus defects period; flag expired insurance.",
+      "originalCodeAreas": "security-validity.ts",
+      "expectedSourceCheck": "CAR expired flagged; PB to 31 Dec 2027 flagged as ending 86 days after forecast finish and before the defects period ends.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "CAR expired with escalation; PB defects-period warning shown."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F36",
+      "originalDefectIds": [
+        "D-017",
+        "D-020",
+        "D-091",
+        "D-189",
+        "D-191",
+        "D-192",
+        "D-196",
+        "D-197"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Payment rules",
+      "repairRequirement": "Gross vs net; applications are not certified; advance outstanding; 1-riyal rounding is not a failure; due date vs Sub-Clause 14.7; like-for-like ratios.",
+      "originalCodeAreas": "commercial-performance, commercial-canonical.ts",
+      "expectedSourceCheck": "Gross 196,034,538; net 166,629,358; IPC-024 excluded; advance 1,396,548; rounding passes; due-date basis shown.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Payments shows gross, net and advance correctly. Ratio and due-date basis not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F37",
+      "originalDefectIds": [
+        "D-033",
+        "D-093",
+        "D-094",
+        "D-202"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Cost rules",
+      "repairRequirement": "Compare EAC with the current contract, not only the original budget; query positive \"omissions\"; query register value above the contract sum.",
+      "originalCodeAreas": "commercial-performance, ui.ts cost tile",
+      "expectedSourceCheck": "Headline: EAC 218.4M is 3.37M below current contract 221.78M; 4 omission VOs queried; 292.5M package value queried.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Shows \"EAC vs current contract below by 3.37M\" but headline still \"ADVERSE FORECAST 8.4M above original budget\"."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F38",
+      "originalDefectIds": [
+        "D-006",
+        "D-008",
+        "D-032",
+        "D-165",
+        "D-234"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "CPM, driving path and programme quality checks",
+      "repairRequirement": "Correct driving chain; stage classification; DCMA-type checks, BEI, CPLI; float erosion rate; criticality definition stated.",
+      "originalCodeAreas": "schedule-cpm, pmc-schedule-rules.ts",
+      "expectedSourceCheck": "Driving chain 34 activities (Plot B42 to B70, MEP, painting, snagging, PC); constraints / lags / relationship checks; BEI and CPLI; \"turns critical by\" date.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": "BEI present in data."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F39",
+      "originalDefectIds": [
+        "D-073",
+        "D-112",
+        "D-139",
+        "D-150",
+        "D-151",
+        "D-154",
+        "D-155",
+        "D-162",
+        "D-164"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Finished work is not open work",
+      "repairRequirement": "Counts and warnings use open work; finished areas are not blocked; RFIs and NCRs on finished work are close-out.",
+      "originalCodeAreas": "activity-float-reconciliation.ts, delivery-projections.ts",
+      "expectedSourceCheck": "192 delayed open; no \"1,837 awaiting classification\"; 44 RFIs and 67 NCRs listed as close-out; finished milestones show no float.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "RFI and NCR rows marked \"Completed linked work\"; close-out counts in data."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F40",
+      "originalDefectIds": [
+        "D-056",
+        "D-057",
+        "D-058",
+        "D-086",
+        "D-153",
+        "D-160",
+        "D-161",
+        "D-169",
+        "D-186"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Programme change analysis",
+      "repairRequirement": "Completion movement on the comparison page; cause split; update gap flagged; slip rate; driving activities per window; plot filter.",
+      "originalCodeAreas": "schedule-change-report, windows-analysis, revision-trend",
+      "expectedSourceCheck": "+17 d (Update01 to 02) and +32 d (baseline to 01) stated; logic / lag / duration / constraint split; 427-day gap flagged; slip rate; window driving activities.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "427-day gap and 17-day movement in data; pages not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F41",
+      "originalDefectIds": [
+        "D-059"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Float trend charts",
+      "repairRequirement": "Unknown values are gaps, never plotted as zero.",
+      "originalCodeAreas": "revision-trend",
+      "expectedSourceCheck": "Charts show 0 critical at baseline and 41 now.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Revision History shows 41 / 7 / 41; chart lines not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F42",
+      "originalDefectIds": [
+        "D-054",
+        "D-055",
+        "D-119",
+        "D-232"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Look-ahead blockers",
+      "repairRequirement": "A late long-lead package or open RFI / NCR on a driving activity is a named blocker; float column in the window.",
+      "originalCodeAreas": "lookahead, construction readiness",
+      "expectedSourceCheck": "VLC-10-428 shows PKG-0056 as blocker; float and driving flag per activity; NCR-0259 singled out; RFI-0680 / 0677 shown with due date.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Quality page lists NCR-0259 as the first required action. Look-Ahead not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F43",
+      "originalDefectIds": [
+        "D-014",
+        "D-081"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Recovery options",
+      "repairRequirement": "State the recovery target and generate the first options a planner tests: second crew, sixth working day.",
+      "originalCodeAreas": "recovery-acceleration.ts, plot-crew-scenarios.ts",
+      "expectedSourceCheck": "Target 11 working days (extended) / 20 (original); second-crew and six-day scenarios for the plaster chain.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Recovery target shown; \"Crew acceleration candidates 0\" and \"Late procurement packages 44\" (N-1)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F44",
+      "originalDefectIds": [
+        "D-089"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "EOT pending pipeline",
+      "repairRequirement": "Show the pending claims scenario.",
+      "originalCodeAreas": "project-facts.ts claims pipeline",
+      "expectedSourceCheck": "8 pending, 21 assessed days, scenario date 12 Oct 2027.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "EOT page: \"completion moves to Oct 12, 2027\"."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F45",
+      "originalDefectIds": [
+        "D-067",
+        "D-070",
+        "D-071",
+        "D-168",
+        "D-173",
+        "D-176",
+        "D-240",
+        "D-250"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Progress and quantity rules",
+      "repairRequirement": "Progress by area; period and required rate; no cross-item unit sums; query fractional LS; installed value vs certified; earned hours; % installed.",
+      "originalCodeAreas": "quantity-scurve, progress-report, manhour-scurve",
+      "expectedSourceCheck": "Villa Type B progress shown separately; 132 LS items queried; installed value vs 184.26M certified; earned hours about 752,200 vs 755,452 spent.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Per-item curves replace unit sums, but they now load on every management page (N-5)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F46",
+      "originalDefectIds": [
+        "D-065"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Resources against the driving chain",
+      "repairRequirement": "Hours, shortfall and trade for the plaster chain.",
+      "originalCodeAreas": "resource-utilization",
+      "expectedSourceCheck": "Plasterer / mason hours needed vs available for Villa Type B.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F47",
+      "originalDefectIds": [
+        "D-184"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Detailed-claim time bar check",
+      "repairRequirement": "Check Sub-Clause 20.2.4 (42 days) per claim.",
+      "originalCodeAreas": "notices-claims",
+      "expectedSourceCheck": "Each claim shows days from notice to detailed claim against 42.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F48",
+      "originalDefectIds": [
+        "D-210"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Permits against the programme",
+      "repairRequirement": "Link each expired permit to open or finished work.",
+      "originalCodeAreas": "delivery permits",
+      "expectedSourceCheck": "37 expired permits, none on open work, stated.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F49",
+      "originalDefectIds": [
+        "D-163"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Completed-late milestones",
+      "repairRequirement": "List milestones that finished late.",
+      "originalCodeAreas": "milestones",
+      "expectedSourceCheck": "Landscaping +26 d, Villa Type C +9 d listed.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F50",
+      "originalDefectIds": [
+        "D-130"
+      ],
+      "root": "R5",
+      "step": 4,
+      "title": "Portfolio card content",
+      "repairRequirement": "Card leads with forecast vs extended date, days late, cost position, top threat.",
+      "originalCodeAreas": "portfolio UI",
+      "expectedSourceCheck": "REEM card: forecast 06 Oct 2027, extended 21 Sep 2027, 15 days late, CPI, top threat.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Data has forecast and extended dates; card text not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F51",
+      "originalDefectIds": [
+        "D-003",
+        "D-138",
+        "D-140"
+      ],
+      "root": "R6",
+      "step": 5,
+      "title": "Priority by consequence, one action per chain",
+      "repairRequirement": "Rank by driving path, float, milestone and money, then age; one action for a chain.",
+      "originalCodeAreas": "action-priority.ts",
+      "expectedSourceCheck": "Top actions: driving chain recovery, PKG-0056, PKG-0004, RFI-0660 / 0680, NCR-0259; not every row HIGH.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "Top actions: one recovery action for 41 linked activities, then PKG-0056, PKG-0004, RFI-0680."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F52",
+      "originalDefectIds": [
+        "D-007",
+        "D-053",
+        "D-062",
+        "D-063",
+        "D-127"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Summary pages open with the answer",
+      "repairRequirement": "No activity tables at the top of summary pages; the brief and the director view fit one screen.",
+      "originalCodeAreas": "ui.ts page renderers",
+      "expectedSourceCheck": "Management Brief, Activity Review, Milestones, Near-Critical and Director drawer open with the position, not a table.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "500-row \"CPM not established\" table gone; Management Brief still opens with a 220-row float comparison table."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F53",
+      "originalDefectIds": [
+        "D-068",
+        "D-123",
+        "D-132",
+        "D-144",
+        "D-146",
+        "D-182",
+        "D-200",
+        "D-222",
+        "D-236"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "No internal IDs, codes or data paths on screen",
+      "repairRequirement": "Readable names for revisions, documents and clauses; codes stay in logs.",
+      "originalCodeAreas": "ui.ts, position-review.ts STATUS_LABELS",
+      "expectedSourceCheck": "Zero hash IDs, data paths, API paths or UPPER_SNAKE codes in page text.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Internal IDs 2,779 to 614 hits (27 to 7 pages); codes 44 to 12."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F54",
+      "originalDefectIds": [
+        "D-039",
+        "D-134",
+        "D-141",
+        "D-143",
+        "D-148",
+        "D-251"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Name the record, the blocker and the issue",
+      "repairRequirement": "Issue column states the defect; actions name the RFI / NCR / package, not just the activity.",
+      "originalCodeAreas": "project-actions.ts, ui.ts",
+      "expectedSourceCheck": "NCR-0042 \"Waterproofing defect\" as issue; blockers named (NCR-0259, RFI-0660, RFI-0680).",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": ""
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F55",
+      "originalDefectIds": [
+        "D-043"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Accountability grouped by owner",
+      "repairRequirement": "Group actions by owner with counts and overdue.",
+      "originalCodeAreas": "accountability-intelligence.ts",
+      "expectedSourceCheck": "One block per owner.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Page shows ownership concentrations; grouping not re-checked."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F56",
+      "originalDefectIds": [
+        "D-135",
+        "D-177",
+        "D-227",
+        "D-237",
+        "D-246",
+        "D-248",
+        "D-266",
+        "N-7"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Precision and formats",
+      "repairRequirement": "Round to what a manager uses; one date format; no repeated lists.",
+      "originalCodeAreas": "ui.ts formatters",
+      "expectedSourceCheck": "No \"-0.25 days\"; CPI 0.96; no cents next to whole amounts; one date format; retention stated once.",
+      "consultantObservation": {
+        "historicalStatus": "Open",
+        "evidence": "\"-0.25 d\" still on Completion Forecast; CPI 0.961525."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F57",
+      "originalDefectIds": [
+        "D-142",
+        "D-159",
+        "D-166",
+        "D-167",
+        "D-183",
+        "D-199",
+        "D-201",
+        "D-228",
+        "D-229",
+        "D-233",
+        "D-235",
+        "D-238",
+        "D-239",
+        "D-242",
+        "D-243",
+        "D-252",
+        "D-259",
+        "D-262"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Plain state words and empty states",
+      "repairRequirement": "Use one plain word list (STATUS_LABELS already exists) for every page; one line for an empty register; no caveat walls.",
+      "originalCodeAreas": "position-review.ts STATUS_LABELS; the 49 files that write their own wording",
+      "expectedSourceCheck": "Zero \"not established\", \"candidate\", \"qualified\", \"Unresolved\" where the value is known; one empty-state line per empty register.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "\"not established\" 7,894 to 1,445 hits, still on 41 of 50 pages."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F58",
+      "originalDefectIds": [
+        "D-218"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Documents page shows fields used and ignored",
+      "repairRequirement": "Per file: columns mapped and columns ignored.",
+      "originalCodeAreas": "ui documents view",
+      "expectedSourceCheck": "Column usage visible for each of the 22 documents.",
+      "consultantObservation": {
+        "historicalStatus": "Not checked",
+        "evidence": "Column usage exists in the data (0 ignored)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F59",
+      "originalDefectIds": [
+        "D-220"
+      ],
+      "root": "R7",
+      "step": 6,
+      "title": "Test projects out of the live portfolio",
+      "repairRequirement": "Separate test projects from real projects.",
+      "originalCodeAreas": "portfolio",
+      "expectedSourceCheck": "Portfolio shows real projects only, with a separate test list.",
+      "consultantObservation": {
+        "historicalStatus": "Open",
+        "evidence": "84 test projects still in the portfolio."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F60",
+      "originalDefectIds": [
+        "D-253",
+        "D-254",
+        "D-255",
+        "D-256",
+        "D-257",
+        "D-258",
+        "D-260",
+        "D-261",
+        "D-263",
+        "D-264",
+        "D-265"
+      ],
+      "root": "R8",
+      "step": 7,
+      "title": "Empty modules load normally",
+      "repairRequirement": "Empty modules return a normal response and one empty-state line.",
+      "originalCodeAreas": "server.ts",
+      "expectedSourceCheck": "No HTTP 409 on any page.",
+      "consultantObservation": {
+        "historicalStatus": "Fixed",
+        "evidence": "No HTTP errors or console errors on any of 50 pages."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    },
+    {
+      "id": "F61",
+      "originalDefectIds": [
+        "D-231",
+        "N-5"
+      ],
+      "root": "R8",
+      "step": 7,
+      "title": "Page weight",
+      "repairRequirement": "Server-paged tables; management pages get summaries, not the 896 item curves; each page under 2 MB of data.",
+      "originalCodeAreas": "management-context.ts crossModule.quantities.series; server paging",
+      "expectedSourceCheck": "Every page data under 2 MB; Activity Review paged.",
+      "consultantObservation": {
+        "historicalStatus": "Partly",
+        "evidence": "Activity Review text 31,708 characters (was about 210,000); management pages now 16.5 to 17.8 MB (N-5)."
+      },
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted"
+    }
+  ],
+  "s": [
+    {
+      "id": "S02",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S06",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S07",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S17",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S21",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S32",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S35",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    },
+    {
+      "id": "S45",
+      "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
+      "implementation": {
+        "status": "not_reconciled",
+        "sourceCommits": [],
+        "regressionFiles": []
+      },
+      "independentVerification": {
+        "status": "not_certified",
+        "exactSha": null
+      },
+      "ownerAcceptance": "not_accepted",
+      "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure"
+    }
+  ],
+  "abb": {
+    "originalTotal": 641,
+    "problems": 579,
+    "historicalPasses": 62,
+    "sourceStatus": "individual ABB observation rows not yet imported into GitHub; must be linked from owner's full workbook, never fabricated",
+    "individualObservations": [],
+    "engineeringCoverage": "not_measurable",
+    "independentAcceptance": "not_certified"
+  },
+  "countedNamedItems": 126,
+  "countedConsultantFindings": 274,
+  "statusMeaning": {
+    "not_reconciled": "No exact fix-to-test evidence added to this ledger yet; existing engineering implementations may exist elsewhere",
+    "partial_source_repair_saved": "Specific correction exists, but original item is not fully covered, independently challenged or accepted",
+    "not_certified": "No exact candidate independent acceptance record",
+    "not_accepted": "Owner has not accepted this exact item"
+  },
+  "itemClosurePolicy": "Only link an original ID to source-grounded code, its test, its current-head guard and independent proof, then the owner's acceptance. No old consultant Fixed state counts as closure.",
+  "evidenceNote": "Source/manifest listing is traceability establishment, not evidence that all findings have been repaired."
+}
