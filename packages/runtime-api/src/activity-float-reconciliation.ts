@@ -16,14 +16,16 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
  const deterministic=forecast.complete&&forecast.origin==='deterministic_source_calendar'&&revisionMatches;
  const qualifiedScenario=forecast.complete&&forecast.origin==='scenario_with_assumptions'&&revisionMatches;
  const calculated=new Map(forecast.activities.map(row=>[row.activityId,row]));
+ const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+ for(const calendar of model.calendars)if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
  const rows=model.activities.filter(isExecutionActivity).map(activity=>{
   const independent=calculated.get(activity.activityId);
   const completed=activity.status==='completed';
   const usable=!completed&&revisionMatches&&forecast.complete&&(deterministic||qualifiedScenario)&&independent?.status==='calculated'&&independent.calendarMode==='source_calendar';
   const independentTotalFloatHours=usable&&typeof independent?.independentTotalFloatHours==='number'&&Number.isFinite(independent.independentTotalFloatHours)?independent.independentTotalFloatHours:null;
   const submittedTotalFloatHours=typeof activity.totalFloatHours==='number'&&Number.isFinite(activity.totalFloatHours)?activity.totalFloatHours:null;
-  const submittedCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:submittedTotalFloatHours},config);
-  const independentCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:independentTotalFloatHours},config);
+  const submittedCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:submittedTotalFloatHours},config,calendarById);
+  const independentCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:independentTotalFloatHours},config,calendarById);
   const floatDifferenceHours=submittedTotalFloatHours!==null&&independentTotalFloatHours!==null?Number((independentTotalFloatHours-submittedTotalFloatHours).toFixed(6)):null;
   const state=completed?'not_applicable_completed':
    independentTotalFloatHours===null?'independent_not_established':submittedTotalFloatHours===null?'submitted_not_established':
