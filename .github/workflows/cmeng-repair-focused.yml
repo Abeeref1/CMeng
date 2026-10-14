@@ -1,0 +1,39 @@
+name: CMeng Repair Focused Verification
+
+on:
+  push:
+    branches: ['fix/**']
+
+permissions:
+  contents: read
+
+# Additional evidence only: never replaces, skips or weakens the mandatory
+# six-group verify workflow, owner guard, or unchanged T11 5,000-ms benchmark.
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact engineering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install complete declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build complete source and browser
+        run: npm run build
+      - name: Run independent repair regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 \
+            dist/tests/t11-shared-plan-positions.test.js \
+            dist/tests/t11-shared-criticality-pass.test.js \
+            dist/tests/t11-delivery-workfront-source-scope.test.js \
+            dist/tests/source-only-forecast-isolation.test.js
+      - name: Assert original owner guard integrity and comparator
+        run: node scripts/verify-cmeng-owner-guard.cjs
