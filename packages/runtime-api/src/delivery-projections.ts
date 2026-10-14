@@ -365,6 +365,11 @@ function buildDelivery(state:ProjectRuntimeState){
  const allHandover=registerRows.filter(r=>r.kind==='handover'),handoverRows=allHandover.filter(r=>r.scope==='current'),handoverKnown=allHandover.every(r=>r.scope==='future'||r.currentStatus!=='not_established'&&r.scope!=='undated'&&!r.verificationRequired);
  const handover={population:populations.handover!,acceptedKnownCount:handoverRows.filter(r=>r.currentStatus==='accepted').length,readinessPercent:populations.handover!.state==='established'&&handoverKnown?pct(handoverRows.filter(r=>r.currentStatus==='accepted').length,handoverRows.length):null,rows:handoverRows};
  const hsePosition=deliveryHsePosition(byKind('hse'),dataDateIso,populations.hse!.state==='established');
+ // T11/SW-54: the master/dashboard and procurement readers do not need
+ // the specialist workfront breakdown's complete WBS progress calculations.
+ // Keep the original producer and its full output, evaluated only when used.
+ const workfrontGeneratedAt=new Date().toISOString();
+ const calculateWorkfrontMatrix=()=>{
  const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>}>();
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
  // A specialist workfront register enriches the programme; its absence must
@@ -383,7 +388,7 @@ function buildDelivery(state:ProjectRuntimeState){
    }
   }
  }
- mark('workfront_index');
+ // Deferred workfront calculation is timed independently when requested.
  // The workfront scope dimensions retain all their activity IDs. Reuse one
  // controlled baseline and one planning configuration for all these groups,
  // instead of sorting revisions and rebuilding assumptions for every group.
@@ -400,7 +405,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const sharedPlanPositions=model&&scopeGroups.size?sharedProjectPlanPositions(state,model,workfrontBaseline):undefined;
  const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),
    sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:state.controls.readinessEvidence,
-   generatedAt:new Date().toISOString(),producerVersion:'shared-progress-breakdown',
+   generatedAt:workfrontGeneratedAt,producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  // A source workfront may be indexed by both its discipline and location.
  // When both dimensions have the *identical ordered set* of governed activity
@@ -437,6 +442,9 @@ function buildDelivery(state:ProjectRuntimeState){
    authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',
    progressAuthority:'Shared Progress Breakdown calculation; programme progress is separate from installed physical quantities and workfront acceptance.',wbsRows:rows,readiness:gates};
  });
+  return workfrontMatrix;
+ };
+ let cachedWorkfrontMatrix:ReturnType<typeof calculateWorkfrontMatrix>|undefined;
  const supplierKey=(value:string|null|undefined)=>String(value??'').trim().toLocaleLowerCase();
  const registeredSuppliers=byKind('supplier').map(r=>{const names=[r.reference,r.description,field(r,'company')].map(supplierKey).filter(Boolean);const packages=packageRows.filter(p=>p.supplierIds.includes(r.recordId)||p.supplier&&names.includes(supplierKey(p.supplier))),packageIds=new Set(packages.map(p=>p.recordId));const related=registerRows.filter(row=>row.links.supplierIds.includes(r.recordId)||row.links.packageIds.some(id=>packageIds.has(id)));
   return {recordId:r.recordId,reference:r.reference,description:r.description,packages,packageCount:packages.length,
@@ -450,7 +458,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const packages=packageRows.filter(r=>supplierKey(r.supplier)===supplierKey(name));
   return {recordId:'supplier-name:'+name,reference:name,description:'From procurement register',packages,packageCount:packages.length,lateKnownPackageCount:packages.filter(r=>r.overdueUndelivered||r.forecastLate).length,unresolvedPackageCount:packages.filter(r=>!r.deliveredAtDataDate&&r.headroomCalendarDays===null&&!r.overdueUndelivered).length,authority:'From register, not yet confirmed',sourceRefs:packages.flatMap(r=>r.receipts)};
  });
- mark('workfront_and_supplier');
+ mark('supplier_rows');
  if(profiling)process.stdout.write(JSON.stringify({
   event:'delivery_workfront_scope_reuse',projectId:state.projectId,
   sourceGroupCount:scopeGroups.size,uniqueSourceScopeCount:workfrontBuildCount,
@@ -557,7 +565,7 @@ function buildDelivery(state:ProjectRuntimeState){
  if(profiling)process.stdout.write(JSON.stringify({event:'delivery_cold_profile',projectId:state.projectId,version:state.version,registerRecords:records.length,activities:model?.activities.length??0,boqItems:quantities?.items.length??0,stages,totalMs:stages.reduce((sum,part)=>sum+part.ms,0)})+'\n');
  return {schemaVersion:'1.0',producerVersion:'delivery-v1',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeLabel:current?.revision.label??current?.sourceFilename??null,programmeRevisionId:current?.revision.revisionId??null,
   scheduleAuthorityReview:scheduleAuthorityReview(state),records,documents:source.documents,diagnostics:source.diagnostics,populations,findings,
-  packageRows,materialRows,itemMaterialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,workfrontMatrix,supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,riskSourceRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
+  packageRows,materialRows,itemMaterialRows,boqIntelligence,scheduleLongLeadCandidates,readiness,curves:curveData,weightedGroups,registerRows,handover,hsePosition,get workfrontMatrix(){return cachedWorkfrontMatrix??(cachedWorkfrontMatrix=calculateWorkfrontMatrix());},supplierRows,summaries,permitRows,spareRows,assetRows,locations,riskRows,riskSourceRows,evidenceMetrics,commissioningRows,commissioningSystems,weatherRows,relationshipAuthorities,
   existingAuthorities:{risk:operations.risk,quality:operations.quality,rfi:operations.rfi,programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installedQuantities:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},
   lifecycleExamples:lifecycleExamples.map(t=>({...t,state:'example_requires_adoption',weights:null})),
   authorityScope:'Delivery consumes the controlled BOQ, programme, progress and commercial/claims authorities. Procurement exposure does not establish EOT or causation.'};
