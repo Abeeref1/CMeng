@@ -54,17 +54,28 @@ export function scheduleCriticalityFacts(state:ProjectRuntimeState,providedFloat
   const independentForecast=cachedIndependentForecast(model,'project-version:'+state.version);
   const review=independentForecast?activityFloatReconciliation(model,independentForecast,config,state.version):null;
   const check=independentForecast?buildForecastReconciliationGate({forecast:independentForecast,model,requiredFinishIso:null}):null;
+  // The three independently calculated float populations have the same
+  // comparable rows, date and unknown rule. Scan that full population once
+  // rather than rebuilding a known subset three times for every management read.
+  // Unknown independent float/classification still withholds the aggregate,
+  // even when a known subset genuinely contains zero critical activities.
   const comparable=review?[...review.byActivityId.values()].filter(row=>row.floatReconciliationState!=='not_applicable_completed'):[];
-  const independentAggregate=(predicate:(row:(typeof comparable)[number])=>boolean):Aggregate=>{
-    if(!comparable.length)return missing();
-    const known=comparable.filter(row=>row.independentTotalFloatHours!==null&&row.independentCriticality!=='unknown');
-    const unknown=comparable.length-known.length;
-    const count=known.filter(predicate).length;
-    return {value:unknown===0?count:null,knownCount:count,unresolvedCount:unknown,populationCount:comparable.length};
+  let knownCount=0,criticalKnown=0,nearCriticalKnown=0,negativeKnown=0;
+  for(const row of comparable){
+    if(row.independentTotalFloatHours===null||row.independentCriticality==='unknown')continue;
+    knownCount++;
+    if(row.independentCriticality==='critical')criticalKnown++;
+    if(row.independentCriticality==='near_critical')nearCriticalKnown++;
+    if(row.independentTotalFloatHours<0)negativeKnown++;
+  }
+  const unresolvedCount=comparable.length-knownCount;
+  const independentAggregate=(count:number):Aggregate=>!comparable.length?missing():{
+    value:unresolvedCount===0?count:null,knownCount:count,
+    unresolvedCount,populationCount:comparable.length,
   };
-  const independentCritical=independentAggregate(row=>row.independentCriticality==='critical');
-  const independentNearCritical=independentAggregate(row=>row.independentCriticality==='near_critical');
-  const independentNegativeFloat=independentAggregate(row=>row.independentTotalFloatHours!==null&&row.independentTotalFloatHours<0);
+  const independentCritical=independentAggregate(criticalKnown);
+  const independentNearCritical=independentAggregate(nearCriticalKnown);
+  const independentNegativeFloat=independentAggregate(negativeKnown);
   const authoritativeIndependent=!!review&&!!check&&check.usable&&
     !hasUnreconciledScheduleCalendar(independentForecast)&&
     review.summary.independentCpmState==='established'&&review.summary.unresolvedActivityCount===0&&
