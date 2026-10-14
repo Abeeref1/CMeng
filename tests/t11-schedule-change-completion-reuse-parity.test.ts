@@ -60,6 +60,7 @@ test('T11 exact original change-report parity with reused completed source analy
     const originalSource=JSON.stringify([before,after]);
     const options={generatedAt:'2031-05-01T00:00:00Z',producerVersion:'independent-t11'};
     const original=buildScheduleChangeReportProjection(before,after,options);
+    assert.ok(original.engineeringChanges,'full original change record must exist');
     assert.equal(original.engineeringChanges.fromCompletionIso,assertedSourceCompletion(before.model));
     assert.equal(original.engineeringChanges.toCompletionIso,assertedSourceCompletion(after.model));
     for(const config of [
@@ -103,6 +104,7 @@ test('T11 exact original change-report parity with reused completed source analy
       ]),
     });
     const independentlyRevised=buildScheduleChangeReportProjection(before,after,options);
+    assert.ok(revised.engineeringChanges,'changed source must retain engineering record');
     assert.deepEqual(revised,independentlyRevised);
     assert.equal(revised.engineeringChanges.toCompletionIso,'2031-12-20');
   }
