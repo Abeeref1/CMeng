@@ -63,3 +63,17 @@ test('ABB G4_PROGRESS-43: linked long-lead evidence is separate, and overlap cou
   assert.equal(dimension.get('C')?.longLeadSourceLinkedCount,1);
   assert.equal(JSON.stringify(model),before,'no source mutation');
 });
+
+test('the same long-lead programme scope excludes WBS summary and level-of-effort source rows',()=>{
+  const model:any=fixture();
+  const summary={...model.activities[0],activityId:'WBS-ROLLUP',name:'Long Lead parent summary',wbsId:'LC',activityType:'wbs_summary'};
+  const loe={...model.activities[0],activityId:'LOE-1',name:'Long Lead administration',wbsId:'LC',activityType:'level_of_effort'};
+  const withNonExecution={...model,activities:[...model.activities,summary,loe]};
+  assert.deepEqual([...programmeLongLeadScope(withNonExecution).activityIds].sort(),['A2','A3','A6']);
+  assert.deepEqual(scheduleLongLeadEvidence(withNonExecution).map(r=>r.activityId).sort(),['A2','A3','A6']);
+  const projection=buildProgressBreakdownProjection(withNonExecution,{
+    generatedAt:'2026-08-31T00:00:00Z',producerVersion:'g4-progress-43-nonexecution',
+  });
+  assert.equal(projection.overallSummary?.longLeadActivityCount,3);
+  assert.equal(projection.totalActivityCount,6);
+});

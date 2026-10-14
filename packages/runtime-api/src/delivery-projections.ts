@@ -221,7 +221,7 @@ function buildDelivery(state:ProjectRuntimeState){
  const representedActivities=new Set<string>();
  for(const root of longLeadRoots){
   const wbsIds=descendantWbs(root.wbsId);
-  const activityRows=(model?.activities??[]).filter(a=>a.wbsId&&wbsIds.has(a.wbsId));
+  const activityRows=(model?.activities??[]).filter(a=>a.wbsId&&wbsIds.has(a.wbsId)&&explicitProgrammeLongLead.activityIds.has(a.activityId));
   activityRows.forEach(a=>representedActivities.add(a.activityId));
   const activityIds=new Set(activityRows.map(a=>a.activityId));
   const starts=activityRows.map(a=>a.currentStartIso??a.forecastStartIso).filter((d):d is string=>!!d).map(d=>d.slice(0,10)).sort();

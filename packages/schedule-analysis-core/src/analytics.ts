@@ -153,74 +153,49 @@ function floatSummary(
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
 ): FloatSummary {
-  // Float controls the remaining work. Completed tasks are retained in
-  // progress/history but cannot make the unfinished population incomplete.
-  activities=activities.filter(activity=>activity.status!=='completed');
-  const known = activities.filter(
-    (activity) => activity.totalFloatHours !== null,
-  );
-
-  const critical = known.filter(
-    (activity) =>
-      sourceFloatCriticality(model, activity, config) === "critical",
-  );
-  const nearCritical = known.filter(
-    (activity) =>
-      sourceFloatCriticality(model, activity, config) === "near_critical",
-  );
-  const thresholdUnresolved = known.filter(
-    (activity) =>
-      activityNearCriticalThresholdHours(model, activity, config) === null,
-  );
-  const floatRiskWatchlist = known.filter(
-    (activity) =>
-      sourceFloatInFloatRiskWatchlist(
-        model,
-        activity,
-        config,
-      ) === true,
-  );
-
+  // One full, source-qualified pass over unfinished execution work.
+  // Earlier independent filters repeated calendar/criticality lookups and
+  // full-population walks. Preserve *all* existing count/unknown rules.
+  const unfinished=activities.filter(activity=>activity.status!=='completed');
+  let knownCount=0,critical=0,nearCritical=0,noncritical=0,unknownClassifications=0;
+  let unresolvedThreshold=0,watchlist=0,zeroFloat=0,negativeFloat=0,positiveFloat=0;
+  for(const activity of unfinished){
+    const value=activity.totalFloatHours;
+    if(value===null){unknownClassifications++;continue;}
+    knownCount++;
+    const classification=sourceFloatCriticality(model,activity,config);
+    if(classification==='critical')critical++;
+    else if(classification==='near_critical')nearCritical++;
+    else if(classification==='noncritical')noncritical++;
+    else unknownClassifications++;
+    // A critical activity can have known criticality but an unresolved
+    // calendar-dependent watchlist threshold. That uncertainty is retained.
+    if(activityNearCriticalThresholdHours(model,activity,config)===null)unresolvedThreshold++;
+    if(sourceFloatInFloatRiskWatchlist(model,activity,config)===true)watchlist++;
+    if(value===0)zeroFloat++;
+    if(value<0)negativeFloat++;
+    if(value>0)positiveFloat++;
+  }
+  const complete=knownCount===unfinished.length;
+  const nearComplete=complete&&unresolvedThreshold===0;
   return {
-    criticalCount: known.length===activities.length?critical.length:null,
-    knownClassifications: {critical:critical.length,nearCritical:nearCritical.length,noncritical:known.filter(a=>sourceFloatCriticality(model,a,config)==="noncritical").length,unknown:activities.filter(a=>sourceFloatCriticality(model,a,config)==="unknown").length},
-    nearCriticalCount: known.length!==activities.length||thresholdUnresolved.length?null:nearCritical.length,
-    floatRiskWatchlistCount:
-      known.length!==activities.length||thresholdUnresolved.length ? null : floatRiskWatchlist.length,
-    zeroFloatCount: known.length!==activities.length?null:known.filter(
-      (activity) =>
-        activity.totalFloatHours ===
-        0,
-    ).length,
-    negativeFloatCount: known.length!==activities.length?null:known.filter(
-      (activity) => activity.totalFloatHours! < 0,
-    ).length,
-    positiveFloatCount: known.length!==activities.length?null:known.filter(
-      (activity) => activity.totalFloatHours! > 0,
-    ).length,
-    unknownFloatCount:
-      activities.length - known.length,
-    knownFloatCount: known.length,
-    totalActivities: activities.length,
-    coveragePercent: coveragePercent(
-      known.length,
-      activities.length,
-    ),
-    criticalThresholdHours:
-      config.criticalFloatThresholdHours,
-    nearCriticalThresholdHours:
-      config.nearCriticalWorkingDays !== undefined &&
-      config.nearCriticalWorkingDays !== null
-        ? null
-        : config.nearCriticalFloatThresholdHours,
-    nearCriticalWorkingDays:
-      config.nearCriticalWorkingDays ?? null,
-    nearCriticalThresholdBasis:
-      nearCriticalThresholdBasis(config),
-    floatRiskWatchlistIncludesCriticalThreshold:
-      config.floatRiskWatchlistIncludesCriticalThreshold === true,
-    nearCriticalThresholdUnresolvedCount:
-      thresholdUnresolved.length,
+    criticalCount:complete?critical:null,
+    knownClassifications:{critical,nearCritical,noncritical,unknown:unknownClassifications},
+    nearCriticalCount:nearComplete?nearCritical:null,
+    floatRiskWatchlistCount:nearComplete?watchlist:null,
+    zeroFloatCount:complete?zeroFloat:null,
+    negativeFloatCount:complete?negativeFloat:null,
+    positiveFloatCount:complete?positiveFloat:null,
+    unknownFloatCount:unfinished.length-knownCount,
+    knownFloatCount:knownCount,
+    totalActivities:unfinished.length,
+    coveragePercent:coveragePercent(knownCount,unfinished.length),
+    criticalThresholdHours:config.criticalFloatThresholdHours,
+    nearCriticalThresholdHours:config.nearCriticalWorkingDays!==undefined&&config.nearCriticalWorkingDays!==null?null:config.nearCriticalFloatThresholdHours,
+    nearCriticalWorkingDays:config.nearCriticalWorkingDays??null,
+    nearCriticalThresholdBasis:nearCriticalThresholdBasis(config),
+    floatRiskWatchlistIncludesCriticalThreshold:config.floatRiskWatchlistIncludesCriticalThreshold===true,
+    nearCriticalThresholdUnresolvedCount:unresolvedThreshold,
   };
 }
 

@@ -22,7 +22,8 @@ export function programmeLongLeadScope(model:Pick<CanonicalScheduleModel,'wbs'|'
     }
   const activityIds=new Set<string>();
   for(const activity of model.activities)
-    if((activity.wbsId!==null&&markedWbsIds.has(activity.wbsId))||explicitLongLead.test(activity.name??''))
+    if(activity.activityType!=='wbs_summary'&&activity.activityType!=='level_of_effort'&&
+      ((activity.wbsId!==null&&markedWbsIds.has(activity.wbsId))||explicitLongLead.test(activity.name??'')))
       activityIds.add(activity.activityId);
   return {roots,markedWbsIds,activityIds};
 }
