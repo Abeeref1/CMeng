@@ -47,11 +47,12 @@ export function scheduleActivityFinish(
 function dateDeltaDays(
   before: string | null,
   after: string | null,
+  sourceInstant: typeof dateMs,
 ): number | null {
   const beforeMs =
-    dateMs(before);
+    sourceInstant(before);
   const afterMs =
-    dateMs(after);
+    sourceInstant(after);
   if (
     beforeMs === null ||
     afterMs === null
@@ -130,6 +131,7 @@ function compareActivity(
     CanonicalScheduleActivity,
   identity:
     ActivityIdentityMatch,
+  sourceInstant: typeof dateMs,
 ): ScheduleActivityChange {
   const fieldChanges = [
     fieldChange(
@@ -251,6 +253,7 @@ function compareActivity(
       dateDeltaDays(
         scheduleActivityFinish(before),
         scheduleActivityFinish(after),
+        sourceInstant,
       ),
     floatShiftHours:
       numericDelta(
@@ -677,6 +680,18 @@ export function compareScheduleRevisions(
       from.model.activities,
       to.model.activities,
     );
+  // One comparison owns its date interpretation. Repeated source finish
+  // dates are parsed only once across the entire original activity population;
+  // the cache cannot outlive this pair of revisions or conceal later edits.
+  // Keep invalid/null source dates distinct from a valid zero movement.
+  const sourceInstants = new Map<string,number|null>();
+  const sourceInstant = (iso: string|null):number|null => {
+    if (iso===null) return null;
+    if (sourceInstants.has(iso)) return sourceInstants.get(iso)!;
+    const read = dateMs(iso);
+    sourceInstants.set(iso,read);
+    return read;
+  };
   const fromById =
     new Map(
       from.model.activities.map(
@@ -741,6 +756,7 @@ export function compareScheduleRevisions(
         before,
         after,
         match,
+        sourceInstant,
       );
     changes.push(change);
     if (
