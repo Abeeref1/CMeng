@@ -15,7 +15,16 @@ function build(state:ProjectRuntimeState){
   if(!model)return null;
   const basis=projectScheduleControlBasis(state),config=basis.analysisConfig;
   const activities=activityPopulation(model).activities.filter(activity=>activity.status!=='completed');
-  const rows=activities.map(activity=>({activity,classification:sourceFloatCriticality(model,activity,config),watch:sourceFloatInFloatRiskWatchlist(model,activity,config)}));
+  // One source programme has many activities but only a few calendars.
+  // Duplicate IDs retain the original FIRST matching source calendar.
+  const calendarById=new Map<string,(typeof model.calendars)[number]>();
+  for(const calendar of model.calendars)
+    if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
+  const rows=activities.map(activity=>({
+    activity,
+    classification:sourceFloatCriticality(model,activity,config,calendarById),
+    watch:sourceFloatInFloatRiskWatchlist(model,activity,config,calendarById),
+  }));
   const unknown=rows.filter(r=>r.classification==='unknown'||r.watch===null).length;
   const near=rows.filter(r=>r.classification==='near_critical').length;
   const watch=rows.filter(r=>r.watch===true).length;
@@ -24,8 +33,17 @@ function build(state:ProjectRuntimeState){
   const authority=basis.nearCriticalThresholdMethod==='cmeng_policy_default'?'cmeng_screening_policy':basis.state==='official'?'project_evidenced_threshold':'threshold_requires_review';
   const threshold=config.nearCriticalWorkingDays!=null?config.nearCriticalWorkingDays+' working days on each activity calendar':config.nearCriticalFloatThresholdHours+' hours';
   const distribution=new Map<number,number>();let unknownWorkingDays=0;
+  const hoursById=new Map<string|null,number|null>();
   for(const {activity} of rows){
-    const hours=calendarWorkingDayHours(model.calendars.find(c=>c.calendarId===activity.calendarId));
+    // Preserve the exact original null-ID and first-match interpretation.
+    let hours=hoursById.get(activity.calendarId);
+    if(hours===undefined){
+      const calendar=activity.calendarId===null
+        ?model.calendars.find(c=>c.calendarId===activity.calendarId)
+        :calendarById.get(activity.calendarId);
+      hours=calendarWorkingDayHours(calendar);
+      hoursById.set(activity.calendarId,hours);
+    }
     if(activity.totalFloatHours===null||hours===null){unknownWorkingDays++;continue;}
     const days=Math.round(activity.totalFloatHours/hours*1e6)/1e6;
     distribution.set(days,(distribution.get(days)??0)+1);

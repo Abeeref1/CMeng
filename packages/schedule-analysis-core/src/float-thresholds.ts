@@ -65,8 +65,12 @@ export function activityNearCriticalThresholdHours(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
+  // Optional first-occurrence index, local to the caller's source evaluation.
+  calendarById?: ReadonlyMap<string,CanonicalCalendar>,
 ): number | null {
-  const calendar=activity.calendarId===null?null:model.calendars.find(c=>c.calendarId===activity.calendarId)??null;
+  const calendar=activity.calendarId===null?null:calendarById
+    ?calendarById.get(activity.calendarId)??null
+    :model.calendars.find(c=>c.calendarId===activity.calendarId)??null;
   if(activity.calendarId!==null&&(!calendar||calendar.semanticComplete===false))return null;
   if (
     config.nearCriticalWorkingDays !== undefined &&
@@ -94,6 +98,7 @@ export function sourceFloatCriticality(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
+  calendarById?: ReadonlyMap<string,CanonicalCalendar>,
 ): "critical" | "near_critical" | "noncritical" | "unknown" {
   if (activity.totalFloatHours === null) return "unknown";
 
@@ -108,6 +113,7 @@ export function sourceFloatCriticality(
     model,
     activity,
     config,
+    calendarById,
   );
   if (near === null) return "unknown";
 
@@ -120,6 +126,7 @@ export function sourceFloatInFloatRiskWatchlist(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
+  calendarById?: ReadonlyMap<string,CanonicalCalendar>,
 ): boolean | null {
   if (activity.totalFloatHours === null) return null;
 
@@ -128,6 +135,7 @@ export function sourceFloatInFloatRiskWatchlist(
       model,
       activity,
       config,
+      calendarById,
     );
   if (upper === null) return null;
 

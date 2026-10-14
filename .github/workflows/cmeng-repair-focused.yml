@@ -33,6 +33,7 @@ jobs:
           node --test --test-concurrency=1 \
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
+            dist/tests/t11-near-critical-calendar-index.test.js \
             dist/tests/t11-delivery-workfront-source-scope.test.js \
             dist/tests/source-only-forecast-isolation.test.js \
             dist/tests/t11-scurve-calendar-and-observation-scale.test.js \
