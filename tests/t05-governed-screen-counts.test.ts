@@ -47,3 +47,21 @@ test('T05 all affected screen sites use the audited source-preserving count rule
  assert.match(script,/\["Certificate periods by Data Date",governedDisplayCount\(paymentPopulationEstablished,paymentRegister\.asOfRecordCount\)/);
  assert.match(script,/\["Future \/ undated records",fmt\(vo\.futureRecordCount\?\?"Not established"\)/);
 });
+
+test('T05/N2/N3 unknown schedule variance and float coverage cannot display fabricated zeros or a percent unit',()=>{
+ const band=runInNewContext(originalFunction('planningStatusBand')+';planningStatusBand',{
+  escapeHtml:(v:unknown)=>String(v),fmt:(v:unknown)=>String(v),
+ }) as (rows:any[][])=>string;
+ assert.match(band([['Late',null,'danger'],['On time',null,'success']]),/not confirmed/i,
+  'unestablished variance is not a proven empty distribution');
+ assert.doesNotMatch(band([['Late',null,'danger'],['On time',null,'success']]),/0/);
+ assert.match(band([['Late',0,'danger'],['On time',0,'success']]),/established population is zero/i,
+  'genuine established zero remains distinguished from missing evidence');
+ assert.match(script,/variance\.lateActivities\?\?null/);
+ assert.match(script,/variance\.onTimeActivities\?\?null/);
+ assert.match(script,/variance\.earlyActivities\?\?null/);
+ assert.match(script,/variance\.unknownActivities\?\?null/);
+ assert.doesNotMatch(script,/variance\.(?:lateActivities|onTimeActivities|earlyActivities|unknownActivities)\|\|0/);
+ assert.match(script,/variance\.denominator\?\?null/,'unverified baseline comparison cannot borrow total execution denominator');
+ assert.doesNotMatch(script,/fmt\(r\.float\.coveragePercent\)\)\+'% of remaining/);
+});
