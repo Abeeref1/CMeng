@@ -277,7 +277,12 @@ function buildDelivery(state:ProjectRuntimeState){
  const mapped=new Set(byKind('package').flatMap(p=>p.links.boqItemIds));
  const activityByItem=new Map<string,string[]>();for(const a of quantities?.allocations??[]){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
  mark('material_and_scope');
- const sharedBoqLinks=model?boqProgrammeLinks(state,model):null;
+ // A candidate-only BOQ has no adopted value or mapping authority in Delivery's
+  // displayed BOQ rows. Preserve its retained quantities and source evidence,
+  // but do not run the expensive full BOQ/activity candidate scorer solely
+  // for a BOQ projection that cannot yet consume its result. The complete
+  // source-backed mapping still runs when a governed BOQ becomes usable.
+  const sharedBoqLinks=model&&controlledBoq?boqProgrammeLinks(state,model):null;
  mark('boq_to_programme_links');
  for(const row of sharedBoqLinks?.rows??[])if(row.activityIds.length)activityByItem.set(row.itemId,[...new Set([...(activityByItem.get(row.itemId)??[]),...row.activityIds])]);
  const workfrontsByItem=new Map<string,DeliveryRecord[]>();for(const r of byKind('workfront'))for(const id of r.links.boqItemIds){const rows=workfrontsByItem.get(id)??[];rows.push(r);workfrontsByItem.set(id,rows);}
@@ -446,7 +451,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const openLinked=linked.some(row=>row.status!=='completed'&&row.activityType!=='wbs_summary');
   const affectsOpenWork=openLinked?true:!linked.length||hasUnresolvedLinks?null:false;
   const openWorkAnswer=affectsOpenWork===true?'Affects open work':affectsOpenWork===false?'Does not affect open work':'Not linked to verified programme work';
-  return {...registerById.get(r.recordId)!,affectsOpenWork,openWorkAnswer,owner:field(r,'owner','responsible party')||'PMC Construction Manager',issuingAuthority:field(r,'issuing authority','authority')||null,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
+  return {...registerById.get(r.recordId)!,affectsOpenWork,openWorkAnswer,owner:field(r,'owner','responsible party')||null,issuingAuthority:field(r,'issuing authority','authority')||null,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
  });
  const spareRows=byKind('spare').map(r=>{
   const value=(name:string)=>{const n=numeric(r,name+' quantity');return !invalidFields.get(r.recordId)?.has(name+' quantity')&&n!==null&&n>=0&&(name==='required'||isOnDate(date(r,name+' date','status as of'),dataDateIso))?n:null;};
