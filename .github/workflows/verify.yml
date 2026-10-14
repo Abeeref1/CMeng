@@ -57,6 +57,7 @@ jobs:
             case "$CMENG_GATE" in
               regression)
                 node scripts/verify-cmeng-owner-guard.cjs
+                node scripts/verify-cmeng-t01-ledger.cjs
                 npm run typecheck
                 node --check scripts/cmeng-all-project-root-gate.mjs
                 node --check scripts/cmeng-all-project-screen-acceptance.mjs
