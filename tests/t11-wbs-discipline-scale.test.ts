@@ -81,7 +81,7 @@ test('T11 full 8,501-activity source classification reuses the exact spatial rea
   const replacement:CanonicalScheduleModel={...model,sourceRevisionId:'SOURCE-2',activities:activities.map((r,i)=>i===0?{...r,name:'Electrical cable works'}:r)};
   const next=scheduleScopeClassification(replacement);
   assert.equal(next.rows[0]?.discipline,'Electrical','a new source revision must override the former source evidence');
-  assert.equal(full.rows[0]?.discipline,'Mechanical','the earlier model's result remains unchanged');
+  assert.equal(full.rows[0]?.discipline,'Mechanical',"the earlier model's result remains unchanged");
   const unrelated:CanonicalScheduleModel={...model,projectId:'SEPARATE-PROJECT',activities:activities.slice(0,32).map(r=>({...r,projectId:'SEPARATE-PROJECT'}))};
   assert.deepEqual(scheduleScopeClassification(unrelated).rows,independentlyParsed.slice(0,32),'no classifications leak across projects');
 });
