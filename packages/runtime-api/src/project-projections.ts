@@ -174,14 +174,22 @@ import {
 /** One source-to-programme readiness rule shared by every look-ahead consumer.
  * Only current, linked, late procurement records can block unfinished driving
  * work. No source record or pre-existing readiness evidence is removed. */
-function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
+export function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
   const retained=state.controls.readinessEvidence;
   if(drivingIds.length===0)return retained;
   // Do not build the complete Delivery/BOQ/readiness projections when there
   // is no sourced procurement package to connect to the programme. This
   // does not suppress an existing readiness blocker or a single source row.
-  if(!deliveryRecords(state).records.some(record=>record.kind==='package'&&record.sourceActive))return retained;
+  const records=deliveryRecords(state).records;
+  if(!records.some(record=>record.kind==='package'&&record.sourceActive))return retained;
   const driving=new Set(drivingIds);
+  // Direct programme links are required for an activity-scoped readiness
+  // blocker. When no package record links any driving activity, skip the
+  // full Delivery/BOQ/workfront producer without suppressing existing evidence.
+  // Check every retained package conservatively: the governed Delivery producer
+  // remains responsible for all final source and date authority.
+  if(!records.some(record=>record.kind==='package'&&
+    record.links.activityIds.some(id=>driving.has(id))))return retained;
   const overrides:Record<string,Partial<Record<ReadinessDimensionKey,ReadinessEvidence>>>={};
   for(const pkg of deliveryPosition(state).packageRows){
     if(!pkg.drivingBlockerScenario||pkg.deliveredAtDataDate||pkg.deliveredStatusOnly)continue;
@@ -198,7 +206,7 @@ function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:
         ', required '+(pkg.needDate||'date not established')+'. Confirm supplier recovery and owner.']
         .filter(Boolean).join(' ');
       const record={recordId:pkg.recordId,documentType:'procurement package',
-        state:'blocked' as const,dueIso:pkg.needDate,owner:pkg.owner??'Procurement Manager',
+        state:'blocked' as const,dueIso:pkg.needDate,owner:pkg.owner??null,
         note:basis,sourceRefs};
       overrides[activityId]={...retained[activityId],...overrides[activityId],
         procurement_material:{state:'blocked',sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...sourceRefs])],
