@@ -19,6 +19,8 @@ export function buildScheduleChangeReportProjection(
     producerVersion: string;
     // Optional identical-revision comparison calculated earlier in the same management bundle.
     precomputedComparison?: ReturnType<typeof compareScheduleRevisions>;
+    // Reuse exact source-model analyses already calculated in this evaluation.
+    precomputedAnalyses?: ReadonlyMap<ScheduleRevision['model'],ReturnType<typeof analyzeSchedule>>;
   },
 ): ScheduleChangeReportProjection {
   const comparison = input.precomputedComparison ?? compareScheduleRevisions(from, to);
@@ -91,7 +93,10 @@ export function buildScheduleChangeReportProjection(
   const changedField=(field:string)=>comparison.activityChanges.filter(row=>row.fieldChanges.some(change=>change.field===field)).map(row=>row.activityId);
   const constraints=(value:typeof from.model.activities[number])=>JSON.stringify([...(value.sourceConstraints??[])].sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
   const constraintActivityIds=comparison.activityChanges.flatMap(row=>{const a=before.get(row.fromActivityId??''),b=after.get(row.toActivityId??'');return a&&b&&constraints(a)!==constraints(b)?[row.activityId]:[];});
-  const completion=(model:typeof from.model)=>{const bases=analyzeSchedule(model).completionBases;return (bases.find(row=>row.basis==='forecast'&&row.dateIso)??bases.find(row=>row.basis==='programme'&&row.dateIso))?.dateIso??null;};
+  const completion=(model:typeof from.model)=>{
+    const bases=input.precomputedAnalyses?.get(model)?.completionBases??analyzeSchedule(model).completionBases;
+    return (bases.find(row=>row.basis==='forecast'&&row.dateIso)??bases.find(row=>row.basis==='programme'&&row.dateIso))?.dateIso??null;
+  };
   const fromCompletionIso=completion(from.model),toCompletionIso=completion(to.model);
   const days=(a:string|null,b:string|null)=>a&&b?(Date.parse(b.slice(0,10))-Date.parse(a.slice(0,10)))/86400000:null;
   const engineeringChanges={originalDurationActivityIds:changedField('originalDurationHours'),remainingDurationActivityIds:changedField('remainingDurationHours'),constraintActivityIds,calendarActivityIds:changedField('calendarId'),lagChangeCount:modifiedRelationships.filter(row=>row.before.lagHours!==row.after.lagHours).length,relationshipTypeChangeCount:modifiedRelationships.filter(row=>row.before.type!==row.after.type).length,fromCompletionIso,toCompletionIso,completionMovementDays:days(fromCompletionIso,toCompletionIso),updateGapCalendarDays:days(from.model.dataDateIso,to.model.dataDateIso)};

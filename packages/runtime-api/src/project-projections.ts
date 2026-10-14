@@ -1660,6 +1660,10 @@ function buildBundle(
           producerVersion:
             versions.change,
           ...(revisionComparisons.get(before)?.get(after)?{precomputedComparison:revisionComparisons.get(before)!.get(after)!}:{}),
+          // Same source revisions already analyzed for the revision trend above.
+          // Completion date bases come from original activity dates and status;
+          // this local evidence map never survives source/version changes.
+          precomputedAnalyses:revisionAnalyses,
         },
       );
     modules.set(
