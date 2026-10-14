@@ -15965,6 +15965,37 @@
       "G7_PROCUREMENT": 65,
       "G8_DESIGN_CONSTRUCTION_QUALITY": 83,
       "G9_HANDOVER_RISK": 48
+    },
+    "proposedOverlapAudit": {
+      "sourceWorkbook": "CMeng_T01_Full_Defect_Traceability_2026-10-14.xlsx",
+      "sheet": "04 ABB 641",
+      "exactColumn": "Candidate SW overlap (verify)",
+      "note": "Source workbook labels, not verified root assignments and not independent closure; overlapping SW causes remain overlapping rather than forcing one false cause.",
+      "historicalProblemCount": 579,
+      "candidateSwMappedProblemObservations": 522,
+      "problemObservationsPendingDetailedRootMapping": 57,
+      "originallyCorrectObservationsWithNoProblemMapping": 62,
+      "distinctSwCandidateRootIds": [
+        "SW-01",
+        "SW-04",
+        "SW-05",
+        "SW-06",
+        "SW-09",
+        "SW-11",
+        "SW-13",
+        "SW-28",
+        "SW-36",
+        "SW-37",
+        "SW-39",
+        "SW-40",
+        "SW-44",
+        "SW-45",
+        "SW-46"
+      ],
+      "independentRowProofRequirement": "Link each original observation to one or more source-grounded shared root/independent calculator checks. The SW root test closing is necessary but not by itself sufficient for cross-consumer screen/Ask/export claims.",
+      "originalSourceWorkbookSha256": "b30041505c92ce20446ba584a44d69e95d02f7fcb7b98e50abc1e40776e4c296",
+      "verifiedAgainstLibraryWorkbook": true,
+      "verifiedOn": "2026-10-14"
     }
   },
   "countedNamedItems": 126,
