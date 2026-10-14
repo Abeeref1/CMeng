@@ -35,7 +35,8 @@ test('T11 repeated WBS discipline lookups preserve the exact source classificati
   assert.equal(actual[0]?.discipline,'Mechanical','nearest source WBS discipline used when task text has none');
   assert.equal(actual[1]?.discipline,'Mechanical','explicit task discipline outranks its electrical WBS');
   assert.equal(actual[2]?.discipline,'Electrical','explicit electrical task wins over a mixed-discipline WBS');
-  assert.equal(actual[3]?.discipline,'MEP','ambiguous task and combined WBS may use the one explicit source parent');
+  assert.equal(actual[3]?.discipline,null,'ambiguous task and unknown WBS must not invent a discipline');
+  assert.equal(actual[7]?.discipline,'MEP','ambiguous task and combined WBS may use the one explicit source parent');
   assert.equal(actual[4]?.discipline,null,'source without a discipline must remain unknown');
   assert.strictEqual(scheduleScopeClassification(model).rows,actual,'one immutable source model shares one classification result');
 });
