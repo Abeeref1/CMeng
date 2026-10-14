@@ -4,8 +4,33 @@ function identity(item:IdentifiedItem){return item.itemNumber&&item.description&
 /** Identity is exact, unique in both revisions and independent of filename and row
  * position. Changed scope/unit, missing identifiers and duplicate item codes stay unresolved. */
 export function boqItemContinuity(previous:IdentifiedItem[],current:IdentifiedItem[]){
-  const index=(items:IdentifiedItem[])=>{const map=new Map<string,IdentifiedItem[]>();for(const item of items){const key=identity(item);if(key)map.set(key,[...(map.get(key)??[]),item]);}return map;};
+  // Retain the complete identity comparison but not duplicate source rows in
+  // each index entry. Repeated BOQ numbers/sections used to copy the whole
+  // existing group on every insert (quadratic work for large source packets).
+  // The only consumer needs uniqueness, not an array of duplicate rows.
+  const index=(items:IdentifiedItem[])=>{
+    const groups=new Map<string,{count:number;first:IdentifiedItem}>();
+    const keys:(string|null)[]=[];
+    for(const item of items){
+      const key=identity(item);
+      keys.push(key);
+      if(!key)continue;
+      const entry=groups.get(key);
+      if(entry)entry.count++;
+      else groups.set(key,{count:1,first:item});
+    }
+    return {groups,keys};
+  };
   const before=index(previous),after=index(current),mapping=new Map<string,string>(),ids=new Set(current.map(i=>i.id));
-  for(const item of previous){if(ids.has(item.id)){mapping.set(item.id,item.id);continue;}const key=identity(item);if(key&&before.get(key)?.length===1&&after.get(key)?.length===1)mapping.set(item.id,after.get(key)![0]!.id);}
+  for(let index=0;index<previous.length;index++){
+    const item=previous[index]!;
+    // An unchanged native item ID remains the same identity, as before.
+    if(ids.has(item.id)){mapping.set(item.id,item.id);continue;}
+    const key=before.keys[index];
+    // A repeated source identity in EITHER revision remains unresolved.
+    if(key&&before.groups.get(key)?.count===1&&after.groups.get(key)?.count===1){
+      mapping.set(item.id,after.groups.get(key)!.first.id);
+    }
+  }
   return mapping;
 }
