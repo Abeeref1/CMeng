@@ -329,7 +329,10 @@ export const cell = (row: SourceRow, ...names: string[]): string => {
   return '';
 };
 export function numberValue(value: string): number | null {
-  const v = value.trim().replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660)).replace(/[٬]/g, ',').replace(/[٫]/g, '.');
+  const v = value.trim()
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x6f0))
+    .replace(/[٬]/g, ',').replace(/[٫]/g, '.');
   const accounting=/^\((.*)\)$/.exec(v);
   const candidate=(accounting?.[1]??v).trim();
   // Parentheses are an accounting negative convention. A sign inside
