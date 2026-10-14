@@ -170,7 +170,13 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const points=data(modules,'revision-trend')?.points??[],from=changes?points.find((p:any)=>p.revisionId===changes.fromRevisionId):null,to=points.find((p:any)=>p.revisionId===model.sourceRevisionId);
  const revision={state:changes?'available':'unavailable',fromRevisionId:changes?.fromRevisionId??null,toRevisionId:model.sourceRevisionId,previousFinishIso:from?.forecastCompletionIso??null,finishMovementCalendarDays:difference(to?.forecastCompletionIso??forecast?.sourceForecastCompletionIso??null,from?.forecastCompletionIso??null),added:changes?.addedActivityCount??null,removed:changes?.removedActivityCount??null,modified:changes?.modifiedActivityCount??null,
    largestChanges:(changes?.changedActivities??[]).filter((r:any)=>numeric(r.finishShiftDays)&&r.changeKind==='modified').sort((a:any,b:any)=>Math.abs(b.finishShiftDays)-Math.abs(a.finishShiftDays)).slice(0,20).map((c:any)=>({activityId:c.toActivityId??c.activityId,name:byId.get(c.toActivityId??c.activityId)?.name??c.activityId,finishMovementCalendarDays:c.finishShiftDays,floatMovementHours:c.floatShiftHours,progressMovementPercent:c.progressShiftPercent})),basis:changes?'Existing comparison between adopted revisions. Same Data Dates do not become later reporting periods.':'No applicable pair of adopted revisions is available; uploaded candidates do not change this comparison.'};
- const calendarsById=new Map(model.calendars.map(c=>[c.calendarId,c]));
+ // Use the FIRST source calendar definition, matching independent schedule
+ // analysis and float classification. Later duplicate IDs are retained as
+ // evidence but may not silently reverse the original calendar's completeness.
+ const calendarsById=new Map<string,typeof model.calendars[number]>();
+ for(const calendar of model.calendars){
+   if(!calendarsById.has(calendar.calendarId))calendarsById.set(calendar.calendarId,calendar);
+ }
  const anomalies={constraints:model.activities.filter(a=>a.sourceConstraints?.length).length,openStarts:rows.filter(r=>r.openStart).length,openFinishes:rows.filter(r=>r.openFinish).length,isolated:rows.filter(r=>r.isolated).length,
    unresolvedCalendars:rows.filter(r=>!calendarsById.get(r.calendarId??'')?.semanticComplete).length,
    remainingDuration:rows.filter(r=>numeric(r.remainingDurationHours)&&(r.remainingDurationHours<0||r.status==='completed'&&r.remainingDurationHours>0)).length,
