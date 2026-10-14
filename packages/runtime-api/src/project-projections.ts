@@ -1,4 +1,5 @@
 import {projectScopeClassification} from './location-review';
+import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
 import {buildForecastReconciliationGate} from './forecast-control';
@@ -1387,6 +1388,7 @@ function buildBundle(
       model,
       {
       baselineModel: controlledBaseline?.revision.model ?? null,
+      sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null),
       previousModel: ordered.at(-2)?.revision.model ?? null,
       scopeClassification: projectScopeClassification(state,model),
       readinessEvidence: state.controls.readinessEvidence,
