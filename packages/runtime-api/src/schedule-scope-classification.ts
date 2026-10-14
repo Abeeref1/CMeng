@@ -89,7 +89,8 @@ function derivedDiscipline(text:string){
 }
 export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:CanonicalScheduleActivity,nodes=new Map(model.wbs.map(node=>[node.wbsId,node])),
   pathCache?:Map<string,ReturnType<typeof wbsPath>>,
-  wbsPickCache?:Map<string,Map<string,string|null>>):ActivityScopeClassification{
+  wbsPickCache?:Map<string,Map<string,string|null>>,
+  wbsDisciplineCache?:Map<string,string|null>):ActivityScopeClassification{
   const node=activity.wbsId?nodes.get(activity.wbsId):undefined;
   const hierarchy=node&&pathCache?.has(node.wbsId)?pathCache.get(node.wbsId)!:wbsPath(node,nodes);
   if(node&&pathCache&&!pathCache.has(node.wbsId))pathCache.set(node.wbsId,hierarchy);
@@ -129,7 +130,20 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const contractor=pick('Contractor',[/\b(?<!sub)contractor\s*[-:#]?\s*([a-z0-9][a-z0-9 &_.\/-]{1,40})\b/i]);
   // The specific task or nearest WBS wins over a broad multi-discipline parent.
   // A parent containing both civil and MEP work must not erase a clear task label.
-  const discipline=derivedDiscipline(activityText)??wbsText.split(' > ').reverse().map(derivedDiscipline).find(Boolean)??null;
+  // Task wording has precedence. When it cannot establish one discipline,
+  // hundreds of activities in the same WBS previously repeated identical
+  // parent-path splits and all discipline regex checks. Cache only the source
+  // WBS fallback within this one immutable classification calculation.
+  const explicitDiscipline=derivedDiscipline(activityText);
+  let parentDiscipline:string|null=null;
+  if(!explicitDiscipline){
+    if(node&&wbsDisciplineCache?.has(node.wbsId))parentDiscipline=wbsDisciplineCache.get(node.wbsId)!;
+    else{
+      parentDiscipline=wbsText.split(' > ').reverse().map(derivedDiscipline).find(Boolean)??null;
+      if(node&&wbsDisciplineCache)wbsDisciplineCache.set(node.wbsId,parentDiscipline);
+    }
+  }
+  const discipline=explicitDiscipline??parentDiscipline;
   const spatial=[plot.value,tower.value,building.value,area.value,zone.value,floor.value,level.value,section.value,chainage.value,workFront.value].filter(Boolean) as string[];
   const basis:Record<string,ScopeClassificationBasis>={
     wbsId:activity.wbsId?'source_wbs':'unavailable',wbsPath:hierarchy.path?'source_wbs':'unavailable',wbsLevel:hierarchy.level?'source_wbs':'unavailable',
@@ -148,7 +162,8 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
   const activities=model.activities.filter(activity=>!['level_of_effort','wbs_summary'].includes(activity.activityType));
   const pathCache=new Map<string,ReturnType<typeof wbsPath>>();
   const wbsPickCache=new Map<string,Map<string,string|null>>();
-  const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes,pathCache,wbsPickCache));
+  const wbsDisciplineCache=new Map<string,string|null>();
+  const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes,pathCache,wbsPickCache,wbsDisciplineCache));
   const dimensions:[ClassificationCoverage['key'],string,string][]=[
     ['plot','Plot','Explicit plot identifier in WBS or activity text'],
     ['wbsId','WBS','Explicit activity WBS resolved to the source WBS hierarchy'],
