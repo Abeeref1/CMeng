@@ -465,9 +465,11 @@ export function sourceScheduleCompletionBases(model: CanonicalScheduleModel): Co
   const activities=activityPopulation(model).activities;
   const total=activities.length;
   type Selected={time:number;dateIso:string;activityId:string;sourceRef:string};
-  const choose=(prior:Selected|null,dateIso:string|null,activityId:string,field:string):Selected|null=>{
-    const time=validIsoDate(dateIso);
-    if(time===null||!dateIso||prior&&time<=prior.time)return prior;
+  // The source date was already parsed for known/missing coverage. Carry its
+  // validated timestamp into the source-order maximum; do not parse a 100k-row
+  // baseline, forecast or actual date a second time.
+  const choose=(prior:Selected|null,dateIso:string|null,time:number,activityId:string,field:string):Selected|null=>{
+    if(!dateIso||prior&&time<=prior.time)return prior;
     return {time,dateIso,activityId,sourceRef:"activity:"+activityId+":"+field};
   };
   let programme:Selected|null=null,forecast:Selected|null=null,actual:Selected|null=null;
@@ -476,20 +478,20 @@ export function sourceScheduleCompletionBases(model: CanonicalScheduleModel): Co
     const baselineTime=validIsoDate(activity.baselineFinishIso);
     if(baselineTime!==null){
       programmeKnown++;
-      programme=choose(programme,activity.baselineFinishIso,activity.activityId,"baselineFinish");
+      programme=choose(programme,activity.baselineFinishIso,baselineTime,activity.activityId,"baselineFinish");
     }
     const effectiveFinish=effectiveCurrentFinish(activity);
     const forecastTime=validIsoDate(effectiveFinish);
     if(forecastTime!==null){
       forecastKnown++;
-      forecast=choose(forecast,effectiveFinish,activity.activityId,"effectiveCurrentFinish");
+      forecast=choose(forecast,effectiveFinish,forecastTime,activity.activityId,"effectiveCurrentFinish");
     }
     if(activity.status==="completed"){
       completed++;
       const actualTime=validIsoDate(activity.actualFinishIso);
       if(actualTime!==null){
         actualKnown++;
-        actual=choose(actual,activity.actualFinishIso,activity.activityId,"actualFinish");
+        actual=choose(actual,activity.actualFinishIso,actualTime,activity.activityId,"actualFinish");
       }
     }
   }
