@@ -14,7 +14,7 @@ function browser(){
   actionDeadlineText:()=> 'Deadline not established',
   renderProjectDiagnosis:()=>'<div class="source-read">Original project facts retained</div>',
  };
- runInNewContext(projectDiagnosisScript+'\n;globalThis.fixture={renderProjectPrioritySummary,renderProjectBrief,renderProjectDashboardSummary,milestoneExposureNote};',context);
+ runInNewContext(projectDiagnosisScript+'\n;renderProjectDiagnosis=()=>\'<div class="source-read">Nested full diagnosis is tested separately</div>\';globalThis.fixture={renderProjectPrioritySummary,renderProjectBrief,renderProjectDashboardSummary,milestoneExposureNote};',context);
  return context.fixture as {
   renderProjectPrioritySummary:(v:unknown)=>string;
   renderProjectBrief:(d:unknown,data?:unknown)=>string;
