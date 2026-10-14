@@ -8190,8 +8190,21 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  const resolvedModules = new Map(certifiedAnalyticalModules.map(descriptor =>
-    [descriptor.key, resolveProjectModule(state, descriptor.key)]));
+  // Keep the exact same certified module order and results, while allowing
+  // T11 cold-run profiles to identify the shared producer(s) behind the
+  // expensive resolution stage. Profiling does not skip a module or write data.
+  const resolvedModules=new Map<string,ModuleRuntimeResult>();
+  const moduleResolutionProfile:Array<{module:string;ms:number}>=[];
+  for(const descriptor of certifiedAnalyticalModules){
+    const started=profiling?performance.now():0;
+    resolvedModules.set(descriptor.key,resolveProjectModule(state,descriptor.key));
+    if(profiling)moduleResolutionProfile.push({module:descriptor.key,ms:performance.now()-started});
+  }
+  if(profiling)process.stdout.write(JSON.stringify({
+    event:'management_resolved_modules_breakdown',projectId,
+    modules:moduleResolutionProfile,
+    totalMs:moduleResolutionProfile.reduce((sum,row)=>sum+row.ms,0),
+  })+'\\n');
   const mp2=profiling?performance.now():0;
   const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
     director, boardReport: bundle.boardReport });
