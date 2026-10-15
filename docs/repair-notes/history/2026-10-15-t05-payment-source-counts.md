@@ -1,0 +1,2 @@
+15 October 2026 — T05 payment source count authority
+Payment lifecycle and SLA screens no longer treat an absent retained payment source as a zero-valued population. Current, future, undated and SLA counts are published only when the retained source population establishes them; genuine zero within an established source remains zero. Lifecycle/SLA charts are withheld when their component counts are not established. Source calculations and original records are unchanged. No deployment.

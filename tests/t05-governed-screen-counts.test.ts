@@ -79,3 +79,14 @@ test('T05 commercial count authority requires a real numeric population and neve
  assert.match(script,/escapeHtml\(fmt\(challenge\.unavailableCheckCount\)\)/);
  assert.doesNotMatch(script,/challenge\.unavailableCheckCount\?\?0/);
 });
+
+test('T05 payment screens require retained source authority before zeros are shown',()=>{
+ assert.match(script,/const paymentSourceEstablished=knownCount\(paymentRegister\.sourceRecordCount\)&&paymentRegister\.sourceRecordCount>0/);
+ assert.match(script,/const paymentPopulationEstablished=paymentSourceEstablished&&knownCount\(paymentRegister\.recordCount\)/);
+ assert.match(script,/const paymentLifecycleEstablished=paymentPopulationEstablished&&\[/);
+ assert.doesNotMatch(script,/paymentPopulationEstablished=\(paymentRegister\.recordCount\?\?0\)>0\|\|paymentRegister\.state==="established"/);
+ assert.doesNotMatch(script,/lifecycleCounts\.(?:applied|assessed|certified|paid)\?\?0/);
+ assert.match(script,/governedDisplayCount\(paymentSourceEstablished,paymentRegister\.futureRecordCount\)/);
+ assert.match(script,/governedDisplayCount\(paymentSourceEstablished,paymentRegister\.undatedRecordCount\)/);
+ assert.match(script,/governedDisplayCount\(paymentPopulationEstablished,slaCounts\.notEstablished\)/);
+});

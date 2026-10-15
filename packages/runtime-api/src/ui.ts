@@ -3680,7 +3680,11 @@ function renderCommercialVisual(key,data){
       const paymentRegister=foundation.paymentRegister||{};
       const lifecycleCounts=paymentRegister.lifecycleCounts||{};
       const slaCounts=paymentRegister.slaCounts||{};
-      const paymentPopulationEstablished=(paymentRegister.recordCount??0)>0||paymentRegister.state==="established";
+      const paymentSourceEstablished=knownCount(paymentRegister.sourceRecordCount)&&paymentRegister.sourceRecordCount>0;
+      const paymentPopulationEstablished=paymentSourceEstablished&&knownCount(paymentRegister.recordCount);
+      const paymentLifecycleEstablished=paymentPopulationEstablished&&[
+        lifecycleCounts.applied,lifecycleCounts.assessed,lifecycleCounts.certified,lifecycleCounts.paid
+      ].every(knownCount);
       const paymentRows=(paymentRegister.rows||[]).map(row=>{
         const amounts=row.amounts||{};
         return '<tr><td><b>'+escapeHtml(row.paymentId)+'</b></td><td>'+escapeHtml(row.paymentType||"Not stated")+'</td><td>'+escapeHtml(planningShortDate(row.periodEnd))+'<br><span class="muted">'+escapeHtml(humanizeKey(row.reportingScope||'undated'))+'</span></td><td>'+escapeHtml(planningShortDate(row.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.certificationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(row.lifecycle?.slaState||"not_established"))+'</td><td>'+escapeHtml(findingValue(amounts.applicationAmount))+'</td><td>'+escapeHtml(findingValue(amounts.engineerAssessedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.grossWork))+'</td><td>'+escapeHtml(findingValue(amounts.grossCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.variationCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.employerCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.netCertifiedAmount))+'</td><td>'+escapeHtml(findingValue(amounts.paidAmount))+'</td><td>'+escapeHtml(findingValue(amounts.outstandingAmount))+'</td></tr>';
@@ -3706,14 +3710,17 @@ function renderCommercialVisual(key,data){
       const lifecycleVisual=renderVisualPanel(
         "IPC lifecycle completion",
         "Counts come from confirmed application, assessment, certification and payment event dates. Missing stages are not copied from another stage.",
-        paymentPopulationEstablished?renderVisualBars([
-          {label:"Applied",value:lifecycleCounts.applied??0,tone:"graphite"},
-          {label:"Assessed",value:lifecycleCounts.assessed??0,tone:"purple"},
-          {label:"Certified",value:lifecycleCounts.certified??0,tone:"accent"},
-          {label:"Paid",value:lifecycleCounts.paid??0,tone:"success"}
-        ],"records"):'<div class="empty-visual">Payment register is not confirmed. Lifecycle counts are not confirmed.</div>'
+        paymentLifecycleEstablished?renderVisualBars([
+          {label:"Applied",value:lifecycleCounts.applied,tone:"graphite"},
+          {label:"Assessed",value:lifecycleCounts.assessed,tone:"purple"},
+          {label:"Certified",value:lifecycleCounts.certified,tone:"accent"},
+          {label:"Paid",value:lifecycleCounts.paid,tone:"success"}
+        ],"records"):paymentPopulationEstablished&&paymentRegister.recordCount===0
+          ?'<div class="empty-visual">The confirmed current payment population is zero.</div>'
+          :'<div class="empty-visual">Payment lifecycle counts are not established from a retained payment source.</div>'
       );
-      const slaAssessable=paymentRegister.slaAssessmentState!=="not_assessable";
+      const slaCountValues=[slaCounts.paidOnTime,slaCounts.paidLate,slaCounts.overdueUnpaid,slaCounts.openUnpaid];
+      const slaAssessable=paymentPopulationEstablished&&paymentRegister.slaAssessmentState!=="not_assessable"&&slaCountValues.every(knownCount);
       const slaVisual=renderVisualPanel(
         "Payment SLA & aging position",
         slaAssessable
@@ -3721,21 +3728,21 @@ function renderCommercialVisual(key,data){
           :"No certificate has enough payment-date evidence for a timing assessment.",
         slaAssessable
           ?renderDonutChart([
-              {label:"Paid on time",value:slaCounts.paidOnTime??0,tone:"success"},
-              {label:"Paid late",value:slaCounts.paidLate??0,tone:"warning"},
-              {label:"Overdue unpaid",value:slaCounts.overdueUnpaid??0,tone:"danger"},
-              {label:"Open · not due",value:slaCounts.openUnpaid??0,tone:"accent"}
+              {label:"Paid on time",value:slaCounts.paidOnTime,tone:"success"},
+              {label:"Paid late",value:slaCounts.paidLate,tone:"warning"},
+              {label:"Overdue unpaid",value:slaCounts.overdueUnpaid,tone:"danger"},
+              {label:"Open · not due",value:slaCounts.openUnpaid,tone:"accent"}
             ],"Assessable payments")
-          :paymentPopulationEstablished?'<div class="notice warning"><b>Not assessable</b><p>'+escapeHtml(fmt(slaCounts.notEstablished??0))+' payment record(s) do not have sufficient confirmed SLA event dates.</p></div>':'<div class="empty-visual">Payment register is not confirmed. SLA counts are not confirmed.</div>'
+          :paymentPopulationEstablished?'<div class="notice warning"><b>Not assessable</b><p>'+escapeHtml(knownCount(slaCounts.notEstablished)?fmt(slaCounts.notEstablished):"Not established")+' payment record(s) do not have sufficient confirmed SLA event dates.</p></div>':'<div class="empty-visual">Payment register is not confirmed. SLA counts are not confirmed.</div>'
       );
       foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Certificate periods by Data Date",governedDisplayCount(paymentPopulationEstablished,paymentRegister.asOfRecordCount),"certificate periods on or before cutoff"],["Future / undated periods",fmt(paymentRegister.futureRecordCount??0)+" / "+fmt(paymentRegister.undatedRecordCount??0),fmt(paymentRegister.sourceRecordCount??paymentRegister.recordCount??0)+" full source records retained"],
+          ["Certificate periods by Data Date",governedDisplayCount(paymentPopulationEstablished,paymentRegister.asOfRecordCount),"certificate periods on or before cutoff"],["Future / undated periods",governedDisplayCount(paymentSourceEstablished,paymentRegister.futureRecordCount)+" / "+governedDisplayCount(paymentSourceEstablished,paymentRegister.undatedRecordCount),governedDisplayCount(paymentSourceEstablished,paymentRegister.sourceRecordCount)+" full source records retained"],
           ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
-          ["Stated component arithmetic",paymentPopulationEstablished?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount??0):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
+          ["Stated component arithmetic",paymentPopulationEstablished&&knownCount(paymentRegister.asOfRecordCount)?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
           ["Overdue unpaid",slaCounts.overdueUnpaid===null||slaCounts.overdueUnpaid===undefined?"Not assessable":slaCounts.overdueUnpaid,"past confirmed payment due date"],
           ["Paid late",slaCounts.paidLate===null||slaCounts.paidLate===undefined?"Not assessable":slaCounts.paidLate,"actual payment after due date"],
-          ["SLA not confirmed",paymentPopulationEstablished?(slaCounts.notEstablished??0):"Not established","records without assessable due/payment dates",slaCounts.notEstablished?"warning":""],
+          ["SLA not confirmed",governedDisplayCount(paymentPopulationEstablished,slaCounts.notEstablished),"records without assessable due/payment dates",knownCount(slaCounts.notEstablished)&&slaCounts.notEstablished>0?"warning":""],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
