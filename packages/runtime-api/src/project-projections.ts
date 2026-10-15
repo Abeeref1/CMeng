@@ -6967,7 +6967,7 @@ function buildSpecialistModuleFast(
   return result;
 }
 
-function applyProfessionalModuleState(
+export function applyProfessionalModuleState(
   result: ModuleRuntimeResult,
 ): ModuleRuntimeResult {
   if (
@@ -7296,54 +7296,40 @@ function applyProfessionalModuleState(
         claims
           .noticeTimelinessCounts ??
         {};
-      const noticeEvidenceGaps =
-        Number(
-          noticeCounts
-            .requirement_missing ??
-            0,
-        ) +
-        Number(
-          noticeCounts
-            .event_date_missing ??
-            0,
-        ) +
-        Number(
-          noticeCounts
-            .notice_date_missing ??
-            0,
-        );
-      const moneyLinkGap =
-        claims.lifecycleClaimCount >
-          0 &&
-        (
-          claims
-            .commercialLifecycleLinkCoveragePercent !==
-            100 ||
-          claims
-            .commercialClaimCount <
-            claims
-              .lifecycleClaimCount
-        );
-      if (
-        moneyLinkGap ||
-        noticeEvidenceGaps > 0
-      ) {
+      // Missing document facts never establish a valid zero.
+      const countNames = [
+        "requirement_missing", "event_date_missing", "notice_date_missing",
+      ] as const;
+      const rawCounts = countNames.map((key) => noticeCounts[key]);
+      const noticeEvidenceGaps = rawCounts.every(
+        (value: unknown) => typeof value === "number" &&
+          Number.isSafeInteger(value) && value >= 0,
+      ) ? (rawCounts as number[]).reduce((total, value) => total + value, 0) : null;
+      const lifecycleCount =
+        typeof claims.lifecycleClaimCount === "number" &&
+        Number.isSafeInteger(claims.lifecycleClaimCount) &&
+        claims.lifecycleClaimCount >= 0 ? claims.lifecycleClaimCount as number : null;
+      const commercialCount =
+        typeof claims.commercialClaimCount === "number" &&
+        Number.isSafeInteger(claims.commercialClaimCount) &&
+        claims.commercialClaimCount >= 0 ? claims.commercialClaimCount as number : null;
+      const moneyLinkGap = lifecycleCount !== null && lifecycleCount > 0 &&
+        (commercialCount === null ||
+          claims.commercialLifecycleLinkCoveragePercent !== 100 ||
+          commercialCount < lifecycleCount);
+      if (lifecycleCount === null || moneyLinkGap ||
+          noticeEvidenceGaps === null || noticeEvidenceGaps > 0) {
         review(
-          moneyLinkGap
-            ? String(
-                claims
-                  .commercialClaimCount,
-              ) +
-                " of " +
-                String(
-                  claims
-                    .lifecycleClaimCount,
-                ) +
+          lifecycleCount === null
+            ? "Claim lifecycle population is not established; Financial Claims remains under review."
+            : moneyLinkGap
+              ? (commercialCount === null ? "Not established" : String(commercialCount)) +
+                " of " + String(lifecycleCount) +
                 " lifecycle claims have confirmed commercial-money linkage; Financial Claims requires review of its money linkage."
-            : String(
-                noticeEvidenceGaps,
-              ) +
-                " notice assessment(s) are missing a confirmed requirement, event date or notice date; Financial Claims remains under review.",
+              : noticeEvidenceGaps === null
+                ? "Notice requirement, event-date or notice-date counts are not established; Financial Claims cannot report zero evidence gaps."
+                : String(noticeEvidenceGaps) +
+                  " notice assessment(s) are missing a confirmed requirement, event date or notice date; Financial Claims remains under review.",
         );
       }
     }
