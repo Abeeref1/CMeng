@@ -43,3 +43,20 @@ test('T06 original source hours remain auditable while float is expressed in eac
   assert.equal(JSON.stringify(model),original,'input source activities and calendar were not changed');
  }
 });
+
+test('T06 activity screen shows source-calendar days with original hourly audit and excludes completed work',()=>{
+ const {runInNewContext}=require('node:vm') as typeof import('node:vm');
+ const {cmengUatHtml}=require('../packages/runtime-api/src/ui') as typeof import('../packages/runtime-api/src/ui');
+ const html=cmengUatHtml();
+ const match=/function sourceWorkingFloat\(row,calculated=false\)\{[\s\S]*?\n\}/.exec(html)?.[0];
+ assert.ok(match,'actual browser float renderer is present');
+ const render=runInNewContext('('+match+')',{fmt:(n:unknown)=>String(n)}) as (row:any,calculated?:boolean)=>string;
+ assert.equal(render({status:'in_progress',floatDaysBasis:'source_activity_calendar',
+   submittedTotalFloatWorkingDays:-3,submittedTotalFloatHours:-24}),'-3 working days · -24 original h');
+ assert.equal(render({status:'in_progress',submittedTotalFloatHours:-24}),
+   'Working-day basis not established · -24 original h','no fabricated eight-hour conversion');
+ assert.equal(render({status:'completed',submittedTotalFloatWorkingDays:-3,submittedTotalFloatHours:-24}),
+   'Not applicable · completed');
+ assert.equal(render({status:'in_progress',submittedTotalFloatWorkingDays:0,submittedTotalFloatHours:0}),
+   '0 working days · 0 original h');
+});

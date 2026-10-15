@@ -1,0 +1,2 @@
+15 October 2026 — T06 calendar working-day activity reporting (partial)
+Activity Review and shared planner float reconciliation now show per-activity source-calendar working-day float as the first management value, retaining the submitted and independent original float hours alongside it. Completed work is not presented as active float, missing calendar hours are not guessed, genuine zero stays zero. Browser-rendered independent cases added. Other specialist float consumers and cross-view/export proof still open; no deployment.
