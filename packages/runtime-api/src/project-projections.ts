@@ -4,7 +4,7 @@ import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
 import {sourceScheduleCompletionBases} from '../../schedule-analysis-core/src';
-import {latestControlledBaselineCompletion} from './controlled-baseline-completion';
+import {summarizeControlledBaselineCompletion} from './controlled-baseline-completion';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
@@ -753,8 +753,8 @@ function buildBundle(
       ) ??
       activity.forecastFinishIso ??
       activity.currentFinishIso;
-  const controlledBaselineCompletion =
-    latestControlledBaselineCompletion(
+  const {completion:controlledBaselineCompletion,validCount:controlledBaselineValidCount} =
+    summarizeControlledBaselineCompletion(
       controlledBaseline?.revision.model.activities ?? [],
     );
   const varianceDays = (
@@ -904,12 +904,10 @@ function buildBundle(
                               ?.activityId ??
                             null,
                           state:
-                            controlledBaselineCompletionCandidates
-                              .length ===
+                            controlledBaselineValidCount ===
                             0
                               ? "missing" as const
-                              : controlledBaselineCompletionCandidates
-                                    .length ===
+                              : controlledBaselineValidCount ===
                                   controlledBaseline
                                     .revision.model
                                     .activities
@@ -924,8 +922,7 @@ function buildBundle(
                               ? Number(
                                   (
                                     (
-                                      controlledBaselineCompletionCandidates
-                                        .length /
+                                      controlledBaselineValidCount /
                                       controlledBaseline
                                         .revision.model
                                         .activities

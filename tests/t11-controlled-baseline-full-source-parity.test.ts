@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseScheduleTime, type CanonicalScheduleActivity} from '../packages/schedule-analysis-core/src';
-import {latestControlledBaselineCompletion} from '../packages/runtime-api/src/controlled-baseline-completion';
+import {latestControlledBaselineCompletion,summarizeControlledBaselineCompletion} from '../packages/runtime-api/src/controlled-baseline-completion';
 
 type Activity=Pick<CanonicalScheduleActivity,'activityId'|'baselineFinishIso'|'currentFinishIso'>;
 // Independent reference is the original full-source stable map/filter/sort,
@@ -26,6 +26,18 @@ test('T11 cold full bundle retains the original all-row controlled baseline comp
     );
     const originalBytes=JSON.stringify(rows);
     assert.deepEqual(latestControlledBaselineCompletion(rows),original(rows),site+' complete source population');
+    const candidates=rows.map(activity=>({activityId:activity.activityId,dateIso:activity.baselineFinishIso??activity.currentFinishIso}))
+      .filter(row=>row.dateIso!==null&&Number.isFinite(parseScheduleTime(row.dateIso)));
+    const summary=summarizeControlledBaselineCompletion(rows);
+    assert.deepEqual(summary.completion,original(rows),'completion unchanged while retaining full evidence coverage');
+    assert.equal(summary.validCount,candidates.length,'original valid candidate denominator must survive single-pass optimization');
+    const originalCoverage=rows.length?Number(((candidates.length/rows.length)*100).toFixed(4)):null;
+    const revisedCoverage=rows.length?Number(((summary.validCount/rows.length)*100).toFixed(4)):null;
+    assert.equal(revisedCoverage,originalCoverage,'management baseline coverage percentage must be identical');
+    assert.equal(summary.validCount===0?'missing':summary.validCount===rows.length?'available':'partial',
+      candidates.length===0?'missing':candidates.length===rows.length?'available':'partial',
+      'management baseline source state must be identical');
+
     assert.equal(JSON.stringify(rows),originalBytes,'source dates and activity order are immutable');
     assert.deepEqual(latestControlledBaselineCompletion(rows),original(rows),'repeat must have same result');
     if(count>1)assert.equal(latestControlledBaselineCompletion(rows)?.activityId,site+'-TIE-B','last equal-date source row preserved');
