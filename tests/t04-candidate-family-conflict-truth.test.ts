@@ -53,3 +53,54 @@ test('T04 sheet count is never confused with multiple competing documents',()=>{
   assert.equal(governedTables([a,duplicate],[]).length,1,'same content-hash and document identity do not invent another candidate revision');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('T04 an unread competing candidate cannot silently turn another unadopted revision into the current register',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'t04-unread-candidate-'));
+ try{
+  const readable=file(dir,'readable',3500,'certificate-family');
+  const unread=file(dir,'unread',4700,'certificate-family');
+  const separate=file(dir,'separate',1900,'different-family');
+  const before=JSON.stringify([readable,unread,separate]);
+  rmSync(unread.storedPath);
+  const diagnostics:string[]=[];
+  const selected=governedTables([readable,unread,separate],diagnostics);
+  assert.deepEqual(selected.map(t=>t.document.documentId),['separate'],
+    'unread candidate is still a conflicting source revision; unrelated source continues unchanged');
+  assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_READ_FAILURE:unread:')),
+    'the physical failure is retained and exposed');
+  assert.ok(diagnostics.some(s=>s==='CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:certificate-family:readable'),
+    'source family selection needs review, not a fabricated total');
+  assert.equal(JSON.stringify([readable,unread,separate]),before,'original receipts and relationships were not changed');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('T04 an unread existing active document prevents implicit promotion of a pending candidate',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'t04-unread-active-'));
+ try{
+  const active=file(dir,'active',400,'commercial-ledger','active');
+  const pending=file(dir,'pending',800,'commercial-ledger');
+  const unrelated=file(dir,'unrelated',1200,'other-ledger');
+  const original=JSON.stringify([active,pending,unrelated]);
+  rmSync(active.storedPath);
+  const diagnostics:string[]=[];
+  const selected=governedTables([active,pending,unrelated],diagnostics);
+  assert.deepEqual(selected.map(t=>t.document.documentId),['unrelated'],
+    'read failure of current authority cannot make a pending revision current');
+  assert.ok(diagnostics.some(s=>s==='CANDIDATE_REVISION_NOT_APPLIED:pending'));
+  assert.ok(diagnostics.some(s=>s.startsWith('SOURCE_READ_FAILURE:active:')));
+  assert.equal(JSON.stringify([active,pending,unrelated]),original);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('T04 identical file bytes under different candidate document identities still require source-family selection',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'t04-matching-bytes-'));
+ try{
+  const first=file(dir,'first',6600,'change-register'),copy={...first,documentId:'second',sourceFilename:'second.csv'};
+  const diagnostics:string[]=[];
+  assert.equal(sourceTables([first,copy],[]).length,1,'original content-hash deduplication is preserved');
+  assert.deepEqual(governedTables([first,copy],diagnostics),[],
+    'a table cache or duplicate-file exclusion must not certify distinct unadopted source document IDs');
+  assert.ok(diagnostics.some(s=>s==='CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:change-register:first'));
+  assert.equal(first.basisState,'candidate');assert.equal(copy.basisState,'candidate');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

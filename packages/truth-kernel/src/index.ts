@@ -549,15 +549,18 @@ export const has = (table: SourceTable, ...headers: string[]): boolean => header
 /** A pending revision cannot displace an established source of the same role. */
 export function governedTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
   const tables = sourceTables(documents, diagnostics);
-  const established = new Set(tables.filter(t => ['active','additive'].includes(t.document.basisState)).map(t => t.document.familyKey).filter(Boolean));
+  // Authority and revision conflicts belong to DOCUMENT evidence, not just
+  // successfully decoded tables. A damaged/missing current source still owns
+  // its family: a pending candidate cannot silently replace it. Likewise, a
+  // second candidate that failed reading must still block a false singleton.
+  const established = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.familyKey).filter(Boolean));
   // A source-only, clean, uniquely identified candidate may be used for
   // qualified analysis without formal adoption. Two DISTINCT candidate
   // document revisions of the SAME source family are a real conflict. Never
   // concatenate them into a "current" count, EAC, claim or register balance.
   // Count owning documents, not spreadsheet sheets or table repetitions.
   const candidateFamilies=new Map<string,Set<string>>();
-  for(const table of tables){
-    const document=table.document;
+  for(const document of documents){
     if(document.basisState!=='candidate'||!document.familyKey)continue;
     const ids=candidateFamilies.get(document.familyKey)??new Set<string>();
     ids.add(document.documentId);
