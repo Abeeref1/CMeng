@@ -11,6 +11,25 @@ const sourceFlag=(value:unknown)=>{
  return /^(yes|y|true|1|installed|commissioned|complete|completed)$/.test(text)?true:/^(no|n|false|0|not installed|not commissioned|incomplete)$/.test(text)?false:null;
 };
 const percent=(n:number,d:number)=>d>0?Math.round(n/d*10000)/100:null;
+/** Count completion at the reporting Data Date, independently of a task's
+ * later current-status label. Raw completed source flags remain traceable. */
+export function programmeCompletionAsOf(rows:readonly {status:string;actualFinishIso?:string|null}[],cutoff:string|null){
+ const sourceCompletedCount=rows.filter(r=>r.status==='completed').length;
+ const unknown=rows.filter(r=>r.status==='unknown').length;
+ const validDay=(value:string|null|undefined)=>{
+  if(typeof value!=='string')return null;
+  const day=/^\\d{4}-\\d{2}-\\d{2}(?=$|[T\\s])/.exec(value)?.[0];
+  if(!day)return null;
+  const ms=Date.parse(day+'T00:00:00Z');
+  return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,10)===day?day:null;
+ };
+ const futureCompletionDates=rows.filter(r=>r.status==='completed'&&cutoff&&validDay(r.actualFinishIso)>cutoff).length;
+ const missingCompletionDates=rows.filter(r=>r.status==='completed'&&!validDay(r.actualFinishIso)).length;
+ const knownAsOfCount=cutoff?rows.filter(r=>r.status==='completed'&&validDay(r.actualFinishIso)!==null&&validDay(r.actualFinishIso)!<=cutoff).length:null;
+ const percentage=cutoff&&unknown===0&&futureCompletionDates===0&&missingCompletionDates===0&&knownAsOfCount!==null&&rows.length
+  ?percent(knownAsOfCount,rows.length):null;
+ return {sourceCompletedCount,knownAsOfCount,unknown,futureCompletionDates,missingCompletionDates,percentage};
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildComparison>}>();
 function buildComparison(state:ProjectRuntimeState){
  const source=deliveryRecords(state).records.filter(r=>r.kind==='asset'&&r.sourceActive&&deliveryCurrentRecord(r));
@@ -19,10 +38,11 @@ function buildComparison(state:ProjectRuntimeState){
  const taskIds=new Set<string>();
  const programme=Object.keys(programmeTaskPatterns).map(key=>{
   const scope=programmeTaskReviewBasis(state,key as ProgrammeTaskKind),rows=scope?.rows??[];rows.forEach(a=>taskIds.add(a.activityId));
-  const completed=rows.filter(a=>a.status==='completed').length,unknown=rows.filter(a=>a.status==='unknown').length;
-  const futureCompletionDates=rows.filter(a=>a.status==='completed'&&a.actualFinishIso&&cutoff&&a.actualFinishIso.slice(0,10)>cutoff).length;
-  const missingCompletionDates=rows.filter(a=>a.status==='completed'&&!a.actualFinishIso).length;
-  return {key,source:'programme',label:key==='testing'?'Programme testing tasks':'Programme handover tasks',numerator:model?completed:null,denominator:model?rows.length:null,unknownCount:model?unknown:null,percent:rows.length&&!unknown?percent(completed,rows.length):null,
+  const completion=programmeCompletionAsOf(rows,cutoff);
+  const {sourceCompletedCount,futureCompletionDates,missingCompletionDates}=completion;
+  return {key,source:'programme',label:key==='testing'?'Programme testing tasks':'Programme handover tasks',
+   sourceCompletedCount,numerator:model?completion.knownAsOfCount:null,denominator:model?rows.length:null,
+   unknownCount:model?completion.unknown:null,percent:model?completion.percentage:null,
    statusDate:cutoff,futureCompletionDates,missingCompletionDates,basis:(scope?.basis??'Current programme is unavailable.')+' Task completion is not asset commissioning or formal acceptance. '+futureCompletionDates+' completed task dates fall after the Data Date; '+missingCompletionDates+' have no actual finish date.'};
  });
  const assetDates=source.map(r=>registerDate(String(r.fields['status as of']??'')));

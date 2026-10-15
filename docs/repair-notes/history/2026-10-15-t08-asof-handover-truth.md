@@ -1,0 +1,2 @@
+15 October 2026 — T08 dated programme handover truth (partial)
+Source task status 'completed' no longer proves that completion existed at the programme Data Date. The shared handover comparison now separates all submitted completed flags from dated as-of completions; later or missing actual-finish evidence withholds overall percentage while retaining original raw counts and explanatory exception counts. Independent tests for leap day, future, missing, invalid and complete cohorts added. Asset-register reconciliation and other T08 requirements remain open; no deployment.
