@@ -959,7 +959,16 @@ function humanizeKey(key){
   const labels={PARALLEL_ASSESSMENT_VALUES_DIFFER:"Claim assessments disagree",REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER:"Reported determination is absent from the award register",labor_hour:"Labor hours",equipment_hour:"Equipment hours",rfi_register:"RFI",design_deliverables:"Design deliverable",submittal_register:"Submittal",governed:"Confirmed",established:"Confirmed",candidate:"Needs review",not_established:"Not established",not_applicable:"Not applicable",quarantined:"Source evidence under review",not_submitted:"Not provided",submitted_unparsed:"Provided; not read",independent_cpm:"Calendar calculation",source_forecast:"Submitted forecast",event_date_missing:"Event / awareness date missing",requirement_missing:"Notice rule missing"};
   if(labels[key])return labels[key];
   const value=String(key);
-  if(/^[A-Z][A-Z0-9_]+(?::.*)?$/.test(value)&&value.includes("_"))return "Additional calculation qualification";
+  if(/^[A-Z][A-Z0-9_]+(?::.*)?$/.test(value)&&value.includes("_")){
+    // Preserve each source finding's meaning and evidence identity. A generic
+    // fixed notice masks material distinctions between different failures.
+    const separator=value.indexOf(":");
+    const code=separator>=0?value.slice(0,separator):value;
+    const detail=separator>=0?value.slice(separator+1):"";
+    const readable=code.toLowerCase().replace(/_+/g," ").replace(/\b\w/g,c=>c.toUpperCase())
+      .replace(/\b(?:Eot|Cpi|Spi|Ncr|Rfi|Cpm|Wbs|Eac|Ld|Boq|Pmo|Ai|Pdf|Ipc)\b/g,m=>m.toUpperCase());
+    return readable+(detail?" · "+detail.replace(/[_]+/g," "):"");
+  }
   return value
     .replace(/[_-]+/g," ")
     .replace(/([a-z0-9])([A-Z])/g,"$1 $2")

@@ -1,0 +1,2 @@
+15 October 2026 — T10 meaningful diagnostic labels (partial)
+Replaced a fixed identical notice for every unknown uppercase diagnostic with an individual readable source-based heading while retaining the evidence reference after the colon. Known professional display labels remain authoritative. Added browser-generated humanization assertions to focused CI. This is not final review of all 57 pages, Ask, charts or exports. No deployment.
