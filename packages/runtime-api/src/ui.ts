@@ -1139,9 +1139,16 @@ function renderVisualPanel(title,description,body,badge=""){
   return '<section class="visual-chart" data-visual-panel><div class="visual-chart-head"><div><h5>'+escapeHtml(title)+'</h5>'+(description?'<p>'+escapeHtml(description)+'</p>':'')+'</div><div class="visual-chart-actions">'+(badge?'<span class="badge">'+escapeHtml(badge)+'</span>':'')+'<button class="visual-focus-button" type="button" aria-label="Expand '+escapeHtml(title)+'">Expand</button></div></div><div class="visual-chart-body">'+body+'</div></section>';
 }
 function renderDonutChart(items,centerLabel="Total"){
-  const known=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const supplied=Array.isArray(items)?items:[];
+  const known=supplied.filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
+  const unresolved=supplied.filter(item=>!(typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0));
+  if(unresolved.length){
+    return '<div class="notice warn"><b>Distribution total not established.</b><p>'+escapeHtml(unresolved.length)+' category values are missing or invalid. Known values below are a subset, not a complete total or share.</p></div>'+
+      renderVisualBars(supplied);
+  }
   const total=known.reduce((sum,item)=>sum+item.value,0);
-  if(!known.length||total<=0)return '<div class="empty-visual">No established distribution is available for this chart.</div>';
+  if(!known.length)return '<div class="empty-visual">No established distribution is available for this chart.</div>';
+  if(total===0)return '<div class="empty-visual">The established distribution total is zero. No shares can be plotted.</div>';
   if(known.length>6){
     return renderVisualBars(known.map(item=>({label:item.label,value:item.value,tone:item.tone||"accent"})));
   }
@@ -1161,13 +1168,17 @@ function renderDonutChart(items,centerLabel="Total"){
   return '<div class="donut-layout"><div class="donut-ring" style="background:conic-gradient('+stops.join(",")+')"><div class="donut-center"><b>'+escapeHtml(fmt(total))+'</b><span>'+escapeHtml(centerLabel)+'</span></div></div><div class="donut-legend">'+legend+'</div></div>';
 }
 function renderVisualBars(items,unit=""){
-  const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value)&&item.value>=0);
-  if(!rows.length)return '<div class="empty-visual">No comparable values are established for this chart.</div>';
-  const max=unit.trim()==="%"?100:Math.max(1,...rows.map(item=>item.value));
-  return '<div class="visual-bars">'+rows.map(item=>{
-    const width=Math.min(100,Math.max(0,(item.value/max)*100));
-    const tone=item.tone||"accent";
-    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track"><div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div></div><div class="visual-bar-value">'+escapeHtml((unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+unit:""))+'</div></div>';
+  const supplied=Array.isArray(items)?items:[];
+  const known=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
+  const valid=supplied.filter(item=>known(item.value));
+  if(!valid.length)return '<div class="empty-visual">No comparable values are established for this chart. '+(supplied.length?'The '+supplied.length+' requested category values are not established.':'')+'</div>';
+  const max=unit.trim()==="%"?100:Math.max(1,...valid.map(item=>item.value));
+  const incomplete=supplied.length!==valid.length;
+  return (incomplete?'<div class="notice warn">Some category values are not established. The shown bars are known subsets, not a confirmed complete distribution.</div>':'')+
+    '<div class="visual-bars">'+supplied.map(item=>{
+    const present=known(item.value),width=present?Math.min(100,Math.max(0,(item.value/max)*100)):0;
+    const tone=present?(item.tone||"accent"):"neutral";
+    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track">'+(present?'<div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div>':'')+'</div><div class="visual-bar-value">'+escapeHtml(present?(unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+unit:""):"Not established")+'</div></div>';
   }).join("")+'</div>';
 }
 function renderWaterfallChart(items,unit=""){
