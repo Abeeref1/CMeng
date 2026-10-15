@@ -82,6 +82,7 @@ jobs:
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \
             dist/tests/t02-boq-native-id-ambiguity.test.js \
+            dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs

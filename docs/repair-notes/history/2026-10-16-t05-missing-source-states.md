@@ -1,0 +1,5 @@
+# 16 October 2026 — T05 missing-state precedence and T02 date accuracy
+
+Parent exact branch HEAD: `2bf8da3bada78b0d387646f3983d687faf831b23`. Shared renderer in `packages/runtime-api/src/management-values.ts` previously treated explicit `unknown`, `missing` and `not_applicable` states as established when a placeholder `value:0` was present; KPI cards and appended units could therefore advertise zero rather than disclose missing evidence. Explicit source state now wins; genuine known zero, source bytes, persisted choices and authority remain unchanged. Invalid civil dates such as 2030-02-30 now remain not calculable instead of displaying a different normalized date. Additive independent source-state and civil-date regressions are wired into focused GitHub checks. All original tests, seven stages, 39 owner rules, six groups, 23 projects and hard T11 threshold remain unchanged.
+
+Implementation only: full source/screen/Ask/export parity, 23-project guard and all ten owner items remain open. Exact-commit CI and subsequent shared-root repair are still required; no deployment, auth or paid AI.
