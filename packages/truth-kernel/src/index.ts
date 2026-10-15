@@ -550,9 +550,28 @@ export const has = (table: SourceTable, ...headers: string[]): boolean => header
 export function governedTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
   const tables = sourceTables(documents, diagnostics);
   const established = new Set(tables.filter(t => ['active','additive'].includes(t.document.basisState)).map(t => t.document.familyKey).filter(Boolean));
+  // A source-only, clean, uniquely identified candidate may be used for
+  // qualified analysis without formal adoption. Two DISTINCT candidate
+  // document revisions of the SAME source family are a real conflict. Never
+  // concatenate them into a "current" count, EAC, claim or register balance.
+  // Count owning documents, not spreadsheet sheets or table repetitions.
+  const candidateFamilies=new Map<string,Set<string>>();
+  for(const table of tables){
+    const document=table.document;
+    if(document.basisState!=='candidate'||!document.familyKey)continue;
+    const ids=candidateFamilies.get(document.familyKey)??new Set<string>();
+    ids.add(document.documentId);
+    candidateFamilies.set(document.familyKey,ids);
+  }
   return tables.filter(t => {
-    if (t.document.basisState === 'candidate' && t.document.familyKey && established.has(t.document.familyKey)) {
-      diagnostics.push('CANDIDATE_REVISION_NOT_APPLIED:' + t.document.documentId); return false;
+    const d=t.document;
+    if(d.basisState!=='candidate'||!d.familyKey)return true;
+    if(established.has(d.familyKey)){
+      diagnostics.push('CANDIDATE_REVISION_NOT_APPLIED:' + d.documentId); return false;
+    }
+    if((candidateFamilies.get(d.familyKey)?.size??0)>1){
+      diagnostics.push('CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:' + d.familyKey + ':' + d.documentId);
+      return false;
     }
     return true;
   });

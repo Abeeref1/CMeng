@@ -216,8 +216,15 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         const baseContracts=targets.filter(t=>t.familyKey==='contract:base');
         const options:Array<{value:'new_record'|'replacement'|'amendment';label:string}>=[{value:'new_record',label:'New record'},...(sameFamily.length?[{value:'replacement' as const,label:'Replacement'}]:[]),...(d.documentType==='contract_amendment'&&baseContracts.length?[{value:'amendment' as const,label:'Contract amendment'}]:[])];
         const proposed=(d.lineage?.predecessorDocumentIds??[]).map(id=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id);
-        actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
-          evidenceSummary:['Source type: '+d.documentType.replaceAll('_',' '),'Current source state: '+d.basisState,...(proposed.length?['Reader-proposed predecessor: '+proposed.join('; ')]:[])],
+        const competingCandidates=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&t.basisState==='candidate'&&
+          t.familyKey&&t.familyKey===d.familyKey);
+        const peerNames=competingCandidates.map(t=>t.sourceFilename);
+        actions.push({id:'document:'+d.documentId,category:'confirmation',title:'Confirm how this document updates the project',reason:competingCandidates.length
+          ?'This source family has '+(competingCandidates.length+1)+' unselected documents. Compare each source before selecting which record becomes current. A candidate cannot be combined with another candidate or treated as an official approval.'
+          :d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
+          evidenceSummary:['Source type: '+d.documentType.replaceAll('_',' '),'Current source state: '+d.basisState,
+            ...(peerNames.length?['Competing retained candidate(s): '+peerNames.join('; ')]:[]),
+            ...(proposed.length?['Reader-proposed predecessor: '+proposed.join('; ')]:[])],
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
             relationshipTargets:targets.filter(t=>t.familyKey===d.familyKey||d.documentType==='contract_amendment'&&t.familyKey==='contract:base').map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))}});
