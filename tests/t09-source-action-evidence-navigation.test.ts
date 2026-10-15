@@ -75,7 +75,7 @@ test('T09 module routes have stable browser addresses and restore without overwr
  const url=new URL(actions[0]!.url,'https://cmeng.example');
  assert.equal(url.searchParams.get('project'),'SOURCE-PROJECT');
  assert.equal(url.searchParams.get('module'),'milestones');
- assert.equal(url.searchParams.get('role'),'planning');
+ assert.equal(url.searchParams.get('role'),null,'role must not be encoded in a project URL');
  assert.equal(url.searchParams.get('external'),'preserved','existing unrelated query state must survive');
  publishFn();assert.equal(actions.length,1,'same destination must not create a new history entry');
  env.browserRouteRestoring=true;env.selected='payments';publishFn();
@@ -94,6 +94,14 @@ test('T09 module routes have stable browser addresses and restore without overwr
  };
  await runInNewContext(restore+';restoreBrowserRoute()',restoreEnv);
  assert.equal(opened,1);assert.equal(changes,1);
- assert.equal(restoreEnv.selected,'milestones');assert.equal(restoreEnv.selectedRoleView,'planning');
+ assert.equal(restoreEnv.selected,'milestones');assert.equal(restoreEnv.selectedRoleView,'overall','existing view must not be changed from URL');
  assert.equal(restoreEnv.browserRouteRestoring,false);
+});
+
+test('T09 URL cannot expose or restore role view from query parameters',()=>{
+ const html=cmengUatHtml();
+ assert.doesNotMatch(html,/q\.set\('role'/);
+ assert.doesNotMatch(html,/const role=q\.get\('role'\)/);
+ assert.doesNotMatch(html,/initialBrowserQuery\.get\('role'\)/);
+ assert.match(html,/q\.delete\('role'\)/,'legacy role query must be scrubbed');
 });

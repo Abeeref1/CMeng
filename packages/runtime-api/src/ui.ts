@@ -606,7 +606,6 @@ function renderRoleViewSelector(){
       if(!roleViewOrder.includes(next)||next===selectedRoleView)return;
       selectedRoleView=next;
       localStorage.setItem("cmeng-role-view",selectedRoleView);
-      syncBrowserRoute();
       renderRoleViewSelector();
       if(currentModuleResult)renderModuleResult(currentModuleResult);
     };
@@ -6121,11 +6120,11 @@ function syncBrowserRoute(){
   q.set('view',appView);
   if(project())q.set('project',project());else q.delete('project');
   if(['project','ai'].includes(appView))q.set('module',selected);else q.delete('module');
-  if(['project','ai'].includes(appView))q.set('role',selectedRoleView);else q.delete('role');
+  q.delete('role'); // Legacy URL-only state is removed; professional viewing remains local.
   const next=url.pathname+(q.toString()?'?'+q.toString():'')+url.hash;
   const current=window.location.pathname+window.location.search+window.location.hash;
   if(next===current)return;
-  const state={cmengRoute:true,view:appView,project:project()||null,module:selected,role:selectedRoleView};
+  const state={cmengRoute:true,view:appView,project:project()||null,module:selected};
   window.history[browserRouteBooting?'replaceState':'pushState'](state,'',next);
 }
 async function restoreBrowserRoute(){
@@ -6134,18 +6133,15 @@ async function restoreBrowserRoute(){
   const view=q.get('view'),requestedView=['portfolio','projects','project','ai'].includes(view)?view:'portfolio';
   const projectId=q.get('project')?.trim()??'';
   const module=q.get('module');
-  const role=q.get('role');
-  const beforeModule=selected,beforeRole=selectedRoleView;
+  const beforeModule=selected;
   browserRouteRestoring=true;
   try{
     if(module&&names[module]){selected=module;localStorage.setItem('cmeng-module',module);}
-    if(role&&roleViewOrder.includes(role)){selectedRoleView=role;localStorage.setItem('cmeng-role-view',role);}
     const mustOpen=!!projectId&&(!overview||overview.projectId!==projectId);
     if(mustOpen)await openProject(projectId);
     if(restoreId!==browserRouteRestoreSeq)return;
     setAppView(requestedView);
     if(requestedView==='project'&&overview&&!mustOpen&&beforeModule!==selected)await loadModule(selected);
-    else if(requestedView==='project'&&overview&&!mustOpen&&beforeRole!==selectedRoleView&&currentModuleResult)renderModuleResult(currentModuleResult);
   }finally{
     if(restoreId===browserRouteRestoreSeq)browserRouteRestoring=false;
   }
@@ -6801,10 +6797,8 @@ el("uploadSchedules").onclick=uploadSchedules;el("uploadBoqs").onclick=uploadBoq
 const initialBrowserQuery=new URLSearchParams(window.location.search);
 const storedProject=initialBrowserQuery.get('project')||localStorage.getItem("cmeng-project");
 const storedModule=initialBrowserQuery.get('module')||localStorage.getItem("cmeng-module");
-const initialRole=initialBrowserQuery.get('role');
 const initialView=initialBrowserQuery.get('view');
 if(storedModule&&names[storedModule])selected=storedModule;
-if(initialRole&&roleViewOrder.includes(initialRole))selectedRoleView=initialRole;
 el("projectId").value=storedProject||"";
 el("projectId").addEventListener("change",()=>openProject(project()));
 setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderRoleViewSelector();renderAiSuggestions();renderPlatformNav();renderNav();
