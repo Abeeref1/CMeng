@@ -2300,9 +2300,9 @@ function renderPmoVisual(data){
   ]);
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Activity status","Current programme population by execution state.",renderDonutChart([
-      {label:"Completed",value:p.progress.completedCount||0,tone:"success"},
-      {label:"In progress",value:p.progress.inProgressCount||0,tone:"accent"},
-      {label:"Not started",value:p.progress.notStartedCount||0,tone:"neutral"},
+      {label:"Completed",value:p.progress.completedCount??null,tone:"success"},
+      {label:"In progress",value:p.progress.inProgressCount??null,tone:"accent"},
+      {label:"Not started",value:p.progress.notStartedCount??null,tone:"neutral"},
       {label:"Unknown",value:p.progress.unknownStatusCount??null,tone:"neutral"}
     ],"Activities"))+
     renderVisualPanel("Schedule pressure","Disjoint critical and near-critical populations. Negative float is a separate KPI.",renderDonutChart([
@@ -2498,9 +2498,9 @@ function renderActivityAnalyticsVisual(data){
   const pressure=planningActivityPressure(allRows,p.activitySummary?.pressureMatrix);
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Execution status","Activities by current status.",renderDonutChart([
-      {label:"Completed",value:status.completed||0,tone:"success"},
-      {label:"In progress",value:status.in_progress||0,tone:"accent"},
-      {label:"Not started",value:status.not_started||0,tone:"neutral"},
+      {label:"Completed",value:status.completed??null,tone:"success"},
+      {label:"In progress",value:status.in_progress??null,tone:"accent"},
+      {label:"Not started",value:status.not_started??null,tone:"neutral"},
       {label:"Unknown",value:status.unknown??null,tone:"warning"}
     ],"Activities"))+
     renderVisualPanel("Criticality classification","Unfinished execution activities only. Completed work remains in the status chart and full register. Float-risk watchlist membership is tracked separately.",renderDonutChart([
@@ -2699,9 +2699,9 @@ function renderProgressReportVisual(data){
   const areaPanel=areaRows.length?managementPanel('Progress by programme area','Current schedule progress and baseline plan retain the same area. Completed areas remain separate from open work. Showing '+areaRows.length+' of '+responseListPopulation(areaRows).total+' areas.',sourcePopulationControl(areaRows,'Browse all areas')+'<div class="table-wrap"><table><thead><tr><th>Area</th><th>Baseline plan</th><th>Schedule progress</th><th>Critical</th><th>Open delayed</th></tr></thead><tbody>'+areaRows.map(row=>'<tr><td>'+escapeHtml(row.wbsName||row.wbsId)+'</td><td>'+percent2(row.baselinePlannedPercent)+'%</td><td>'+percent2(row.durationWeightedProgressPercent)+'%</td><td>'+fmt(row.criticalCount)+'</td><td>'+fmt(row.delayedActivityCount)+'</td></tr>').join('')+'</tbody></table></div>'):'';
   const warning=!sourceProgressEstablished?'<div class="notice warn"><b>The programme contains a percentage-complete snapshot, but certified/contractor physical progress is not confirmed.</b> CMeng keeps the schedule snapshot separate from certified or independently sourced physical progress.</div>':'';
   const status=planningStatusBand([
-    ["Completed",p.progress?.completedCount||0,"success"],
-    ["In progress",p.progress?.inProgressCount||0,"accent"],
-    ["Not started",p.progress?.notStartedCount||0,"neutral"],
+    ["Completed",p.progress?.completedCount??null,"success"],
+    ["In progress",p.progress?.inProgressCount??null,"accent"],
+    ["Not started",p.progress?.notStartedCount??null,"neutral"],
     ["Unknown",p.progress?.unknownStatusCount??null,"warning"]
   ]);
   const pressure=planningStatusBand([
@@ -2720,9 +2720,9 @@ function renderProgressReportVisual(data){
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Progress basis comparison","Source percentages use different populations and weights; this chart is not a performance-gap calculation.",progressChart)+
     renderVisualPanel("Activity status","Current programme execution status.",renderDonutChart([
-      {label:"Completed",value:p.progress?.completedCount||0,tone:"success"},
-      {label:"In progress",value:p.progress?.inProgressCount||0,tone:"accent"},
-      {label:"Not started",value:p.progress?.notStartedCount||0,tone:"neutral"},
+      {label:"Completed",value:p.progress?.completedCount??null,tone:"success"},
+      {label:"In progress",value:p.progress?.inProgressCount??null,tone:"accent"},
+      {label:"Not started",value:p.progress?.notStartedCount??null,tone:"neutral"},
       {label:"Unknown",value:p.progress?.unknownStatusCount??null,tone:"warning"}
     ],"Activities"))+
   '</div>';
@@ -3485,7 +3485,7 @@ function renderForecastHistoryVisual(data){
   }
   const points=p.points.map((x,index)=>({...x,dateIso:x.dataDateIso||("Revision "+(index+1))}));
   const sourceCount=p.sourceForecastCount??p.points.filter(x=>x.sourceForecastCompletionIso).length;
-  const independentCount=p.establishedForecastCount||0;
+  const independentCount=knownScreenCount(p.establishedForecastCount);
   const trend=planningDateTrend(points,[
     {key:"sourceForecastCompletionIso",label:"Submitted forecast finish",color:"#506579"},
     {key:"independentForecastCompletionIso",label:"Programme calendar recalculation",color:"#4f7fb4"}
@@ -5079,7 +5079,7 @@ function renderManagementControlVisual(key,data){
       renderDashboardExceptions(data)+renderDashboardDecisions(data)+experienceDisclosure("Programme drivers, charts and activity detail",renderPmcControlCharts(data)+renderPmcDriverBoards(data)+renderDashboardScheduleExceptions(data)+renderDashboardTrend(data),"Complete supporting analysis")+
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
-        ["Project documents",data.evidenceDocumentCount??0,"current evidence library"],
+        ["Project documents",data.evidenceDocumentCount??null,"current evidence library"],
         ["Calculated specialist views",r.calculationAvailable??0,"a calculation is available"],
         ["Fully defensible views",r.ready??0,"calculation, evidence and affected consistency checks passed"],
         ["Review needed",r.partial??0,"usable positions with a stated evidence/review requirement","warning"],
@@ -5145,9 +5145,9 @@ function renderManagementControlVisual(key,data){
       ]),true)+
       experienceSourceContext(key,data)+
       managementPanel("WBS & Work-Package Control","Observed programme structure is shown first. Approval of an official contractual work-package structure remains a separate authority question.",planningKpis([
-        ["Observed programme structure",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Coverage unavailable":fmt(w.observedCoveragePercent)+"% activity coverage",(w.activityCount??0)+" activities mapped against the observed programme WBS structure","accent"],
+        ["Observed programme structure",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Coverage unavailable":fmt(w.observedCoveragePercent)+"% activity coverage",screenCountText(w.activityCount)+" activities mapped against the observed programme WBS structure","accent"],
         ["Observed WBS",w.observedWbsCount??0,"programme labels"],
-        ["Activities",w.activityCount??0,"current programme"],
+        ["Activities",w.activityCount??null,"current programme"],
         ["Approved / official work-package structure",w.officialWorkPackageState==="established"&&w.officialWorkPackageCoveragePercent!==null&&w.officialWorkPackageCoveragePercent!==undefined?fmt(w.officialWorkPackageCoveragePercent)+"% coverage":"Authority not established",w.officialWorkPackageState==="established"?humanizeKey(w.officialWorkPackageState):"Observed WBS coverage does not prove an approved contractual work-package structure.",w.officialWorkPackageState==="established"?"success":"warning"]
       ])+renderObservedWbsLabels(w.observedWbsLabels||[]))+
       experienceDisclosure("Control authority & evidence",renderMcpGovernanceMatrix(data)+managementPanel("Specialist positions","Supporting control/evidence status by workstream.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>'),"Governance and authority supporting the integrated programme")+
