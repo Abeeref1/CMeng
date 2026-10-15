@@ -172,3 +172,13 @@ test('T05/T06 absent revision comparison does not publish false zero changes',()
  }
  assert.deepEqual(result.changedActivities,[],'empty available detail rows are not fabricated comparisons');
 });
+
+test('T05 unknown progress cohorts and forecast coverage cannot display false completed zero',()=>{
+ assert.doesNotMatch(script,/p\.progress\.completedCount\|\|0/);
+ assert.doesNotMatch(script,/p\.progress\?\.inProgressCount\|\|0/);
+ assert.doesNotMatch(script,/p\.progress\?\.notStartedCount\|\|0/);
+ assert.match(script,/const independentCount=knownScreenCount\(p\.establishedForecastCount\)/);
+ assert.match(script,/independentCount===null\?'<div class="notice warn">/);
+ assert.match(script,/\["Project documents",data\.evidenceDocumentCount\?\?null/);
+ assert.match(script,/\["Activities",w\.activityCount\?\?null/);
+});
