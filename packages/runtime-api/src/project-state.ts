@@ -4549,7 +4549,7 @@ export class RuntimeProjectStore {
     const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
     const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi===true,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
       :undefined;
     let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){
