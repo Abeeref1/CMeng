@@ -61,6 +61,7 @@ jobs:
             dist/tests/t04-document-source-analytical-label.test.js \
             dist/tests/t04-inline-conflict-decisions.test.js \
             dist/tests/t04-candidate-family-conflict-truth.test.js \
+            dist/tests/t07-certificate-calendar-date-truth.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \

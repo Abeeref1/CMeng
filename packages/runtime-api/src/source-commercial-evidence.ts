@@ -5,8 +5,17 @@ import type {ProjectRuntimeState} from './project-state-types';
  * certificate remains unlinked. This projection never writes a cash ledger. */
 export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,position:any,cutoff:string|null){
  const key=(v:unknown)=>String(v??'').normalize('NFKC').trim().toLowerCase().replace(/^(?:ipc|certificate|cert|payment certificate)\s*(?:no\.?|number|#|:|-)?\s*/i,'').replace(/[\s_-]+/g,'');
- const validDate=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}/.test(v)?v.slice(0,10):null;
- const visible=(d:string|null)=>!!d&&(!cutoff||d<=cutoff);
+ // Contract and payment dates must be genuine source calendar days. A
+ // malformed date cannot validate a certificate, even when it sorts before
+ // the payment date as text (for example 2032-02-30).
+ const validDate=(v:unknown):string|null=>{
+  if(typeof v!=='string')return null;
+  const token=/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/.exec(v)?.[0];
+  if(!token)return null;
+  const instant=Date.parse(token+'T00:00:00Z');
+  return Number.isFinite(instant)&&new Date(instant).toISOString().slice(0,10)===token?token:null;
+ };
+ const visible=(d:string|null)=>{const date=validDate(d);return date!==null&&(!cutoff||date<=cutoff);};
  const refs=(row:any)=>row.receipt?[row.receipt.documentId+':'+row.receipt.locator]:[];
  const certificates=(ledger.payments??[]).filter((p:any)=>visible(p.certificationDate)&&!/appli(?:ed|cation)|submitted|draft|pending certification/i.test(p.sourceStatus??'')&&
    [p.amounts?.grossCertifiedAmount?.value,p.amounts?.netCertifiedAmount?.value,p.amounts?.employerCertifiedAmount?.value].some(v=>typeof v==='number'&&Number.isFinite(v)));
@@ -25,7 +34,10 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   }
 
   if(certificateDate)matches=matches.filter(r=>validDate(r.certificationDate)===certificateDate||validDate(r.periodEnd)===certificateDate);
-  if(paymentDate)matches=matches.filter(r=>!r.certificationDate||validDate(r.certificationDate)!<=paymentDate);
+  if(paymentDate)matches=matches.filter(r=>{
+   const certified=validDate(r.certificationDate);
+   return certified!==null&&certified<=paymentDate;
+  });
   if(currency)matches=matches.filter(r=>!r.amounts?.netCertifiedAmount?.currency||r.amounts.netCertifiedAmount.currency===currency);
   const unique=[...new Map(matches.map(r=>[r.paymentId+'|'+r.certificationDate+'|'+refs(r).join('|'),r])).values()];
   const state:PaymentLink['state']=!paymentDate?'date_missing':!visible(paymentDate)?'future':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';

@@ -1,0 +1,2 @@
+15 October 2026 — T07 commercial source truth (partial)
+Original source-payment matcher accepted malformed YYYY-MM-DD strings as valid certificate dates and compared them lexically to payment dates. Tightened date validation to exact Gregorian calendar days; an invalid or later certificate can no longer make an actual payment appear linked. Existing source amounts, currency, receipts, historical rows, and user decisions are untouched. Add five independent tests to the existing focused CI; six mandatory groups and all other owner finish items remain required. No deployment.
