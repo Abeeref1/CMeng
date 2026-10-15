@@ -3,6 +3,8 @@ import {attachSourceActivityCalendars} from './source-milestone-calendar-join';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
+import {sourceScheduleCompletionBases} from '../../schedule-analysis-core/src';
+import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
 import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
@@ -8823,6 +8825,104 @@ export function managementSurfacesForProject(
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
     buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
+  return result;
+}
+
+/**
+ * T11 dashboard first response: a source-backed executive cover, not the full
+ * 29-module assurance report. Only its actual source/contract/float metrics are
+ * calculated. The original complete dashboard, all specialist modules and the
+ * unchanged consistency checks are available on the explicit full-detail read.
+ *
+ * Never manufacture readiness counts, project actions, an official EOT or a
+ * recalculated programme finish from a module we have not executed.
+ */
+export function masterDashboardCoverForProject(projectId:string):ModuleRuntimeResult|null {
+  const state=runtimeProjects.get(projectId);
+  if(!state)return null;
+  const generatedAt=calculationSnapshotTime(state);
+  const current=projectControlSchedule(state);
+  const model=current?.revision.model??null;
+  const completionBases=model?sourceScheduleCompletionBases(model):[];
+  const submitted=completionBases.find(row=>row.basis==='forecast')?.dateIso
+    ??completionBases.find(row=>row.basis==='programme')?.dateIso??null;
+  const commercial=commercialPositionForState(state,generatedAt);
+  const contract=commercial.timeExposure.contractualCompletion;
+  const adjusted=commercial.timeExposure.officialAdjustedCompletion;
+  const award=commercial.timeExposure.approvedEotDays;
+  const criticality=scheduleCriticalityFacts(state);
+  const asFact=(value:string|number|null,basis:string,complete:boolean)=>({
+    value,state:value===null?'missing':complete?'confirmed':'from_register_not_confirmed',
+    complete,basis,sourceRefs:[],diagnostics:[],
+  });
+  // An unverified EOT overlap is NOT a source-backed adjusted contract date.
+  const comparisonFinish=adjusted.state==='established'&&adjusted.value
+    ?adjusted.value : award.value===0?contract.value:null;
+  const calendarDays=()=>{
+    if(!submitted||!comparisonFinish)return null;
+    const a=Date.parse(submitted.slice(0,10)),b=Date.parse(comparisonFinish.slice(0,10));
+    return Number.isFinite(a)&&Number.isFinite(b)?(a-b)/86400000:null;
+  };
+  const originalFacts=completedProjectFactsForState(state);
+  const projectFacts=originalFacts??{
+    schemaVersion:'1.0',projectId,projectVersion:state.version,dataDateIso:model?.dataDateIso??null,
+    time:{
+      contractualCompletionIso:asFact(contract.value,contract.state,true),
+      awardedEotDays:asFact(award.value,award.state,award.state==='established'),
+      extendedContractCompletionIso:asFact(adjusted.state==='established'?adjusted.value:null,adjusted.state,adjusted.state==='established'),
+      submittedDaysAfterCurrentContract:asFact(calendarDays(),'Current confirmed contract date and submitted programme finish, elapsed calendar days.',calendarDays()!==null),
+    },
+    schedule:{
+      submittedProgrammeCompletionIso:asFact(submitted,'Current adopted submitted programme',submitted!==null),
+      criticalActivityCount:asFact(criticality.canonicalCritical.value,criticality.floatLabel,criticality.canonicalCritical.value!==null),
+      nearCriticalActivityCount:asFact(criticality.canonicalNearCritical.value,criticality.floatLabel,criticality.canonicalNearCritical.value!==null),
+      negativeFloatActivityCount:asFact(criticality.canonicalNegativeFloat.value,criticality.floatLabel,criticality.canonicalNegativeFloat.value!==null),
+    },
+  };
+  const metric=(key:string,label:string,value:string|number|null,basis:string,unit:string|null,authority:'source'|'official'|'calculated'|'unavailable',complete:boolean)=>({
+    key,label,value,unit,
+    state:value===null?'unavailable':complete?'calculated':'partial',
+    authority:value===null?'unavailable':authority,health:'unavailable',basis,
+    consequence:complete?null:'This source value is not a certified full-population result.',
+    action:null,owningModule:key.includes('critical')?'near-critical':'schedule-analytics',
+  });
+  const metrics=[
+    metric('contract-finish','Original contract completion',contract.value,
+      'Original contractual completion, separately governed from EOT',null,
+      contract.state==='established'?'official':'source',contract.state==='established'),
+    metric('official-adjusted-finish','Contract completion including awarded EOT',
+      adjusted.state==='established'?adjusted.value:null,
+      'Only a reconciled official adjusted contractual completion',null,'official',adjusted.state==='established'),
+    metric('submitted-programme-finish','Submitted programme finish',submitted,
+      'Finish recorded by the selected current submitted programme',null,'source',submitted!==null),
+    metric('critical-activities','Critical activities',criticality.canonicalCritical.value,
+      criticality.floatLabel,'activities','calculated',criticality.canonicalCritical.value!==null),
+    metric('near-critical','Near-critical activities',criticality.canonicalNearCritical.value,
+      criticality.floatLabel,'activities','calculated',criticality.canonicalNearCritical.value!==null),
+    metric('negative-float','Negative-float activities',criticality.canonicalNegativeFloat.value,
+      criticality.floatLabel,'activities','calculated',criticality.canonicalNegativeFloat.value!==null),
+  ];
+  const result=withPositionVerdict({
+    key:'master-dashboard',status:'partial',reason:'Executive source position; full specialist certification is available in the complete dashboard.',
+    engineState:'ready',evidenceState:'partial',professionalState:'review_required',
+    dependencies:['selected programme','commercial source basis','governed float comparison'],
+    data:{
+      schemaVersion:'1.0',projectionKey:'master_dashboard',viewScope:'source_position',
+      generatedAt,projectId,projectVersion:state.version,dataDateIso:model?.dataDateIso??null,
+      sourceRevisionId:model?.sourceRevisionId??null,metrics,projectFacts,
+      evidenceDocumentCount:state.evidenceDocuments.length,
+      sourceLabels:projectSourceLabels(state),
+    },
+  });
+  // A known original contract with unresolved EOT is not the same as an
+  // absent contract. Never issue a misleading green or "no contract" verdict.
+  if(contract.value&&!comparisonFinish){
+    (result.data as any).positionVerdict={
+      ...(result.data as any).positionVerdict,rag:'amber',label:'Review needed',
+      specific:true,text:'The original contract date is recorded, but the current EOT-adjusted comparison is not established.',
+      nextAction:'Review the awarded EOT and adjusted contractual completion before deciding whether the submitted programme is late.',
+    };
+  }
   return result;
 }
 

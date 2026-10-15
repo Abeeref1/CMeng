@@ -4981,6 +4981,20 @@ function renderObservedWbsLabels(rows){
 function renderManagementControlVisual(key,data){
   if(key==="source-quality")return renderSourceQuality(data);
   if(key==="master-dashboard"){
+    if(data?.viewScope==='source_position'){
+      // No uncomputed module statuses or false readiness zeros are shown in
+      // the first source cover. The complete original detail is available by
+      // explicit request and still executes every unchanged mandatory check.
+      const known=(data.metrics||[]).filter(m=>m.value!==null&&m.value!==undefined);
+      const missing=(data.metrics||[]).filter(m=>m.value===null||m.value===undefined);
+      return '<div class="planning-view management-view master-dashboard-view">'+
+        renderPositionVerdict(data)+
+        managementPanel("Executive Project Position","Current source-backed facts only; unknown values never become zero.",known.length?renderManagementMetricGrid(known):'<p>No source-backed project figure is established yet.</p>',true)+
+        (missing.length?experienceDisclosure("Unestablished source figures",renderManagementMetricGrid(missing),"Original source and authority gaps"):'')+
+        '<section class="management-panel"><h3>Full project assurance</h3><p>Open all specialist calculations, management readiness, project diagnosis, charts and linked evidence. Nothing from the complete source history is removed.</p>'+
+        '<button type="button" class="btn primary" onclick="loadCompleteMasterDashboard()">Open complete dashboard</button></section>'+
+        '</div>';
+    }
     const r=data.readiness||{};
     const priorityKeys=['contract-finish','submitted-programme-finish','productivity-forecast-finish','critical-activities','progress-position','schedule-spi'];
     const priorityMetrics=priorityKeys.map(key=>(data.metrics||[]).find(m=>m.key===key)).filter(Boolean).map(m=>{
@@ -5569,6 +5583,20 @@ const commercialModuleKeysForApi=new Set([
   "commercial-claims-notices",
   "contract-particulars-bonds"
 ]);
+async function loadCompleteMasterDashboard(){
+  const owner=project(),seq=projectRequestSeq;
+  if(!owner||selected!=='master-dashboard')return;
+  setBusy("Calculating complete project assurance");
+  try{
+    const version=currentModuleResult?.data?.projectVersion;
+    const params='?full=1'+(Number.isInteger(version)?'&version='+encodeURIComponent(version):'');
+    const result=await api("/api/projects/"+encodeURIComponent(owner)+"/management/master-dashboard"+params);
+    if(project()!==owner||seq!==projectRequestSeq||selected!=='master-dashboard')return;
+    renderModuleResult(result);
+  }catch(error){
+    if(project()===owner&&selected==='master-dashboard')el("globalStatus").textContent="Full dashboard could not be calculated: "+error.message;
+  }finally{if(project()===owner&&selected==='master-dashboard')setBusy("");}
+}
 async function loadModule(key){
   document.body.classList.remove("visual-panel-open","chart-canvas-open");
   document.querySelectorAll(".visual-focus,.chart-focus").forEach(node=>node.classList.remove("visual-focus","chart-focus"));
