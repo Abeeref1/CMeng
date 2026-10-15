@@ -10,6 +10,25 @@ const memo=(map:Map<string,string>,key:string,value:string)=>{
   map.set(key,value);
   return value;
 };
+/** The actual business status of a source register, not document governance. 
+ * Consumers use the same domain-specific alternatives for every page. */
+export function registerBusinessStatusFields(documentType:string):readonly string[] {
+  switch(documentType) {
+    case 'ncr': case 'quality_ncr_register':
+      return ['ncr status','nonconformance status','non conformance status','status of ncr','closure status','current status','status'];
+    case 'rfi': case 'rfi_register':
+      return ['rfi status','rfi current status','response status','answer status','current status','status'];
+    case 'risk': case 'risk_register':
+      return ['risk status','risk current status','risk treatment status','current status','status'];
+    case 'submittal_register':
+      return ['submittal status','approval status','review status','current status','status'];
+    case 'procurement_register':
+      return ['delivery status','procurement status','package status','current status','status'];
+    default:
+      return ['current status','status'];
+  }
+}
+
 export const normalizeHeader=(v:string)=>{
   const hit=normalizedHeaderMemo.get(v);
   if(hit!==undefined)return hit;

@@ -1,5 +1,5 @@
 import {riskReviewBasis} from './source-review-decisions';
-import {cell,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
+import {cell,registerBusinessStatusFields,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
 import type {ProjectRuntimeState,RiskControlRecord,StoredEvidenceDocument} from './project-state-types';
 
@@ -17,12 +17,7 @@ const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$
  * calculation. Distinct asserted source statuses require review, rather than
  * silently falling back to an unrelated administrative "status" field. */
 export function operationalSourceStatus(row:SourceRow,kind:'ncr'|'rfi'|'risk'){
-  const alternatives:Record<typeof kind,readonly string[]>={
-    ncr:['ncr status','nonconformance status','non conformance status','status of ncr','closure status','current status','status'],
-    rfi:['rfi status','rfi current status','response status','answer status','current status','status'],
-    risk:['risk status','risk current status','risk treatment status','current status','status'],
-  };
-  const observed=alternatives[kind].flatMap(field=>{
+  const observed=registerBusinessStatusFields(kind).flatMap(field=>{
     const raw=cell(row,field);
     return raw?[{field,raw}]:[];
   });

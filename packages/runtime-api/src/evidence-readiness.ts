@@ -1,6 +1,6 @@
 import {procurementDateBasis} from './procurement-date-basis';
 import {cell,csv as parseCsv,sourceTables,procurementTiming} from "../../truth-kernel/src";
-import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
+import {canonicalHeader,registerBusinessStatusFields,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
 } from "node:fs";
@@ -83,6 +83,19 @@ function valueAt(
         ""
       ).trim()
     : "";
+}
+
+/** Read all recognized business-status columns in the original source row.
+ * Divergent source assertions are not silently promoted to readiness. */
+export function sourceReadinessStatus(headers:readonly string[],row:readonly string[],documentType:string) {
+  const indexed=new Map(headers.map((header,index)=>[canonicalHeader(header,documentType),index]));
+  const observed=registerBusinessStatusFields(documentType).flatMap(field=>{
+    const index=indexed.get(canonicalHeader(field,documentType));
+    const raw=index===undefined?'':String(row[index]??'').trim();
+    return raw?[{field,raw}]:[];
+  });
+  const unique=new Set(observed.map(item=>item.raw.normalize('NFKC').toLowerCase().trim()));
+  return {value:unique.size>1?'':observed[0]?.raw??'',conflicted:unique.size>1,observed};
 }
 
 function readinessState(
@@ -242,14 +255,6 @@ export function deriveReadinessFromCsv(
         "schedule activity",
       ],
     );
-  const statusIndex =
-    headerIndex(
-      headers,
-      [
-        "status",
-        "current status",
-      ],
-    );
   const dueIndex =
     headerIndex(
       headers,
@@ -340,11 +345,8 @@ export function deriveReadinessFromCsv(
       continue;
     }
 
-    const status =
-      valueAt(
-        row,
-        statusIndex,
-      );
+    const sourceStatus=sourceReadinessStatus(headers,row,input.document.documentType);
+    const status=sourceStatus.value;
     const dueIso =
       valueAt(
         row,
@@ -354,6 +356,7 @@ export function deriveReadinessFromCsv(
     if(cutoff&&opened&&opened>cutoff)continue;
     let currentStatus=status,scopeNote='';
     const diagnostics:string[]=[];
+    if(sourceStatus.conflicted)diagnostics.push('SOURCE_STATUS_COLUMNS_CONFLICT');
     if(!cutoff){currentStatus='';scopeNote='Data Date not established';}
     else if(closed&&opened&&closed<opened){currentStatus='';scopeNote='Invalid closure before raised/submitted date';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE');}
     else if(closed){
@@ -393,6 +396,12 @@ export function deriveReadinessFromCsv(
       if(timing.deliveryDateConflict){diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote+='; the completed status conflicts with a delivery date after the reporting date. Review the source receipt and dates.';}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
       if(procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
+    }
+
+    if(sourceStatus.conflicted){
+      state='unknown';
+      currentStatus='';
+      scopeNote='Conflicting business-status columns need source review: '+sourceStatus.observed.map(v=>v.field+'='+v.raw).join('; ')+'. '+scopeNote;
     }
 
     result[activityId] ??=

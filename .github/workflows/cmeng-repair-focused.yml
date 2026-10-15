@@ -68,6 +68,7 @@ jobs:
             dist/tests/t10-diagnostic-heading-meaning.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
             dist/tests/t02-operational-status-columns-truth.test.js \
+            dist/tests/t02-cross-consumer-register-status.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \

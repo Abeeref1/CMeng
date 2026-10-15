@@ -1,0 +1,2 @@
+15 October 2026 — T02 status columns shared between register and readiness (partial)
+Consolidated domain-specific business-status header names in truth kernel. Both the operational NCR/RFI/risk reader and programme-linked procurement/quality/submittal readiness now use those original source fields and treat mutually contradictory columns as unresolved. Every raw source row and decision stays unchanged. Four independent cross-consumer tests added. Full source reading and 23-project guard remain open. No deployment.
