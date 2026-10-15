@@ -48,3 +48,52 @@ test('T09 Accountability exposes the exact evidence and owning fix page on the s
  assert.match(html,/accountabilityEvidenceLink\(action\)/);
  assert.match(html,/accountabilityFixLink\(action\)/);
 });
+
+test('T09 module routes have stable browser addresses and restore without overwriting source',async()=>{
+ const html=cmengUatHtml();
+ const functionCode=(name:string)=>new RegExp('(?:async )?function '+name+'\\([^]*?\\n\\}').exec(html)?.[0];
+ const publish=functionCode('syncBrowserRoute');
+ const restore=functionCode('restoreBrowserRoute');
+ assert.ok(publish&&restore,'both browser URL and Back/Forward handlers are retained');
+ const actions:Array<{method:string;url:string}>=[];
+ const win:any={location:new URL('https://cmeng.example/app?external=preserved#section'),history:null};
+ win.history={
+   pushState:(_state:unknown,_title:string,next:string)=>{
+     actions.push({method:'push',url:next});win.location=new URL(next,'https://cmeng.example');
+   },
+   replaceState:(_state:unknown,_title:string,next:string)=>{
+     actions.push({method:'replace',url:next});win.location=new URL(next,'https://cmeng.example');
+   }
+ };
+ const env:any={window:win,URL,URLSearchParams,appView:'project',selected:'milestones',
+   selectedRoleView:'planning',browserRouteBooting:false,browserRouteRestoring:false,
+   project:()=> 'SOURCE-PROJECT'};
+ const publishFn=runInNewContext(publish+';syncBrowserRoute',env) as ()=>void;
+ publishFn();
+ assert.equal(actions.length,1);
+ assert.equal(actions[0]!.method,'push');
+ const url=new URL(actions[0]!.url,'https://cmeng.example');
+ assert.equal(url.searchParams.get('project'),'SOURCE-PROJECT');
+ assert.equal(url.searchParams.get('module'),'milestones');
+ assert.equal(url.searchParams.get('role'),'planning');
+ assert.equal(url.searchParams.get('external'),'preserved','existing unrelated query state must survive');
+ publishFn();assert.equal(actions.length,1,'same destination must not create a new history entry');
+ env.browserRouteRestoring=true;env.selected='payments';publishFn();
+ assert.equal(actions.length,1,'Back/Forward must not push another route');
+ env.browserRouteRestoring=false;
+ let opened=0,changes=0;
+ const restoreEnv:any={window:{location:{search:'?view=project&project=NEW-PROJECT&module=milestones&role=planning'}},
+   URLSearchParams,selected:'master-dashboard',selectedRoleView:'overall',appView:'projects',
+   browserRouteRestoreSeq:0,browserRouteRestoring:false,roleViewOrder:['overall','planning'],
+   names:{milestones:'Milestone Control'},overview:{projectId:'OLD-PROJECT'},
+   project:()=> 'OLD-PROJECT',localStorage:{setItem:()=>{}},
+   openProject:async(id:string)=>{assert.equal(id,'NEW-PROJECT');opened++;restoreEnv.overview={projectId:id}},
+   setAppView:(view:string)=>{assert.equal(view,'project');changes++},
+   loadModule:async()=>{throw new Error('an already reopened project must not calculate a second module')},
+   renderModuleResult:()=>{}
+ };
+ await runInNewContext(restore+';restoreBrowserRoute()',restoreEnv);
+ assert.equal(opened,1);assert.equal(changes,1);
+ assert.equal(restoreEnv.selected,'milestones');assert.equal(restoreEnv.selectedRoleView,'planning');
+ assert.equal(restoreEnv.browserRouteRestoring,false);
+});
