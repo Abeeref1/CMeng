@@ -196,14 +196,12 @@ export function buildNearCriticalProjection(
     workingDayHours:workingDayHours(activity.calendarId),
     floatDaysBasis:workingDayHours(activity.calendarId)!==null?'source_activity_calendar':'calendar_working_day_not_established',
     previousTotalFloatHours:
-      input.previousFloat?.totalFloatByActivity.get(activity.activityId) ?? null,
+      (() => { const value = input.previousFloat?.totalFloatByActivity.get(activity.activityId);
+        return typeof value === 'number' && Number.isFinite(value) ? value : null; })(),
     floatErosionHours:
-      (() => {
-        const previous = input.previousFloat?.totalFloatByActivity.get(activity.activityId) ?? null;
-        return previous === null
-          ? null
-          : Number((previous - activity.totalFloatHours!).toFixed(6));
-      })(),
+      (() => { const previous = input.previousFloat?.totalFloatByActivity.get(activity.activityId);
+        return typeof previous === 'number' && Number.isFinite(previous)
+          ? Number((previous - activity.totalFloatHours!).toFixed(6)) : null; })(),
     nearCriticalThresholdHours:
       threshold,
     baselineFinishIso:

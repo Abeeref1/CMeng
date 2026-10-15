@@ -163,3 +163,51 @@ test('T06 near-critical specialist: nonfinite submitted float stays unknown in t
   assert.equal(model.calendars[1].standardDayHours,24,'duplicate later source calendar remains untouched');
  }
 });
+
+test('T06 specialist prior-float truth: unread and nonfinite comparisons never create erosion',()=>{
+ for(const [projectId,dayHours] of [['FLOAT-8',8],['FLOAT-12',12]] as const){
+  const activity=(activityId:string,hours:number,status='in_progress')=>({
+   projectId,activityId,nativeId:activityId,name:activityId,
+   wbsId:'W',calendarId:'C',activityType:'task',status,totalFloatHours:hours,
+   freeFloatHours:null,percentComplete:25,
+   baselineStartIso:'2031-01-01',baselineFinishIso:'2031-06-01',
+   currentStartIso:'2031-01-01',currentFinishIso:'2031-06-01',
+   forecastStartIso:null,forecastFinishIso:null,actualStartIso:null,actualFinishIso:null,
+   originalDurationHours:80,remainingDurationHours:64,sourceRefs:[],diagnostics:[]
+  });
+  const model:any={projectId,source:'xer',sourceRevisionId:'CUR-'+projectId,
+   dataDateIso:'2031-03-01',relationships:[],diagnostics:[],
+   activities:[activity('NAN-PREV',-8),activity('INF-PREV',0),activity('VALID-PREV',16),
+    activity('ZERO-PREV',24),activity('MISSING-PREV',20),activity('DONE',-40,'completed')],
+   calendars:[{calendarId:'C',semanticComplete:true,standardDayHours:dayHours,sourceRefs:[]}],
+   wbs:[{wbsId:'W',name:'Execution',parentWbsId:null,sourceRefs:[]}]};
+  const prior=new Map<string,number|null>([
+   ['NAN-PREV',NaN],['INF-PREV',Infinity],['VALID-PREV',28],['ZERO-PREV',0],['DONE',-48]
+  ]);
+  const originalModel=JSON.stringify(model);
+  const actual=buildNearCriticalProjection(model,{
+   generatedAt:'2031-03-01T00:00:00Z',producerVersion:'independent-prior-float',
+   previousFloat:{revisionId:'OLD-'+projectId,totalFloatByActivity:prior},
+   config:{...DEFAULT_SCHEDULE_ANALYSIS_CONFIG,criticalFloatThresholdHours:0,
+    nearCriticalWorkingDays:4,floatRiskWatchlistIncludesCriticalThreshold:true}
+  });
+  const rows=new Map([...actual.rows,...actual.criticalRows].map(row=>[row.activityId,row]));
+  for(const id of ['NAN-PREV','INF-PREV','MISSING-PREV']){
+   assert.equal(rows.get(id)?.previousTotalFloatHours,null);
+   assert.equal(rows.get(id)?.floatErosionHours,null,'missing/invalid is not zero change');
+  }
+  assert.equal(rows.get('VALID-PREV')?.previousTotalFloatHours,28);
+  assert.equal(rows.get('VALID-PREV')?.floatErosionHours,12);
+  assert.equal(rows.get('ZERO-PREV')?.previousTotalFloatHours,0);
+  assert.equal(rows.get('ZERO-PREV')?.floatErosionHours,-24);
+  assert.ok(!rows.has('DONE'),'finished work never enters the live specialist view');
+  assert.equal(actual.managementGroups?.[0]?.floatErosionKnownCount,2);
+  assert.equal(actual.managementGroups?.[0]?.maxFloatErosionHours,12);
+  assert.equal(actual.managementGroups?.[0]?.averageFloatErosionHours,-6);
+  assert.equal(actual.floatCoveragePercent,100,'current source float coverage unaffected');
+  assert.equal(JSON.stringify(model),originalModel,'current source and all calendar rows unchanged');
+  assert.ok(Number.isNaN(prior.get('NAN-PREV')));
+  assert.equal(prior.get('INF-PREV'),Infinity,'original prior invalid source remains auditable');
+  assert.equal(prior.get('DONE'),-48,'source history of completed work retained');
+ }
+});
