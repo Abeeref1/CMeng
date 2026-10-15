@@ -1,7 +1,7 @@
 import {riskReviewBasis} from './source-review-decisions';
 import {cell,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
-import type {ProjectRuntimeState,RiskControlRecord} from './project-state-types';
+import type {ProjectRuntimeState,RiskControlRecord,StoredEvidenceDocument} from './project-state-types';
 
 type Lifecycle = {raisedIso?:string|null;closedIso?:string|null;statusAsOfIso?:string|null;sourceRefs:string[]};
 const derived=(row:{sourceRefs:string[]})=>row.sourceRefs.some(ref=>ref.startsWith('evidence-document:'));
@@ -13,10 +13,31 @@ const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opene
 const ncrStatus=(raw:string):NcrRecord['status']=>/^(closed|complete|completed|resolved)$/.test(norm(raw))?'closed':/^(open|active|in progress|overdue)$/.test(norm(raw))?'open':'unknown';
 const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
 
+/**
+ * T04: a fully read, unique source may participate in source-qualified
+ * analysis even when its formal adoption has not been recorded. Competing
+ * candidate revisions and documents requiring classification/lineage review
+ * remain held; never merge them, infer which one is current, or change stored
+ * basisState/contractual authority. Re-use one exact selection for every
+ * operational family rather than requiring a manual approval for clear data.
+ */
+export function analyticalOperationalDocuments(documents:readonly StoredEvidenceDocument[]):StoredEvidenceDocument[]{
+  const activeFamilies=new Set(documents.filter(d=>['active','additive'].includes(d.basisState)).map(d=>d.familyKey));
+  const candidatesByFamily=new Map<string,number>();
+  for(const d of documents)if(d.basisState==='candidate')
+    candidatesByFamily.set(d.familyKey,(candidatesByFamily.get(d.familyKey)??0)+1);
+  return documents.filter(d=>['active','additive'].includes(d.basisState)||(
+    d.basisState==='candidate' && d.parserState==='parsed' &&
+    !d.identification?.needsReview && !d.lineage?.needsReview &&
+    !d.supersededByDocumentId && Boolean(d.familyKey) &&
+    !activeFamilies.has(d.familyKey) && candidatesByFamily.get(d.familyKey)===1
+  ));
+}
+
 /** Reconstruct lifecycle status from actual dates. A future closure never closes
  * an earlier reporting position; an undated final status never backdates itself.
  * Original source rows and excluded IDs are retained for inspection. */
-function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(row:T)=>string,date:string|null,hasSource:boolean,diagnostics:string[]) {
+function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(row:T)=>string,date:string|null,hasSource:boolean,diagnostics:string[],sourceOnly=false) {
   const cutoff=dateValue(date??'');
   const partition=partitionAsOf(rows,{name,entity:name,dataDateIso:date,dateBasis:'raised date, with dated closure/response and explicit status snapshot',id,date:r=>r.raisedIso??r.statusAsOfIso});
   const current=partition.asOf.map(row=>{
@@ -30,16 +51,20 @@ function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(r
   const unknownStatusCount=current.filter(r=>r.status==='unknown').length;
   return {...partition,current,sourceRows:rows,sourceRecordCount:rows.length,currentRecordCount:current.length,
     futureRecordCount:partition.future.length,undatedRecordCount:partition.undated.length,unknownStatusCount,
-    state:!hasSource?'missing':partition.undated.length||unknownStatusCount||diagnostics.length?'partial':'established',
-    diagnostics:[...diagnostics],complete:hasSource&&Boolean(cutoff)&&partition.undated.length===0&&unknownStatusCount===0&&diagnostics.length===0};
+    // A candidate-only source can give established per-record observations,
+    // never an approved/completely reconciled population or an invented zero.
+    sourceAnalyticalOnly:sourceOnly,
+    state:!hasSource?'missing':sourceOnly||partition.undated.length||unknownStatusCount||diagnostics.length?'partial':'established',
+    diagnostics:[...diagnostics],complete:hasSource&&!sourceOnly&&Boolean(cutoff)&&partition.undated.length===0&&unknownStatusCount===0&&diagnostics.length===0};
 }
 
 export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|null) {
   const diagnostics:string[]=[];
-  const sourceDocuments=state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState));
+  const sourceDocuments=analyticalOperationalDocuments(state.evidenceDocuments);
   const tables=sourceTables(sourceDocuments,diagnostics);
   const tablesOf=(type:string)=>tables.filter(t=>t.document.documentType===type);
   const docIds=(type:string)=>new Set(tablesOf(type).map(t=>t.document.documentId));
+  const sourceOnly=(type:string)=>tablesOf(type).some(t=>t.document.basisState==='candidate');
   const rows=(type:string)=>tablesOf(type).flatMap(t=>t.rows);
   const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
   const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
@@ -58,14 +83,14 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     if(new Set(ids).size!==ids.length)ds.push('DUPLICATE_RECORD_ID');
     return ds;
   };
-  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId));
-  const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId));
+  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId),sourceOnly('quality_ncr_register'));
+  const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId),sourceOnly('rfi_register'));
   const riskSnapshotDate=dateValue(riskBasis.snapshot?.asOfIso??'');
   const suppliedDateRefs=new Set(rows('risk_register').filter(row=>cell(row,'raised date','opened date','issue date','identified date')||cell(row,'status as of','status date','snapshot date','as of date','last reviewed')).flatMap(refs));
   const snapshotCandidates=risks.filter(row=>!row.raisedIso&&!row.statusAsOfIso&&!row.sourceRefs.some(ref=>suppliedDateRefs.has(ref)));
   const snapshotRows=new Set(snapshotCandidates);
   const reportingRisks=risks.map(row=>snapshotRows.has(row)&&riskSnapshotDate?{...row,statusAsOfIso:riskSnapshotDate,sourceRefs:[...row.sourceRefs,'user-confirmation:risk-status-snapshot:'+riskBasis.sourceFingerprint]}:row);
-  const risk={...scope(reportingRisks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId)),sourceRows:risks};
+  const risk={...scope(reportingRisks,'Risk register',r=>r.riskId,date,tablesOf('risk_register').length>0||risks.length>0,prepare(risks,'risk_register',r=>r.riskId),sourceOnly('risk_register')),sourceRows:risks};
   const undatedRiskStates=new Map<string,number>();
   for(const row of risk.undated){const status=row.sourceStatus||row.status||'Unknown';undatedRiskStates.set(status,(undatedRiskStates.get(status)??0)+1);}
   const undatedRiskStatusCounts=Object.fromEntries(undatedRiskStates);
