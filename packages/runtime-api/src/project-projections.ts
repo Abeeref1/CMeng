@@ -1659,15 +1659,15 @@ function buildBundle(
           toRevisionId:
             current.revision
               .revisionId,
-          matchedActivityCount: 0,
+          matchedActivityCount: null,
           populationMatchPercent:
             null,
-          addedActivityCount: 0,
-          removedActivityCount: 0,
-          modifiedActivityCount: 0,
-          unchangedActivityCount: 0,
-          addedRelationshipCount: 0,
-          removedRelationshipCount: 0,
+          addedActivityCount: null,
+          removedActivityCount: null,
+          modifiedActivityCount: null,
+          unchangedActivityCount: null,
+          addedRelationshipCount: null,
+          removedRelationshipCount: null,
           addedRelationships: [],
           removedRelationships: [],
           changedActivities: [],
