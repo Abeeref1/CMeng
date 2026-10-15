@@ -44,7 +44,9 @@ function build(state:ProjectRuntimeState){
       hours=calendarWorkingDayHours(calendar);
       hoursById.set(activity.calendarId,hours);
     }
-    if(activity.totalFloatHours===null||hours===null){unknownWorkingDays++;continue;}
+    // Missing or nonfinite source float is unknown, never an invalid chart bar.
+    if(typeof activity.totalFloatHours!=='number'||!Number.isFinite(activity.totalFloatHours)||
+      hours===null||!Number.isFinite(hours)||hours<=0){unknownWorkingDays++;continue;}
     const days=Math.round(activity.totalFloatHours/hours*1e6)/1e6;
     distribution.set(days,(distribution.get(days)??0)+1);
   }

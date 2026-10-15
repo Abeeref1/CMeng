@@ -48,3 +48,27 @@ test('T02/T05 invalid civil source dates cannot normalize to another date on scr
  assert.match(managementText('Cost report due=2030-02-30'),/Due: Not calculable/);
  assert.equal(managementValue({valueState:'not_established',value:0},'days'),'Not established');
 });
+
+test('T05 explicit known-value state never makes a blank or nonfinite source quantity factual',()=>{
+ const cases:Array<[unknown,string,string]>=[
+  [{state:'value'},'not_established','Not established'],
+  [{state:'value',value:null},'not_established','Not established'],
+  [{state:'value',value:''},'not_established','Not established'],
+  [{valueState:'value',value:'   '},'not_established','Not established'],
+  [{state:'value',value:Number.NaN},'not_calculable','Not calculable'],
+  [{state:'value',value:Infinity},'not_calculable','Not calculable'],
+  [{state:'value',value:-Infinity},'not_calculable','Not calculable'],
+  ['   ','not_established','Not established'],
+  [{state:'value',value:0},'value','0'],
+  [{valueState:'value',value:-1.5},'value','-1.5'],
+ ];
+ for(const [item,state,display] of cases){
+  assert.equal(managementValueState(item),state);
+  assert.equal(managementValue(item),display);
+  assert.equal(managementValue(item,'working days'),state==='value'?display+' working days':display,
+    'unknowns may never acquire a day or cost unit');
+ }
+ const unread={state:'value',value:Number.NaN};
+ assert.ok(Number.isNaN(unread.value),'original source value remains intact');
+ assert.equal(managementValue(unread,'SAR'),'Not calculable');
+});

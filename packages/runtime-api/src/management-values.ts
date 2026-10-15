@@ -4,7 +4,9 @@ export function managementValueState(input:unknown):ManagementValueState {
  const item=input as any;
  if(item&&typeof item==='object'){
   const state=item.valueState??item.state;
-  if(['value','not_established','not_in_source','not_applicable','records_disagree','not_calculable','withheld'].includes(state))return state;
+  // An explicit value state cannot make an absent or nonfinite quantity known.
+  if(state==='value')return Object.prototype.hasOwnProperty.call(item,'value')?managementValueState(item.value):'not_established';
+  if(['not_established','not_in_source','not_applicable','records_disagree','not_calculable','withheld'].includes(state))return state;
   // Explicit source states take precedence over a placeholder numeric/boolean
   // value. An unknown source quantity must never become a displayed zero.
   if(['missing','missing_information','unknown','unresolved','not_known','not_read'].includes(state))return 'not_established';
@@ -15,7 +17,7 @@ export function managementValueState(input:unknown):ManagementValueState {
   if(['not_calculable','unavailable','calculation_failed'].includes(state))return 'not_calculable';
   if(Object.prototype.hasOwnProperty.call(item,'value'))return managementValueState(item.value);
  }
- if(input===null||input===undefined||input==='')return 'not_established';
+ if(input===null||input===undefined||(typeof input==='string'&&input.trim()===''))return 'not_established';
  if(typeof input==='number'&&!Number.isFinite(input))return 'not_calculable';
  return 'value';
 }
