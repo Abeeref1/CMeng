@@ -5145,7 +5145,7 @@ function renderManagementControlVisual(key,data){
       experienceSourceContext(key,data)+
       managementPanel("WBS & Work-Package Control","Observed programme structure is shown first. Approval of an official contractual work-package structure remains a separate authority question.",planningKpis([
         ["Observed programme structure",w.observedCoveragePercent===null||w.observedCoveragePercent===undefined?"Coverage unavailable":fmt(w.observedCoveragePercent)+"% activity coverage",screenCountText(w.activityCount)+" activities mapped against the observed programme WBS structure","accent"],
-        ["Observed WBS",w.observedWbsCount??0,"programme labels"],
+        ["Observed WBS",w.observedWbsCount??null,"programme labels"],
         ["Activities",w.activityCount??null,"current programme"],
         ["Approved / official work-package structure",w.officialWorkPackageState==="established"&&w.officialWorkPackageCoveragePercent!==null&&w.officialWorkPackageCoveragePercent!==undefined?fmt(w.officialWorkPackageCoveragePercent)+"% coverage":"Authority not established",w.officialWorkPackageState==="established"?humanizeKey(w.officialWorkPackageState):"Observed WBS coverage does not prove an approved contractual work-package structure.",w.officialWorkPackageState==="established"?"success":"warning"]
       ])+renderObservedWbsLabels(w.observedWbsLabels||[]))+
