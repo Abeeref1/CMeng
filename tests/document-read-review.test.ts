@@ -133,3 +133,45 @@ test('T04 complete full-source PDF reading overrides a stale partial checkpoint,
  doc.fullTextRead!.sourceHashSha256='other-hash';
  assert.equal(documentReadReview(doc,project).state,'partial','a mismatched source receipt is never accepted');
 });
+
+test('T02 PDF physical coverage requires distinct sequential identities and reconciled page counts',()=>{
+ const project=new RuntimeProjectStore({durable:false}).getOrCreate('PDF-IDENTITIES-ISOLATED');
+ const page=(pageNumber:number)=>({pageNumber,method:'native',text:'Legible retained source page '+pageNumber});
+ const pdf={totalPages:2,processedPages:2,nativePages:2,ocrPages:0,blankPages:0,failedPages:0,
+   unresolvedPages:0,coveragePercent:100,complete:true,pages:[page(1),page(2)],diagnostics:[]};
+ const doc={documentId:'report',sourceHashSha256:'same-hash',basisState:'candidate',
+   fullTextRead:{sourceHashSha256:'same-hash',result:pdf}} as unknown as StoredEvidenceDocument;
+ const initial=JSON.stringify(doc);
+ assert.equal(documentReadReview(doc,project).complete,true);
+ for(const altered of [
+   {...pdf,pages:[page(1)]},
+   {...pdf,pages:[page(1),page(1)]},
+   {...pdf,pages:[page(0),page(2)]},
+   {...pdf,pages:[page(1),page(3)]},
+   {...pdf,pages:[{...page(1),aiReview:{status:'review_required'}},page(2)]},
+   {...pdf,nativePages:1},
+ ]){
+   doc.fullTextRead!.result=altered as any;
+   assert.equal(documentReadReview(doc,project).complete,false,
+     'Summary counts never certify a missing, duplicate, invalid or unresolved page');
+ }
+ doc.fullTextRead!.result=pdf as any;
+ assert.equal(documentReadReview(doc,project).complete,true);
+ assert.equal(JSON.stringify(doc),initial);
+ assert.equal(doc.basisState,'candidate','reading must never adopt source');
+});
+
+test('T02 retained checkpoint cannot certify duplicate, out-of-range or AI-unresolved page',()=>{
+ const project=new RuntimeProjectStore({durable:false}).getOrCreate('CHECKPOINT-IDENTITY');
+ const page=(pageNumber:number)=>({pageNumber,method:'native',text:'Legible retained page '+pageNumber});
+ const doc={documentId:'pending',sourceHashSha256:'hash',basisState:'candidate',
+   fullTextReadCheckpoint:{sourceHashSha256:'hash',totalPages:2,pages:[page(1),page(2)]}} as unknown as StoredEvidenceDocument;
+ assert.equal(documentReadReview(doc,project).complete,true);
+ for(const numbers of [[1,1],[0,2],[1,3]]){
+   doc.fullTextReadCheckpoint!.pages=numbers.map(page) as any;
+   assert.equal(documentReadReview(doc,project).complete,false);
+ }
+ doc.fullTextReadCheckpoint!.pages=[page(1),{...page(2),aiReview:{status:'review_required'}}] as any;
+ assert.equal(documentReadReview(doc,project).complete,false);
+ assert.equal(doc.basisState,'candidate');
+});

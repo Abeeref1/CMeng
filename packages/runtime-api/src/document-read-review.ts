@@ -1,23 +1,48 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {parsePdfDocument,fragmentedPdfText,hasUnreadableNativePages,type OcrProvider} from '../../pdf-document-parser/src';
+import {parsePdfDocument,fragmentedPdfText,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
 import type {SourceTable} from '../../truth-kernel/src';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
+
+/** Validate actual PDF page identities instead of trusting aggregate counts.
+ * Physical source reading does not establish document adoption or authority. */
+function physicalPdfCoverage(pdf:PdfDocumentResult){
+  const seen=new Set<number>();
+  let native=0,ocr=0,blank=0,failed=0,unreadableNative=0,readPages=0;
+  for(const page of pdf.pages){
+    if(page.method==='native')native++;
+    else if(page.method==='ocr')ocr++;
+    else if(page.method==='blank')blank++;
+    else failed++;
+    const unreadable=page.method==='native'&&fragmentedPdfText(page.text);
+    if(unreadable)unreadableNative++;
+    if(!Number.isInteger(page.pageNumber)||page.pageNumber<1||page.pageNumber>pdf.totalPages||seen.has(page.pageNumber))continue;
+    seen.add(page.pageNumber);
+    if(page.method!=='failed'&&!unreadable&&page.aiReview?.status!=='review_required')readPages++;
+  }
+  const complete=Number.isInteger(pdf.totalPages)&&pdf.totalPages>0&&
+    pdf.pages.length===pdf.totalPages&&seen.size===pdf.totalPages&&readPages===pdf.totalPages&&
+    native===pdf.nativePages&&ocr===pdf.ocrPages&&blank===pdf.blankPages&&failed===pdf.failedPages&&
+    failed===0&&pdf.unresolvedPages===0;
+  return {unreadableNative,readPages,complete};
+}
 
 /** Upload classification, physical reading and adoption are different facts. */
 export function documentReadReview(document:StoredEvidenceDocument,state:ProjectRuntimeState,sourceTables?:SourceTable|readonly SourceTable[]){
   const hash=document.sourceHashSha256;
   const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
     state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
-  const fullUnreadable=pdf?.pages.filter(page=>page.method==='native'&&fragmentedPdfText(page.text)).length??0;
-  const fullPagesRead=pdf?pdf.nativePages+pdf.ocrPages+pdf.blankPages-fullUnreadable:null;
-  const fullReadComplete=!!pdf&&pdf.totalPages>0&&fullPagesRead===pdf.totalPages&&pdf.failedPages===0&&pdf.unresolvedPages===0;
+  const coverage=pdf?physicalPdfCoverage(pdf):null;
+  const fullUnreadable=coverage?.unreadableNative??0;
+  const fullPagesRead=coverage?.readPages??null;
+  const fullReadComplete=coverage?.complete??false;
   // A stale per-page checkpoint must not overrule a fully completed receipt
   // from these same original source bytes. Source authority remains unchanged.
   const checkpoint=document.fullTextReadCheckpoint;
   if(checkpoint?.sourceHashSha256===hash&&!fullReadComplete){
-    const read=checkpoint.pages.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).length;
-    const complete=checkpoint.totalPages>0&&read===checkpoint.totalPages&&checkpoint.pages.length===checkpoint.totalPages&&new Set(checkpoint.pages.map(p=>p.pageNumber)).size===checkpoint.totalPages;
+    const eligible=checkpoint.pages.filter(p=>Number.isInteger(p.pageNumber)&&p.pageNumber>=1&&p.pageNumber<=checkpoint.totalPages);
+    const read=new Set(eligible.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).map(p=>p.pageNumber)).size;
+    const complete=Number.isInteger(checkpoint.totalPages)&&checkpoint.totalPages>0&&read===checkpoint.totalPages&&checkpoint.pages.length===checkpoint.totalPages&&eligible.length===checkpoint.totalPages;
     return {state:complete?'read':'partial',label:complete?'All pages read':'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. '+(complete?'Physical reading is complete; structured fact validation and adoption remain separate.':'Saved pages will be reused on the next processing attempt; unreadable pages still require reading.'),method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete};
   }
   if(pdf){
@@ -89,7 +114,7 @@ export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createPro
   const prior=running.get(document);if(prior)return prior;
   const work=(async()=>{
     if(!/pdf/i.test(document.mediaType)||
-      (document.fullTextRead?.sourceHashSha256===document.sourceHashSha256&&document.fullTextRead.result.complete&&!hasUnreadableNativePages(document.fullTextRead.result)))return false;
+      (document.fullTextRead?.sourceHashSha256===document.sourceHashSha256&&physicalPdfCoverage(document.fullTextRead.result).complete))return false;
     const hash=document.sourceHashSha256,bytes=readFileSync(document.storedPath);
     if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('DEFERRED_PDF_SOURCE_HASH_MISMATCH');
     const provider=createProvider();
