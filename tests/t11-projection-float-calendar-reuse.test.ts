@@ -19,11 +19,11 @@ function sourceModel(id:string,firstHours:number){
  const duplicate:any={calendarId:'C',semanticComplete:true,sourceRefs:[]};
  Object.defineProperty(duplicate,'standardDayHours',{enumerable:true,get(){duplicateReads++;return 1;}});
  const activities=Array.from({length:1001},(_,i)=>({
-   projectId:id,activityId:'ACT-'+i,nativeId:String(i),name:'Task '+i,wbsId:i%3===0?'CHILD':'ROOT',
-   calendarId:['C','UNDEFINED','BAD',null][i%4],
+   projectId:id,activityId:'ACT-'+i,nativeId:String(i),name:'Task '+i,wbsId:i%11===0?'KNOWN':i%3===0?'CHILD':'ROOT',
+   calendarId:i%11===0?'C':['C','UNDEFINED','BAD',null][i%4],
    activityType:i%41===0?'wbs_summary':'task',
    status:i%29===0?'completed':'in_progress',
-   totalFloatHours:i%17===0?null:[-16,0,8,16,24,40,64][i%7],
+   totalFloatHours:i%11===0?[-16,0,8,16,24,40,64][i%7]:i%17===0?null:[-16,0,8,16,24,40,64][i%7],
    freeFloatHours:null,percentComplete:10,originalDurationHours:80,remainingDurationHours:65,
    currentStartIso:'2031-01-01',currentFinishIso:'2031-07-01',
    baselineStartIso:'2031-01-01',baselineFinishIso:'2031-07-01',
@@ -31,7 +31,7 @@ function sourceModel(id:string,firstHours:number){
    sourceRefs:[],diagnostics:[],
  }));
  const model:any={projectId:id,source:'xer',sourceRevisionId:'REV-'+id,dataDateIso:'2031-05-01',
-   wbs:[{wbsId:'ROOT',name:'Root',parentWbsId:null,sourceRefs:[]},{wbsId:'CHILD',name:'Child',parentWbsId:'ROOT',sourceRefs:[]}],
+   wbs:[{wbsId:'ROOT',name:'Root',parentWbsId:null,sourceRefs:[]},{wbsId:'CHILD',name:'Child',parentWbsId:'ROOT',sourceRefs:[]},{wbsId:'KNOWN',name:'Known',parentWbsId:'ROOT',sourceRefs:[]}],
    calendars:[first,duplicate,{calendarId:'BAD',semanticComplete:false,standardDayHours:24,sourceRefs:[]}],
    activities,relationships:[],diagnostics:[]};
  return {model,reads:()=>firstReads,duplicateReads:()=>duplicateReads};
@@ -42,9 +42,10 @@ test('T11: near-critical and WBS projectors reuse first source calendar without 
  for(const [id,hours] of [['FLOAT-LOCAL-1',8],['FLOAT-LOCAL-2',12]] as const){
   const {model,reads,duplicateReads}=sourceModel(id,hours);
   const before=JSON.stringify(model);
+  const firstAtStart=reads(),duplicateAtStart=duplicateReads();
   const near=buildNearCriticalProjection(model,{generatedAt:'2031-05-01T00:00:00Z',producerVersion:'independent',config});
-  assert.equal(reads(),2,'one threshold and one separate audit working-day basis per first calendar');
-  assert.equal(duplicateReads(),0,'duplicate later definition must never replace the first calendar');
+  assert.equal(reads()-firstAtStart,2,'one threshold and one separate audit working-day basis per first calendar');
+  assert.equal(duplicateReads()-duplicateAtStart,0,'duplicate later definition must never replace the first calendar');
   const open=model.activities.filter((a:any)=>isExecutionActivity(a)&&a.status!=='completed');
   // The near-critical producer uses the canonical activityPopulation execution
   // population; unknown float/calendar remains unresolved, never zero.
@@ -63,17 +64,21 @@ test('T11: near-critical and WBS projectors reuse first source calendar without 
     generatedAt:'2031-05-01T00:00:00Z',producerVersion:'independent',config,
   });
   assert.equal(breakdown.totalActivityCount,model.activities.filter(isExecutionActivity).length,'full WBS population');
+  const known=breakdown.rows.find(row=>row.wbsId==='KNOWN');
+  assert.ok(known,'known-value WBS is retained');
+  assert.ok(known.criticalCount!==null&&known.nearCriticalCount!==null,'known-value WBS must exercise numeric parity');
   for(const row of [...breakdown.rows,...breakdown.hierarchyRows,breakdown.overallSummary]){
-    const subset=row.wbsId==='DELIVERY_SCOPE'
+    const ancestorRoot=breakdown.hierarchyRows.includes(row as any)&&row.wbsId==='ROOT';
+    const subset=row.wbsId==='DELIVERY_SCOPE'||ancestorRoot
       ?model.activities.filter(isExecutionActivity)
-      :model.activities.filter((a:any)=>isExecutionActivity(a)&&(row.wbsId==='ROOT'||a.wbsId===row.wbsId));
+      :model.activities.filter((a:any)=>isExecutionActivity(a)&&a.wbsId===row.wbsId);
     const active=subset.filter((a:any)=>a.status!=='completed');
     const allKnown=active.every((a:any)=>a.totalFloatHours!==null);
     const thresholdsKnown=active.every((a:any)=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)!==null);
     assert.equal(row.criticalCount,allKnown?active.filter((a:any)=>sourceFloatCriticality(model,a,config)==='critical').length:null,row.wbsId+'/critical');
     assert.equal(row.nearCriticalCount,allKnown&&thresholdsKnown?active.filter((a:any)=>sourceFloatCriticality(model,a,config)==='near_critical').length:null,row.wbsId+'/near');
   }
-  assert.equal(duplicateReads(),0,'later duplicate calendar never used by either producer');
+  assert.equal(duplicateReads()-duplicateAtStart,0,'later duplicate calendar never used by either producer');
   assert.equal(JSON.stringify(model),before,'source records and calendar order remain untouched');
  }
 });
