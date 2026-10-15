@@ -10,7 +10,8 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
   const checkpoint=document.fullTextReadCheckpoint;
   if(checkpoint?.sourceHashSha256===hash){
     const read=checkpoint.pages.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).length;
-    return {state:'partial',label:'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. Saved pages will be reused on the next processing attempt; unreadable pages still require reading.',method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete:false};
+    const complete=checkpoint.totalPages>0&&read===checkpoint.totalPages&&checkpoint.pages.length===checkpoint.totalPages&&new Set(checkpoint.pages.map(p=>p.pageNumber)).size===checkpoint.totalPages;
+    return {state:complete?'read':'partial',label:complete?'All pages read':'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. '+(complete?'Physical reading is complete; structured fact validation and adoption remain separate.':'Saved pages will be reused on the next processing attempt; unreadable pages still require reading.'),method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete};
   }
   const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
     state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
