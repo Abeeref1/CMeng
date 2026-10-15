@@ -11,8 +11,8 @@ let sequence=0;
 function fixture(previousCount:number, movementValues:readonly [string,unknown][]) {
   const projectId='REVISION-UNKNOWN-SOURCE-'+(++sequence);
   const calendar={...ELAPSED_24H_CALENDAR,calendarId:'CAL-SOURCE',semanticComplete:true,standardDayHours:8};
-  const makeModel=(revisionId:string,size:number)=>({
-    projectId,source:'xer' as const,sourceRevisionId:revisionId,dataDateIso:'2031-05-02',
+  const makeModel=(revisionId:string,size:number,dataDateIso:string)=>({
+    projectId,source:'xer' as const,sourceRevisionId:revisionId,dataDateIso,
     activities:Array.from({length:size},(_,i)=>({
       projectId,activityId:'ACT-'+i,nativeId:String(i+1),name:'Original task '+i,
       activityType:'task' as const,status:'not_started' as const,wbsId:'WORK',
@@ -26,7 +26,11 @@ function fixture(previousCount:number, movementValues:readonly [string,unknown][
     calendars:[calendar],diagnostics:[],
   });
   const oldId='REV-OLD-'+projectId,nowId='REV-NEW-'+projectId;
-  const before=makeModel(oldId,previousCount),after=makeModel(nowId,7);
+  // Distinct source reporting dates are required before an unadopted revision
+  // can be uniquely selected for analytical comparison. This is test-source
+  // evidence, not formal programme adoption or a production fallback.
+  const before=makeModel(oldId,previousCount,'2031-05-01');
+  const after=makeModel(nowId,7,'2031-05-02');
   const state=runtimeProjects.getOrCreate(projectId);
   for(const [model,revisionId,sequenceNumber] of [[before,oldId,1],[after,nowId,2]] as const){
     state.schedules.push({role:'update',format:'xer',sourceFilename:'original-'+sequenceNumber+'.xer',
