@@ -137,7 +137,15 @@ export function canonicalHeader(value:string,documentType=''):string {
   }
   return memo(canonicalHeaderMemo,memoKey,key);
 }
-const fields=new Set([...Object.keys(groups),
+// These are actual business-status columns read by the shared register
+// consumers. Without registering them as recognized headers, source audits
+// incorrectly label their populated cells unused and a short register can
+// lose its header row to a later, unrelated row.
+const businessStatusFields=[...new Set(
+  ['quality_ncr_register','rfi_register','risk_register','submittal_register','procurement_register']
+    .flatMap(registerBusinessStatusFields)
+)];
+const fields=new Set([...Object.keys(groups),...businessStatusFields,
   'section','quantity','rate','category','instruction date','claimed amount','amount','value','unit','metric','as of','date','probability','impact','score','rating','owner','title','event','responsibility','awareness date','last reviewed','notice id','long lead',
   'permit id','permit type','issuing authority','policy id','authority','submission date','review date','issue date','valid from','expiry applicable','renewal required','required by','blocker',
   'subject','response date','close date','severity','order value','time impact days','outcome','engineer letter ref','notice letter ref','contract clause',
