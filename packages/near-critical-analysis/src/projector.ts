@@ -13,6 +13,7 @@ import {
 } from "../../schedule-analysis-core/src";
 import type {
   NearCriticalProjection,
+  NearCriticalRow,
 } from "./types";
 
 function coverage(
@@ -143,9 +144,13 @@ export function buildNearCriticalProjection(
   const unfinished=population.activities.filter(activity=>activity.status!=='completed');
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
+  // Only finite submitted float is an established numerical fact. A retained
+  // malformed/undefined/NaN/infinite source must not enter specialist rows,
+  // threshold decisions or known-count denominators as if it were read.
   const known = unfinished.filter(
     (activity) =>
-      activity.totalFloatHours !== null,
+      typeof activity.totalFloatHours === "number" &&
+      Number.isFinite(activity.totalFloatHours),
   );
 
   // The entire source-float classification is calculated ONCE per known
@@ -173,7 +178,7 @@ export function buildNearCriticalProjection(
   const rowFor = ({
     activity,
     threshold,
-  }: (typeof classified)[number]) => ({
+  }: (typeof classified)[number]): NearCriticalRow => ({
     activityId: activity.activityId,
     name: activity.name,
     wbsId: activity.wbsId,

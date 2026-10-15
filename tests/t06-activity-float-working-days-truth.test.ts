@@ -5,6 +5,7 @@ import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
 import {activityFloatReconciliation} from '../packages/runtime-api/src/activity-float-reconciliation';
 import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
+import {buildNearCriticalProjection} from '../packages/near-critical-analysis/src';
 
 function sample(id:string,hours:number){
  const activities=[
@@ -105,5 +106,60 @@ test('T06 Look Ahead itself carries original source-calendar working days, with 
   assert.equal(b?.submittedTotalFloatWorkingDays,null,'unread original calendar is not a 24-hour fallback');
   assert.equal(b?.floatDaysBasis,'calendar_working_day_not_established');
   assert.equal(JSON.stringify(model),unchanged,'no source schedule mutation or adoption');
+ }
+});
+
+
+test('T06 near-critical specialist: nonfinite submitted float stays unknown in totals, rows and source-calendar working days',()=>{
+ for(const [projectId,dayHours] of [['CASE-8H',8],['CASE-12H',12]] as const){
+  const make=(activityId:string,totalFloatHours:number|null|undefined,calendarId='DAY',status='in_progress')=>({
+   projectId,activityId,nativeId:activityId,name:activityId,wbsId:'W',calendarId,
+   activityType:'task',status,totalFloatHours,freeFloatHours:null,percentComplete:0,
+   baselineStartIso:'2031-01-01',baselineFinishIso:'2031-05-01',
+   currentStartIso:'2031-01-01',currentFinishIso:'2031-05-01',
+   forecastStartIso:null,forecastFinishIso:null,actualStartIso:null,actualFinishIso:null,
+   originalDurationHours:80,remainingDurationHours:64,sourceRefs:[],diagnostics:[],
+  });
+  const activities=[make('NEG',-8),make('ZERO',0),make('NEAR',16),
+   make('MISSING-CALENDAR',16,'NO-SOURCE'),make('NULL',null),
+   make('UNDEFINED',undefined),make('NAN',Number.NaN),
+   make('POS-INF',Infinity),make('NEG-INF',-Infinity),
+   make('COMPLETED',-80,'DAY','completed')];
+  const model:any={projectId,source:'xer',sourceRevisionId:'SOURCE-'+projectId,
+   dataDateIso:'2031-02-01',activities,relationships:[],diagnostics:[],
+   calendars:[{calendarId:'DAY',semanticComplete:true,standardDayHours:dayHours,sourceRefs:[]},
+    {calendarId:'DAY',semanticComplete:true,standardDayHours:24,sourceRefs:[]}],
+   wbs:[{wbsId:'W',name:'Execution',parentWbsId:null,sourceRefs:[]}]};
+  const originalRows=[...activities],originalFloats=activities.map(a=>a.totalFloatHours);
+  const actual=buildNearCriticalProjection(model,{generatedAt:'2031-02-01T00:00:00Z',
+   producerVersion:'independent-finite-float-truth',config:{...DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
+    criticalFloatThresholdHours:0,nearCriticalWorkingDays:3,floatRiskWatchlistIncludesCriticalThreshold:true}});
+  assert.equal(actual.population?.denominator,10,'full original execution population retained');
+  assert.equal(actual.unknownFloatCount,5,'missing and nonfinite float are not known numeric values');
+  assert.equal(actual.floatCoveragePercent,Number((400/9).toFixed(4)));
+  assert.equal(actual.floatHourHistogram?.knownCount,4);
+  assert.equal(actual.floatHourHistogram?.unknownCount,5);
+  assert.equal(actual.knownNegativeFloatCount,1);
+  assert.equal(actual.knownZeroFloatCount,1,'real source zero is not lost');
+  assert.equal(actual.zeroFloatCount,null,'partial source coverage cannot assert a project-wide zero total');
+  assert.equal(actual.nearCriticalCount,null,'unknown calendar and nonfinite source float prevent complete classification');
+  assert.equal(actual.unresolvedActivityCount,6,'five unread floats and one missing calendar basis');
+  assert.deepEqual(actual.rows.map(row=>row.activityId),['NEAR']);
+  assert.deepEqual(actual.criticalRows.map(row=>row.activityId),['NEG','ZERO']);
+  for(const row of [...actual.rows,...actual.watchlistRows,...actual.criticalRows,...actual.negativeFloatRows]){
+   assert.equal(row.floatDaysBasis,'source_activity_calendar');
+   assert.equal(row.workingDayHours,dayHours);
+   assert.equal(row.submittedTotalFloatWorkingDays,Number((row.totalFloatHours/dayHours).toFixed(6)));
+   assert.ok(Number.isFinite(row.totalFloatHours),'no invalid source float enters published specialist records');
+   assert.notEqual(row.activityId,'COMPLETED','completed work excluded from live float results');
+  }
+  assert.equal(actual.managementGroups?.[0]?.lowestFloatActivityId,'NEG');
+  assert.equal(actual.managementGroups?.[0]?.lowestFloatWorkingDays,Number((-8/dayHours).toFixed(6)));
+  for(let i=0;i<activities.length;i++){
+   assert.strictEqual(model.activities[i],originalRows[i],'retain original source activity object');
+   assert.ok(Object.is(activities[i]!.totalFloatHours,originalFloats[i]),'retain invalid original float for audit');
+  }
+  assert.equal(model.calendars[0].standardDayHours,dayHours);
+  assert.equal(model.calendars[1].standardDayHours,24,'duplicate later source calendar remains untouched');
  }
 });

@@ -1,0 +1,7 @@
+# 15 October 2026 — T06 near-critical source-float qualification and failed six-group build
+
+Parent: `ad02ea859da5ae2587a78b3663737e5d30fd80ac`. At parent, focused Actions 38784209233 and all six groups of Actions 38784209268 FAILED while compiling `near-critical-analysis/src/projector.ts` (TypeScript TS2322: widened `floatDaysBasis: string` was not a `NearCriticalRow` basis). No source test ran after the failed build.
+
+Correction: type the shared near-critical row factory against its established `NearCriticalRow` contract, and qualify known submitted float using finite numbers rather than `!== null`. The latter previously admitted undefined, NaN and infinite source values as valid near-critical numeric records, producing false coverage and potentially misleading watchlists. No source facts, calendar source order, formal authority, decisions, dashboard content, baselines or guard rules are altered.
+
+Independent regression is added to the existing T06 truth suite: multiple isolated project calendars, valid positive/negative/zero floats, incomplete source calendar, missing and nonfinite source values, completed work exclusion, specialist rows, management-group lowest float, original-row identity and source values. This is engineering only, not completion of T06 or any of the ten release items. Post-commit exact-SHA verification remains required; original hard four-cold-project <=5000ms test, 39-rule guard and all six mandatory groups remain unchanged. No deployment, AI spending, access controls or plan changes.
