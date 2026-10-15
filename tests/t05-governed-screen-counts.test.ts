@@ -120,3 +120,17 @@ test('T05 missing screen counts are not zeros, including grouped issue counts',(
  assert.match(script,/\["Source uncertainty coverage",uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"Not established"/);
  assert.doesNotMatch(script,/uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"0%"/);
 });
+
+test('T05 missing management issue assessments are never green and signed float stays factual',()=>{
+ const signed=runInNewContext(originalFunction('screenSignedNumberText')+';screenSignedNumberText',{
+   fmt:(value:unknown)=>String(value),
+ }) as (value:unknown)=>string;
+ assert.equal(signed(-16),'-16','valid negative float is not an unknown count');
+ assert.equal(signed(0),'0');
+ for(const bad of [null,undefined,NaN,Infinity,''])assert.equal(signed(bad),'Not established');
+ assert.match(script,/const positionSeverity=p=>\{const counts=p\.issueAssessment\?\.counts;if\(!counts\)return \{label:'Checks not established'/);
+ assert.doesNotMatch(script,/const positionSeverity=p=>\{const counts=p\.issueAssessment\?\.counts\|\|\{\}/);
+ assert.match(script,/const assessableNoticeCount=sumKnownScreenCounts\(timeliness/);
+ assert.match(script,/const noticeEvidenceGapCount=sumKnownScreenCounts\(timeliness/);
+ assert.doesNotMatch(script,/uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"0%"/);
+});
