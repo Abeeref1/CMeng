@@ -60,3 +60,17 @@ test('T06 activity screen shows source-calendar days with original hourly audit 
  assert.equal(render({status:'in_progress',submittedTotalFloatWorkingDays:0,submittedTotalFloatHours:0}),
    '0 working days · 0 original h');
 });
+
+test('T06 primary per-activity float views use source-calendar working days beside original hours',()=>{
+ const html=cmengUatHtml();
+ const required=['sourceWorkingFloat(row)','sourceWorkingFloat(a)',
+   'const floatText=sourceWorkingFloat(r);','const float=sourceWorkingFloat(r);'];
+ for(const use of required)assert.ok(html.includes(use),'screen must use source-calendar conversion: '+use);
+ assert.doesNotMatch(html,/typeof row\.totalFloatHours==='number'\?fmt\(row\.totalFloatHours\)\+' h':'Missing'/);
+ assert.doesNotMatch(html,/escapeHtml\(fmt\(a\.totalFloatHours\)\)/);
+ const code=/function sourceWorkingFloat\(row,calculated=false\)\{[\s\S]*?\n\}/.exec(html)?.[0];
+ assert.ok(code);
+ const display=runInNewContext('('+code+')',{fmt:(n:unknown)=>String(n)}) as (row:any)=>string;
+ assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:-2,submittedTotalFloatHours:-24}),'-2 working days · -24 original h');
+ assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:null,submittedTotalFloatHours:0}),'Working-day basis not established · 0 original h');
+});
