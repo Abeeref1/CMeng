@@ -1065,7 +1065,7 @@ function indexResponsePopulations(result){
  const seen=new Set();
  const walk=(value,pointer)=>{if(!value||typeof value!=='object'||seen.has(value))return;seen.add(value);
   if(Array.isArray(value)){
-   const descriptor=descriptors.get(pointer),population={total:descriptor?.total??value.length,pointer,source:result.responsePaging?.source??null,offset:0,shown:value.length};
+   const descriptor=descriptors.get(pointer),population={total:descriptor?.total??value.length,totalEstablished:true,pointer,source:result.responsePaging?.source??null,offset:0,shown:value.length};
    responsePopulationIndex.set(value,population);
    for(const row of value)if(row&&typeof row==='object'&&!responseRowPopulationIndex.has(row))responseRowPopulationIndex.set(row,population);
    value.forEach((row,index)=>walk(row,pointer+'/'+index));
@@ -1074,13 +1074,15 @@ function indexResponsePopulations(result){
  walk(result,'');
 }
 function responseListPopulation(records,explicit=null){
- if(explicit)return {...explicit,shown:records.length};
+ if(explicit)return {...explicit,totalEstablished:typeof explicit.total==='number'&&Number.isFinite(explicit.total),shown:records.length};
  const result=typeof currentModuleResult==='undefined'?null:currentModuleResult;
  indexResponsePopulations(result);
  const exact=responsePopulationIndex.get(records);if(exact)return exact;
  const origins=records.filter(r=>r&&typeof r==='object').map(r=>responseRowPopulationIndex.get(r));
  if(origins.length&&origins.every(p=>p&&p.pointer===origins[0]?.pointer))return {...origins[0],shown:records.length};
- return {total:records.length,pointer:null,source:null,offset:0,shown:records.length};
+ // A newly mapped/sliced list that lost its original source-row identity is
+ // only a displayed subset. Do not certify its array length as the source total.
+ return {total:records.length,totalEstablished:false,pointer:null,source:null,offset:0,shown:records.length};
 }
 function sourcePopulationControl(records,label='Browse all source records'){
  const population=responseListPopulation(records);
@@ -1095,7 +1097,10 @@ function renderRecordTable(records,sourcePopulation=null){
   if(!rows.length)return"";
   const columns=[...new Set(rows.flatMap(row=>Object.keys(row)))].filter(key=>!readerTechnicalField(key)&&!readerPresentationTechnicalField(key)).slice(0,24);
   if(!columns.length)return'<p>Supporting records are retained. Open source evidence or export the original register.</p>';
-  return '<p class="source-population">Showing '+((population.offset||0)+1)+'–'+((population.offset||0)+rows.length)+' of '+population.total+(population.total>rows.length?'. Further records are available in Additional source records or the full export.':'.')+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
+  const listingBasis=population.totalEstablished===true
+    ?' of '+screenCountText(population.total)+(population.total>rows.length?'. Further source records are available in Additional source records or the full export.':'.')
+    :'. Complete source total not established for this derived list; use the original register or full export.';
+  return '<p class="source-population">Showing '+((population.offset||0)+1)+'–'+((population.offset||0)+rows.length)+listingBasis+'</p><div class="table-wrap"><table><thead><tr>'+columns.map(key=>'<th>'+escapeHtml(humanizeKey(key))+'</th>').join("")+'</tr></thead><tbody>'+
     rows.map(row=>'<tr>'+columns.map(key=>'<td>'+renderComplexCell(row[key],key)+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div>';
 }
@@ -1112,7 +1117,9 @@ function renderStructuredValue(value,depth=0,key=''){
     if(!value.length)return '<div class="muted">No records.</div>';
     if(value.every(isScalarValue))return '<div class="value-list">'+value.map(v=>'<span class="value-chip">'+escapeHtml(fmt(v))+'</span>').join("")+'</div>';
     if(value.every(x=>x&&typeof x==="object"&&!Array.isArray(x)))return renderRecordTable(value);
-    return '<details><summary>Additional records · '+escapeHtml(value.length)+'</summary><div style="padding:10px">'+value.slice(0,25).map(item=>renderStructuredValue(item,depth+1,key)).join("")+'</div></details>';
+    const population=responseListPopulation(value),sample=value.slice(0,25);
+    const total=population.totalEstablished===true?screenCountText(population.total):'Not established';
+    return '<details><summary>Additional source records · '+escapeHtml(total)+'</summary><p>Showing '+sample.length+' preview entries; '+(population.totalEstablished===true?'source total '+escapeHtml(total):'complete source total not established')+'.</p><div style="padding:10px">'+sample.map(item=>renderStructuredValue(item,depth+1,key)).join("")+'</div>'+sourcePopulationControl(value)+'</details>';
   }
   if(!value||typeof value!=="object")return"";
   const entries=Object.entries(value);
