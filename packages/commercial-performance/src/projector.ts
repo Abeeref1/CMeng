@@ -330,6 +330,42 @@ function calcFromSnapshot(
   };
 }
 
+/** Retain decimal source coefficients when differencing close BAC/EV/AC/EAC
+ * monetary values. IEEE floating subtraction can amplify sub-cent binary
+ * error into incorrect displayed TCPI where the denominator is nearly zero.
+ * No source amount, evidence or contractual authority is ever rewritten. */
+type SourceMoneyDecimal={units:bigint;scale:number};
+function sourceMoneyDecimal(value:number):SourceMoneyDecimal|null {
+  if(!Number.isFinite(value))return null;
+  const m=/^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(value));
+  if(!m)return null;
+  const fraction=m[3]??'';
+  const scale=fraction.length-Number(m[4]??'0');
+  if(!Number.isInteger(scale)||Math.abs(scale)>310)return null;
+  const units=BigInt((m[1]??'')+(m[2]??'0')+fraction);
+  return scale<0?{units:units*10n**BigInt(-scale),scale:0}:{units,scale};
+}
+function sourceMoneyDifference(left:number,right:number):SourceMoneyDecimal|null{
+  const a=sourceMoneyDecimal(left),b=sourceMoneyDecimal(right);
+  if(!a||!b)return null;
+  const scale=Math.max(a.scale,b.scale);
+  return {units:a.units*10n**BigInt(scale-a.scale)-b.units*10n**BigInt(scale-b.scale),scale};
+}
+function sourceMoneyRatioSix(numerator:SourceMoneyDecimal|null,denominator:SourceMoneyDecimal|null):number|null{
+  if(!numerator||!denominator||denominator.units===0n)return null;
+  let n=numerator.units*10n**BigInt(6+denominator.scale);
+  let d=denominator.units*10n**BigInt(numerator.scale);
+  const negative=(n<0n)!==(d<0n);
+  if(n<0n)n=-n;
+  if(d<0n)d=-d;
+  // Decimal half-up in magnitude, independently reproducible for both signs.
+  const value=Number((n+d/2n)/d)/1_000_000;
+  return Number.isFinite(value)?(negative?-value:value):null;
+}
+function ratioOfSourceDifferences(a:number,b:number,c:number,d:number):number|null{
+  return sourceMoneyRatioSix(sourceMoneyDifference(a,b),sourceMoneyDifference(c,d));
+}
+
 function safeRatio(
   numerator: number | null,
   denominator: number | null,
@@ -929,12 +965,7 @@ function costControl(
       ev.value !== null &&
       bac.value !== null &&
       ac.value !== null
-        ? safeRatio(
-            bac.value -
-              ev.value,
-            bac.value -
-              ac.value,
-          )
+        ? ratioOfSourceDifferences(bac.value,ev.value,bac.value,ac.value)
         : null;
     const tcpiForecastValue =
       compatibleMoneyBasis &&
@@ -943,12 +974,7 @@ function costControl(
       sourceEac.value !==
         null &&
       ac.value !== null
-        ? safeRatio(
-            bac.value -
-              ev.value,
-            sourceEac.value -
-              ac.value,
-          )
+        ? ratioOfSourceDifferences(bac.value,ev.value,sourceEac.value,ac.value)
         : null;
 
     const spi =
