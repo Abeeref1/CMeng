@@ -13,6 +13,31 @@ const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opene
 const ncrStatus=(raw:string):NcrRecord['status']=>/^(closed|complete|completed|resolved)$/.test(norm(raw))?'closed':/^(open|active|in progress|overdue)$/.test(norm(raw))?'open':'unknown';
 const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
 
+/** The register's own business-status column takes part in every NCR/RFI/risk
+ * calculation. Distinct asserted source statuses require review, rather than
+ * silently falling back to an unrelated administrative "status" field. */
+export function operationalSourceStatus(row:SourceRow,kind:'ncr'|'rfi'|'risk'){
+  const alternatives:Record<typeof kind,readonly string[]>={
+    ncr:['ncr status','nonconformance status','non conformance status','status of ncr','closure status','current status','status'],
+    rfi:['rfi status','rfi current status','response status','answer status','current status','status'],
+    risk:['risk status','risk current status','risk treatment status','current status','status'],
+  };
+  const observed=alternatives[kind].flatMap(field=>{
+    const raw=cell(row,field);
+    return raw?[{field,raw}]:[];
+  });
+  const different=new Set(observed.map(x=>norm(x.raw)));
+  const conflicted=different.size>1;
+  return {value:conflicted?'':observed[0]?.raw??'',conflicted,
+    observed:observed.filter((entry,index)=>observed.findIndex(x=>x.field===entry.field)===index)};
+}
+function sourceStatusFor(row:SourceRow,kind:'ncr'|'rfi'|'risk',diagnostics:string[]){
+  const result=operationalSourceStatus(row,kind);
+  if(result.conflicted)diagnostics.push('SOURCE_STATUS_COLUMNS_CONFLICT:'+kind+':'+row.receipt.documentId+':'+row.receipt.locator);
+  return result;
+}
+
+
 /**
  * T04: a fully read, unique source may participate in source-qualified
  * analysis even when its formal adoption has not been recorded. Competing
@@ -69,14 +94,18 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
   const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
     ncrId:cell(row,'ncr id'),severity:(/^(critical)$/.test(norm(cell(row,'severity')))?'critical':/^(major|high)$/.test(norm(cell(row,'severity')))?'major':/^(minor|low)$/.test(norm(cell(row,'severity')))?'minor':'unknown') as NcrRecord['severity'],
-    status:ncrStatus(cell(row,'status')),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
+    status:ncrStatus(sourceStatusFor(row,'ncr',diagnostics).value),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
   const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
-    status:rfiStatus(cell(row,'status')),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
+    status:rfiStatus(sourceStatusFor(row,'rfi',diagnostics).value),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
   const riskBasis=riskReviewBasis(state);
-  const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>({riskId:cell(row,'risk id'),
-    ...responsibility(row),category:cell(row,'category','risk category','discipline')||null,
-    status:(/^(open|active|mitigating|in progress)$/.test(norm(cell(row,'status')))?'open':/^(closed|resolved)$/.test(norm(cell(row,'status')))?'closed':'unknown') as RiskControlRecord['status'],
-    sourceStatus:cell(row,'status'),rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)}))];
+  const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>{
+    const source=sourceStatusFor(row,'risk',diagnostics);
+    const raw=source.value;
+    return {riskId:cell(row,'risk id'),...responsibility(row),category:cell(row,'category','risk category','discipline')||null,
+      status:(/^(open|active|mitigating|in progress)$/.test(norm(raw))?'open':/^(closed|resolved)$/.test(norm(raw))?'closed':'unknown') as RiskControlRecord['status'],
+      sourceStatus:source.conflicted?'Conflicting source status columns: '+source.observed.map(entry=>entry.field+'='+entry.raw).join('; '):raw,
+      rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)};
+  })];
   const prepare=<T>(items:T[],type:string,id:(r:T)=>string)=>{
     const ds=diagnostics.filter(d=>[...docIds(type)].some(key=>d.includes(key)));
     const ids=items.map(id);if(ids.some(x=>!x))ds.push('RECORD_ID_MISSING');
