@@ -51,6 +51,10 @@ export interface NearCriticalRow {
   calendarId: string | null;
   status: string;
   totalFloatHours: number;
+  submittedTotalFloatHours?: number | null;
+  submittedTotalFloatWorkingDays?: number | null;
+  workingDayHours?: number | null;
+  floatDaysBasis?:'source_activity_calendar'|'calendar_working_day_not_established';
   previousTotalFloatHours?: number | null;
   floatErosionHours?: number | null;
   nearCriticalThresholdHours: number | null;
@@ -101,6 +105,8 @@ export interface NearCriticalProjection {
     criticalCount: number;
     negativeFloatCount: number;
     lowestFloatHours: number | null;
+    lowestFloatWorkingDays?: number | null;
+    lowestFloatActivityId?: string | null;
     floatErosionKnownCount?: number;
     maxFloatErosionHours?: number | null;
     averageFloatErosionHours?: number | null;

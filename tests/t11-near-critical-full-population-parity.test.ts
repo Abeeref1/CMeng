@@ -49,6 +49,19 @@ test('T11 shared near-critical producer retains original every-row float decisio
  assert.equal(result.unknownFloatCount,unfinished.length-known.length);
  assert.equal(result.nearCriticalCount,null,'unknown calendar/float withholds full-count conclusion');
  assert.equal(result.floatRiskWatchlistCount,null);
+ const knownCalendarRow=result.watchlistRows.find(r=>r.calendarId==='DAY'&&r.totalFloatHours!==null)
+   ??result.criticalRows.find(r=>r.calendarId==='DAY');
+ assert.ok(knownCalendarRow,'source calendar float must be represented');
+ assert.equal(knownCalendarRow!.workingDayHours,8);
+ assert.equal(knownCalendarRow!.submittedTotalFloatWorkingDays,
+   Number((knownCalendarRow!.totalFloatHours/8).toFixed(6)));
+ for(const group of result.managementGroups??[]){
+   const corresponding=[...result.watchlistRows,...result.criticalRows,...result.negativeFloatRows]
+     .find(row=>row.activityId===group.lowestFloatActivityId);
+   if(!corresponding)continue;
+   assert.equal(group.lowestFloatHours,corresponding.totalFloatHours);
+   assert.equal(group.lowestFloatWorkingDays,corresponding.submittedTotalFloatWorkingDays);
+ }
  const samples=[
    ...result.boundaryAudit.criticalBoundary.below,
    ...result.boundaryAudit.criticalBoundary.at,

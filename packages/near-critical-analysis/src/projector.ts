@@ -183,6 +183,13 @@ export function buildNearCriticalProjection(
     status: activity.status,
     totalFloatHours:
       activity.totalFloatHours!,
+    submittedTotalFloatHours:activity.totalFloatHours!,
+    submittedTotalFloatWorkingDays:(()=>{
+      const dayHours=workingDayHours(activity.calendarId);
+      return dayHours!==null&&dayHours>0?Number((activity.totalFloatHours!/dayHours).toFixed(6)):null;
+    })(),
+    workingDayHours:workingDayHours(activity.calendarId),
+    floatDaysBasis:workingDayHours(activity.calendarId)!==null?'source_activity_calendar':'calendar_working_day_not_established',
     previousTotalFloatHours:
       input.previousFloat?.totalFloatByActivity.get(activity.activityId) ?? null,
     floatErosionHours:
@@ -437,12 +444,17 @@ export function buildNearCriticalProjection(
     const finishes=group.rows.map(row=>row.currentFinishIso).filter((v):v is string=>!!v).sort();
     const later=group.rows.filter(row=>row.baselineFinishIso&&row.currentFinishIso&&row.currentFinishIso.slice(0,10)>row.baselineFinishIso.slice(0,10)).length;
     const erosions=group.rows.map(row=>row.floatErosionHours).filter((v):v is number=>typeof v==="number"&&Number.isFinite(v));
+    const lowest=group.rows.reduce((best,row)=>!best||row.totalFloatHours<best.totalFloatHours||
+       row.totalFloatHours===best.totalFloatHours&&naturalCompare(row.activityId,best.activityId)<0?row:best,
+       null as (typeof group.rows)[number]|null);
     return {
       wbsId:group.wbsId,wbsPath:group.wbsPath,activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
       nearCriticalCount:group.rows.filter(row=>row.totalFloatHours>config.criticalFloatThresholdHours).length,
       criticalCount:group.rows.filter(row=>row.totalFloatHours<=config.criticalFloatThresholdHours).length,
       negativeFloatCount:group.rows.filter(row=>row.totalFloatHours<0).length,
-      lowestFloatHours:floats.length?Math.min(...floats):null,
+      lowestFloatHours:lowest?.totalFloatHours??null,
+      lowestFloatActivityId:lowest?.activityId??null,
+      lowestFloatWorkingDays:lowest?.submittedTotalFloatWorkingDays??null,
       floatErosionKnownCount:erosions.length,
       maxFloatErosionHours:erosions.length?Math.max(...erosions):null,
       averageFloatErosionHours:erosions.length?Number((erosions.reduce((sum,value)=>sum+value,0)/erosions.length).toFixed(6)):null,
