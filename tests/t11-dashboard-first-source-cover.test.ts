@@ -87,6 +87,8 @@ test('T11 first-class dashboard HTTP request is actually source-only and full de
     const full:any=await complete.json();
     assert.equal(full.key,'master-dashboard');
     assert.ok(full.data?.readiness,'the original full specialist certification is still calculated');
+    assert.deepEqual(initial.data?.projectFacts,full.data?.projectFacts,
+      'the first cold source-backed screen and complete 29-module result must expose identical canonical project facts');
     assert.equal(full.data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value,
       initial.data?.metrics?.find((m:any)=>m.key==='submitted-programme-finish')?.value,
       'full source and initial cover must agree on submitted programme finish');

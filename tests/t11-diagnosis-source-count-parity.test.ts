@@ -47,8 +47,13 @@ test('T11 management diagnosis counts retain full source population, true zero, 
  for(const c of Object.values(diagnosisSourceCounts(unknown,()=>null))){
    assert.equal(c.value,null);assert.equal(c.knownCount,null);assert.equal(c.unresolvedCount,1);
  }
- for(const c of Object.values(diagnosisSourceCounts(trueZero,()=>0))){
-   assert.equal(c.value,0);assert.equal(c.knownCount,0);assert.equal(c.unresolvedCount,0);
+ const known=diagnosisSourceCounts(trueZero,()=>0);
+ assert.equal(known.zeroFloat.value,1,'one original activity has an established 0-hour float');
+ for(const [name,c] of Object.entries(known)){
+   const expected=name==='zeroFloat'?1:0;
+   assert.equal(c.value,expected,name+' count from original source');
+   assert.equal(c.knownCount,expected,name+' established subset');
+   assert.equal(c.unresolvedCount,0,name+' known, not missing');
  }
  for(const c of Object.values(diagnosisSourceCounts([],()=>0))){
    assert.equal(c.value,null);assert.equal(c.knownCount,0);assert.equal(c.population,0);

@@ -8863,7 +8863,7 @@ export function masterDashboardCoverForProject(projectId:string):ModuleRuntimeRe
     const a=Date.parse(submitted.slice(0,10)),b=Date.parse(comparisonFinish.slice(0,10));
     return Number.isFinite(a)&&Number.isFinite(b)?(a-b)/86400000:null;
   };
-  const originalFacts=completedProjectFactsForState(state);
+  const originalFacts=completedProjectFactsForState(state)??projectFactsForState(state);
   const projectFacts=originalFacts??{
     schemaVersion:'1.0',projectId,projectVersion:state.version,dataDateIso:model?.dataDateIso??null,
     time:{
