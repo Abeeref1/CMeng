@@ -56,6 +56,8 @@ test('T11 management diagnosis counts retain full source population, true zero, 
    assert.equal(c.unresolvedCount,0,name+' known, not missing');
  }
  for(const c of Object.values(diagnosisSourceCounts([],()=>0))){
-   assert.equal(c.value,null);assert.equal(c.knownCount,0);assert.equal(c.population,0);
+   assert.equal(c.value,null,'no supplied population cannot establish a known zero');
+   assert.equal(c.knownCount,null,'no supplied population cannot establish a known subset');
+   assert.equal(c.population,0);
  }
 });
