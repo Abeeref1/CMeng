@@ -674,9 +674,9 @@ function renderEvidenceUploadProgress(progress,fileIndex=0,fileTotal=1,transferD
   const phase=uploadPhaseLabel(progress?.state);
   const docDetail=progress?.documentTotal!==null&&progress?.documentTotal!==undefined
     ? (progress.state==="identifying"
-        ? (progress.identifiedDocuments||0)+" / "+progress.documentTotal+" identified"
+        ? screenCountText(progress.identifiedDocuments)+" / "+progress.documentTotal+" identified"
         : progress.state==="processing"
-          ? (progress.processedDocuments||0)+" / "+progress.documentTotal+" processed"
+          ? screenCountText(progress.processedDocuments)+" / "+progress.documentTotal+" processed"
           : progress.documentTotal+" documents")
     : "";
   const fileDetail=fileTotal>1?"File "+(fileIndex+1)+" of "+fileTotal:"";
@@ -883,7 +883,7 @@ async function updateSuppliedBoq(page,query){
 }
 function renderSuppliedBoq(boq){
  if(!boq?.rows?.length&&!boq?.itemCount)return '';
- return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+fmt(boq.itemCount??boq.rows?.length??0)+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
+ return '<section class="planning-panel supplied-boq-panel"><div class="planning-panel-head"><div><h4>Supplied BOQ figures</h4><button class="btn" onclick="openBoqNumericReview()">Review BOQ source and completeness</button><p>'+escapeHtml(boq.sourceFilename||'Uploaded BOQ')+' · '+screenCountText(boq.itemCount??(Array.isArray(boq.rows)?boq.rows.length:null))+' items. Unconfirmed readings remain visible for source review and are excluded from calculations. Unknown values are not zero.</p></div></div><div class="planning-panel-body"><label for="suppliedBoqSearch">Find BOQ item</label><input id="suppliedBoqSearch" type="search" placeholder="Item number, description, section or unit" oninput="updateSuppliedBoq(0,this.value)"><div id="suppliedBoqRows">'+renderSuppliedBoqRows(boq)+'</div></div></section>';
 }
 function renderDeliveryChallenge(data,reason,status){
   const d=data?.deliveryChallenge||{};
@@ -1503,12 +1503,12 @@ function renderLookAheadVisual(data){
     ["Activities with evidence gaps",p.evidenceGapActivityCount,"includes blocked activities","warning"],["Blocked with evidence gaps",p.blockedWithEvidenceGapCount,"Also included in the blocked count","warning"],["Blocker occurrences",p.blockerOccurrenceCount,"may include several per activity","warning"],
     ["Known blocker",p.blockedCount,"at least one explicit blocker","danger"]
   ]);
-  const coverageHtml=experienceDisclosure("Readiness evidence coverage",moduleBarList((p.readinessCoverage||[]).map(row=>({label:humanizeKey(row.key)+" · "+fmt(row.identityKnownCount??row.knownCount)+(row.key==="resource"?" source identities linked / ":" known / ")+fmt(row.denominator)+" · "+fmt(row.linkedActivityCount??0)+" linked activities / "+fmt(row.linkedSourceRecordCount??0)+" records",value:row.identityCoveragePercent??row.coveragePercent})),"accent","%"),"Linked records can still have unresolved timing or status");
+  const coverageHtml=experienceDisclosure("Readiness evidence coverage",moduleBarList((p.readinessCoverage||[]).map(row=>({label:humanizeKey(row.key)+" · "+fmt(row.identityKnownCount??row.knownCount)+(row.key==="resource"?" source identities linked / ":" known / ")+fmt(row.denominator)+" · "+screenCountText(row.linkedActivityCount)+" linked activities / "+screenCountText(row.linkedSourceRecordCount)+" records",value:row.identityCoveragePercent??row.coveragePercent})),"accent","%"),"Linked records can still have unresolved timing or status");
   const trades=p.sourceResourceTrades||[];
   const tradesPanel=trades.length?managementPanel('Resources supporting the look-ahead',
     'Labour assignments are reconciled by exact resource ID first, then by one unambiguous matching trade name when the register IDs differ. Demand, approved capacity and actual use remain separate.',
     '<div class="table-wrap"><table><thead><tr><th>Trade / source ID</th><th>Look-ahead activities</th><th>P6 remaining units</th><th>Resource register match</th><th>Forward resource weeks</th><th>Registered demand</th><th>Source capacity</th><th>Actual use to DD</th><th>Control</th></tr></thead><tbody>'+
-    trades.map(r=>'<tr><td><b>'+escapeHtml(r.trade)+'</b><br><small>'+escapeHtml(r.resourceId||'Source ID not supplied')+'</small></td><td>'+fmt(r.activityIds.length)+'</td><td>'+escapeHtml(r.remainingUnits===null?'Not established':fmt(r.remainingUnits)+' '+(r.unit||'units'))+'</td><td>'+escapeHtml(r.registerMatchBasis||'No comparable resource register record')+'</td><td>'+fmt(r.registerPeriodCount??0)+'</td><td>'+escapeHtml(r.registerPlannedDemand===null?'Not established':fmt(r.registerPlannedDemand)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerAvailableCapacity===null?'Not established':fmt(r.registerAvailableCapacity)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerActualToDate===null?'Not established':fmt(r.registerActualToDate)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.basis)+'</td></tr>').join('')+'</tbody></table></div>'):'';
+    trades.map(r=>'<tr><td><b>'+escapeHtml(r.trade)+'</b><br><small>'+escapeHtml(r.resourceId||'Source ID not supplied')+'</small></td><td>'+fmt(r.activityIds.length)+'</td><td>'+escapeHtml(r.remainingUnits===null?'Not established':fmt(r.remainingUnits)+' '+(r.unit||'units'))+'</td><td>'+escapeHtml(r.registerMatchBasis||'No comparable resource register record')+'</td><td>'+screenCountText(r.registerPeriodCount)+'</td><td>'+escapeHtml(r.registerPlannedDemand===null?'Not established':fmt(r.registerPlannedDemand)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerAvailableCapacity===null?'Not established':fmt(r.registerAvailableCapacity)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.registerActualToDate===null?'Not established':fmt(r.registerActualToDate)+' '+(r.unit||''))+'</td><td>'+escapeHtml(r.basis)+'</td></tr>').join('')+'</tbody></table></div>'):'';
   const timeline=planningLookAheadTimeline({...p,rows:forwardRows});
   const lookAheadPopulationNote=forwardRows.length<inWindow
     ?'<div class="notice info">Showing '+escapeHtml(fmt(forwardRows.length))+' initial forward activities of '+escapeHtml(fmt(inWindow))+' in the current source population. Totals and readiness counts are calculated on the full programme, not the visible rows. Continue in the complete activity register.</div>':'';
@@ -2420,7 +2420,7 @@ function renderActivityFloatReconciliation(review){
   if(!review||!Array.isArray(review.rows)||!(review.rows.length||(review.numericAuditRows||[]).length))return '';
   const id='floatReview'+(++floatReviewSequence);floatReviewStore.set(id,review);
   if(floatReviewStore.size>20)floatReviewStore.delete(floatReviewStore.keys().next().value);
-  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Planner detail: float reconciliation · '+fmt(review.differenceActivityCount??review.disputedActivityCount??0)+' class differences · '+fmt(review.numericDifferenceActivityCount||0)+' numeric differences</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
+  return '<details class="planning-panel" ontoggle="if(this.open)renderFloatReviewRows(\''+id+'\')"><summary>Planner detail: float reconciliation · '+screenCountText(review.differenceActivityCount??review.disputedActivityCount)+' class differences · '+screenCountText(review.numericDifferenceActivityCount)+' numeric differences</summary><div id="'+id+'Rows" class="planning-panel-body"></div></details>';
 }
 function activityReviewRowHtml(a){
   return '<tr><td><b>'+escapeHtml(a.activityId)+'</b><br><span class="muted">'+escapeHtml(a.name||"")+'</span><br><span class="muted">'+escapeHtml(a.wbsPath||a.wbsId||"")+'</span></td>'+
@@ -2726,7 +2726,7 @@ function renderProgressReportVisual(data){
     ],"Activities"))+
   '</div>';
   return '<section class="planning-view progress-position-view">'+renderProgressScope(p.scopeComparison)+kpis+measuresPanel+areaPanel+warning+visualOverview+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current planned phasing, activity percentage-complete snapshot, physical, contractor-reported, certified and earned-value progress remain separate. Current planned phasing is never presented as achieved progress.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme population.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float can overlap critical activities; these counts must not be added.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Reviewed key dates",p.milestones?.reviewedKeyDateCount??0,"selected from this programme; original types retained"],
+    ["Reviewed key dates",p.milestones?.reviewedKeyDateCount??null,"selected from this programme; original types retained"],
     ["Milestones",p.milestones?.populationState==='partial'?null:p.milestones?.milestoneCount,p.milestones?.populationState==='partial'?'Activity types incomplete; milestone total not established':"total"],
     ["Open milestones",p.milestones?.populationState==='partial'?null:p.milestones?.openCount,"open"],
     ["Overdue milestones",p.milestones?.populationState==='partial'?null:p.milestones?.lateOpenCount,"past data date",p.milestones?.lateOpenCount?"danger":""],
@@ -2755,7 +2755,7 @@ function renderScheduleChangeVisual(data){
     ["Added",p.addedActivityCount,"activities","accent"],
     ["Removed",p.removedActivityCount,"activities","neutral"],
     ["Any tracked field changed",p.modifiedActivityCount,"overlapping categories below","warning"],["Execution records modified",p.executionModifiedActivityCount,"eligible for execution analysis"],["Excluded records modified",p.excludedModifiedActivityCount,"LOE / WBS summaries retained for audit"],
-    ["Gross relationship churn",p.grossRelationshipChurn??(knownScreenCount(p.addedRelationshipCount)!==null&&knownScreenCount(p.removedRelationshipCount)!==null?p.addedRelationshipCount+p.removedRelationshipCount:null),"added + removed signatures","warning"],["Net relationship change",p.netRelationshipCountChange,"count difference"],["Type / lag modifications",experienceRecordCount(p.modifiedRelationships),"unique matched endpoints"],["Source target dates changed",p.sourceTargetDateChangeCount??0,"XER planning fields; separate from controlled baseline"],["Declared baseline dates changed",p.baselineMutationActivityCount,"source-declared baseline fields only",p.baselineMutationActivityCount>0?"warning":""]
+    ["Gross relationship churn",p.grossRelationshipChurn??(knownScreenCount(p.addedRelationshipCount)!==null&&knownScreenCount(p.removedRelationshipCount)!==null?p.addedRelationshipCount+p.removedRelationshipCount:null),"added + removed signatures","warning"],["Net relationship change",p.netRelationshipCountChange,"count difference"],["Type / lag modifications",experienceRecordCount(p.modifiedRelationships),"unique matched endpoints"],["Source target dates changed",p.sourceTargetDateChangeCount??null,"XER planning fields; separate from controlled baseline"],["Declared baseline dates changed",p.baselineMutationActivityCount,"source-declared baseline fields only",p.baselineMutationActivityCount>0?"warning":""]
   ]);
   const engineering=p.engineeringChanges;
   const engineeringHtml=engineering?'<section class="planning-panel"><h4>Programme engineering changes</h4>'+planningKpis([
@@ -2818,7 +2818,7 @@ function renderRevisionTrendVisual(data){
   ],data?.projectFacts?.time?.extendedContractCompletionIso?.value||data?.projectFacts?.time?.contractualCompletionIso?.value);
   const pressure=renderFloatPressureTrend(points);
   const changeBars=latest.addedVsPrevious===null?'<div class="empty-visual">N/A: no preceding revision.</div>':planningStatusBand([
-    ["Added",latest.addedVsPrevious||0,"accent"],["Removed",latest.removedVsPrevious||0,"neutral"],["Modified",latest.modifiedVsPrevious||0,"warning"]
+    ["Added",latest.addedVsPrevious??null,"accent"],["Removed",latest.removedVsPrevious??null,"neutral"],["Modified",latest.modifiedVsPrevious??null,"warning"]
   ]);
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(x.sequence)+'</td><td><b>'+escapeHtml(planningRevisionLabel(x.label)||("Revision "+x.sequence))+'</b><br><span class="muted">'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></td><td>'+escapeHtml(x.durationWeightedProgressPercent===null?"—":fmt(x.durationWeightedProgressPercent)+"%")+'</td><td>'+escapeHtml(x.activityCount)+'</td><td>'+escapeHtml(fmt(x.criticalCount))+'</td><td>'+escapeHtml(fmt(x.nearCriticalCount))+'</td><td>'+escapeHtml(fmt(x.negativeFloatCount))+'</td><td>'+escapeHtml(planningShortDate(x.forecastCompletionIso))+'</td><td>'+escapeHtml(x.addedVsPrevious===null||x.removedVsPrevious===null||x.modifiedVsPrevious===null?"N/A: first revision":fmt(x.addedVsPrevious+x.removedVsPrevious+x.modifiedVsPrevious))+'</td></tr>').join("");
   const revisionGaps=p.points.filter((row,index)=>index>0&&(
@@ -4703,7 +4703,7 @@ function renderOperationalReporting(report){
   const rows=groups.map(([name,g])=>'<tr><td>'+escapeHtml(name)+'</td><td>'+escapeHtml(fmt(g.sourceRecordCount))+'</td><td>'+escapeHtml(fmt(g.currentRecordCount))+'</td><td>'+escapeHtml(fmt(g.futureRecordCount))+'</td><td>'+escapeHtml(fmt(g.undatedRecordCount))+'</td><td>'+escapeHtml(fmt(g.unknownStatusCount))+'</td><td>'+escapeHtml(humanizeKey(g.state))+'</td></tr>').join("");
   const riskStates=report.risk.undatedStatusCounts||{};
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Operational register date coverage</h4><p>Raised dates and closure/response dates reconstruct the position at '+escapeHtml(planningShortDate(report.dataDateIso))+'. Later closures cannot close earlier records.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Major / critical NCRs open at DD",report.counts.openCriticalMajorNcrCount??(report.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(report.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),report.counts.openCriticalMajorNcrCount===null?fmt(report.knownCounts?.uncertainCriticalMajorNcrCount??0)+" current records uncertain; full count not confirmed":"dated NCR lifecycle"],
+    ["Major / critical NCRs open at DD",report.counts.openCriticalMajorNcrCount??(report.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(report.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),report.counts.openCriticalMajorNcrCount===null?screenCountText(report.knownCounts?.uncertainCriticalMajorNcrCount)+" current records uncertain; full count not confirmed":"dated NCR lifecycle"],
     ["RFIs open at DD",report.counts.openRfiCount??"Not established","dated RFI lifecycle"],
     ["RFIs overdue at DD",report.counts.overdueRfiCount??"Not established","open with due date before DD"],
     ["Risks open at DD",report.counts.openRiskCount??"Not established","dated risk lifecycle or status snapshot"]
@@ -5068,9 +5068,9 @@ function renderManagementControlVisual(key,data){
     const otherMetrics=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key)&&m.value!==null&&m.value!==undefined);
     const otherGaps=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key)&&(m.value===null||m.value===undefined));
     const readinessDonut=renderDonutChart([
-      {label:"Fully defensible views",value:r.ready??0,tone:"success"},
-      {label:"Views requiring review",value:r.partial??0,tone:"warning"},
-      {label:"Blocked specialist views",value:r.blocked??0,tone:"danger"}
+      {label:"Fully defensible views",value:r.ready??null,tone:"success"},
+      {label:"Views requiring review",value:r.partial??null,tone:"warning"},
+      {label:"Blocked specialist views",value:r.blocked??null,tone:"danger"}
     ],"Assessed specialist modules");
     return '<div class="planning-view management-view master-dashboard-view">'+
       renderPmcControlRoom(data)+
@@ -5079,12 +5079,12 @@ function renderManagementControlVisual(key,data){
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
         ["Project documents",data.evidenceDocumentCount??null,"current evidence library"],
-        ["Calculated specialist views",r.calculationAvailable??0,"a calculation is available"],
-        ["Fully defensible views",r.ready??0,"calculation, evidence and affected consistency checks passed"],
-        ["Review needed",r.partial??0,"usable positions with a stated evidence/review requirement","warning"],
-        ["Blocked specialist views",r.blocked??0,"calculation unavailable","danger"],
-        ["Evidence gaps",r.evidenceGapCount??0,"missing, partial, stale or conflicted evidence","warning"],
-        ["Approvals outstanding",r.governanceGapCount??0,"reports and approval steps","warning"]
+        ["Calculated specialist views",r.calculationAvailable??null,"a calculation is available"],
+        ["Fully defensible views",r.ready??null,"calculation, evidence and affected consistency checks passed"],
+        ["Review needed",r.partial??null,"usable positions with a stated evidence/review requirement","warning"],
+        ["Blocked specialist views",r.blocked??null,"calculation unavailable","danger"],
+        ["Evidence gaps",r.evidenceGapCount??null,"missing, partial, stale or conflicted evidence","warning"],
+        ["Approvals outstanding",r.governanceGapCount??null,"reports and approval steps","warning"]
       ]))+
       experienceSourceContext(key,data)+
       (otherMetrics.length?experienceDisclosure("Additional available project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" available measures"):"")+
@@ -6066,7 +6066,7 @@ function renderPortfolio(){
   const docs=projects.some(p=>p.evidenceDocumentCount===null||p.evidenceDocumentCount===undefined)?"Not established":projects.reduce((sum,p)=>sum+p.evidenceDocumentCount,0);
 
   el("portfolioStats").innerHTML=[
-    ["▣",data.projectCount||0,"Live projects","User projects in this portfolio"],
+    ["▣",screenCountText(data.projectCount),"Live projects","User projects in this portfolio"],
     ["▥",current,"Finish dates available",checking?checking+" project"+(checking===1?"":"s")+" being checked or updated":"Current programme or calculated finish available"],
     ["△",attention,"Need attention","Projects requiring management review"],
     ["▤",docs,"Project documents","Documents registered across live projects"]
