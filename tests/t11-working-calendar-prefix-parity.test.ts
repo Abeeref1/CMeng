@@ -64,7 +64,7 @@ test('T11 exact yearly source working-time prefix equals independent original da
    const expected=originalDaily(calendar,from,to);
    const found=workingHoursBetween(calendar,from,to);
    assert.equal(found,expected,calendar.name+' iteration '+i+' exact original working hour semantics');
-   assert.equal(workingHoursBetween(calendar,to,from),-expected,'negative direction exact');
+   assert.equal(workingHoursBetween(calendar,to,from),from===to?0:-expected,'negative direction exact, including same-instant positive zero');
    assert.equal(workingHoursBetween(calendar,from,from),0,'same instant exact');
  }
  assert.equal(JSON.stringify(population),sourceSnapshot,'every source calendar retained byte-for-byte');
