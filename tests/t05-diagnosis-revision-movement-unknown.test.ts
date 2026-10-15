@@ -66,7 +66,13 @@ test('T05/T06 missing, nonfinite, genuine zero and absent earlier source are dis
     ['ACT-0',1],['ACT-1',0],['ACT-2',-1],
     ['ACT-3',0],['ACT-4',0],['ACT-5',0],['ACT-6',0],
   ]);
-  const first=a.diagnosis(),other=b.diagnosis();
+  // Conflicting report rows with the same activity identity must not
+  // arbitrarily select the last source movement or fabricate a zero.
+  const c=fixture(7,[
+    ['ACT-0',1],['ACT-0',-2],['ACT-1',0],['ACT-2',0],
+    ['ACT-3',0],['ACT-4',0],['ACT-5',0],['ACT-6',0],
+  ]);
+  const first=a.diagnosis(),other=b.diagnosis(),conflict=c.diagnosis();
   assert.ok(first&&other,'source-backed management diagnosis must remain available');
 
   // Expected denominators are independently defined by the source revisions:
@@ -88,6 +94,16 @@ test('T05/T06 missing, nonfinite, genuine zero and absent earlier source are dis
   assert.equal(a.diagnosis()?.counts.previousUpdateSlippage.value,null,
     'a second project must not fill the first project\'s missing evidence');
 
+  assert.ok(conflict,'a source with contradictory movement rows still yields a diagnosis');
+  assert.deepEqual(conflict.counts.previousUpdateSlippage,{
+    knownCount:0,value:null,unresolvedCount:1,population:7,
+  },'duplicate source movements are unresolved instead of last-row wins');
+  assert.equal(conflict.wbsRows[0]?.previousSlippageCount,0,
+    'contradictory source movements must not inflate a WBS total');
+  assert.equal(c.diagnosis()?.counts.previousUpdateSlippage.value,null,
+    'ambiguous source cannot become a known no-slippage total on repeat');
+  assert.equal(JSON.stringify(c.state.schedules),c.sourceSnapshot,
+    'conflicting evidence cannot rewrite the original source revisions');
   assert.equal(JSON.stringify(a.state.schedules),a.sourceSnapshot,
     'the original submitted source history must not be modified');
   assert.equal(JSON.stringify(b.state.schedules),b.sourceSnapshot);
