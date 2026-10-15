@@ -173,6 +173,7 @@ export function projectDocumentRegister(projectId:string){
               ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
             ]:undefined),
             readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
+            semanticAiSteps:(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256),
             schemaHeaders:
               schemaByDocument.get(
                 document.documentId,

@@ -276,6 +276,14 @@ export interface StoredEvidenceDocument {
   derivedRegisterRead?: {producerVersion:string;sourceHashSha256:string};
   tabularRead?: import("../../truth-kernel/src").EvidenceDocument["tabularRead"];
   csvSemantic?: import("../../truth-kernel/src").EvidenceTableSemantic;
+  /** Status of each actual source reading step. No paid model runs merely to
+   * display these receipts; reused steps are SHA-scoped. */
+  semanticAiSteps?: Array<{
+    sheetName:string; sourceHashSha256:string;
+    status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
+    attempted:boolean; note:string;
+  }>;
+
   tableConfirmations?: import("../../truth-kernel/src").EvidenceColumnConfirmation[];
   documentId: string;
   category: EvidenceCategory;

@@ -168,9 +168,9 @@ const sheetSemanticExcludedTypes=new Set([
   'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
 ]);
 
-async function enrichRegisterSheetSemantics(
+export async function enrichRegisterSheetSemantics(
   read:NonNullable<StoredEvidenceDocument['tabularRead']>,
-  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[]}={},
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>}={},
 ){
   let aiCalls=0;
   const configuredAiCalls=Number(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??8);
@@ -181,6 +181,7 @@ async function enrichRegisterSheetSemantics(
       :undefined;
     if(cached?.method==='ai_grounded'){
       sheet.semantic=structuredClone(cached);
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'reused',attempted:false,note:'Previously validated AI column reading reused for identical source hash.'});
       continue;
     }
     const identified=await identifyEvidenceDocument({
@@ -199,16 +200,25 @@ async function enrichRegisterSheetSemantics(
         confidence:route.confidence,method:'tabular_content',signals:['Generic table semantics',...route.basis]};
     }
     const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(sheet.rows,sheet.semantic.documentType,sheet.semantic.columnMeanings??[]);
-    if(options.resolver&&aiCalls<maxAiCalls&&needsSemanticReading){
+    if(!needsSemanticReading){
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'not_required',attempted:false,note:'Deterministic source reading established the available column meanings.'});
+    }else if(options.resolver&&aiCalls<maxAiCalls){
       aiCalls++;
       try{
         const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
           hintedDocumentType:sheet.semantic?.documentType??null});
-        if(resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType))sheet.semantic=resolved;
+        const accepted=!!resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType);
+        if(accepted)sheet.semantic=resolved!;
         else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
-      }catch{options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');}
-    }else if(needsSemanticReading){
-      options.diagnostics?.push('Worksheet '+sheet.name+': some source column meanings remain unresolved. '+(options.resolver?'The per-file AI reading limit was reached.':'AI reading was not enabled for this read.'));
+        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:accepted?'validated':'unresolved',attempted:true,note:accepted?'AI reading passed independent structural and source-column validation.':'AI reading could not validate the remaining original columns.'});
+      }catch{
+        options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');
+        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'failed',attempted:true,note:'AI reading failed; original columns are preserved for review.'});
+      }
+    }else{
+      const status=options.resolver?'call_limit':options.requested?'provider_unavailable':'disabled';
+      options.diagnostics?.push('Worksheet '+sheet.name+': some source column meanings remain unresolved. '+(status==='call_limit'?'The per-file AI reading limit was reached.':'AI reading was not enabled or available for this read.'));
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status,attempted:false,note:status==='call_limit'?'Per-file AI call limit reached without further paid calls.':status==='provider_unavailable'?'AI was requested but the configured provider is unavailable.':'AI reading was not requested; deterministic records remain available.'});
     }
   }
   return read;
@@ -4537,8 +4547,9 @@ export class RuntimeProjectStore {
     const sourceHashSha256=hashBytes(input.bytes);
     const priorSameSource=existingState.evidenceDocuments.find(document=>document.sourceHashSha256===sourceHashSha256);
     const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
+    const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
       :undefined;
     let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){
@@ -4549,13 +4560,28 @@ export class RuntimeProjectStore {
         const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,documentType);
         const needsSemanticReading=!route||tableNeedsSemanticReading(rows,route.documentType);
+        let csvAiAttempted=false,csvAiFailed=false;
         if(!csvSemantic&&semanticResolver&&needsSemanticReading){
+          csvAiAttempted=true;
           try{
             const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
             if(proposed)csvSemantic=proposed;
             else identification.diagnostics.push('AI reading could not establish the remaining column meanings. Source values are retained.');
-          }catch{identification.diagnostics.push('AI reading failed. Unresolved source columns remain available for review.');}
+          }catch{csvAiFailed=true;identification.diagnostics.push('AI reading failed. Unresolved source columns remain available for review.');}
         }
+        const status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']=
+          csvAiFailed?'failed':csvAiAttempted?(csvSemantic?'validated':'unresolved'):
+          csvSemantic?.method==='ai_grounded'?'reused':
+          !needsSemanticReading?'not_required':
+          !input.allowSemanticAi?'disabled':'provider_unavailable';
+        semanticAiSteps.push({sheetName:'CSV',sourceHashSha256,status,attempted:csvAiAttempted,
+          note:status==='validated'?'Validated against original CSV headers and content.':
+            status==='reused'?'Previously grounded source reading reused without another call.':
+            status==='not_required'?'Deterministic CSV column reading is sufficient.':
+            status==='failed'?'AI call failed; original CSV retained.':
+            status==='unresolved'?'AI call did not validate the unmatched source columns.':
+            status==='disabled'?'AI was not requested for this upload.':
+            'AI was requested but no configured provider was available.'});
         const resolved=csvSemantic??route;
         if(resolved&&(identification.method!=='tabular_content'||identification.confidence<0.95||documentType==='supporting_document'||csvSemantic)){
           const previous=documentType;category=resolved.category as EvidenceCategory;documentType=resolved.documentType;
@@ -4564,7 +4590,7 @@ export class RuntimeProjectStore {
             signals:[...identification.signals,...(semanticSignals.length?semanticSignals:['Generic table semantics'])],
             diagnostics:[...identification.diagnostics,(csvSemantic?'CSV_REGISTER_ROLE_ESTABLISHED_FROM_GROUNDED_AI:':'CSV_REGISTER_ROLE_ESTABLISHED_FROM_CONTENT:')+previous+'->'+documentType]});
         }
-      }catch{/* malformed CSV remains governed by the normal reader diagnostics */}
+      }catch{semanticAiSteps.push({sheetName:'CSV',sourceHashSha256,status:'source_read_failed',attempted:false,note:'CSV structure could not be read; source bytes remain retained.'});}
     }
     const lineage =
       inferEvidenceLineage({
@@ -5270,6 +5296,7 @@ export class RuntimeProjectStore {
       lineage,
       assertions,
       tabularRead,
+      semanticAiSteps,
       ...(csvSemantic?{csvSemantic}:{}),
       uploadIntent,
       familyKey:
