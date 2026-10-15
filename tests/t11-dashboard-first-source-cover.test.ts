@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
-import {masterDashboardCoverForProject} from '../packages/runtime-api/src/project-projections';
+import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import {sourceScheduleCompletionBases} from '../packages/schedule-analysis-core/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -37,63 +37,67 @@ function seed(hours:number){
   return {id,state,model,before:JSON.stringify(state.schedules)};
 }
 
-test('T11 first dashboard calculates sourced metrics without materializing every specialist output',()=>{
+
+test('T11 original full management dashboard is complete on first open, not a limited source cover',()=>{
   const a=seed(8),b=seed(12);
   for(const x of [a,b]){
-    const answer=masterDashboardCoverForProject(x.id)!;
-    assert.equal(answer.key,'master-dashboard');
-    assert.ok(answer.data,'source cover exists');
-    const data:any=answer.data;
-    assert.equal(data.viewScope,'source_position');
+    const result=moduleForProject(x.id,'master-dashboard');
+    const data:any=result.data;
+    assert.equal(result.key,'master-dashboard');
+    assert.equal(data.projectionKey,'master_dashboard');
+    assert.ok(Array.isArray(data.metrics)&&data.metrics.length>=12,'full original management metric population');
+    assert.ok(data.readiness&&typeof data.readiness.total==='number'&&data.readiness.total>=29,
+      'the complete specialist readiness population is calculated and not replaced with missing/zero placeholders');
+    assert.ok(data.consistency&&typeof data.consistency.checkCount==='number','cross-module consistency is actually checked');
+    assert.ok(data.projectDiagnosis,'original complete Project Diagnosis is included on the first screen');
+    assert.ok(data.visualControl,'original visual charts and programme-driver facts are included');
+    assert.ok(data.scheduleExceptions,'original schedule exception tables retained');
+    assert.ok(data.operationalReporting,'original operational evidence scope retained');
+    assert.ok(data.projectFacts,'complete canonical facts from the same project');
+    assert.ok(data.positionVerdict,'dashboard still answers the project question immediately');
     assert.equal(data.projectId,x.id);
-    assert.equal(data.projectVersion,x.state.version);
-    assert.ok(data.positionVerdict,'must answer the management question');
-    assert.equal(data.metrics.find((m:any)=>m.key==='submitted-programme-finish')?.value,
-      sourceScheduleCompletionBases(x.model).find(row=>row.basis==='forecast')?.dateIso??null,
-      'the cover uses the untouched source forecast');
-    assert.ok(!('readiness' in data),'uncomputed 29-module assurance must never be reported as zero or ready');
-    assert.ok(!('consistency' in data),'missing cross-module check is never a fictional pass');
-    assert.equal(JSON.stringify(x.state.schedules),x.before,'source revisions must remain immutable');
+    assert.equal('viewScope' in data,false,'there is no smaller substitute dashboard');
+    assert.equal(JSON.stringify(x.state.schedules),x.before,'no original source value or adopted decision is altered');
   }
-  assert.notEqual(a.id,b.id,'different source projects');
+  assert.notEqual(a.id,b.id,'overlapping activity IDs across projects remain isolated');
 });
-
-test('T11 dashboard first request and explicit full-read path are distinct, without weakening full report routes',()=>{
-  const backend=readFileSync(join(process.cwd(),'packages/runtime-api/src/server.ts'),'utf8');
-  const ui=cmengUatHtml();
-  assert.match(backend,/key==='master-dashboard'&&source\.searchParams\.get\('full'\)!=='1'/);
-  assert.match(backend,/masterDashboardCoverForProject\(projectId\)/);
-  assert.match(backend,/moduleForProject\(projectId,key\)/,'the exact original full path must remain available');
-  assert.match(ui,/function loadCompleteMasterDashboard\(/);
-  assert.match(ui,/full=1/,'full detail opens only after explicit interaction');
-  assert.match(ui,/data\?\.viewScope==='source_position'/);
-});
-
-test('T11 first-class dashboard HTTP request is actually source-only and full detail remains exact on demand',async()=>{
+test('T11 default dashboard HTTP route equals complete module and explicit full read, without a button',async()=>{
   const x=seed(8);
   const server=createCmengServer();
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
   try{
-    const addr=server.address() as AddressInfo,base='http://127.0.0.1:'+addr.port+'/api/projects/'+encodeURIComponent(x.id)+'/management/master-dashboard';
+    const address=server.address() as AddressInfo;
+    const base='http://127.0.0.1:'+address.port+'/api/projects/'+encodeURIComponent(x.id)+'/management/master-dashboard';
     const first=await fetch(base);
     assert.equal(first.status,200);
-    const initial:any=await first.json();
-    assert.equal(initial.data?.viewScope,'source_position','the real GET route must NOT build all 29 modules');
-    assert.ok(initial.data?.positionVerdict,'the first visible management answer must be calculated');
-    assert.equal(initial.data?.metrics?.find((m:any)=>m.key==='submitted-programme-finish')?.value,'2031-06-01');
-    assert.equal('readiness' in initial.data,false,'no invented 0 for an uncalculated specialist readiness');
-    const complete=await fetch(base+'?full=1&version='+x.state.version);
-    assert.equal(complete.status,200,'original complete dashboard must remain available on explicit request');
-    const full:any=await complete.json();
-    assert.equal(full.key,'master-dashboard');
-    assert.ok(full.data?.readiness,'the original full specialist certification is still calculated');
-    assert.deepEqual(initial.data?.projectFacts,full.data?.projectFacts,
-      'the first cold source-backed screen and complete 29-module result must expose identical canonical project facts');
-    assert.equal(full.data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value,
-      initial.data?.metrics?.find((m:any)=>m.key==='submitted-programme-finish')?.value,
-      'full source and initial cover must agree on submitted programme finish');
-    assert.equal(JSON.stringify(x.state.schedules),x.before,'opening both views cannot rewrite original source');
+    const firstBody:any=await first.json();
+    assert.ok(firstBody.data?.readiness?.total>=29,'first GET includes all specialist positions');
+    assert.ok(firstBody.data?.projectDiagnosis,'first GET has the original diagnosis');
+    assert.ok(firstBody.data?.visualControl,'first GET has the original charts and tables');
+    assert.ok(firstBody.data?.metrics?.length>=12,'first GET has original management metrics');
+    assert.equal(firstBody.data?.viewScope,undefined,'no source-only cover');
+    const explicit=await fetch(base+'?full=1');
+    assert.equal(explicit.status,200);
+    const fullBody:any=await explicit.json();
+    assert.deepEqual(fullBody.data?.projectFacts,firstBody.data?.projectFacts,'all canonical source facts identical');
+    assert.deepEqual(fullBody.data?.metrics,firstBody.data?.metrics,'no first-open metrics were omitted');
+    assert.deepEqual(fullBody.data?.readiness,firstBody.data?.readiness,'readiness remains fully calculated');
+    assert.deepEqual(fullBody.data?.consistency,firstBody.data?.consistency,'same actual cross-module checks');
+    assert.equal(JSON.stringify(x.state.schedules),x.before);
   }finally{
     await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
   }
+});
+test('T11 browser always displays the complete management visualization on first open',()=>{
+  const script=cmengUatHtml();
+  const serverSource=readFileSync(join(process.cwd(),'packages/runtime-api/src/server.ts'),'utf8');
+  assert.match(serverSource,/const result = moduleForProject\(projectId,key\);/);
+  assert.doesNotMatch(serverSource,/masterDashboardCoverForProject\(projectId\)/);
+  assert.doesNotMatch(script,/loadCompleteMasterDashboard\(/);
+  assert.doesNotMatch(script,/data\?\.viewScope==='source_position'/);
+  assert.match(script,/renderPmcControlRoom\(data\)/);
+  assert.match(script,/renderDashboardExceptions\(data\)/);
+  assert.match(script,/renderDashboardDecisions\(data\)/);
+  assert.match(script,/renderDashboardTrend\(data\)/);
+  assert.match(script,/renderOperationalReporting\(data\.operationalReporting\)/);
 });

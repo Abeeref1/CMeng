@@ -62,7 +62,6 @@ import {
   invalidateProject,
   managementSurfaceForProject,
   managementSurfacesForProject,
-  masterDashboardCoverForProject,
   moduleForProject,
   projectActionRegisterForState,
   overviewForProject,
@@ -2479,9 +2478,7 @@ async function route(
       // entire bundle/29 specialist modules. Open full=1 only on user request.
       // Full report/exports and the full-detail endpoint keep the original
       // checked calculations, tests and source provenance intact.
-      result=publicModuleResult(key==='master-dashboard'&&source.searchParams.get('full')!=='1'
-        ?(masterDashboardCoverForProject(projectId)??moduleForProject(projectId,key))
-        :moduleForProject(projectId,key),key);
+      result=publicModuleResult(moduleForProject(projectId,key),key);
     }else if(advanced&&advancedControlKeys.has(decodeURIComponent(advanced[1]!))){
       result=moduleForProject(projectId,decodeURIComponent(advanced[1]!));
     }else if(pathname==='/api/projects/'+encodeURIComponent(projectId)+'/evidence/documents'){
@@ -2863,13 +2860,10 @@ async function route(
       decodeURIComponent(
         managementSurfaceMatch[2]!,
       );
-    // This is the actual first-class dashboard HTTP route. The detailed
-    // 29-module assurance graph executes ONLY after the user selects Full
-    // Dashboard (full=1). Source facts on the first response are calculated,
-    // never loaded from a missing/zero readiness placeholder.
-    const result = key==='master-dashboard'&&url.searchParams.get('full')!=='1'
-      ? (masterDashboardCoverForProject(projectId)??moduleForProject(projectId,key))
-      :moduleForProject(projectId,key);
+    // The first dashboard GET is the COMPLETE checked management answer,
+    // including readiness, all metrics, Project Diagnosis, charts and source
+    // drill-downs. No optional cover or full=1 button gates the real result.
+    const result = moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
         error:
