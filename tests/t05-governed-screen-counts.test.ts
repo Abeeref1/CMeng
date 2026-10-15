@@ -92,3 +92,31 @@ test('T05 payment screens require retained source authority before zeros are sho
  assert.match(script,/\["Overdue unpaid",governedDisplayCount\(paymentPopulationEstablished,slaCounts\.overdueUnpaid\)/);
  assert.match(script,/\["Paid late",governedDisplayCount\(paymentPopulationEstablished,slaCounts\.paidLate\)/);
 });
+
+
+test('T05 missing screen counts are not zeros, including grouped issue counts',()=>{
+ const helpers=runInNewContext([
+   originalFunction('knownScreenCount'),
+   originalFunction('sumKnownScreenCounts'),
+   originalFunction('screenCountText'),
+   ';({knownScreenCount,sumKnownScreenCounts,screenCountText})'
+ ].join('\n'),{fmt:(value:unknown)=>String(value)}) as {
+   knownScreenCount:(value:unknown)=>number|null;
+   sumKnownScreenCounts:(data:unknown,keys:string[])=>number|null;
+   screenCountText:(value:unknown)=>string;
+ };
+ for(const missing of [null,undefined,'',NaN,Infinity,'0']){
+   assert.equal(helpers.knownScreenCount(missing),null);
+   assert.equal(helpers.screenCountText(missing),'Not established');
+ }
+ assert.equal(helpers.knownScreenCount(0),0);
+ assert.equal(helpers.screenCountText(0),'0');
+ assert.equal(helpers.sumKnownScreenCounts({},['a','b']),null);
+ assert.equal(helpers.sumKnownScreenCounts({a:0},['a','b']),null);
+ assert.equal(helpers.sumKnownScreenCounts({a:0,b:0},['a','b']),0);
+ assert.equal(helpers.sumKnownScreenCounts({a:3,b:2},['a','b']),5);
+ assert.match(script,/const sourceTotal=sumKnownScreenCounts\(overall/);
+ assert.match(script,/countRows=Object\.entries\(descriptions\).*screenCountText\(counts\?\.\[kind\]\)/);
+ assert.match(script,/\["Source uncertainty coverage",uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"Not established"/);
+ assert.doesNotMatch(script,/uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"0%"/);
+});
