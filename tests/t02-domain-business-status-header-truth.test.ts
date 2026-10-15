@@ -59,3 +59,36 @@ test('T02 unknown fields remain explicitly unmapped rather than falsely approved
  assert.equal(result.rows[0]![1],'Reviewed');
  assert.equal(result.rows[0]![2],'Owner to decide');
 });
+
+test('T02 independent source status spellings stay business facts, never adopted decisions',()=>{
+  const input=[
+    ['NCR ID','Status NCR','Closure Status','Source Governance State','Unfamiliar Supplier Note'],
+    ['N-01','Open','Pending','candidate','retained source note'],
+    ['N-02','Closed','Closed','historical','second note'],
+  ];
+  const original=JSON.stringify(input);
+  const parsed=prepareRegisterRows(input,'quality_ncr_register');
+  assert.equal(parsed.recognized,true);
+  assert.equal(parsed.headerRow,1);
+  assert.deepEqual(parsed.headers.slice(0,3),['ncr id','ncr status','closure status']);
+  assert.deepEqual(parsed.rows,input.slice(1));
+  assert.ok(parsed.unknown.includes('Unfamiliar Supplier Note'));
+  assert.equal(JSON.stringify(input),original);
+  const variants=[
+    ['NCR Status','ncr status'],['Status NCR','ncr status'],
+    ['RFI Status','rfi status'],['Status RFI','rfi status'],
+    ['Risk Status','risk status'],['Status Risk','risk status'],
+    ['Submittal Status','submittal status'],['Status Submittal','submittal status'],
+    ['Procurement Status','procurement status'],['Status Procurement','procurement status'],
+    ['Delivery Status','delivery status'],['Status Delivery','delivery status'],
+    ['Package Status','package status'],['Status Package','package status'],
+  ] as const;
+  for(const [sourceHeader,expected] of variants){
+    assert.equal(canonicalHeader(sourceHeader),expected,'business meaning follows the column');
+    assert.equal(isRegisterHeader(sourceHeader),true,'source status must be read');
+  }
+  assert.equal(canonicalHeader('Status'),'status','generic status is never document approval');
+  assert.notEqual(canonicalHeader('Closure Status'),canonicalHeader('NCR Status'));
+  assert.notEqual(canonicalHeader('Response Status'),canonicalHeader('RFI Status'));
+  assert.notEqual(canonicalHeader('Approval Status'),canonicalHeader('Submittal Status'));
+});

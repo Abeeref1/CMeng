@@ -116,6 +116,20 @@ const groups:Record<string,string[]>={
   'cv':['cost variance'],
 };
 const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>[key,...values].map(value=>[normalizeHeader(value),key] as const)));
+// Third-party register headings often reverse an abbreviation and "Status".
+// Keep each business status distinct from closure, response, approval and
+// document governance; this changes no source cell or adoption decision.
+const sourceBusinessStatusNames:readonly (readonly [string,readonly string[]])[]=[
+  ['ncr status',['NCR Status','Status NCR']],
+  ['rfi status',['RFI Status','Status RFI']],
+  ['risk status',['Risk Status','Status Risk']],
+  ['submittal status',['Submittal Status','Status Submittal']],
+  ['procurement status',['Procurement Status','Status Procurement']],
+  ['delivery status',['Delivery Status','Status Delivery']],
+  ['package status',['Package Status','Status Package']],
+];
+for(const [canonical,spellings] of sourceBusinessStatusNames)
+  for(const spelling of spellings)aliases.set(normalizeHeader(spelling),canonical);
 export function canonicalHeader(value:string,documentType=''):string {
   // Document-type identity is part of the cache key (a generic "Reference"
   // legitimately means different things in an RFI versus a payment register).
