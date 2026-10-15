@@ -7,6 +7,8 @@ import {sourceScheduleCompletionBases} from '../packages/schedule-analysis-core/
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {createCmengServer} from '../packages/runtime-api/src/server';
+import type {AddressInfo} from 'node:net';
 
 let sequence=0;
 function seed(hours:number){
@@ -65,4 +67,31 @@ test('T11 dashboard first request and explicit full-read path are distinct, with
   assert.match(ui,/function loadCompleteMasterDashboard\(/);
   assert.match(ui,/full=1/,'full detail opens only after explicit interaction');
   assert.match(ui,/data\?\.viewScope==='source_position'/);
+});
+
+test('T11 first-class dashboard HTTP request is actually source-only and full detail remains exact on demand',async()=>{
+  const x=seed(8);
+  const server=createCmengServer();
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  try{
+    const addr=server.address() as AddressInfo,base='http://127.0.0.1:'+addr.port+'/api/projects/'+encodeURIComponent(x.id)+'/management/master-dashboard';
+    const first=await fetch(base);
+    assert.equal(first.status,200);
+    const initial:any=await first.json();
+    assert.equal(initial.data?.viewScope,'source_position','the real GET route must NOT build all 29 modules');
+    assert.ok(initial.data?.positionVerdict,'the first visible management answer must be calculated');
+    assert.equal(initial.data?.metrics?.find((m:any)=>m.key==='submitted-programme-finish')?.value,'2031-06-01');
+    assert.equal('readiness' in initial.data,false,'no invented 0 for an uncalculated specialist readiness');
+    const complete=await fetch(base+'?full=1&version='+x.state.version);
+    assert.equal(complete.status,200,'original complete dashboard must remain available on explicit request');
+    const full:any=await complete.json();
+    assert.equal(full.key,'master-dashboard');
+    assert.ok(full.data?.readiness,'the original full specialist certification is still calculated');
+    assert.equal(full.data?.projectFacts?.schedule?.submittedProgrammeCompletionIso?.value,
+      initial.data?.metrics?.find((m:any)=>m.key==='submitted-programme-finish')?.value,
+      'full source and initial cover must agree on submitted programme finish');
+    assert.equal(JSON.stringify(x.state.schedules),x.before,'opening both views cannot rewrite original source');
+  }finally{
+    await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
+  }
 });

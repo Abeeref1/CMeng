@@ -2863,7 +2863,13 @@ async function route(
       decodeURIComponent(
         managementSurfaceMatch[2]!,
       );
-    const result = moduleForProject(projectId,key);
+    // This is the actual first-class dashboard HTTP route. The detailed
+    // 29-module assurance graph executes ONLY after the user selects Full
+    // Dashboard (full=1). Source facts on the first response are calculated,
+    // never loaded from a missing/zero readiness placeholder.
+    const result = key==='master-dashboard'&&url.searchParams.get('full')!=='1'
+      ? (masterDashboardCoverForProject(projectId)??moduleForProject(projectId,key))
+      :moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
         error:
