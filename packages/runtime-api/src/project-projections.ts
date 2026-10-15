@@ -4,6 +4,7 @@ import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {milestoneReviewForProjection} from './milestone-review';
 import {sourceProgressEvidence} from './source-progress-evidence';
 import {sourceScheduleCompletionBases} from '../../schedule-analysis-core/src';
+import {latestControlledBaselineCompletion} from './controlled-baseline-completion';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
@@ -752,47 +753,10 @@ function buildBundle(
       ) ??
       activity.forecastFinishIso ??
       activity.currentFinishIso;
-  const controlledBaselineCompletionCandidates =
-    (
-      controlledBaseline
-        ?.revision.model
-        .activities ??
-      []
-    )
-      .map(
-        (activity) => ({
-          activityId:
-            activity.activityId,
-          dateIso:
-            controlledBaselineFinish(
-              activity,
-            ),
-        }),
-      )
-      .filter(
-        (
-          item,
-        ): item is {
-          activityId: string;
-          dateIso: string;
-        } =>
-          item.dateIso !== null &&
-          Number.isFinite(
-            parseScheduleTime(
-              item.dateIso,
-            ),
-          ),
-      )
-      .sort(
-        (a, b) =>
-          a.dateIso.localeCompare(
-            b.dateIso,
-          ),
-      );
   const controlledBaselineCompletion =
-    controlledBaselineCompletionCandidates
-      .at(-1) ??
-    null;
+    latestControlledBaselineCompletion(
+      controlledBaseline?.revision.model.activities ?? [],
+    );
   const varianceDays = (
     baselineIso: string | null,
     currentIso: string | null,

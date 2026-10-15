@@ -52,6 +52,40 @@ export function diagnosisSourceCounts(rows:readonly ActivityAnalyticsRow[],previ
    baselineSlippage:asCount(b,bu),previousUpdateSlippage:asCount(p,pu),scheduleDelayed:asCount(s,su)};
 }
 
+/** T11: exact original full-population management anomaly predicates in one
+ * source scan. Only the first occurrence of each source calendar is eligible,
+ * as in the schedule/float engines; duplicate evidence is not discarded.
+ * Missing/unreadable values are never converted to an established zero. */
+export function diagnosisSourceAnomalies(
+ model:Pick<CanonicalScheduleModel,'activities'|'calendars'>,
+ rows:readonly ActivityAnalyticsRow[],
+ networkDiagnostics:readonly string[]=[],
+){
+ const calendarsById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+ for(const calendar of model.calendars){
+   if(!calendarsById.has(calendar.calendarId))calendarsById.set(calendar.calendarId,calendar);
+ }
+ let constraints=0,openStarts=0,openFinishes=0,isolated=0,unresolvedCalendars=0;
+ let remainingDuration=0,progress=0,unknownStatus=0;
+ // The constraint denominator is the entire supplied schedule model, including
+ // rows that Activity Analytics correctly excludes from execution analysis.
+ for(const activity of model.activities)if(activity.sourceConstraints?.length)constraints++;
+ for(const row of rows){
+   if(row.openStart)openStarts++;
+   if(row.openFinish)openFinishes++;
+   if(row.isolated)isolated++;
+   if(!calendarsById.get(row.calendarId??'')?.semanticComplete)unresolvedCalendars++;
+   if(numeric(row.remainingDurationHours)&&(row.remainingDurationHours<0||
+     row.status==='completed'&&row.remainingDurationHours>0))remainingDuration++;
+   if(numeric(row.percentComplete)&&(row.percentComplete<0||row.percentComplete>100||
+     row.status==='not_started'&&row.percentComplete>0||
+     row.status==='completed'&&row.percentComplete<100))progress++;
+   if(row.status==='unknown')unknownStatus++;
+ }
+ return {constraints,openStarts,openFinishes,isolated,unresolvedCalendars,
+   remainingDuration,progress,unknownStatus,networkDiagnostics};
+}
+
 /** One project-management answer over the existing, as-of, governed producers.
  * No external model, file-name inference, independent date engine or causal
  * attribution. Complete exception lists remain in their existing authorities. */
@@ -209,15 +243,7 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  // Use the FIRST source calendar definition, matching independent schedule
  // analysis and float classification. Later duplicate IDs are retained as
  // evidence but may not silently reverse the original calendar's completeness.
- const calendarsById=new Map<string,typeof model.calendars[number]>();
- for(const calendar of model.calendars){
-   if(!calendarsById.has(calendar.calendarId))calendarsById.set(calendar.calendarId,calendar);
- }
- const anomalies={constraints:model.activities.filter(a=>a.sourceConstraints?.length).length,openStarts:rows.filter(r=>r.openStart).length,openFinishes:rows.filter(r=>r.openFinish).length,isolated:rows.filter(r=>r.isolated).length,
-   unresolvedCalendars:rows.filter(r=>!calendarsById.get(r.calendarId??'')?.semanticComplete).length,
-   remainingDuration:rows.filter(r=>numeric(r.remainingDurationHours)&&(r.remainingDurationHours<0||r.status==='completed'&&r.remainingDurationHours>0)).length,
-   progress:rows.filter(r=>numeric(r.percentComplete)&&(r.percentComplete<0||r.percentComplete>100||r.status==='not_started'&&r.percentComplete>0||r.status==='completed'&&r.percentComplete<100)).length,
-   unknownStatus:rows.filter(r=>r.status==='unknown').length,networkDiagnostics:forecast?.diagnostics??[]};
+ const anomalies=diagnosisSourceAnomalies(model,rows,forecast?.diagnostics??[]);
  const leading=wbsRows.filter(r=>r.pressureCount).slice(0,3),negative=counts.negativeFloat.knownCount;
  const summary=pressureRows.length?'The programme shows schedule pressure in '+leading.map(r=>shortWbs(r.wbs)).join('; ')+'. '+(negative===null?'Source float is unavailable; ':negative+' activities have known negative float; ')+(network?networkRows.filter((r:any)=>unfinished(r)).length+' unfinished activities lie on the calculated finish-driving network.':'the independent finish-driving network is not yet calculable.'):'No confirmed schedule pressure was found in the readable fields. Missing dates, float and statuses are reported separately; this is not confirmation of no project delay.';
  timed('revision_and_anomalies');

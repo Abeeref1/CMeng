@@ -56,6 +56,8 @@ jobs:
             dist/tests/t05-t09-diagnosis-missing-values.test.js \
             dist/tests/t05-diagnosis-revision-movement-unknown.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
+            dist/tests/t11-controlled-baseline-full-source-parity.test.js \
+            dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \
             dist/tests/t02-boq-native-id-ambiguity.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js
       - name: Assert original owner guard integrity and comparator
