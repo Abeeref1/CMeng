@@ -241,7 +241,17 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
     const groupKey=typeof filter?.groupKey==='string'?filter.groupKey:null;
     let matched=query||status||groupKey?value.filter(row=>{
       if(groupKey&&(row as any)?.ownerGroupKey!==groupKey)return false;
-      const rowStatus=String((row as any)?.state??(row as any)?.currentStatus??(row as any)?.permitStatus??(row as any)?.readinessState??(row as any)?.status??(row as any)?.scope??'').toLowerCase();
+      // The explicit current business status wins over administrative source
+      // states such as 'candidate', 'current' and 'verified'. In mixed records
+      // a present-but-blank field must not conceal a later readable status.
+      // Unknown statuses remain unknown; no source is rewritten or counted
+      // as completed merely because it has a source-authority state.
+      const statusValues=[
+        (row as any)?.currentStatus,(row as any)?.permitStatus,
+        (row as any)?.readinessState,(row as any)?.status,
+        (row as any)?.state,(row as any)?.scope,
+      ];
+      const rowStatus=String(statusValues.find(v=>v!==null&&v!==undefined&&String(v).trim().length>0)??'').trim().toLowerCase();
       if(status&&(status==='__open__'?rowStatus==='completed':status==='__completed__'?rowStatus!=='completed':rowStatus!==status))return false;
       // Search item identity, not thousands of historical numeric points.
       // This also prevents an unrelated date/value from matching an item code.
