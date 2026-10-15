@@ -41,23 +41,26 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
     const unresolved=tables.filter(table=>table.recognition?.recognized===false);
     const rows=tables.reduce((sum,table)=>sum+(table.recognition?.recognized===false?table.recognition.readRowCount:table.rows.length),0);
     const fields=new Set(tables.flatMap(table=>table.headers)).size;
-    return {state:unresolved.length?'partial':'read',label:unresolved.length?'Source tables need review':'Source rows read',
+    const complete=document.parserState==='parsed'&&unresolved.length===0;
+    return {state:complete?'read':'partial',label:complete?'Source rows read':'Source tables need review',
       note:`${rows} rows and ${fields} distinct fields read across ${tables.length} parsed tables. ${unresolved.length} tables have unrecognised columns. Field completeness, validation, mapping and adoption are checked separately.`,
-      method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
+      method:'Tabular content',pageCount:null,readPageCount:null,complete};
   }
   const table=tables[0];
   if(table){
     if(table.recognition?.recognized===false)return {state:'unresolved',label:'Columns not recognised',note:`Read ${table.recognition.readRowCount} rows, columns not recognised: ${table.headers.join(', ')}.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
-    return {state:'read',label:'Source rows read',note:`${table.rows.length} rows and ${table.headers.length} fields read from the source. Field completeness, validation, mapping and adoption are checked separately.`,method:'Tabular content',pageCount:null,readPageCount:null,complete:false};
+    const complete=document.parserState==='parsed';
+    return {state:complete?'read':'partial',label:complete?'Source rows read':'Source reading not complete',note:`${table.rows.length} rows and ${table.headers.length} fields read from the source. Field completeness, validation, mapping and adoption are checked separately.`,method:'Tabular content',pageCount:null,readPageCount:null,complete};
   }
   const schedule = state.schedules.find(row => row.sourceHashSha256 === hash &&
     row.revision.revisionId === document.linkedArtifactId);
   if (schedule) {
     const model = schedule.revision.model;
     const unresolvedCalendars = model.calendars.filter(calendar => !calendar.semanticComplete).length;
-    return {state:'read',label:'Schedule rows read',
+    const complete=document.parserState==='parsed'&&schedule.sourceHashSha256===hash&&model.activities.length>0;
+    return {state:complete?'read':'partial',label:complete?'Schedule rows read':'Schedule reading needs review',
       note:`${model.activities.length} activities and ${model.relationships.length} relationships read. ${unresolvedCalendars} calendar definitions need review. Schedule completeness, calendar semantics and comparison authority are assessed separately.`,
-      method:'Schedule parser',pageCount:null,readPageCount:null,complete:false};
+      method:'Schedule parser',pageCount:null,readPageCount:null,complete};
   }
   if (/pdf/i.test(document.mediaType ?? '') && document.parserState !== 'error') {
     return {state:'partial',label:'Full-page coverage unresolved',
