@@ -64,9 +64,9 @@ test('T11: near-critical and WBS projectors reuse first source calendar without 
     generatedAt:'2031-05-01T00:00:00Z',producerVersion:'independent',config,
   });
   assert.equal(breakdown.totalActivityCount,model.activities.filter(isExecutionActivity).length,'full WBS population');
-  const known=breakdown.rows.find(row=>row.wbsId==='KNOWN');
-  assert.ok(known,'known-value WBS is retained');
-  assert.ok(known.criticalCount!==null&&known.nearCriticalCount!==null,'known-value WBS must exercise numeric parity');
+  const knownWbs=breakdown.rows.find(row=>row.wbsId==='KNOWN');
+  assert.ok(knownWbs,'known-value WBS is retained');
+  assert.ok(knownWbs.criticalCount!==null&&knownWbs.nearCriticalCount!==null,'known-value WBS must exercise numeric parity');
   const hierarchyRows=breakdown.hierarchyRows;
   assert.ok(hierarchyRows,'specialist WBS ancestor roll-ups must be present');
   for(const row of [...breakdown.rows,...hierarchyRows,breakdown.overallSummary]){
