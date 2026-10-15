@@ -55,7 +55,17 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const wbsPath=(id:string|null)=>{if(!id)return 'WBS not supplied';if(wbsPaths.has(id))return wbsPaths.get(id)!;const names:string[]=[],seen=new Set<string>();let next:string|null=id;while(next&&!seen.has(next)){seen.add(next);const w=wbsById.get(next);names.unshift(w?.name??next);next=w?.parentWbsId??null;}const label=names.join(' / ');wbsPaths.set(id,label);return label;};
  const rawChanges=data(modules,'schedule-change-report');
  const changes=rawChanges?.state==='ready'&&rawChanges.toRevisionId===model.sourceRevisionId?rawChanges:null;
- const changeById=new Map<string,any>((changes?.changedActivities??[]).map((r:any)=>[r.toActivityId??r.activityId,r]));
+ // Source comparisons can contain more than one change row for the same
+ // reported activity identity (for example an ambiguous rekey). Such rows are
+ // conflicting evidence, not a licence to silently keep the final entry.
+ // Preserve the original changedActivities population in its owning module.
+ const changeById=new Map<string,any>(),duplicateChangeIds=new Set<string>();
+ for(const change of changes?.changedActivities??[]){
+   const id=change.toActivityId??change.activityId;
+   if(typeof id!=='string'||!id.trim())continue;
+   if(changeById.has(id))duplicateChangeIds.add(id);
+   else changeById.set(id,change);
+ }
  const previous=changes?state.schedules.find(s=>s.revision.revisionId===changes.fromRevisionId)?.revision.model:null;
  const previousById=new Map(previous?.activities.map(r=>[r.activityId,r])??[]);
  const network=forecast?.complete?forecast.drivingNetwork:null,drivingIds=new Set<string>(network?.activityIds??[]);
@@ -71,7 +81,7 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const previousMovement=(id:string):number|null=>{
    if(previousMovementCache.has(id))return previousMovementCache.get(id)!;
    const change=changeById.get(id);
-   const result:number|null=!changes?null:change
+   const result:number|null=!changes||duplicateChangeIds.has(id)?null:change
      ?(numeric(change.finishShiftDays)?change.finishShiftDays:null)
      :previousById.has(id)?0:null;
    previousMovementCache.set(id,result);return result;
