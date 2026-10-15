@@ -549,6 +549,57 @@ export function subtractWorkingHours(
   );
 }
 
+// A dense CPM network repeatedly compares tens of thousands of source float
+// dates that may be years apart. The original implementation scanned every
+// intervening UTC day on EVERY activity. An immutable source calendar's exact
+// working milliseconds can instead be summed once per calendar year.
+// Partial first/last days still use the ORIGINAL segment intersection rule,
+// including overnight shifts, holidays, duplicate intervals and exceptions.
+// The cached result is per source calendar OBJECT (never calendar ID/project).
+type YearWorkPrefix={startMs:number;endMs:number;totalMs:Float64Array};
+const calendarWorkYears=new WeakMap<CanonicalCalendar,Map<number,YearWorkPrefix>>();
+function yearStartUtc(year:number):number {
+  const d=new Date(0);
+  d.setUTCFullYear(year,0,1);
+  d.setUTCHours(0,0,0,0);
+  return d.getTime();
+}
+function partialDayWorkMs(calendar:CanonicalCalendar,dayStart:number,fromMs:number,toMs:number):number{
+  let work=0;
+  for(const part of workSegmentsForDate(calendar,dayStart)){
+    const start=Math.max(dayStart,fromMs,part.startMs);
+    const finish=Math.min(dayStart+DAY_MS,toMs,part.finishMs);
+    if(finish>start)work+=finish-start;
+  }
+  return work;
+}
+function workYearPrefix(calendar:CanonicalCalendar,year:number):YearWorkPrefix {
+  let perCalendar=calendarWorkYears.get(calendar);
+  if(!perCalendar){perCalendar=new Map();calendarWorkYears.set(calendar,perCalendar);}
+  const prior=perCalendar.get(year);if(prior)return prior;
+  const startMs=yearStartUtc(year),endMs=yearStartUtc(year+1);
+  const days=Math.round((endMs-startMs)/DAY_MS);
+  const totalMs=new Float64Array(days+1);
+  for(let day=0;day<days;day++){
+    const at=startMs+day*DAY_MS;
+    totalMs[day+1]=totalMs[day]!+partialDayWorkMs(calendar,at,at,at+DAY_MS);
+  }
+  const result={startMs,endMs,totalMs};
+  perCalendar.set(year,result);
+  return result;
+}
+function completeDayWorkMs(calendar:CanonicalCalendar,fromDay:number,toDayExclusive:number):number {
+  let total=0,day=fromDay;
+  while(day<toDayExclusive){
+    const year=workYearPrefix(calendar,new Date(day).getUTCFullYear());
+    const end=Math.min(toDayExclusive,year.endMs);
+    const fromIndex=Math.round((day-year.startMs)/DAY_MS);
+    const toIndex=Math.round((end-year.startMs)/DAY_MS);
+    total+=year.totalMs[toIndex]!-year.totalMs[fromIndex]!;
+    day=end;
+  }
+  return total;
+}
 export function workingHoursBetween(
   calendar: CanonicalCalendar,
   fromMs: number,
@@ -556,40 +607,20 @@ export function workingHoursBetween(
 ): number {
   if (fromMs === toMs) return 0;
   if (continuousElapsedCalendar(calendar)) return (toMs - fromMs) / HOUR_MS;
+  if (toMs < fromMs) return -workingHoursBetween(calendar,toMs,fromMs);
 
-  if (toMs < fromMs) {
-    return -workingHoursBetween(
-      calendar,
-      toMs,
-      fromMs,
-    );
+  const firstDay=utcDayStart(fromMs),lastDay=utcDayStart(toMs);
+  // Small windows need no yearly index. Retain exact original daily semantics.
+  if(lastDay-firstDay<7*DAY_MS){
+    let total=0;
+    for(let day=firstDay;day<=lastDay;day+=DAY_MS)
+      total+=partialDayWorkMs(calendar,day,fromMs,toMs);
+    return total/HOUR_MS;
   }
-
-  let totalMs = 0;
-  let day = utcDayStart(fromMs);
-  const lastDay = utcDayStart(toMs);
-
-  for (let guard = 0; guard < 36525; guard += 1) {
-    const segments =
-      workSegmentsForDate(calendar, day);
-
-    for (const segment of segments) {
-      const start = Math.max(
-        fromMs,
-        segment.startMs,
-      );
-      const finish = Math.min(
-        toMs,
-        segment.finishMs,
-      );
-      if (finish > start) {
-        totalMs += finish - start;
-      }
-    }
-
-    if (day >= lastDay) break;
-    day += DAY_MS;
-  }
-
-  return totalMs / HOUR_MS;
+  // The first and last day are handled by identical source-calendar segment
+  // intersections. All intervening COMPLETE days use an immutable yearly prefix.
+  const first=partialDayWorkMs(calendar,firstDay,fromMs,firstDay+DAY_MS);
+  const middle=completeDayWorkMs(calendar,firstDay+DAY_MS,lastDay);
+  const last=partialDayWorkMs(calendar,lastDay,lastDay,toMs);
+  return (first+middle+last)/HOUR_MS;
 }
