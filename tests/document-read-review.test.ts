@@ -77,3 +77,35 @@ test('complete retained physical PDF checkpoints are read, not falsely partial',
  doc.fullTextReadCheckpoint!.pages.pop();
  assert.equal(documentReadReview(doc,state).state,'partial');
 });
+
+test('T04 fully read commercial and programme sources count without adopting either file',()=>{
+ const store=new RuntimeProjectStore({durable:false});
+ const state=store.getOrCreate('T04-CROSS-DOMAIN-READ');
+ const commercial={documentId:'ipc-register',documentType:'payment_certificate_register',
+  sourceHashSha256:'commercial-sha',parserState:'parsed',basisState:'candidate'} as unknown as StoredEvidenceDocument;
+ const commercialTable={document:{documentId:'ipc-register',sourceHashSha256:'commercial-sha'},
+  headers:['certificate no','net certified','currency'],rows:[{cells:{'certificate no':'IPC-01','net certified':'300','currency':'SAR'}}],
+  recognition:{recognized:true}} as any;
+ const read=documentReadReview(commercial,state,[commercialTable]);
+ assert.equal(read.state,'read');
+ assert.equal(read.complete,true,'recognized complete commercial rows must not be held as physically unread');
+ assert.equal(commercial.basisState,'candidate','readability is not source adoption');
+ const secondTable={...commercialTable,headers:['period end'],rows:[{cells:{'period end':'2031-04-30'}}]};
+ assert.equal(documentReadReview(commercial,state,[commercialTable,secondTable]).complete,true,
+   'two sheets in the same complete file must count as read');
+ secondTable.recognition={recognized:false};
+ assert.equal(documentReadReview(commercial,state,[commercialTable,secondTable]).complete,false,
+   'an unresolved worksheet cannot pass the full-source reading gate');
+ const unfinished={...commercial,parserState:'partial'} as StoredEvidenceDocument;
+ assert.equal(documentReadReview(unfinished,state,[commercialTable]).complete,false);
+ const model={activities:[{activityId:'A1'}],relationships:[],calendars:[{semanticComplete:false}]};
+ state.schedules.push({sourceHashSha256:'programme-sha',revision:{revisionId:'rev-xer',model}} as any);
+ const programme={documentId:'programme',category:'schedule',documentType:'programme',
+  sourceHashSha256:'programme-sha',linkedArtifactId:'rev-xer',parserState:'parsed',basisState:'candidate'} as unknown as StoredEvidenceDocument;
+ const scheduleRead=documentReadReview(programme,state);
+ assert.equal(scheduleRead.state,'read');
+ assert.equal(scheduleRead.complete,true,'valid programme parse is physically complete even with calendar interpretation review');
+ assert.equal(programme.basisState,'candidate','reading does not establish programme adoption');
+ assert.equal(documentReadReview({...programme,sourceHashSha256:'other-hash'},state).complete,false,
+   'mismatched source receipts must never establish programme completion');
+});
