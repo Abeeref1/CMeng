@@ -34,6 +34,7 @@ jobs:
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
             dist/tests/t11-progress-breakdown-float-source-parity.test.js \
+            dist/tests/t11-projection-float-calendar-reuse.test.js \
             dist/tests/t11-float-calendar-full-source-parity.test.js \
             dist/tests/t11-float-reconciliation-calendar-parity.test.js \
             dist/tests/t11-near-critical-calendar-index.test.js \

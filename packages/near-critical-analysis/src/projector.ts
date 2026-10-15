@@ -124,12 +124,25 @@ export function buildNearCriticalProjection(
   // The entire source-float classification is calculated ONCE per known
   // activity. Boundary audit, specialist rows and management counts reuse it;
   // missing calendar semantics still yield null/unknown, not an assumed 24h.
-  const classified = known.map((activity) => ({
-    activity,
-    threshold:activityNearCriticalThresholdHours(model,activity,config,calendarById),
-    classification:sourceFloatCriticality(model,activity,config,calendarById),
-    watch:sourceFloatInFloatRiskWatchlist(model,activity,config,calendarById),
-  }));
+  // The scalar source functions require only calendar identity/config for the
+  // threshold; do not recalculate a working-day threshold three times for
+  // every activity. Keep this map local to the exact source evaluation.
+  const thresholdByCalendar=new Map<string|null,number|null>();
+  const classified = known.map((activity) => {
+    const id=activity.calendarId;
+    if(!thresholdByCalendar.has(id))
+      thresholdByCalendar.set(id,activityNearCriticalThresholdHours(model,activity,config,calendarById));
+    const threshold=thresholdByCalendar.get(id)!;
+    const hours=activity.totalFloatHours!;
+    const classification:ReturnType<typeof sourceFloatCriticality>=
+      hours<=config.criticalFloatThresholdHours?'critical':
+      threshold===null?'unknown':hours<=threshold?'near_critical':'noncritical';
+    const lowerSatisfied=config.floatRiskWatchlistIncludesCriticalThreshold===true
+      ?hours>=config.criticalFloatThresholdHours:hours>config.criticalFloatThresholdHours;
+    const watch:ReturnType<typeof sourceFloatInFloatRiskWatchlist>=
+      threshold===null?null:lowerSatisfied&&hours<=threshold;
+    return {activity,threshold,classification,watch};
+  });
   const rowFor = ({
     activity,
     threshold,

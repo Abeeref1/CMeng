@@ -170,11 +170,23 @@ function buildProgressBreakdownProjectionImpl(
   // Scope this first-source-calendar index to the current source evaluation.
   const calendars=new Map<string,CanonicalScheduleModel['calendars'][number]>();
   for(const c of model.calendars)if(!calendars.has(c.calendarId))calendars.set(c.calendarId,c);
+  // One threshold per *first source* calendar, per projection. The original
+  // scalar readers derive their threshold solely from calendarId and config;
+  // recomputing the working-week average for every WBS/ancestor row needlessly
+  // scales with activity population. No cross-source cache or fallback hours.
   const floatCache=new WeakMap<CanonicalScheduleActivity,{criticality:ReturnType<typeof sourceFloatCriticality>;thresholdHours:number|null}>();
+  const thresholdByCalendar=new Map<string|null,number|null>();
   const sourceFloat=(a:CanonicalScheduleActivity)=>{
     const existing=floatCache.get(a);if(existing)return existing;
-    const result={criticality:sourceFloatCriticality(model,a,config,calendars),
-      thresholdHours:activityNearCriticalThresholdHours(model,a,config,calendars)};
+    const calendarId=a.calendarId;
+    if(!thresholdByCalendar.has(calendarId))
+      thresholdByCalendar.set(calendarId,activityNearCriticalThresholdHours(model,a,config,calendars));
+    const thresholdHours=thresholdByCalendar.get(calendarId)!;
+    const hours=a.totalFloatHours;
+    const criticality:ReturnType<typeof sourceFloatCriticality>=hours===null?'unknown':
+      hours<=config.criticalFloatThresholdHours?'critical':
+      thresholdHours===null?'unknown':hours<=thresholdHours?'near_critical':'noncritical';
+    const result={criticality,thresholdHours};
     floatCache.set(a,result);return result;
   };
   // Scope this cache to one source evaluation, never to a project or process.
