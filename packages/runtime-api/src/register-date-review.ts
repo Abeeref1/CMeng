@@ -21,12 +21,30 @@ const dateFields:Record<string,string[]>={
 export function inspectRegisterDate(table:SourceTable,fields:string[]){
  const columns=fields.filter(f=>table.headers.includes(f));
  const total=table.rows.length;
- const populated=table.rows.filter(r=>cell(r,...fields)!=='').length;
- const valid=table.rows.filter(r=>dateValue(cell(r,...fields))!==null).length;
- const state=!columns.length?'column_not_found':!populated&&total?'values_empty':valid<total?'values_invalid_or_missing':'complete';
+ // Every populated lifecycle date is checked independently. A valid raised
+ // date cannot hide an invalid due, certificate, delivery or closure date.
+ // Empty optional milestone fields do not count as invalid source dates.
+ const fieldAudit=columns.map(field=>{
+  const values=table.rows.map(row=>cell(row,field)).filter(value=>value!=='');
+  return {field,populated:values.length,invalid:values.filter(value=>dateValue(value)===null).length};
+ });
+ const rowAudit=table.rows.map(row=>{
+  const provided=columns.map(field=>cell(row,field)).filter(value=>value!=='');
+  return {populated:provided.length>0,valid:provided.length>0&&provided.every(value=>dateValue(value)!==null)};
+ });
+ const populated=rowAudit.filter(row=>row.populated).length;
+ const valid=rowAudit.filter(row=>row.valid).length;
+ const invalidPopulatedDateCells=fieldAudit.reduce((sum,item)=>sum+item.invalid,0);
+ const state=!columns.length?'column_not_found':!total?'rows_unavailable':!populated?'values_empty':valid<total?'values_invalid_or_missing':'complete';
  return {documentId:table.document.documentId,filename:table.document.sourceFilename,documentType:table.document.documentType,
-  fields,columns,total,populated,valid,missingPercent:total?(total-valid)/total*100:null,state,
-  message:!columns.length?'Column not found: '+fields.join(' or '):!populated&&total?'Column found, values empty: '+columns.join(', '):valid===total?'Date column read: '+valid+' of '+total+' rows; 0% missing.':(total-valid)+' of '+total+' rows have empty or invalid dates in '+columns.join(', ')};
+  fields,columns,total,populated,valid,fieldAudit,invalidPopulatedDateCells,
+  missingPercent:total?(total-valid)/total*100:null,state,
+  message:!columns.length?'Column not found: '+fields.join(' or '):
+   !total?'Date columns are present, but no source record rows were read.':
+   !populated?'Column found, values empty: '+columns.join(', '):
+   valid===total?'All populated date fields read: '+valid+' of '+total+' rows; 0% missing.':
+   (total-valid)+' of '+total+' rows have missing or invalid lifecycle dates in '+columns.join(', ')+
+    (invalidPopulatedDateCells?'; '+invalidPopulatedDateCells+' populated date cell(s) are invalid.':'')};
 }
 export function reviewRegisterDates(tables:SourceTable[]){
  const rows=tables.flatMap(t=>{const fields=dateFields[t.document.documentType??''];return fields?[inspectRegisterDate(t,fields)]:[];});
