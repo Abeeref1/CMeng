@@ -68,7 +68,7 @@ test('T11 shared near-critical producer retains original every-row float decisio
   assert.equal(sample.calendarWorkingDayHours,hours);
   assert.equal(sample.nearCriticalThresholdHours,activityNearCriticalThresholdHours(model,a,config));
  }
- const auditRows=known.map((a:any)=>{
+ const auditRows:Array<{activityId:string;float:number;upperDistance:number|null}>=known.map((a:any)=>{
    const calendar=a.calendarId===null?null:model.calendars.find((c:any)=>c.calendarId===a.calendarId);
    const dayHours=calendarWorkingDayHours(calendar);
    const workingDays=dayHours===null?null:Number((a.totalFloatHours/dayHours).toFixed(6));
