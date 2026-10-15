@@ -71,13 +71,15 @@ test('T11: near-critical and WBS projectors reuse first source calendar without 
   assert.ok(hierarchyRows,'specialist WBS ancestor roll-ups must be present');
   const completeSummary=breakdown.overallSummary;
   assert.ok(completeSummary,'the complete specialist source-scope summary must be present');
-  for(const row of [...breakdown.rows,...hierarchyRows,completeSummary]){
-    const ancestorRoot=hierarchyRows.includes(row as any)&&row.wbsId==='ROOT';
-    const subset=row.wbsId==='DELIVERY_SCOPE'||ancestorRoot
+  const checkRows:Array<{wbsId:string;criticalCount:number|null;nearCriticalCount:number|null}>=
+    [...breakdown.rows,...hierarchyRows,completeSummary];
+  for(const row of checkRows){
+    const ancestorRoot:boolean=hierarchyRows.includes(row as any)&&row.wbsId==='ROOT';
+    const subset:any[]=row.wbsId==='DELIVERY_SCOPE'||ancestorRoot
       ?model.activities.filter(isExecutionActivity)
       :model.activities.filter((a:any)=>isExecutionActivity(a)&&a.wbsId===row.wbsId);
-    const active=subset.filter((a:any)=>a.status!=='completed');
-    const allKnown=active.every((a:any)=>a.totalFloatHours!==null);
+    const active:any[]=subset.filter((a:any)=>a.status!=='completed');
+    const allKnown:boolean=active.every((a:any)=>a.totalFloatHours!==null);
     const thresholdsKnown=active.every((a:any)=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)!==null);
     assert.equal(row.criticalCount,allKnown?active.filter((a:any)=>sourceFloatCriticality(model,a,config)==='critical').length:null,row.wbsId+'/critical');
     assert.equal(row.nearCriticalCount,allKnown&&thresholdsKnown?active.filter((a:any)=>sourceFloatCriticality(model,a,config)==='near_critical').length:null,row.wbsId+'/near');
