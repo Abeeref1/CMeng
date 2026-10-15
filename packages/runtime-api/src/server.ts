@@ -20,6 +20,7 @@ import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
 import {documentReadReview} from './document-read-review';
+import {analyticalOperationalDocuments} from './operational-reporting';
 import JSZip from "jszip";
 import {
   createServer,
@@ -146,6 +147,12 @@ export function projectDocumentRegister(projectId:string){
             table,
         ]),
       );
+    // Candidate is a source-authority state, not a blanket prohibition on
+    // qualified analytics. Disclose only source rows actually read from the
+    // unique clean operational candidate selected by the shared T04 reader.
+    const sourceAnalyticalIds=new Set(analyticalOperationalDocuments(state.evidenceDocuments)
+      .filter(d=>d.basisState==='candidate'&&(tablesByDocument.get(d.documentId)??[]).some(t=>t.rows.length>0))
+      .map(d=>d.documentId));
     return {
       projectId,
       projectVersion:state.version,
@@ -157,6 +164,7 @@ export function projectDocumentRegister(projectId:string){
           .evidence(projectId)
           .map((document) => ({
             ...document,
+            sourceAnalyticalUse:sourceAnalyticalIds.has(document.documentId)?'qualified_source_read':null,
             mapping:schemaByDocument.has(document.documentId)?analyzeEvidenceRows(
               [schemaByDocument.get(document.documentId)!.headers,...schemaByDocument.get(document.documentId)!.rows.map(r=>schemaByDocument.get(document.documentId)!.headers.map(h=>r.cells[h]??''))],
               new Set(runtimeProjects.latestSchedule(projectId)?.revision.model.activities.map(a=>a.activityId)??[])):document.mapping,
