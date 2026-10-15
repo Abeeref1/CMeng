@@ -7083,7 +7083,7 @@ function applyProfessionalModuleState(
       requirementMissing === null || requirementMissing > 0
     ) {
       review(
-        requirementMissing > 0
+        requirementMissing !== null && requirementMissing > 0
           ? String(
               requirementMissing,
             ) +
@@ -7109,7 +7109,7 @@ function applyProfessionalModuleState(
         ?.stageCoveragePercent ??
       null;
     if (
-      count > 0 &&
+      count !== null && count > 0 &&
       coverage !== 100
     ) {
       review(
