@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildNearCriticalProjection} from '../packages/near-critical-analysis/src';
+import {naturalCompare} from '../packages/shared/src/natural-order';
 import {calendarWorkingDayHours,sourceFloatCriticality,sourceFloatInFloatRiskWatchlist,activityNearCriticalThresholdHours} from '../packages/schedule-analysis-core/src';
 
 test('T11 shared near-critical producer retains original every-row float decisions and boundary evidence',()=>{
@@ -67,5 +68,22 @@ test('T11 shared near-critical producer retains original every-row float decisio
   assert.equal(sample.calendarWorkingDayHours,hours);
   assert.equal(sample.nearCriticalThresholdHours,activityNearCriticalThresholdHours(model,a,config));
  }
+ const auditRows=known.map((a:any)=>{
+   const calendar=a.calendarId===null?null:model.calendars.find((c:any)=>c.calendarId===a.calendarId);
+   const dayHours=calendarWorkingDayHours(calendar);
+   const workingDays=dayHours===null?null:Number((a.totalFloatHours/dayHours).toFixed(6));
+   const upperDistance=workingDays===null?null:Number((workingDays-config.nearCriticalWorkingDays).toFixed(6));
+   return {activityId:a.activityId,float:a.totalFloatHours,upperDistance};
+ });
+ const criticalOrder=(a:any,b:any)=>Math.abs(a.float-config.criticalFloatThresholdHours)-Math.abs(b.float-config.criticalFloatThresholdHours)||naturalCompare(a.activityId,b.activityId);
+ const upperOrder=(a:any,b:any)=>Math.abs(a.upperDistance??Infinity)-Math.abs(b.upperDistance??Infinity)||naturalCompare(a.activityId,b.activityId);
+ const exact=(actual:readonly {activityId:string}[],eligible:(row:any)=>boolean,compare:(a:any,b:any)=>number)=>
+   assert.deepEqual(actual.map(row=>row.activityId),auditRows.filter(eligible).sort(compare).slice(0,100).map(row=>row.activityId),
+      'T11 optimized first-100 sampling must equal the original full-population sort, including source ties');
+ exact(result.boundaryAudit.criticalBoundary.below,row=>row.float<config.criticalFloatThresholdHours,criticalOrder);
+ exact(result.boundaryAudit.criticalBoundary.at,row=>row.float===config.criticalFloatThresholdHours,(a,b)=>naturalCompare(a.activityId,b.activityId));
+ exact(result.boundaryAudit.criticalBoundary.above,row=>row.float>config.criticalFloatThresholdHours,criticalOrder);
+ exact(result.boundaryAudit.nearCriticalUpperBoundary.inside,row=>row.upperDistance!==null&&row.upperDistance<=0,upperOrder);
+ exact(result.boundaryAudit.nearCriticalUpperBoundary.outside,row=>row.upperDistance!==null&&row.upperDistance>0,upperOrder);
  assert.equal(JSON.stringify(model),before,'source rows, duplicate calendar identities and decisions preserved');
 });
