@@ -64,3 +64,16 @@ test('T07 future payment does not inflate current linked cash or source populati
  assert.equal(result.linked,0);
  assert.equal(result.rows[0]?.state,'future');
 });
+
+test('T05/T07 reporting Data Date absent cannot convert retained payment evidence into a zero or certified current linkage',()=>{
+ const rows=[cert('DOC-G','IPC-009','2032-02-29','2032-03-03')];
+ const state=project();
+ const result=sourceCommercialEvidence(state,{payments:rows},position,null).paymentLinkage;
+ assert.equal(result.total,null,'current population is unknown without an as-of date');
+ assert.equal(result.linked,null,'missing basis is not zero linked');
+ assert.equal(result.unlinked,null,'missing basis is not zero unlinked');
+ assert.equal(result.coveragePercent,null);
+ assert.equal(result.rows.length,1,'original source payment remains inspectable');
+ assert.equal(result.rows[0]?.state,'cutoff_missing');
+ assert.equal(result.rows[0]?.certificateReference,null,'no current certification inferred');
+});

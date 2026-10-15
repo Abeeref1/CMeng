@@ -1,0 +1,2 @@
+15 October 2026 — T05/T07 missing reporting date not zero (partial)
+Source payment/certificate records were reported as currently linked and totalled even when the Data Date was not established. Source records now remain visible, but current linked/unlinked population and rates are null when reporting cutoff is invalid or absent, avoiding false cash assurance. One independent cross-domain regression added. Remaining T05/T07 items and owner live acceptance remain open; no deployment.

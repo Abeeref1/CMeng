@@ -15,13 +15,14 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   const instant=Date.parse(token+'T00:00:00Z');
   return Number.isFinite(instant)&&new Date(instant).toISOString().slice(0,10)===token?token:null;
  };
- const visible=(d:string|null)=>{const date=validDate(d);return date!==null&&(!cutoff||date<=cutoff);};
+ const reportingDate=validDate(cutoff);
+ const visible=(d:string|null)=>{const date=validDate(d);return date!==null&&(!reportingDate||date<=reportingDate);};
  const refs=(row:any)=>row.receipt?[row.receipt.documentId+':'+row.receipt.locator]:[];
  const certificates=(ledger.payments??[]).filter((p:any)=>visible(p.certificationDate)&&!/appli(?:ed|cation)|submitted|draft|pending certification/i.test(p.sourceStatus??'')&&
    [p.amounts?.grossCertifiedAmount?.value,p.amounts?.netCertifiedAmount?.value,p.amounts?.employerCertifiedAmount?.value].some(v=>typeof v==='number'&&Number.isFinite(v)));
  const byNumber=new Map<string,any[]>();
  for(const row of certificates){const k=key(row.paymentId);if(k)byNumber.set(k,[...(byNumber.get(k)??[]),row]);}
- type PaymentLink={reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'future';certificateReference:string|null;basis:string;sourceRefs:string[]};
+ type PaymentLink={reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'cutoff_missing'|'future';certificateReference:string|null;basis:string;sourceRefs:string[]};
  const links:PaymentLink[]=[];const seen=new Set<string>();
  const reviewedRelationships=state.linkCandidateReviews??[],projectVersion=state.version;
  const retain=(reference:string,certificateNumber:string,certificateDate:string|null,paymentDate:string|null,amount:number|null,currency:string|null,sourceRefs:string[])=>{
@@ -51,12 +52,12 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   // Contradictory confirmed choices must remain visible as a conflict even
   // if only one target passes a later date/currency filter.
   const conflictingChoices=confirmedTargets.size>1;
-  const state:PaymentLink['state']=!paymentDate?'date_missing':!visible(paymentDate)?'future':conflictingChoices?'ambiguous':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';
+  const state:PaymentLink['state']=!reportingDate?'cutoff_missing':!paymentDate?'date_missing':!visible(paymentDate)?'future':conflictingChoices?'ambiguous':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';
   links.push({reference,certificateNumber,certificateDate,paymentDate,amount,currency,state,
    certificateReference:state==='linked'?unique[0].paymentId:null,
    basis:state==='linked'?(confirmedTargets.size===1?'Explicitly user-confirmed certificate relationship; dates and currency revalidated':'Exact certificate reference and compatible certificate/payment dates; same currency'):
     state==='ambiguous'?(conflictingChoices?'Conflicting confirmed certificate sources require a reviewed choice':'More than one certificate matches; source selection required'):
-    state==='future'?'Payment is after the reporting date':state==='date_missing'?'Actual payment date is not recorded':
+    state==='future'?'Payment is after the reporting date':state==='cutoff_missing'?'Reporting Data Date is not established; no as-of cash assertion can be made':state==='date_missing'?'Actual payment date is not recorded':
     confirmedTargets.size&&!currency?'Saved source selection retained; payment currency must be established before linkage':
     confirmedTargets.size?'Saved certificate source selection did not meet dated, issued and same-currency evidence checks':
     'No unique dated certificate matches the payment reference',
@@ -79,7 +80,7 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   const source=refs(row);if(links.some(link=>link.sourceRefs.some(r=>source.includes(r))))continue;
   retain(row.paymentReference||row.paymentId,row.paymentId,validDate(row.certificationDate),validDate(row.paymentDate),amount,row.amounts?.paidAmount?.currency??null,source);
  }
- const eligible=links.filter(r=>r.state!=='future'),linked=eligible.filter(r=>r.state==='linked').length;
+ const eligible=links.filter(r=>r.state!=='future'&&r.state!=='cutoff_missing'),linked=eligible.filter(r=>r.state==='linked').length;
  const advanceBonds=(ledger.bonds??state.controls?.bonds??[]).filter((r:any)=>/advance|mobilis|mobiliz/i.test([r.bondType,r.type,r.kind,r.name,r.description,r.bondId].join(' ')));
  const certifiedProgress=(position.certificateProfile?.groups??[]).flatMap((group:any)=>{
   const contract=(position.currencies??[]).find((c:any)=>c.currency===group.currency)?.currentContractValue?.value;
@@ -87,7 +88,7 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   return typeof contract==='number'&&contract>0&&typeof certified==='number'?[{currency:group.currency,taxBasis:group.taxBasis,valuePercent:certified/contract*100,
     certifiedWork:certified,contractValue:contract,basis:'Certified work divided by the same-currency current contract; financial certification, not measured physical completion',sourceRefs:group.sourceRefs??[]}]:[];
  });
- return {paymentLinkage:{total:eligible.length,linked,unlinked:eligible.length-linked,coveragePercent:eligible.length?linked/eligible.length*100:null,rows:links,
+ return {paymentLinkage:{total:reportingDate?eligible.length:null,linked:reportingDate?linked:null,unlinked:reportingDate?eligible.length-linked:null,coveragePercent:reportingDate&&eligible.length?linked/eligible.length*100:null,rows:links,
    basis:'Dated actual-payment records linked by certificate business reference, date and currency. Unpaid applications are not actual receipts.'},
   heldEvidence:{advancePaymentBonds:{state:advanceBonds.length?'records_present':'not_in_source',count:advanceBonds.length,rows:advanceBonds,
     basis:'Instrument records already held; contractual required cover and current validity remain separate checks.'},
