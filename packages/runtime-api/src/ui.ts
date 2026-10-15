@@ -2294,7 +2294,7 @@ function renderPmoVisual(data){
   '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
-      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??0],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not established"]
+      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??null],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not established"]
     ]],
     ["Progress",[
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
@@ -2738,7 +2738,7 @@ function renderScheduleChangeVisual(data){
     ["Added",p.addedActivityCount,"activities","accent"],
     ["Removed",p.removedActivityCount,"activities","neutral"],
     ["Any tracked field changed",p.modifiedActivityCount,"overlapping categories below","warning"],["Execution records modified",p.executionModifiedActivityCount,"eligible for execution analysis"],["Excluded records modified",p.excludedModifiedActivityCount,"LOE / WBS summaries retained for audit"],
-    ["Gross relationship churn",p.grossRelationshipChurn??((p.addedRelationshipCount||0)+(p.removedRelationshipCount||0)),"added + removed signatures","warning"],["Net relationship change",p.netRelationshipCountChange,"count difference"],["Type / lag modifications",experienceRecordCount(p.modifiedRelationships),"unique matched endpoints"],["Source target dates changed",p.sourceTargetDateChangeCount??0,"XER planning fields; separate from controlled baseline"],["Declared baseline dates changed",p.baselineMutationActivityCount,"source-declared baseline fields only",p.baselineMutationActivityCount>0?"warning":""]
+    ["Gross relationship churn",p.grossRelationshipChurn??(knownScreenCount(p.addedRelationshipCount)!==null&&knownScreenCount(p.removedRelationshipCount)!==null?p.addedRelationshipCount+p.removedRelationshipCount:null),"added + removed signatures","warning"],["Net relationship change",p.netRelationshipCountChange,"count difference"],["Type / lag modifications",experienceRecordCount(p.modifiedRelationships),"unique matched endpoints"],["Source target dates changed",p.sourceTargetDateChangeCount??0,"XER planning fields; separate from controlled baseline"],["Declared baseline dates changed",p.baselineMutationActivityCount,"source-declared baseline fields only",p.baselineMutationActivityCount>0?"warning":""]
   ]);
   const engineering=p.engineeringChanges;
   const engineeringHtml=engineering?'<section class="planning-panel"><h4>Programme engineering changes</h4>'+planningKpis([
@@ -2746,7 +2746,7 @@ function renderScheduleChangeVisual(data){
     ['Original durations changed',experienceRecordCount(engineering.originalDurationActivityIds),'activities'],['Remaining durations changed',experienceRecordCount(engineering.remainingDurationActivityIds),'progress and estimate changes'],['Constraints changed',experienceRecordCount(engineering.constraintActivityIds),'activities'],['Calendars changed',experienceRecordCount(engineering.calendarActivityIds),'activity assignments'],['Lags changed',engineering.lagChangeCount,'matched relationships'],['Relationship types changed',engineering.relationshipTypeChangeCount,'matched relationships']
   ])+(engineering.updateGapCalendarDays>45?'<p class="notice warn">'+fmt(engineering.updateGapCalendarDays)+' calendar days between updates. The intervening history cannot identify when each change occurred.</p>':'')+'</section>':'';
   const categoryHtml=moduleBarList((p.changeCategories||[]).map(row=>({label:humanizeKey(row.category),value:row.activityCount})));
-  const identityHtml='<div class="notice info">Source record comparison. Identity coverage: '+escapeHtml(fmt(p.identityCoveragePercent))+'%. Ambiguous identities: '+escapeHtml(fmt((p.ambiguousFromActivityIds?.length||0)+(p.ambiguousToActivityIds?.length||0)))+'. Categories overlap and must not be summed. XER target dates remain source planning fields; they do not prove that the separate controlled baseline changed.</div>';
+  const identityHtml='<div class="notice info">Source record comparison. Identity coverage: '+escapeHtml(fmt(p.identityCoveragePercent))+'%. Ambiguous identities: '+escapeHtml(screenCountText(Array.isArray(p.ambiguousFromActivityIds)&&Array.isArray(p.ambiguousToActivityIds)?p.ambiguousFromActivityIds.length+p.ambiguousToActivityIds.length:null))+'. Categories overlap and must not be summed. XER target dates remain source planning fields; they do not prove that the separate controlled baseline changed.</div>';
   const composition=planningStatusBand([
     ["Added",p.addedActivityCount,"accent"],["Removed",p.removedActivityCount,"neutral"],["Modified",p.modifiedActivityCount,"warning"],["Unchanged",p.unchangedActivityCount,"success"]
   ]);
@@ -2964,10 +2964,10 @@ function renderCommercialCapabilityVisual(key,data){
     const rows=data.rows||[],lc=data.lifecycleCounts||{},sla=data.slaCounts||{};
     return '<section class="planning-view commercial-capability">'+planningKpis([
       ["Certificates by Data Date",data.asOfRecordCount??data.recordCount,"current population"],
-      ["Future",data.futureRecordCount??0,"excluded from current"],
-      ["Undated",data.undatedRecordCount??0,"excluded from current"],
+      ["Future",data.futureRecordCount??null,"excluded from current"],
+      ["Undated",data.undatedRecordCount??null,"excluded from current"],
       ["Stage coverage",data.stageCoveragePercent===null?"Not established":fmt(data.stageCoveragePercent)+"%","application → payment"],
-      ["Applied",lc.applied??0,"records"],["Assessed",lc.assessed??0,"records"],["Certified",lc.certified??0,"records"],["Paid",lc.paid??0,"records"],
+      ["Applied",lc.applied??null,"records"],["Assessed",lc.assessed??null,"records"],["Certified",lc.certified??null,"records"],["Paid",lc.paid??null,"records"],
       ["Overdue unpaid",sla.overdueUnpaid===null||sla.overdueUnpaid===undefined?"Not assessable":sla.overdueUnpaid,"confirmed due dates only"]
     ])+head("Payment / IPC register","Application, assessment, certification and payment are separate lifecycle events. Future and undated periods never enter current totals.")+
       table(["Payment","Type","Period","Applied","Assessed","Certified","Payment due","Paid","SLA"],rows.slice(0,500).map(r=>'<tr><td><b>'+escapeHtml(r.paymentId)+'</b></td><td>'+escapeHtml(r.paymentType||"—")+'</td><td>'+escapeHtml(planningShortDate(r.periodEnd))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.applicationDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.assessmentDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.certificationDate))+'</td><td>'+escapeHtml(commercialCapabilityValue(r.lifecycle?.paymentDueDate))+'</td><td>'+escapeHtml(planningShortDate(r.lifecycle?.paymentDate))+'</td><td>'+escapeHtml(humanizeKey(r.lifecycle?.slaState||"not established"))+'</td></tr>'),"No payment records are established.")+'</div></section></section>';
@@ -3152,7 +3152,7 @@ function renderMilestonesVisual(data){
   const priorityRows=[...p.rows].filter(r=>r.status!=="completed").sort((a,b)=>planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Number.MAX_SAFE_INTEGER)-(b.daysFromDataDate??Number.MAX_SAFE_INTEGER))||((b.varianceDays||0)-(a.varianceDays||0)));
   const topPriority=priorityRows[0]||null;
   const kpis=planningKpis([
-    ["Open milestones",full?.identificationComplete===false||full?.statusCounts?.statusUnknown?"Not established · "+fmt((full?.statusCounts?.overdue||0)+(full?.statusCounts?.nonOverdue||0)+(full?.statusCounts?.dueUnknown||0))+" identified open":p.openCount,"of "+fmt(p.milestoneCount)+" identified records"],
+    ["Open milestones",full?.identificationComplete===false||full?.statusCounts?.statusUnknown?"Not established · "+screenCountText(sumKnownScreenCounts(full?.statusCounts,['overdue','nonOverdue','dueUnknown']))+" identified open":p.openCount,"of "+fmt(p.milestoneCount)+" identified records"],
     ["Submitted float critical",criticalCount,"open milestones · submitted float",criticalCount?"danger":""],
     ["Negative float",negativeFloatCount,"open milestones",negativeFloatCount?"danger":""],
     ["Near-critical",nearCriticalCount,"open milestones",nearCriticalCount?"warning":""],
@@ -3165,11 +3165,11 @@ function renderMilestonesVisual(data){
       ?"Float coverage is partial; milestones without float are not silently treated as non-critical"
       :"Source-float classification is not confirmed because milestone float is unavailable";
   const nearCriticalRule=p.nearCriticalThresholdBasis==="activity_calendar_working_days"&&p.nearCriticalThresholdWorkingDays!==null&&p.nearCriticalThresholdWorkingDays!==undefined
-    ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h through +"+fmt(p.nearCriticalThresholdWorkingDays)+" working days using each activity calendar"
+    ?"near-critical > "+screenCountText(p.criticalFloatThresholdHours)+" h through +"+fmt(p.nearCriticalThresholdWorkingDays)+" working days using each activity calendar"
     : typeof p.nearCriticalFloatThresholdHours==="number"
-      ?"near-critical > "+fmt(p.criticalFloatThresholdHours??0)+" h to "+fmt(p.nearCriticalFloatThresholdHours)+" h"
+      ?"near-critical > "+screenCountText(p.criticalFloatThresholdHours)+" h to "+fmt(p.nearCriticalFloatThresholdHours)+" h"
       :"near-critical threshold not confirmed";
-  const basis='<div class="milestone-basis-note"><span><b>Float classification:</b> current submitted programme total float. Critical ≤ '+escapeHtml(fmt(p.criticalFloatThresholdHours??0))+' h; '+escapeHtml(nearCriticalRule)+'. Float threshold approval: '+escapeHtml(humanizeKey(p.controlBasis?.state==='missing'?'not_established':p.controlBasis?.state||'not_established'))+'; method: '+escapeHtml(humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||'unresolved'))+'; '+escapeHtml(fmt(p.controlBasis?.sourceRefs?.length))+' source reference(s) in evidence detail.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
+  const basis='<div class="milestone-basis-note"><span><b>Float classification:</b> current submitted programme total float. Critical ≤ '+escapeHtml(screenCountText(p.criticalFloatThresholdHours))+' h; '+escapeHtml(nearCriticalRule)+'. Float threshold approval: '+escapeHtml(humanizeKey(p.controlBasis?.state==='missing'?'not_established':p.controlBasis?.state||'not_established'))+'; method: '+escapeHtml(humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||'unresolved'))+'; '+escapeHtml(fmt(p.controlBasis?.sourceRefs?.length))+' source reference(s) in evidence detail.</span><span><b>'+escapeHtml(basisState)+'</b>'+(p.floatCoveragePercent===null||p.floatCoveragePercent===undefined?'':' · '+escapeHtml(fmt(p.floatCoveragePercent))+'% coverage')+'</span></div>';
   const attention=planningAttention([
     negativeFloatCount?{title:"Investigate negative-float milestones",text:"Validate constraints, dates and driving logic before selecting recovery actions.",value:negativeFloatCount,tone:"danger"}:null,
     criticalCount?{title:"Review source-float critical milestones",text:"Independent driving-path evidence is required before claiming an effect on project completion.",value:criticalCount,tone:"danger"}:null,
@@ -3255,9 +3255,9 @@ const movementClusters=new Map();
   const lateMilestones=managementPanel('Late milestone commitments — active versus history',
     'Past-due open commitments require intervention; baseline slippage is a separate comparison. Completed milestones are historic actuals and have no live float exposure.',
     planningKpis([
-      ['Open milestones past their current finish',p.lateOpenCount??'Not established · '+fmt(full?.statusCounts?.overdue??0)+' known','not completed at the reporting Data Date'],
-      ['Open milestones later than baseline',full?.identificationComplete!==false&&full?.openLateBaselineTotal!=null?full.openLateBaselineTotal:'Not established · '+fmt(full?.openLateBaselineCount??0)+' known','current versus controlled baseline; overlaps overdue population'],
-      ['Completed after baseline',full?.identificationComplete!==false&&full?.completedLateBaselineTotal!=null?full.completedLateBaselineTotal:'Not established · '+fmt(full?.completedLateBaselineCount??0)+' known','historical actual completion; not live float pressure']
+      ['Open milestones past their current finish',p.lateOpenCount??'Not established · '+screenCountText(full?.statusCounts?.overdue)+' known','not completed at the reporting Data Date'],
+      ['Open milestones later than baseline',full?.identificationComplete!==false&&full?.openLateBaselineTotal!=null?full.openLateBaselineTotal:'Not established · '+screenCountText(full?.openLateBaselineCount)+' known','current versus controlled baseline; overlaps overdue population'],
+      ['Completed after baseline',full?.identificationComplete!==false&&full?.completedLateBaselineTotal!=null?full.completedLateBaselineTotal:'Not established · '+screenCountText(full?.completedLateBaselineCount)+' known','historical actual completion; not live float pressure']
     ])+
     (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):((full?.overdueOpenCount??0)>0?'<p>Open overdue milestones exist in the full source population but are outside this preview. Download the complete register.</p>':p.lateOpenCount===0?'<p>No current open milestone finish date is overdue in the established population.</p>':'<p>The complete overdue milestone count is not established; missing population, status or date evidence remains unresolved.</p>'))+
     (openBaselineLate.length?'<details><summary>Open milestones later than baseline · '+fmt(openBaselineLate.length)+'</summary>'+basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openBaselineLate,50,'baseline'))+'</details>':'')+
@@ -3397,7 +3397,7 @@ function renderManhourVisual(data){
     ["Period actual coverage",periodCoverage==null?"Not established":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
   ]);
   const unitNote=(p.excludedNonHourLaborResourceIds||[]).length||p.unresolvedUnitLaborAssignmentCount
-    ? '<div class="notice warn"><b>Non-hour labour evidence excluded.</b> '+escapeHtml(fmt((p.excludedNonHourLaborResourceIds||[]).length))+' labour resource definition(s) and '+escapeHtml(fmt(p.unresolvedUnitLaborAssignmentCount||0))+' labour assignment(s) do not establish an hour unit and are excluded from the man-hour curve.</div>'
+    ? '<div class="notice warn"><b>Non-hour labour evidence excluded.</b> '+escapeHtml(fmt((p.excludedNonHourLaborResourceIds||[]).length))+' labour resource definition(s) and '+escapeHtml(screenCountText(p.unresolvedUnitLaborAssignmentCount))+' labour assignment(s) do not establish an hour unit and are excluded from the man-hour curve.</div>'
     : '<div class="notice info"><b>Labour-hour unit gate passed.</b> Man-hour totals use only labour resources whose unit metadata explicitly establishes hours.</div>';
   const note=!actualEstablished
     ? '<div class="notice warn"><b>Actual man-hours are not confirmed.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
@@ -4221,7 +4221,7 @@ function renderCommercialVisual(key,data){
       const ld=contractControls.liquidatedDamages||{};
       const bi=contractControls.bondsInsurance||{};
       const ret=contractControls.retentionCalendar||{};
-      const obligationsEstablished=Number(obl.explicitRecordCount??0)>0;
+      const obligationsEstablished=knownScreenCount(obl.explicitRecordCount)!==null&&obl.explicitRecordCount>0;
       const bondsEstablished=Array.isArray(bi.bonds)&&bi.bonds.length>0;
       const insuranceEstablished=Array.isArray(bi.insurances)&&bi.insurances.length>0;
       const retentionRecordsEstablished=Number(ret.recordCount??(ret.rows||[]).length)>0;
@@ -4231,10 +4231,10 @@ function renderCommercialVisual(key,data){
         "Only explicit controlled obligations receive compliance status. Clause-derived requirements stay candidates until mapped.",
         obligationsEstablished
           ? renderVisualBars([
-              {label:"Open",value:obl.openCount??0,tone:"accent"},
-              {label:"Overdue",value:obl.overdueCount??0,tone:"danger"},
-              {label:"Complete",value:obl.completeCount??0,tone:"success"},
-              {label:"Requirement wording groups",value:obl.clauseCandidateCount??0,tone:"warning"}
+              {label:"Open",value:obl.openCount??null,tone:"accent"},
+              {label:"Overdue",value:obl.overdueCount??null,tone:"danger"},
+              {label:"Complete",value:obl.completeCount??null,tone:"success"},
+              {label:"Requirement wording groups",value:obl.clauseCandidateCount??null,tone:"warning"}
             ],"items")
           : '<div class="empty-visual">No controlled obligation register is established. Open, overdue and complete counts are not confirmed.</div>'
       );
@@ -4262,7 +4262,7 @@ function renderCommercialVisual(key,data){
         retentionRecordsEstablished?renderVisualBars([
           {label:"Held",value:ret.heldCount,tone:"warning"},
           {label:"Released",value:ret.releasedCount??null,tone:"success"},
-          {label:"Release date established",value:ret.dueCount??0,tone:"accent"},
+          {label:"Release date established",value:ret.dueCount??null,tone:"accent"},
           ...(typeof ret.overdueCount==="number"?[{label:"Overdue unreleased",value:ret.overdueCount,tone:"danger"}]:[])
         ],"records")+
         (typeof ret.overdueCount==="number"?"":'<div class="notice info" style="margin-top:10px">Deduction rows do not establish held or released balances. Overdue retention is not assessable until release due dates or contractual release triggers are established.</div>'):'<div class="empty-visual">No retention register or confirmed balance records are established. Held, released and due counts are not confirmed.</div>'
@@ -4304,13 +4304,13 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
-          ["Open obligations",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
-          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register"],
+          ["Open obligations",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register"],
+          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register"],
           ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register instruments"],
           ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register instruments"],
           ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register instruments"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not established","deduction records do not prove held balances"],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deduction records do not prove held balances"],
           ["Retention overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
@@ -4318,11 +4318,11 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??0):"Not established","explicit register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register"],
           ["Requirement wording groups",obl.clauseCandidateCount??null,"repeated source sections grouped; requires review"],
-          ["Open",obligationsEstablished?(obl.openCount??0):"Not established","controlled obligation register"],
-          ["Overdue",obligationsEstablished?(obl.overdueCount??0):"Not established","controlled obligation register"],
-          ["Complete",obligationsEstablished?(obl.completeCount??0):"Not established","controlled obligation register"]
+          ["Open",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register"],
+          ["Overdue",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register"],
+          ["Complete",obligationsEstablished?(obl.completeCount??null):"Not established","controlled obligation register"]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No controlled obligation register or promoted clause candidates are established. This does not mean the contract contains no obligations.")+
         '</div></section>'+
@@ -4355,10 +4355,10 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Retention rate",findingValue(ret.retentionPercent,"%"),findingMeta(ret.retentionPercent)],
           ["Retention cap",findingValue(ret.retentionCapPercent,"%"),findingMeta(ret.retentionCapPercent)],
-          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??0):"Not established",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records"],["Future / undated records",fmt(experienceRecordCount(ret.futureRows))+" / "+fmt(experienceRecordCount(ret.undatedRows)),"excluded from current totals"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??0):"Not established","deductions excluded from held count"],
+          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??null):"Not established",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records"],["Future / undated records",fmt(experienceRecordCount(ret.futureRows))+" / "+fmt(experienceRecordCount(ret.undatedRows)),"excluded from current totals"],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deductions excluded from held count"],
           ["Released",retentionRecordsEstablished?(ret.releasedCount??null):"Not established","explicit release state"],
-          ["Dated",retentionRecordsEstablished?(ret.dueCount??0):"Not established","release date/trigger established"],
+          ["Dated",retentionRecordsEstablished?(ret.dueCount??null):"Not established","release date/trigger established"],
           ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
@@ -4397,13 +4397,13 @@ function renderCommercialVisual(key,data){
       "Source claim statuses",
       "Status wording and counts come from the full claim register, including future and undated records. These are source descriptions, not reconstructed stages at the Data Date. A reported acceptance does not by itself establish a formal determination or award.",
       lifecyclePopulationEstablished?renderVisualBars(sourceStatusCounts?Object.entries(sourceStatusCounts).map(([label,value])=>({label,value,tone:'accent'})):[
-        {label:"Draft",value:stateCounts.draft??0,tone:"neutral"},
-        {label:"Submitted",value:stateCounts.submitted??0,tone:"accent"},
-        {label:"Under review",value:stateCounts.under_review??0,tone:"warning"},
-        {label:"Determined",value:stateCounts.determined??0,tone:"success"},
-        {label:"Rejected",value:stateCounts.rejected??0,tone:"danger"},
-        {label:"Withdrawn",value:stateCounts.withdrawn??0,tone:"graphite"},
-        {label:"Unknown",value:stateCounts.unknown??0,tone:"neutral"}
+        {label:"Draft",value:stateCounts.draft??null,tone:"neutral"},
+        {label:"Submitted",value:stateCounts.submitted??null,tone:"accent"},
+        {label:"Under review",value:stateCounts.under_review??null,tone:"warning"},
+        {label:"Determined",value:stateCounts.determined??null,tone:"success"},
+        {label:"Rejected",value:stateCounts.rejected??null,tone:"danger"},
+        {label:"Withdrawn",value:stateCounts.withdrawn??null,tone:"graphite"},
+        {label:"Unknown",value:stateCounts.unknown??null,tone:"neutral"}
       ],"claims"):'<div class="empty-visual">No confirmed claim lifecycle population is established. Lifecycle counts are not confirmed.</div>'
     );
     const assessableNoticeCount=sumKnownScreenCounts(timeliness,['timely','late','not_issued']);
@@ -4411,25 +4411,25 @@ function renderCommercialVisual(key,data){
       "Notice timeliness position",
       "Compliance outcomes and independent evidence gaps are separate. Missing requirement, event-date and notice-date counts can overlap.",
       noticeAssessmentPopulationEstablished?(assessableNoticeCount===0?'<div class="empty-visual">No event has an assessable notice outcome. Timely, late and not-issued counts are not confirmed; the bars below identify evidence gaps.</div>':'')+renderVisualBars([
-        ...(assessableNoticeCount>0?[{label:"Timely",value:timeliness.timely??0,tone:"success"},
-        {label:"Late",value:timeliness.late??0,tone:"danger"},
-        {label:"Not issued",value:timeliness.not_issued??0,tone:"warning"}]:[]),
-        {label:"Requirement missing",value:cn.dimensionalEvidenceGaps?.requirementMissing??timeliness.requirement_missing??0,tone:"neutral"},
-        {label:"Event date missing",value:cn.dimensionalEvidenceGaps?.eventDateMissing??timeliness.event_date_missing??0,tone:"neutral"},
-        {label:"Notice date missing",value:cn.dimensionalEvidenceGaps?.noticeDateMissing??timeliness.notice_date_missing??0,tone:"neutral"}
+        ...(assessableNoticeCount>0?[{label:"Timely",value:timeliness.timely??null,tone:"success"},
+        {label:"Late",value:timeliness.late??null,tone:"danger"},
+        {label:"Not issued",value:timeliness.not_issued??null,tone:"warning"}]:[]),
+        {label:"Requirement missing",value:cn.dimensionalEvidenceGaps?.requirementMissing??timeliness.requirement_missing??null,tone:"neutral"},
+        {label:"Event date missing",value:cn.dimensionalEvidenceGaps?.eventDateMissing??timeliness.event_date_missing??null,tone:"neutral"},
+        {label:"Notice date missing",value:cn.dimensionalEvidenceGaps?.noticeDateMissing??timeliness.notice_date_missing??null,tone:"neutral"}
       ],"events"):'<div class="empty-visual">Notice timeliness is not assessable until confirmed event, requirement and notice-date evidence is established.</div>'
     );
     const noticeKindVisual=renderVisualPanel(
       "Notice / correspondence lifecycle",
       "Correspondence evidenced by the Data Date. Future notices remain in the excluded source register. Notices and determinations retain separate identities.",
       noticePopulationEstablished?renderVisualBars([
-        {label:"Notice",value:kindCounts.notice??0,tone:"graphite"},
-        {label:"Early warning",value:kindCounts.early_warning??0,tone:"accent"},
-        {label:"EOT notice",value:kindCounts.eot_notice??0,tone:"warning"},
-        {label:"Claim notice",value:kindCounts.claim_notice??0,tone:"purple"},
-        {label:"Detailed claim",value:kindCounts.detailed_claim??0,tone:"danger"},
-        {label:"Response",value:kindCounts.response??0,tone:"accent"},
-        {label:"Determination",value:kindCounts.determination??0,tone:"success"}
+        {label:"Notice",value:kindCounts.notice??null,tone:"graphite"},
+        {label:"Early warning",value:kindCounts.early_warning??null,tone:"accent"},
+        {label:"EOT notice",value:kindCounts.eot_notice??null,tone:"warning"},
+        {label:"Claim notice",value:kindCounts.claim_notice??null,tone:"purple"},
+        {label:"Detailed claim",value:kindCounts.detailed_claim??null,tone:"danger"},
+        {label:"Response",value:kindCounts.response??null,tone:"accent"},
+        {label:"Determination",value:kindCounts.determination??null,tone:"success"}
       ],"records"):'<div class="empty-visual">No confirmed notice/correspondence register is established. Type counts are not confirmed.</div>'
     );
     const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td></tr>');
@@ -4451,7 +4451,7 @@ function renderCommercialVisual(key,data){
         ["Notices by Data Date",cn.asOfNoticeCount??"Not established","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",screenCountText(cn.futureNoticeCount)+" / "+screenCountText(cn.undatedNoticeCount),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not established","overlaps other evidence gaps"],
         ["Notice evidence gaps",noticeAssessmentPopulationEstablished?noticeEvidenceGapCount:"Not assessable","requirement / event date / notice date",noticeEvidenceGapCount?"warning":""],
         ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
-        ["Financial exposure",position.currencies.some(r=>r.claimedAmount?.value!=null)?"See currency positions":"Not established","claim amounts and cost linkage required"],["Determination records",kindCounts.determination??0,"separate from notice count"]
+        ["Financial exposure",position.currencies.some(r=>r.claimedAmount?.value!=null)?"See currency positions":"Not established","claim amounts and cost linkage required"],["Determination records",kindCounts.determination??null,"separate from notice count"]
       ])+
       '<div class="notice info"><b>Latest extracted notice period: '+escapeHtml(foundation?.commercialTerms?.noticePeriodDays?.value==null?'Not established':fmt(foundation.commercialTerms.noticePeriodDays.value)+' days')+'</b>. Earlier contract versions can have different periods. The dated rule groups above and each claim’s recorded event or awareness date determine the applicable notice assessment. Evidence gaps are independent and can overlap. Source claim final stages and determination records have different identities and dates. Final source stages are not reconstructed historical stages at the Data Date.</div>'+
       (noticeEvidenceGapCount?'<div class="notice warn"><b>Notice compliance requires evidence review.</b> '+escapeHtml(fmt(noticeEvidenceGapCount))+' event assessment(s) are missing the applicable requirement, event date or notice date. These remain evidence gaps rather than zero or compliant outcomes.</div>':'')+
@@ -5196,7 +5196,7 @@ function renderInterfaceIntelligenceVisual(data){
   const upload=!(p.knownCount>0||p.confirmedCount>0)&&population.state!=="established"?'<button class="btn primary" onclick="openEvidenceWorkspace();el(\'evidenceFiles\')?.click()">Upload Interface Register</button>':'';
   const rows=(p.rows||[]).map(r=>'<tr><td><b>'+escapeHtml(interfaceDisplay(r.interfaceId,'Interface'))+'</b><br><span class="state-pill '+(r.authority==='confirmed'?(r.state==='blocked'||r.state==='overdue'?'blocked':r.state==='closed'?'ready':'review'):'not_applicable')+'">'+escapeHtml(r.authority==='confirmed'?humanizeKey(r.state):r.authority==='source'?'From register · '+humanizeKey(r.state):'Calculated link · review acceptance')+'</span></td><td>'+escapeHtml(interfaceDisplay(r.givingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.receivingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.package))+'</td><td>'+escapeHtml(interfaceDisplay(r.discipline))+'</td><td>'+escapeHtml(interfaceDisplay(r.system))+'</td><td>'+escapeHtml(interfaceDisplay(r.location))+'</td><td>'+escapeHtml(interfaceDisplay(r.requiredDeliverable,'Not established'))+'</td><td>'+escapeHtml(r.requiredDate?planningShortDate(r.requiredDate):'Not established')+'</td><td>'+escapeHtml(interfaceDisplay(r.responsibleParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedActivity))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRfi))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedSubmittal))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRisk))+'</td><td>'+escapeHtml(interfaceDisplay(r.consequence))+'</td><td>'+escapeHtml(interfaceDisplay(r.escalation))+'</td></tr>').join('');
   return '<section class="planning-view interface-view"><div class="notice '+((p.knownBlockerCount??p.blockerCount)>0?'warn':'info')+'"><h4>Interface position</h4><p>'+escapeHtml(p.managementPosition)+'</p>'+upload+'</div>'+planningKpis([
-    ["Interfaces from registers",(p.knownCount??p.confirmedCount)>0?p.knownCount??p.confirmedCount:population.state==="established"?0:"Not established","known source and reviewed records"],["Blocked / overdue",count(p.blockerCount,p.knownBlockerCount),"source or reviewed interfaces requiring action"],["Candidate interfaces",p.candidateCount??0,"derived for review, not confirmed"],["Linked activities",count(p.linkedActivityCount,p.knownLinkedActivityCount),"verified programme links in register records/candidates"]
+    ["Interfaces from registers",(p.knownCount??p.confirmedCount)>0?p.knownCount??p.confirmedCount:population.state==="established"?0:"Not established","known source and reviewed records"],["Blocked / overdue",count(p.blockerCount,p.knownBlockerCount),"source or reviewed interfaces requiring action"],["Candidate interfaces",p.candidateCount??null,"derived for review, not confirmed"],["Linked activities",count(p.linkedActivityCount,p.knownLinkedActivityCount),"verified programme links in register records/candidates"]
   ])+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Interface register & candidates</h4><p>Source records, reviewed interfaces and derived candidates retain their own authority. Showing '+fmt(sourceRows.length)+' of '+fmt(responseListPopulation(sourceRows).total)+' rows.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Interface ID</th><th>Giving party</th><th>Receiving party</th><th>Package</th><th>Discipline</th><th>System</th><th>Location</th><th>Required deliverable</th><th>Required date</th><th>Responsible party</th><th>Activity</th><th>RFI</th><th>Submittal</th><th>Risk</th><th>Consequence</th><th>Escalation</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(sourceRows,'Browse all interfaces and candidates')+'</div></section><details class="source-scope"><summary>Interface derivation basis</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
 }
 let accountabilityDetailsView=null,accountabilityDetailsTicket=0;
