@@ -36,6 +36,33 @@ export function floatHourHistogram(values:readonly (number|null)[]){
   return {unit:'hours' as const,basis:'All unfinished execution activities with supplied finite total float; no working-day conversion.',knownCount,unknownCount:values.length-knownCount,exact,groups};
 }
 
+/** Retain the exact original sorted first-N boundary rows without sorting the
+ * full source population five times. Source rows and audit candidates remain
+ * intact; the heap stores only the worst retained candidate per side. */
+function firstSortedBoundaryRows<T>(rows:readonly T[],eligible:(row:T)=>boolean,
+  compare:(a:T,b:T)=>number,limit:number):T[]{
+  if(limit<=0)return [];
+  const heap:T[]=[];
+  const swap=(a:number,b:number)=>{const value=heap[a]!;heap[a]=heap[b]!;heap[b]=value;};
+  const siftUp=(initial:number)=>{let i=initial;while(i>0){
+    const parent=Math.floor((i-1)/2);
+    if(compare(heap[i]!,heap[parent]!)<=0)break;
+    swap(i,parent);i=parent;
+  }};
+  const siftDown=()=>{let i=0;for(;;){
+    let worse=i;const left=i*2+1,right=left+1;
+    if(left<heap.length&&compare(heap[left]!,heap[worse]!)>0)worse=left;
+    if(right<heap.length&&compare(heap[right]!,heap[worse]!)>0)worse=right;
+    if(worse===i)break;swap(i,worse);i=worse;
+  }};
+  for(const row of rows){
+    if(!eligible(row))continue;
+    if(heap.length<limit){heap.push(row);siftUp(heap.length-1);}
+    else if(compare(row,heap[0]!)<0){heap[0]=row;siftDown();}
+  }
+  return heap.sort(compare);
+}
+
 function wbsPathLookup(model:CanonicalScheduleModel):Map<string,string>{
   const nodes=new Map((model.wbs??[]).map(node=>[node.wbsId,node])),cache=new Map<string,string>();
   const pathFor=(id:string|null):string=>{
@@ -371,77 +398,30 @@ export function buildNearCriticalProjection(
     naturalCompare(a.activityId, b.activityId);
 
   const boundaryAudit = {
-    sampleLimitPerSide:
-      SAMPLE_LIMIT,
-    sourceRevisionId:
-      model.sourceRevisionId,
-    totalFloatSourceField:
-      "TASK.total_float_hr_cnt" as const,
-    calendarJoinField:
-      "TASK.clndr_id -> CALENDAR.clndr_id" as const,
-    criticalBoundary: {
-      thresholdHours:
-        config.criticalFloatThresholdHours,
-      below:
-        boundaryAuditRows
-          .filter(
-            (row) =>
-              row.totalFloatHours <
-              config.criticalFloatThresholdHours,
-          )
-          .sort(byCriticalDistance)
-          .slice(0, SAMPLE_LIMIT),
-      at:
-        boundaryAuditRows
-          .filter(
-            (row) =>
-              row.totalFloatHours ===
-              config.criticalFloatThresholdHours,
-          )
-          .sort(
-            (a, b) =>
-              naturalCompare(a.activityId, b.activityId),
-          )
-          .slice(0, SAMPLE_LIMIT),
-      above:
-        boundaryAuditRows
-          .filter(
-            (row) =>
-              row.totalFloatHours >
-              config.criticalFloatThresholdHours,
-          )
-          .sort(byCriticalDistance)
-          .slice(0, SAMPLE_LIMIT),
+    sampleLimitPerSide:SAMPLE_LIMIT,
+    sourceRevisionId:model.sourceRevisionId,
+    totalFloatSourceField:"TASK.total_float_hr_cnt" as const,
+    calendarJoinField:"TASK.clndr_id -> CALENDAR.clndr_id" as const,
+    criticalBoundary:{
+      thresholdHours:config.criticalFloatThresholdHours,
+      below:firstSortedBoundaryRows(boundaryAuditRows,row=>
+        row.totalFloatHours<config.criticalFloatThresholdHours,byCriticalDistance,SAMPLE_LIMIT),
+      at:firstSortedBoundaryRows(boundaryAuditRows,row=>
+        row.totalFloatHours===config.criticalFloatThresholdHours,
+        (a,b)=>naturalCompare(a.activityId,b.activityId),SAMPLE_LIMIT),
+      above:firstSortedBoundaryRows(boundaryAuditRows,row=>
+        row.totalFloatHours>config.criticalFloatThresholdHours,byCriticalDistance,SAMPLE_LIMIT),
     },
-    nearCriticalUpperBoundary: {
-      thresholdWorkingDays:
-        config.nearCriticalWorkingDays ??
-        null,
-      inside:
-        boundaryAuditRows
-          .filter(
-            (row) =>
-              row.distanceFromNearCriticalUpperBoundaryWorkingDays !==
-                null &&
-              row.distanceFromNearCriticalUpperBoundaryWorkingDays <=
-                0,
-          )
-          .sort(byUpperDistance)
-          .slice(0, SAMPLE_LIMIT),
-      outside:
-        boundaryAuditRows
-          .filter(
-            (row) =>
-              row.distanceFromNearCriticalUpperBoundaryWorkingDays !==
-                null &&
-              row.distanceFromNearCriticalUpperBoundaryWorkingDays >
-                0,
-          )
-          .sort(byUpperDistance)
-          .slice(0, SAMPLE_LIMIT),
+    nearCriticalUpperBoundary:{
+      thresholdWorkingDays:config.nearCriticalWorkingDays??null,
+      inside:firstSortedBoundaryRows(boundaryAuditRows,row=>
+        row.distanceFromNearCriticalUpperBoundaryWorkingDays!==null&&
+        row.distanceFromNearCriticalUpperBoundaryWorkingDays<=0,byUpperDistance,SAMPLE_LIMIT),
+      outside:firstSortedBoundaryRows(boundaryAuditRows,row=>
+        row.distanceFromNearCriticalUpperBoundaryWorkingDays!==null&&
+        row.distanceFromNearCriticalUpperBoundaryWorkingDays>0,byUpperDistance,SAMPLE_LIMIT),
     },
   };
-
   const managementSource=[...new Map([...watchlistRows,...criticalRows,...negativeFloatRows].map(row=>[row.activityId,row])).values()]
     .filter(row=>row.status!=="completed");
   const managementMap=new Map<string,{
