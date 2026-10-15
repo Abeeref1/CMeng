@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {buildScheduleChangeReportFromHistory} from '../packages/schedule-change-report/src';
 
 // Work from the actual assembled browser script, not a separately recreated
 // display helper or a fabricated API producer.
@@ -160,4 +161,14 @@ test('T05/T10 visual charts withhold unknown totals and label every missing cate
  assert.match(full,/donut-ring/);
  assert.match(full,/Paid/);
  assert.match(full,/Open/);
+});
+
+test('T05/T06 absent revision comparison does not publish false zero changes',()=>{
+ const result=buildScheduleChangeReportFromHistory([],{generatedAt:'2031-01-01T00:00:00Z',producerVersion:'source-test'});
+ assert.equal(result.state,'insufficient_history');
+ for(const key of ['matchedActivityCount','addedActivityCount','removedActivityCount',
+   'modifiedActivityCount','unchangedActivityCount','addedRelationshipCount','removedRelationshipCount'] as const){
+   assert.equal(result[key],null,key+' must be missing until there are two comparable source revisions');
+ }
+ assert.deepEqual(result.changedActivities,[],'empty available detail rows are not fabricated comparisons');
 });
