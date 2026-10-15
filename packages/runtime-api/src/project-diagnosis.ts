@@ -31,7 +31,26 @@ export function projectDiagnosisDetails(value:any){
  const full=details.get(value)??value[detailKey];
  return full?{...full,completion:{...full.completion,...value.completion},...(value.actionRegister?{actionRegister:value.actionRegister}:{})}:value;
 }
-const count=(rows:ActivityAnalyticsRow[],test:(r:ActivityAnalyticsRow)=>boolean|null)=>{let known=0,unresolved=0;for(const row of rows){const yes=test(row);if(yes===null)unresolved++;else if(yes)known++;}return {knownCount:rows.length&&unresolved<rows.length?known:null,value:rows.length&&!unresolved?known:null,unresolvedCount:unresolved,population:rows.length};};
+/** T11: preserve all original diagnosis source counts in one full scan.
+ * Unknown/null, genuine zero, completed status and full denominators remain distinct. */
+export function diagnosisSourceCounts(rows:readonly ActivityAnalyticsRow[],previousMovement:(id:string)=>number|null){
+ let z=0,zu=0,m=0,mu=0,o=0,ou=0,b=0,bu=0,p=0,pu=0,s=0,su=0;
+ for(const r of rows){
+  if(!numeric(r.totalFloatHours))zu++;else if(r.totalFloatHours===0)z++;
+  if(r.missedPlannedStart===null)mu++;else if(r.missedPlannedStart)m++;
+  if(r.finishOverdue===null)ou++;else if(r.finishOverdue)o++;
+  if(r.finishVarianceDays===null)bu++;else if(unfinished(r)&&r.finishVarianceDays>0)b++;
+  const moved=previousMovement(r.activityId);
+  if(moved===null)pu++;else if(moved>0)p++;
+  if(r.scheduleDelayed===null)su++;else if(r.scheduleDelayed)s++;
+ }
+ const asCount=(known:number,unresolved:number)=>({
+  knownCount:rows.length&&unresolved<rows.length?known:null,
+  value:rows.length&&!unresolved?known:null,unresolvedCount:unresolved,population:rows.length,
+ });
+ return {zeroFloat:asCount(z,zu),missedStarts:asCount(m,mu),overdueFinishes:asCount(o,ou),
+   baselineSlippage:asCount(b,bu),previousUpdateSlippage:asCount(p,pu),scheduleDelayed:asCount(s,su)};
+}
 
 /** One project-management answer over the existing, as-of, governed producers.
  * No external model, file-name inference, independent date engine or causal
@@ -104,10 +123,12 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const sourcedFloat=data(modules,'schedule-analytics')?.float;
  const governed=scheduleCriticalityFacts(state,sourcedFloat??undefined);
  const asDiagnosticCount=(aggregate:typeof governed.canonicalCritical)=>({knownCount:aggregate.knownCount,value:aggregate.value,unresolvedCount:aggregate.unresolvedCount,population:aggregate.populationCount});
+ const sourceCounts=diagnosisSourceCounts(rows,previousMovement);
  const counts={critical:asDiagnosticCount(governed.canonicalCritical),negativeFloat:asDiagnosticCount(governed.canonicalNegativeFloat),
-   zeroFloat:count(rows,r=>numeric(r.totalFloatHours)?r.totalFloatHours===0:null),nearCritical:asDiagnosticCount(governed.canonicalNearCritical),
-   missedStarts:count(rows,r=>r.missedPlannedStart),overdueFinishes:count(rows,r=>r.finishOverdue),baselineSlippage:count(rows,r=>r.finishVarianceDays===null?null:unfinished(r)&&r.finishVarianceDays>0),
-   previousUpdateSlippage:count(rows,r=>{const move=previousMovement(r.activityId);return move===null?null:move>0;}),scheduleDelayed:count(rows,r=>r.scheduleDelayed)};
+   zeroFloat:sourceCounts.zeroFloat,nearCritical:asDiagnosticCount(governed.canonicalNearCritical),
+   missedStarts:sourceCounts.missedStarts,overdueFinishes:sourceCounts.overdueFinishes,
+   baselineSlippage:sourceCounts.baselineSlippage,previousUpdateSlippage:sourceCounts.previousUpdateSlippage,
+   scheduleDelayed:sourceCounts.scheduleDelayed};
  timed('setup_and_source_counts');
  const pressureRows=rows.filter(r=>unfinished(r)&&(drivingIds.has(r.activityId)||r.criticality==='critical'||r.criticality==='near_critical'||r.scheduleDelayed||(previousMovement(r.activityId)??0)>0));
  const rank=(r:ActivityAnalyticsRow)=>drivingIds.has(r.activityId)?0:numeric(r.totalFloatHours)&&r.totalFloatHours<0?1:r.finishOverdue?2:r.missedPlannedStart?3:r.criticality==='critical'?4:r.criticality==='near_critical'?5:6;
