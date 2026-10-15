@@ -134,3 +134,30 @@ test('T05 missing management issue assessments are never green and signed float 
  assert.match(script,/const noticeEvidenceGapCount=sumKnownScreenCounts\(timeliness/);
  assert.doesNotMatch(script,/uncertainty\.coveragePercent===null\|\|uncertainty\.coveragePercent===undefined\?"0%"/);
 });
+
+test('T05/T10 visual charts withhold unknown totals and label every missing category',()=>{
+ const safe=(value:unknown)=>String(value);
+ const context={escapeHtml:safe,fmt:safe,percent2:safe};
+ const functions=[
+  originalFunction('renderVisualBars'),
+  originalFunction('renderDonutChart'),
+  originalFunction('chartToneColor')
+ ];
+ const render=runInNewContext(functions.join('\n')+';({renderVisualBars,renderDonutChart})',context) as {
+  renderVisualBars:(items:any[],unit?:string)=>string;
+  renderDonutChart:(items:any[],label?:string)=>string;
+ };
+ const partial=render.renderDonutChart([{label:'Observed',value:8},{label:'Unknown',value:null}], 'Records');
+ assert.match(partial,/Distribution total not established/);
+ assert.match(partial,/Unknown/);
+ assert.match(partial,/Not established/);
+ assert.doesNotMatch(partial,/donut-ring/,'incomplete category population cannot become a 100% known-subset pie');
+ const bars=render.renderVisualBars([{label:'Paid',value:2},{label:'Unassessed',value:null}],'records');
+ assert.match(bars,/Unassessed/);
+ assert.match(bars,/Not established/);
+ assert.doesNotMatch(bars,/Unassessed[^]*?visual-bar-fill/,'unassessed category must not receive a fabricated zero-valued bar');
+ const full=render.renderDonutChart([{label:'Paid',value:2},{label:'Open',value:0}],'Records');
+ assert.match(full,/donut-ring/);
+ assert.match(full,/Paid/);
+ assert.match(full,/Open/);
+});
