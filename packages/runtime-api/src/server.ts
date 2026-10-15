@@ -2480,7 +2480,7 @@ async function route(
       // Full report/exports and the full-detail endpoint keep the original
       // checked calculations, tests and source provenance intact.
       result=publicModuleResult(key==='master-dashboard'&&source.searchParams.get('full')!=='1'
-        ?masterDashboardCoverForProject(projectId)
+        ?(masterDashboardCoverForProject(projectId)??moduleForProject(projectId,key))
         :moduleForProject(projectId,key),key);
     }else if(advanced&&advancedControlKeys.has(decodeURIComponent(advanced[1]!))){
       result=moduleForProject(projectId,decodeURIComponent(advanced[1]!));

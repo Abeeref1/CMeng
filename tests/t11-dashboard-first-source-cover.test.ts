@@ -6,6 +6,7 @@ import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import {sourceScheduleCompletionBases} from '../packages/schedule-analysis-core/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 
 let sequence=0;
 function seed(hours:number){
@@ -56,7 +57,7 @@ test('T11 first dashboard calculates sourced metrics without materializing every
 });
 
 test('T11 dashboard first request and explicit full-read path are distinct, without weakening full report routes',()=>{
-  const backend=readFileSync(new URL('../packages/runtime-api/src/server.ts',import.meta.url),'utf8');
+  const backend=readFileSync(join(process.cwd(),'packages/runtime-api/src/server.ts'),'utf8');
   const ui=cmengUatHtml();
   assert.match(backend,/key==='master-dashboard'&&source\.searchParams\.get\('full'\)!=='1'/);
   assert.match(backend,/masterDashboardCoverForProject\(projectId\)/);
