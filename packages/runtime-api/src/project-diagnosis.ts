@@ -64,11 +64,16 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  for(const rel of model.relationships){const ins=incoming.get(rel.successorActivityId)??[];ins.push(rel);incoming.set(rel.successorActivityId,ins);const outs=outgoing.get(rel.predecessorActivityId)??[];outs.push(rel);outgoing.set(rel.predecessorActivityId,outs);}
  const networkIncoming=new Map<string,any[]>(),networkOutgoing=new Map<string,any[]>();
  for(const rel of network?.relationships??[]){const ins=networkIncoming.get(rel.successorActivityId)??[];ins.push(rel);networkIncoming.set(rel.successorActivityId,ins);const outs=networkOutgoing.get(rel.predecessorActivityId)??[];outs.push(rel);networkOutgoing.set(rel.predecessorActivityId,outs);}
- const previousMovementCache=new Map<string,number|null|undefined>();
- const previousMovement=(id:string)=>{
-   if(previousMovementCache.has(id))return previousMovementCache.get(id);
+ // A changed activity without a finite source-to-source finish movement has
+ // UNKNOWN revision slippage. Never turn an absent/invalid movement into a
+ // known "not slipped" count; true zero is reserved for unchanged/known rows.
+ const previousMovementCache=new Map<string,number|null>();
+ const previousMovement=(id:string):number|null=>{
+   if(previousMovementCache.has(id))return previousMovementCache.get(id)!;
    const change=changeById.get(id);
-   const result=!changes?null:change?change.finishShiftDays:previousById.has(id)?0:null;
+   const result:number|null=!changes?null:change
+     ?(numeric(change.finishShiftDays)?change.finishShiftDays:null)
+     :previousById.has(id)?0:null;
    previousMovementCache.set(id,result);return result;
  };
  const describe=(r:ActivityAnalyticsRow)=>({activityId:r.activityId,name:r.name??r.activityId,wbsId:r.wbsId,wbs:wbsPath(r.wbsId),status:r.status,
