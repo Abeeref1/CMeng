@@ -18,7 +18,7 @@ export function programmeCompletionAsOf(rows:readonly {status:string;actualFinis
  const unknown=rows.filter(r=>r.status==='unknown').length;
  const validDay=(value:string|null|undefined)=>{
   if(typeof value!=='string')return null;
-  const day=/^\\d{4}-\\d{2}-\\d{2}(?=$|[T\\s])/.exec(value)?.[0];
+  const day=/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/.exec(value)?.[0];
   if(!day)return null;
   const ms=Date.parse(day+'T00:00:00Z');
   return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,10)===day?day:null;
