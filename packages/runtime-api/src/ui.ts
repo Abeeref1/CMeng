@@ -1214,7 +1214,12 @@ function renderCommercialMetricBars(row,fields){
 }
 function renderLineChart(points,series,yMaxHint=null,options={}){
   points=Array.isArray(points)?points:[];series=Array.isArray(series)?series:[];
-  if(points.length===1){const point=points[0];return '<div class="notice info"><b>Single observation · trend not confirmed</b><p>'+escapeHtml(planningShortDate(point.dateIso||point.asOf))+'</p>'+series.filter(item=>typeof point[item.key]==='number').map(item=>'<div class="currency-line"><span>'+escapeHtml(item.label)+'</span><strong>'+escapeHtml(fmt(point[item.key])+(options.unit?' '+options.unit:''))+'</strong></div>').join('')+'</div>';}
+  if(points.length===1){
+   const point=points[0];
+   const observed=series.filter(item=>typeof point?.[item.key]==='number'&&Number.isFinite(point[item.key]));
+   if(!observed.length)return '<div class="empty-visual">No established numeric observation is available for this chart.</div>';
+   return '<div class="notice info"><b>Single observation · trend not confirmed</b><p>'+escapeHtml(planningShortDate(point.dateIso||point.asOf))+'</p>'+observed.map(item=>'<div class="currency-line"><span>'+escapeHtml(item.label)+'</span><strong>'+escapeHtml(fmt(point[item.key])+(options.unit?' '+options.unit:''))+'</strong></div>').join('')+'</div>';
+  }
 
   series=series.filter(item=>Array.isArray(points)&&points.some(point=>typeof point?.[item.key]==="number"&&Number.isFinite(point[item.key])));
   if(!Array.isArray(points)||!points.length)return '<div class="empty-visual">No series points available.</div>';

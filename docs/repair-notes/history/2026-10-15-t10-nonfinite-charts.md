@@ -1,0 +1,2 @@
+15 October 2026 — T10 no false single-point chart (partial)
+The shared line-chart renderer previously displayed an apparent one-point trend even when the only observed numeric value was missing, infinite or NaN. Missing now shows a clear unavailable observation without inventing a trend, and finite zero remains zero. Added a browser-executed focused test. Remaining charts/report/Ask reconciliation is open; no deployment.
