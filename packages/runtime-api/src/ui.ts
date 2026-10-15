@@ -520,6 +520,7 @@ const roleViewOrder=["overall","planning","controls","project-director","program
 const storedRoleView=localStorage.getItem("cmeng-role-view");
 let selectedRoleView=roleViewOrder.includes(storedRoleView)?storedRoleView:"overall";
 let overview=null,selected="master-dashboard",portfolioData=null,testPortfolioData=null,appView="portfolio",currentModuleResult=null;
+let browserRouteBooting=true,browserRouteRestoring=false,browserRouteRestoreSeq=0;
 let projectRequestSeq=0,evidenceRequestSeq=0,aiRequestSeq=0,projectLoadState="idle";
 let scheduleSelection=[],boqSelection=[],contractSelection=[],evidenceSelection=[];
 const projectUploadJobs=new Map();
@@ -605,6 +606,7 @@ function renderRoleViewSelector(){
       if(!roleViewOrder.includes(next)||next===selectedRoleView)return;
       selectedRoleView=next;
       localStorage.setItem("cmeng-role-view",selectedRoleView);
+      syncBrowserRoute();
       renderRoleViewSelector();
       if(currentModuleResult)renderModuleResult(currentModuleResult);
     };
@@ -726,7 +728,7 @@ function renderModuleWorkspace(key){
   document.getElementById('moduleWorkspaceTabs')?.remove();
   const workspace=moduleWorkspaces.find(w=>w.views.includes(key));if(!workspace)return;
   el('moduleSubtitle').insertAdjacentHTML('afterend','<nav id="moduleWorkspaceTabs" class="action-filters" aria-label="'+escapeHtml(workspace.title)+' views">'+workspace.views.map(view=>'<button class="btn small '+(key===view?'primary':'')+'" data-key="'+view+'" aria-current="'+(key===view?'page':'false')+'">'+escapeHtml(readerModuleHeading(view))+'</button>').join('')+'</nav>');
-  el('moduleWorkspaceTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{selected=button.dataset.key;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected)});
+  el('moduleWorkspaceTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{selected=button.dataset.key;localStorage.setItem('cmeng-module',selected);syncBrowserRoute();renderNav();loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
 function humanizeIsoText(value){
@@ -6111,6 +6113,43 @@ function updateActiveProjectShell(){
   ["runAnalysisTop","askAi","openAiTop"].forEach(key=>{el(key).disabled=!overview});
   el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }
+/** Version-independent browser route. Source and adoption state are never encoded
+ * in navigation and Back never performs a write or changes any saved decision. */
+function syncBrowserRoute(){
+  if(browserRouteRestoring||typeof window==='undefined'||!window.history||!window.location)return;
+  const url=new URL(window.location.href),q=url.searchParams;
+  q.set('view',appView);
+  if(project())q.set('project',project());else q.delete('project');
+  if(['project','ai'].includes(appView))q.set('module',selected);else q.delete('module');
+  if(['project','ai'].includes(appView))q.set('role',selectedRoleView);else q.delete('role');
+  const next=url.pathname+(q.toString()?'?'+q.toString():'')+url.hash;
+  const current=window.location.pathname+window.location.search+window.location.hash;
+  if(next===current)return;
+  const state={cmengRoute:true,view:appView,project:project()||null,module:selected,role:selectedRoleView};
+  window.history[browserRouteBooting?'replaceState':'pushState'](state,'',next);
+}
+async function restoreBrowserRoute(){
+  const restoreId=++browserRouteRestoreSeq;
+  const q=new URLSearchParams(window.location.search);
+  const view=q.get('view'),requestedView=['portfolio','projects','project','ai'].includes(view)?view:'portfolio';
+  const projectId=q.get('project')?.trim()??'';
+  const module=q.get('module');
+  const role=q.get('role');
+  const beforeModule=selected,beforeRole=selectedRoleView;
+  browserRouteRestoring=true;
+  try{
+    if(module&&names[module]){selected=module;localStorage.setItem('cmeng-module',module);}
+    if(role&&roleViewOrder.includes(role)){selectedRoleView=role;localStorage.setItem('cmeng-role-view',role);}
+    const mustOpen=!!projectId&&(!overview||overview.projectId!==projectId);
+    if(mustOpen)await openProject(projectId);
+    if(restoreId!==browserRouteRestoreSeq)return;
+    setAppView(requestedView);
+    if(requestedView==='project'&&overview&&!mustOpen&&beforeModule!==selected)await loadModule(selected);
+    else if(requestedView==='project'&&overview&&!mustOpen&&beforeRole!==selectedRoleView&&currentModuleResult)renderModuleResult(currentModuleResult);
+  }finally{
+    if(restoreId===browserRouteRestoreSeq)browserRouteRestoring=false;
+  }
+}
 function setAppView(view){
   if(view==="ai"&&(!overview||overview.projectId!==project())){view="projects";el("createProjectMessage").textContent="Open a project to ask about its documents, calculations and current position.";}
   appView=view;
@@ -6126,6 +6165,7 @@ function setAppView(view){
   if(view==="portfolio"||view==="projects")loadPortfolio();
   if(projectView)updateActiveProjectShell();
   if(view==="ai")loadAskHome();
+  syncBrowserRoute();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function projectRequestIsCurrent(projectId,requestSeq){
@@ -6758,20 +6798,34 @@ el("boqFiles").onchange=e=>{boqSelection=[...e.target.files];renderSimpleQueue("
 el("contractFiles").onchange=e=>{contractSelection=[...e.target.files];renderContractQueue()};
 el("evidenceFiles").onchange=e=>{evidenceSelection=[...e.target.files];renderSimpleQueue("evidenceQueue",evidenceSelection,"evidence")};
 el("uploadSchedules").onclick=uploadSchedules;el("uploadBoqs").onclick=uploadBoqs;el("uploadContracts").onclick=uploadContracts;el("uploadEvidence").onclick=uploadEvidence;
-const storedProject=localStorage.getItem("cmeng-project");const storedModule=localStorage.getItem("cmeng-module");if(storedModule&&names[storedModule])selected=storedModule;el("projectId").value=storedProject||"";el("projectId").addEventListener("change",()=>openProject(project()));setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderRoleViewSelector();renderAiSuggestions();renderPlatformNav();renderNav();
+const initialBrowserQuery=new URLSearchParams(window.location.search);
+const storedProject=initialBrowserQuery.get('project')||localStorage.getItem("cmeng-project");
+const storedModule=initialBrowserQuery.get('module')||localStorage.getItem("cmeng-module");
+const initialRole=initialBrowserQuery.get('role');
+const initialView=initialBrowserQuery.get('view');
+if(storedModule&&names[storedModule])selected=storedModule;
+if(initialRole&&roleViewOrder.includes(initialRole))selectedRoleView=initialRole;
+el("projectId").value=storedProject||"";
+el("projectId").addEventListener("change",()=>openProject(project()));
+setFocusMode(localStorage.getItem("cmeng-focus")==="1");renderRoleViewSelector();renderAiSuggestions();renderPlatformNav();renderNav();
+window.addEventListener('popstate',()=>{void restoreBrowserRoute();});
 async function bootstrapWorkspace(){
   loadRelease();
   if(storedProject){
     try{
       await openProject(storedProject);
+      if(initialView==='ai')setAppView('ai');
       loadPortfolio();
       return;
     }catch{}
   }
-  setAppView("portfolio");
+  setAppView(initialView==='projects'?'projects':'portfolio');
   loadPortfolio();
 }
-bootstrapWorkspace().catch(()=>setAppView("portfolio"));
+bootstrapWorkspace().catch(()=>setAppView("portfolio")).finally(()=>{
+  browserRouteBooting=false;
+  syncBrowserRoute();
+});
 </script>
 </body>
 </html>`;
