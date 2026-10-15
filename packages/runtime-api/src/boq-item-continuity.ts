@@ -37,15 +37,31 @@ export function boqItemContinuity(previous:IdentifiedItem[],current:IdentifiedIt
     }
     return {groups,keys};
   };
-  const before=index(previous),after=index(current),mapping=new Map<string,string>(),ids=new Set(current.map(i=>i.id));
+  const before=index(previous),after=index(current),mapping=new Map<string,string>();
+  // A native BOQ ID is authoritative only when it denotes exactly one source
+  // row in EACH revision. A duplicate native ID makes every apparent match
+  // ambiguous, even if its descriptions or positions appear similar.
+  const idCounts=(items:IdentifiedItem[])=>{
+    const counts=new Map<string,number>();
+    for(const item of items)counts.set(item.id,(counts.get(item.id)??0)+1);
+    return counts;
+  };
+  const previousIds=idCounts(previous),currentIds=idCounts(current);
   for(let index=0;index<previous.length;index++){
     const item=previous[index]!;
-    // An unchanged native item ID remains the same identity, as before.
-    if(ids.has(item.id)){mapping.set(item.id,item.id);continue;}
+    // Do not accept the last row for a repeated prior native ID.
+    if(previousIds.get(item.id)!==1)continue;
+    // Native identity is strongest where unique; a duplicate in the current
+    // source forbids fallback guessing for that same native ID.
+    if(currentIds.has(item.id)){
+      if(currentIds.get(item.id)===1)mapping.set(item.id,item.id);
+      continue;
+    }
     const key=before.keys[index];
-    // A repeated source identity in EITHER revision remains unresolved.
+    // A repeated source identity or duplicate target native ID is unresolved.
     if(key&&before.groups.get(key)?.count===1&&after.groups.get(key)?.count===1){
-      mapping.set(item.id,after.groups.get(key)!.first.id);
+      const target=after.groups.get(key)!.first;
+      if(currentIds.get(target.id)===1)mapping.set(item.id,target.id);
     }
   }
   return mapping;
