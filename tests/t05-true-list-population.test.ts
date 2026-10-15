@@ -34,7 +34,7 @@ test('T05 uncut source list uses retained server total; mapped preview never inv
  assert.equal(explicit.total,879);
 });
 test('T05 generic record and mixed-list rendering qualifies untracked totals and keeps source drill-down',()=>{
- assert.match(html,/totalEstablished===true\?' of '/);
+ assert.match(html,/totalEstablished===true\s*\?\s*' of '/);
  assert.match(html,/Complete source total not established for this derived list/);
  assert.match(html,/Additional source records · /);
  assert.match(html,/sourcePopulationControl\(value\)/);
