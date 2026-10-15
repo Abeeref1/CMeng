@@ -217,3 +217,38 @@ test('T05 N1/N9 source record endpoint serves requested 50 original rows without
  assert.equal(defaultPage.rows.length,25,'original 25-row consumers remain unchanged');
  assert.equal(JSON.stringify(source),before,'source identity, order and values remain immutable');
 });
+
+test('T05/N9 paged milestones retain exactly the first-open priority ordering across all source pages',()=>{
+ const originalRows=Array.from({length:340},(_,index)=>({
+   activityId:'M-'+String(index).padStart(3,'0'),sourceRefs:['schedule:activity:'+index],
+   status:index<260?'completed':'not_started',terminalMilestone:index%13===0,
+   managementPriority:index>=320?'critical':index>=280?'high':'normal',
+   negativeFloat:index>=320,daysFromDataDate:index%8,
+ }));
+ const source={key:'milestones',projectVersion:39,data:{projectionKey:'milestones',rows:originalRows}};
+ const original=JSON.stringify(source);
+ const firstOpen=pageProjectResponse(source,'/api/projects/P/schedule/modules/milestones') as any;
+ assert.equal(firstOpen.responsePaging.tables.find((t:any)=>t.pointer==='/data/rows')?.total,340);
+ const firstBrowse=recordDetailPage(source,'/data/rows',0,25) as any;
+ assert.deepEqual(firstBrowse.rows.map((r:any)=>r.activityId),firstOpen.data.rows.map((r:any)=>r.activityId));
+ const seen:string[]=[];
+ for(let offset=0;offset<340;offset+=25){
+   const page=recordDetailPage(source,'/data/rows',offset,25) as any;
+   assert.equal(page.total,340);
+   seen.push(...page.rows.map((r:any)=>r.activityId));
+ }
+ assert.equal(seen.length,340);
+ assert.equal(new Set(seen).size,340,'every source milestone is reachable exactly once');
+ assert.deepEqual(new Set(seen),new Set(originalRows.map(r=>r.activityId)));
+ assert.ok(firstBrowse.rows.every((r:any)=>r.status!=='completed'));
+ const open=recordDetailPage(source,'/data/rows',0,25,{status:'__open__'}) as any;
+ assert.equal(open.total,80);
+ assert.equal(open.rows[0].managementPriority,'critical');
+ const userSort=recordDetailPage(source,'/data/rows',0,25,{sort:'activityId',direction:'asc'}) as any;
+ assert.deepEqual(userSort.rows.map((r:any)=>r.activityId),originalRows.slice(0,25).map(r=>r.activityId));
+ const isolated={key:'milestones',projectVersion:39,data:{projectionKey:'milestones',
+   rows:originalRows.map((row,index)=>({...row,managementPriority:index<20?'critical':'normal',status:'not_started'}))}};
+ const isolatedBrowse=recordDetailPage(isolated,'/data/rows',0,25) as any;
+ assert.notDeepEqual(isolatedBrowse.rows.map((r:any)=>r.activityId),firstBrowse.rows.map((r:any)=>r.activityId));
+ assert.equal(JSON.stringify(source),original,'source records and ordering are immutable');
+});

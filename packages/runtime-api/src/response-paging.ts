@@ -98,6 +98,14 @@ function projectFactsOf(body:unknown):unknown {
    item?.sourceQuality?.projectFacts??null;
 }
 
+const priorityMilestoneOrder=(a:any,b:any)=>{
+  const rank=(r:any)=>r?.managementPriority==='critical'?0:r?.managementPriority==='high'?1:r?.managementPriority==='watch'?2:3;
+  return Number(a?.status==='completed')-Number(b?.status==='completed')||
+    Number(Boolean(b?.terminalMilestone))-Number(Boolean(a?.terminalMilestone))||
+    rank(a)-rank(b)||Number(Boolean(b?.negativeFloat))-Number(Boolean(a?.negativeFloat))||
+    Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
+};
+
 /** No stringify of the 65-MB original data, no six full-payload
  * serialization passes, and no page-specific truncation of canonical facts.
  * Counts are always taken BEFORE paging from each exact source population. */
@@ -135,13 +143,6 @@ export function pageProjectResponse(
    ||(milestoneRows(pointer)&&value.length<=160)
    ||(screenKey==='activity-analytics'&&pointer==='/data/rows'&&!!item?.data?.activitySummary&&value.length<=50)
  );
- const priorityMilestoneOrder=(a:any,b:any)=>{
-   const rank=(r:any)=>r?.managementPriority==='critical'?0:r?.managementPriority==='high'?1:r?.managementPriority==='watch'?2:3;
-   return Number(a?.status==='completed')-Number(b?.status==='completed')||
-     Number(Boolean(b?.terminalMilestone))-Number(Boolean(a?.terminalMilestone))||
-     rank(a)-rank(b)||Number(Boolean(b?.negativeFloat))-Number(Boolean(a?.negativeFloat))||
-     Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
- };
  const fullMilestoneRows=screenKey==='milestones'&&Array.isArray(item?.data?.rows)?item.data.rows as any[]:null;
  const milestoneFullCounts=fullMilestoneRows?{...milestonePopulation(fullMilestoneRows),identificationComplete:item?.data?.populationState!=='partial'}:null;
  const projectVersion=Number.isInteger((body as any).projectVersion)
@@ -259,6 +260,13 @@ export function recordDetailPage(root:unknown,pointer:string,offset:number,limit
         ?[row?.quantityItemId,row?.itemNumber,row?.description,row?.unit,row?.unitKey].some(v=>String(v??'').toLowerCase().includes(query))
         :JSON.stringify(row).toLowerCase().includes(query));
     }):value;
+    // Milestone preview ranks the entire source population. Browse pages
+    // must use that same order or critical entries repeat and others vanish.
+    // Explicit user sorting continues to take precedence over that default.
+    const milestoneBrowse=pointer==='/data/rows'&&
+      ((root as any)?.key==='milestones'||(root as any)?.data?.projectionKey==='milestones');
+    if(!safeSort&&milestoneBrowse&&value.length>160)
+      matched=[...matched].sort(priorityMilestoneOrder);
     if(safeSort){
       const atField=(row:any)=>safeSort.split('.').reduce((o,k)=>o?.[k],row);
       matched=[...matched].sort((a,b)=>{
