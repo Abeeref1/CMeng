@@ -1,0 +1,2 @@
+15 October 2026 — T09 direct action evidence and correction route
+Accountability team actions and underlying record actions now carry exact source correction records from their retained source references. The top action table, grouped-member drilldown and underlying-record drilldown expose an exact retained evidence link plus a direct button to the owning page where the correction/follow-up belongs. This removes the Accountability → Project Review → source loop for project-team actions while keeping Project Review only for decisions requiring user authority. No deployment.

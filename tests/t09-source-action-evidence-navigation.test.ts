@@ -31,3 +31,20 @@ test('T09 real browser UI builds source link for the project and hash, not an un
  assert.ok(fn(row).includes('Quality register original.pdf · Page 7'));
  assert.ok(!fn(actionSourceCorrectionRecord(projectState,'evidence-document:FOREIGN')).includes('<a '));
 });
+
+test('T09 Accountability exposes the exact evidence and owning fix page on the same action row',()=>{
+ const html=cmengUatHtml();
+ const evidenceSource=/function accountabilityEvidenceLink\(row\)\{[\s\S]*?\n\}/.exec(html)?.[0];
+ assert.ok(evidenceSource,'Accountability exact-evidence renderer exists');
+ const evidence=runInNewContext('('+evidenceSource+')',{
+   project:()=> 'EXACT-PROJECT',escapeHtml:(v:unknown)=>String(v),encodeURIComponent
+ }) as (row:unknown)=>string;
+ const correction=actionSourceCorrectionRecord(projectState,'evidence-document:DOC-02:row:1743');
+ const linked=evidence({correctionRecords:[correction]});
+ assert.ok(linked.includes('/api/projects/EXACT-PROJECT/evidence/documents/DOC-02/source?hash=SHA-BYTES-02'));
+ assert.ok(linked.includes('Current procurement.xlsx · Row 1743'));
+ assert.match(html,/function accountabilityFixLink\(row\)/);
+ assert.match(html,/<th>Evidence<\/th><th>Place to fix<\/th>/);
+ assert.match(html,/accountabilityEvidenceLink\(action\)/);
+ assert.match(html,/accountabilityFixLink\(action\)/);
+});

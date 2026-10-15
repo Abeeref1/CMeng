@@ -17,7 +17,7 @@ import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,del
 import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
-import {projectActions,type ProjectAction} from './project-actions';
+import {projectActions,actionSourceCorrectionRecord,type ProjectAction} from './project-actions';
 import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
@@ -7988,13 +7988,15 @@ function moduleForProjectUncached(
   if (key==='cross-domain-accountability') {
     const scoped=reportingState(state),register=projectActionRegisterForState(state),result=accountabilityModule(scoped);
     const decisionIds=new Set(register.workflow.actions.map(a=>a.id));
-    const teamActions=register.actions.filter(a=>!decisionIds.has(a.actionId));
+    const correctionRecords=(sourceRefs:readonly string[]|undefined)=>[...new Set(sourceRefs??[])].map(ref=>actionSourceCorrectionRecord(scoped,ref));
+    const teamActions=register.actions.filter(a=>!decisionIds.has(a.actionId)).map(a=>({...a,correctionRecords:correctionRecords(a.sourceRefs)}));
+    const recordActions=register.recordActions.map(a=>({...a,correctionRecords:correctionRecords(a.sourceRefs)}));
     return finalize(withPositionVerdict(attachReportingContract(scoped,{
       ...result,
       status:teamActions.length?'partial':result.status,
-      data:{...(result.data as object),actions:teamActions,actionCount:teamActions.length,
+      data:{...(result.data as object),actions:teamActions,recordActions,actionCount:teamActions.length,
         ownerRegisterGroups:groupActionsByOwnerRegister(teamActions),
-        managementPosition:teamActions.length+' accountable project-team groups. '+register.recordActionCount+' underlying source records remain available. Decisions requiring your authority are in Project Review.'}
+        managementPosition:teamActions.length+' accountable project-team groups. '+register.recordActionCount+' underlying source records remain available. Each action carries its retained source evidence and owning correction page; decisions requiring your authority remain in Project Review.'}
     })));
   }
   if (isDeliveryPage(key)) {
