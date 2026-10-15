@@ -69,7 +69,9 @@ test('T11: near-critical and WBS projectors reuse first source calendar without 
   assert.ok(knownWbs.criticalCount!==null&&knownWbs.nearCriticalCount!==null,'known-value WBS must exercise numeric parity');
   const hierarchyRows=breakdown.hierarchyRows;
   assert.ok(hierarchyRows,'specialist WBS ancestor roll-ups must be present');
-  for(const row of [...breakdown.rows,...hierarchyRows,breakdown.overallSummary]){
+  const completeSummary=breakdown.overallSummary;
+  assert.ok(completeSummary,'the complete specialist source-scope summary must be present');
+  for(const row of [...breakdown.rows,...hierarchyRows,completeSummary]){
     const ancestorRoot=hierarchyRows.includes(row as any)&&row.wbsId==='ROOT';
     const subset=row.wbsId==='DELIVERY_SCOPE'||ancestorRoot
       ?model.activities.filter(isExecutionActivity)
