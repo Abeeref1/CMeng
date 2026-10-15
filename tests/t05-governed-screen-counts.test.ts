@@ -89,4 +89,6 @@ test('T05 payment screens require retained source authority before zeros are sho
  assert.match(script,/governedDisplayCount\(paymentSourceEstablished,paymentRegister\.futureRecordCount\)/);
  assert.match(script,/governedDisplayCount\(paymentSourceEstablished,paymentRegister\.undatedRecordCount\)/);
  assert.match(script,/governedDisplayCount\(paymentPopulationEstablished,slaCounts\.notEstablished\)/);
+ assert.match(script,/\["Overdue unpaid",governedDisplayCount\(paymentPopulationEstablished,slaCounts\.overdueUnpaid\)/);
+ assert.match(script,/\["Paid late",governedDisplayCount\(paymentPopulationEstablished,slaCounts\.paidLate\)/);
 });
