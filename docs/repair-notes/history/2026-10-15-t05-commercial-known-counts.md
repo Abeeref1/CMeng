@@ -1,0 +1,2 @@
+15 October 2026 — T05 commercial known-count authority
+Commercial summaries, variation lifecycle charts and Site Instruction charts now treat a count as established only when an actual finite non-negative numeric population exists. A source/status label alone can no longer create a displayed zero. Missing breakdown counts withhold the chart instead of drawing zero bars; a genuinely confirmed empty population remains an explicit zero. Universal challenge unavailable-check counts also retain “Not established” rather than defaulting to zero. No deployment.

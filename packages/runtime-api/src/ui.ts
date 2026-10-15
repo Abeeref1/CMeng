@@ -806,8 +806,8 @@ function renderUniversalChallenge(challenge){
     '<div class="scalar-grid challenge-summary">'+
       '<div class="scalar"><b>Submitted position</b><span>'+escapeHtml(submittedState)+'</span></div>'+
       '<div class="scalar"><b>CMeng review</b><span>'+escapeHtml(independentState)+'</span></div>'+
-      '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(challenge.notSubmittedCount)+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(challenge.unavailableCheckCount??0)+'</span></div>'+
-      '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(challenge.scenarioCount)+'</span></div>'+
+      '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(fmt(challenge.notSubmittedCount))+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(fmt(challenge.unavailableCheckCount))+'</span></div>'+
+      '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(fmt(challenge.scenarioCount))+'</span></div>'+
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
@@ -3573,10 +3573,10 @@ function renderCommercialVisual(key,data){
   const position=p.position||data.position||data;
   if(!position||!Array.isArray(position.currencies))return"";
   const foundation=position.foundation||null;
-  const countPosition=(state,count,noun)=>{
-    const n=Number(count??0);
-    if(n>0||state==="established")return fmt(n)+" "+noun;
-    return "Not established";
+  const knownCount=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
+  const countPosition=(_state,count,noun)=>{
+    if(!knownCount(count))return "Not established";
+    return fmt(count)+" "+noun;
   };
   const t=position.timeExposure||{};
   const time=planningKpis([
@@ -4074,31 +4074,43 @@ function renderCommercialVisual(key,data){
       const vo=contractControls.variations||{};
       const stageCounts=vo.lifecycleStageCounts||{};
       const ageBands=vo.pendingAgeBands||{};
-      const variationPopulationEstablished=(vo.recordCount??0)>0||vo.state==="established";
+      const variationPopulationEstablished=knownCount(vo.recordCount);
+      const variationLifecycleCounts=[stageCounts.instruction,stageCounts.submitted,stageCounts.quoted,stageCounts.assessed,stageCounts.agreed,stageCounts.approved,stageCounts.rejected,stageCounts.unknown];
+      const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts.every(knownCount);
       const lifecycleVisual=renderVisualPanel(
         "Variation lifecycle distribution",
         "Current controlled lifecycle stage for every variation. Instruction, submission, quotation, assessment, agreement, approval and rejection stay distinct.",
-        variationPopulationEstablished?renderVisualBars([
-          {label:"Instruction",value:stageCounts.instruction??0,tone:"graphite"},
-          {label:"Submitted",value:stageCounts.submitted??0,tone:"accent"},
-          {label:"Quoted",value:stageCounts.quoted??0,tone:"purple"},
-          {label:"Assessed",value:stageCounts.assessed??0,tone:"warning"},
-          {label:"Agreed",value:stageCounts.agreed??0,tone:"accent"},
-          {label:"Approved",value:stageCounts.approved??0,tone:"success"},
-          {label:"Rejected",value:stageCounts.rejected??0,tone:"danger"},
-          {label:"Unknown",value:stageCounts.unknown??0,tone:"neutral"}
-        ],"items"):'<div class="empty-visual">Variation register is not confirmed. Lifecycle counts are not confirmed.</div>'
+        variationLifecycleEstablished?renderVisualBars([
+          {label:"Instruction",value:stageCounts.instruction,tone:"graphite"},
+          {label:"Submitted",value:stageCounts.submitted,tone:"accent"},
+          {label:"Quoted",value:stageCounts.quoted,tone:"purple"},
+          {label:"Assessed",value:stageCounts.assessed,tone:"warning"},
+          {label:"Agreed",value:stageCounts.agreed,tone:"accent"},
+          {label:"Approved",value:stageCounts.approved,tone:"success"},
+          {label:"Rejected",value:stageCounts.rejected,tone:"danger"},
+          {label:"Unknown",value:stageCounts.unknown,tone:"neutral"}
+        ],"items"):variationPopulationEstablished&&vo.recordCount===0
+          ?'<div class="empty-visual">The confirmed variation population is zero.</div>'
+          :'<div class="empty-visual">Variation lifecycle counts are not fully established.</div>'
       );
+      const pendingCount=knownCount(vo.knownPendingCount)?vo.knownPendingCount:knownCount(vo.pendingCount)?vo.pendingCount:null;
+      const unknownStageCount=knownCount(vo.unknownAsOfStageCount)?vo.unknownAsOfStageCount:null;
+      const agingCounts=[ageBands.upTo30Days,ageBands.days31To60,ageBands.days61To90,ageBands.over90Days,ageBands.unknown];
+      const agingPopulationKnown=pendingCount!==null&&unknownStageCount!==null;
+      const agingNeeded=agingPopulationKnown&&(pendingCount>0||unknownStageCount>0);
+      const agingBreakdownKnown=agingCounts.every(knownCount);
       const agingVisual=renderVisualPanel(
         "Pending and unknown-stage aging",
         "Aging covers identified pending and unknown-stage rows only; it does not establish the complete pending exposure. Closed variations are excluded.",
-        ((vo.knownPendingCount??vo.pendingCount??0)>0||(vo.unknownAsOfStageCount??0)>0)?renderVisualBars([
-          {label:"0–30 days",value:ageBands.upTo30Days??0,tone:"success"},
-          {label:"31–60 days",value:ageBands.days31To60??0,tone:"accent"},
-          {label:"61–90 days",value:ageBands.days61To90??0,tone:"warning"},
-          {label:">90 days",value:ageBands.over90Days??0,tone:"danger"},
-          {label:"Age not confirmed",value:ageBands.unknown??0,tone:"neutral"}
-        ],"items"):'<div class="empty-visual">No pending lifecycle population is established for aging. Approved-only or rejected-only rows do not prove that no other variations are pending.</div>'
+        agingNeeded&&agingBreakdownKnown?renderVisualBars([
+          {label:"0–30 days",value:ageBands.upTo30Days,tone:"success"},
+          {label:"31–60 days",value:ageBands.days31To60,tone:"accent"},
+          {label:"61–90 days",value:ageBands.days61To90,tone:"warning"},
+          {label:">90 days",value:ageBands.over90Days,tone:"danger"},
+          {label:"Age not confirmed",value:ageBands.unknown,tone:"neutral"}
+        ],"items"):agingPopulationKnown&&!agingNeeded
+          ?'<div class="empty-visual">The established pending and unknown-stage population is zero.</div>'
+          :'<div class="empty-visual">Pending aging is not fully established from the source register.</div>'
       );
       const bridgeVisuals=(position.currencies||[]).map(row=>renderVisualPanel(
         row.currency+" · Contract value & change bridge",
@@ -4129,16 +4141,19 @@ function renderCommercialVisual(key,data){
         return '<tr><td><b>'+escapeHtml(row.variationId)+'</b> · '+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>Not recorded</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td></tr>';
       });
       const si=contractControls.siteInstructions||{};
-      const siteInstructionPopulationEstablished=(si.recordCount??0)>0||si.state==="established";
+      const siteInstructionPopulationEstablished=knownCount(si.recordCount);
+      const siteInstructionBreakdownEstablished=siteInstructionPopulationEstablished&&[si.unquotedCount,si.overdueQuotationCount,si.convertedVariationCount].every(knownCount);
       const instructionPressure=renderVisualPanel(
         "Site Instruction conversion & quotation pressure",
         "An instruction is not automatically a variation. Overdue quotation and explicit VO conversion are shown separately.",
-        siteInstructionPopulationEstablished?renderVisualBars([
-          {label:"Instructions",value:si.recordCount??0,tone:"graphite"},
-          {label:"Unquoted",value:si.unquotedCount||0,tone:"warning"},
-          {label:"Overdue quotations",value:si.overdueQuotationCount||0,tone:"danger"},
-          {label:"Converted to VO",value:si.convertedVariationCount||0,tone:"success"}
-        ],"items"):'<div class="empty-visual">Site Instruction register is not confirmed. Conversion and quotation counts are not confirmed.</div>'
+        siteInstructionBreakdownEstablished?renderVisualBars([
+          {label:"Instructions",value:si.recordCount,tone:"graphite"},
+          {label:"Unquoted",value:si.unquotedCount,tone:"warning"},
+          {label:"Overdue quotations",value:si.overdueQuotationCount,tone:"danger"},
+          {label:"Converted to VO",value:si.convertedVariationCount,tone:"success"}
+        ],"items"):siteInstructionPopulationEstablished&&si.recordCount===0
+          ?'<div class="empty-visual">The confirmed Site Instruction population is zero.</div>'
+          :'<div class="empty-visual">Site Instruction conversion and quotation counts are not fully established.</div>'
       );
       const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
       const siteInstructionActionRows=(si.rows||[]).map(row=>{
@@ -4176,10 +4191,10 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Instructions",siteInstructionPopulationEstablished?(si.recordCount??0):"Not established","source records"],
-          ["Unquoted",siteInstructionPopulationEstablished?(si.unquotedCount??0):"Not established","quotation missing"],
-          ["Overdue quotations",siteInstructionPopulationEstablished?(si.overdueQuotationCount??0):"Not established","past due"],
-          ["Converted to VO",siteInstructionPopulationEstablished?(si.convertedVariationCount??0):"Not established","explicit link only"]
+          ["Instructions",governedDisplayCount(siteInstructionPopulationEstablished,si.recordCount),"source records"],
+          ["Unquoted",governedDisplayCount(siteInstructionPopulationEstablished,si.unquotedCount),"quotation missing"],
+          ["Overdue quotations",governedDisplayCount(siteInstructionPopulationEstablished,si.overdueQuotationCount),"past due"],
+          ["Converted to VO",governedDisplayCount(siteInstructionPopulationEstablished,si.convertedVariationCount),"explicit link only"]
         ])+
         instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+

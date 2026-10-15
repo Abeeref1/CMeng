@@ -65,3 +65,17 @@ test('T05/N2/N3 unknown schedule variance and float coverage cannot display fabr
  assert.match(script,/variance\.denominator\?\?null/,'unverified baseline comparison cannot borrow total execution denominator');
  assert.doesNotMatch(script,/fmt\(r\.float\.coveragePercent\)\)\+'% of remaining/);
 });
+
+test('T05 commercial count authority requires a real numeric population and never status-only zero',()=>{
+ assert.match(script,/const knownCount=value=>typeof value==="number"&&Number\.isFinite\(value\)&&value>=0/);
+ assert.match(script,/if\(!knownCount\(count\)\)return "Not established"/,
+  'commercial summary cannot convert an established status with missing count into zero');
+ assert.match(script,/const variationPopulationEstablished=knownCount\(vo\.recordCount\)/);
+ assert.match(script,/const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts\.every\(knownCount\)/);
+ assert.doesNotMatch(script,/variationPopulationEstablished=\(vo\.recordCount\?\?0\)>0\|\|vo\.state==="established"/);
+ assert.match(script,/const siteInstructionPopulationEstablished=knownCount\(si\.recordCount\)/);
+ assert.match(script,/governedDisplayCount\(siteInstructionPopulationEstablished,si\.unquotedCount\)/);
+ assert.doesNotMatch(script,/siteInstructionPopulationEstablished\?\(si\.unquotedCount\?\?0\)/);
+ assert.match(script,/escapeHtml\(fmt\(challenge\.unavailableCheckCount\)\)/);
+ assert.doesNotMatch(script,/challenge\.unavailableCheckCount\?\?0/);
+});
