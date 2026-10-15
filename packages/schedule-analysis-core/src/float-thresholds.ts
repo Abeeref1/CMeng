@@ -100,7 +100,9 @@ export function sourceFloatCriticality(
   config: ScheduleAnalysisConfig,
   calendarById?: ReadonlyMap<string,CanonicalCalendar>,
 ): "critical" | "near_critical" | "noncritical" | "unknown" {
-  if (activity.totalFloatHours === null) return "unknown";
+  // A missing or non-finite source float is unknown, never noncritical.
+  // Finite zero and signed negative float retain the original definitions.
+  if (typeof activity.totalFloatHours !== 'number' || !Number.isFinite(activity.totalFloatHours)) return "unknown";
 
   if (
     activity.totalFloatHours <=
@@ -128,7 +130,8 @@ export function sourceFloatInFloatRiskWatchlist(
   config: ScheduleAnalysisConfig,
   calendarById?: ReadonlyMap<string,CanonicalCalendar>,
 ): boolean | null {
-  if (activity.totalFloatHours === null) return null;
+  // Invalid/missing source float does not establish an excluded watchlist item.
+  if (typeof activity.totalFloatHours !== 'number' || !Number.isFinite(activity.totalFloatHours)) return null;
 
   const upper =
     activityNearCriticalThresholdHours(
