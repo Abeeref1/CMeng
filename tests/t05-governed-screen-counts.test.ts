@@ -182,3 +182,20 @@ test('T05 unknown progress cohorts and forecast coverage cannot display false co
  assert.match(script,/\["Project documents",data\.evidenceDocumentCount\?\?null/);
  assert.match(script,/\["Activities",w\.activityCount\?\?null/);
 });
+
+test('T05/T10 missing system checks and action register may never announce no failures',()=>{
+ const src=cmengUatHtml();
+ assert.match(src,/Array\.isArray\(data\.systemFailures\)\?\(data\.systemFailures\.length\?failures/);
+ assert.match(src,/System failure check is not established/);
+ assert.match(src,/Array\.isArray\(data\.sourceIssues\)\?groups\.map/);
+ const decisions=runInNewContext(originalFunction('renderDashboardDecisions')+';renderDashboardDecisions',{
+  managementPanel:(_title:string,_intro:string,body:string)=>body,fmt:String,
+ }) as (data:any)=>string;
+ assert.match(decisions({}),/Source decision population is not established/);
+ assert.doesNotMatch(decisions({}),/No source confirmation is awaiting action/);
+ const exceptions=runInNewContext(originalFunction('renderDashboardExceptions')+';renderDashboardExceptions',{
+  managementPanel:(_title:string,_intro:string,body:string)=>body,fmt:String,
+ }) as (data:any)=>string;
+ assert.match(exceptions({}),/Project action population is not established/);
+ assert.doesNotMatch(exceptions({}),/No current project actions are identified/);
+});
