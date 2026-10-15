@@ -3,8 +3,7 @@ import {activityDateExceptionReader,activityDelayStatus} from './exceptions';
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
-  sourceFloatCriticality,
-  sourceFloatInFloatRiskWatchlist,
+  activityNearCriticalThresholdHours,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type ScheduleAnalysisConfig,
@@ -23,18 +22,18 @@ function coverage(
   return Number(((known / total) * 100).toFixed(4));
 }
 
-function criticality(
-  model: CanonicalScheduleModel,
+function classifyFloat(
   activity: CanonicalScheduleActivity,
   config: ScheduleAnalysisConfig,
-  calendarById: ReadonlyMap<string,CanonicalScheduleModel['calendars'][number]>,
-): ActivityCriticality {
-  return sourceFloatCriticality(
-    model,
-    activity,
-    config,
-    calendarById,
-  );
+  upper: number | null,
+): {criticality:ActivityCriticality;floatRiskWatchlist:boolean|null} {
+  const hours=activity.totalFloatHours;
+  if(hours===null)return {criticality:"unknown",floatRiskWatchlist:null};
+  const criticality:ActivityCriticality=hours<=config.criticalFloatThresholdHours?"critical"
+    :upper===null?"unknown":hours<=upper?"near_critical":"noncritical";
+  const lowerSatisfied=config.floatRiskWatchlistIncludesCriticalThreshold===true
+    ?hours>=config.criticalFloatThresholdHours:hours>config.criticalFloatThresholdHours;
+  return {criticality,floatRiskWatchlist:upper===null?null:lowerSatisfied&&hours<=upper};
 }
 
 function effectiveFinish(
@@ -115,6 +114,15 @@ export function buildActivityAnalyticsProjection(
   for(const calendar of model.calendars)
     if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
 
+  // First-calendar thresholds are reused only within this exact projection.
+  const nearByCalendar=new Map<string|null,number|null>();
+  const position=(activity:CanonicalScheduleActivity)=>{
+    if(activity.totalFloatHours===null)return classifyFloat(activity,config,null);
+    const id=activity.calendarId;
+    if(!nearByCalendar.has(id))
+      nearByCalendar.set(id,activityNearCriticalThresholdHours(model,activity,config,calendarById));
+    return classifyFloat(activity,config,nearByCalendar.get(id)!);
+  };
   const rows: ActivityAnalyticsRow[] =
     model.activities.map((activity) => {
       const entry =
@@ -125,6 +133,7 @@ export function buildActivityAnalyticsProjection(
         [...(entry?.successorIds ?? [])];
       const dates=dateExceptions(activity);
       const variance=finishVarianceDays(activity);
+      const floatPosition=position(activity);
 
       return {
         activityId: activity.activityId,
@@ -162,15 +171,8 @@ export function buildActivityAnalyticsProjection(
         freeFloatHours:
           activity.freeFloatHours,
 
-        criticality:
-          criticality(model, activity, config, calendarById),
-        floatRiskWatchlist:
-          sourceFloatInFloatRiskWatchlist(
-            model,
-            activity,
-            config,
-            calendarById,
-          ),
+        criticality:floatPosition.criticality,
+        floatRiskWatchlist:floatPosition.floatRiskWatchlist,
         finishVarianceDays: variance,
         ...dates,
         ...activityDelayStatus({...dates,status:activity.status,finishVarianceDays:variance}),
