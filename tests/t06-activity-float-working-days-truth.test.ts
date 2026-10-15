@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runInNewContext} from 'node:vm';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
 import {activityFloatReconciliation} from '../packages/runtime-api/src/activity-float-reconciliation';
 
@@ -45,8 +47,6 @@ test('T06 original source hours remain auditable while float is expressed in eac
 });
 
 test('T06 activity screen shows source-calendar days with original hourly audit and excludes completed work',()=>{
- const {runInNewContext}=require('node:vm') as typeof import('node:vm');
- const {cmengUatHtml}=require('../packages/runtime-api/src/ui') as typeof import('../packages/runtime-api/src/ui');
  const html=cmengUatHtml();
  const match=/function sourceWorkingFloat\(row,calculated=false\)\{[\s\S]*?\n\}/.exec(html)?.[0];
  assert.ok(match,'actual browser float renderer is present');
