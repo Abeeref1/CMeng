@@ -110,6 +110,13 @@ function actionResolutionHtml(a){
  }
  return '';
 }
+function actionSourceLink(row){
+ const label=escapeHtml((row.source||'Retained source record')+' · '+(row.locator||'Source section'));
+ if(!row.documentId||!row.sourceHash)return label;
+ const address='/api/projects/'+encodeURIComponent(project())+'/evidence/documents/'+encodeURIComponent(row.documentId)+'/source?hash='+encodeURIComponent(row.sourceHash);
+ return '<a href="'+escapeHtml(address)+'" title="Open original source evidence">'+label+'</a>';
+}
+
 function renderProjectActionList(){
  if(!actionStateCurrent()||projectActionState.status==='loading')return '<p role="status">Checking actions required…</p>';
  if(projectActionState.status==='error')return '<p role="alert">Actions could not be refreshed. '+escapeHtml(projectActionState.message)+'</p><button class="btn" data-action-refresh>Try again</button>';
@@ -130,7 +137,7 @@ function renderProjectActionList(){
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
-   (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>Open all '+fmt(a.correctionRecords.length)+' recorded locations</summary><p>'+a.correctionRecords.slice(3).map(row=>escapeHtml(row.source+' · '+row.locator)).join('; ')+'</p></details>':'')+'</div>':'')+
+   (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>Open all '+fmt(a.correctionRecords.length)+' recorded locations</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information||a.target?.kind?.startsWith('review-')?actionResolutionHtml(a):'')+
    ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Findings, owners and affected pages':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
    (a.affectedPages?.length?'<small>Affects '+fmt(a.affectedPages.length)+' view'+(a.affectedPages.length===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';

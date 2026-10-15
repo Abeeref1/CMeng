@@ -1,0 +1,2 @@
+15 October 2026 — T09 retained evidence link for actions (partial)
+The actions list showed inert filenames and page numbers for source findings. Each action finding with retained source references now exposes the exact original document/physical locator with SHA-bound source URL, not an upload-only workaround. Original decisions and specialist navigation are unchanged; missing or foreign documents do not create fake links. Three independent source/browser tests added. Remaining T09 direct-fix and no-loop acceptance stays open; no deployment.

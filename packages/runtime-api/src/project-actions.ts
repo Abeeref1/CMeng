@@ -39,12 +39,23 @@ export interface ProjectAction {
   };
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
-  correctionRecords?:Array<{source:string;locator:string}>;
+  correctionRecords?:Array<{source:string;locator:string;documentId?:string;sourceHash?:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
   evidenceSummary?:string[];reviewFingerprint?:string;reviewSourceRefs?:string[];
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
+/** Only original SHA-bound evidence for this project may be opened from an
+ * action. A foreign or absent reference never becomes a synthetic link. */
+export function actionSourceCorrectionRecord(state:ProjectRuntimeState,ref:string){
+ const document=state.evidenceDocuments.find(d=>ref==='evidence-document:'+d.documentId||
+   ref.startsWith('evidence-document:'+d.documentId+':'));
+ const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
+ return {source:document?.sourceFilename??'Retained source record',
+  locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section',
+  ...(document?{documentId:document.documentId,sourceHash:document.sourceHashSha256}:{})};
+}
+
 function informationResolution(instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
   return {category:'information',resolution:{kind:'information',requiresUserAction:false,instruction,completionRule:'No user action is required. CMeng will refresh this information automatically when the underlying project evidence or calculation changes.'},target:{type:'inline',label:'Why this is not an action'}};
 }
@@ -309,12 +320,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{}),...(evidenceSummary.length?{evidenceSummary}:{}),...(fingerprint?{reviewFingerprint:fingerprint}:{})};
+      if(refs.length){
+        item.correctionRecords=refs.map(ref=>actionSourceCorrectionRecord(state,ref))
+          .filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator&&other.documentId===row.documentId)===index);
+      }
       if(resolution.resolution?.kind==='upload'||item.category==='follow_up'&&refs.length){
-        item.correctionRecords=refs.map(ref=>{
-          const document=state.evidenceDocuments.find(d=>ref.startsWith('evidence-document:'+d.documentId+':'));
-          const locator=ref.match(/:(row|page|pdf_page):([\d]+)/);
-          return {source:document?.sourceFilename??'Retained source record',locator:locator?(locator[1]==='row'?'Row ':'Page ')+locator[2]:'Source section'};
-        }).filter((row,index,all)=>all.findIndex(other=>other.source===row.source&&other.locator===row.locator)===index);
         item.reason=group.key==='notice-term-versions'?'These are successive contractual provisions, not necessarily conflicting records. Check the effective dates.'
           :group.key==='risk-rating-rule'?'The register supplies inconsistent ratings for identical scores. Original ratings are retained until the rating rule is confirmed.'
           :group.key==='programme-logic'?'The submitted programme includes duplicate IDs or missing links. The planner must validate the original programme.'
