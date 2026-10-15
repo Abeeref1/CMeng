@@ -5370,10 +5370,12 @@ function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
   const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs","projectFacts","schemaVersion","valueState","calculatedWithStatedBasis","calculated_with_stated_basis"]);
   const complex=Object.entries(data).filter(([key,value])=>!hiddenKeys.has(key)&&!readerPresentationTechnicalField(key)&&!isScalarValue(value));
-  return complex.map(([key,value])=>{
+  if(!complex.length)return"";
+  const sections=complex.map(([key,value])=>{
     const count=Array.isArray(value)?responseListPopulation(value).total:null;
     return '<section class="data-section"><div class="data-section-head"><h4>'+escapeHtml(humanizeKey(key))+'</h4>'+(count===null?'':'<span class="badge">'+escapeHtml(count)+' records</span>')+'</div><div class="data-section-body">'+renderStructuredValue(value,0,key)+'</div></section>';
   }).join("");
+  return '<details class="management-detail supporting-structured-data"><summary>Supporting source detail · '+escapeHtml(complex.length)+' section'+(complex.length===1?'':'s')+'</summary><div class="supporting-structured-data-body">'+sections+'</div></details>';
 }
 function userFacingModuleReason(key,reason){
   if(!reason)return"";

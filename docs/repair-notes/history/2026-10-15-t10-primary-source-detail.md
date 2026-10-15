@@ -1,0 +1,2 @@
+15 October 2026 — T10 primary view source detail
+Generic structured/source populations are no longer expanded as primary-page boxes when a page has no specialist renderer. Scalar management facts remain visible first; all structured source detail is retained unchanged behind a closed “Supporting source detail” disclosure and remains reachable through source paging and downloads. No source fields, calculations or exports were removed. No deployment.

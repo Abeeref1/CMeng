@@ -66,6 +66,7 @@ jobs:
             dist/tests/t08-procurement-gregorian-date-truth.test.js \
             dist/tests/t06-activity-float-working-days-truth.test.js \
             dist/tests/t10-diagnostic-heading-meaning.test.js \
+            dist/tests/t10-primary-source-detail-collapsed.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
             dist/tests/t02-operational-status-columns-truth.test.js \
             dist/tests/t02-cross-consumer-register-status.test.js \
