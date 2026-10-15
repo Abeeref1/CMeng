@@ -76,6 +76,10 @@ export interface LookAheadActivityRow {
   baselineFinishIso: string | null;
   percentComplete: number | null;
   totalFloatHours: number | null;
+  submittedTotalFloatHours?:number|null;
+  submittedTotalFloatWorkingDays?:number|null;
+  workingDayHours?:number|null;
+  floatDaysBasis?:'source_activity_calendar'|'calendar_working_day_not_established';
   drivingPath?:boolean|null;
   classification: LookAheadClassification;
   missedPlannedStart?: boolean;

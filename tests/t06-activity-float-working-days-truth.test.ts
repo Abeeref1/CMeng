@@ -4,6 +4,7 @@ import {runInNewContext} from 'node:vm';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
 import {activityFloatReconciliation} from '../packages/runtime-api/src/activity-float-reconciliation';
+import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
 
 function sample(id:string,hours:number){
  const activities=[
@@ -73,4 +74,36 @@ test('T06 primary per-activity float views use source-calendar working days besi
  const display=runInNewContext('('+code+')',{fmt:(n:unknown)=>String(n)}) as (row:any)=>string;
  assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:-2,submittedTotalFloatHours:-24}),'-2 working days · -24 original h');
  assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:null,submittedTotalFloatHours:0}),'Working-day basis not established · 0 original h');
+});
+
+test('T06 Look Ahead itself carries original source-calendar working days, with no guessed day length',()=>{
+ for(const dayHours of [8,10,12]){
+  const activity=(activityId:string,calendarId:string)=>({
+   projectId:'FRESH-PROJECT',activityId,nativeId:activityId,name:'Open installation',
+   wbsId:'W',calendarId,activityType:'task' as const,status:'in_progress' as const,
+   baselineStartIso:'2031-08-01',baselineFinishIso:'2031-09-05',
+   currentStartIso:'2031-08-01',currentFinishIso:'2031-09-05',
+   actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,
+   originalDurationHours:24,remainingDurationHours:24,totalFloatHours:24,
+   freeFloatHours:null,percentComplete:20,sourceRefs:[],diagnostics:[]
+  });
+  const model:any={projectId:'FRESH-PROJECT',source:'xer',sourceRevisionId:'SOURCE',
+   dataDateIso:'2031-08-31',
+   activities:[activity('A1','C'),activity('A2','UNREAD')],
+   calendars:[{calendarId:'C',semanticComplete:true,standardDayHours:dayHours,sourceRefs:[]},
+    {calendarId:'C',semanticComplete:true,standardDayHours:24,sourceRefs:[]},
+    {calendarId:'UNREAD',semanticComplete:false,standardDayHours:24,sourceRefs:[]}],
+   wbs:[{wbsId:'W',name:'Installation',parentWbsId:null,sourceRefs:[]}],
+   relationships:[],diagnostics:[]};
+  const unchanged=JSON.stringify(model);
+  const result=buildLookAheadProjection(model,{generatedAt:'2031-09-01T00:00:00Z',producerVersion:'independent-case'});
+  const a=result.rows.find(row=>row.activityId==='A1');
+  const b=result.rows.find(row=>row.activityId==='A2');
+  assert.equal(a?.submittedTotalFloatHours,24);
+  assert.equal(a?.submittedTotalFloatWorkingDays,Number((24/dayHours).toFixed(6)));
+  assert.equal(a?.floatDaysBasis,'source_activity_calendar');
+  assert.equal(b?.submittedTotalFloatWorkingDays,null,'unread original calendar is not a 24-hour fallback');
+  assert.equal(b?.floatDaysBasis,'calendar_working_day_not_established');
+  assert.equal(JSON.stringify(model),unchanged,'no source schedule mutation or adoption');
+ }
 });

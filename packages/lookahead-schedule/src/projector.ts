@@ -4,6 +4,7 @@ import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from ".
 import {
   buildScheduleActivityLogicIndex,
   isExecutionActivity,
+  calendarWorkingDayHours,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
   type CanonicalScheduleRelationship,
@@ -318,6 +319,17 @@ export function buildLookAheadProjection(
   const missingCurrentDateActivityIds: string[] = [];
   const forwardWindowRows: LookAheadActivityRow[] = [];
   const overdueBacklogRows: LookAheadActivityRow[] = [];
+  // One exact source-calendar day definition per calendar, reused by each row.
+  // A missing/incomplete calendar never falls back to eight or twenty-four hours.
+  const firstCalendars=new Map<string,(typeof model.calendars)[number]>();
+  for(const calendar of model.calendars)if(!firstCalendars.has(calendar.calendarId))firstCalendars.set(calendar.calendarId,calendar);
+  const dayHoursByCalendar=new Map<string|null,number|null>();
+  const floatDayHours=(id:string|null)=>{
+    if(dayHoursByCalendar.has(id))return dayHoursByCalendar.get(id)!;
+    const hours=calendarWorkingDayHours(id===null?null:firstCalendars.get(id)??null);
+    dayHoursByCalendar.set(id,hours);
+    return hours;
+  };
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
   stage('indexes_and_dates');
@@ -374,6 +386,9 @@ export function buildLookAheadProjection(
     const activityLogic =
       logic.byActivityId[activity.activityId];
 
+    const dayHours=floatDayHours(activity.calendarId);
+    const sourceHours=typeof activity.totalFloatHours==='number'&&Number.isFinite(activity.totalFloatHours)?activity.totalFloatHours:null;
+    const sourceWorkingDays=dayHours!==null&&dayHours>0&&sourceHours!==null?Number((sourceHours/dayHours).toFixed(6)):null;
     const row:LookAheadActivityRow={
       activityId: activity.activityId,
       name: activity.name,
@@ -390,6 +405,10 @@ export function buildLookAheadProjection(
         activity.percentComplete,
       totalFloatHours:
         activity.totalFloatHours,
+      submittedTotalFloatHours:sourceHours,
+      submittedTotalFloatWorkingDays:sourceWorkingDays,
+      workingDayHours:dayHours,
+      floatDaysBasis:sourceWorkingDays===null?'calendar_working_day_not_established':'source_activity_calendar',
       drivingPath:drivingIds?drivingIds.has(activity.activityId):null,
       classification,
       missedPlannedStart: missedStart,
