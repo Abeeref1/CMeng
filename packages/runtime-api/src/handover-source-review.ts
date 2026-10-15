@@ -23,7 +23,7 @@ export function programmeCompletionAsOf(rows:readonly {status:string;actualFinis
   const ms=Date.parse(day+'T00:00:00Z');
   return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,10)===day?day:null;
  };
- const futureCompletionDates=rows.filter(r=>r.status==='completed'&&cutoff&&validDay(r.actualFinishIso)>cutoff).length;
+ const futureCompletionDates=rows.filter(r=>{const day=validDay(r.actualFinishIso);return r.status==='completed'&&cutoff!==null&&day!==null&&day>cutoff;}).length;
  const missingCompletionDates=rows.filter(r=>r.status==='completed'&&!validDay(r.actualFinishIso)).length;
  const knownAsOfCount=cutoff?rows.filter(r=>r.status==='completed'&&validDay(r.actualFinishIso)!==null&&validDay(r.actualFinishIso)!<=cutoff).length:null;
  const percentage=cutoff&&unknown===0&&futureCompletionDates===0&&missingCompletionDates===0&&knownAsOfCount!==null&&rows.length
