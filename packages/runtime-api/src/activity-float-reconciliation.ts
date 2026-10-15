@@ -1,4 +1,4 @@
-import {isExecutionActivity,sourceFloatCriticality,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
+import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
 
 /** Submitted classifications remain source assertions. Every comparison retains
@@ -18,6 +18,16 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
  const calculated=new Map(forecast.activities.map(row=>[row.activityId,row]));
  const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
  for(const calendar of model.calendars)if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
+ // First source calendar ID wins, including duplicate IDs. Never substitute
+ // a universal eight-hour day when a source calendar is incomplete.
+ const workingHoursByCalendar=new Map<string|null,number|null>();
+ const workingDayHours=(calendarId:string|null)=>{
+  if(workingHoursByCalendar.has(calendarId))return workingHoursByCalendar.get(calendarId)!;
+  const calendar=calendarId===null?model.calendars.find(row=>row.calendarId===calendarId):calendarById.get(calendarId);
+  const hours=calendarWorkingDayHours(calendar);
+  workingHoursByCalendar.set(calendarId,hours);
+  return hours;
+ };
  const rows=model.activities.filter(isExecutionActivity).map(activity=>{
   const independent=calculated.get(activity.activityId);
   const completed=activity.status==='completed';
@@ -27,12 +37,19 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
   const submittedCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:submittedTotalFloatHours},config,calendarById);
   const independentCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:independentTotalFloatHours},config,calendarById);
   const floatDifferenceHours=submittedTotalFloatHours!==null&&independentTotalFloatHours!==null?Number((independentTotalFloatHours-submittedTotalFloatHours).toFixed(6)):null;
+  const dayHours=completed?null:workingDayHours(activity.calendarId);
+  const toDays=(hours:number|null)=>dayHours!==null&&dayHours>0&&hours!==null?Number((hours/dayHours).toFixed(6)):null;
+  const submittedTotalFloatWorkingDays=toDays(submittedTotalFloatHours);
+  const independentTotalFloatWorkingDays=toDays(independentTotalFloatHours);
+  const floatDifferenceWorkingDays=toDays(floatDifferenceHours);
   const state=completed?'not_applicable_completed':
    independentTotalFloatHours===null?'independent_not_established':submittedTotalFloatHours===null?'submitted_not_established':
    submittedCriticality!==independentCriticality?'material_difference':'matched';
   const authority=deterministic?'deterministic_source_calendar':qualifiedScenario&&usable?'qualified_scenario_source_calendar':'not_established';
   return {activityId:activity.activityId,name:activity.name,calendarId:activity.calendarId,sourceRevisionId:model.sourceRevisionId,
    submittedTotalFloatHours,independentTotalFloatHours,submittedCriticality,independentCriticality,floatDifferenceHours,
+   workingDayHours:dayHours,submittedTotalFloatWorkingDays,independentTotalFloatWorkingDays,floatDifferenceWorkingDays,
+   floatDaysBasis:completed?'not_applicable_completed':dayHours===null?'calendar_working_day_not_established':'source_activity_calendar',
    floatReconciliationState:state,floatReviewLabel:state==='material_difference'?'Disputed / under review':state==='matched'&&floatDifferenceHours!==null&&Math.abs(floatDifferenceHours)>0.000001?'Classification matched; numeric difference retained in planner detail':state==='matched'?'Reconciled':state==='not_applicable_completed'?'Not applicable · completed':state==='submitted_not_established'?'Submitted float missing':'Independent CPM not established',
    independentCpmAuthority:authority,sourceRefs:[...activity.sourceRefs]};
  });
