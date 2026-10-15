@@ -540,6 +540,13 @@ const fmt=v=>{
  
  return managementText(value);
 };
+function knownScreenCount(value){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null;}
+function sumKnownScreenCounts(source,keys){
+ if(!source||typeof source!=='object')return null;
+ const counts=keys.map(key=>knownScreenCount(source[key]));
+ return counts.every(value=>value!==null)?counts.reduce((total,value)=>total+value,0):null;
+}
+function screenCountText(value){const count=knownScreenCount(value);return count===null?'Not established':fmt(count);}
 const SCREEN_STATUS_LABELS=${JSON.stringify(STATUS_LABELS)};
 /** A zero is a verified register count only when both the applicable
  * population and the field's own number are established. A missing producer
@@ -692,7 +699,7 @@ function renderNav(){
   if(!["project","ai"].includes(appView)||!overview){nav.innerHTML="";return}
   const states=new Map([...(overview?.moduleStates||[]),...(overview?.managementStates||[])].map(x=>[x.key,x]));
   const overall=states.get('master-dashboard')?.issueAssessment?.counts||{};
-  const sourceTotal=(overall.source_conflict||0)+(overall.data_quality||0)+(overall.missing_information||0);
+  const sourceTotal=sumKnownScreenCounts(overall,['source_conflict','data_quality','missing_information']);
   let html='<button class="nav-item '+(appView==="ai"?'active':'')+'" id="projectAskNav" aria-current="'+(appView==="ai"?'page':'false')+'" title="Ask about '+escapeHtml(project())+'"><span class="nav-label">✦ Ask CMeng</span></button><button class="nav-item" id="projectActionsNav"><span>Project review</span><b id="projectActionNavCount">'+(typeof projectActionState!=='undefined'&&projectActionState?.projectId===project()&&projectActionState.status==='ready'?fmt(projectActionState.data.actionCount):'…')+'</b></button><div class="nav-group">';
   Object.entries(groups).forEach(([group,keys])=>{
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
@@ -700,11 +707,11 @@ function renderNav(){
       const workspace=(typeof moduleWorkspaces==='undefined'?[]:moduleWorkspaces).find(w=>w.key===key),active=workspace?workspace.views.includes(selected):selected===key;
       const state=states.get(key)||{};
       const issues=state.issueAssessment?.counts||{};
-      const errors=issues.system_defect||0,source=(issues.source_conflict||0)+(issues.data_quality||0)+(issues.missing_information||0),review=(issues.comparison_difference||0)+(issues.governance_review||0),pending=issues.verification_pending||0;
-      const title=names[key]+' · Information items: '+source+' · System failures: '+errors+' · Reviews: '+review+' · Pending checks: '+pending;
+      const errors=knownScreenCount(issues.system_defect),source=sumKnownScreenCounts(issues,['source_conflict','data_quality','missing_information']),review=sumKnownScreenCounts(issues,['comparison_difference','governance_review']),pending=knownScreenCount(issues.verification_pending);
+      const title=names[key]+' · Information items: '+screenCountText(source)+' · System failures: '+screenCountText(errors)+' · Reviews: '+screenCountText(review)+' · Pending checks: '+screenCountText(pending);
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
-      const count='<span class="nav-counts">'+(errors?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
+      const count='<span class="nav-counts">'+(errors===null?'<span class="nav-count review">Checks not established</span>':errors>0?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
       html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||names[key])+'</span>'+count+'</button>';
     });
   });
@@ -820,8 +827,8 @@ function renderContractSourceContext(contract){
   for(const signal of contract?.signals||[]){const key=[signal.documentId,signal.category,signal.textSnippet].join('|');const group=signalGroups.get(key)||{...signal,occurrences:0};group.occurrences++;signalGroups.set(key,group);}
   const contractTrace=signalGroups.size?'<details><summary>Inspect '+escapeHtml(fmt(signalGroups.size))+' distinct source passages / topics</summary><p>Repeated topic occurrences are grouped within each document. These counts are source analysis, not a count of defects, separate obligations or approved entitlements.</p><div class="table-wrap"><table><thead><tr><th>Source / authority</th><th>Topic</th><th>Source passage</th><th>Occurrences</th></tr></thead><tbody>'+[...signalGroups.values()].map(x=>'<tr><td>'+escapeHtml(x.sourceFilename||'Contract source')+'<br>'+escapeHtml(humanizeKey(x.basisState||'source'))+'</td><td>'+escapeHtml(humanizeKey(x.category))+'</td><td>'+escapeHtml(x.textSnippet)+'</td><td>'+escapeHtml(fmt(x.occurrences))+'</td></tr>').join('')+'</tbody></table></div></details>':'';
   const contractSummary=contract?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4><p>Parsed clauses and detected signals retain source evidence. Zero detected signals does not establish complete notice or obligation coverage.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Contract wording groups",contract.uniqueWordingSignalCount??null,"identical text grouped within each document"],["Source topic occurrences",contract.signalCount??contract.signals?.length??0,"retained trace; not separate defects"],
-    ["Notice-pattern matches",contract.noticeRequirementCandidates?.length??0,"pattern hits; several may occur in one clause"],
+    ["Contract wording groups",contract.uniqueWordingSignalCount??null,"identical text grouped within each document"],["Source topic occurrences",contract.signalCount??(Array.isArray(contract.signals)?contract.signals.length:null),"retained trace; not separate defects"],
+    ["Notice-pattern matches",Array.isArray(contract.noticeRequirementCandidates)?contract.noticeRequirementCandidates.length:null,"pattern hits; several may occur in one clause"],
     ["Categories",(contract.categoriesPresent||[]).length,"identified"]
   ])+(contract.countingBasis?'<p>'+escapeHtml(contract.countingBasis)+'</p>':'')+contractSources+contractTrace+(contractCategoryCounts.size?'<div class="nested-title" style="margin-top:14px">Signals by contract topic</div>'+contractCategoryBars:'')+'</div></section>':'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Contract review</h4></div></div><div class="planning-panel-body"><div class="notice warn">Contract context is unresolved: provide readable contract terms for milestone and obligation references. Delivery review can use the available schedule and resource evidence.</div></div></section>';
   return contractSummary;
@@ -1451,7 +1458,7 @@ function renderQuantityScurveVisual(data){
   const diagnostics='<div class="notice info"><b>BOQ source: '+escapeHtml(p.boqSource?.sourceFilename||"Source reference in calculation detail")+'</b> · '+escapeHtml(humanizeKey(p.boqSource?.state||"source"))+'<p>'+escapeHtml(p.boqSource?.explanation||"")+'</p>BOQ loaded: '+escapeHtml(fmt(p.boqItemCount??boqItemCount))+' items; known contract quantities: '+escapeHtml(fmt(p.knownQuantityItemCount))+'. Candidate mapping: '+escapeHtml(humanizeKey(p.candidateMappingState||"not_established"))+'. Actual installations are independent of schedule mapping. Scenario plans do not become confirmed facts.</div>';
   if(curveCount===null||curveCount===0){
     const candidates=p.inferredMapping?.selectedScenarioLinks?.length||0;
-    const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":fmt(mappedItemCount||0)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
+    const mappingSummary=boqItemCount===null?"BOQ item population is not confirmed.":screenCountText(mappedItemCount)+" of "+fmt(boqItemCount)+" BOQ items currently have an allocation.";
     return '<section class="planning-view quantity-view">'+installedSummary+measured+top+queryPanel+productivityHtml+'<div class="notice info"><b>No confirmed quantity curve is available.</b><p>Quantity evidence is available, but a complete quantity curve is not yet established. '+escapeHtml(availability?.reason||"Programme mapping and/or dated installed measurements are incomplete.")+'</p><p>'+escapeHtml(candidates?candidates+" candidate link(s) are retained for review. ":"")+escapeHtml(mappingSummary)+'</p></div>'+experienceDisclosure("Quantity-curve prerequisites",moduleEvidenceGate([
       {label:"BOQ quantity basis",value:p.boqRevisionId?"Loaded":"Not established",state:p.boqRevisionId?"ready":"missing"},
       {label:"Confirmed BOQ-to-activity links",value:p.mappingBasis==="governed"?"Established":"Not established",state:p.mappingBasis==="governed"?"ready":"missing"},
@@ -1502,7 +1509,7 @@ function renderLookAheadVisual(data){
     const overall=row.readiness?.state==="blocked"?"Blocked":row.readiness?.state==="ready"?"Ready":row.readiness?.state==="conditional"&&hasLinkedEvidence?"At risk": "No known linked blocker";
     return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td><td>'+escapeHtml(typeof row.totalFloatHours==='number'?fmt(row.totalFloatHours)+' h':'Missing')+'<br>'+escapeHtml(row.drivingPath===true?'Driving completion':row.drivingPath===false?'Outside driving path':'Path not calculated')+'</td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><details class="readiness-reason"><summary aria-label="'+escapeHtml(row.activityId+' '+labels[key]+' '+planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"Ready":state==="blocked"?"Blocked":state==="not_applicable"?"N/A":dim?.sourceRefs?.length?"Dates / status need review":"Readiness not established")+'</summary><p>'+escapeHtml(dim?.note||'No linked readiness record')+'</p>'+((dim?.records||[]).length?'<ul>'+dim.records.map(r=>'<li><b>'+escapeHtml(r.recordId||r.documentType)+'</b> · '+escapeHtml(humanizeKey(r.documentType))+' · '+escapeHtml(planningStateLabel(r.state))+' · '+escapeHtml(r.note)+(r.owner?' · Owner: '+escapeHtml(r.owner):'')+'</li>').join('')+'</ul>':'')+'</details></td>'}).join("")+'</tr>';
   }).join("");
-  const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["At risk",p.atRiskCount??p.conditionalCount,"warning"],["No known linked blocker",p.noKnownLinkedBlockerCount??0,"neutral"],["Known blocker",p.blockedCount,"danger"]]);
+  const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["At risk",p.atRiskCount??p.conditionalCount,"warning"],["No known linked blocker",p.noKnownLinkedBlockerCount??null,"neutral"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.blockerTypes);
   const interfacePosition=data?.interfacePosition||null,lookAheadIds=new Set(forwardRows.map(r=>r.activityId));
   const interfaceRows=(interfacePosition?.rows||[]).filter(r=>r.authority!=='candidate'&&r.state!=='closed'&&String(r.linkedActivity||'').split(';').map(x=>x.trim()).some(id=>lookAheadIds.has(id)));
@@ -1751,13 +1758,13 @@ function renderDelayClaimsVisual(data){
   const quarantined=chain?.populationState==="quarantined"||integrity?.state==="quarantined";
   const sourcePopulationEstablished=chain?chain.populationState==="established":(p.contractorClaimEvidenceSubmitted===true&&!quarantined);
   const reporting=data?.claimsReporting||null,withheld=quarantined?"Withheld — source population quarantined":"Not established";
-  const sourceEventCount=sourcePopulationEstablished?(reporting?.events?.population?.sourceCount??reporting?.events?.source?.length??p.eventCount??0):null;
+  const sourceEventCount=sourcePopulationEstablished?(reporting?.events?.population?.sourceCount??(Array.isArray(reporting?.events?.source)?reporting.events.source.length:null)??p.eventCount??null):null;
   const currentEventCount=sourcePopulationEstablished?(reporting?.events?claimsReportingScopeCount(reporting.events,'asOf'):p.eventCount??null):null;
   const futureEventCount=sourcePopulationEstablished?claimsReportingScopeCount(reporting?.events,'future'):null;
   const undatedEventCount=sourcePopulationEstablished?claimsReportingScopeCount(reporting?.events,'undated'):null;
   const eventDateMissingCount=sourcePopulationEstablished?(data?.projectFacts?.claims?.eventDateMissingCount?.value??null):null;
   const events=Array.isArray(p.events)?p.events:[],linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
-  const linked=!sourcePopulationEstablished?null:(p.linkedClaimCount??linkedClaimIds.size),unlinked=!sourcePopulationEstablished?null:(p.unlinkedClaimCount??Math.max(0,(p.claimCount||0)-(linked||0)));
+  const linked=!sourcePopulationEstablished?null:(p.linkedClaimCount??null),unlinked=!sourcePopulationEstablished?null:(p.unlinkedClaimCount??(knownScreenCount(p.claimCount)!==null&&knownScreenCount(linked)!==null&&linked<=p.claimCount?p.claimCount-linked:null));
   const activityGapCount=!sourcePopulationEstablished?null:(p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length);
   const incompleteDeterminationCount=!sourcePopulationEstablished?null:(p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length);
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number",populationValue=value=>sourcePopulationEstablished?value:withheld;
@@ -1766,8 +1773,8 @@ function renderDelayClaimsVisual(data){
     ["Claims",quarantined?"Under review":p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0?"Not established":p.claimCount,quarantined?"source population quarantined":"claim records",quarantined?"warning":""],
     ...(quarantined?[["Quarantined source claim rows",integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount,"retained for audit; excluded from management truth","warning"]]:[]),
     ["Claims linked to events",linked===null?withheld:linked,"identity association; causation unproven"],["Claims without event links",unlinked===null?withheld:unlinked,"identity gap; linked claims still need causation"],
-    ["Events linked to activities",populationValue(sourcePopulationEstablished?(p.activityLinkedEventCount??0):null),"schedule linkage"],["Activity evidence gaps",activityGapCount===null?withheld:activityGapCount,"fail-closed source gaps"],
-    ["Events linked to windows",populationValue(sourcePopulationEstablished?(p.windowLinkedEventCount??0):null),"temporal association; not causation"],["Events with register notice references",populationValue(sourcePopulationEstablished?(p.noticeLinkedEventCount??0):null),"notice identity"],["Determined events",populationValue(sourcePopulationEstablished?(p.determinationLinkedEventCount??0):null),"Engineer determination linkage"],["Incomplete determination chains",incompleteDeterminationCount===null?withheld:incompleteDeterminationCount,"required links missing"],
+    ["Events linked to activities",populationValue(sourcePopulationEstablished?(p.activityLinkedEventCount??null):null),"schedule linkage"],["Activity evidence gaps",activityGapCount===null?withheld:activityGapCount,"fail-closed source gaps"],
+    ["Events linked to windows",populationValue(sourcePopulationEstablished?(p.windowLinkedEventCount??null):null),"temporal association; not causation"],["Events with register notice references",populationValue(sourcePopulationEstablished?(p.noticeLinkedEventCount??null):null),"notice identity"],["Determined events",populationValue(sourcePopulationEstablished?(p.determinationLinkedEventCount??null):null),"Engineer determination linkage"],["Incomplete determination chains",incompleteDeterminationCount===null?withheld:incompleteDeterminationCount,"required links missing"],
     ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not established","programme movement; not event attribution"],["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays==null?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
   ]);
   const warning=quarantined?'<div class="notice error"><b>Claim source integrity gate: '+escapeHtml(fmt(integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount))+' source rows are quarantined.</b> Contractual delay-event, notice, linkage and entitlement counts are withheld rather than presented as zero until the population is verified.</div>':!sourcePopulationEstablished?'<div class="notice info"><b>No delay-event / claim source population is established.</b> Programme intelligence remains available below, but schedule pressure is not converted into a contractual delay event.</div>':'';
@@ -5715,7 +5722,7 @@ function renderDirector(d){
     ["Attributable EOT candidate",c.attributableCandidateEotDays===null||c.attributableCandidateEotDays===undefined?"Not established":c.attributableCandidateEotDays,"analytical, not awarded"],
     ["Awarded EOT",c.officialApprovedEotDays===null||c.officialApprovedEotDays===undefined?"Not established":c.officialApprovedEotDays,"Dated awards through the reporting date"],
     ["Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","graph/calculation coverage only; source float and calendars require reconciliation"],
-    ["Claims linked",c.claimCount===null||c.claimCount===undefined?"Not established":fmt(c.fullyLinkedClaimCount??0)+" / "+fmt(c.claimCount),"claim → event → activity"],
+    ["Claims linked",c.claimCount===null||c.claimCount===undefined?"Not established":screenCountText(c.fullyLinkedClaimCount)+" / "+fmt(c.claimCount),"claim → event → activity"],
     ["LD Scenario",d.ld.cappedAmount===null||d.ld.cappedAmount===undefined?"Not established":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state)]
   ]);
   let html='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Available management position</h4><p>Established information is shown first. Measures needing more evidence are grouped separately and are never converted to zero.</p></div></div><div class="planning-panel-body">'+programmeKpis+'</div></section>';
