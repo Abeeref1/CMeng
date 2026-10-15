@@ -1,0 +1,2 @@
+15 October 2026 — T08 procurement date source (partial)
+The shared procurement need/forecast/delivery date reader accepted Date.parse-normalized impossible Gregorian days. Explicit YYYY-MM-DD calendar validation now prevents false need dates, late position and future delivery evidence; retained source fields and input decisions are unchanged. Five independent date/overdue cases added to focused GitHub verification. Full procurement/asset/NCR independent acceptance remains open. No deployment.
