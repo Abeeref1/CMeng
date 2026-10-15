@@ -53,9 +53,10 @@ function buildComparison(state:ProjectRuntimeState){
   const completion=programmeCompletionAsOf(rows,cutoff);
   const {sourceCompletedCount,futureCompletionDates,missingCompletionDates}=completion;
   return {key,source:'programme',label:key==='testing'?'Programme testing tasks':'Programme handover tasks',
-   sourceCompletedCount,numerator:model?completion.knownAsOfCount:null,denominator:model?rows.length:null,
+   sourceCompletedCount,numerator:model?sourceCompletedCount:null,
+   asOfConfirmedCompletedCount:model?completion.knownAsOfCount:null,denominator:model?rows.length:null,
    unknownCount:model?completion.unknown:null,percent:model?completion.percentage:null,
-   statusDate:cutoff,futureCompletionDates,missingCompletionDates,basis:(scope?.basis??'Current programme is unavailable.')+' Task completion is not asset commissioning or formal acceptance. '+futureCompletionDates+' completed task dates fall after the Data Date; '+missingCompletionDates+' have no actual finish date.'};
+   statusDate:cutoff,futureCompletionDates,missingCompletionDates,basis:(scope?.basis??'Current programme is unavailable.')+' The completed-task count is the reported source status, not the date-qualified completed count; the latter needs an actual finish date on or before the Data Date. Task completion is not asset commissioning or formal acceptance. '+futureCompletionDates+' completed task dates fall after the Data Date; '+missingCompletionDates+' have no actual finish date.'};
  });
  const assetDates=source.map(r=>registerDate(String(r.fields['status as of']??'')));
  const undatedCount=assetDates.filter(d=>!d).length,futureCount=assetDates.filter(d=>d&&cutoff&&d>cutoff).length;
