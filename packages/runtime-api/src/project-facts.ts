@@ -146,11 +146,11 @@ function aggregateFact(
   if(aggregate.knownCount!==null){
     return fact(
       aggregate.knownCount,
-      basis+' The displayed number is the known subset; '+String(aggregate.unresolvedCount??0)+' record(s) remain unresolved.',
+      basis+' The displayed number is the known subset; '+(aggregate.unresolvedCount===null?'the unresolved record count is not established':String(aggregate.unresolvedCount)+' record(s) remain unresolved')+'.',
       'from_register_not_confirmed',
       false,
       [],
-      aggregate.unresolvedCount?['PROJECT_FACT_PARTIAL_POPULATION:'+aggregate.unresolvedCount]:[],
+      aggregate.unresolvedCount===null?['PROJECT_FACT_UNRESOLVED_POPULATION_NOT_ESTABLISHED']:aggregate.unresolvedCount>0?['PROJECT_FACT_PARTIAL_POPULATION:'+aggregate.unresolvedCount]:[],
     );
   }
   return fact<number>(null,basis,'missing',false);
