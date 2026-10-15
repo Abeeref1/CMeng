@@ -7,18 +7,23 @@ import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-t
 /** Upload classification, physical reading and adoption are different facts. */
 export function documentReadReview(document:StoredEvidenceDocument,state:ProjectRuntimeState,sourceTables?:SourceTable|readonly SourceTable[]){
   const hash=document.sourceHashSha256;
+  const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
+    state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
+  const fullUnreadable=pdf?.pages.filter(page=>page.method==='native'&&fragmentedPdfText(page.text)).length??0;
+  const fullPagesRead=pdf?pdf.nativePages+pdf.ocrPages+pdf.blankPages-fullUnreadable:null;
+  const fullReadComplete=!!pdf&&pdf.totalPages>0&&fullPagesRead===pdf.totalPages&&pdf.failedPages===0&&pdf.unresolvedPages===0;
+  // A stale per-page checkpoint must not overrule a fully completed receipt
+  // from these same original source bytes. Source authority remains unchanged.
   const checkpoint=document.fullTextReadCheckpoint;
-  if(checkpoint?.sourceHashSha256===hash){
+  if(checkpoint?.sourceHashSha256===hash&&!fullReadComplete){
     const read=checkpoint.pages.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).length;
     const complete=checkpoint.totalPages>0&&read===checkpoint.totalPages&&checkpoint.pages.length===checkpoint.totalPages&&new Set(checkpoint.pages.map(p=>p.pageNumber)).size===checkpoint.totalPages;
     return {state:complete?'read':'partial',label:complete?'All pages read':'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. '+(complete?'Physical reading is complete; structured fact validation and adoption remain separate.':'Saved pages will be reused on the next processing attempt; unreadable pages still require reading.'),method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete};
   }
-  const pdf=document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result:
-    state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result.pdf;
   if(pdf){
-    const unreadableNative=pdf.pages.filter(p=>p.method==='native'&&fragmentedPdfText(p.text)).length;
-    const readPages=pdf.nativePages+pdf.ocrPages+pdf.blankPages-unreadableNative;
-    const complete=pdf.totalPages>0&&readPages===pdf.totalPages&&pdf.failedPages===0&&pdf.unresolvedPages===0;
+    const unreadableNative=fullUnreadable;
+    const readPages=fullPagesRead!;
+    const complete=fullReadComplete;
     return {state:complete?'read':'partial',label:complete?'All pages read':'Pages need review',
       note:`${readPages} of ${pdf.totalPages} pages read: ${pdf.nativePages-unreadableNative} native, ${pdf.ocrPages} OCR, ${pdf.blankPages} blank; ${pdf.failedPages} failed, ${pdf.unresolvedPages+unreadableNative} unresolved. Reading does not confirm structured facts, compliance or adoption.`,
       method:pdf.ocrPages?'Native text / OCR':'Native text',pageCount:pdf.totalPages,readPageCount:readPages,complete};

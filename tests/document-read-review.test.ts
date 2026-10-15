@@ -109,3 +109,27 @@ test('T04 fully read commercial and programme sources count without adopting eit
  assert.equal(documentReadReview({...programme,sourceHashSha256:'other-hash'},state).complete,false,
    'mismatched source receipts must never establish programme completion');
 });
+
+test('T04 complete full-source PDF reading overrides a stale partial checkpoint, never adopting the document',()=>{
+ const project=new RuntimeProjectStore({durable:false}).getOrCreate('T04-STALE-CHECKPOINT');
+ const pdf={
+   totalPages:2,nativePages:2,ocrPages:0,blankPages:0,failedPages:0,unresolvedPages:0,
+   pages:[{pageNumber:1,method:'native',text:'Legible certified report page one with text.'},
+          {pageNumber:2,method:'native',text:'Legible certified report page two with text.'}],
+ };
+ const doc={documentId:'cost-report',mediaType:'application/pdf',parserState:'parsed',basisState:'candidate',
+   sourceHashSha256:'retained-source-hash',
+   fullTextRead:{sourceHashSha256:'retained-source-hash',result:pdf},
+   fullTextReadCheckpoint:{sourceHashSha256:'retained-source-hash',totalPages:2,
+     pages:[{pageNumber:1,method:'native',text:'Legible certified report page one with text.'}]},
+ } as unknown as StoredEvidenceDocument;
+ const before=JSON.stringify(doc);
+ const result=documentReadReview(doc,project);
+ assert.equal(result.state,'read');
+ assert.equal(result.complete,true);
+ assert.equal(result.readPageCount,2);
+ assert.equal(doc.basisState,'candidate','reading is not adoption');
+ assert.equal(JSON.stringify(doc),before,'no source receipt, checkpoint or decision mutated');
+ doc.fullTextRead!.sourceHashSha256='other-hash';
+ assert.equal(documentReadReview(doc,project).state,'partial','a mismatched source receipt is never accepted');
+});
