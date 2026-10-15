@@ -29,8 +29,16 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   if(seen.has(identity))return;seen.add(identity);
   let matches=byNumber.get(key(certificateNumber))??[];
   const reviewed=reviewedRelationships.filter(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&r.basisVersion===projectVersion&&sourceRefs.includes(r.sourceId));
-  if(reviewed.length===1){const selected=certificates.filter((r:any)=>refs(r).includes(reviewed[0]!.targetId));
-   if(selected.length===1&&currency&&selected[0].amounts?.netCertifiedAmount?.currency===currency)matches=selected;
+  const confirmedTargets=new Set(reviewed.map(r=>r.targetId));
+  // A saved source-bound choice restricts the candidates; if the selected
+  // receipt is missing, unread or incompatible, NEVER silently fall back to
+  // another certificate sharing the same business number. This rule applies
+  // to source evidence across all projects, not to a particular register.
+  if(confirmedTargets.size){
+   matches=certificates.filter((r:any)=>refs(r).some(ref=>confirmedTargets.has(ref)));
+   // A review can identify a source, but it cannot establish a missing
+   // payment currency. Retain the decision; keep linkage unestablished.
+   if(!currency)matches=[];
   }
 
   if(certificateDate)matches=matches.filter(r=>validDate(r.certificationDate)===certificateDate||validDate(r.periodEnd)===certificateDate);
@@ -40,10 +48,18 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   });
   if(currency)matches=matches.filter(r=>!r.amounts?.netCertifiedAmount?.currency||r.amounts.netCertifiedAmount.currency===currency);
   const unique=[...new Map(matches.map(r=>[r.paymentId+'|'+r.certificationDate+'|'+refs(r).join('|'),r])).values()];
-  const state:PaymentLink['state']=!paymentDate?'date_missing':!visible(paymentDate)?'future':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';
+  // Contradictory confirmed choices must remain visible as a conflict even
+  // if only one target passes a later date/currency filter.
+  const conflictingChoices=confirmedTargets.size>1;
+  const state:PaymentLink['state']=!paymentDate?'date_missing':!visible(paymentDate)?'future':conflictingChoices?'ambiguous':unique.length===1?'linked':unique.length>1?'ambiguous':'unlinked';
   links.push({reference,certificateNumber,certificateDate,paymentDate,amount,currency,state,
    certificateReference:state==='linked'?unique[0].paymentId:null,
-   basis:state==='linked'?(reviewed.length===1?'Explicitly user-confirmed certificate relationship; dates and currency revalidated':'Exact certificate reference and compatible certificate/payment dates; same currency'):state==='ambiguous'?'More than one certificate matches; source selection required':state==='future'?'Payment is after the reporting date':state==='date_missing'?'Actual payment date is not recorded':'No unique dated certificate matches the payment reference',
+   basis:state==='linked'?(confirmedTargets.size===1?'Explicitly user-confirmed certificate relationship; dates and currency revalidated':'Exact certificate reference and compatible certificate/payment dates; same currency'):
+    state==='ambiguous'?(conflictingChoices?'Conflicting confirmed certificate sources require a reviewed choice':'More than one certificate matches; source selection required'):
+    state==='future'?'Payment is after the reporting date':state==='date_missing'?'Actual payment date is not recorded':
+    confirmedTargets.size&&!currency?'Saved source selection retained; payment currency must be established before linkage':
+    confirmedTargets.size?'Saved certificate source selection did not meet dated, issued and same-currency evidence checks':
+    'No unique dated certificate matches the payment reference',
    sourceRefs:[...new Set([...sourceRefs,...(state==='linked'?refs(unique[0]):[])])]});
  };
  const tables=governedTables((state.evidenceDocuments??[]).filter(d=>d.basisState!=='superseded'),[]);
