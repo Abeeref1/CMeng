@@ -1,0 +1,2 @@
+15 October 2026 — T04 restart decision guard
+Added a durable-store acceptance guard for the exact source-bound choices used by register files, commercial files and the current programme. A chosen replacement must restore as active with the prior source superseded and its relationship decision/hash intact; a programme adoption must restore with its adoption hash and current-programme authority intact. This guards the existing persistence path against restart regressions. No deployment.

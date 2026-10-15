@@ -60,6 +60,7 @@ jobs:
             dist/tests/t04-source-analytical-candidate.test.js \
             dist/tests/t04-document-source-analytical-label.test.js \
             dist/tests/t04-inline-conflict-decisions.test.js \
+            dist/tests/t04-restart-decision-persistence.test.js \
             dist/tests/t04-candidate-family-conflict-truth.test.js \
             dist/tests/t07-certificate-calendar-date-truth.test.js \
             dist/tests/t04-payment-review-authority-truth.test.js \
