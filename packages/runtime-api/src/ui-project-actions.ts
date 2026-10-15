@@ -221,9 +221,19 @@ async function resolvePopulationAction(id){
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
-async function openProjectActions(){
+async function openProjectActions(inlineForCurrentPage=false){
  if(!overview)return;
- const drawer=el('projectReviewDrawer');drawer.hidden=false;drawer.open=true;
+ const drawer=el('projectReviewDrawer');
+ if(!drawer)return;
+ if(inlineForCurrentPage){
+   // One action form, one source-bound decision producer. The existing
+   // drawer is moved beside the current page rather than duplicating its
+   // controls or introducing a second place to save a decision. It remains
+   // outside moduleContent so changing pages never destroys it.
+   const modulePanel=el('projectModulePanel');
+   if(modulePanel)modulePanel.insertAdjacentElement('afterend',drawer);
+ }
+ drawer.hidden=false;drawer.open=true;
  await loadProjectActions();drawer.scrollIntoView({block:'start'});
 }
 function bindProjectActions(root){

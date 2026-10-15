@@ -5484,7 +5484,22 @@ function renderModuleResult(result){
   applyPmcDisplayOwners(container,result.key);
   applyProjectDisplayText(container);
   observeProjectDisplay();
-  const missing=(result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='missing_information');
+  const issues=result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[];
+  const sourceConflicts=issues.filter(issue=>['source_conflict','data_quality'].includes(issue.kind));
+  if(sourceConflicts.length){
+    // T04: the decision can be made HERE, beside the affected page, using the
+    // same source-bound forms and persisted controls as Project Review. Do not
+    // imply CMeng can auto-approve a contract or unverified source value.
+    const records=[...new Set(sourceConflicts.flatMap(issue=>issue.sourceRefs||[]))];
+    container.insertAdjacentHTML('beforeend',
+      '<section class="planning-panel source-decision-panel"><h4>Source figures to reconcile · '+fmt(sourceConflicts.length)+'</h4>'+
+      '<p>Conflicting or unreadable records need source review. Clear source values remain available in analysis; official approval is separate.</p>'+
+      '<p>'+fmt(records.length)+' original source reference'+(records.length===1?'':'s')+' retained for comparison.</p>'+
+      '<button class="btn primary" type="button" data-review-conflict-inline>Review evidence and record a decision here</button></section>');
+    const control=container.querySelector('[data-review-conflict-inline]');
+    if(control)control.onclick=()=>openProjectActions(true);
+  }
+  const missing=issues.filter(issue=>issue.kind==='missing_information');
   if(missing.length){
     container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
     container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
