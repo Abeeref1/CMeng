@@ -68,6 +68,7 @@ jobs:
             dist/tests/t10-diagnostic-heading-meaning.test.js \
             dist/tests/t10-primary-source-detail-collapsed.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
+            dist/tests/t08-asset-asof-date-truth.test.js \
             dist/tests/t02-operational-status-columns-truth.test.js \
             dist/tests/t02-cross-consumer-register-status.test.js \
             dist/tests/t02-continued-pdf-register-pages.test.js \

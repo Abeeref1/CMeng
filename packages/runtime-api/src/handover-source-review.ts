@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {projectControlSchedule} from './canonical-time-claims';
 import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
-import {registerDate} from '../../truth-kernel/src';
+import {registerDate,dateValue} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
 import {programmeTaskPatterns,programmeTaskReviewBasis,type ProgrammeTaskKind} from './programme-task-review';
@@ -16,25 +16,37 @@ const percent=(n:number,d:number)=>d>0?Math.round(n/d*10000)/100:null;
 export function programmeCompletionAsOf(rows:readonly {status:string;actualFinishIso?:string|null}[],cutoff:string|null){
  const sourceCompletedCount=rows.filter(r=>r.status==='completed').length;
  const unknown=rows.filter(r=>r.status==='unknown').length;
- const validDay=(value:string|null|undefined)=>{
-  if(typeof value!=='string')return null;
-  const day=/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/.exec(value)?.[0];
-  if(!day)return null;
-  const ms=Date.parse(day+'T00:00:00Z');
-  return Number.isFinite(ms)&&new Date(ms).toISOString().slice(0,10)===day?day:null;
- };
- const futureCompletionDates=rows.filter(r=>{const day=validDay(r.actualFinishIso);return r.status==='completed'&&cutoff!==null&&day!==null&&day>cutoff;}).length;
+ const validDay=(value:string|null|undefined)=>typeof value==='string'?dateValue(value):null;
+ const asOfDay=validDay(cutoff);
+ const futureCompletionDates=rows.filter(r=>{const day=validDay(r.actualFinishIso);return r.status==='completed'&&asOfDay!==null&&day!==null&&day>asOfDay;}).length;
  const missingCompletionDates=rows.filter(r=>r.status==='completed'&&!validDay(r.actualFinishIso)).length;
- const knownAsOfCount=cutoff?rows.filter(r=>r.status==='completed'&&validDay(r.actualFinishIso)!==null&&validDay(r.actualFinishIso)!<=cutoff).length:null;
- const percentage=cutoff&&unknown===0&&futureCompletionDates===0&&missingCompletionDates===0&&knownAsOfCount!==null&&rows.length
+ const knownAsOfCount=asOfDay?rows.filter(r=>r.status==='completed'&&validDay(r.actualFinishIso)!==null&&validDay(r.actualFinishIso)!<=asOfDay).length:null;
+ const percentage=asOfDay&&unknown===0&&futureCompletionDates===0&&missingCompletionDates===0&&knownAsOfCount!==null&&rows.length
   ?percent(knownAsOfCount,rows.length):null;
  return {sourceCompletedCount,knownAsOfCount,unknown,futureCompletionDates,missingCompletionDates,percentage};
+}
+/** Distinguish original reported asset status flags from date-qualified handover
+ * evidence. An undated, future-dated or undecidable flag cannot establish the
+ * position at the reporting Data Date; original reported flags remain visible. */
+export function assetFlagCompletionAsOf(rows:readonly {value:boolean|null;statusDate:string|null}[],cutoff:string|null){
+ const asOf=cutoff===null?null:dateValue(cutoff);
+ if(asOf===null)return {confirmedYes:null,knownCount:null,unknownCount:rows.length,percentage:null};
+ let confirmedYes=0,knownCount=0;
+ for(const row of rows){
+  const statusDay=row.statusDate===null?null:dateValue(row.statusDate);
+  if(row.value===null||statusDay===null||statusDay>asOf)continue;
+  knownCount++;
+  if(row.value===true)confirmedYes++;
+ }
+ const unknownCount=rows.length-knownCount;
+ return {confirmedYes,knownCount,unknownCount,
+  percentage:rows.length>0&&unknownCount===0?percent(confirmedYes,rows.length):null};
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildComparison>}>();
 function buildComparison(state:ProjectRuntimeState){
  const source=deliveryRecords(state).records.filter(r=>r.kind==='asset'&&r.sourceActive&&deliveryCurrentRecord(r));
  if(!source.length)return null;
- const schedule=projectControlSchedule(state),model=schedule?.revision.model,cutoff=model?.dataDateIso?.slice(0,10)??null;
+ const schedule=projectControlSchedule(state),model=schedule?.revision.model,cutoff=model?.dataDateIso?dateValue(model.dataDateIso):null;
  const taskIds=new Set<string>();
  const programme=Object.keys(programmeTaskPatterns).map(key=>{
   const scope=programmeTaskReviewBasis(state,key as ProgrammeTaskKind),rows=scope?.rows??[];rows.forEach(a=>taskIds.add(a.activityId));
@@ -50,9 +62,11 @@ function buildComparison(state:ProjectRuntimeState){
  const flagReviewRefs=[...new Set(source.map(r=>r.sourceValueReview?.reference).filter(Boolean))];
  const assetRows=[['installed','tag installed','Asset register installed flags'],['commissioned','commissioned','Asset register commissioned flags']].map(([key,field,label])=>{
   const flags=source.map(r=>sourceFlag(r.fields[field!])),yes=flags.filter(v=>v===true).length,unknown=flags.filter(v=>v===null).length;
+  const asOf=assetFlagCompletionAsOf(flags.map((value,index)=>({value,statusDate:assetDates[index]??null})),cutoff);
   return {key:key!,source:'asset_register',label:label!,numerator:yes,denominator:source.length,unknownCount:unknown,percent:unknown?null:percent(yes,source.length),
+   asOfConfirmedYes:asOf.confirmedYes,asOfKnownCount:asOf.knownCount,asOfUnknownCount:asOf.unknownCount,asOfPercent:asOf.percentage,
    statusDate:[...new Set(assetDates.filter((d):d is string=>!!d))].sort().join(', ')||null,undatedCount,futureCount,
-   basis:(flagReviewRefs.length?'Reviewed source flag interpretations: '+flagReviewRefs.join('; ')+'. Original source values remain available. ':'')+'Reported flags in the retained asset register. Unknown flags remain unknown; this is not a complete project asset population or dated acceptance position.'};
+   basis:(flagReviewRefs.length?'Reviewed source flag interpretations: '+flagReviewRefs.join('; ')+'. Original source values remain available. ':'')+'Reported source flag counts and percentages are retained separately from the reporting-date position. The as-of percentage is not established while any source flag is undated, future-dated or unknown; neither measure proves formal handover acceptance or a complete asset population.'};
  });
  const linkedAssetCount=source.filter(r=>r.links.activityIds.some(id=>taskIds.has(id))).length;
  const sourceRefs=[...new Set([...(schedule?['schedule:'+schedule.revision.revisionId]:[]),...source.flatMap(r=>r.receipts.map(receipt=>'evidence-document:'+receipt.documentId))])];
