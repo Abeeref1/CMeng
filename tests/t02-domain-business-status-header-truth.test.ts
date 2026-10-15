@@ -28,10 +28,10 @@ for(const domain of domains){
    assert.deepEqual(read.unknown,['Unfamiliar Third-Party Field']);
    const kinds=read.columnAudit.slice(1,1+domain.statuses.length);
    for(let i=0;i<domain.statuses.length;i++){
-     const expected=canonicalHeader(domain.statuses[i],domain.type);
-     assert.equal(kinds[i].canonicalHeader,expected);
-     assert.equal(kinds[i].mappingState,'schema_recognized');
-     assert.equal(isRegisterHeader(domain.statuses[i]),true);
+     const expected=canonicalHeader(domain.statuses[i]!,domain.type);
+     assert.equal(kinds[i]!.canonicalHeader,expected);
+     assert.equal(kinds[i]!.mappingState,'schema_recognized');
+     assert.equal(isRegisterHeader(domain.statuses[i]!),true);
      assert.ok(registerBusinessStatusFields(domain.type).includes(expected),
        'the actual shared consumer selects this business status field');
    }
@@ -48,7 +48,7 @@ test('T02 two-column status register is recognized without treating workflow sta
  assert.deepEqual(result.headers,['ncr id','ncr status']);
  assert.deepEqual(result.rows,[['N-29','Open'],['N-30','Closed']]);
  assert.deepEqual(result.unknown,[]);
- assert.equal(result.columnAudit[1].mappingState,'schema_recognized');
+ assert.equal(result.columnAudit[1]!.mappingState,'schema_recognized');
 });
 
 test('T02 unknown fields remain explicitly unmapped rather than falsely approved',()=>{
@@ -56,6 +56,6 @@ test('T02 unknown fields remain explicitly unmapped rather than falsely approved
  const result=prepareRegisterRows(rows,'submittal_register');
  assert.equal(result.recognized,true);
  assert.deepEqual(result.unknown,['Expected Final Approval']);
- assert.equal(result.rows[0][1],'Reviewed');
- assert.equal(result.rows[0][2],'Owner to decide');
+ assert.equal(result.rows[0]![1],'Reviewed');
+ assert.equal(result.rows[0]![2],'Owner to decide');
 });
