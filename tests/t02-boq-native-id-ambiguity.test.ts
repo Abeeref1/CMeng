@@ -18,7 +18,7 @@ test('T02/T05 native BOQ identity must be unique in both revisions',()=>{
     item('DUP-PREV','1','Pump A'),
     item('UNCHANGED','3','Changed scope','kg'),
     item('TARGET-DUP','4','Different current unit'),
-    item('TARGET-DUP','5','Unique package'),
+    item('TARGET-DUP','6','Another duplicate source record'),
     item('UNIQUE-NEW','5','Unique package'),
   ];
   const before=JSON.stringify(older),after=JSON.stringify(newer);
