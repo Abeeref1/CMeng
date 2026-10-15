@@ -713,7 +713,7 @@ function renderNav(){
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
       const count='<span class="nav-counts">'+(errors===null?'<span class="nav-count review">Checks not established</span>':errors>0?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
-      html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||names[key])+'</span>'+count+'</button>';
+      html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||readerModuleHeading(key))+'</span>'+count+'</button>';
     });
   });
   html+='</div>';
@@ -725,7 +725,7 @@ function renderNav(){
 function renderModuleWorkspace(key){
   document.getElementById('moduleWorkspaceTabs')?.remove();
   const workspace=moduleWorkspaces.find(w=>w.views.includes(key));if(!workspace)return;
-  el('moduleSubtitle').insertAdjacentHTML('afterend','<nav id="moduleWorkspaceTabs" class="action-filters" aria-label="'+escapeHtml(workspace.title)+' views">'+workspace.views.map(view=>'<button class="btn small '+(key===view?'primary':'')+'" data-key="'+view+'" aria-current="'+(key===view?'page':'false')+'">'+escapeHtml(names[view])+'</button>').join('')+'</nav>');
+  el('moduleSubtitle').insertAdjacentHTML('afterend','<nav id="moduleWorkspaceTabs" class="action-filters" aria-label="'+escapeHtml(workspace.title)+' views">'+workspace.views.map(view=>'<button class="btn small '+(key===view?'primary':'')+'" data-key="'+view+'" aria-current="'+(key===view?'page':'false')+'">'+escapeHtml(readerModuleHeading(view))+'</button>').join('')+'</nav>');
   el('moduleWorkspaceTabs').querySelectorAll('button').forEach(button=>button.onclick=()=>{selected=button.dataset.key;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected)});
 }
 function scalarPairs(obj){if(!obj||typeof obj!=="object")return[];return Object.entries(obj).filter(([k,v])=>["string","number","boolean"].includes(typeof v)||v===null).slice(0,12)}
@@ -955,6 +955,10 @@ function renderDeliveryChallenge(data,reason,status){
   const html='<section class="planning-view contract-challenge-view"><div class="notice '+(d.position==="material_delivery_gap"||d.position==="challenged"?"warn":"info")+'"><b>Delivery challenge position: '+escapeHtml(humanizeKey(d.position||"not_yet_supportable"))+'</b><p>This is an analytical delivery challenge, not a replacement programme and not an EOT/entitlement decision.</p></div>'+sourceKpis+primary+detail+'</section>';
   el("moduleContent").innerHTML=renderModuleBasis(data)+renderRoleContent("challenge-contract",data,html,"",true)+(data?.suppliedBoq?.rows?.length?'<details class="management-detail supplied-boq-support"><summary>Supplied BOQ evidence</summary>'+renderSuppliedBoq(data.suppliedBoq)+'</details>':'')+experienceReviewSummary(data.issueAssessment)+renderModuleReadiness(data,reason);
   return true;
+}
+function readerModuleHeading(key){
+  const registered=names[key]??moduleRegistry.find(item=>item.key===key)?.title;
+  return typeof registered==='string'&&registered.trim()?registered:'Project analysis';
 }
 function resourceUnitLabel(unit){
   return ({labor_hour:"Labor hours",labour_hour:"Labor hours",equipment_hour:"Equipment hours"})[unit]||unit;
@@ -3020,7 +3024,7 @@ function renderCommercialCapabilityVisual(key,data){
   }
   const rows=data.rows||data.bonds||data.insurances||data.scenarios||[];
   const count=data.recordCount??rows.length;
-  return '<section class="planning-view commercial-capability">'+planningKpis([["Current state",state,"source-backed capability"],["Records / scenarios",count,"current capability population"]])+head(names[key]||humanizeKey(key),descriptions[key]||"Controlled commercial position.")+
+  return '<section class="planning-view commercial-capability">'+planningKpis([["Current state",state,"source-backed capability"],["Records / scenarios",count,"current capability population"]])+head(readerModuleHeading(key),descriptions[key]||"Controlled commercial position.")+
     (rows.length?'<div class="table-wrap"><table><thead><tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<th>'+escapeHtml(humanizeKey(k))+'</th>').join("")+'</tr></thead><tbody>'+rows.slice(0,300).map(row=>'<tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<td>'+escapeHtml(row[k]===null||row[k]===undefined?"Not established":/^\d{4}-\d{2}-\d{2}/.test(String(row[k]))?planningShortDate(row[k]):fmt(row[k]))+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No current rows are established for this capability.</div>')+
     '</div></section></section>';
 }
@@ -5606,7 +5610,7 @@ function renderModuleResultBody(result){
   renderRoleViewSelector();
   const managementSurface=managementSurfaceKeysForApi.has(result.key);
   el("roleViewSelector").style.display=managementSurface?"none":"";
-  const moduleName=names[result.key]||result.key;
+  const moduleName=readerModuleHeading(result.key);
   const roleLabel=managementSurface?"Management Control":(roleViews[selectedRoleView]?.label||roleViews.overall.label);
   el("moduleTitle").textContent=moduleName;
   el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
@@ -5673,7 +5677,7 @@ async function loadModule(key){
   if(el("directorDrawer"))el("directorDrawer").open=false;
   if(projectLoadState==="updating"){showProjectUpdating(project());return;}
   if(!overview){el("moduleContent").innerHTML='<div class="empty">Load a project first.</div>';return}
-  const moduleName=names[key]||key;
+  const moduleName=readerModuleHeading(key);
   const requestSeq=++moduleRequestSeq;
   const projectId=project(),projectSeq=projectRequestSeq;
   const current=()=>requestSeq===moduleRequestSeq&&projectRequestIsCurrent(projectId,projectSeq);

@@ -39,3 +39,17 @@ test('T10 single missing or nonfinite value does not create a fake observed tren
  const zero=chart([{dateIso:'2031-05-01',cpi:0}],series);
  assert.ok(zero.includes('Single observation')&&zero.includes('0'),'genuine zero still displays');
 });
+
+test('T10 unknown module keys never become headings or progress messages',()=>{
+ const source=/function readerModuleHeading\(key\)\{[\s\S]*?\n\}/.exec(cmengUatHtml())?.[0];
+ assert.ok(source,'shared module heading producer exists in actual browser script');
+ const heading=runInNewContext('('+source+')',{names:{'master-dashboard':'Executive Dashboard'},
+   moduleRegistry:[{key:'source-quality',title:'Source Quality'}]}) as (key:string)=>string;
+ assert.equal(heading('master-dashboard'),'Executive Dashboard');
+ assert.equal(heading('source-quality'),'Source Quality');
+ assert.equal(heading('UNREGISTERED_PRIVATE_FIELD'),'Project analysis');
+ assert.equal(heading('internal-calculation-id'),'Project analysis');
+ const script=cmengUatHtml();
+ assert.doesNotMatch(script,/const moduleName=names\[result\.key\]\|\|result\.key/);
+ assert.doesNotMatch(script,/const moduleName=names\[key\]\|\|key/);
+});
