@@ -65,3 +65,15 @@ test('saved deferred-page checkpoint resumes after reload and does not repeat co
  assert.equal(documentReadReview(restored,state).readPageCount,1);assert.equal(documentReadReview(restored,state).complete,false);
  calls=0;await refreshDeferredPdfRead(restored,()=>provider);assert.equal(calls,1);assert.equal(restored.fullTextRead?.result.complete,true);assert.equal(restored.fullTextReadCheckpoint,undefined);assert.equal(restored.basisState,'candidate');
 });
+
+test('complete retained physical PDF checkpoints are read, not falsely partial',()=>{
+ const store=new RuntimeProjectStore({dataDir:mkdtempSync(join(tmpdir(),'cmeng-checkpoint-review-')),durable:false});
+ const state=store.getOrCreate('CHECKPOINT-CLEAN');
+ const makePage=(pageNumber:number)=>({pageNumber,method:'ocr',text:'Legible source text '+pageNumber});
+ const doc={documentId:'commercial-report',sourceHashSha256:'known-hash',parserState:'identified',basisState:'candidate',fullTextReadCheckpoint:{sourceHashSha256:'known-hash',totalPages:2,pages:[makePage(1),makePage(2)]}} as unknown as StoredEvidenceDocument;
+ const result=documentReadReview(doc,state);
+ assert.equal(result.state,'read');assert.equal(result.complete,true);assert.equal(result.readPageCount,2);
+ assert.equal(doc.basisState,'candidate');
+ doc.fullTextReadCheckpoint!.pages.pop();
+ assert.equal(documentReadReview(doc,state).state,'partial');
+});
