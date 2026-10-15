@@ -123,6 +123,19 @@ export interface ContractAiResolver {
   ): Promise<ContractAiHeadingProposal | null>;
 }
 
+export type ContractAiStepStatus =
+  | "validated"
+  | "unresolved"
+  | "failed"
+  | "call_limit";
+
+export interface ContractAiStepReceipt {
+  sourceSpan: ContractSourceSpan;
+  status: ContractAiStepStatus;
+  attempted: boolean;
+  diagnostics: string[];
+}
+
 export interface ContractDocxBlock {
   blockNumber: number;
   kind: "paragraph" | "table_cell";
@@ -172,6 +185,8 @@ export interface ContractParseOptions {
   ocrProvider?: OcrProvider;
   aiPageVerifier?: AiPageVerifier;
   aiResolver?: ContractAiResolver;
+  aiMaxCalls?: number;
+  onAiStep?: (step: ContractAiStepReceipt) => void;
 }
 
 export interface ContractDocumentResult {

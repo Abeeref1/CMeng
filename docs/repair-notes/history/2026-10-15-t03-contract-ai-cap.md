@@ -1,0 +1,2 @@
+15 October 2026 — T03 contract AI status and cap
+Contract ambiguous-heading AI now has an independent per-file hard call limit (CMENG_CONTRACT_AI_MAX_CALLS_PER_FILE, default 8). Every ambiguous heading that reaches AI records validated, unresolved, failed or call-limit status against the exact source span; disabled, provider-unavailable, reused and deterministic-not-required states are also retained on the document and shown in Document Library under AI reading. Original contract text remains retained and deterministic authority is unchanged. No deployment.

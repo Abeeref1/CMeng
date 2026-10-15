@@ -6,6 +6,7 @@ import type {
   ContractAiHeadingInput,
   ContractAiHeadingProposal,
   ContractAiResolver,
+  ContractAiStepReceipt,
   ContractSourceSpan,
   ContractTextBlock,
 } from "./types";
@@ -142,12 +143,21 @@ function looksAmbiguousHeading(value: string): boolean {
 export async function collectAiHeadingOverrides(
   blocks: readonly ContractTextBlock[],
   resolver: ContractAiResolver,
+  options: {
+    maxCalls?: number;
+    onStep?: (step: ContractAiStepReceipt) => void;
+  } = {},
 ): Promise<{
   overrides: Map<string, ContractHeading>;
   diagnostics: string[];
 }> {
   const overrides = new Map<string, ContractHeading>();
   const diagnostics: string[] = [];
+  const requestedMax = options.maxCalls ?? Number.MAX_SAFE_INTEGER;
+  const maxCalls = Number.isFinite(requestedMax)
+    ? Math.max(0, Math.floor(requestedMax))
+    : Number.MAX_SAFE_INTEGER;
+  let aiCalls = 0;
   let previousSection: ContractAiHeadingInput["previousSection"] =
     null;
 
@@ -163,7 +173,28 @@ export async function collectAiHeadingOverrides(
         .find((candidate) => candidate.text.trim())
         ?.text ?? null;
 
+    if (aiCalls >= maxCalls) {
+      const code = "CONTRACT_AI_CALL_LIMIT_REACHED";
+      diagnostics.push(
+        code +
+          ":" +
+          span.sourceKind +
+          ":" +
+          span.sourceIndex +
+          ":" +
+          span.start,
+      );
+      options.onStep?.({
+        sourceSpan: span,
+        status: "call_limit",
+        attempted: false,
+        diagnostics: [code],
+      });
+      continue;
+    }
+
     let proposal: ContractAiHeadingProposal | null = null;
+    aiCalls += 1;
     try {
       proposal = await resolver.resolveHeading({
         sourceSpan: span,
@@ -171,12 +202,18 @@ export async function collectAiHeadingOverrides(
         nextText,
       });
     } catch (error) {
-      diagnostics.push(
+      const code =
         "CONTRACT_AI_RESOLVER_ERROR:" +
-          (error instanceof Error
-            ? error.message
-            : String(error)),
-      );
+        (error instanceof Error
+          ? error.message
+          : String(error));
+      diagnostics.push(code);
+      options.onStep?.({
+        sourceSpan: span,
+        status: "failed",
+        attempted: true,
+        diagnostics: [code],
+      });
       continue;
     }
 
@@ -202,10 +239,22 @@ export async function collectAiHeadingOverrides(
             span.start,
         ),
       );
+      options.onStep?.({
+        sourceSpan: span,
+        status: "unresolved",
+        attempted: true,
+        diagnostics: [...assessment.diagnostics],
+      });
       continue;
     }
 
     overrides.set(lineKey(span), assessment.heading);
+    options.onStep?.({
+      sourceSpan: span,
+      status: "validated",
+      attempted: true,
+      diagnostics: [],
+    });
     previousSection = {
       kind: assessment.heading.kind,
       identifier: assessment.heading.identifier,

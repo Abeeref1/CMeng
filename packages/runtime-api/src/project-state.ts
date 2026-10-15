@@ -6238,24 +6238,60 @@ export class RuntimeProjectStore {
       state.contractDocuments.find(
         item=>item.sourceHashSha256===hash,
       )?.result ?? null;
-    const aiResolver=input.allowSemanticAi
+    const aiRequested=input.allowSemanticAi===true;
+    const aiResolver=aiRequested
       ?(this.contractAiResolver??configuredContractHeadingAiResolver())
       :null;
+    const configuredContractAiCalls=Number(process.env.CMENG_CONTRACT_AI_MAX_CALLS_PER_FILE??8);
+    const contractAiMaxCalls=Number.isFinite(configuredContractAiCalls)
+      ?Math.max(0,Math.floor(configuredContractAiCalls)):8;
+    const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
+    const onContractAiStep=(step:import("../../contract-parser/src").ContractAiStepReceipt)=>{
+      const where=step.sourceSpan.page!==null
+        ?'page '+step.sourceSpan.page
+        :step.sourceSpan.sourceKind.replace(/_/g,' ')+' '+step.sourceSpan.sourceIndex;
+      semanticAiSteps.push({
+        sheetName:'Contract heading · '+where,
+        sourceHashSha256:hash,
+        status:step.status,
+        attempted:step.attempted,
+        note:step.status==='validated'
+          ?'AI heading reading was validated against the exact retained source span.'
+          :step.status==='call_limit'
+            ?'Per-file contract AI call limit reached; the original heading remains unresolved for review.'
+            :step.status==='failed'
+              ?'AI heading reading failed; the original contract text remains retained.'
+              :'AI heading proposal did not pass source-span and confidence validation; original text remains retained.',
+      });
+    };
     const parsed = priorSameSource ??
       (isPdf
         ? await parseContractPdf(
             input.bytes,
             {
               ...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),
-              ...(aiResolver?{aiResolver}:{}),
+              ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
             },
           )
         : await parseContractDocx(
             input.bytes,
             {
-              ...(aiResolver?{aiResolver}:{}),
+              ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
             },
           ));
+    if(priorSameSource){
+      semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'reused',attempted:false,
+        note:'Previously parsed contract source was reused for the identical source hash; no new paid AI call was made.'});
+    }else if(!aiRequested){
+      semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'disabled',attempted:false,
+        note:'AI heading reading was not requested; deterministic contract reading remains authoritative.'});
+    }else if(!aiResolver){
+      semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'provider_unavailable',attempted:false,
+        note:'AI heading reading was requested but no configured provider was available.'});
+    }else if(semanticAiSteps.length===0){
+      semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'not_required',attempted:false,
+        note:'Deterministic contract heading reading found no unresolved heading that required an AI call.'});
+    }
     const assertions =
       input.assertions ??
       [];
@@ -6408,6 +6444,7 @@ export class RuntimeProjectStore {
         ...lineage.diagnostics,
         ...parsed.diagnostics,
       ],
+      semanticAiSteps,
     };
     this.upsertEvidence(
       state,

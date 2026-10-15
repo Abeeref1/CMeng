@@ -66,6 +66,14 @@ export async function parseContractPdf(
     const ai = await collectAiHeadingOverrides(
       blocks,
       options.aiResolver,
+      {
+        ...(options.aiMaxCalls !== undefined
+          ? { maxCalls: options.aiMaxCalls }
+          : {}),
+        ...(options.onAiStep
+          ? { onStep: options.onAiStep }
+          : {}),
+      },
     );
     headingOverrides = ai.overrides;
     diagnostics.push(...ai.diagnostics);
@@ -98,6 +106,14 @@ export async function parseContractDocx(
     const ai = await collectAiHeadingOverrides(
       blocks,
       options.aiResolver,
+      {
+        ...(options.aiMaxCalls !== undefined
+          ? { maxCalls: options.aiMaxCalls }
+          : {}),
+        ...(options.onAiStep
+          ? { onStep: options.onAiStep }
+          : {}),
+      },
     );
     headingOverrides = ai.overrides;
     diagnostics.push(...ai.diagnostics);

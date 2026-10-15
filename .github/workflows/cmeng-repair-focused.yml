@@ -72,6 +72,7 @@ jobs:
             dist/tests/t02-continued-pdf-register-pages.test.js \
             dist/tests/t09-source-action-evidence-navigation.test.js \
             dist/tests/t03-semantic-ai-step-audit.test.js \
+            dist/tests/t03-contract-ai-call-cap.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \
