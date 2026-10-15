@@ -67,7 +67,8 @@ function delayDriversAnswer(result:AnalysisResult):NarrativeBlock|null{
   const delayed=activitySection?.tables[0];
   const negative=pressure?.tables[0];
   const linked=(work?.tables[0]?.rows??[]).filter(r=>typeof r.linkedBlockers==='string'&&r.linkedBlockers!=='No confirmed linked blocker');
-  let text=path&&path.state!=='unavailable'?'The programme identifies '+(pathTable?.selection?.matching??pathTable?.rows.length??0)+' '+(path.state==='established'?'calculated critical':'known source-float critical')+' activities in the requested scope'+(result.scope.dataDate?' at '+result.scope.dataDate.slice(0,10):'')+'.':'A critical-activity position is not available from the selected programme.';
+  const pathCount=pathTable?.selection?.matching??(typeof pathTable?.population==='number'?pathTable.population:null);
+  let text=path&&path.state!=='unavailable'?(pathCount===null?'The critical-activity count is not established in the selected programme':'The programme identifies '+pathCount+' '+(path.state==='established'?'calculated critical':'known source-float critical')+' activities in the requested scope')+(result.scope.dataDate?' at '+result.scope.dataDate.slice(0,10):'')+'.':'A critical-activity position is not available from the selected programme.';
   if(delayed&&activitySection?.state!=='unavailable')text+=' '+(delayed.selection?.matching??delayed.rows.length)+' activities show missed dates or baseline slippage.';
   if(negative&&pressure?.state!=='unavailable')text+=' '+(negative.selection?.matching??negative.rows.length)+' have negative float.';
   if(activitySection?.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
@@ -102,8 +103,8 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   if(has('scheduleDelayed')||has('missedPlannedStart')||has('finishOverdue')){
     if(n===0)text=has('missedPlannedStart')?'No confirmed missed starts appear in the uploaded programme'+asOf+'.':has('finishOverdue')?'No unfinished activity is confirmed past its current forecast finish'+asOf+'.':'The uploaded programme shows no confirmed missed starts or overdue finishes'+asOf+'.';
     if(section.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so I cannot measure delay against the original planned dates.';
-    const pressure=result.sections.find(s=>s.authorityId==='float')?.tables[0],pressureCount=pressure?.selection?.matching??pressure?.rows.length??0;
-    if(pressureCount)text+=' However, '+pressureCount+' '+(pressureCount===1?'activity has':'activities have')+' negative float, which shows pressure against schedule targets. These activities are listed separately below.';
+    const pressure=result.sections.find(s=>s.authorityId==='float')?.tables[0],pressureCount=pressure?.selection?.matching??(typeof pressure?.population==='number'?pressure.population:null);
+    if(pressureCount!==null&&pressureCount>0)text+=' However, '+pressureCount+' '+(pressureCount===1?'activity has':'activities have')+' negative float, which shows pressure against schedule targets. These activities are listed separately below.';
     if(has('scheduleDelayed'))text+=' This does not establish the cause of any project delay.';
   }
   const missing=result.unresolved.map(g=>/(\d+) records lack (?:Missed Planned Start|Finish Overdue|Schedule Delayed)/i.exec(g)).find(Boolean);
