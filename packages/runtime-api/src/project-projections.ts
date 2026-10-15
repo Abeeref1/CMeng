@@ -7053,17 +7053,11 @@ function applyProfessionalModuleState(
   if (
     result.key === "delay-claims"
   ) {
-    const eventCount =
-      Number(
-        data.eventCount ?? 0,
-      );
-    const activityLinked =
-      Number(
-        data.activityLinkedEventCount ??
-          0,
-      );
+    const eventCount = typeof data.eventCount === 'number' && Number.isFinite(data.eventCount) && data.eventCount >= 0 ? data.eventCount : null;
+    const activityLinked = typeof data.activityLinkedEventCount === 'number' && Number.isFinite(data.activityLinkedEventCount) && data.activityLinkedEventCount >= 0 ? data.activityLinkedEventCount : null;
+    if (eventCount === null || activityLinked === null) review('Delay event or activity-link population is not established; missing records cannot be reported as zero.');
     if (
-      eventCount > 0 &&
+      eventCount !== null && activityLinked !== null && eventCount > 0 &&
       activityLinked < eventCount
     ) {
       review(
@@ -7081,16 +7075,12 @@ function applyProfessionalModuleState(
     const assessmentState =
       data?.noticeAssessmentState ??
       null;
-    const requirementMissing =
-      Number(
-        data
-          ?.noticeRequirementMissingCount ??
-          0,
-      );
+    const statedMissing = data?.noticeRequirementMissingCount;
+    const requirementMissing = typeof statedMissing === 'number' && Number.isFinite(statedMissing) && statedMissing >= 0 ? statedMissing : null;
     if (
       assessmentState !==
         "assessed" ||
-      requirementMissing > 0
+      requirementMissing === null || requirementMissing > 0
     ) {
       review(
         requirementMissing > 0
@@ -7111,10 +7101,9 @@ function applyProfessionalModuleState(
       data?.position?.foundation
         ?.paymentRegister ??
       null;
-    const count =
-      Number(
-        register?.recordCount ?? 0,
-      );
+    const rawCount = register?.recordCount;
+    const count = typeof rawCount === 'number' && Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : null;
+    if (count === null) review('Payment register population is not established; absence of records cannot be represented as zero payments.');
     const coverage =
       register
         ?.stageCoveragePercent ??
