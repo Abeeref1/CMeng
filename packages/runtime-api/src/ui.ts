@@ -5033,13 +5033,16 @@ function renderCommandActionTable(data){
 function renderMcpProgrammeControl(data){
  const context=data.managementContext||{},stages=context.schedule?.programmeStages||[],vc=data.visualControl||{};
  const stageRows=stages.map(stage=>{
-   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+((stage.wbsPathCount??stage.wbsPaths?.length??0)>5?" · "+fmt((stage.wbsPathCount??stage.wbsPaths?.length??0)-5)+" more":"");
+   const sourceWbsCount=Number.isFinite(stage.wbsPathCount)?stage.wbsPathCount:Array.isArray(stage.wbsPaths)?stage.wbsPaths.length:null;
+   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+(sourceWbsCount!==null&&sourceWbsCount>5?" · "+fmt(sourceWbsCount-5)+" more":"");
    const milestones=(stage.controlMilestoneIds||[]).slice(0,6).join("; ")||"No control milestone identified in this stage";
    const dependencies=(stage.dependencyStages||[]).map(humanizeKey).join(" → ")||"No incoming cross-stage dependency identified";
    const float=pmcDefined(stage.lowestFloatHours)?fmt(stage.lowestFloatHours)+" h":"Not established";
-   const blockers=stage.readinessBlockerCount>0
+   const blockers=Number.isFinite(stage.readinessBlockerCount)&&stage.readinessBlockerCount>0
      ? fmt(stage.readinessBlockerCount)+" affected activities · "+(stage.readinessBlockerTypes||[]).map(humanizeKey).join(", ")
-     : "No linked Look-Ahead blocker identified";
+     : stage.readinessBlockerCount===0
+       ? "No linked Look-Ahead blocker identified"
+       : "Look-Ahead blocker count not established";
    const longLead=stage.longLeadExposure
      ?"Schedule candidates "+fmt(stage.longLeadExposure.scheduleCandidateCount)+" · BOQ candidates "+fmt(stage.longLeadExposure.boqCandidateCount)+" · procurement source rows "+(pmcDefined(stage.longLeadExposure.readableProcurementSourceRows)?fmt(stage.longLeadExposure.readableProcurementSourceRows):"Not established")
      :"";
