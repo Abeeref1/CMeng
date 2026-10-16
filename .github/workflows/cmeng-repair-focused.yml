@@ -33,6 +33,8 @@ jobs:
           node --test --test-concurrency=1 \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-activity-movement-source-date-reuse.test.js \
+            dist/tests/t11-activity-analytics-date-population.test.js \
+            dist/tests/t11-intake-limit-512mb.test.js \
             dist/tests/detailed-claim-source-rule.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t11-shared-plan-positions.test.js \
