@@ -120,7 +120,13 @@ export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createPro
     const provider=createProvider();
     const retained=document.fullTextReadCheckpoint?.sourceHashSha256===hash?document.fullTextReadCheckpoint.pages:
       document.fullTextRead?.sourceHashSha256===hash?document.fullTextRead.result.pages:[];
-    const reusable=retained.filter(page=>page.method!=='failed'&&page.aiReview?.status!=='review_required'&&!(page.method==='native'&&fragmentedPdfText(page.text)));
+    // Keep source-legible pages with unresolved AI review in the checkpoint.
+    // A provider-free retry must retain the review_required state, not
+    // manufacture accepted reading from the same physical source bytes.
+    const reusable=retained.filter(page=>
+      (page.method==='native'||page.method==='ocr'||page.method==='blank')&&
+      typeof page.text==='string'&&(page.method==='blank'||page.text.trim().length>0)&&
+      !(page.method!=='blank'&&fragmentedPdfText(page.text)));
     const pages=new Map(reusable.map(page=>[page.pageNumber,page]));
     let newPages=0;
     const result=await parsePdfDocument(bytes,{...(provider?{ocrProvider:provider}:{}),

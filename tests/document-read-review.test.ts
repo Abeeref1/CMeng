@@ -9,7 +9,7 @@ import {documentReadReview,refreshDeferredPdfRead} from '../packages/runtime-api
 import {evidenceAvailabilityReview} from '../packages/runtime-api/src/evidence-availability-review';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import type {StoredEvidenceDocument} from '../packages/runtime-api/src/project-state-types';
-import type {OcrProvider} from '../packages/pdf-document-parser/src';
+import {parsePdfDocument,type OcrProvider} from '../packages/pdf-document-parser/src';
 
 test('later read receipts supersede upload labels without changing source authority',()=>{
   const store=new RuntimeProjectStore({dataDir:mkdtempSync(join(tmpdir(),'cmeng-read-review-')),durable:false});
@@ -174,4 +174,34 @@ test('T02 retained checkpoint cannot certify duplicate, out-of-range or AI-unres
  doc.fullTextReadCheckpoint!.pages=[page(1),{...page(2),aiReview:{status:'review_required'}}] as any;
  assert.equal(documentReadReview(doc,project).complete,false);
  assert.equal(doc.basisState,'candidate');
+});
+
+test('T02/T03 deferred reading retains unresolved review and candidate authority through restart',async t=>{
+ const directory=mkdtempSync(join(tmpdir(),'cmeng-unresolved-physical-'));
+ t.after(()=>rmSync(directory,{recursive:true,force:true}));
+ const pdf=await PDFDocument.create();pdf.addPage([100,100]);
+ const bytes=await pdf.save();const path=join(directory,'source.pdf');writeFileSync(path,bytes);
+ const provider:OcrProvider={name:'recorded-ocr',recognize:async()=>({
+   text:'Original invoice evidence states amount 42 and a source review remains outstanding.',
+   confidence:0.97,language:'eng',diagnostics:[],
+ })};
+ const source=await parsePdfDocument(bytes,{ocrProvider:provider,aiVerifier:{
+   name:'no-cost-review',review:async()=>({status:'review_required',
+     diagnostics:['Certificate is disputed'],proposedText:null,confidence:null}),
+ }});
+ assert.equal(source.ocrPages,1);assert.equal(source.unresolvedPages,1);assert.equal(source.complete,false);
+ const sourceHashSha256=createHash('sha256').update(bytes).digest('hex');
+ const doc={documentId:'original-source',sourceHashSha256,storedPath:path,mediaType:'application/pdf',
+   parserState:'parsed',basisState:'candidate',
+   fullTextRead:{producerVersion:'full-page-read-v1',sourceHashSha256,
+     completedAt:'2031-05-01T00:00:00Z',result:source}} as unknown as StoredEvidenceDocument;
+ const state=new RuntimeProjectStore({durable:false}).getOrCreate('RESTART-ORIGINAL');
+ assert.equal(documentReadReview(doc,state).complete,false);
+ const before=source.pages[0]!.text;
+ assert.equal(await refreshDeferredPdfRead(doc,()=>undefined),true);
+ assert.equal(doc.fullTextRead!.result.pages[0]!.text,before,'original OCR evidence is retained');
+ assert.equal(doc.fullTextRead!.result.pages[0]!.aiReview?.status,'review_required');
+ assert.equal(doc.fullTextRead!.result.complete,false,'no verifier means no established reading');
+ assert.equal(documentReadReview(doc,state).complete,false);
+ assert.equal(doc.basisState,'candidate','no formal source adoption');
 });

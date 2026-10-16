@@ -50,12 +50,13 @@ export async function parsePdfDocument(
     const totalPages = textResult.total;
     const append=(page:PdfPageResult)=>{pages.push(page);options.onPageRead?.(page,totalPages);};
     const completed = new Set(options.checkpoint?.completedPages ?? []);
-    const persistedByPage = new Map(
-      (options.checkpoint?.persistedPages ?? []).map((page) => [
-        page.pageNumber,
-        page,
-      ]),
-    );
+    const persistedByPage = new Map<number, PdfPageResult>();
+    const repeatedPages = new Set<number>();
+    for (const page of options.checkpoint?.persistedPages ?? []) {
+      if (persistedByPage.has(page.pageNumber)) repeatedPages.add(page.pageNumber);
+      else persistedByPage.set(page.pageNumber, page);
+    }
+    const nativeByPage = new Map(textResult.pages.map(page => [page.num, page.text]));
 
     for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
       if (completed.has(pageNumber)) {
@@ -72,17 +73,23 @@ export async function parsePdfDocument(
               "PDF_CHECKPOINT_RESULT_MISSING",
             ],
           });
-        } else if (persisted.method !== 'native' || !fragmentedPdfText(persisted.text)) {
+          continue;
+        }
+        const validReading = !repeatedPages.has(pageNumber) &&
+          persisted.pageNumber === pageNumber &&
+          (persisted.method === 'native' || persisted.method === 'ocr' || persisted.method === 'blank') &&
+          typeof persisted.text === 'string' &&
+          (persisted.method === 'blank' || persisted.text.trim().length > 0) &&
+          !(persisted.method !== 'blank' && fragmentedPdfText(persisted.text));
+        // Preserve an outstanding AI challenge when no verifier is available.
+        // With a verifier, re-read from original bytes before clearing it.
+        if (validReading && !(persisted.aiReview?.status === 'review_required' && options.aiVerifier)) {
           append(persisted);
           continue;
         }
-        if (!persisted) continue;
       }
 
-      const nativePage = textResult.pages.find(
-        (page) => page.num === pageNumber,
-      );
-      const nativeText = nativePage?.text ?? "";
+      const nativeText = nativeByPage.get(pageNumber) ?? "";
       const nativeCharacterCount = meaningfulCharacterCount(nativeText);
       const fragmented = fragmentedPdfText(nativeText);
       const qualityDiagnostics = fragmented ? ['PDF_NATIVE_TEXT_FRAGMENTED_REQUIRES_OCR'] : [];

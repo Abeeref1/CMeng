@@ -183,3 +183,44 @@ test('AI review failure retains native and OCR text and checkpoints every later 
  assert.ok(parsed.pages.every(page=>page.aiReview?.status==='review_required'&&page.diagnostics.includes('PDF_AI_REVIEW_REQUIRED')));
  assert.doesNotMatch(JSON.stringify(parsed),/private transport|PDF_OCR_FAILURE/);
 });
+
+test('T02 duplicate, failed or unknown retained PDF page identities require original-source reading',async()=>{
+  const firstText='Certificate amount 725000 approved subject to page reference review.';
+  const bytes=await makePdf([firstText,'Second page has original milestone and completion evidence.']);
+  const baseline=await parsePdfDocument(bytes);
+  assert.equal(baseline.complete,true);
+  const retained=baseline.pages[0]!;
+  const invalid=[
+    [{...retained,method:'failed',text:'Invented source value'}],
+    [{...retained,method:'unknown',text:'Invented source value'}],
+    [{...retained,text:'Invented value A'},{...retained,text:'Invented value B'}],
+  ];
+  for(const persistedPages of invalid){
+    const resumed=await parsePdfDocument(bytes,{checkpoint:{completedPages:[1],persistedPages:persistedPages as any}});
+    assert.equal(resumed.complete,true,'bad checkpoint must be re-read');
+    assert.equal(resumed.pages[0]!.method,'native');
+    assert.equal(resumed.pages[0]!.text,retained.text,'cannot substitute checkpoint source text');
+  }
+  assert.match(baseline.pages[0]!.text,/Certificate amount 725000/);
+});
+
+test('T03 unresolved AI review stays unresolved through a no-AI PDF restart',async()=>{
+  const bytes=await makePdf(['Commercial certificate source text requires a separate verification decision.']);
+  const original=await parsePdfDocument(bytes,{aiVerifier:{
+    name:'free-recorded-challenge',
+    review:async()=>({status:'review_required',diagnostics:['Conflicting certificate'],proposedText:null,confidence:null}),
+  }});
+  assert.equal(original.complete,false);
+  const checkpoint={completedPages:[1],persistedPages:original.pages};
+  const resumed=await parsePdfDocument(bytes,{checkpoint});
+  assert.equal(resumed.complete,false,'not calling AI does not certify its unresolved evidence');
+  assert.equal(resumed.unresolvedPages,1);
+  assert.equal(resumed.pages[0]!.aiReview?.status,'review_required');
+  assert.equal(resumed.pages[0]!.text,original.pages[0]!.text);
+  const verified=await parsePdfDocument(bytes,{checkpoint,aiVerifier:{
+    name:'free-recorded-acceptance',
+    review:async()=>({status:'accepted',diagnostics:[],proposedText:null,confidence:1}),
+  }});
+  assert.equal(verified.complete,true,'new accepted source verification clears only its own review');
+  assert.equal(verified.pages[0]!.text,original.pages[0]!.text);
+});
