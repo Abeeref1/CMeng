@@ -269,9 +269,9 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
    detailedClaimState:!due?'due_basis_missing':submitted?(submitted<=due?'within_period':'late'):cutoff&&due<cutoff?'overdue_no_submission':'submission_not_recorded',
    windowStartIso:start,windowEndIso:end,windowCalendarDays:days(start,end),longWindow:start&&end?end>monthDate(start,3):null,
    sourceRefs:[...rowRefs(r),...(rule?.evidenceRefs??[]).map(ref=>ref.sourceType+':'+ref.sourceId+':'+ref.locator)],
-   basis:rule?'Documented detailed-claim period of '+limit+' calendar days from '+(rule.triggerBasis==='awareness'?'awareness':'event start')+'.':'The applicable detailed-claim period and starting event are not established; no deadline is assumed.',
+   basis:rule&&due&&limit!==null?'Documented detailed-claim period of '+limit+' calendar days from '+(rule.triggerBasis==='awareness'?'awareness':'event start')+'.':'The applicable detailed-claim period and starting event are not established; no deadline is assumed.',
    warning:start&&end&&end>monthDate(start,3)?'Delay window exceeds three calendar months; subdivide the analysis or justify the longer window.':null,
-   missingInputs:[!rule?'Applicable contract detailed-claim rule and its dated starting event':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
+   missingInputs:[!due?'Applicable contract detailed-claim rule, valid calendar-day period and dated starting event':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
  }
  return {rows:checks,total:checks.length,lateCount:checks.filter(r=>r.detailedClaimState==='late'||r.detailedClaimState==='overdue_no_submission').length,longWindowCount:checks.filter(r=>r.longWindow).length,
   basis:'Dated claim screening; all source references retained. No entitlement, waiver, time-bar or liability determination is inferred.'};
