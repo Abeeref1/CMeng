@@ -1364,28 +1364,32 @@ function buildBundle(
   );
 
   measureBundle('nearcritical_projection');
-  const progressBreakdown =
-    buildProgressBreakdownProjection(
-      model,
-      {
-      baselineModel: controlledBaseline?.revision.model ?? null,
-      sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null,sourcePlanPositions),
-      previousModel: ordered.at(-2)?.revision.model ?? null,
-      scopeClassification: projectScopeClassification(state,model),
-      readinessEvidence: state.controls.readinessEvidence,
-          config: scheduleAnalysisConfig,
-        generatedAt,
-        producerVersion:
-          versions.breakdown,
-      },
-    );
-  modules.set(
-    "progress-breakdown",
-    available(
-      "progress-breakdown",
-      progressBreakdown,
-    ),
-  );
+  // The Dashboard displays WBS workfront rows and the project summary,
+  // not every hierarchy/dimension drill-down. Reuse the EXACT owning row
+  // equations; the full specialist calculation remains on its own page.
+  const breakdownInput = {
+    baselineModel: controlledBaseline?.revision.model ?? null,
+    sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null,sourcePlanPositions),
+    previousModel: ordered.at(-2)?.revision.model ?? null,
+    scopeClassification: projectScopeClassification(state,model),
+    readinessEvidence: state.controls.readinessEvidence,
+    config: scheduleAnalysisConfig,
+    generatedAt,
+    producerVersion: versions.breakdown,
+  };
+  const progressBreakdown=dashboardOnly
+    ? buildDeliveryWorkfrontBreakdown(model,breakdownInput)
+    : buildProgressBreakdownProjection(model,breakdownInput);
+  modules.set("progress-breakdown",dashboardOnly
+    ? available("progress-breakdown",{
+        ...progressBreakdown,projectionKey:"progress_breakdown",
+        projectId:state.projectId,sourceRevisionId:model.sourceRevisionId,
+        totalActivityCount:progressBreakdown.rows.reduce((sum,row)=>sum+row.activityCount,0),
+        // Not a substitute for the full specialist hierarchy/dimension pages.
+        specialistDetailState:"on_demand",generatedAt,producerVersion:versions.breakdown,
+      },["Complete WBS/dimension drill-down on Progress Breakdown"],"partial",
+      "Complete original WBS rows and scope total are shown. Specialist hierarchy and classification drill-down is calculated when opened.")
+    : available("progress-breakdown",progressBreakdown));
 
   measureBundle('progress_breakdown_projection');
   const independentStageTimings:Array<{part:string;ms:number}>=[];
@@ -1589,6 +1593,7 @@ function buildBundle(
   );
 
   markIndependent('revision_trend');
+  if(!dashboardOnly){
   const varianceTrends =
     buildVarianceTrendsProjection(
       ordered.map(
@@ -1622,6 +1627,17 @@ function buildBundle(
     ),
   );
 
+  }else{
+    // This full-population activity-by-revision specialist series is not
+    // displayed on the Dashboard. Its source dates/rows are unchanged and the
+    // owning page continues to calculate the complete result on demand.
+    modules.set("variance-trends",available("variance-trends",
+      {projectionKey:"variance_trends",generatedAt,producerVersion:versions.variance,
+       projectId:state.projectId,sourceRevisionId:model.sourceRevisionId,
+       specialistDetailState:"on_demand",revisionCount:ordered.length},
+      ["Variance Trends specialist source history"],"partial",
+      "The detailed variance-history series is calculated on its specialist page; the Dashboard does not assert an unchecked historical total."));
+  }
   markIndependent('variance_trends');
   if (ordered.length >= 2) {
     const before =
