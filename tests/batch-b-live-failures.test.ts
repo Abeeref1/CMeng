@@ -9,7 +9,7 @@ import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG,type CanonicalScheduleActivity,type Can
 
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
 const parsed=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
-const loader=parsed.statements.filter(isFunctionDeclaration).filter(n=>n.name&&['loadModule','projectRequestIsCurrent'].includes(n.name.text)).map(n=>n.getText(parsed)).join('\n');
+const loader=parsed.statements.filter(isFunctionDeclaration).filter(n=>n.name&&['loadModule','projectRequestIsCurrent','readerModuleHeading'].includes(n.name.text)).map(n=>n.getText(parsed)).join('\n');
 async function loadFailure(body:any,httpStatus:number,key='cross-domain-accountability') {
   const nodes=new Map<string,any>(),rendered:any[]=[];
   const el=(id:string)=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',classList:{remove(){}},onclick:null});return nodes.get(id);};
