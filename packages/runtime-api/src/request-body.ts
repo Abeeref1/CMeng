@@ -1,6 +1,8 @@
 import type {IncomingMessage} from 'node:http';
 
-export const DEFAULT_MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+// Preserve the agreed 512 MiB per-file intake ceiling for programme, BOQ, contract and full packs.
+// Large imports still use the same atomic-save and per-project isolation path.
+export const DEFAULT_MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 export function configuredUploadLimit(value = process.env.CMENG_MAX_UPLOAD_BYTES): number {
   if (value === undefined || value.trim() === '') return DEFAULT_MAX_UPLOAD_BYTES;
