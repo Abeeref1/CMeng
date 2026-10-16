@@ -3752,7 +3752,9 @@ function renderCommercialVisual(key,data){
           {label:"Paid",value:lifecycleCounts.paid,tone:"success"}
         ],"records"):paymentPopulationEstablished&&paymentRegister.recordCount===0
           ?'<div class="empty-visual">The confirmed current payment population is zero.</div>'
-          :'<div class="empty-visual">Payment lifecycle counts are not established from a retained payment source.</div>'
+          :!paymentSourceEstablished
+            ?'<div class="empty-visual">Payment register is not confirmed. Lifecycle counts are not confirmed.</div>'
+            :'<div class="empty-visual">Payment source records are retained, but the current lifecycle stages are not fully established. Lifecycle counts are not confirmed.</div>'
       );
       const slaCountValues=[slaCounts.paidOnTime,slaCounts.paidLate,slaCounts.overdueUnpaid,slaCounts.openUnpaid];
       const slaAssessable=paymentPopulationEstablished&&paymentRegister.slaAssessmentState!=="not_assessable"&&slaCountValues.every(knownCount);
