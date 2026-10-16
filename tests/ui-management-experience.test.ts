@@ -615,8 +615,8 @@ test('numeric-looking BOQ identifiers and source references survive shared displ
 
 test('source detail pages render every one of the 25 fetched records',()=>{
  const rows=Array.from({length:25},(_,i)=>({reference:'EXACT-'+(i+26)}));
- const html=runInNewContext(functions(['renderRecordTable','readerTechnicalField','readerPresentationTechnicalField'])+';renderRecordTable(rows,{total:63,offset:25})',{
-  ...common,rows,responseListPopulation:(_:unknown,p:unknown)=>p,renderComplexCell:(v:unknown)=>String(v)
+ const html=runInNewContext(functions(['renderRecordTable','readerTechnicalField','readerPresentationTechnicalField','responseListPopulation','knownScreenCount','screenCountText'])+';renderRecordTable(rows,{total:63,offset:25})',{
+  ...common,rows,renderComplexCell:(v:unknown)=>String(v)
  });
  for(let i=26;i<=50;i++)assert.match(html,new RegExp('EXACT-'+i+'<'));
  assert.match(html,/26–50 of 63/);
