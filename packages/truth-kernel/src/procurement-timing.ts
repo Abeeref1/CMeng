@@ -4,7 +4,10 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  // arithmetic. Date.parse alone can silently normalize 2032-02-30 to March.
  const day=(value:string|null):string|null=>{
   if(typeof value!=='string')return null;
-  const iso=/^\d{4}-\d{2}-\d{2}(?=$|[T\s])/.exec(value)?.[0];
+  // A valid day prefix with a malformed time or trailing text is NOT a
+  // usable source date. Match the entire timestamp as the canonical reader
+  // does; this does not invent a timezone or change the source day.
+  const iso=/^(\d{4}-\d{2}-\d{2})(?:[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)?)?$/.exec(value.trim())?.[1];
   if(!iso)return null;
   const millis=Date.parse(iso+'T00:00:00Z');
   return Number.isFinite(millis)&&new Date(millis).toISOString().slice(0,10)===iso?iso:null;
