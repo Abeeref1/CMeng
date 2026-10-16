@@ -8845,7 +8845,7 @@ export function managementSurfacesForProject(
   const issueStage6=profiling?performance.now():0;
   const deliveryPosition=deliveryDashboard(state);
   const issueStage7=profiling?performance.now():0;
-  const canonicalActions=projectActionRegisterForState(state).actions;
+  const canonicalActions=(dashboardOnly?buildProjectActionRegister(reportingState(state),resolvedModules):projectActionRegisterForState(state)).actions;
   const issueStage8=profiling?performance.now():0;
   // Do not overwrite grouped accountability decisions with the raw shared register.
   // Both totals remain explicitly distinguished by their authority and population.
