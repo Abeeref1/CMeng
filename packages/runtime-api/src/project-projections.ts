@@ -7765,7 +7765,10 @@ function resolveProjectModuleCandidate(
   }
   if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
-    const interpretation=sharedInterpretation??buildBundle(state).director?.sourceInterpretation??sourceInterpretation(state);
+    // An unavailable Director interpretation is not permission to rebuild
+    // every specialist projection. Use the canonical source interpretation
+    // directly; it has the same authority and does not invent missing facts.
+    const interpretation=sharedInterpretation??sourceInterpretation(state);
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
