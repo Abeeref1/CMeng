@@ -250,10 +250,22 @@ function buildProgressBreakdownProjectionImpl(
     if(list.length<10)list.push(activity.activityId);
     milestoneThreatsByWbs.set(activity.wbsId,list);
   }
+  // Read repeated original source-date strings once for this projection.
+  // An invalid/missing date stays NaN, so no delayed flag is fabricated;
+  // distinct models never share cached calendar authority.
+  const signalInstants = new Map<string, number>();
+  const signalInstant = (iso: string | null): number => {
+    if (!iso) return NaN;
+    const cached = signalInstants.get(iso);
+    if (cached !== undefined) return cached;
+    const parsed = Date.parse(iso);
+    signalInstants.set(iso, parsed);
+    return parsed;
+  };
   const signalByActivity = new Map(model.activities.map(activity=>{
     const finishIso=effectiveFinish(activity);
-    const finishMs=finishIso?Date.parse(finishIso):NaN;
-    const baselineMs=activity.baselineFinishIso?Date.parse(activity.baselineFinishIso):NaN;
+    const finishMs=signalInstant(finishIso);
+    const baselineMs=signalInstant(activity.baselineFinishIso);
     const readiness=input.readinessEvidence?.[activity.activityId];
     const sourceLongLead=!!readiness?.procurement_material?.records?.some(record=>record.longLead===true);
     const programmeCandidate=programmeLongLeadActivityIds.has(activity.activityId);
