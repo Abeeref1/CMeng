@@ -12,6 +12,7 @@ import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry} from './re
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,calculationRelease,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
+import {abortProjectProxyOnDisconnect} from './project-proxy-cancellation';
 import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
 import {randomBytes,createHmac} from 'node:crypto';
@@ -286,7 +287,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     let succeeded=false;
     try{
       await work(id,port=>new Promise<void>((resolve,reject)=>{
-        if(req.aborted){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
+        if(req.aborted||(res.destroyed&&!res.writableFinished)){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
         const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,...actorHeaders.get(req),host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
@@ -303,7 +304,11 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
             else resolve();
           });forwardHttpBody(res,incoming);
         });
-        upstream.on('error',reject);req.once('aborted',()=>upstream.destroy(new Error('UPLOAD_CONNECTION_CLOSED')));
+        upstream.on('error',reject);
+        // A browser leaving this page aborts the obsolete upstream HTTP turn,
+        // rather than keeping a worker lane reserved for a result nobody can see.
+        // Successful requests and uploads retain their normal response stream.
+        abortProjectProxyOnDisconnect(req,res,upstream);
         req.pipe(upstream);
       }));
     }catch(error){
