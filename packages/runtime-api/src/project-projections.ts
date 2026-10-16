@@ -7986,7 +7986,11 @@ function moduleForProjectUncached(
     );
   }
   const finalize=(result:ModuleRuntimeResult)=>{
-    const attached=attachProjectFacts(state,result);
+    // The first Dashboard already holds exact-version canonical facts from
+    // the source/action producers used to draw the screen. Do not rebuild the
+    // 29-module specialist register merely to attach those same facts again.
+    const attached=key==='master-dashboard'&&(result.data as any)?.projectFacts
+      ? result : attachProjectFacts(state,result);
     // A position verdict that predates canonical facts can compare against
     // the unextended contract. Re-evaluate only existing verdict surfaces
     // after shared fact attachment, without a second calculation producer.
@@ -8690,13 +8694,16 @@ export function managementSurfacesForProject(
         }),
       );
 
+  const dashboardActionRegister=dashboardOnly
+    ? buildProjectActionRegister(reportingState(state),resolvedModules):null;
+  const canonicalFacts=projectFactsForState(state,dashboardActionRegister??undefined);
   const mp4=profiling?performance.now():0;
   const surfaces = buildManagementSurfaces({
     schemaVersion: "1.0",
     projectId,
     generatedAt,
     director,
-    projectFacts:projectFactsForState(state),
+    projectFacts:canonicalFacts,
     consistency,
     contractualCompletionAuthority: terms.contractualCompletionDate.state === "established" ? "official" : terms.contractualCompletionDate.state === "candidate" ? "provisional" : "source",
     negativeFloatCount: (resolvedModules.get("schedule-analytics")?.data as any)?.result?.float?.negativeFloatCount ?? null,
@@ -8854,7 +8861,7 @@ export function managementSurfacesForProject(
   const issueStage6=profiling?performance.now():0;
   const deliveryPosition=deliveryDashboard(state);
   const issueStage7=profiling?performance.now():0;
-  const canonicalActions=(dashboardOnly?buildProjectActionRegister(reportingState(state),resolvedModules):projectActionRegisterForState(state)).actions;
+  const canonicalActions=(dashboardActionRegister??projectActionRegisterForState(state)).actions;
   const issueStage8=profiling?performance.now():0;
   // Do not overwrite grouped accountability decisions with the raw shared register.
   // Both totals remain explicitly distinguished by their authority and population.
@@ -8866,7 +8873,7 @@ export function managementSurfacesForProject(
   const mp6=profiling?performance.now():0;
   const result = { ...surfaces,
     sourceQuality: managementReportingData(state,{...sourceQualityPosition(resolvedModules,issueAssessment,state.evidenceDocuments,current?.revision.model.dataDateIso??null),registerDateReview:registerDateReview(state)},resolvedModules),
-    masterDashboard: {actions:canonicalActions,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation},
+    masterDashboard: {actions:canonicalActions,projectFacts:canonicalFacts,projectDiagnosis:diagnosis,completionPosition:completion,delivery:deliveryPosition,visualControl,managementContext,scheduleExceptions,deliveryExceptions,...managementReportingData(state, surfaces.masterDashboard, resolvedModules),decisions:surfaces.commandCenter.decisions,trend:(resolvedModules.get("forecast-history")?.data as any)??null,issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation},
     commandCenter: {projectDiagnosis:diagnosis,completionPosition:completion,scheduleExceptions,deliveryExceptions,delivery:deliveryPosition,visualControl,managementContext,...managementReportingData(state, surfaces.commandCenter, resolvedModules),actions:canonicalActions,issueAssessment,controls:({...surfaces.commandCenter.controls,reporting:managementOperations} as any),operationalReporting:managementOperations,interfaces,accountability,sourceInterpretation:director?.sourceInterpretation},
     masterControlProgramme: {visualControl,managementContext,interfaces,accountability,delivery:deliveryPosition,...managementReportingData(state, surfaces.masterControlProgramme, resolvedModules),issueAssessment,operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation} };
   for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])Object.assign(surface,{sourceLabels:projectSourceLabels(state)});
