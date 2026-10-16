@@ -8122,21 +8122,25 @@ export function compactManagementOperationalReporting(operations: ReturnType<typ
 }
 
 const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
+const dashboardProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
 
 export function managementSurfacesForProject(
   projectId: string,
+  purpose:'full'|'dashboard'='full',
 ): (ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}) | null {
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
 
-  const cached = managementProjectionCache.get(projectId);
+  const dashboardOnly=purpose==='dashboard';
+  const cache=dashboardOnly?dashboardProjectionCache:managementProjectionCache;
+  const cached = cache.get(projectId);
   if (cached?.version === state.version) return cached.data;
 
   const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
   const mp0=profiling?performance.now():0;
   const bundle =
-    buildBundle(state);
+    buildBundle(state,purpose);
   const mp1=profiling?performance.now():0;
   const generatedAt =
     bundle.generatedAt;
@@ -8800,7 +8804,7 @@ export function managementSurfacesForProject(
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
     buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
-  managementProjectionCache.set(projectId, {version: state.version, data: result});
+  cache.set(projectId, {version: state.version, data: result});
   return result;
 }
 
@@ -8812,6 +8816,7 @@ export function managementSurfaceForProject(
   const surfaces =
     managementSurfacesForProject(
       projectId,
+      key==='master-dashboard'?'dashboard':'full',
     );
   if (!surfaces) {
     return null;
