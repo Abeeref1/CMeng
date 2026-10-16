@@ -19,7 +19,10 @@ test('BOQ-only workbook receipts account for every parsed sheet without claiming
   await runtimeProjects.ingestEvidenceFile({projectId,sourceFilename:'multisheet_boq.xlsx',bytes:Buffer.from(await book.xlsx.writeBuffer()),mediaType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',uploadedAt:'2032-01-01'});
   const receipt=projectDocumentRegister(projectId)!.documents[0]!.readReview;
   assert.match(receipt.note!,/3 rows and 7 distinct fields read across 2 parsed tables/);
-  assert.equal(receipt.complete,false);
+  // Physical reading is complete for both parsed sheets; governance and
+  // quantity adoption remain separate and MUST still be unestablished.
+  assert.equal(receipt.complete,true);
+  assert.equal(receipt.state,'read');
   const result=moduleForProject(projectId,'quantity-scurve'),data=result.data as any;
   assert.equal(data.suppliedBoq.itemCount,3);
   assert.match(data.featureAvailability.reason,/BOQ\/quantity evidence is available/);
