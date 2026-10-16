@@ -978,6 +978,10 @@ function humanizeKey(key){
     const separator=value.indexOf(":");
     const code=separator>=0?value.slice(0,separator):value;
     const detail=separator>=0?value.slice(separator+1):"";
+    // Unmapped internal machinery identifiers have no reader-approved label.
+    // Keep their complete diagnostic codes in the retained evidence, not in a
+    // primary-page heading. Known diagnostics above keep their specific labels.
+    if(/^UNMAPPED_INTERNAL_[A-Z0-9_]+$/.test(code))return "Additional calculation qualification";
     const readable=code.toLowerCase().replace(/_+/g," ").replace(/\b\w/g,c=>c.toUpperCase())
       .replace(/\b(?:Eot|Cpi|Spi|Ncr|Rfi|Cpm|Wbs|Eac|Ld|Boq|Pmo|Ai|Pdf|Ipc)\b/g,m=>m.toUpperCase());
     return readable+(detail?" · "+detail.replace(/[_]+/g," "):"");
