@@ -209,7 +209,7 @@ test('T02/T03 deferred reading retains unresolved review and candidate authority
 
 test('T02 PDF source receipts cannot certify absent OCR/native text or content masquerading as blank',()=>{
  const state=new RuntimeProjectStore({durable:false}).getOrCreate('INDEPENDENT-PHYSICAL-READ');
- const page=(pageNumber:number,method:string,text:string)=>({pageNumber,method,text,
+ const page=(pageNumber:number,method:'native'|'ocr'|'blank',text:string)=>({pageNumber,method,text,
    nativeCharacterCount:method==='native'?text.length:0,ocrConfidence:null,aiReview:null,diagnostics:[]});
  const pages=[page(1,'native','Original signed payment certificate records total 425000.'),
    page(2,'ocr','Independent scanned register confirms invoice and date.'),page(3,'blank','')];
@@ -228,7 +228,7 @@ test('T02 PDF source receipts cannot certify absent OCR/native text or content m
    assert.equal(result.readPageCount,2);
    assert.equal(result.state,'partial');
    const checkpoint={...doc,fullTextRead:undefined,
-     fullTextReadCheckpoint:{sourceHashSha256:doc.sourceHashSha256,totalPages:3,pages:corrupted.pages}} as StoredEvidenceDocument;
+     fullTextReadCheckpoint:{sourceHashSha256:doc.sourceHashSha256,updatedAt:'2031-05-01T00:00:00Z',totalPages:3,pages:corrupted.pages}} as StoredEvidenceDocument;
    assert.equal(documentReadReview(checkpoint,state).complete,false,'checkpoint uses identical physical criterion');
    assert.equal(documentReadReview(checkpoint,state).readPageCount,2);
  }
