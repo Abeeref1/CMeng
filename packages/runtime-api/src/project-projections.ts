@@ -1621,6 +1621,12 @@ function buildBundle(
           producerVersion:
             versions.change,
           ...(revisionComparisons.get(before)?.get(after)?{precomputedComparison:revisionComparisons.get(before)!.get(after)!}:{}),
+          // Revision Trend already evaluated this exact adjacent source pair.
+          // Do not reuse a classification for an older/future current revision.
+          ...(ordered.at(-1)?.revision.revisionId===after.revisionId&&
+              ordered.at(-2)?.revision.revisionId===before.revisionId&&
+              revisionTrend.points.at(-1)?.changeCategories
+            ?{precomputedChangeCategories:revisionTrend.points.at(-1)!.changeCategories!}:{}),
           // Same source revisions already analyzed for the revision trend above.
           // Completion date bases come from original activity dates and status;
           // this local evidence map never survives source/version changes.
