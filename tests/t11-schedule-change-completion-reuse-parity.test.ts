@@ -7,7 +7,7 @@ import {
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
 } from '../packages/schedule-analysis-core/src';
-import type {ScheduleRevision} from '../packages/schedule-revision-core/src';
+import {compareScheduleRevisions,classifyScheduleChanges,type ScheduleRevision} from '../packages/schedule-revision-core/src';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
 
@@ -60,6 +60,16 @@ test('T11 exact original change-report parity with reused completed source analy
     const originalSource=JSON.stringify([before,after]);
     const options={generatedAt:'2031-05-01T00:00:00Z',producerVersion:'independent-t11'};
     const original=buildScheduleChangeReportProjection(before,after,options);
+    const originalPair=compareScheduleRevisions(before,after);
+    const originalClassification=classifyScheduleChanges(originalPair.activityChanges,before.model,after.model);
+    const borrowed=buildScheduleChangeReportProjection(before,after,{
+      ...options,precomputedComparison:originalPair,precomputedChangeCategories:originalClassification,
+    });
+    assert.deepEqual(borrowed,original,'reused same-pair classification must exactly match the complete independent producer');
+    assert.notStrictEqual(borrowed.changeCategories,originalClassification,'each page must own its returned audit categories');
+    assert.notStrictEqual(borrowed.changeCategories[0],originalClassification[0],'source category rows cannot alias another page');
+    originalClassification[0]!.activityCount=900000;
+    assert.deepEqual(borrowed,original,'altering another view must never mutate the returned source classification');
     assert.ok(original.engineeringChanges,'full original change record must exist');
     assert.equal(original.engineeringChanges.fromCompletionIso,assertedSourceCompletion(before.model));
     assert.equal(original.engineeringChanges.toCompletionIso,assertedSourceCompletion(after.model));
