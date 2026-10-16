@@ -18,3 +18,35 @@ test('dated amendment applies to trigger date, not later notice date',()=>{
  const rules=[{...rule,effectiveToIso:'2026-01-10'},{...rule,requirementId:'amendment',noticePeriodDays:28,effectiveFromIso:'2026-01-10'}];
  assert.equal(buildClaimChecks([row()],'2026-03-31',rules).rows[0].allowedDays,84);
 });
+
+ 
+// Independently calculated civil-day cases (Gregorian, no server timezone)
+// verify the detailed-claim deadline, not the initial claim-notice deadline.
+test('frozen detailed-claim day counts retain leap dates, amendments, and original source input',()=>{
+ const originals=[{start:'2028-02-28',days:1,due:'2028-02-29'},
+  {start:'2028-02-28',days:2,due:'2028-03-01'},
+  {start:'2027-02-28',days:1,due:'2027-03-01'},
+  {start:'2028-12-31',days:84,due:'2029-03-25'}];
+ for(const c of originals){
+  const sourceRule={...rule,noticePeriodDays:c.days};
+  const originalRow=row({'awareness date':c.start,'detailed claim date':''});
+  const snapshot=JSON.stringify({sourceRule,originalRow});
+  const result=buildClaimChecks([originalRow],c.start,[sourceRule]);
+  assert.equal(result.rows[0].dueDateIso,c.due,c.start+' + '+c.days);
+  assert.equal(result.rows[0].allowedDays,c.days);
+  assert.equal(result.rows[0].detailedClaimState,'submission_not_recorded');
+  assert.equal(JSON.stringify({sourceRule,originalRow}),snapshot,'original records and rule authority are immutable');
+ }
+});
+test('nonfinite and negative detailed-claim periods do not crash or invent deadlines',()=>{
+ for(const invalid of [NaN,Infinity,-Infinity,-1,1e300]){
+  const sourceRule={...rule,noticePeriodDays:invalid};
+  const result=buildClaimChecks([row()],'2026-03-31',[sourceRule]);
+  assert.equal(result.rows[0].dueDateIso,null);
+  assert.equal(result.rows[0].allowedDays,null);
+  assert.equal(result.rows[0].detailedClaimState,'due_basis_missing');
+  assert.equal(result.lateCount,0);
+  assert.match(result.rows[0].missingInputs.join(' '),/contract detailed-claim rule/);
+  assert.equal(sourceRule.noticePeriodDays,invalid);
+ }
+});
