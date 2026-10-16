@@ -54,15 +54,16 @@ function effectiveFinish(
 
 function finishVarianceDays(
   activity: CanonicalScheduleActivity,
+  sourceInstant: (date: string) => number = Date.parse,
 ): number | null {
   if (!activity.baselineFinishIso) return null;
   const current = effectiveFinish(activity);
   if (!current) return null;
 
-  const baselineMs = Date.parse(
+  const baselineMs = sourceInstant(
     activity.baselineFinishIso,
   );
-  const currentMs = Date.parse(current);
+  const currentMs = sourceInstant(current);
 
   if (
     !Number.isFinite(baselineMs) ||
@@ -107,6 +108,15 @@ export function buildActivityAnalyticsProjection(
   const logic =
     buildScheduleActivityLogicIndex(model,true);
   const dateExceptions=activityDateExceptionReader(model.dataDateIso);
+  // Preserve Date.parse interpretation, including invalid source values, but
+  // avoid reparsing the same submitted dates for every activity. The index is
+  // strictly local to this evaluation, so a later update cannot reuse old
+  // dates or quietly turn a missing date into zero.
+  const sourceDates=new Map<string,number>();
+  const sourceInstant=(date:string):number=>{
+    if(sourceDates.has(date))return sourceDates.get(date)!;
+    const value=Date.parse(date);sourceDates.set(date,value);return value;
+  };
   // First source occurrence wins even when a submitted calendar ID repeats.
   // Preserve all source calendars; avoid repeated full-calendar searching for
   // each of the 8k–100k activity rows of this exact source evaluation.
@@ -132,7 +142,7 @@ export function buildActivityAnalyticsProjection(
       const successors =
         [...(entry?.successorIds ?? [])];
       const dates=dateExceptions(activity);
-      const variance=finishVarianceDays(activity);
+      const variance=finishVarianceDays(activity,sourceInstant);
       const floatPosition=position(activity);
 
       return {
