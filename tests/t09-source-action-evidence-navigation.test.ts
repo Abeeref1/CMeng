@@ -105,3 +105,34 @@ test('T09 URL cannot expose or restore role view from query parameters',()=>{
  assert.doesNotMatch(html,/initialBrowserQuery\.get\('role'\)/);
  assert.match(html,/q\.delete\('role'\)/,'legacy role query must be scrubbed');
 });
+
+
+test('T09 source issue identifiers route real payment, claim and variation conflicts without relying on boilerplate wording',async()=>{
+ const {projectReviewGroup}=await import('../packages/runtime-api/src/project-review-groups');
+ const generic=(code:string)=>({
+  code,kind:'source_conflict' as const,summary:'Reported source values differ',
+  detail:'Compare the retained evidence at the cited location.',
+  action:'Correct the original record when needed',owner:'Project evidence owner' as const,
+  moduleKeys:['master-dashboard'],sourceRefs:['evidence-document:DOC-02:row:1743'],
+  checkIds:[],evidencePaths:['data.mismatch']
+ });
+ const cases:[string,string][]=[
+  ['PAYMENT_CERTIFICATE_AMOUNT_CONFLICT','payments'],
+  ['CLAIM_NOTICE_PERIOD_CONFLICT','claims'],
+  ['VARIATION_AMOUNT_CONFLICT','commercial'],
+  ['RISK_REGISTER_STATUS_CONFLICT','risks']
+ ];
+ const state={...projectState,schedules:[]} as unknown as ProjectRuntimeState;
+ const evidence=actionSourceCorrectionRecord(state,'evidence-document:DOC-02:row:1743');
+ assert.deepEqual(evidence,{source:'Current procurement.xlsx',locator:'Row 1743',
+  documentId:'DOC-02',sourceHash:'SHA-BYTES-02'});
+ for(const [code,expected] of cases){
+  const issue=generic(code),before=JSON.stringify(issue);
+  const grouped=projectReviewGroup(issue,state);
+  assert.equal(grouped.key,expected,code+' must reach the owning review instead of generic source follow-up');
+  assert.equal(grouped.available,true,'real source disagreement must remain actionable');
+  assert.equal(JSON.stringify(issue),before,'routing must not change source evidence');
+ }
+ const unrelated=projectReviewGroup(generic('UNMAPPED_SOURCE_DIFFERENCE'),state);
+ assert.ok(unrelated.key.startsWith('source:'),'unrelated source findings must not be misassigned to Commercial');
+});

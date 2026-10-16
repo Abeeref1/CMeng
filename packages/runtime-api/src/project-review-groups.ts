@@ -5,7 +5,7 @@ import type {ProjectRuntimeState} from './project-state-types';
  * Every original finding and affected page remains in the group. Missing optional
  * domains are coverage information, not tasks created merely by uploading a XER. */
 export function projectReviewGroup(issue:ControlIssue,state:ProjectRuntimeState){
-  const path=[issue.sourceFactKey??'',...issue.evidencePaths,issue.summary,issue.detail].join(' ').toLowerCase().replaceAll('_',' ');
+  const path=[issue.sourceFactKey??'',issue.code,...issue.evidencePaths,issue.summary,issue.detail].join(' ').toLowerCase().replaceAll('_',' ');
   const modules=issue.moduleKeys.join(' ');
   const docs=state.evidenceDocuments.filter(d=>['active','additive','candidate'].includes(d.basisState));
   const has=(pattern:RegExp)=>docs.some(d=>pattern.test(d.documentType+' '+d.category));
