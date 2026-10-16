@@ -97,7 +97,7 @@ export function resolveProjectControlNumberMetric(
       "days",
     );
     const value = numberValue(raw);
-    if (value === null || !unitLooksLikeDays(unit)) continue;
+    if (value === null || !Number.isFinite(value) || !unitLooksLikeDays(unit)) continue;
 
     const positive =
       (
@@ -105,6 +105,7 @@ export function resolveProjectControlNumberMetric(
         /\bpositive\b.*\b(?:window|programme|completion)\b.*\b(?:movement|days?)\b/.test(key) ||
         /\b(?:window|programme)\b.*\bgross\b.*\b(?:movement|delay)\b/.test(key)
       ) &&
+      /\bpositive\b/.test(key) &&
       !/\bnegative\b/.test(key);
 
     const negative =
@@ -129,7 +130,9 @@ export function resolveProjectControlNumberMetric(
 
   const official = candidates.filter((item) => item.official);
   const pool = official.length ? official : candidates;
-  const values = [...new Set(pool.map((item) => Number(item.value.toFixed(6))))];
+  // Distinct source values must not be merged by display precision. A rounded
+  // headline may be useful, but it cannot resolve a real source disagreement.
+  const values = [...new Set(pool.map((item) => item.value))];
   const conflicted = values.length > 1;
 
   if (conflicted) {
@@ -139,7 +142,7 @@ export function resolveProjectControlNumberMetric(
   const value = values.length === 1 ? values[0]! : null;
   const selected = value === null
     ? pool
-    : pool.filter((item) => Number(item.value.toFixed(6)) === value);
+    : pool.filter((item) => item.value === value);
 
   return {
     value,

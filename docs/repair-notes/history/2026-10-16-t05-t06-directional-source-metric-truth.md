@@ -1,0 +1,7 @@
+# 16 October 2026 — T05/T06 directional source-metric qualification
+
+Starting exact remote HEAD: `17d243ad1544eaeb5983f212412d9bcd318cb609`.
+
+Shared source fault in `project-control-source-metrics.ts`: an undirected label such as "Programme Gross Movement" matched the loose positive-expression alternative and was promoted to a gross *positive* delay figure without source direction. In addition, source values were rounded to six decimals before conflict detection and before display, merging genuinely different source numbers. The qualified source metric now requires an explicit "positive" direction, retains original finite numeric precision and reports disagreement as conflicted rather than quietly picking a rounded value. Negative movement remains a separate source fact. Source rows, file identity, evidence receipts and formal authority are unchanged.
+
+Independent additive CSV-source regression checks neutral labels, three positive label orders, negative-only movement, high-precision values, conflicting source rows, preserved receipts and source SHA/immutability. The original six mandatory groups, current 23-project guard and hard 5,000 ms four-cold full first-open Dashboard + Accountability gate remain unchanged. This is a scoped source/reader correction, not T05 or T06 closure. Continue exact-head CI failures and source/screen/Ask/download parity across the original finish list; no release, merge, access/roles or paid AI.
