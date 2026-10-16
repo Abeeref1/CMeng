@@ -8171,18 +8171,91 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  // Keep the exact same certified module order and results, while allowing
-  // T11 cold-run profiles to identify the shared producer(s) behind the
-  // expensive resolution stage. Profiling does not skip a module or write data.
+  // The source-informed Dashboard is NOT a second request for all 29
+  // specialist pages. It consumes the already-built exact-version projections
+  // and the source-owned commercial producers. Full WBS dimensions and full
+  // activity-by-revision variance history are computed on their OWN pages.
+  // Deferred detail retains a pending status; never claim checked or zero.
   const resolvedModules=new Map<string,ModuleRuntimeResult>();
   const moduleResolutionProfile:Array<{module:string;ms:number}>=[];
+  const scoped=dashboardOnly?reportingState(state):null;
+  const sharedModel=dashboardOnly?projectControlSchedule(scoped!)?.revision.model:null;
+  const sharedBasis=sharedModel?projectScheduleControlBasis(scoped!):null;
+  let sharedFloatReview:ReturnType<typeof activityFloatReconciliation>|undefined;
+  const floatReviewKeys=new Set(['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical']);
+  const deepOnlyKeys=new Set(['variance-trends','progress-breakdown','challenge-contract']);
+  const dashboardInterpretation=bundle.director?.sourceInterpretation;
   for(const descriptor of certifiedAnalyticalModules){
     const started=profiling?performance.now():0;
-    resolvedModules.set(descriptor.key,resolveProjectModule(state,descriptor.key));
+    let result:ModuleRuntimeResult;
+    if(!dashboardOnly)result=resolveProjectModule(state,descriptor.key);
+    else{
+      const bundleResult=bundle.modules.get(descriptor.key);
+      if(deepOnlyKeys.has(descriptor.key)){
+        // Keep source WBS scope rows for Dashboard filters without calculating
+        // the six specialist hierarchy/dimension views or unused full history.
+        result=bundleResult&&bundleResult.data?bundleResult:
+          available(descriptor.key,{specialistDetailState:'on_demand',
+            projectId:state.projectId,sourceRevisionId:sharedModel?.sourceRevisionId??null,
+            generatedAt:bundle.generatedAt},['Specialist calculation'], 'partial',
+            'The full specialist detail is available on its own page.');
+      }else{
+        // Canonical source-commercial/resource producers never infer missing
+        // values. A module with no Dashboard source stays pending, rather than
+        // calling resolveProjectModule(), which builds the entire full bundle.
+        const candidate=bundleResult?.data?bundleResult:
+          canonicalCommercialModule(scoped!,descriptor.key) ??
+          canonicalResourceModule(scoped!,descriptor.key) ??
+          null;
+        if(!candidate){
+          result=available(descriptor.key,{specialistDetailState:'on_demand',
+            projectId:state.projectId,sourceRevisionId:sharedModel?.sourceRevisionId??null,
+            generatedAt:bundle.generatedAt},['Specialist source and calculation'], 'partial',
+            'The detailed specialist position is calculated when its page is opened.');
+        }else{
+          if(floatReviewKeys.has(descriptor.key)&&sharedModel&&sharedBasis&&!sharedFloatReview){
+            sharedFloatReview=activityFloatReconciliation(sharedModel,
+              cachedIndependentForecast(sharedModel,bundle.generatedAt),
+              sharedBasis.analysisConfig,scoped!.version);
+          }
+          result=resolveProjectModuleCandidate(scoped!,descriptor.key,candidate,
+            floatReviewKeys.has(descriptor.key)?sharedFloatReview:undefined,
+            dashboardInterpretation,true);
+        }
+      }
+    }
+    resolvedModules.set(descriptor.key,result);
     if(profiling)moduleResolutionProfile.push({module:descriptor.key,ms:performance.now()-started});
   }
+  if(dashboardOnly&&scoped){
+    const forecast=resolvedModules.get('independent-forecast')?.data as any;
+    const near=resolvedModules.get('near-critical')?.data as any;
+    const names=new Map((sharedModel?.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
+    for(const key of ['pmo-analysis','independent-forecast']){
+      const data=resolvedModules.get(key)?.data as any;
+      if(data&&forecast){
+        data.completionPosition=completionPosition(data,forecast,names);
+        if(key==='pmo-analysis')data.knownScheduleCounts={
+          critical:near?.knownCriticalCount??near?.criticalCount??null,
+          nearCritical:near?.nearCriticalCount??null,
+          negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
+      }
+    }
+    const interfacePosition=interfaceIntelligence(scoped);
+    for(const key of ['lookahead-schedule','delay-claims']){
+      const module=resolvedModules.get(key);
+      if(module?.data&&typeof module.data==='object')
+        resolvedModules.set(key,{...module,data:{...(module.data as Record<string,unknown>),interfacePosition}});
+    }
+    // Original full Project Diagnosis is required on the FIRST Dashboard
+    // response. It consumes its exact owning source projections, not a cover
+    // screen or a promise to load later.
+    const diagnosis=buildProjectDiagnosis(scoped,resolvedModules);
+    const management=resolvedModules.get('pmo-analysis')?.data as any;
+    if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
+  }
   if(profiling)process.stdout.write(JSON.stringify({
-    event:'management_resolved_modules_breakdown',projectId,
+    event:'management_resolved_modules_breakdown',projectId,purpose,
     modules:moduleResolutionProfile,
     totalMs:moduleResolutionProfile.reduce((sum,row)=>sum+row.ms,0),
   })+'\n');
