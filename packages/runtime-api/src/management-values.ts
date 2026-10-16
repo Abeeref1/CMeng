@@ -17,7 +17,14 @@ export function managementValueState(input:unknown):ManagementValueState {
   if(['not_calculable','unavailable','calculation_failed'].includes(state))return 'not_calculable';
   if(Object.prototype.hasOwnProperty.call(item,'value'))return managementValueState(item.value);
  }
- if(input===null||input===undefined||(typeof input==='string'&&input.trim()===''))return 'not_established';
+ if(input===null||input===undefined)return 'not_established';
+ if(typeof input==='string'){
+  const sourceToken=input.trim();
+  if(sourceToken===''||/^(?:null|undefined)$/i.test(sourceToken))return 'not_established';
+  // Some old source readers serialized nonfinite numeric values as text.
+  // They must not become a factual quantity or acquire a unit on screen.
+  if(/^[+-]?(?:nan|infinity)$/i.test(sourceToken))return 'not_calculable';
+ }
  if(typeof input==='number'&&!Number.isFinite(input))return 'not_calculable';
  return 'value';
 }

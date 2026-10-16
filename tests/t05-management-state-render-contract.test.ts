@@ -72,3 +72,30 @@ test('T05 explicit known-value state never makes a blank or nonfinite source qua
  assert.ok(Number.isNaN(unread.value),'original source value remains intact');
  assert.equal(managementValue(unread,'SAR'),'Not calculable');
 });
+
+test('T05 string-serialized invalid quantities never display as numeric evidence or gain units',()=>{
+ const invalid:Array<[unknown,string]>=[
+  [' NaN ','Not calculable'],
+  ['-Infinity','Not calculable'],
+  ['+Infinity','Not calculable'],
+  [' infinity ','Not calculable'],
+  [{valueState:'value',value:'NaN'},'Not calculable'],
+  [{state:'value',value:' -Infinity '},'Not calculable'],
+  [{state:'value',value:'undefined'},'Not established'],
+  [' null ','Not established'],
+  ['Undefined','Not established']
+ ];
+ for(const [source,expected] of invalid){
+  assert.equal(managementValue(source),expected);
+  assert.equal(managementValue(source,'working days'),expected);
+  assert.equal(managementValue(source,'SAR'),expected);
+ }
+ const legitimate:Array<[unknown,string]>=[
+  ['0','0'],['-2.5','-2.5'],['NAN-PT-12','NAN-PT-12'],['A-001','A-001'],
+  [{state:'value',value:0},'0'],[{state:'value',value:-2.5},'-2.5']
+ ];
+ for(const [source,expected] of legitimate){
+  assert.equal(managementValue(source),expected);
+  assert.equal(managementValue(source,'days'),expected+' days');
+ }
+});
