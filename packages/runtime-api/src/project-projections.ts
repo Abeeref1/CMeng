@@ -7764,7 +7764,16 @@ function resolveProjectModuleCandidate(
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
-    if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
+    if(key==='progress-report'){
+      // The Dashboard already owns the complete original source WBS rows.
+      // Never start all 29 specialist calculations a second time merely to
+      // copy identical rows into Progress Report. For standalone specialist
+      // access the full bundle remains the original source of those rows.
+      const snapshot=dashboardBundleCache.get(state.projectId);
+      const prior= snapshot?.version===state.version?snapshot:bundleCache.get(state.projectId);
+      const detail=prior?.version===state.version?prior.modules.get('progress-breakdown')?.data as any:null;
+      (result.data as any).areaProgress=detail?.rows??(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
+    }
   }
   return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims, key==='milestones'?milestoneReviewForProjection(state,model):undefined)));
 }
