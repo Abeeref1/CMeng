@@ -19,6 +19,9 @@ export function buildScheduleChangeReportProjection(
     producerVersion: string;
     // Optional identical-revision comparison calculated earlier in the same management bundle.
     precomputedComparison?: ReturnType<typeof compareScheduleRevisions>;
+    // Reuse this exact from/to source classification when Revision Trend has
+    // already classified the same comparison; fallback remains independent.
+    precomputedChangeCategories?: ReturnType<typeof classifyScheduleChanges>;
     // Reuse exact source-model analyses already calculated in this evaluation.
     precomputedAnalyses?: ReadonlyMap<ScheduleRevision['model'],ReturnType<typeof analyzeSchedule>>;
   },
@@ -80,7 +83,7 @@ export function buildScheduleChangeReportProjection(
       .map(row=>({activityId:row.activityId,floatShiftHours:row.floatShiftHours!}))};
   changedActivities.sort((a,b)=>Math.abs(b.finishShiftDays??0)-Math.abs(a.finishShiftDays??0));
 
-  const changeCategories=classifyScheduleChanges(comparison.activityChanges,from.model,to.model);
+  const changeCategories=input.precomputedChangeCategories??classifyScheduleChanges(comparison.activityChanges,from.model,to.model);
   const endpoint = (link: { predecessorActivityId: string; successorActivityId: string }) => JSON.stringify([link.predecessorActivityId, link.successorActivityId]);
   const added = new Map<string, typeof comparison.addedRelationships>();
   const removed = new Map<string, typeof comparison.removedRelationships>();
