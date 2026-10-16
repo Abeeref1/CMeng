@@ -14,24 +14,22 @@ import {
   type EotWindowCandidate,
 } from "./types";
 
+/** The legal completion date is a civil calendar date, not the server's timezone.
+ * Reject impossible dates rather than letting Date.parse roll them forward. */
 function ms(value: string | null): number | null {
   if (!value) return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  const date=value.slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;
+  const parsed=Date.parse(date+'T00:00:00Z');
+  return Number.isFinite(parsed)&&new Date(parsed).toISOString().slice(0,10)===date?parsed:null;
 }
 
-function addCalendarDays(
-  dateIso: string,
-  days: number,
-): string | null {
-  const value = ms(dateIso);
-  if (value === null) return null;
-
-  return new Date(
-    value + days * 86_400_000,
-  )
-    .toISOString()
-    .slice(0, 10);
+function addCalendarDays(dateIso:string,days:number):string|null {
+ const value=ms(dateIso);
+ if(value===null||!Number.isFinite(days))return null;
+ const target=value+days*86_400_000;
+ return Number.isFinite(target)&&!Number.isNaN(new Date(target).getTime())
+   ?new Date(target).toISOString().slice(0,10):null;
 }
 
 function eventRowsForWindow(
@@ -371,9 +369,15 @@ export function buildEotAssessmentProjection(
         : []),
   ];
 
-  const additionalAwardDays = contractTime.overlapResolution
+  const rawAdditionalAwardDays = contractTime.overlapResolution
     ? contractTime.additionalApprovedEotDays ?? null
     : contractTime.officialApprovedEotDays;
+  // Keep supplied awards untouched in the source contract record, but an
+  // invalid number cannot create an adjusted date or a zero-day award.
+  const additionalAwardDays=typeof rawAdditionalAwardDays==='number'&&Number.isFinite(rawAdditionalAwardDays)
+    ?rawAdditionalAwardDays:null;
+  if(rawAdditionalAwardDays!==null&&additionalAwardDays===null)
+    diagnostics.push('EOT_AWARD_DAYS_NOT_FINITE_ADJUSTED_COMPLETION_WITHHELD');
   if (contractTime.overlapResolution === "unresolved") {
     diagnostics.push("AMENDMENT_ALREADY_INCLUDES_EOT_DETERMINATION_OVERLAP_UNRESOLVED");
   }
