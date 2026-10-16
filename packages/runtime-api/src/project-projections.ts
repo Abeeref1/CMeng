@@ -755,6 +755,17 @@ function buildBundle(
     summarizeControlledBaselineCompletion(
       controlledBaseline?.revision.model.activities ?? [],
     );
+  // The same dated source finishes recur across large controlled-baseline
+  // populations. Cache only within this exact project/revision calculation:
+  // a missing or invalid calendar date must never become a numerical zero.
+  const varianceSourceInstants = new Map<string, number | null>();
+  const varianceInstant = (iso: string): number | null => {
+    if (varianceSourceInstants.has(iso)) return varianceSourceInstants.get(iso)!;
+    const parsed = parseScheduleTime(iso);
+    const result = Number.isFinite(parsed) ? parsed : null;
+    varianceSourceInstants.set(iso, result);
+    return result;
+  };
   const varianceDays = (
     baselineIso: string | null,
     currentIso: string | null,
@@ -765,13 +776,11 @@ function buildBundle(
     ) {
       return null;
     }
-    const before =
-      parseScheduleTime(baselineIso);
-    const after =
-      parseScheduleTime(currentIso);
+    const before = varianceInstant(baselineIso);
+    const after = varianceInstant(currentIso);
     if (
-      !Number.isFinite(before) ||
-      !Number.isFinite(after)
+      before === null ||
+      after === null
     ) {
       return null;
     }
