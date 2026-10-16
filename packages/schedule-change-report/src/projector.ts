@@ -83,7 +83,11 @@ export function buildScheduleChangeReportProjection(
       .map(row=>({activityId:row.activityId,floatShiftHours:row.floatShiftHours!}))};
   changedActivities.sort((a,b)=>Math.abs(b.finishShiftDays??0)-Math.abs(a.finishShiftDays??0));
 
-  const changeCategories=input.precomputedChangeCategories??classifyScheduleChanges(comparison.activityChanges,from.model,to.model);
+  // Keep returned module evidence independently owned: a later page must not
+  // be able to mutate the Revision Trend's retained classification by reference.
+  const changeCategories=input.precomputedChangeCategories
+    ?input.precomputedChangeCategories.map(item=>({...item}))
+    :classifyScheduleChanges(comparison.activityChanges,from.model,to.model);
   const endpoint = (link: { predecessorActivityId: string; successorActivityId: string }) => JSON.stringify([link.predecessorActivityId, link.successorActivityId]);
   const added = new Map<string, typeof comparison.addedRelationships>();
   const removed = new Map<string, typeof comparison.removedRelationships>();
