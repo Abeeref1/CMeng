@@ -84,3 +84,34 @@ test('T08 valid ISO timestamps retain physical delivery and true overdue calenda
  assert.equal(result.headroomCalendarDays,-5);
  assert.equal(JSON.stringify(input),before);
 });
+
+test('T08 timezone offsets beyond ±14 hours are not accepted as source calendar dates',()=>{
+ for(const bad of ['2032-02-29T10:00:00+14:01','2032-02-29T09:59:00-14:59','2032-02-29T01:00:00+14:30']){
+  const input={...base,programmeNeedDate:null,sourceRequiredOnSite:bad};
+  const before=JSON.stringify(input),position=procurementTiming(input);
+  assert.equal(position.needDate,null,'out-of-range offset cannot certify a source date');
+  assert.equal(position.overdueUndelivered,false);
+  assert.equal(JSON.stringify(input),before);
+ }
+ for(const good of ['2032-02-29T07:00:00+14:00','2032-02-29T11:00:00-14:00','2032-02-29T00:00:00+13:59']){
+  const position=procurementTiming({...base,programmeNeedDate:null,sourceRequiredOnSite:good});
+  assert.equal(position.needDate,'2032-02-29','valid offsets retain the source local date');
+ }
+});
+
+test('T08 nullable, disputed or unverified statuses cannot prove that goods are overdue-undelivered',()=>{
+ for(const status of [null,undefined,'','unknown','Not established','Unverified','disputed','N/A','tbc']){
+  const input={...base,status:status as unknown as string};
+  const before=JSON.stringify(input),position=procurementTiming(input);
+  assert.equal(position.deliveredAtDataDate,false);
+  assert.equal(position.overdueUndelivered,false,'source status does not establish non-delivery');
+  assert.equal(position.needDate,'2032-02-29');
+  assert.equal(JSON.stringify(input),before,'source input remains unaltered');
+ }
+ for(const status of ['open','Pending','in progress']){
+  assert.equal(procurementTiming({...base,status}).overdueUndelivered,true,
+   'explicit open status retains its true overdue position');
+ }
+ assert.equal(procurementTiming({...base,status:'unknown',actualDelivery:'2032-03-20'}).overdueUndelivered,true,
+  'an explicit future physical delivery date still establishes not delivered by Data Date');
+});
