@@ -76,6 +76,10 @@ function wbsPathLookup(model:CanonicalScheduleModel):Map<string,string>{
 }
 
 function downstreamMilestoneLookup(model:CanonicalScheduleModel):Map<string,string[]>{
+  // With no source milestone, the full DAG traversal cannot establish a
+  // downstream milestone for any activity. Retain the exact empty result
+  // without scanning or inferring names/dates from ordinary task activities.
+  if(!model.activities.some(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone'))return new Map();
   const byId=new Map(model.activities.map(a=>[a.activityId,a]));
   const predecessors=new Map<string,string[]>();
   for(const rel of model.relationships){
