@@ -227,8 +227,9 @@ test('T02 PDF source receipts cannot certify absent OCR/native text or content m
    assert.equal(result.complete,false,'a plausible saved method cannot replace source evidence');
    assert.equal(result.readPageCount,2);
    assert.equal(result.state,'partial');
-   const checkpoint={...doc,fullTextRead:undefined,
+   const checkpoint={...doc,
      fullTextReadCheckpoint:{sourceHashSha256:doc.sourceHashSha256,updatedAt:'2031-05-01T00:00:00Z',totalPages:3,pages:corrupted.pages}} as StoredEvidenceDocument;
+   checkpoint.fullTextRead=undefined;
    assert.equal(documentReadReview(checkpoint,state).complete,false,'checkpoint uses identical physical criterion');
    assert.equal(documentReadReview(checkpoint,state).readPageCount,2);
  }
