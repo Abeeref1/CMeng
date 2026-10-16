@@ -66,6 +66,7 @@ test('T11 exact original change-report parity with reused completed source analy
       ...options,precomputedComparison:originalPair,precomputedChangeCategories:originalClassification,
     });
     assert.deepEqual(borrowed,original,'reused same-pair classification must exactly match the complete independent producer');
+    assert.ok(borrowed.changeCategories,'the complete source classification is retained');
     assert.notStrictEqual(borrowed.changeCategories,originalClassification,'each page must own its returned audit categories');
     assert.notStrictEqual(borrowed.changeCategories[0],originalClassification[0],'source category rows cannot alias another page');
     originalClassification[0]!.activityCount=900000;
