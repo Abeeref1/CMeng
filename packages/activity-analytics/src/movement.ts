@@ -3,12 +3,32 @@ import { populationContract } from '../../truth-kernel/src';
 import type { ActivityAnalyticsRow } from './types';
 
 const finish=(row:{status:string;actualFinishIso:string|null;forecastFinishIso:string|null;currentFinishIso:string|null})=>row.status==='completed'&&row.actualFinishIso?row.actualFinishIso:row.forecastFinishIso??row.currentFinishIso;
-const difference=(to:string|null,from:string|null)=>!to||!from||!Number.isFinite(Date.parse(to))||!Number.isFinite(Date.parse(from))?null:Number(((Date.parse(to)-Date.parse(from))/86400000).toFixed(6));
+/** Dates repeat across thousands of activities in a programme revision.
+ * A single source-scoped parsed-instant cache preserves Date.parse semantics,
+ * including invalid dates, without parsing the same original dates repeatedly.
+ * Do not share the cache across versions, projects, or source modifications. */
+function movementDifferenceForRead(){
+  const dateMs=new Map<string,number|null>();
+  const instant=(value:string|null):number|null=>{
+    if(!value)return null;
+    if(dateMs.has(value))return dateMs.get(value)!;
+    const ms=Date.parse(value);
+    const result=Number.isFinite(ms)?ms:null;
+    dateMs.set(value,result);
+    return result;
+  };
+  return (to:string|null,from:string|null):number|null=>{
+    const after=instant(to),before=instant(from);
+    return after===null||before===null?null:
+      Number(((after-before)/86400000).toFixed(6));
+  };
+}
 
 export function activityMovementAnalysis(rows: readonly ActivityAnalyticsRow[], input: {
   dataDateIso:string|null;currentRevisionId:string;currentLabel:string;baselineRevisionId:string|null;baselineLabel:string|null;
   previousRevisionId:string|null;previousLabel:string|null;previousRows?:readonly {activityId:string;status:string;actualFinishIso:string|null;forecastFinishIso:string|null;currentFinishIso:string|null}[];
 }) {
+  const difference=movementDifferenceForRead();
   const previous=new Map((input.previousRows??[]).map(r=>[r.activityId,r]));
   const comparable=rows.filter(r=>r.finishVarianceDays!==null&&difference(finish(r),r.baselineFinishIso)!==null);
   const distribution=numericDistribution(comparable.map(r=>r.finishVarianceDays));
