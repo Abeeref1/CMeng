@@ -7876,11 +7876,12 @@ export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawFor
 }
 
 const projectActionCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildProjectActionRegister>}>();
-function buildProjectActionRegister(state:ProjectRuntimeState){
-  // Resolve raw owning projections before facts are attached. This producer never
-  // calls a page/API wrapper, so the shared-facts consumer cannot recurse.
-  resolveProjectModule(state,'pmo-analysis');
-  const modules=resolvedProjectCache.get(state.projectId)!.modules;
+function buildProjectActionRegister(state:ProjectRuntimeState,availableModules?:Map<string,ModuleRuntimeResult>){
+  // A first-open Dashboard can rank ALL retained source-record actions using
+  // the module calculations it already owns, without forcing the full 29-module
+  // specialist bundle. The normal specialist register still resolves all modules.
+  if(!availableModules)resolveProjectModule(state,'pmo-analysis');
+  const modules=availableModules??resolvedProjectCache.get(state.projectId)!.modules;
   const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]));
   const forecast=modules.get('independent-forecast')?.data as any;
   const review=projectActions(state,assessment,{completionPosition:forecast?.completionPosition});
