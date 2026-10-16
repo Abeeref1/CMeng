@@ -1,3 +1,4 @@
+import {dateValue} from '../../truth-kernel/src';
 import type {CommercialControlPosition} from '../../commercial-control/src';
 
 export interface CommercialIntegrityCheck {metric:string;expected:unknown;actual:unknown;passed:boolean}
@@ -23,8 +24,8 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
     const rows=[...group.as_of,...group.future,...group.undated];
     compare('certificate_source_population:'+id,rows.length,source.length);
     compare('certificate_source_identities:'+id,rows.map(r=>r.id).sort().join('\n'),source.map(r=>r.paymentId).sort().join('\n'));
-    compare('certificate_current_cutoff:'+id,group.as_of.every(r=>Boolean(r.date&&ledger.dataDateIso&&r.date.slice(0,10)<=ledger.dataDateIso.slice(0,10))),true);
-    compare('certificate_future_cutoff:'+id,group.future.every(r=>Boolean(r.date&&ledger.dataDateIso&&r.date.slice(0,10)>ledger.dataDateIso.slice(0,10))),true);
+    compare('certificate_current_cutoff:'+id,group.as_of.every(r=>Boolean(r.date&&ledger.dataDateIso&&dateValue(r.date)!==null&&dateValue(ledger.dataDateIso)!==null&&dateValue(r.date)!<=dateValue(ledger.dataDateIso)!)),true);
+    compare('certificate_future_cutoff:'+id,group.future.every(r=>Boolean(r.date&&ledger.dataDateIso&&dateValue(r.date)!==null&&dateValue(ledger.dataDateIso)!==null&&dateValue(r.date)!>dateValue(ledger.dataDateIso)!)),true);
     for(const component of ['grossWork','variations','retentionDeduction','advanceRecovery','netCertifiedAmount'] as const){
       if(group.totals?.[component]===null||group.totals?.[component]===undefined)continue;
       const ids=new Set(group.as_of.map(r=>r.id)),current=source.filter(r=>ids.has(r.paymentId));
@@ -43,7 +44,7 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
      compare('notice_outcome_population',quarantined?null:Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),quarantined?null:p.noticeAssessments.length);
      compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
     }
-    compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,quarantined?null:p.noticeAssessments.filter(a=>!a.noticeIssuedAt||!Number.isFinite(Date.parse(a.noticeIssuedAt))).length);
+    compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,quarantined?null:p.noticeAssessments.filter(a=>!a.noticeIssuedAt||dateValue(a.noticeIssuedAt)===null).length);
   }
   if(key==='contract-particulars-bonds'){
     const p=position.contractControls?.contractObligations;
