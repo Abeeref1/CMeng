@@ -1,0 +1,7 @@
+# 16 October 2026 — T07 known-source variation pending versus complete zero
+
+Exact parent HEAD: `703626596735dc081cc83df5aa6c254909edf336`. This is an incremental repair under the original CMeng_Repair_Plan.md and immutable ten-item owner finish list, not a new plan.
+
+The original six-group regression job 38843464486 revealed a real T07/T10 browser problem: the variation pending-age chart declared the pending population established at zero merely because all 620 source rows were approved and the identifiable pending subset had zero entries, while the complete pending count was expressly not established. The shared browser producer now holds that unknown, names why approved/rejected rows alone cannot establish total exposure and still shows nonzero known subsets. Only a separately established complete pending count of zero displays a proven zero. Source documents, original records, currency and contractual approval are retained, and independent browser regression tests cover unknown, identified-positive and source-confirmed-zero transitions.
+
+Verification and owner acceptance remain open: all original 23 projects and 39-rule guard; 7 stages; independent source/browser/Ask/export cross-view identity; mandatory six CI groups; T11 full 4-cold first-open dashboard AND Accountability under 5000ms for three consecutive unchanged runs including warm-up off. No deployment, content removal, paid AI, authentication, or guard adjustment.
