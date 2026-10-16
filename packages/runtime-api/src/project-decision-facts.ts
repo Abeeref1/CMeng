@@ -23,7 +23,11 @@ const date=(v:unknown)=>dateValue(String(v??''));
 const days=(a:string|null,b:string|null)=>a&&b?(Date.parse(b.slice(0,10))-Date.parse(a.slice(0,10)))/86400000:null;
 const rowRefs=(r:SourceRow)=>['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator];
 const metric=(v:number|null,unit:string,basis:string,missing:string[]=[],refs:string[]=[]):DecisionMetric=>({value:v,state:v===null?(missing.length?'not_in_source':'not_calculable'):'value',unit,basis,missingInputs:v===null?missing:[],sourceRefs:[...new Set(refs)]});
-const plusDays=(d:string,n:number)=>new Date(Date.parse(d.slice(0,10))+n*86400000).toISOString().slice(0,10);
+const plusDays=(d:string,n:number):string|null=>{
+ const base=Date.parse(d.slice(0,10)),instant=base+n*86400000;
+ return Number.isFinite(base)&&Number.isFinite(n)&&Number.isFinite(instant)&&
+   !Number.isNaN(new Date(instant).getTime())?new Date(instant).toISOString().slice(0,10):null;
+};
 function monthDate(input:string,offset:number){const d=new Date(input.slice(0,10)+'T00:00:00Z'),day=d.getUTCDate(),wasMonthEnd=day===new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+offset);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(wasMonthEnd?last:Math.min(day,last));return d.toISOString().slice(0,10);}
 function elapsedMonths(from:string,to:string){const a=new Date(from),b=new Date(to);let whole=(b.getUTCFullYear()-a.getUTCFullYear())*12+b.getUTCMonth()-a.getUTCMonth();if(monthDate(from,whole)>to)whole--;const start=monthDate(from,whole),end=monthDate(from,whole+1);return whole+(days(start,to)??0)/(days(start,end)??1);}
 function afterMonths(from:string,n:number){if(!Number.isFinite(n)||n<0||n>1200)return null;const whole=Math.floor(n),start=monthDate(from,whole),end=monthDate(from,whole+1);return plusDays(start,(days(start,end)??0)*(n-whole));}
@@ -251,8 +255,14 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
   });
   const rule=candidates.length===1&&candidates[0]!.state==='official'?candidates[0]!:null;
   const trigger=rule?.triggerBasis==='awareness'?awareness:rule?.triggerBasis==='event_start'?eventStart:null;
-  const limit=rule?.noticePeriodDays??null;
-  const due=trigger&&limit!==null?plusDays(trigger,limit):null;
+  // An ill-formed period from an otherwise matched clause is not an
+  // established contractual deadline. Retain the rule and claim for review;
+  // never throw or substitute zero when the source value is invalid.
+  const declaredLimit=rule&&typeof rule.noticePeriodDays==='number'&&Number.isFinite(rule.noticePeriodDays)&&rule.noticePeriodDays>=0?rule.noticePeriodDays:null;
+  const due=trigger&&declaredLimit!==null?plusDays(trigger,declaredLimit):null;
+  // A valid rule period can remain known while its trigger is missing; an
+  // unrepresentable due date cannot establish even a usable period comparison.
+  const limit=declaredLimit!==null&&(!trigger||due!==null)?declaredLimit:null;
   checks.push({claimReference:ref,noticeDateIso:notice,detailedSubmissionDateIso:submitted,dueDateIso:due,allowedDays:limit,
    triggerDateIso:trigger,triggerBasis:rule?.triggerBasis??null,
    daysAfterDue:due&&submitted?days(due,submitted):null,
