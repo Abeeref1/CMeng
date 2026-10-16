@@ -652,6 +652,11 @@ function buildBundle(
   }
 
   const bundleProfile=process.env.CMENG_PROFILE_PERF?.trim()==='1';
+  if(bundleProfile&&purpose==='full'&&dashboardBundleCache.get(state.projectId)?.version===state.version){
+    process.stdout.write(JSON.stringify({event:'dashboard_unexpected_full_bundle',
+      projectId:state.projectId,sourceVersion:state.version,
+      callers:(new Error().stack??'').split('\n').slice(2,8).map(v=>v.trim())})+'\n');
+  }
   const bundleTimings:Array<{part:string;ms:number}>=[];
   let bundleMark=bundleProfile?performance.now():0;
   const measureBundle=(part:string)=>{
