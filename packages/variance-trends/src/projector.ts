@@ -90,6 +90,23 @@ export function buildVarianceTrendsProjection(
     orderScheduleRevisionsChronologically(
       revisions,
     );
+  // Revisions commonly repeat only a small number of original calendar dates
+  // across thousands of activities. Parse each exact source string once for
+  // this computation, without sharing stale values across project revisions.
+  const sourceInstants=new Map<string,number|null>();
+  const cachedMs=(value:string|null):number|null=>{
+    if(!value)return null;
+    if(sourceInstants.has(value))return sourceInstants.get(value)!;
+    const parsed=parseScheduleTime(value);
+    const result=Number.isFinite(parsed)?parsed:null;
+    sourceInstants.set(value,result);
+    return result;
+  };
+  const sourceVarianceDays=(programme:string|null,forecast:string|null):number|null=>{
+    const first=cachedMs(programme),last=cachedMs(forecast);
+    return first===null||last===null?null:Number(((last-first)/86_400_000).toFixed(6));
+  };
+
 
   const activitySeries = new Map<
     string,
@@ -120,7 +137,7 @@ export function buildVarianceTrendsProjection(
     for(const activity of baselineRevision.model.activities){
       const value=activity.baselineFinishIso??activity.currentFinishIso;
       if(value===null)continue;
-      const parsed=ms(value);
+      const parsed=cachedMs(value);
       if(parsed===null)continue;
       if(latestTime===null||parsed>=latestTime){
         latestTime=parsed;
@@ -142,7 +159,7 @@ export function buildVarianceTrendsProjection(
     const baseline =
       baselineByActivity.get(baselineIdentity.get(activity.activityId) ?? "");
     if (!baseline) return null;
-    return projectVariance(
+    return sourceVarianceDays(
       baseline.baselineFinishIso ?? baseline.currentFinishIso,
       finish(activity),
     );
@@ -297,7 +314,7 @@ export function buildVarianceTrendsProjection(
         programmeCompletionIso: programme,
         projectCompletionVarianceDays:
           baselineProjectFinish !== null
-            ? projectVariance(
+            ? sourceVarianceDays(
                 baselineProjectFinish,
                 forecast,
               )
