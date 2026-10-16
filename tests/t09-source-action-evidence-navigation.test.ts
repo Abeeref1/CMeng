@@ -118,7 +118,8 @@ test('T09 source issue identifiers route real payment, claim and variation confl
  });
  const cases:[string,string][]=[
   ['PAYMENT_CERTIFICATE_AMOUNT_CONFLICT','payments'],
-  ['CLAIM_NOTICE_PERIOD_CONFLICT','claims'],
+  ['CLAIM_NOTICE_PERIOD_CONFLICT','notice-term-versions'],
+  ['CLAIM_DATED_EVENT_SOURCE_CONFLICT','claims'],
   ['VARIATION_AMOUNT_CONFLICT','commercial'],
   ['RISK_REGISTER_STATUS_CONFLICT','risks']
  ];
