@@ -123,6 +123,7 @@ import {
 } from "../../pmo-analysis/src";
 import {
   buildProgressBreakdownProjection,
+  buildDeliveryWorkfrontBreakdown,
 } from "../../progress-breakdown/src";
 import {
   buildProgressReportProjection,
@@ -275,6 +276,10 @@ const bundleCache =
     string,
     ProjectionBundle
   >();
+// The Dashboard-only bundle owns the same source/version as the specialist
+// bundle, but never publishes an unbuilt specialist detail as a complete
+// projection. Opening a specialist page still calculates the complete model.
+const dashboardBundleCache=new Map<string,ProjectionBundle>();
 /** Read a completed identical-version schedule analysis. This never starts a
  * calculation or changes authority, and is safe to use when building shared
  * facts after the specialist bundle has already been calculated. */
@@ -629,10 +634,13 @@ function calculationSnapshotTime(state:ProjectRuntimeState):string {
 
 function buildBundle(
   state: ProjectRuntimeState,
+  purpose:'full'|'dashboard'='full',
 ): ProjectionBundle {
   state = reportingState(state);
+  const dashboardOnly=purpose==='dashboard';
+  const cache=dashboardOnly?dashboardBundleCache:bundleCache;
   const cached =
-    bundleCache.get(
+    cache.get(
       state.projectId,
     );
   if (
@@ -3612,7 +3620,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
 
   measureBundle('board_and_finalization');
   if(bundleProfile)process.stdout.write(JSON.stringify({event:'project_bundle_profile',projectId:state.projectId,timings:bundleTimings,totalMs:bundleTimings.reduce((sum,part)=>sum+part.ms,0)})+'\n');
-  bundleCache.set(
+  cache.set(
     state.projectId,
     bundle,
   );
