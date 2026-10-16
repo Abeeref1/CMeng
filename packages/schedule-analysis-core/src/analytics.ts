@@ -39,6 +39,7 @@ function maxDate(
     activityId: string;
     sourceRef: string;
   }>,
+  sourceInstant: (value:string|null)=>number|null = validIsoDate,
 ): {
   dateIso: string | null;
   activityId: string | null;
@@ -54,7 +55,7 @@ function maxDate(
     | null = null;
 
   for (const value of values) {
-    const ms = validIsoDate(value.dateIso);
+    const ms = sourceInstant(value.dateIso);
     if (ms === null || !value.dateIso) continue;
     if (!best || ms > best.ms) {
       best = {
@@ -267,14 +268,15 @@ function effectiveCurrentFinish(
 function finishVariance(
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
+  sourceInstant: (value:string|null)=>number|null = validIsoDate,
 ): VarianceSummary {
   const variances: number[] = [];
 
   for (const activity of activities) {
-    const baseline = validIsoDate(
+    const baseline = sourceInstant(
       activity.baselineFinishIso,
     );
-    const current = validIsoDate(
+    const current = sourceInstant(
       effectiveCurrentFinish(activity),
     );
 
@@ -333,12 +335,13 @@ function finishVariance(
 
 function completionBases(
   activities: readonly CanonicalScheduleActivity[],
+  sourceInstant: (value:string|null)=>number|null = validIsoDate,
 ): CompletionBasisValue[] {
   const total = activities.length;
 
   const programmeKnown = activities.filter(
     (activity) =>
-      validIsoDate(activity.baselineFinishIso) !== null,
+      sourceInstant(activity.baselineFinishIso) !== null,
   );
   const programme = maxDate(
     programmeKnown.map((activity) => ({
@@ -349,11 +352,12 @@ function completionBases(
         activity.activityId +
         ":baselineFinish",
     })),
+    sourceInstant,
   );
 
   const forecastKnown = activities.filter(
     (activity) =>
-      validIsoDate(
+      sourceInstant(
         effectiveCurrentFinish(activity),
       ) !== null,
   );
@@ -366,6 +370,7 @@ function completionBases(
         activity.activityId +
         ":effectiveCurrentFinish",
     })),
+    sourceInstant,
   );
 
   const completed = activities.filter(
@@ -373,7 +378,7 @@ function completionBases(
   );
   const actualKnown = completed.filter(
     (activity) =>
-      validIsoDate(activity.actualFinishIso) !== null,
+      sourceInstant(activity.actualFinishIso) !== null,
   );
   const actual = maxDate(
     actualKnown.map((activity) => ({
@@ -384,6 +389,7 @@ function completionBases(
         activity.activityId +
         ":actualFinish",
     })),
+    sourceInstant,
   );
 
   const stateFor = (
@@ -551,6 +557,19 @@ export function analyzeSchedule(
     );
   }
 
+  // A programme repeats a small number of genuine calendar dates across
+  // thousands of activities and revisions. Parse each original source date
+  // only once within this exact analysis; a new call has a fresh map and cannot
+  // reuse values from a different project, revision, or mutable source update.
+  // Null and invalid dates remain unknown, never zero or silently normalized.
+  const sourceInstants=new Map<string,number|null>();
+  const sourceInstant=(value:string|null):number|null=>{
+    if(!value)return null;
+    if(sourceInstants.has(value))return sourceInstants.get(value)!;
+    const parsed=validIsoDate(value);
+    sourceInstants.set(value,parsed);
+    return parsed;
+  };
   const activities = activityPopulation(model).activities;
   const wbsSummaryCount = model.activities.filter(
     (activity) => activity.activityType === "wbs_summary",
@@ -565,9 +584,10 @@ export function analyzeSchedule(
   const executableIds = (ids: string[]) => ids.filter(id => executionIds.has(id));
   const executionOpenStarts = executableIds(graph.openStartActivityIds);
   const executionOpenFinishes = executableIds(graph.openFinishActivityIds);
+  const openStartIds=new Set(executionOpenStarts),openFinishIds=new Set(executionOpenFinishes);
   const boundaryCandidates = activities.filter(a =>
-    a.activityType === "start_milestone" && executionOpenStarts.includes(a.activityId) ||
-    a.activityType === "finish_milestone" && executionOpenFinishes.includes(a.activityId)).map(a=>a.activityId);
+    a.activityType === "start_milestone" && openStartIds.has(a.activityId) ||
+    a.activityType === "finish_milestone" && openFinishIds.has(a.activityId)).map(a=>a.activityId);
   const logicQuality = {
     state: executionOpenStarts.length || executionOpenFinishes.length || !graph.complete ? "review_required" as const : "no_detected_exceptions" as const,
     executionOpenStartActivityIds: executionOpenStarts, executionOpenFinishActivityIds: executionOpenFinishes,
@@ -612,8 +632,9 @@ export function analyzeSchedule(
     finishVariance: finishVariance(
       activities,
       config,
+      sourceInstant,
     ),
-    completionBases: completionBases(activities),
+    completionBases: completionBases(activities,sourceInstant),
     activityCount: model.activities.length,
     relationshipCount:
       model.relationships.length,
