@@ -31,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           node --test --test-concurrency=1 \
+            dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-dashboard-first-source-cover.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
