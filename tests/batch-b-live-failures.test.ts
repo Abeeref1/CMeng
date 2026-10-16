@@ -4,7 +4,7 @@ import {createContext,runInContext} from 'node:vm';
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {checkProjectionIntegrity} from '../packages/runtime-api/src/projection-integrity';
-import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
+import {buildScheduleChangeReportProjection,buildScheduleChangeReportFromHistory} from '../packages/schedule-change-report/src';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG,type CanonicalScheduleActivity,type CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -89,4 +89,22 @@ test('Batch B/C: removing or inventing an added row still fails certification',(
     const checked:any=checkProjectionIntegrity(changed,x.to,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
     assert.equal(checked.data.systemEvidenceContract.state,'failed','wrong arithmetic/membership must not be hidden');
   }
+});
+
+test('T05: an absent revision comparison stays unknown and an invented zero fails integrity',()=>{
+  const basis=model('ONLY-REVISION',[activity('A')]);
+  const partial=buildScheduleChangeReportFromHistory([{revisionId:'ONLY-REVISION',label:'Current',sequence:1,effectiveAt:'2031-01-01',model:basis}],
+    {generatedAt:'2031-01-01',producerVersion:'regression'});
+  assert.equal(partial.state,'insufficient_history');
+  for(const key of ['addedActivityCount','removedActivityCount','modifiedActivityCount','addedRelationshipCount','removedRelationshipCount'] as const)
+    assert.equal(partial[key],null,'Unavailable source comparison '+key+' is not a calculated zero');
+  const check=(data:unknown)=>checkProjectionIntegrity({key:'schedule-change-report',status:'partial',dependencies:[],data} as any,basis,DEFAULT_SCHEDULE_ANALYSIS_CONFIG) as any;
+  const valid=check(partial);
+  assert.equal(valid.data.systemEvidenceContract.state,'verified_for_checked_metrics',JSON.stringify(valid.data.systemEvidenceContract.checks));
+  assert.equal(valid.data.systemEvidenceContract.failureCount,0);
+  const manufactured=structuredClone(partial);
+  manufactured.addedActivityCount=0;
+  const bad=check(manufactured);
+  assert.equal(bad.data.systemEvidenceContract.state,'failed','Missing change count cannot be promoted to zero');
+  assert.ok(bad.data.systemEvidenceContract.checks.some((c:any)=>c.metric==='unknown_change_counts_not_zero'&&!c.passed));
 });
