@@ -26,3 +26,9 @@ This is a dated **checkpoint under the original CMeng_Repair_Plan.md**, not a ne
 4. **No candidate and no deployment.** Railway production stays on original branch/version; do not change its source or data. Reconcile only original T01–T12 against owner immutable plan, preserve all content, and provide one candidate only after exact SHA passes and owner review criteria can be met.
 
 Resume with exact new recovery HEAD, GitHub focused and six-group verdicts; then verify actual combined six-agent source is available before integration. Never silently assert that a pending/failed job passed. 
+
+## Exact-head focused result after recovery record
+
+- GitHub Actions `38870871464`, engineering+checkpoint commit `cdb5d537227594222c3a65c8603bade4e29c3ad6`: **PASS**. Browser build/typecheck passed. All **187/187** focused tests passed, **zero** failures, zero cancellations and zero skips. Immutable original owner guard integrity and complete original T01 ledger self-check passed. These outcomes do not establish the independent owner guard run over the 23 actual saved projects.
+- The mandatory six-group workflow on this exact commit is `38870871327`: **queued** at latest inspection, NOT a release pass. The last completed recovery-branch operations gate was still **FAIL** at four-cold Dashboard **8,608.96 ms** versus unchanged **5,000 ms**. Do not replace this with fast warm Accountability results.
+- All underlying code and original source remain protected on isolated recovery branch. Reconcile against any unpublished six-agent Work source before final combination or deployment; no final candidate issued.
