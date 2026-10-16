@@ -9,7 +9,7 @@ function harness(patch:{alreadyAborted?:boolean;destroyedResponse?:boolean}={}){
   const request=Object.assign(new EventEmitter(),{aborted:patch.alreadyAborted??false}) as unknown as IncomingMessage;
   const response=Object.assign(new EventEmitter(),{writableFinished:false,destroyed:patch.destroyedResponse??false}) as unknown as ServerResponse;
   const upstream=Object.assign(new EventEmitter(),{destroyed:false,lastError:null as Error|null}) as unknown as ClientRequest & {lastError:Error|null};
-  upstream.destroy=((error?:Error)=>{upstream.destroyed=true;upstream.lastError=error;upstream.emit('close');return upstream;}) as ClientRequest['destroy'];
+  (upstream as any).destroy=(error?:Error)=>{(upstream as any).destroyed=true;upstream.lastError=error??null;upstream.emit('close');return upstream;};
   let canceled=0;
   const cleanup=abortProjectProxyOnDisconnect(request,response,upstream,()=>canceled++);
   return {request,response,upstream,cleanup,get canceled(){return canceled;}};
@@ -76,5 +76,5 @@ test('T11: real HTTP browser abort destroys upstream transport without changing 
   check();
  }),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('abort response did not settle')),2700))]);
  assert.equal(canceled,1);
- assert.equal(liveUpstream?.destroyed,true);
+ assert.equal((liveUpstream as ClientRequest|null)?.destroyed,true);
 });
