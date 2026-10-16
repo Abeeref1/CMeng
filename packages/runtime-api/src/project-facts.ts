@@ -124,6 +124,10 @@ export interface ProjectFactsSnapshot {
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+// The first Dashboard shares its already computed source-record actions with
+// the facts producer; its on-demand specialist state is not cached as the
+// separate fully calculated Project Facts snapshot.
+const dashboardFactsCache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
 
 function fact<T>(
   value:T|null,
@@ -199,12 +203,15 @@ export function completedProjectFactsForState(state:ProjectRuntimeState):Project
   return cached?.version===state.version?cached.value:null;
 }
 
-export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnapshot{
+export function projectFactsForState(state:ProjectRuntimeState, precomputedActions?:ReturnType<typeof projectActionRegisterForState>):ProjectFactsSnapshot{
   // Facts are reporting facts. Cache them on the canonical read-only reporting
   // view so callers that start from persisted state and callers already working
   // on that view share one exact snapshot for the same project version.
+  // An explicitly supplied Dashboard action register avoids an expensive
+  // second 29-module calculation; its cache never replaces specialist facts.
   state=reportingState(state);
-  const cached=cache.get(state);
+  const targetCache=precomputedActions?dashboardFactsCache:cache;
+  const cached=targetCache.get(state);
   if(cached?.version===state.version)return cached.value;
 
   const scoped=state;
@@ -341,7 +348,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         basis:phrase?'Quoted extracted source text; not an independent award determination':
           fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete'};
     });
-  const actionRegister=projectActionRegisterForState(state);
+  const actionRegister=precomputedActions??projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
     projectId:state.projectId,
@@ -577,7 +584,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
   };
 
-  cache.set(state,{version:state.version,value});
+  targetCache.set(state,{version:state.version,value});
   return value;
 }
 
