@@ -56,6 +56,22 @@ export function actionSourceCorrectionRecord(state:ProjectRuntimeState,ref:strin
   ...(document?{documentId:document.documentId,sourceHash:document.sourceHashSha256}:{})};
 }
 
+
+/** Resolve filenames only from the same exact, project-owned document identity
+ * used for an action's SHA-bound source link. An ID mentioned inside a different
+ * document ID, issue description or unrelated reference is not source proof. */
+export function actionSourceFilenames(state:ProjectRuntimeState,refs:readonly string[]):string[]{
+  const files:string[]=[];
+  const seen=new Set<string>();
+  for(const ref of refs){
+    const record=actionSourceCorrectionRecord(state,ref);
+    if(!record.documentId||seen.has(record.documentId))continue;
+    seen.add(record.documentId);
+    files.push(record.source);
+  }
+  return files;
+}
+
 function informationResolution(instruction:string):Pick<ProjectAction,'category'|'resolution'|'target'>{
   return {category:'information',resolution:{kind:'information',requiresUserAction:false,instruction,completionRule:'No user action is required. CMeng will refresh this information automatically when the underlying project evidence or calculation changes.'},target:{type:'inline',label:'Why this is not an action'}};
 }
@@ -306,8 +322,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       // Missing optional or source-unproven fields remain visible as information.
       // Only explicit decisions and proven conflicting records create actions.
       const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
-      const sourceFiles=[...new Set(refs.flatMap(ref=>state.evidenceDocuments
-        .filter(doc=>ref.includes(doc.documentId)).map(doc=>doc.sourceFilename)))];
+      const sourceFiles=actionSourceFilenames(state,refs);
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
       const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>{
         const subject=[issue.summary,...(issue.evidencePaths??[])].join(' ');

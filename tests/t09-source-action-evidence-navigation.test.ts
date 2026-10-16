@@ -137,3 +137,40 @@ test('T09 source issue identifiers route real payment, claim and variation confl
  const unrelated=projectReviewGroup(generic('UNMAPPED_SOURCE_DIFFERENCE'),state);
  assert.ok(unrelated.key.startsWith('source:'),'unrelated source findings must not be misassigned to Commercial');
 });
+
+
+test('T09 source-file headings must resolve exact project-owned document identities, never substring collisions',async()=>{
+ const {actionSourceFilenames}=await import('../packages/runtime-api/src/project-actions');
+ const docs=[
+  {documentId:'DOC-01',sourceFilename:'Original Quality.pdf',sourceHashSha256:'HASH-01'},
+  {documentId:'DOC-011',sourceFilename:'Distinct Quality.pdf',sourceHashSha256:'HASH-011'},
+  {documentId:'DOC-02',sourceFilename:'Procurement register.xlsx',sourceHashSha256:'HASH-02'}
+ ];
+ const state={...projectState,evidenceDocuments:docs} as unknown as ProjectRuntimeState;
+ const input=[
+  'evidence-document:DOC-011:row:4',
+  'evidence-document:DOC-02:page:7',
+  'evidence-document:DOC-011:page:8',
+  'evidence-document:X-DOC-01:row:6',
+  'foreign-system:DOC-01:page:4',
+  'evidence-document:OTHER:row:3'
+ ];
+ const beforeState=JSON.stringify(state),beforeRefs=JSON.stringify(input);
+ assert.deepEqual(actionSourceFilenames(state,input),[
+  'Distinct Quality.pdf','Procurement register.xlsx'
+ ],'a short native ID embedded in another reference cannot create a false source');
+ assert.deepEqual(actionSourceFilenames(state,['evidence-document:DOC-01:page:1','evidence-document:DOC-01:row:2']),
+  ['Original Quality.pdf'],'multiple physical locators for one source cannot duplicate the file heading');
+ assert.deepEqual(actionSourceFilenames(state,['evidence-document:DOC-0111:row:3']),[],
+  'a source ID prefix is not an exact document identity');
+ const isolated={...projectState,projectId:'OTHER-ISOLATED-PROJECT',evidenceDocuments:[
+  {documentId:'DOC-011',sourceFilename:'Other project source.pdf',sourceHashSha256:'OTHER-HASH'}
+ ]} as unknown as ProjectRuntimeState;
+ assert.deepEqual(actionSourceFilenames(isolated,['evidence-document:DOC-011:row:4']),
+  ['Other project source.pdf'],'same ID cannot leak another project filename');
+ const row=actionSourceCorrectionRecord(state,'evidence-document:DOC-011:row:4');
+ assert.deepEqual(row,{source:'Distinct Quality.pdf',locator:'Row 4',documentId:'DOC-011',sourceHash:'HASH-011'},
+  'source link and action heading must share exact source ownership and hash');
+ assert.equal(JSON.stringify(state),beforeState,'no saved project source may be altered');
+ assert.equal(JSON.stringify(input),beforeRefs,'issue evidence references must remain unchanged');
+});
