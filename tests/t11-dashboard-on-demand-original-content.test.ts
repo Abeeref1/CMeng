@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {managementSurfacesForProject,moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 
 let serial=0;
 const fixture=()=>{
@@ -39,7 +40,7 @@ test('T11 first Dashboard preserves complete original metrics, source facts, cha
  assert.ok(fast.metrics.length>=12,'original metric set is still on first screen');
  assert.equal(fast.readiness.total,detail.readiness.total,'the registered module population is never reduced');
  assert.deepEqual(fast.metrics,detail.metrics,'no project value or source authority disappears from first Dashboard');
- assert.deepEqual(fast.projectFacts,detail.projectFacts,'same current canonical facts');
+ assert.deepEqual(fast.projectFacts,projectFactsForState(state),'the Dashboard carries the independent canonical fact producer');
  assert.deepEqual(fast.scheduleExceptions,detail.scheduleExceptions,'same full schedule totals and exception rows');
  assert.deepEqual(fast.operationalReporting,detail.operationalReporting,'same current dated registers');
  assert.deepEqual(fast.visualControl,detail.visualControl,'all first-open visual facts retained');
