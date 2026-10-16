@@ -1,5 +1,6 @@
 import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
+import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
@@ -60,6 +61,7 @@ import {
 import {
   boardReportForProject,
   directorForProject,
+  fullCalculationRetained,
   invalidateProject,
   managementSurfaceForProject,
   managementSurfacesForProject,
@@ -361,6 +363,12 @@ function itemNameForProgress(
   );
 }
 
+/** T06: one shared step for screens and downloads. Float hours tied to a
+ * source activity also receive working days of that activity's calendar. */
+function withFloatWorkingDays<T>(projectId:string,body:T):T{
+  return attachProjectFloatWorkingDays(runtimeProjects.get(projectId),body);
+}
+
 function json(
   res: ServerResponse,
   statusCode: number,
@@ -369,11 +377,15 @@ function json(
   const requestUrl=res.req.url??'';
   const pathname=new URL(requestUrl,'http://localhost').pathname;
   const screen=statusCode===200&&isProjectScreenRequest(res.req.method,pathname);
-  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl):body);
+  const projectMatch=/^\/api\/projects\/([^/]+)/.exec(pathname);
+  // T06: every current float in hours on a project screen also carries working
+  // days of that activity's own source calendar (never an invented 8-hour day).
+  // The step runs inside paging, before the size budget is measured.
+  const floatDays=projectMatch?(value:unknown)=>withFloatWorkingDays(decodeURIComponent(projectMatch[1]!),value):undefined;
+  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,floatDays):body);
   // The public gateway can only keep a version-safe result after this header
   // proves which project snapshot was used. Previously it was never sent, so
   // every visit after worker eviction repeated the complete analysis.
-  const projectMatch=/^\/api\/projects\/([^/]+)/.exec(pathname);
   if(statusCode===200&&res.req.method==='GET'&&projectMatch){
     const snapshot=runtimeProjects.get(decodeURIComponent(projectMatch[1]!));
     if(snapshot)res.setHeader('x-cmeng-project-version',String(snapshot.version));
@@ -560,6 +572,16 @@ async function route(
     `http://${req.headers.host ?? "localhost"}`,
   );
   if(url.pathname.startsWith('/internal/')){const {internalExternalRequest}=await import('./external-project-authority');await internalExternalRequest(req,res);return;}
+  // The project gateway publishes sibling owner pages in the same worker turn
+  // as a finished management calculation. Such a read may only reuse that
+  // finished calculation; it must never begin a new full analysis.
+  if(req.headers['x-cmeng-retained-calculation-only']==='1'){
+    const retained=req.method==='GET'?/^\/api\/projects\/([^/]+)\/(.+)$/.exec(url.pathname):null;
+    const scope=retained&&/^(?:management\/(?:master-dashboard|command-center|master-control-programme|source-quality)|management-surfaces)$/.test(retained[2]!)?'management':'modules';
+    if(!retained||!fullCalculationRetained(decodeURIComponent(retained[1]!),scope)){
+      json(res,409,{error:'calculation_not_retained',message:'The finished calculation for this project version is not held by this worker.'});return;
+    }
+  }
 
   if (
     req.method === "GET" &&
@@ -2523,7 +2545,8 @@ async function route(
       sort:url.searchParams.get('sort')??'',
       direction:url.searchParams.get('direction')==='desc'?'desc':'asc',
     });
-    json(res,200,pageProjectResponse({...page,pageSize,projectVersion:state.version},rawSource));
+    // T06: record pages 2+ carry the same working-day float as the first screen page.
+    json(res,200,pageProjectResponse({...page,pageSize,projectVersion:state.version},rawSource,undefined,value=>attachProjectFloatWorkingDays(state,value)));
     return;
   }
 
@@ -2570,7 +2593,7 @@ async function route(
       return;
     }
 
-    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    const output=await exportModuleReport(projectId,key,withFloatWorkingDays(projectId,result),format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }
@@ -2583,7 +2606,7 @@ async function route(
     if(!advancedControlKeys.has(key)){json(res,404,{error:'advanced_control_not_found',controlKey:key});return;}
     const result=moduleForProject(projectId,key);
     if(result.status==='blocked'&&format!=='json'){json(res,409,{error:'advanced_control_blocked',controlKey:key,reason:result.reason,dependencies:result.dependencies});return;}
-    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    const output=await exportModuleReport(projectId,key,withFloatWorkingDays(projectId,result),format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }
@@ -2658,7 +2681,7 @@ async function route(
     }
 
     if(moduleArea==="delivery"){const state=runtimeProjects.get(projectId);if(state)result=deliveryExportResult(state,result);}
-    const output=await exportModuleReport(projectId,key,result,format,moduleReportView(url));
+    const output=await exportModuleReport(projectId,key,withFloatWorkingDays(projectId,result),format,moduleReportView(url));
     attachment(res,200,output.bytes,output.type,output.filename);
     return;
   }

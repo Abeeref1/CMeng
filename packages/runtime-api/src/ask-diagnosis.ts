@@ -47,7 +47,7 @@ export function askProjectDiagnosis(scope:ProjectScope,plan:AnalysisPlan){
  }
  if(selectedIds){b.result.metrics=[];b.metric('matching-activities','Activities in your preceding selection',selectedIds.size,'activities','Prior activity filters applied to the full population. Missing filter values are excluded. Whole-project completion remains context, not a recalculated finish for this subset.');}
  if(plan.filters.length&&!selectedIds&&plan.diagnosisActivityFilters===undefined)b.result.explanation='Project-wide context (the tables retain your requested filters): '+b.result.explanation;
- const units={totalFloatHours:{unit:'hours'},worstFloatHours:{unit:'hours'},remainingDurationHours:{unit:'hours'},finishMovementCalendarDays:{unit:'elapsed calendar days'},previousFinishMovementCalendarDays:{unit:'elapsed calendar days'},percentComplete:{unit:'%'},wbsId:{dimension:true}};
+ const units={totalFloatHours:{unit:'hours'},worstFloatHours:{unit:'hours'},totalFloatWorkingDays:{unit:'working days (activity calendar)'},worstFloatWorkingDays:{unit:'working days (activity calendar)'},remainingDurationHours:{unit:'hours'},finishMovementCalendarDays:{unit:'elapsed calendar days'},previousFinishMovementCalendarDays:{unit:'elapsed calendar days'},percentComplete:{unit:'%'},wbsId:{dimension:true}};
  if(!selectedIds&&!['revision_change','no_change_outlook','milestone_exposure'].includes(recipe)){
    b.table('wbs-pressure','Where schedule pressure is concentrated',wbs,'Disjoint assigned WBS groups. Pressure activities are counted once per group; critical, negative-float and driving counts overlap and must not be added together.',units);
    if(recipe!=='wbs_pressure')b.table('actions','Activities needing management attention',d.actions,d.rankingBasis,units);

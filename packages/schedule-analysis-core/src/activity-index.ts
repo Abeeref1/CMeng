@@ -52,6 +52,12 @@ function calculateScheduleActivityLogicIndex(
   }
 
   for (const entry of Object.values(byActivityId)) {
+    // An empty or single-entry list is already unique and in order. Its array
+    // is owned by this calculation, so keeping it changes no value or order.
+    if (
+      entry.predecessorIds.length < 2 &&
+      entry.successorIds.length < 2
+    ) continue;
     entry.predecessorIds = [
       ...new Set(entry.predecessorIds),
     ].sort((a, b) =>

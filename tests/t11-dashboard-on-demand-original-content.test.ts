@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
-import {managementSurfacesForProject,moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {managementSurfacesForProject,moduleForProject,projectActionRegisterForState} from '../packages/runtime-api/src/project-projections';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 
@@ -50,8 +50,17 @@ test('T11 first Dashboard preserves complete original metrics, source facts, cha
 
 test('T11 Dashboard source uses on-demand workfront and historical detail, never a second all-module resolver',()=>{
  const src=readFileSync(join(process.cwd(),'packages/runtime-api/src/project-projections.ts'),'utf8');
- assert.match(src,/buildBundle\(state,purpose\)/);
- assert.match(src,/buildDeliveryWorkfrontBreakdown\(model,breakdownInput\)/);
- assert.match(src,/if\(!dashboardOnly\)result=resolveProjectModule\(state,descriptor\.key\)/);
- assert.match(src,/dashboardOnly\?buildProjectActionRegister\(reportingState\(state\),resolvedModules\)/);
+ // Every certified module raises issues into the shared action register, so a
+ // Dashboard that skips modules can never show the full action list. The
+ // Dashboard reads the ONE shared full calculation; there is no second
+ // Dashboard-only bundle, projection cache or reduced action register.
+ assert.doesNotMatch(src,/dashboardBundleCache|dashboardProjectionCache|dashboardOnly|dashboardActionRegister/);
+ const {projectId,state}=fixture();
+ const dashboard:any=moduleForProject(projectId,'master-dashboard').data;
+ const full=projectActionRegisterForState(state);
+ const accountability:any=moduleForProject(projectId,'cross-domain-accountability').data;
+ assert.deepEqual(dashboard.actions,full.actions,'Dashboard action register equals the full action register');
+ assert.deepEqual(dashboard.actions,managementSurfacesForProject(projectId)?.commandCenter.actions,'Dashboard and full management surfaces share one register');
+ assert.equal(dashboard.projectFacts.actions.openCount.value,projectFactsForState(state).actions.openCount.value,'Dashboard open-action count equals the full calculation');
+ assert.equal(accountability.actions.length+full.workflow.actions.length,full.actions.length,'Accountability team actions plus decisions are the same full register');
 });

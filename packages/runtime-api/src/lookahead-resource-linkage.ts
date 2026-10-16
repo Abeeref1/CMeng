@@ -12,7 +12,7 @@ export function attachLookaheadResourceLinks(projection:any):void {
    if(updated.has(row.activityId))return updated.get(row.activityId);
    const trades=byActivity.get(row.activityId);if(!trades?.length||!row.readiness)return row;
    const evidence=trades.map(t=>({recordId:t.matchedRegisterResourceId,reference:t.trade,documentType:'Resource register',state:'unknown',dueIso:null,
-    note:t.registerMatchBasis+'. Identity is linked; this does not approve crew capacity.',sourceRefs:t.registerSourceRefs??[]}));
+    note:t.registerMatchBasis+'. Identity is linked; this does not approve crew capacity.'+(t.registerSourceNote?' '+t.registerSourceNote+'.':''),sourceRefs:t.registerSourceRefs??[]}));
    const dimensions=(row.readiness.dimensions??[]).map((d:any)=>d.key!=='resource'?d:{...d,
     sourceRefs:[...new Set([...(d.sourceRefs??[]),...evidence.flatMap(e=>e.sourceRefs)])],
     records:[...(d.records??[]),...evidence],note:'Source resource identity linked by exact ID or unique trade name. Capacity readiness requires approved comparable capacity.'});

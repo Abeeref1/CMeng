@@ -1,5 +1,48 @@
 import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
+import type {ProjectRuntimeState} from './project-state-types';
+import {projectControlSchedule} from './canonical-time-claims';
+import {reportingState} from './reporting-state';
+
+/** One shared source-calendar working-day basis for float display (T06).
+ * First source calendar ID wins, including duplicate IDs. Never substitute a
+ * universal eight-hour day when a source calendar is incomplete: the working
+ * day length is null and float stays in its original hours with a note. */
+const calendarBases=new WeakMap<CanonicalScheduleModel,ReturnType<typeof buildSourceCalendarWorkingDays>>();
+export function sourceCalendarWorkingDays(model:CanonicalScheduleModel){
+ let basis=calendarBases.get(model);
+ if(!basis){basis=buildSourceCalendarWorkingDays(model);calendarBases.set(model,basis);}
+ return basis;
+}
+function buildSourceCalendarWorkingDays(model:CanonicalScheduleModel){
+ const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+ for(const calendar of model.calendars)if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
+ const workingHoursByCalendar=new Map<string|null,number|null>();
+ const workingDayHours=(calendarId:string|null)=>{
+  if(workingHoursByCalendar.has(calendarId))return workingHoursByCalendar.get(calendarId)!;
+  const calendar=calendarId===null?model.calendars.find(row=>row.calendarId===calendarId):calendarById.get(calendarId);
+  const hours=calendarWorkingDayHours(calendar);
+  workingHoursByCalendar.set(calendarId,hours);
+  return hours;
+ };
+ // First source activity ID wins, as for calendars.
+ const activityById=new Map<string,CanonicalScheduleModel['activities'][number]>();
+ for(const activity of model.activities)if(!activityById.has(activity.activityId))activityById.set(activity.activityId,activity);
+ return {calendarById,workingDayHours,activityById};
+}
+/** Hours to working days of one source calendar day length. Unknown stays null; zero stays zero. */
+export function floatHoursToWorkingDays(hours:number|null|undefined,dayHours:number|null|undefined):number|null{
+ return typeof hours==='number'&&Number.isFinite(hours)&&typeof dayHours==='number'&&Number.isFinite(dayHours)&&dayHours>0
+  ?Number((hours/dayHours).toFixed(6)):null;
+}
+
+/** Narrative text for one activity float: working days of its own source
+ * calendar beside the original hours, or hours with an explicit note. */
+export function floatHoursText(hours:number,dayHours:number|null|undefined):string{
+ const days=floatHoursToWorkingDays(hours,dayHours);
+ // Display only: two decimals as on the screen tables; stored values keep full precision.
+ return days===null?hours+' h (working days unknown: calendar hours per day not read)':Number(days.toFixed(2))+' working days ('+hours+' h)';
+}
 
 /** Submitted classifications remain source assertions. Every comparison retains
  * the activity identity and both answers; an aggregate count cannot clear a row. */
@@ -16,18 +59,7 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
  const deterministic=forecast.complete&&forecast.origin==='deterministic_source_calendar'&&revisionMatches;
  const qualifiedScenario=forecast.complete&&forecast.origin==='scenario_with_assumptions'&&revisionMatches;
  const calculated=new Map(forecast.activities.map(row=>[row.activityId,row]));
- const calendarById=new Map<string,CanonicalScheduleModel['calendars'][number]>();
- for(const calendar of model.calendars)if(!calendarById.has(calendar.calendarId))calendarById.set(calendar.calendarId,calendar);
- // First source calendar ID wins, including duplicate IDs. Never substitute
- // a universal eight-hour day when a source calendar is incomplete.
- const workingHoursByCalendar=new Map<string|null,number|null>();
- const workingDayHours=(calendarId:string|null)=>{
-  if(workingHoursByCalendar.has(calendarId))return workingHoursByCalendar.get(calendarId)!;
-  const calendar=calendarId===null?model.calendars.find(row=>row.calendarId===calendarId):calendarById.get(calendarId);
-  const hours=calendarWorkingDayHours(calendar);
-  workingHoursByCalendar.set(calendarId,hours);
-  return hours;
- };
+ const {calendarById,workingDayHours}=sourceCalendarWorkingDays(model);
  const rows=model.activities.filter(isExecutionActivity).map(activity=>{
   const independent=calculated.get(activity.activityId);
   const completed=activity.status==='completed';
@@ -38,7 +70,7 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
   const independentCriticality=completed?'not_applicable':sourceFloatCriticality(model,{...activity,totalFloatHours:independentTotalFloatHours},config,calendarById);
   const floatDifferenceHours=submittedTotalFloatHours!==null&&independentTotalFloatHours!==null?Number((independentTotalFloatHours-submittedTotalFloatHours).toFixed(6)):null;
   const dayHours=completed?null:workingDayHours(activity.calendarId);
-  const toDays=(hours:number|null)=>dayHours!==null&&dayHours>0&&hours!==null?Number((hours/dayHours).toFixed(6)):null;
+  const toDays=(hours:number|null)=>floatHoursToWorkingDays(hours,dayHours);
   const submittedTotalFloatWorkingDays=toDays(submittedTotalFloatHours);
   const independentTotalFloatWorkingDays=toDays(independentTotalFloatHours);
   const floatDifferenceWorkingDays=toDays(floatDifferenceHours);
@@ -118,4 +150,81 @@ export function attachActivityFloatReconciliation<T>(data:T,review:ReturnType<ty
  const result={...data} as any;
  for(const key of ['rows','watchlistRows','criticalRows','negativeFloatRows','priorityRows','managementRows','boundaryAudit'])if(result[key])result[key]=visit(result[key]);
  return {...result,activityFloatReconciliation:review.summary};
+}
+
+// T06: current float values (one activity, current revision) that reach a
+// screen, a download or an Ask answer also carry the same float in working
+// days of that activity's own source calendar. Movement between revisions
+// (previous float, erosion, shift) is not converted here: it needs both
+// revisions' calendars, so it stays in its original hours.
+const CURRENT_FLOAT_FIELDS=['totalFloatHours','submittedTotalFloatHours','independentTotalFloatHours','sourceTotalFloatHours',
+ 'sourceFloatHours','currentFloatHours','submittedFloatHours','freeFloatHours'] as const;
+const GROUP_FLOAT_FIELDS=[['lowestFloatHours','lowestFloatCalendarIds'],['worstFloatHours','worstFloatCalendarIds'],['linkedFloatHours','linkedFloatCalendarIds']] as const;
+const daysKey=(field:string)=>field.replace(/Hours$/,'WorkingDays');
+/** Returns a copy with working-day float beside every current float in hours
+ * that is tied to a source activity. Hours are kept; existing day values are
+ * never overwritten; the input is never mutated; unchanged branches keep
+ * their identity. Unknown calendar or unknown activity never becomes a day. */
+export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|null|undefined):T{
+ if(!model||!data||typeof data!=='object')return data;
+ const {workingDayHours,activityById}=sourceCalendarWorkingDays(model);
+ const memo=new WeakMap<object,unknown>();
+ const visit=(value:any,depth:number):any=>{
+  if(!value||typeof value!=='object'||depth>40)return value;
+  if(memo.has(value))return memo.get(value);
+  memo.set(value,value);
+  let result=value;
+  if(Array.isArray(value)){
+   for(let i=0;i<value.length;i++){
+    const child=visit(value[i],depth+1);
+    if(child!==value[i]){if(result===value)result=value.slice();result[i]=child;}
+   }
+   memo.set(value,result);return result;
+  }
+  const set=(key:string,next:unknown)=>{if(result===value)result={...value};result[key]=next;};
+  for(const key in value){
+   if(!Object.hasOwn(value,key))continue;
+   const original=value[key];if(!original||typeof original!=='object')continue;
+   const child=visit(original,depth+1);
+   if(child!==original)set(key,child);
+  }
+  const daysFor=(activityId:unknown,status?:unknown)=>{
+   const activity=typeof activityId==='string'?activityById.get(activityId):undefined;
+   if(!activity)return undefined;
+   if(activity.status==='completed'||status==='completed')return {dayHours:null,basis:'not_applicable_completed'};
+   const dayHours=workingDayHours(activity.calendarId);
+   return {dayHours,basis:dayHours===null?'calendar_working_day_not_established':'source_activity_calendar'};
+  };
+  const own=daysFor(value.activityId,value.status);
+  if(own){
+   let converted=false;
+   for(const field of CURRENT_FLOAT_FIELDS){
+    const hours=value[field];
+    if(typeof hours!=='number'||!Number.isFinite(hours)||daysKey(field) in value)continue;
+    // Rows already carrying the reconciled submitted float in days keep it.
+    if(field==='totalFloatHours'&&'submittedTotalFloatWorkingDays' in value&&value.submittedTotalFloatHours===hours)continue;
+    set(daysKey(field),floatHoursToWorkingDays(hours,own.dayHours));converted=true;
+   }
+   if(converted&&!('floatDaysBasis' in value))set('floatDaysBasis',own.basis);
+  }
+  // A group value converts only when every float-bearing member activity uses
+  // one working-day length; otherwise hours stay with an explicit basis.
+  for(const [field,calendarsKey] of GROUP_FLOAT_FIELDS){
+   const hours=value[field],calendarIds=value[calendarsKey];
+   if(typeof hours!=='number'||!Number.isFinite(hours)||daysKey(field) in value||!Array.isArray(calendarIds)||!calendarIds.length)continue;
+   const lengths=new Set(calendarIds.map((id:string|null)=>workingDayHours(id??null)));
+   const dayHours=lengths.size===1?[...lengths][0]??null:null;
+   set(daysKey(field),floatHoursToWorkingDays(hours,dayHours));
+   set(field.replace(/Hours$/,'DaysBasis'),lengths.has(null)?'calendar_working_day_not_established':lengths.size>1?'mixed_calendar_day_lengths':'source_activity_calendar');
+  }
+  memo.set(value,result);return result;
+ };
+ return visit(data,0) as T;
+}
+
+/** The reporting programme of a project gives the calendars for every screen,
+ * download and Ask answer: one shared entry point. */
+export function attachProjectFloatWorkingDays<T>(state:ProjectRuntimeState|null|undefined,body:T):T{
+ const model=state?projectControlSchedule(reportingState(state))?.revision.model:null;
+ return model?attachFloatWorkingDays(body,model):body;
 }

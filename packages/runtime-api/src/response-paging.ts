@@ -111,6 +111,9 @@ const priorityMilestoneOrder=(a:any,b:any)=>{
  * Counts are always taken BEFORE paging from each exact source population. */
 export function pageProjectResponse(
  body:unknown,source:string,maxBytes=PROJECT_SCREEN_MAX_BYTES,
+ // Applied to each paged projection BEFORE its size is measured, so
+ // responseBytes and the screen budget describe the bytes actually sent.
+ prepare?:(projection:any)=>any,
 ):unknown {
  if(!body||typeof body!=='object')return body;
  const facts=projectFactsOf(body);
@@ -138,7 +141,9 @@ export function pageProjectResponse(
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    // A source record-page has already been bounded, sorted and filtered.
    // Do not turn the requested 50 original rows into a 25-row preview.
-   ||(pointer==='/rows'&&item.kind==='array'&&Number.isInteger(item.offset)&&Number.isInteger(item.total)&&Number.isInteger(item.pageSize)&&value.length<=item.pageSize)
+   // The same applies to an object page (field/value rows): a requested 50-row
+   // page cut to 25 here skipped 25 fields because hasMore/offset assume 50.
+   ||(pointer==='/rows'&&(item.kind==='array'||item.kind==='object')&&Number.isInteger(item.offset)&&Number.isInteger(item.total)&&Number.isInteger(item.pageSize)&&value.length<=item.pageSize)
    ||(['openMilestones','completedMilestones'].includes(key)&&value.length<=160)
    ||(milestoneRows(pointer)&&value.length<=160)
    ||(screenKey==='activity-analytics'&&pointer==='/data/rows'&&!!item?.data?.activitySummary&&value.length<=50)
@@ -202,7 +207,7 @@ export function pageProjectResponse(
    for(const field of ordered)result[field]=visit(value[field],pointer+'/'+token(field),field,depth+1);
    seen.delete(value);return result;
   };
-  const projection=visit(body,'','',0);
+  const projection=prepare?prepare(visit(body,'','',0)):visit(body,'','',0);
   const displayLabels=responseSourceLabels(sourceLabelCatalogue,projection);
   if(projection?.data&&typeof projection.data==='object')projection.data.sourceLabels=displayLabels;
   else if(projection&&typeof projection==='object'){for(const value of Object.values(projection))if(value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'sourceLabels'))(value as any).sourceLabels=displayLabels;}
@@ -210,7 +215,7 @@ export function pageProjectResponse(
   if(!projection||Array.isArray(projection)||typeof projection!=='object')return projection;
   // If there are no paged tables and no canonical facts to normalize, the
   // original small payload must retain exact source identity.
-  if(!changed&&!facts&&!milestoneFullCounts)return body;
+  if(!changed&&!facts&&!milestoneFullCounts)return prepare?prepare(body):body;
   const paging:ResponsePaging={
    source,pageSize:25,projectVersion,tables,additionalTables,responseBytes:0,sourcePreserved:true,
   };

@@ -346,33 +346,31 @@ export function buildNearCriticalProjection(
     };
   };
 
-  const rows = classified
+  // Every row list below is ordered by (submitted float, natural activity ID)
+  // with source order kept for ties. A stable sort of the whole classified
+  // population, then filtering, gives exactly the same order for each subset
+  // as sorting each subset on its own, with one sort instead of four.
+  const classifiedByFloat = [...classified].sort(
+    (a, b) =>
+      a.activity.totalFloatHours! -
+        b.activity.totalFloatHours! ||
+      naturalCompare(a.activity.activityId, b.activity.activityId),
+  );
+  const rows = classifiedByFloat
     .filter(
       ({ classification, threshold }) =>
         threshold !== null &&
         classification === "near_critical",
     )
-    .map(rowFor)
-    .sort(
-      (a, b) =>
-        a.totalFloatHours -
-          b.totalFloatHours ||
-        naturalCompare(a.activityId, b.activityId),
-    );
+    .map(rowFor);
 
-  const watchlistRows = classified
+  const watchlistRows = classifiedByFloat
     .filter(
       ({ watch, threshold }) =>
         threshold !== null &&
         watch === true,
     )
-    .map(rowFor)
-    .sort(
-      (a, b) =>
-        a.totalFloatHours -
-          b.totalFloatHours ||
-        naturalCompare(a.activityId, b.activityId),
-    );
+    .map(rowFor);
 
   const boundaryAuditRows =
     classified.map(
@@ -381,10 +379,8 @@ export function buildNearCriticalProjection(
   // Submitted critical/negative float is in hours and does not require a
   // working-day conversion or an independently recalculated driving path.
   // Keep these populations separate from the existing boundary-to-upper band.
-  const criticalRows=classified.filter(({classification})=>classification==='critical').map(rowFor)
-    .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
-  const negativeFloatRows=classified.filter(({activity})=>activity.totalFloatHours!<0).map(rowFor)
-    .sort((a,b)=>a.totalFloatHours-b.totalFloatHours||naturalCompare(a.activityId,b.activityId));
+  const criticalRows=classifiedByFloat.filter(({classification})=>classification==='critical').map(rowFor);
+  const negativeFloatRows=classifiedByFloat.filter(({activity})=>activity.totalFloatHours!<0).map(rowFor);
   const SAMPLE_LIMIT = 100;
   const byCriticalDistance = (
     a: ReturnType<typeof boundaryAuditRowFor>,

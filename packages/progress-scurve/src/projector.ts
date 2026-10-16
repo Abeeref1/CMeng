@@ -121,7 +121,9 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
   const observations = [...groups].sort((a, b) => a[0] - b[0]);
   const observedValue = (rows: ActualProgressSnapshot[]) => new Set(rows.map(row => row.progressPercent)).size === 1 ? rows[0]!.progressPercent : null;
   for (const [at, rows] of observations) if (observedValue(rows) === null) diagnostics.push("CONFLICTING_SCHEDULE_PROGRESS_SNAPSHOTS:" + new Date(at).toISOString());
-  const anchors = [...baseline, ...current].flatMap(row => [row.start, row.finish]);
+  // Same anchors in the same order, without a two-value array per activity.
+  const anchors: number[] = [];
+  for (const source of [baseline, current]) for (const row of source) anchors.push(row.start, row.finish);
   anchors.push(...observations.map(([at]) => at)); if (cutoff !== null) anchors.push(cutoff);
   let first = Infinity, last = -Infinity;
   for (const at of anchors) { first = Math.min(first, at); last = Math.max(last, at); }

@@ -84,8 +84,9 @@ test('known critical and negative float stay visible with unreadable calendars a
 
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const source=createSourceFile('ui.js',script,ScriptTarget.Latest,true);
-  const fn=source.statements.filter(isFunctionDeclaration).filter(n=>['renderNearCriticalVisual','sourceWorkingFloat'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n');
-  const html=runInNewContext(fn+';renderNearCriticalVisual(data)',{data:result,projectionFor:(d:unknown)=>d,fmt:String,escapeHtml:String,shortRevision:(v:unknown)=>v??'Previous programme',
+  const fn=source.statements.filter(isFunctionDeclaration).filter(n=>['renderNearCriticalVisual','sourceWorkingFloat','indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n');
+  // Real list-total and count-text helpers from the built page script (T05).
+  const html=runInNewContext('let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+fn+';renderNearCriticalVisual(data)',{data:result,projectionFor:(d:unknown)=>d,fmt:String,escapeHtml:String,shortRevision:(v:unknown)=>v??'Previous programme',
     planningDaysBetween:()=>null,planningShortDate:(d:unknown)=>d??'Unresolved',planningStateLabel:String,
     planningKpis:(rows:unknown)=>JSON.stringify(rows),planningFloatHistogram:()=>'',planningFinishPeriodBars:()=>'',distributionSummary:()=>''});
   assert.match(html,/Known critical and negative-float activities/);assert.match(html,/1 known; total unconfirmed/);

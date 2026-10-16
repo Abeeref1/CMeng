@@ -85,8 +85,11 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
   row={...row,owner:pmcRoleOwner(row.recordKey??row.issue,row.owner)};
   const linked=row.affectedScope.flatMap(id=>{const a=activities.get(id);return a&&a.status!=='completed'?[a]:[];});
   const floats=linked.flatMap(a=>{const value=rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours;return value===null?[]:[value];});
+  const lowestLinkedFloat=floats.length?Math.min(...floats):null;
+  // T06: the linked activity carrying the lowest float supplies its own calendar for working days.
+  const linkedFloatActivityId=lowestLinkedFloat===null?null:linked.find(a=>(rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours)===lowestLinkedFloat)?.activityId??null;
   const drivingPath=drivingIds!==null&&row.affectedScope.some(id=>activities.has(id))?linked.some(a=>driving.has(a.activityId)):null;
-  return {...row,priorityBasis:{linkedFloatHours:floats.length?Math.min(...floats):null,floatAuthority,drivingPath,milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
+  return {...row,priorityBasis:{linkedFloatHours:lowestLinkedFloat,linkedFloatActivityId,linkedFloatCalendarIds:[...new Set(linked.filter(a=>(rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours)!==null).map(a=>a.calendarId??null))],floatAuthority,drivingPath,milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
  }).sort((a,b)=>
   (a.priorityBasis.linkedFloatHours??Infinity)-(b.priorityBasis.linkedFloatHours??Infinity)||
   Number(b.priorityBasis.drivingPath)-Number(a.priorityBasis.drivingPath)||

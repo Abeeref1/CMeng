@@ -83,20 +83,16 @@ function maxDate(
 function statusSummary(
   activities: readonly CanonicalScheduleActivity[],
 ) {
-  return {
-    completed: activities.filter(
-      (activity) => activity.status === "completed",
-    ).length,
-    inProgress: activities.filter(
-      (activity) => activity.status === "in_progress",
-    ).length,
-    notStarted: activities.filter(
-      (activity) => activity.status === "not_started",
-    ).length,
-    unknown: activities.filter(
-      (activity) => activity.status === "unknown",
-    ).length,
-  };
+  // One counting pass; the same four exact status matches as four filters.
+  let completed = 0, inProgress = 0, notStarted = 0, unknown = 0;
+  for (const activity of activities) {
+    const status = activity.status;
+    if (status === "completed") completed++;
+    else if (status === "in_progress") inProgress++;
+    else if (status === "not_started") notStarted++;
+    else if (status === "unknown") unknown++;
+  }
+  return { completed, inProgress, notStarted, unknown };
 }
 
 function averagePercentComplete(
@@ -339,58 +335,47 @@ function completionBases(
 ): CompletionBasisValue[] {
   const total = activities.length;
 
-  const programmeKnown = activities.filter(
-    (activity) =>
-      sourceInstant(activity.baselineFinishIso) !== null,
-  );
-  const programme = maxDate(
-    programmeKnown.map((activity) => ({
-      dateIso: activity.baselineFinishIso,
-      activityId: activity.activityId,
-      sourceRef:
-        "activity:" +
-        activity.activityId +
-        ":baselineFinish",
-    })),
-    sourceInstant,
-  );
-
-  const forecastKnown = activities.filter(
-    (activity) =>
-      sourceInstant(
-        effectiveCurrentFinish(activity),
-      ) !== null,
-  );
-  const forecast = maxDate(
-    forecastKnown.map((activity) => ({
-      dateIso: effectiveCurrentFinish(activity),
-      activityId: activity.activityId,
-      sourceRef:
-        "activity:" +
-        activity.activityId +
-        ":effectiveCurrentFinish",
-    })),
-    sourceInstant,
-  );
-
-  const completed = activities.filter(
-    (activity) => activity.status === "completed",
-  );
-  const actualKnown = completed.filter(
-    (activity) =>
-      sourceInstant(activity.actualFinishIso) !== null,
-  );
-  const actual = maxDate(
-    actualKnown.map((activity) => ({
-      dateIso: activity.actualFinishIso,
-      activityId: activity.activityId,
-      sourceRef:
-        "activity:" +
-        activity.activityId +
-        ":actualFinish",
-    })),
-    sourceInstant,
-  );
+  // One pass over the same source population. Each basis keeps the FIRST
+  // source record holding the latest valid date (strictly later replaces),
+  // exactly as maxDate() over the filtered lists did, and builds a source
+  // reference only for the selected record instead of for every activity.
+  type Latest = { ms: number; dateIso: string; activityId: string } | null;
+  let programmeLatest: Latest = null, forecastLatest: Latest = null, actualLatest: Latest = null;
+  let programmeCount = 0, forecastCount = 0, actualCount = 0, completedCount = 0;
+  for (const activity of activities) {
+    const baselineMs = sourceInstant(activity.baselineFinishIso);
+    if (baselineMs !== null) {
+      programmeCount++;
+      if (!programmeLatest || baselineMs > programmeLatest.ms)
+        programmeLatest = { ms: baselineMs, dateIso: activity.baselineFinishIso!, activityId: activity.activityId };
+    }
+    const effectiveFinish = effectiveCurrentFinish(activity);
+    const forecastMs = sourceInstant(effectiveFinish);
+    if (forecastMs !== null) {
+      forecastCount++;
+      if (!forecastLatest || forecastMs > forecastLatest.ms)
+        forecastLatest = { ms: forecastMs, dateIso: effectiveFinish!, activityId: activity.activityId };
+    }
+    if (activity.status === "completed") {
+      completedCount++;
+      const actualMs = sourceInstant(activity.actualFinishIso);
+      if (actualMs !== null) {
+        actualCount++;
+        if (!actualLatest || actualMs > actualLatest.ms)
+          actualLatest = { ms: actualMs, dateIso: activity.actualFinishIso!, activityId: activity.activityId };
+      }
+    }
+  }
+  const selected = (latest: Latest, field: string) => latest
+    ? { dateIso: latest.dateIso, activityId: latest.activityId, sourceRef: "activity:" + latest.activityId + ":" + field }
+    : { dateIso: null, activityId: null, sourceRef: null };
+  const programme = selected(programmeLatest, "baselineFinish");
+  const forecast = selected(forecastLatest, "effectiveCurrentFinish");
+  const actual = selected(actualLatest, "actualFinish");
+  const programmeKnown = { length: programmeCount };
+  const forecastKnown = { length: forecastCount };
+  const completed = { length: completedCount };
+  const actualKnown = { length: actualCount };
 
   const stateFor = (
     known: number,

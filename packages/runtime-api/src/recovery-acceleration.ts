@@ -14,7 +14,7 @@ import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-type
 
 const dayDiff=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Number(((Date.parse(later)-Date.parse(earlier))/86400000).toFixed(2)):null;
 export interface RecoveryScenario {
-  drivingPath?:boolean|null;linkedFloatHours?:number|null;
+  drivingPath?:boolean|null;linkedFloatHours?:number|null;linkedFloatActivityId?:string|null;linkedFloatCalendarIds?:(string|null)[];
   remainingWorkHours?:number|null;sourceWorkingDays?:number|null;
   scenarioId:string;type:'additional_crew'|'procurement_expedite'|'additional_shift_or_calendar'|'parallel_workfront_resequence';state:'calculated'|'option_requires_assumption';
   subject:string;affectedActivities:string[];affectedPackages:string[];assumption:string;currentPosition:string;targetPosition:string;
@@ -168,7 +168,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       diminishingReturn:'Do not assume linear weekly improvement where workfront congestion, shared crews or approvals constrain production.',
       authority:'scenario'});
   }
-  for(const scenario of scenarios){scenario.drivingPath=scenario.affectedActivities.some(id=>drivingIds.has(id))?true:drivingNetwork&&scenario.affectedActivities.length&&scenario.affectedActivities.every(id=>activityById.has(id))?false:null;const floats=scenario.affectedActivities.map(id=>activityById.get(id)?.totalFloatHours).filter((value):value is number=>typeof value==='number');scenario.linkedFloatHours=floats.length?Math.min(...floats):null;}
+  for(const scenario of scenarios){scenario.drivingPath=scenario.affectedActivities.some(id=>drivingIds.has(id))?true:drivingNetwork&&scenario.affectedActivities.length&&scenario.affectedActivities.every(id=>activityById.has(id))?false:null;const floats=scenario.affectedActivities.map(id=>activityById.get(id)?.totalFloatHours).filter((value):value is number=>typeof value==='number');scenario.linkedFloatHours=floats.length?Math.min(...floats):null;scenario.linkedFloatActivityId=scenario.linkedFloatHours===null?null:scenario.affectedActivities.find(id=>activityById.get(id)?.totalFloatHours===scenario.linkedFloatHours)??null;scenario.linkedFloatCalendarIds=[...new Set(scenario.affectedActivities.filter(id=>typeof activityById.get(id)?.totalFloatHours==='number').map(id=>activityById.get(id)!.calendarId??null))];}
   scenarios.sort((a,b)=>Number(b.drivingPath)-Number(a.drivingPath)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const time= commercialPositionForState(state).timeExposure,pc=programmePcMilestone(programme),finish=pc.dateIso;
   const finishActivity=pc.activityIds.length===1?activityById.get(pc.activityIds[0]!):null,calendar=finishActivity&&programme?resolveWorkingCalendar(finishActivity.calendarId,programme.calendars,false)?.calendar:null;

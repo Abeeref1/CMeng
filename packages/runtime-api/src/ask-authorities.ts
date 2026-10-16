@@ -25,7 +25,7 @@ const overrides:Record<string,Partial<Column>>={
   remainingToOrder:quantity,remainingToDeliver:quantity,remainingToInstall:quantity,amount:money,packageValue:money,
   scheduleProgressPercent:percent,plannedPercent:percent,actualPercent:percent,percentComplete:percent,baselinePlannedPercent:percent,currentForecastPercent:percent,actualProgressPercent:percent,
   currentPlanPercent:percent,durationWeightedProgressPercent:percent,deliveryCoveragePercent:percent,installationCompletionPercent:percent,
-  progressPercent:percent,plannedCumulativeHours:{unit:'hours'},actualCumulativeHours:{unit:'hours'},forecastCumulativeHours:{unit:'hours'},procurementCoveragePercent:percent,headroomCalendarDays:{unit:'calendar days'},totalFloatHours:{unit:'hours'},
+  progressPercent:percent,plannedCumulativeHours:{unit:'hours'},actualCumulativeHours:{unit:'hours'},forecastCumulativeHours:{unit:'hours'},procurementCoveragePercent:percent,headroomCalendarDays:{unit:'calendar days'},totalFloatHours:{unit:'hours'},totalFloatWorkingDays:{unit:'working days (activity calendar)'},submittedTotalFloatWorkingDays:{unit:'working days (activity calendar)'},
   discipline:{dimension:true},location:{dimension:true},wbsId:{dimension:true},dateIso:{type:'date'},
 };
 type Registration={id:string;concepts:string[];metrics?:[string,string,string|null][];tables?:string[];domains?:Domain[]};

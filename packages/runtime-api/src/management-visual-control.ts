@@ -76,7 +76,7 @@ export function managementVisualControl(
   const networkMilestones=new Set(independent.drivingNetwork?.finishActivityIds??[]);
   const driverGroupsMap=new Map<string,{
     wbs:string;activityIds:string[];activityNames:string[];currentFinishes:string[];
-    lowestFloatHours:number|null;milestoneIds:string[];packageCandidates:string[];
+    lowestFloatHours:number|null;lowestFloatActivityId:string|null;lowestFloatCalendarIds:(string|null)[];milestoneIds:string[];packageCandidates:string[];
   }>();
   const milestoneSource=(Array.isArray(milestones.rows)?milestones.rows:[]).filter((row:any)=>row.status!=='completed');
   // Index once. The full driving set can contain 20k activities and must not
@@ -118,12 +118,16 @@ export function managementVisualControl(
     const wbs=String(row.wbs??'Unclassified driving scope');
     const isNew=!driverGroupsMap.has(wbs);
     const group=driverGroupsMap.get(wbs)??{
-      wbs,activityIds:[],activityNames:[],currentFinishes:[],lowestFloatHours:null,milestoneIds:[],packageCandidates:[]
+      wbs,activityIds:[],activityNames:[],currentFinishes:[],lowestFloatHours:null,lowestFloatActivityId:null,lowestFloatCalendarIds:[],milestoneIds:[],packageCandidates:[]
     };
     group.activityIds.push(row.activityId);
     if(row.name)group.activityNames.push(String(row.name));
     if(row.currentFinishIso)group.currentFinishes.push(String(row.currentFinishIso));
-    if(typeof row.sourceFloatHours==='number')group.lowestFloatHours=group.lowestFloatHours===null?row.sourceFloatHours:Math.min(group.lowestFloatHours,row.sourceFloatHours);
+    if(typeof row.sourceFloatHours==='number'&&!group.lowestFloatCalendarIds.includes(scheduleRow?.calendarId??null))group.lowestFloatCalendarIds.push(scheduleRow?.calendarId??null);
+    if(typeof row.sourceFloatHours==='number'&&(group.lowestFloatHours===null||row.sourceFloatHours<group.lowestFloatHours)){
+      // T06: the activity carrying the lowest float supplies its own calendar for working days.
+      group.lowestFloatHours=row.sourceFloatHours;group.lowestFloatActivityId=row.activityId;
+    }
     const localMilestones=milestoneByActivity.get(row.activityId)??[];
     if(isNew){
       // Both inputs are already in source order. Merge without sorting the
@@ -148,6 +152,8 @@ export function managementVisualControl(
     activityNames:[...new Set(group.activityNames)],
     latestCurrentFinishIso:group.currentFinishes.sort().at(-1)??null,
     lowestFloatHours:group.lowestFloatHours,
+    lowestFloatActivityId:group.lowestFloatActivityId,
+    lowestFloatCalendarIds:group.lowestFloatCalendarIds,
     milestoneIds:[...new Set(group.milestoneIds)].slice(0,10),
     packageCandidates:[...new Set(group.packageCandidates)].slice(0,10),
     consequence:group.milestoneIds.length

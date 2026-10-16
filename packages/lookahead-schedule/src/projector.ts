@@ -65,9 +65,22 @@ export function summarizeReadinessBlockers(rows: readonly LookAheadActivityRow[]
     .sort((a, b) => b.activityCount - a.activityCount || a.documentType.localeCompare(b.documentType));
 }
 
+/** Pure per-projection results for one model: the same instant, calendar and
+ * lag are converted once instead of once per relationship. Never shared
+ * across models, so another project or revision cannot contaminate a row. */
+export interface PredecessorAssessmentMemo {
+  iso: Map<number, string>;
+  calendars: Map<string | null, ReturnType<typeof resolveWorkingCalendar>>;
+  /** calendarId|from|lag -> required instant, or null when the calendar calculation threw. */
+  lagged: Map<string, number | null>;
+}
+export function predecessorAssessmentMemo(): PredecessorAssessmentMemo {
+  return { iso: new Map(), calendars: new Map(), lagged: new Map() };
+}
+
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
   predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity,
-  instant:(value:string|null)=>number|null=parseScheduleInstant) {
+  instant:(value:string|null)=>number|null=parseScheduleInstant, memo?: PredecessorAssessmentMemo) {
   const unknown = (reason: string) => ({ state: "unknown" as const, requiredIso: null, note: relation.relationshipId + ": " + reason });
   if (!predecessor || relation.external) return unknown("Predecessor evidence is not established in this controlled programme.");
   if (relation.type === "unknown" || relation.lagHours === null || !Number.isFinite(relation.lagHours)) return unknown("Relationship type or lag is not established.");
@@ -77,13 +90,30 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
   if (from === null || target === null) return unknown("Required relationship date evidence is incomplete.");
   let required = from;
   if (relation.lagHours !== 0) {
-    const calendar = resolveWorkingCalendar(successor.calendarId, model.calendars, false);
+    let calendar: ReturnType<typeof resolveWorkingCalendar>;
+    if (memo && memo.calendars.has(successor.calendarId)) calendar = memo.calendars.get(successor.calendarId)!;
+    else {
+      calendar = resolveWorkingCalendar(successor.calendarId, model.calendars, false);
+      memo?.calendars.set(successor.calendarId, calendar);
+    }
     if (!calendar) return unknown("Successor working calendar is unresolved; lag cannot be evaluated.");
-    try { required = addWorkingHours(calendar.calendar, from, relation.lagHours); }
-    catch { return unknown("Working-calendar lag calculation is unresolved."); }
+    const lagKey = memo ? successor.calendarId + "|" + from + "|" + relation.lagHours : "";
+    const known = memo?.lagged.get(lagKey);
+    if (known === null) return unknown("Working-calendar lag calculation is unresolved.");
+    if (known !== undefined) required = known;
+    else {
+      try { required = addWorkingHours(calendar.calendar, from, relation.lagHours); }
+      catch { memo?.lagged.set(lagKey, null); return unknown("Working-calendar lag calculation is unresolved."); }
+      memo?.lagged.set(lagKey, required);
+    }
+  }
+  let requiredIso = memo?.iso.get(required);
+  if (requiredIso === undefined) {
+    requiredIso = new Date(required).toISOString();
+    memo?.iso.set(required, requiredIso);
   }
   return { state: required > target ? "blocked" as const : "ready" as const,
-    requiredIso: new Date(required).toISOString(),
+    requiredIso,
     note: relation.relationshipId + ": " + relation.type + ", lag " + relation.lagHours + " working hours (successor calendar); " +
       (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
 }
@@ -97,17 +127,28 @@ export function readinessForActivity(
     | Partial<Record<ReadinessDimensionKey, ReadinessEvidence>>
     | undefined,
   instant:(value:string|null)=>number|null=parseScheduleInstant,
+  memo?: PredecessorAssessmentMemo,
 ) {
   const dimensions: ReadinessDimension[] =
     READINESS_KEYS.map((key) => {
       if (key === "predecessor") {
         if (predecessors.length === 0) return { key, state: "not_applicable" as const, sourceRefs: [], note: "No incoming schedule relationships; review open-end logic separately." };
-        const checks = predecessors.map(relation => assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity, instant));
+        // One pass over the incoming relationships: same checks, order and text.
+        let anyBlocked = false, anyUnknown = false;
+        const notes: string[] = [];
+        for (const relation of predecessors) {
+          const check = assessPredecessorRequirement(model, relation, activityById.get(relation.predecessorActivityId), activity, instant, memo);
+          if (check.state === "blocked") anyBlocked = true;
+          else if (check.state === "unknown") anyUnknown = true;
+          notes.push(check.note);
+        }
+        const sourceRefs: string[] = [];
+        for (const relation of predecessors) sourceRefs.push("schedule-relationship:" + relation.relationshipId, "schedule-activity:" + relation.predecessorActivityId);
         return {
-          key, state: checks.some(check => check.state === "blocked") ? "blocked" as const
-            : checks.some(check => check.state === "unknown") ? "unknown" as const : "ready" as const,
-          sourceRefs: predecessors.flatMap(relation => ["schedule-relationship:" + relation.relationshipId, "schedule-activity:" + relation.predecessorActivityId]),
-          note: checks.map(check => check.note).join("; "),
+          key, state: anyBlocked ? "blocked" as const
+            : anyUnknown ? "unknown" as const : "ready" as const,
+          sourceRefs,
+          note: notes.join("; "),
         };
       }
 
@@ -132,17 +173,12 @@ export function readinessForActivity(
       };
     });
 
-  const blockedCount = dimensions.filter(
-    (dimension) => dimension.state === "blocked",
-  ).length;
-  const unknownCount = dimensions.filter(
-    (dimension) => dimension.state === "unknown",
-  ).length;
-  const readyCount = dimensions.filter(
-    (dimension) =>
-      dimension.state === "ready" ||
-      dimension.state === "not_applicable",
-  ).length;
+  let blockedCount = 0, unknownCount = 0, readyCount = 0;
+  for (const dimension of dimensions) {
+    if (dimension.state === "blocked") blockedCount++;
+    else if (dimension.state === "unknown") unknownCount++;
+    else if (dimension.state === "ready" || dimension.state === "not_applicable") readyCount++;
+  }
 
   return {
     state:
@@ -332,6 +368,23 @@ export function buildLookAheadProjection(
   };
   const wbsPaths=wbsPathLookup(model);
   const downstreamMilestones=downstreamMilestoneLookup(model);
+  // Exact per-projection conversions: each distinct instant, day offset and
+  // float/day-hours pair is formatted once, with the same arithmetic.
+  const predecessorMemo=predecessorAssessmentMemo();
+  const dayOffsets=new Map<number,number>();
+  const dayOffset=(value:number)=>{
+    let result=dayOffsets.get(value);
+    if(result===undefined){result=Number(((value-dataDateMs!)/86_400_000).toFixed(6));dayOffsets.set(value,result);}
+    return result;
+  };
+  const floatWorkingDays=new Map<number,Map<number,number>>();
+  const workingDaysFor=(sourceHours:number,dayHours:number)=>{
+    let byHours=floatWorkingDays.get(dayHours);
+    if(!byHours){byHours=new Map();floatWorkingDays.set(dayHours,byHours);}
+    let result=byHours.get(sourceHours);
+    if(result===undefined){result=Number((sourceHours/dayHours).toFixed(6));byHours.set(sourceHours,result);}
+    return result;
+  };
   stage('indexes_and_dates');
 
   for (const activity of incomplete) {
@@ -388,7 +441,7 @@ export function buildLookAheadProjection(
 
     const dayHours=floatDayHours(activity.calendarId);
     const sourceHours=typeof activity.totalFloatHours==='number'&&Number.isFinite(activity.totalFloatHours)?activity.totalFloatHours:null;
-    const sourceWorkingDays=dayHours!==null&&dayHours>0&&sourceHours!==null?Number((sourceHours/dayHours).toFixed(6)):null;
+    const sourceWorkingDays=dayHours!==null&&dayHours>0&&sourceHours!==null?workingDaysFor(sourceHours,dayHours):null;
     const row:LookAheadActivityRow={
       activityId: activity.activityId,
       name: activity.name,
@@ -424,19 +477,10 @@ export function buildLookAheadProjection(
         activityById,
         input.readinessEvidence?.[activity.activityId],
         instant,
+        predecessorMemo,
       ),
-      daysToStart: Number(
-        (
-          (startMs - dataDateMs) /
-          86_400_000
-        ).toFixed(6),
-      ),
-      daysToFinish: Number(
-        (
-          (finishMs - dataDateMs) /
-          86_400_000
-        ).toFixed(6),
-      ),
+      daysToStart: dayOffset(startMs),
+      daysToFinish: dayOffset(finishMs),
     };
     if(isOverdue || missedStart)overdueBacklogRows.push(row);
     else forwardWindowRows.push(row);

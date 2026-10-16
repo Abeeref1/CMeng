@@ -80,8 +80,13 @@ const disciplineRules:[string,RegExp[]][]=[
   ['Landscape',[/\blandscap(?:e|ing)\b/i]],
   ['MEP',[/\bmep\b/i]]
 ];
+// One alternation per rule. None of these expressions is global/sticky or has
+// capture groups, so `rule.test(text)` is true exactly when some single
+// pattern of that rule matches: identical hits with one scan per rule.
+const disciplineRuleMatchers:[string,RegExp][]=disciplineRules.map(([name,patterns])=>
+  [name,new RegExp(patterns.map(pattern=>'(?:'+pattern.source+')').join('|'),'i')]);
 function derivedDiscipline(text:string){
-  const hits=disciplineRules.filter(([,patterns])=>patterns.some(pattern=>pattern.test(text))).map(([name])=>name);
+  const hits=disciplineRuleMatchers.filter(([,matcher])=>matcher.test(text)).map(([name])=>name);
   const specific=hits.filter(name=>name!=='MEP');
   if(specific.length===1)return specific[0]!;
   if(specific.length>1)return null;
@@ -119,7 +124,6 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const node=activity.wbsId?nodes.get(activity.wbsId):undefined;
   const hierarchy=node&&pathCache?.has(node.wbsId)?pathCache.get(node.wbsId)!:wbsPath(node,nodes);
   if(node&&pathCache&&!pathCache.has(node.wbsId))pathCache.set(node.wbsId,hierarchy);
-  const sourceText=clean([hierarchy.path,activity.name,activity.activityId].filter(Boolean).join(' | '));
   const wbsText=hierarchy.path??'';
   const activityText=clean([activity.name,activity.activityId].filter(Boolean).join(' | '));
   const pick=(label:string,patterns:RegExp[])=>{
@@ -213,6 +217,6 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
     ['subcontractor','Subcontractor','Explicit Subcontractor wording found in source WBS or activity text'],
     ['location','Location','Composite of explicit source-derived spatial classifications']
   ];
-  const coverage=dimensions.map(([key,label,basis])=>{const classified=rows.filter(row=>row[key]!==null).length;return {key,label,classified,total:rows.length,coveragePercent:rows.length?Number((classified/rows.length*100).toFixed(4)):null,basis};});
+  const coverage=dimensions.map(([key,label,basis])=>{let classified=0;for(const row of rows)if(row[key]!==null)classified++;return {key,label,classified,total:rows.length,coveragePercent:rows.length?Number((classified/rows.length*100).toFixed(4)):null,basis};});
   const result={activityCount:rows.length,rows,coverage};classificationCache.set(model,result);return result;
 }

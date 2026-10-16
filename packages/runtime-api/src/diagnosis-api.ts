@@ -2,6 +2,7 @@ import type {IncomingMessage,ServerResponse} from 'node:http';
 import {runtimeProjects} from './project-state';
 import {moduleForProject} from './project-projections';
 import {projectDiagnosisDetails} from './project-diagnosis';
+import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
 import {once} from 'node:events';
 
 export async function diagnosisRequest(req:IncomingMessage,res:ServerResponse,url:URL){
@@ -14,11 +15,15 @@ export async function diagnosisRequest(req:IncomingMessage,res:ServerResponse,ur
  if(!d){send(409,{error:'programme_needed',message:'Select the reporting programme to establish the diagnosis.'});return true;}
  const section=url.searchParams.get('section')??'network';
  const sections:Record<string,any[]>={network:d.network.rows,relationships:d.network.relationships,wbs:d.wbsRows,evidence:d.evidenceChecks,milestones:d.milestoneRows,actions:d.actions,changes:d.revision.largestChanges};
- const rows=sections[section];if(!rows){send(400,{error:'unknown_section'});return true;}
+ const sourceRows=sections[section];if(!sourceRows){send(400,{error:'unknown_section'});return true;}
+ // T06: float rows carry working days of each activity's own source calendar.
+ const rows=sourceRows;
  const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??25),format=url.searchParams.get('format');
  if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<1||limit>100){send(400,{error:'invalid_page'});return true;}
  if(format&&!['xlsx','csv'].includes(format)){send(400,{error:'invalid_format'});return true;}
  if(format){
+   // Downloads hold the whole section, so the whole section is converted.
+   const rows=attachProjectFloatWorkingDays(state,sourceRows);
    const keys=[...new Set(rows.flatMap(Object.keys))],filename=projectId.replace(/[^a-zA-Z0-9_-]/g,'_')+'-'+section;
    const value=(v:unknown)=>v===null||v===undefined?'':typeof v==='object'?JSON.stringify(v):v;
    if(format==='xlsx'){
@@ -33,6 +38,6 @@ export async function diagnosisRequest(req:IncomingMessage,res:ServerResponse,ur
      const cell=(v:unknown)=>{let s=String(value(v));if(typeof v==='string'&&/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
      res.write('\uFEFF'+keys.map(cell).join(',')+'\r\n');for(const row of rows){if(res.destroyed)break;if(!res.write(keys.map(k=>cell(row[k])).join(',')+'\r\n'))await once(res,'drain');}res.end();
    }
- }else send(200,{projectId,projectVersion:state.version,sourceRevisionId:d.sourceRevisionId,dataDateIso:d.dataDateIso,section,total:rows.length,offset,limit,rows:rows.slice(offset,offset+limit)});
+ }else send(200,{projectId,projectVersion:state.version,sourceRevisionId:d.sourceRevisionId,dataDateIso:d.dataDateIso,section,total:rows.length,offset,limit,rows:attachProjectFloatWorkingDays(state,rows.slice(offset,offset+limit))});
  return true;
 }

@@ -8,6 +8,7 @@ import {createHash} from 'node:crypto';
 import {dateValue} from '../../truth-kernel/src';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {registerCsv} from './register-workbook';
+import {analyticalOperationalDocuments,sourceAnalyticalCandidateIds,sourceAnalyticalDiagnostic} from './operational-reporting';
 
 import type {
   ReadinessDimensionKey,
@@ -35,6 +36,15 @@ function combineReadiness(a:ReadinessEvidence|undefined,b:ReadinessEvidence):Rea
   return {state:order[a.state]>=order[b.state]?a.state:b.state,sourceRefs:[...new Set([...a.sourceRefs,...b.sourceRefs])],
     records:[...(a.records??[]),...(b.records??[])],
     note:[a.note,b.note].filter(Boolean).join('; '),diagnostics:[...new Set([...(a.diagnostics??[]),...(b.diagnostics??[])])]};
+}
+
+/** Readiness read from a source that is not formally adopted keeps that
+ * qualification on the evidence itself and on every record it carries. */
+function sourceAnalyticalReadiness(evidence:ReadinessEvidence,documentId:string):ReadinessEvidence{
+  const label=sourceAnalyticalDiagnostic(documentId),note='Read from source; not formally adopted';
+  return {...evidence,diagnostics:[...new Set([...(evidence.diagnostics??[]),label])],
+    note:[evidence.note,note].filter(Boolean).join('; '),
+    ...(evidence.records?{records:evidence.records.map(r=>({...r,note:[r.note,note].filter(Boolean).join('; ')}))}:{})};
 }
 
 function readinessSourceRef(document:StoredEvidenceDocument,rowNumber:number,sheetName?:string){
@@ -191,16 +201,34 @@ function dimensionFor(
 
 function procurementPackageMap(
   state: ProjectRuntimeState,
-): Map<string, string> {
-  const map=new Map<string,string>(),diagnostics:string[]=[];
-  const current=state.evidenceDocuments.filter(document=>['active','additive'].includes(document.basisState));
+): Map<string, PackageLink> {
+  const map=new Map<string,PackageLink>(),diagnostics:string[]=[];
+  const current=analyticalOperationalDocuments(state.evidenceDocuments),unadopted=sourceAnalyticalCandidateIds(state.evidenceDocuments);
   const tables=sourceTables(current,diagnostics).filter(table=>table.document.documentType==='procurement_register');
-  for(const table of tables)for(const row of table.rows){
+  // Adopted links first. A link read only from an unadopted candidate is used
+  // and labelled; it never replaces an adopted link, and a different candidate
+  // link is shown as a conflict naming that source.
+  const ordered=[...tables.filter(t=>!unadopted.has(t.document.documentId)),...tables.filter(t=>unadopted.has(t.document.documentId))];
+  for(const table of ordered)for(const row of table.rows){
     const packageId=cell(row,"package id","procurement package");
     const activityId=cell(row,"linked activity","linked schedule activity","activity id");
-    if(packageId&&activityId)map.set(packageId,activityId);
+    if(!packageId||!activityId)continue;
+    const fromCandidate=unadopted.has(table.document.documentId),prior=map.get(packageId);
+    if(fromCandidate&&prior&&!prior.unadoptedDocumentId){
+      if(prior.activityId!==activityId)prior.differingUnadopted.push(table.document.documentId);
+      continue;
+    }
+    map.set(packageId,{activityId,unadoptedDocumentId:fromCandidate?table.document.documentId:null,differingUnadopted:[]});
   }
   return map;
+}
+type PackageLink={activityId:string;unadoptedDocumentId:string|null;differingUnadopted:string[]};
+/** Readiness that depends on a package link keeps the link's qualification. */
+function packageLinked(link:PackageLink|undefined,packageId:string,evidence:ReadinessEvidence):ReadinessEvidence{
+  if(!link)return evidence;
+  let out=link.unadoptedDocumentId?sourceAnalyticalReadiness(evidence,link.unadoptedDocumentId):evidence;
+  if(link.differingUnadopted.length)out={...out,diagnostics:[...new Set([...(out.diagnostics??[]),...link.differingUnadopted.map(id=>'UNADOPTED_SOURCE_PACKAGE_LINK_DIFFERS:'+packageId+':'+id)])]};
+  return out;
 }
 
 export function deriveReadinessFromCsv(
@@ -283,7 +311,7 @@ export function deriveReadinessFromCsv(
         )
       : new Map<
           string,
-          string
+          PackageLink
         >();
 
   const dataDateIso = input.dataDateIso===undefined?projectDataDate(input.state):input.dataDateIso;
@@ -325,6 +353,7 @@ export function deriveReadinessFromCsv(
         row,
         activityIndex,
       );
+    let packageLink:PackageLink|undefined;
 
     if (
       !activityId &&
@@ -332,13 +361,8 @@ export function deriveReadinessFromCsv(
         .documentType ===
         "submittal_register"
     ) {
-      activityId =
-        packageMap.get(
-          valueAt(
-            row,
-            packageIndex,
-          ),
-        ) ?? "";
+      packageLink=packageMap.get(valueAt(row,packageIndex));
+      activityId=packageLink?.activityId??"";
     }
 
     if (!activityId) {
@@ -408,7 +432,7 @@ export function deriveReadinessFromCsv(
       {};
     result[activityId]![
       dimension
-    ] = combineReadiness(result[activityId]![dimension],{
+    ] = combineReadiness(result[activityId]![dimension],packageLinked(packageLink,valueAt(row,packageIndex),{
       state,
       diagnostics,
       records:[{recordId:valueAt(row,recordIdIndex)||null,documentType:input.document.documentType,state,dueIso:dateValue(dueIso),
@@ -432,7 +456,7 @@ export function deriveReadinessFromCsv(
               dueIso
             : ""
         ),
-    });
+    }));
   }
 
   return result;
@@ -497,15 +521,12 @@ export function rebuildReadinessEvidence(
     }
   }
 
+  // T04: adopted sources plus the unique, fully read candidate selected by
+  // the shared source-analytical rule. Candidate-read evidence is labelled
+  // as not formally adopted; competing or review-needed candidates stay held.
+  const sourceAnalytical=sourceAnalyticalCandidateIds(state.evidenceDocuments);
   const activeDocuments =
-    state.evidenceDocuments
-      .filter(
-        (document) =>
-          document.basisState ===
-            "active" ||
-          document.basisState ===
-            "additive",
-      )
+    analyticalOperationalDocuments(state.evidenceDocuments)
       .sort(
         (a, b) =>
           a.uploadedAt.localeCompare(
@@ -518,9 +539,14 @@ export function rebuildReadinessEvidence(
       ...manual,
   };
 
+  // Adopted sources first; an unadopted candidate only fills a gap. Where an
+  // adopted (or manual) position exists, a differing candidate is shown as a
+  // conflict naming that source and never replaces or worsens it.
+  const ordered=[...activeDocuments.filter(d=>!sourceAnalytical.has(d.documentId)),...activeDocuments.filter(d=>sourceAnalytical.has(d.documentId))];
+  const fromAdopted=new Set<string>();
   for (
     const document of
-      activeDocuments
+      ordered
   ) {
     const derived =
       state
@@ -555,9 +581,17 @@ export function rebuildReadinessEvidence(
         if (!evidence) {
           continue;
         }
+        const unadopted=sourceAnalytical.has(document.documentId);
+        const slot=activityId+'|'+key,existing=merged[activityId]![key];
+        if(unadopted&&existing&&(fromAdopted.has(slot)||!isDerived(existing))){
+          if(existing.state!==evidence.state)merged[activityId]![key]={...existing,diagnostics:[...new Set([...(existing.diagnostics??[]),'UNADOPTED_SOURCE_READINESS_DIFFERS:'+document.documentId])]};
+          continue;
+        }
+        if(!unadopted)fromAdopted.add(slot);
+        const labelled=unadopted?sourceAnalyticalReadiness(evidence,document.documentId):evidence;
         merged[activityId]![
           key
-        ] = combineReadiness(merged[activityId]![key],evidence);
+        ] = combineReadiness(existing,labelled);
       }
     }
   }
@@ -571,7 +605,7 @@ export function rebuildReadinessEvidence(
  * Persisted import-time statuses cannot survive as a separate authority. */
 export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null):ReadinessByActivity {
   const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
-  for(const document of state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState))){
+  for(const document of analyticalOperationalDocuments(state.evidenceDocuments)){
     try {
       const merge=(next:ReadinessByActivity)=>{
         const prior=derived[document.documentId]??{};

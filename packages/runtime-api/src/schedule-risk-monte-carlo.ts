@@ -4,6 +4,7 @@ import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-type
 import {canonicalTimeClaims,projectControlSchedule} from './canonical-time-claims';
 import {operationalReporting} from './reporting-state';
 import {cell,numberValue,sourceTables} from '../../truth-kernel/src';
+import {analyticalOperationalDocuments,sourceAnalyticalCandidateIds,SOURCE_ANALYTICAL_USE} from './operational-reporting';
 
 export interface MonteCarloConfig {
   iterations:number;
@@ -22,8 +23,17 @@ function iso(ms:number|null){return ms===null?null:new Date(ms).toISOString();}
 function validConfig(c:MonteCarloConfig){return Number.isSafeInteger(c.iterations)&&c.iterations>=100&&c.iterations<=10000&&c.minFactor>0&&c.minFactor<=c.modeFactor&&c.modeFactor<=c.maxFactor&&c.maxFactor>c.minFactor;}
 type ActivityUncertainty={activityId:string;minFactor:number;modeFactor:number;maxFactor:number;correlationGroup:string|null;sourceRefs:string[]};
 function sourceUncertainty(state:ProjectRuntimeState,remainingById:Map<string,number>){
-  const docs=state.evidenceDocuments.filter(d=>['active','additive'].includes(d.basisState)),diagnostics:string[]=[];
-  const tables=sourceTables(docs,diagnostics),byId=new Map<string,ActivityUncertainty>(),conflicts:string[]=[];
+  // T04: the shared source-analytical rule, not a separate adoption gate.
+  const docs=analyticalOperationalDocuments(state.evidenceDocuments),diagnostics:string[]=[];
+  const unadopted=sourceAnalyticalCandidateIds(state.evidenceDocuments);
+  const tables=sourceTables(docs,diagnostics),conflicts:string[]=[];
+  // Adopted and unadopted ranges are collected separately. An unadopted
+  // candidate never replaces or erases an adopted range: when they differ the
+  // adopted range is kept and the difference is shown as a conflict naming the
+  // unadopted source, for the existing source decision.
+  const adoptedById=new Map<string,ActivityUncertainty>(),candidateById=new Map<string,ActivityUncertainty&{documentId:string}>();
+  const adoptedConflicts=new Set<string>(),candidateConflicts=new Set<string>();
+  const same=(a:ActivityUncertainty,b:ActivityUncertainty)=>a.minFactor===b.minFactor&&a.modeFactor===b.modeFactor&&a.maxFactor===b.maxFactor&&a.correlationGroup===b.correlationGroup;
   for(const table of tables)for(const row of table.rows){
     const activityId=cell(row,'activity id','activity code','schedule activity id').trim();if(!activityId||!remainingById.has(activityId))continue;
     const minFactor=numberValue(cell(row,'minimum factor','min factor','optimistic factor'));
@@ -40,11 +50,28 @@ function sourceUncertainty(state:ProjectRuntimeState,remainingById:Map<string,nu
     if(!(min>0&&min<=mode&&mode<=max&&max>min)){conflicts.push('INVALID_UNCERTAINTY_RANGE:'+activityId);continue;}
     const candidate:ActivityUncertainty={activityId,minFactor:min,modeFactor:mode,maxFactor:max,correlationGroup:cell(row,'correlation group','risk correlation group','correlation').trim()||null,
       sourceRefs:['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator]};
-    const prior=byId.get(activityId);
-    if(prior&&(prior.minFactor!==candidate.minFactor||prior.modeFactor!==candidate.modeFactor||prior.maxFactor!==candidate.maxFactor||prior.correlationGroup!==candidate.correlationGroup)){conflicts.push('CONFLICTING_UNCERTAINTY_RANGE:'+activityId);byId.delete(activityId);continue;}
-    if(!conflicts.includes('CONFLICTING_UNCERTAINTY_RANGE:'+activityId))byId.set(activityId,candidate);
+    const fromCandidate=unadopted.has(row.receipt.documentId);
+    const pool=fromCandidate?candidateById:adoptedById,held=fromCandidate?candidateConflicts:adoptedConflicts;
+    const prior=pool.get(activityId);
+    if(prior&&!same(prior,candidate)){if(!fromCandidate)conflicts.push('CONFLICTING_UNCERTAINTY_RANGE:'+activityId);held.add(activityId);pool.delete(activityId);continue;}
+    if(!held.has(activityId))pool.set(activityId,{...candidate,documentId:row.receipt.documentId} as any);
   }
-  return {byId,conflicts,diagnostics};
+  const byId=new Map<string,ActivityUncertainty>();
+  for(const [activityId,range] of adoptedById)byId.set(activityId,{activityId,minFactor:range.minFactor,modeFactor:range.modeFactor,maxFactor:range.maxFactor,correlationGroup:range.correlationGroup,sourceRefs:range.sourceRefs});
+  const unadoptedConflicts:string[]=[];
+  for(const [activityId,range] of candidateById){
+    const adopted=adoptedById.get(activityId);
+    if(adopted||adoptedConflicts.has(activityId)){
+      if(!adopted||!same(adopted,range))unadoptedConflicts.push('UNADOPTED_SOURCE_RANGE_DIFFERS:'+activityId+':'+range.documentId);
+      continue;
+    }
+    byId.set(activityId,{activityId,minFactor:range.minFactor,modeFactor:range.modeFactor,maxFactor:range.maxFactor,correlationGroup:range.correlationGroup,sourceRefs:range.sourceRefs});
+  }
+  for(const activityId of candidateConflicts)if(!adoptedById.has(activityId)&&!adoptedConflicts.has(activityId))conflicts.push('CONFLICTING_UNCERTAINTY_RANGE:'+activityId);
+  conflicts.push(...unadoptedConflicts);
+  const usedRefs=[...byId.values()].flatMap(r=>r.sourceRefs);
+  const sourceAnalyticalDocumentIds=[...unadopted].filter(id=>usedRefs.some(ref=>ref.startsWith('evidence-document:'+id+':'))).sort();
+  return {byId,conflicts,diagnostics,sourceAnalyticalDocumentIds};
 }
 
 
@@ -141,6 +168,9 @@ export function scheduleRiskMonteCarlo(state:ProjectRuntimeState,input:Partial<M
       sourceCoveredActivityCount:sourceCovered,scenarioDefaultActivityCount:uncertain.length-sourceCovered,coveragePercent:uncertain.length?Number((sourceCovered/uncertain.length*100).toFixed(2)):null,
       correlationGroupCount:new Set([...sourceRanges.byId.values()].map(r=>r.correlationGroup).filter(Boolean)).size,
       conflicts:sourceRanges.conflicts,
+      // Ranges read from a source that is not formally adopted stay labelled.
+      ...(sourceRanges.sourceAnalyticalDocumentIds.length?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalDocumentIds:sourceRanges.sourceAnalyticalDocumentIds,
+        sourceAnalyticalNote:'Some ranges are read from a source that is not formally adopted.'}:{}),
       basis:'Each incomplete execution activity is sampled from an explicit source triangular range where available; otherwise the stated scenario default is used. Activities with the same explicit correlation group share the same percentile draw. The full schedule network is recalculated each successful iteration.'},
     activityPopulation:execution.length,uncertainActivityCount:uncertain.length,confidence,finishByRequiredDateProbabilityPercent:finishProbability,
     histogram:[...histogram.entries()].map(([weekStartIso,count])=>({weekStartIso,count})).sort((a,b)=>a.weekStartIso.localeCompare(b.weekStartIso)),

@@ -1,3 +1,4 @@
+import {floatHoursToWorkingDays,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {contractNoticeRules} from './contract-notice-rules';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import {cell,dateValue,numberValue,governedTables,type SourceRow} from '../../truth-kernel/src';
@@ -111,7 +112,11 @@ function buildProgrammeTrends(state:ProjectRuntimeState,model:any,cutoff:string|
   const erosion=currentFloat!==null&&priorFloat!==null&&months!==null&&months>0?(priorFloat-currentFloat)/months:null;
   const turnsCriticalBy=currentFloat!==null&&currentFloat<=0?cutoff:currentFloat!==null&&erosion!==null&&erosion>0?afterMonths(cutoff,currentFloat/erosion):null;
   const movement=days(date(p?.forecastFinishIso??p?.currentFinishIso),date(a.forecastFinishIso??a.currentFinishIso));
-  return {activityReference:a.activityId,name:a.name,wbsId:a.wbsId,currentFloatHours:currentFloat,previousFloatHours:priorFloat,floatErosionHoursPerMonth:erosion,turnsCriticalByIso:turnsCriticalBy,
+  // T06: each float in working days of its own revision's source calendar.
+  const currentDayHours=sourceCalendarWorkingDays(model).workingDayHours(a.calendarId??null);
+  const priorDayHours=p&&prior?sourceCalendarWorkingDays(prior).workingDayHours(p.calendarId??null):null;
+  return {activityReference:a.activityId,name:a.name,wbsId:a.wbsId,currentFloatHours:currentFloat,previousFloatHours:priorFloat,
+   currentFloatWorkingDays:floatHoursToWorkingDays(currentFloat,currentDayHours),previousFloatWorkingDays:floatHoursToWorkingDays(priorFloat,priorDayHours),floatErosionHoursPerMonth:erosion,turnsCriticalByIso:turnsCriticalBy,
    slipDaysPerMonth:movement!==null&&months!==null&&months>0?movement/months:null,
    state:currentFloat!==null&&currentFloat<=0?'already_critical':erosion===null?'comparison_missing':erosion<=0?'no_positive_erosion':'erosion_scenario',
    basis:'Same activity in two dated programme revisions. Monthly erosion = previous float minus current float / elapsed calendar months. Critical-date scenario = Data Date + current float / positive monthly erosion; trend is assumed to continue, not a forecast guarantee.'};

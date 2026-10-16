@@ -1,5 +1,7 @@
 import type {AuthorityResult,Column,EvidenceState,ProjectScope,Cell} from '../../project-ask/src/types';
 import {cell,columnsFor,label} from '../../project-ask/src/primitives';
+import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
+import {runtimeProjects} from './project-state';
 export const at=(v:any,path:string):any=>path.split('.').reduce((a,k)=>a?.[k],v);
 export const evidenceState=(s:unknown):EvidenceState=>['established','available','ready','verified','governed','source','official','calculated','complete'].includes(String(s))?'established':['candidate','working','extracted_candidate'].includes(String(s))?'candidate':['conflicting','conflicted'].includes(String(s))?'conflicting':s==='stale'?'stale':s==='scenario'?'scenario':['missing','blocked','unavailable','not_established'].includes(String(s))?'unavailable':'partial';
 export function readableBasis(value:unknown):string {if(typeof value==='string')return value;if(value&&typeof value==='object'){const b=value as any;if(typeof b.method==='string')return b.method+(b.asOfDate?' · as of '+b.asOfDate:'');return Object.entries(b).filter(([key])=>key!=='sourceRefs').map(([key,v])=>label(key)+': '+readableBasis(v)).join('; ');}return value==null?'Basis not established':String(value);}
@@ -16,7 +18,8 @@ export class AuthorityBuilder {
     this.result.metrics.push({id:this.id+'.'+id,label:name,value:v,unit,state,classification:options.fact?'project_fact':'calculated_intelligence',traceId:this.trace(options.path??id,basis,options.refs?.length?options.refs:sourceBasis?.sourceRefs??[],state),basis});return this;
   }
   table(id:string,title:string,source:unknown,basis:string,overrides:Record<string,Partial<Column>>={},mapper?:(row:any)=>Record<string,unknown>){
-    const input=Array.isArray(source)?source:[];
+    // T06: Ask answers show float in working days of each activity's own calendar beside hours.
+    const input=Array.isArray(source)?attachProjectFloatWorkingDays(runtimeProjects.get(this.scope.projectId),source):[];
     const rows=input.filter(r=>r&&typeof r==='object').map(raw=>{const r=mapper?mapper(raw):raw;return Object.fromEntries(Object.entries(r).filter(([k,v])=>!['projectId','fields','sourceRefs','receipts','links','diagnostics','history','evidence','trace'].includes(k)&&(v===null||['string','number','boolean'].includes(typeof v))).map(([k,v])=>[k,cell(v)]));});
     const columns=columnsFor(rows,overrides);this.result.tables.push({id:this.id+'.'+id,title,authorityId:this.id,columns,rows,population:rows.length,excluded:0,state:this.result.state,basis,traceId:this.trace(id,basis,[...new Set(input.flatMap(r=>r?.sourceRefs??[]))])});return this;
   }

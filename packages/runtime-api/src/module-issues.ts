@@ -1,4 +1,5 @@
 import { summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
+import {readableFieldLabel,readablePathLabel} from './field-labels';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
@@ -134,30 +135,45 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   // them without rebuilding paths for tens of thousands of repeated rows.
   // Findings themselves are never cached: each module retains its own paths.
   const eligibility=scanContext?.eligibility??new WeakMap<object,boolean>();
+  // T11: an object's own signal check is O(1) and a leaf (no object-valued
+  // child) cannot contain a descendant finding, so neither is stored in the
+  // shared lookup. Only subtrees that can be reached again through another
+  // module are cached; this removes hundreds of thousands of weak-map inserts
+  // for repeated scalar rows. The answer for every object is unchanged.
   const arrayItemCanContainIssue=(item:any,depth=0):boolean=>{
     if(!item||typeof item!=='object')return false;
     const hit=eligibility.get(item);if(hit!==undefined)return hit;
     // Keep eligibility conservative for unusually deep source structures.
     // The owning walker still applies its established inspection depth.
     if(depth>=64)return true;
-    // A provisional positive contains cycles in the same shared lookup.
-    // Only a completed inspection may replace it with a negative result;
-    // re-entry can therefore never hide a later descendant finding.
-    eligibility.set(item,true);
     if((Array.isArray(item.diagnostics)&&item.diagnostics.length>0)||issueStates.has(item.state)||item.population?.exclusions?.length)return true;
-    let answer=false;
+    // A provisional positive contains cycles in the same shared lookup. It is
+    // set before the first descent; only a completed inspection may replace
+    // it with a negative result, so re-entry never hides a later finding.
+    let answer=false,open=false;
     if(Array.isArray(item)){
-      for(const child of item)if(child&&typeof child==='object'&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+      for(const child of item)if(child&&typeof child==='object'){
+        if(!open){open=true;eligibility.set(item,true);}
+        if(arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+      }
     }else{
-      for(const key of Object.keys(item)){
+      // for-in reads each value through the enumeration cache instead of a
+      // megamorphic keyed load. It visits every own enumerable key (and could
+      // only add inherited ones, which can make the answer more conservative,
+      // never hide a finding; the walker itself still uses Object.keys).
+      for(const key in item){
         const child=item[key];
         // Scalar cells cannot hold nested issue evidence. Most source-row
         // fields are scalar; avoid recursive calls and key-set lookups for
         // them while retaining inspection of every own object-valued field.
-        if(child&&typeof child==='object'&&!excludedKeys.has(key)&&arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+        if(child&&typeof child==='object'&&!excludedKeys.has(key)){
+          if(!open){open=true;eligibility.set(item,true);}
+          if(arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
+        }
       }
     }
-    eligibility.set(item,answer);return answer;
+    if(open)eligibility.set(item,answer);
+    return answer;
   };
   const walk=(value:any,path:string,depth:number)=>{
     if(!value||typeof value!=='object'||depth>9||visited.has(value)||!arrayItemCanContainIssue(value))return;
@@ -187,7 +203,8 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(diagnostics.length||issueStates.has(value.state)||value.population?.exclusions?.length){
     const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
     const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
-    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(typeof value.topic==='string'?' · '+value.topic:'');
+    // T10: issue headings use the shared reader label for each path segment.
+    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segment=>readablePathLabel(segment)||readableFieldLabel(segment.replace(/\[[^\]]*\]/g,''))).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>s!=='SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'&&/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));

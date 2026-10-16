@@ -135,10 +135,12 @@ test('actual Activity Review renderer withholds incomplete headline counts, incl
   const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
   const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderActivityAnalyticsVisual')!.getText(source);
   const floatReview=source.statements.filter(isFunctionDeclaration).filter(n=>['activityFloatReviewHtml','sourceWorkingFloat'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n');
+  // Real list-total and count-text helpers from the built page script (T05).
+  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+source.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n');
   const model=schedule();model.activities[1].calendarId='UNREADABLE';model.activities[1].baselineFinishIso=null;
   const data=buildActivityAnalyticsProjection(model,options);
   const kpis:any[]=[];
-  runInNewContext(floatReview+'\n'+fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
+  runInNewContext(countHelpers+'\n'+floatReview+'\n'+fn+';renderActivityAnalyticsVisual(data)',{data,aggregateCount,projectionFor:(d:any)=>d,
     planningKpis:(rows:any[])=>{kpis.push(...rows);return '';},escapeHtml:String,fmt:(v:any)=>v==null?'Unresolved':String(v),humanizeKey:String,
     planningActivityPressure:()=>'',renderVisualPanel:()=>'',renderDonutChart:()=>'',planningStatusBand:()=>'',planningStateLabel:String,
     distributionSummary:()=>'',planningShortDate:String,planningSignedBars:()=>'',renderMovementConcentration:()=>'',planningProgressTrack:()=>'',renderScheduleBasisReview:()=>'',

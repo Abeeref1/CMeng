@@ -6,6 +6,11 @@ import {tmpdir} from 'node:os';
 import {runInNewContext} from 'node:vm';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {projectActionsScript,projectActionsStyles} from '../packages/runtime-api/src/ui-project-actions';
+import {createSourceFile, ScriptTarget, isFunctionDeclaration} from 'typescript';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+// Real list-total and count-text helpers from the built page script (T05), loaded the same way other tests load page helpers.
+const countHelpers=(()=>{const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
+  return 'let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+source.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n')+'\n';})();
 const xer=(date:string,name:string)=>['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tCONTROL\t'+date,'%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttarget_start_date\ttarget_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt','%R\t1\t1\tA1\t'+name+'\t2031-01-01\t2031-12-31\t80\t80','%E'].join('\n');
 test('uncertain document classification reaches Project Review and stays editable after restart',async t=>{
  const root=mkdtempSync(join(tmpdir(),'classification-review-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
@@ -168,7 +173,7 @@ test('Project Review displays decisions only, and directs the team register to A
  const sample={projectId:'REVIEW',actionCount:1,userDecisionCount:1,teamFollowUpCount:8,checkedAt:'2026-10-12',pageSize:25,matchedActionCount:1,
  actions:[{id:'matter:completion',category:'confirmation',title:'Confirm contractual completion date',reason:'Contractual date not established',recordCount:1,owner:'Project Director',resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm the contractual date.',completionRule:'Saved'},target:{type:'inline',kind:'contract-completion',suggestedDateIso:null,label:'Confirm'}},
  {id:'accountability-owner-group:procurement',category:'follow_up',title:'898 open procurement records',reason:'Review the register with its owner.',recordCount:898,owner:'Procurement Manager',dueIso:'2025-12-11',resolution:{kind:'information',requiresUserAction:false,instruction:'Review individual records.',completionRule:'Closed from register'},target:{type:'module',moduleKey:'procurement',label:'Open supporting record'}}],information:[],systemCheckCount:0};
- const script=projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
+ const script=countHelpers+projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String});
  assert.match(html,/1 decision needs your review/);
  assert.match(html,/Confirm the contractual date/);
@@ -182,7 +187,7 @@ test('Existing contract and amendment findings are visible before any replacemen
  const issue={code:'SOURCE_QUALITY',kind:'source_conflict',summary:'Notice obligation differs',detail:'Main contract: 28 days; amendment: 14 days. Applicable date needs review.',moduleKeys:['notice-compliance'],sourceRefs:[]};
  const sample={projectId:'REVIEW',actionCount:1,userDecisionCount:1,teamFollowUpCount:0,checkedAt:'2026-10-12',pageSize:25,matchedActionCount:1,
  actions:[{id:'matter:claims:correction',category:'review',title:'Claims and notice obligations',reason:'Read the retained evidence before deciding whether correction is needed.',recordCount:2,owner:'Project evidence owner',resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload corrected evidence',completionRule:'After new upload'},target:{type:'upload',uploadMode:'evidence',label:'Upload evidence'},correctionRecords:[{source:'Main Contract.pdf',locator:'Page 1'},{source:'Amendment.pdf',locator:'Page 1'}],findings:[issue]}],information:[],systemCheckCount:0};
- const script=projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
+ const script=countHelpers+projectActionsScript+'\nprojectActionState={projectId:"REVIEW",status:"ready",data:'+JSON.stringify(sample)+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'REVIEW',fmt:String,escapeHtml:String,readerText:String,readerIssue:()=>({title:'Contract notice periods differ',owner:'Contracts Manager'}),renderActionFindings:()=>'',formatDocumentTime:()=> 'now',planningShortDate:String});
  assert.ok(html.includes('What CMeng found in the documents already provided'));
  assert.ok(html.includes('Contract notice periods differ'));
@@ -246,7 +251,7 @@ test('risk review rejects stale evidence, updates shared reporting and remains e
  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
  workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
  assert.equal(action.resolution.requiresUserAction,false);assert.equal(action.target.reviewMatrixText,'6=Moderate');
- const script=projectActionsScript+'\nprojectActionState={projectId:"RISK-REVIEW",status:"ready",data:'+JSON.stringify({...workflow,actions:[],information:[action]})+'};renderProjectActionList()';
+ const script=countHelpers+projectActionsScript+'\nprojectActionState={projectId:"RISK-REVIEW",status:"ready",data:'+JSON.stringify({...workflow,actions:[],information:[action]})+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'RISK-REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String,renderActionFindings:()=>''});
  assert.match(html,/action-information action-review-recorded/);assert.match(html,/6=Moderate<\/textarea>/);
  assert.match(projectActionsStyles,/\.action-information\.action-review-recorded \.action-resolution\{display:grid\}/);

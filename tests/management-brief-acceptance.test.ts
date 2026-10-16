@@ -50,7 +50,9 @@ function fixture(){
  return {d,data};
 }
 const browserSource=createSourceFile('browser.js',cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!,ScriptTarget.Latest,true);
-const deadlineHelper=browserSource.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='actionDeadlineText')!.getText(browserSource);
+// The real browser helpers, including the T06 source-calendar float display rule.
+const deadlineHelper=['actionDeadlineText','sourceWorkingFloat','sourceWorkingFloatField']
+ .map(name=>browserSource.statements.filter(isFunctionDeclaration).find(n=>n.name?.text===name)!.getText(browserSource)).join('\n');
 function rendered(d:any,data:any){
  return runInNewContext(deadlineHelper+'\n'+projectDiagnosisScript+'\nrenderProjectBrief(d,data)',{...ctx,d,data}) as string;
 }

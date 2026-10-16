@@ -2,19 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 
 function render(overrides:Record<string,unknown>={}):string {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const start=script.indexOf('function renderNearCriticalVisual(data){');
   const end=script.indexOf('function renderManhourVisual(data){',start);
   assert.ok(start>=0&&end>start);
+  // Real list-total and count-text helpers from the built page script (T05).
+  const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
+  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+parsed.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
   const p={rows:[],watchlistRows:[],criticalRows:[],negativeFloatRows:[],managementGroups:[],
     nearCriticalCount:0,floatRiskWatchlistCount:0,zeroFloatCount:0,negativeFloatCount:0,
     floatCoveragePercent:100,classificationCoveragePercent:100,unresolvedActivityCount:0,
     criticalThresholdHours:0,nearCriticalThresholdHours:40,floatRiskWatchlistIncludesCriticalThreshold:true,
     ...overrides};
   const string=(value:unknown)=>String(value??'');
-  return vm.runInNewContext(script.slice(start,end)+';renderNearCriticalVisual(p);',{
+  return vm.runInNewContext(countHelpers+'\n'+script.slice(start,end)+';renderNearCriticalVisual(p);',{
     shortRevision:(value:unknown)=>value?'Previous programme':'No comparison programme',p,projectionFor:(value:unknown)=>value,escapeHtml:string,fmt:string,planningShortDate:string,
     planningStateLabel:string,planningDaysBetween:()=>null,planningKpis:()=>'',
     planningFloatHistogram:()=>'',planningFinishPeriodBars:()=>'',distributionSummary:()=>'',

@@ -57,14 +57,22 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const html=cmengUatHtml(),maxWorkers=projectWorkerCapacity(configured,undefined,explicitlyParallel);
   const readStores=new Map<string,ProjectReadCache>();
   const pendingReadPublications=new Map<string,Promise<void>>();
+  const siblingPublications=new Set<Promise<void>>();
   const reads=(id:string)=>{let cache=readStores.get(id);if(!cache)cache=new ProjectReadCache(projectDirectory(root,id));readStores.delete(id);readStores.set(id,cache);while(readStores.size>16)readStores.delete(readStores.keys().next().value!);return cache;};
   function retainCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
-    const publication=storeCalculatedRead(id,port,version,path,body);
-    pendingReadPublications.set(id,publication);
-    const done=()=>{if(pendingReadPublications.get(id)===publication)pendingReadPublications.delete(id);};
-    void publication.then(done,done);return publication;
+    // Overview navigation waits only for the read itself and its Overview
+    // snapshot; the remaining owner pages finish in the same worker turn.
+    let overviewPublished!:()=>void;
+    const overview=new Promise<void>(resolve=>{overviewPublished=resolve;});
+    const publication=storeCalculatedRead(id,port,version,path,body,overviewPublished);
+    void publication.then(overviewPublished,overviewPublished);
+    pendingReadPublications.set(id,overview);siblingPublications.add(publication);
+    const done=()=>{if(pendingReadPublications.get(id)===overview)pendingReadPublications.delete(id);};
+    void overview.then(done,done);
+    void publication.then(()=>siblingPublications.delete(publication),()=>siblingPublications.delete(publication));
+    return publication;
   }
-  async function storeCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer){
+  async function storeCalculatedRead(id:string,port:number,version:number,path:string,body:Buffer,overviewPublished:()=>void=()=>{}){
     await reads(id).put(calculationRelease(),version,path,body);
     const pathname=new URL(path,'http://localhost').pathname;
     if(!/\/(?:management\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+|management-surfaces|director-position)$/.test(pathname))return;
@@ -72,13 +80,33 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // calculations finish. Publish their lightweight current navigation snapshot
     // in the same worker turn, retaining it across worker eviction/restart.
     // This reads existing results only; Overview never starts full analysis.
-    const overviewPath='/api/projects/'+encodeURIComponent(id)+'/overview';
+    const prefix='/api/projects/'+encodeURIComponent(id);
+    const overviewPath=prefix+'/overview';
     try{
       const response=await fetch('http://127.0.0.1:'+port+overviewPath,{signal:AbortSignal.timeout(5000)});
-      if(!response.ok||Number(response.headers.get('x-cmeng-project-version'))!==version)return;
-      const snapshot=Buffer.from(await response.arrayBuffer());
-      if(snapshot.length<=MAX_PROJECT_READ_BYTES)await reads(id).put(calculationRelease(),version,overviewPath,snapshot);
+      if(response.ok&&Number(response.headers.get('x-cmeng-project-version'))===version){
+        const snapshot=Buffer.from(await response.arrayBuffer());
+        if(snapshot.length<=MAX_PROJECT_READ_BYTES)await reads(id).put(calculationRelease(),version,overviewPath,snapshot);
+      }else await response.arrayBuffer().catch(()=>{});
     }catch(error){console.warn('[overview-snapshot] '+id+': '+String(error));}
+    overviewPublished();
+    // The owner pages below are projections of the SAME full calculation. A
+    // recycled worker otherwise discards it, and the next Accountability or
+    // Dashboard request repeats the entire analysis. Publish each one for this
+    // exact version while the worker still holds the finished calculation. The
+    // worker refuses (409) unless that calculation is already cached, so this
+    // path never starts a new full analysis.
+    for(const route of [prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/director-position',prefix+'/management-surfaces']){
+      if(route===pathname)continue;
+      if(closing||(updating.get(id)??0)>0)return;
+      if(await reads(id).get(calculationRelease(),version,route))continue;
+      try{
+        const response=await fetch('http://127.0.0.1:'+port+route,{headers:{'x-cmeng-retained-calculation-only':'1'},signal:AbortSignal.timeout(20000)});
+        if(!response.ok||Number(response.headers.get('x-cmeng-project-version'))!==version){await response.arrayBuffer().catch(()=>{});continue;}
+        const page=Buffer.from(await response.arrayBuffer());
+        if(page.length<=MAX_PROJECT_READ_BYTES&&!closing&&!(updating.get(id)??0))await reads(id).put(calculationRelease(),version,route,page);
+      }catch(error){console.warn('[owner-page-snapshot] '+id+': '+String(error));}
+    }
   }
   let closing=false,catalogWrites=Promise.resolve();
   let lastForegroundProjectRequestAt=Date.now();
@@ -326,7 +354,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     }
   }
   const server=createServer((req,res)=>{void (async()=>{
-    delete req.headers['x-cmeng-verified-actor'];delete req.headers['x-cmeng-verified-actor-signature'];
+    delete req.headers['x-cmeng-verified-actor'];delete req.headers['x-cmeng-verified-actor-signature'];delete req.headers['x-cmeng-retained-calculation-only'];
     const url=new URL(req.url??'/','http://localhost');
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
@@ -451,7 +479,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   // The full portfolio remains accessible even if another project's warmup fails.
   const initialWarmup=setTimeout(warmSweep,4000);initialWarmup.unref();
-  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values()]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values(),...siblingPublications]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 

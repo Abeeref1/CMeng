@@ -54,6 +54,16 @@ export function analyticalOperationalDocuments(documents:readonly StoredEvidence
   ));
 }
 
+/** Label carried by every result read from a source that is not formally adopted.
+ * The same value the document register shows for the source itself. */
+export const SOURCE_ANALYTICAL_USE='qualified_source_read' as const;
+export const sourceAnalyticalDiagnostic=(documentId:string)=>'SOURCE_ANALYTICAL_NOT_ADOPTED:'+documentId;
+/** Candidate documents that the shared T04 rule above admits into analysis
+ * (read from source, not formally adopted). No second selection rule. */
+export function sourceAnalyticalCandidateIds(documents:readonly StoredEvidenceDocument[]):Set<string>{
+  return new Set(analyticalOperationalDocuments(documents).filter(d=>d.basisState==='candidate').map(d=>d.documentId));
+}
+
 /** Reconstruct lifecycle status from actual dates. A future closure never closes
  * an earlier reporting position; an undated final status never backdates itself.
  * Original source rows and excluded IDs are retained for inspection. */

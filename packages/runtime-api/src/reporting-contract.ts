@@ -144,7 +144,17 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   if(data.movementAnalysis?.population)populations.baseline_comparable=data.movementAnalysis.population;
   if(data.finishMovementAnalysis?.population)populations.revision_comparable=data.finishMovementAnalysis.population;
   if(state.quantities&&['quantity-scurve','challenge-contract'].includes(result.key))register('boq_items','BOQ source quantity items','quantity_item',state.quantities.items,r=>r.quantityItemId,'BOQ source scope, separate from measured installed quantities');
-  if(model)register('relationships','Source relationship records','relationship',model.relationships,(r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':')));
+  // The relationship population depends only on the shared programme model and
+  // Data Date of this exact project version. Build it once per shared context
+  // (same inputs, same contract) instead of re-sorting and re-hashing every
+  // relationship ID for each module.
+  if(model){
+    if(!shared.relationshipsRegistered){
+      register('relationships','Source relationship records','relationship',model.relationships,(r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':')));
+      shared.relationshipsRegistered=populations.relationships;
+    }
+    populations.relationships=shared.relationshipsRegistered;
+  }
   if(data.windows||data.windowCandidates)register('windows','Compared programme windows','programme_window',data.windows??data.windowCandidates,(r,i)=>String(r.windowId??i),'comparison of dated programme revisions');
   if(data.points)register('series_points','Reported series points','series_point',data.points,(r,i)=>String(r.dateIso??r.periodEnd??r.revisionId??i),'each series retains its stated actual, planned or forecast date basis');
   const commercial=data.position;

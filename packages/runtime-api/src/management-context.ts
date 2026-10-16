@@ -83,6 +83,8 @@ export interface ProgrammeControlStagePosition {
   latestCurrentFinishIso: string | null;
   latestForecastFinishIso: string | null;
   lowestFloatHours: number | null;
+  lowestFloatActivityId: string | null;
+  lowestFloatCalendarIds: (string | null)[];
   sampleActivities: Array<{
     activityId:string;name:string|null;wbsPath:string|null;
     currentFinishIso:string|null;forecastFinishIso:string|null;finishIso:string|null;totalFloatHours:number|null
@@ -130,6 +132,7 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
     const open=rows.filter(r=>r.status!=='completed');
     const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
     const knownFloat=open.map(r=>r.totalFloatHours).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
+    const lowestFloat=knownFloat.length?Math.min(...knownFloat):null;
     const rule=stageRules.find(r=>r.stage===stage);
     const wbsIds=[...new Set(rows.map(r=>r.wbsId).filter((v):v is string=>!!v))];
     const wbsPaths=[...new Set(wbsIds.map(id=>paths.get(id)??id))];
@@ -141,7 +144,10 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
       dependencyStages:[...(incomingStages.get(stage)??new Set<ProgrammeControlStage>())],
       earliestStartIso:currentStarts[0]??null,latestFinishIso:effectiveFinishes.at(-1)??null,
       earliestCurrentStartIso:currentStarts[0]??null,latestCurrentFinishIso:currentFinishes.at(-1)??null,
-      latestForecastFinishIso:effectiveFinishes.at(-1)??null,lowestFloatHours:knownFloat.length?Math.min(...knownFloat):null,
+      latestForecastFinishIso:effectiveFinishes.at(-1)??null,lowestFloatHours:lowestFloat,
+      // T06: first open activity carrying the lowest float; its calendar gives working days.
+      lowestFloatActivityId:lowestFloat===null?null:open.find(r=>r.totalFloatHours===lowestFloat)?.activityId??null,
+      lowestFloatCalendarIds:[...new Set(open.filter(r=>typeof r.totalFloatHours==='number'&&Number.isFinite(r.totalFloatHours)).map(r=>r.calendarId??null))],
       sampleActivities:[...open].sort((a,b)=>(a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER))
         .slice(0,5).map(r=>({activityId:r.activityId,name:r.name,wbsPath:r.wbsId?paths.get(r.wbsId)??null:null,
           currentFinishIso:r.currentFinishIso,forecastFinishIso:r.forecastFinishIso,

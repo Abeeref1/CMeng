@@ -348,6 +348,10 @@ function seriesForUnit(
   snapshots: readonly InstalledQuantitySnapshot[],
   activities: ReadonlyMap<string, CanonicalScheduleActivity>,
   intervalDays: number,
+  // Optional source-order indexes by quantityItemId. Filtering an item's own
+  // index slice with the same predicate yields the same rows in the same order.
+  allocationsByItem?: ReadonlyMap<string, readonly QuantityScheduleAllocation[]>,
+  snapshotsByItem?: ReadonlyMap<string, readonly InstalledQuantitySnapshot[]>,
 ): QuantityScurveSeries {
   const itemIds = new Set(
     items.map(
@@ -355,6 +359,7 @@ function seriesForUnit(
         item.quantityItemId,
     ),
   );
+  const onlyItemId = itemIds.size === 1 ? items[0]!.quantityItemId : null;
 
   const knownContract = items.filter(
     (item) =>
@@ -371,7 +376,7 @@ function seriesForUnit(
 
   const withheldItemIds=new Set(items.filter(item=>boqNumericsNeedConfirmation(item.diagnostics)).map(item=>item.quantityItemId));
   const relevantAllocations =
-    allocations.filter(
+    (onlyItemId !== null && allocationsByItem ? allocationsByItem.get(onlyItemId) ?? [] : allocations).filter(
       (allocation) =>
         itemIds.has(
           allocation.quantityItemId,
@@ -421,7 +426,7 @@ function seriesForUnit(
     );
 
   const itemSnapshots =
-    snapshots.filter(
+    (onlyItemId !== null && snapshotsByItem ? snapshotsByItem.get(onlyItemId) ?? [] : snapshots).filter(
       (snapshot) =>
         itemIds.has(
           snapshot.quantityItemId,
@@ -615,6 +620,19 @@ export function buildQuantityScurveProjection(
     byUnit.set(key, list);
   }
 
+  // One source-order pass instead of scanning every allocation and snapshot
+  // once per BOQ item series (items x allocations).
+  const allocationsByItem = new Map<string, QuantityScheduleAllocation[]>();
+  for (const allocation of quantities.allocations) {
+    const list = allocationsByItem.get(allocation.quantityItemId);
+    if (list) list.push(allocation); else allocationsByItem.set(allocation.quantityItemId, [allocation]);
+  }
+  const snapshotsByItem = new Map<string, InstalledQuantitySnapshot[]>();
+  for (const snapshot of quantities.installedSnapshots) {
+    const list = snapshotsByItem.get(snapshot.quantityItemId);
+    if (list) list.push(snapshot); else snapshotsByItem.set(snapshot.quantityItemId, [snapshot]);
+  }
+
   const series = [
     ...byUnit.values(),
   ]
@@ -626,6 +644,8 @@ export function buildQuantityScurveProjection(
         quantities.installedSnapshots,
         activities,
         intervalDays,
+        allocationsByItem,
+        snapshotsByItem,
       ),
     )
     .sort((a, b) =>

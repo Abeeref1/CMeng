@@ -144,6 +144,9 @@ export function buildActivityAnalyticsProjection(
       const dates=dateExceptions(activity);
       const variance=finishVarianceDays(activity,sourceInstant);
       const floatPosition=position(activity);
+      // Same values and key order as spreading `dates` and the delay status,
+      // without allocating two temporary objects for every source activity.
+      const delay=activityDelayStatus({missedPlannedStart:dates.missedPlannedStart,finishOverdue:dates.finishOverdue,status:activity.status,finishVarianceDays:variance});
 
       return {
         activityId: activity.activityId,
@@ -184,8 +187,12 @@ export function buildActivityAnalyticsProjection(
         criticality:floatPosition.criticality,
         floatRiskWatchlist:floatPosition.floatRiskWatchlist,
         finishVarianceDays: variance,
-        ...dates,
-        ...activityDelayStatus({...dates,status:activity.status,finishVarianceDays:variance}),
+        missedPlannedStart: dates.missedPlannedStart,
+        finishOverdue: dates.finishOverdue,
+        startOverdueCalendarDays: dates.startOverdueCalendarDays,
+        finishOverdueCalendarDays: dates.finishOverdueCalendarDays,
+        scheduleDelayed: delay.scheduleDelayed,
+        delayStatus: delay.delayStatus,
 
         predecessorIds: predecessors,
         successorIds: successors,

@@ -1,4 +1,5 @@
 import {projectScopeClassification} from './location-review';
+import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {canonicalHeader,dateValue,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
 import {operationalReporting,claimsReporting,reportingState} from './reporting-state';
@@ -109,7 +110,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       if(!pressure)continue;const c=byId.get(a.activityId);
       const missedFinish=!!a.currentFinishIso&&!!dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso;
       const dueDate=(missedStart&&!missedFinish?a.currentStartIso:a.currentFinishIso)?.slice(0,10)??null;
-      const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:(a.name?a.name+' · ':'')+(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+a.totalFloatHours+' hours total float':missedStart&&!missedFinish?'Activity has not started after its planned start':'Unfinished activity is past its current finish'),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
+      const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:(a.name?a.name+' · ':'')+(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+floatHoursText(a.totalFloatHours,sourceCalendarWorkingDays(programme).workingDayHours(a.calendarId))+' total float':missedStart&&!missedFinish?'Activity has not started after its planned start':'Unfinished activity is past its current finish'),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
       retain(base);add('owner',pmcRoleOwner('schedule',null),base);if(!c)continue;
       add('contractor',c.contractor,base);add('subcontractor',c.subcontractor,base);add('discipline',c.discipline,base);add('package',c.package,base);add('workfront',c.workFront,base);
     }

@@ -16,12 +16,33 @@ export const independentForecastCache =
 // exact CPM result across those copies without holding obsolete projections.
 // Hash the WHOLE programme (including calendars, logic and actuals), rather
 // than trusting an activity count, revision label or mutable project ID.
-const forecastContentPool=new Map<string,WeakRef<ReturnType<typeof buildIndependentForecastProjection>>>();
-const modelFingerprints=new WeakMap<ProjectRuntimeState['schedules'][number]['revision']['model'],string>();
-function modelFingerprint(model:ProjectRuntimeState['schedules'][number]['revision']['model']){
+type ForecastModel=ProjectRuntimeState['schedules'][number]['revision']['model'];
+type ForecastProjection=ReturnType<typeof buildIndependentForecastProjection>;
+// The full-content hash is still the only equality test. It is computed only
+// when a pooled programme has the same identity shape (project, revision, Data
+// Date, source and table sizes) - a necessary condition for an identical copy -
+// instead of hashing every distinct revision on its first cold CPM lookup.
+// A pooled projection keeps its own programme reachable (weakly, only while
+// the projection itself is reachable) so its hash can be taken on demand.
+type PoolEntry={shape:string;projection:WeakRef<ForecastProjection>;fingerprint?:string};
+const forecastContentPool:PoolEntry[]=[];
+const projectionModels=new WeakMap<ForecastProjection,ForecastModel>();
+const modelFingerprints=new WeakMap<ForecastModel,string>();
+function modelFingerprint(model:ForecastModel){
   const prior=modelFingerprints.get(model);if(prior)return prior;
   const fingerprint=createHash('sha256').update(JSON.stringify(model)).digest('hex');
   modelFingerprints.set(model,fingerprint);return fingerprint;
+}
+function modelShape(model:ForecastModel){
+  return JSON.stringify([model.projectId,model.sourceRevisionId,model.dataDateIso,model.source,
+    model.activities?.length,model.relationships?.length,model.calendars?.length,model.wbs?.length]);
+}
+function entryFingerprint(entry:PoolEntry){
+  if(entry.fingerprint===undefined){
+    const pooled=entry.projection.deref(),pooledModel=pooled&&projectionModels.get(pooled);
+    if(pooledModel)entry.fingerprint=modelFingerprint(pooledModel);
+  }
+  return entry.fingerprint;
 }
 
 export function cachedIndependentForecast(
@@ -40,9 +61,15 @@ export function cachedIndependentForecast(
   }
   const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
   const started=profiling?performance.now():0;
-  const fingerprint=modelFingerprint(model);
+  const shape=modelShape(model);
+  let fingerprint:string|undefined;
+  let shared:ForecastProjection|undefined;
+  for(const entry of forecastContentPool){
+    if(entry.shape!==shape)continue;
+    fingerprint??=modelFingerprint(model);
+    if(entryFingerprint(entry)===fingerprint){shared=entry.projection.deref();break;}
+  }
   const afterFingerprint=profiling?performance.now():0;
-  const shared=forecastContentPool.get(fingerprint)?.deref();
   if(shared){independentForecastCache.set(key,shared);return shared;}
   const projection =
     buildIndependentForecastProjection(
@@ -67,8 +94,16 @@ export function cachedIndependentForecast(
     projectId:model.projectId,sourceRevisionId:model.sourceRevisionId,
     activities:model.activities.length,relationships:model.relationships.length,calendars:model.calendars.length,
     fingerprintMs:afterFingerprint-started,forecastMs:performance.now()-afterFingerprint})+'\n');
-  forecastContentPool.delete(fingerprint);
-  forecastContentPool.set(fingerprint,new WeakRef(projection));
-  while(forecastContentPool.size>24)forecastContentPool.delete(forecastContentPool.keys().next().value!);
+  // Replace the pooled entry for this exact content (or a collected one of
+  // the same shape), then keep the 24 most recent entries.
+  for(let index=forecastContentPool.length-1;index>=0;index--){
+    const entry=forecastContentPool[index]!;
+    if(entry.shape!==shape)continue;
+    const known=entryFingerprint(entry);
+    if(known===undefined||known===fingerprint)forecastContentPool.splice(index,1);
+  }
+  projectionModels.set(projection,model);
+  forecastContentPool.push({shape,projection:new WeakRef(projection),...(fingerprint===undefined?{}:{fingerprint})});
+  while(forecastContentPool.length>24)forecastContentPool.shift();
   return projection;
 }

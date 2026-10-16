@@ -51,6 +51,7 @@ import {projectSourceLabels} from './project-presentation';
 import {attachProjectFacts,projectFactsForState,completedProjectFactsForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
+import {analyticalOperationalDocuments,SOURCE_ANALYTICAL_USE} from "./operational-reporting";
 import { commercialFoundationForState, commercialFoundationCapabilityForState } from "./commercial-foundation-runtime";
 import { commercialPerformanceCapabilityForState } from "./commercial-performance-runtime";
 import { commercialContractControlCapabilityForState } from "./commercial-contract-controls-runtime";
@@ -123,7 +124,6 @@ import {
 } from "../../pmo-analysis/src";
 import {
   buildProgressBreakdownProjection,
-  buildDeliveryWorkfrontBreakdown,
 } from "../../progress-breakdown/src";
 import {
   buildProgressReportProjection,
@@ -276,10 +276,6 @@ const bundleCache =
     string,
     ProjectionBundle
   >();
-// The Dashboard-only bundle owns the same source/version as the specialist
-// bundle, but never publishes an unbuilt specialist detail as a complete
-// projection. Opening a specialist page still calculates the complete model.
-const dashboardBundleCache=new Map<string,ProjectionBundle>();
 /** Read a completed identical-version schedule analysis. This never starts a
  * calculation or changes authority, and is safe to use when building shared
  * facts after the specialist bundle has already been calculated. */
@@ -632,15 +628,15 @@ function calculationSnapshotTime(state:ProjectRuntimeState):string {
   return sourceTimes.sort().at(-1)??new Date().toISOString();
 }
 
+// One full calculation per project version. The Dashboard, Accountability,
+// every specialist page, the shared facts and the action register all read
+// this same bundle; no caller receives a reduced or deferred variant.
 function buildBundle(
   state: ProjectRuntimeState,
-  purpose:'full'|'dashboard'='full',
 ): ProjectionBundle {
   state = reportingState(state);
-  const dashboardOnly=purpose==='dashboard';
-  const cache=dashboardOnly?dashboardBundleCache:bundleCache;
   const cached =
-    cache.get(
+    bundleCache.get(
       state.projectId,
     );
   if (
@@ -652,9 +648,6 @@ function buildBundle(
   }
 
   const bundleProfile=process.env.CMENG_PROFILE_PERF?.trim()==='1';
-  const duplicateFullBundleCallers=bundleProfile&&purpose==='full'&&dashboardBundleCache.get(state.projectId)?.version===state.version
-    ?(new Error().stack??'').split('\n').slice(2,8).map(v=>v.trim())
-    :null;
   const bundleTimings:Array<{part:string;ms:number}>=[];
   let bundleMark=bundleProfile?performance.now():0;
   const measureBundle=(part:string)=>{
@@ -1367,9 +1360,6 @@ function buildBundle(
   );
 
   measureBundle('nearcritical_projection');
-  // The Dashboard displays WBS workfront rows and the project summary,
-  // not every hierarchy/dimension drill-down. Reuse the EXACT owning row
-  // equations; the full specialist calculation remains on its own page.
   const breakdownInput = {
     baselineModel: controlledBaseline?.revision.model ?? null,
     sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null,sourcePlanPositions),
@@ -1380,19 +1370,8 @@ function buildBundle(
     generatedAt,
     producerVersion: versions.breakdown,
   };
-  const progressBreakdown=dashboardOnly
-    ? buildDeliveryWorkfrontBreakdown(model,breakdownInput)
-    : buildProgressBreakdownProjection(model,breakdownInput);
-  modules.set("progress-breakdown",dashboardOnly
-    ? available("progress-breakdown",{
-        ...progressBreakdown,projectionKey:"progress_breakdown",
-        projectId:state.projectId,sourceRevisionId:model.sourceRevisionId,
-        totalActivityCount:progressBreakdown.rows.reduce((sum,row)=>sum+row.activityCount,0),
-        // Not a substitute for the full specialist hierarchy/dimension pages.
-        specialistDetailState:"on_demand",generatedAt,producerVersion:versions.breakdown,
-      },["Complete WBS/dimension drill-down on Progress Breakdown"],"partial",
-      "Complete original WBS rows and scope total are shown. Specialist hierarchy and classification drill-down is calculated when opened.")
-    : available("progress-breakdown",progressBreakdown));
+  const progressBreakdown=buildProgressBreakdownProjection(model,breakdownInput);
+  modules.set("progress-breakdown",available("progress-breakdown",progressBreakdown));
 
   measureBundle('progress_breakdown_projection');
   const independentStageTimings:Array<{part:string;ms:number}>=[];
@@ -1596,7 +1575,6 @@ function buildBundle(
   );
 
   markIndependent('revision_trend');
-  if(!dashboardOnly){
   const varianceTrends =
     buildVarianceTrendsProjection(
       ordered.map(
@@ -1630,17 +1608,6 @@ function buildBundle(
     ),
   );
 
-  }else{
-    // This full-population activity-by-revision specialist series is not
-    // displayed on the Dashboard. Its source dates/rows are unchanged and the
-    // owning page continues to calculate the complete result on demand.
-    modules.set("variance-trends",available("variance-trends",
-      {projectionKey:"variance_trends",generatedAt,producerVersion:versions.variance,
-       projectId:state.projectId,sourceRevisionId:model.sourceRevisionId,
-       specialistDetailState:"on_demand",revisionCount:ordered.length},
-      ["Variance Trends specialist source history"],"partial",
-      "The detailed variance-history series is calculated on its specialist page; the Dashboard does not assert an unchecked historical total."));
-  }
   markIndependent('variance_trends');
   if (ordered.length >= 2) {
     const before =
@@ -3639,9 +3606,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
 
   measureBundle('board_and_finalization');
   if(bundleProfile)process.stdout.write(JSON.stringify({event:'project_bundle_profile',projectId:state.projectId,
-    purpose,timings:bundleTimings,totalMs:bundleTimings.reduce((sum,part)=>sum+part.ms,0),
-    ...(duplicateFullBundleCallers?{duplicateFullBundleCallers}:{})})+'\n');
-  cache.set(
+    timings:bundleTimings,totalMs:bundleTimings.reduce((sum,part)=>sum+part.ms,0)})+'\n');
+  bundleCache.set(
     state.projectId,
     bundle,
   );
@@ -7696,8 +7662,10 @@ function resolveProjectModuleCandidate(
     }
     // S-20: exact resource-ID linkage only. A shared trade name alone is
     // insufficient evidence of the same crew, resource or approved capacity.
-    const resourceDocs=state.evidenceDocuments.filter(doc=>['active','additive'].includes(doc.basisState)
-      &&/resource|manpower|labou?r|crew|capacity|time.?phas/i.test(
+    // T04: shared source-analytical rule; a unique fully read candidate is
+    // used and labelled (registerEvidenceState 'candidate'), never adopted.
+    const resourceDocs=analyticalOperationalDocuments(state.evidenceDocuments).filter(doc=>
+      /resource|manpower|labou?r|crew|capacity|time.?phas/i.test(
         [doc.sourceFilename,doc.documentType].join(' ')));
     const dated=groups.size&&resourceDocs.length
       ?weeklyResourceCapacityEvidence(resourceDocs,{dataDateIso:model.dataDateIso})
@@ -7738,6 +7706,8 @@ function resolveProjectModuleCandidate(
       };
       const identityMatches=matchingId?weeksById.get(matchingId)??[]:[];
       const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit));
+      // Label only a trade whose figures actually came from an unadopted source.
+      const fromUnadopted=identityMatches.some(p=>((p as any).receipts??[]).some((r:any)=>r.basisState==='candidate'));
       const matchBasis=sourceMatch.length?'Exact source resource ID':
         uniqueNameId&&identityMatches.length?'Unique matching trade name':
         possibleNames.size>1?'Trade name matches multiple register IDs; reconciliation required':
@@ -7757,9 +7727,12 @@ function resolveProjectModuleCandidate(
         registerAvailableCapacity:sumKnown(forward,'availableCapacity'),
         registerActualToDate:sumKnown(history,'actualApprovedUsage'),
         registerEvidenceState:dated?.state??'not_found',
+        ...(fromUnadopted?{registerSourceUse:SOURCE_ANALYTICAL_USE,registerSourceNote:'Capacity read from source; not formally adopted'}:{}),
         registerSourceRefs:[...new Set(identityMatches.map(row=>row.sourceRef))].slice(0,12),
         basis:matching.length?
-          matchBasis+'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.':
+          matchBasis+(fromUnadopted
+            ?'. Source weekly planned demand, capacity read from a source that is not formally adopted (not approved capacity) and actual usage are separate; no crew overload verdict without approved comparable capacity.'
+            :'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.'):
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
   }
@@ -7772,16 +7745,9 @@ function resolveProjectModuleCandidate(
     const fields=key==='pmo-analysis'?Object.keys(interpretation):['progress-report','cost-forecast','commercial-overview'].includes(key)?['progressMeasures']:
       ['schedule-analytics','independent-forecast'].includes(key)?['calendarRecalculatedFinishIso','calendarReview','productivityForecast']:[];
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
-    if(key==='progress-report'){
-      // The Dashboard already owns the complete original source WBS rows.
-      // Never start all 29 specialist calculations a second time merely to
-      // copy identical rows into Progress Report. For standalone specialist
-      // access the full bundle remains the original source of those rows.
-      const snapshot=dashboardBundleCache.get(state.projectId);
-      const prior= snapshot?.version===state.version?snapshot:bundleCache.get(state.projectId);
-      const detail=prior?.version===state.version?prior.modules.get('progress-breakdown')?.data as any:null;
-      (result.data as any).areaProgress=detail?.rows??(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
-    }
+    // The shared full bundle is cached per project version, so this reads
+    // the already calculated Progress Breakdown rows rather than rebuilding.
+    if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
   }
   return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims, key==='milestones'?milestoneReviewForProjection(state,model):undefined)));
 }
@@ -7893,12 +7859,14 @@ export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawFor
 }
 
 const projectActionCache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildProjectActionRegister>}>();
-function buildProjectActionRegister(state:ProjectRuntimeState,availableModules?:Map<string,ModuleRuntimeResult>){
-  // A first-open Dashboard can rank ALL retained source-record actions using
-  // the module calculations it already owns, without forcing the full 29-module
-  // specialist bundle. The normal specialist register still resolves all modules.
-  if(!availableModules)resolveProjectModule(state,'pmo-analysis');
-  const modules=availableModules??resolvedProjectCache.get(state.projectId)!.modules;
+function buildProjectActionRegister(state:ProjectRuntimeState){
+  // Resolve raw owning projections before facts are attached. This producer never
+  // calls a page/API wrapper, so the shared-facts consumer cannot recurse.
+  // Every certified module raises issues into this register, so it is always
+  // built from the complete shared module set; Dashboard and Accountability
+  // therefore show the same actions.
+  resolveProjectModule(state,'pmo-analysis');
+  const modules=resolvedProjectCache.get(state.projectId)!.modules;
   const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]));
   const forecast=modules.get('independent-forecast')?.data as any;
   const review=projectActions(state,assessment,{completionPosition:forecast?.completionPosition});
@@ -7994,9 +7962,9 @@ function moduleForProjectUncached(
     );
   }
   const finalize=(result:ModuleRuntimeResult)=>{
-    // The first Dashboard already holds exact-version canonical facts from
-    // the source/action producers used to draw the screen. Do not rebuild the
-    // 29-module specialist register merely to attach those same facts again.
+    // The Dashboard is the shared full management surface, which already
+    // carries the canonical full-calculation facts. Publish it unchanged so the
+    // Dashboard page equals the full management calculation exactly.
     const attached=key==='master-dashboard'&&(result.data as any)?.projectFacts
       ? result : attachProjectFacts(state,result);
     // A position verdict that predates canonical facts can compare against
@@ -8067,6 +8035,20 @@ function moduleForProjectUncached(
 }
 
 const managementModuleKeys = ["master-dashboard", "command-center", "master-control-programme", "source-quality"];
+
+/** True only when this worker already holds the finished full calculation for
+ * the CURRENT project version. Reads in-memory caches only; it never starts,
+ * resumes or schedules a calculation. 'modules' covers the specialist bundle
+ * and the shared module set (Accountability, Director position); 'management'
+ * additionally requires the one shared management calculation (Dashboard and
+ * management surfaces). */
+export function fullCalculationRetained(projectId:string,scope:'modules'|'management'):boolean{
+  const state=runtimeProjects.get(projectId);if(!state)return false;
+  const version=state.version;
+  if(bundleCache.get(projectId)?.version!==version)return false;
+  if(resolvedProjectCache.get(projectId)?.version!==version)return false;
+  return scope==='modules'||managementProjectionCache.get(projectId)?.version===version;
+}
 
 export function directorForProject(
   projectId: string,
@@ -8143,25 +8125,27 @@ export function compactManagementOperationalReporting(operations: ReturnType<typ
 }
 
 const managementProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
-const dashboardProjectionCache = new Map<string, {version: number; data: ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}}>();
 
+/** One management calculation per project version, shared by the Dashboard,
+ * Command Center, Master Control Programme, Source Quality and Accountability.
+ * The optional purpose is accepted only for existing callers: every purpose
+ * returns this same complete result from the same cache, so the Dashboard can
+ * never show a different figure or action count from the full calculation. */
 export function managementSurfacesForProject(
   projectId: string,
-  purpose:'full'|'dashboard'='full',
+  _purpose?:'full'|'dashboard',
 ): (ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}) | null {
   const state =
     runtimeProjects.get(projectId);
   if (!state) return null;
 
-  const dashboardOnly=purpose==='dashboard';
-  const cache=dashboardOnly?dashboardProjectionCache:managementProjectionCache;
-  const cached = cache.get(projectId);
+  const cached = managementProjectionCache.get(projectId);
   if (cached?.version === state.version) return cached.data;
 
   const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
   const mp0=profiling?performance.now():0;
   const bundle =
-    buildBundle(state,purpose);
+    buildBundle(state);
   const mp1=profiling?performance.now():0;
   const generatedAt =
     bundle.generatedAt;
@@ -8192,91 +8176,18 @@ export function managementSurfacesForProject(
     baselineCandidates.at(-1) ??
     null;
 
-  // The source-informed Dashboard is NOT a second request for all 29
-  // specialist pages. It consumes the already-built exact-version projections
-  // and the source-owned commercial producers. Full WBS dimensions and full
-  // activity-by-revision variance history are computed on their OWN pages.
-  // Deferred detail retains a pending status; never claim checked or zero.
+  // Keep the exact same certified module order and results, while allowing
+  // T11 cold-run profiles to identify the shared producer(s) behind the
+  // expensive resolution stage. Profiling does not skip a module or write data.
   const resolvedModules=new Map<string,ModuleRuntimeResult>();
   const moduleResolutionProfile:Array<{module:string;ms:number}>=[];
-  const scoped=dashboardOnly?reportingState(state):null;
-  const sharedModel=dashboardOnly?projectControlSchedule(scoped!)?.revision.model:null;
-  const sharedBasis=sharedModel?projectScheduleControlBasis(scoped!):null;
-  let sharedFloatReview:ReturnType<typeof activityFloatReconciliation>|undefined;
-  const floatReviewKeys=new Set(['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical']);
-  const deepOnlyKeys=new Set(['variance-trends','progress-breakdown','challenge-contract']);
-  const dashboardInterpretation=bundle.director?.sourceInterpretation;
   for(const descriptor of certifiedAnalyticalModules){
     const started=profiling?performance.now():0;
-    let result:ModuleRuntimeResult;
-    if(!dashboardOnly)result=resolveProjectModule(state,descriptor.key);
-    else{
-      const bundleResult=bundle.modules.get(descriptor.key);
-      if(deepOnlyKeys.has(descriptor.key)){
-        // Keep source WBS scope rows for Dashboard filters without calculating
-        // the six specialist hierarchy/dimension views or unused full history.
-        result=bundleResult&&bundleResult.data?bundleResult:
-          available(descriptor.key,{specialistDetailState:'on_demand',
-            projectId:state.projectId,sourceRevisionId:sharedModel?.sourceRevisionId??null,
-            generatedAt:bundle.generatedAt},['Specialist calculation'], 'partial',
-            'The full specialist detail is available on its own page.');
-      }else{
-        // Canonical source-commercial/resource producers never infer missing
-        // values. A module with no Dashboard source stays pending, rather than
-        // calling resolveProjectModule(), which builds the entire full bundle.
-        const candidate=bundleResult?.data?bundleResult:
-          canonicalCommercialModule(scoped!,descriptor.key) ??
-          canonicalResourceModule(scoped!,descriptor.key) ??
-          null;
-        if(!candidate){
-          result=available(descriptor.key,{specialistDetailState:'on_demand',
-            projectId:state.projectId,sourceRevisionId:sharedModel?.sourceRevisionId??null,
-            generatedAt:bundle.generatedAt},['Specialist source and calculation'], 'partial',
-            'The detailed specialist position is calculated when its page is opened.');
-        }else{
-          if(floatReviewKeys.has(descriptor.key)&&sharedModel&&sharedBasis&&!sharedFloatReview){
-            sharedFloatReview=activityFloatReconciliation(sharedModel,
-              cachedIndependentForecast(sharedModel,bundle.generatedAt),
-              sharedBasis.analysisConfig,scoped!.version);
-          }
-          result=resolveProjectModuleCandidate(scoped!,descriptor.key,candidate,
-            floatReviewKeys.has(descriptor.key)?sharedFloatReview:undefined,
-            dashboardInterpretation,true);
-        }
-      }
-    }
-    resolvedModules.set(descriptor.key,result);
+    resolvedModules.set(descriptor.key,resolveProjectModule(state,descriptor.key));
     if(profiling)moduleResolutionProfile.push({module:descriptor.key,ms:performance.now()-started});
   }
-  if(dashboardOnly&&scoped){
-    const forecast=resolvedModules.get('independent-forecast')?.data as any;
-    const near=resolvedModules.get('near-critical')?.data as any;
-    const names=new Map((sharedModel?.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
-    for(const key of ['pmo-analysis','independent-forecast']){
-      const data=resolvedModules.get(key)?.data as any;
-      if(data&&forecast){
-        data.completionPosition=completionPosition(data,forecast,names);
-        if(key==='pmo-analysis')data.knownScheduleCounts={
-          critical:near?.knownCriticalCount??near?.criticalCount??null,
-          nearCritical:near?.nearCriticalCount??null,
-          negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
-      }
-    }
-    const interfacePosition=interfaceIntelligence(scoped);
-    for(const key of ['lookahead-schedule','delay-claims']){
-      const module=resolvedModules.get(key);
-      if(module?.data&&typeof module.data==='object')
-        resolvedModules.set(key,{...module,data:{...(module.data as Record<string,unknown>),interfacePosition}});
-    }
-    // Original full Project Diagnosis is required on the FIRST Dashboard
-    // response. It consumes its exact owning source projections, not a cover
-    // screen or a promise to load later.
-    const diagnosis=buildProjectDiagnosis(scoped,resolvedModules);
-    const management=resolvedModules.get('pmo-analysis')?.data as any;
-    if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
-  }
   if(profiling)process.stdout.write(JSON.stringify({
-    event:'management_resolved_modules_breakdown',projectId,purpose,
+    event:'management_resolved_modules_breakdown',projectId,
     modules:moduleResolutionProfile,
     totalMs:moduleResolutionProfile.reduce((sum,row)=>sum+row.ms,0),
   })+'\n');
@@ -8702,9 +8613,7 @@ export function managementSurfacesForProject(
         }),
       );
 
-  const dashboardActionRegister=dashboardOnly
-    ? buildProjectActionRegister(reportingState(state),resolvedModules):null;
-  const canonicalFacts=projectFactsForState(state,dashboardActionRegister??undefined);
+  const canonicalFacts=projectFactsForState(state);
   const mp4=profiling?performance.now():0;
   const surfaces = buildManagementSurfaces({
     schemaVersion: "1.0",
@@ -8869,7 +8778,7 @@ export function managementSurfacesForProject(
   const issueStage6=profiling?performance.now():0;
   const deliveryPosition=deliveryDashboard(state);
   const issueStage7=profiling?performance.now():0;
-  const canonicalActions=(dashboardActionRegister??projectActionRegisterForState(state)).actions;
+  const canonicalActions=projectActionRegisterForState(state).actions;
   const issueStage8=profiling?performance.now():0;
   // Do not overwrite grouped accountability decisions with the raw shared register.
   // Both totals remain explicitly distinguished by their authority and population.
@@ -8901,7 +8810,7 @@ export function managementSurfacesForProject(
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
     buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
-  cache.set(projectId, {version: state.version, data: result});
+  managementProjectionCache.set(projectId, {version: state.version, data: result});
   return result;
 }
 
@@ -8913,7 +8822,6 @@ export function managementSurfaceForProject(
   const surfaces =
     managementSurfacesForProject(
       projectId,
-      key==='master-dashboard'?'dashboard':'full',
     );
   if (!surfaces) {
     return null;

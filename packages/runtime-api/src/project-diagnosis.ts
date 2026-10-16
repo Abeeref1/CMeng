@@ -4,6 +4,7 @@ import type {ActivityAnalyticsRow} from '../../activity-analytics/src/types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
+import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
@@ -146,11 +147,20 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    criticality:r.criticality,missedPlannedStart:r.missedPlannedStart,finishOverdue:r.finishOverdue,scheduleDelayed:r.scheduleDelayed,delayStatus:r.delayStatus,
    onDrivingNetwork:network?drivingIds.has(r.activityId):null,predecessors:r.predecessorIds.join('; '),successors:r.successorIds.join('; '),
    constraints:(sourceById.get(r.activityId)?.sourceConstraints??[]).map(c=>c.type+(c.dateIso?' '+c.dateIso:'')).join('; '),
-   previousPredecessorSlippage:(incoming.get(r.activityId)??[]).flatMap(rel=>{const movement=previousMovement(rel.predecessorActivityId);return numeric(movement)&&movement>0?[rel.predecessorActivityId+' moved '+movement+' elapsed days later']:[];}).join('; ')});
- const networkRows=(network?.activityIds??[]).flatMap((id:string,index:number)=>{const r=byId.get(id);if(!r)return [];const calculated=calculatedById.get(id);return [{...describe(r),sequence:index+1,
+   previousPredecessorSlippage:predecessorSlippage(r.activityId)});
+ // Same '; '-joined text as flatMap(...).join('; '), without per-row arrays.
+ function predecessorSlippage(id:string){
+   let text='',first=true;
+   for(const rel of incoming.get(id)??[]){const movement=previousMovement(rel.predecessorActivityId);
+     if(numeric(movement)&&movement>0){text+=(first?'':'; ')+rel.predecessorActivityId+' moved '+movement+' elapsed days later';first=false;}}
+   return text;
+ }
+ // describe() returns a fresh object, so appending the network fields in place
+ // yields the same keys, order and values as spreading it into a new object.
+ const networkRows=(network?.activityIds??[]).flatMap((id:string,index:number)=>{const r=byId.get(id);if(!r)return [];const calculated=calculatedById.get(id);return [Object.assign(describe(r),{sequence:index+1,
    calculatedStartIso:calculated?.independentEarlyStartIso??null,calculatedFinishIso:calculated?.independentEarlyFinishIso??null,independentTotalFloatHours:calculated?.independentTotalFloatHours??null,
    drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; '),
-   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; ')}];});
+   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; ')})];});
  // Reuse the exact Schedule Analytics source-float population from this
  // resolved module set. The independent reconciliation still runs in the
  // shared criticality producer, and missing/unresolved values remain unknown.
@@ -166,12 +176,16 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  timed('setup_and_source_counts');
  const pressureRows=rows.filter(r=>unfinished(r)&&(drivingIds.has(r.activityId)||r.criticality==='critical'||r.criticality==='near_critical'||r.scheduleDelayed||(previousMovement(r.activityId)??0)>0));
  const rank=(r:ActivityAnalyticsRow)=>drivingIds.has(r.activityId)?0:numeric(r.totalFloatHours)&&r.totalFloatHours<0?1:r.finishOverdue?2:r.missedPlannedStart?3:r.criticality==='critical'?4:r.criticality==='near_critical'?5:6;
- pressureRows.sort((a,b)=>rank(a)-rank(b)||(a.totalFloatHours??Infinity)-(b.totalFloatHours??Infinity)||(previousMovement(b.activityId)??0)-(previousMovement(a.activityId)??0)||a.activityId.localeCompare(b.activityId));
+ // Rank and movement are pure per row; read them once rather than per
+ // comparison. The stable sort over the same keys gives the same order.
+ const pressureOrder=pressureRows.map(r=>({r,rank:rank(r),move:previousMovement(r.activityId)??0}));
+ pressureOrder.sort((x,y)=>x.rank-y.rank||(x.r.totalFloatHours??Infinity)-(y.r.totalFloatHours??Infinity)||y.move-x.move||x.r.activityId.localeCompare(y.r.activityId));
+ pressureOrder.forEach((entry,index)=>{pressureRows[index]=entry.r;});
  timed('pressure_ranking');
- const wbsGroups=new Map<string,{wbsId:string|null;wbs:string;activityCount:number;pressureCount:number;drivingCount:number;criticalCount:number;negativeFloatCount:number;nearCriticalCount:number;missedStartCount:number;overdueFinishCount:number;previousSlippageCount:number;worstFloatHours:number|null}>();
+ const wbsGroups=new Map<string,{wbsId:string|null;wbs:string;activityCount:number;pressureCount:number;drivingCount:number;criticalCount:number;negativeFloatCount:number;nearCriticalCount:number;missedStartCount:number;overdueFinishCount:number;previousSlippageCount:number;worstFloatHours:number|null;worstFloatActivityId:string|null;worstFloatCalendarIds:(string|null)[]}>();
  const pressureSet=new Set(pressureRows.map(r=>r.activityId));
- for(const r of rows){const id=r.wbsId??'',g=wbsGroups.get(id)??{wbsId:r.wbsId,wbs:wbsPath(r.wbsId),activityCount:0,pressureCount:0,drivingCount:0,criticalCount:0,negativeFloatCount:0,nearCriticalCount:0,missedStartCount:0,overdueFinishCount:0,previousSlippageCount:0,worstFloatHours:null};
-   g.activityCount++;if(pressureSet.has(r.activityId))g.pressureCount++;if(unfinished(r)&&drivingIds.has(r.activityId))g.drivingCount++;if(r.criticality==='critical')g.criticalCount++;if(numeric(r.totalFloatHours)&&r.totalFloatHours<0)g.negativeFloatCount++;if(r.criticality==='near_critical')g.nearCriticalCount++;if(r.missedPlannedStart)g.missedStartCount++;if(r.finishOverdue)g.overdueFinishCount++;if((previousMovement(r.activityId)??0)>0)g.previousSlippageCount++;if(numeric(r.totalFloatHours))g.worstFloatHours=g.worstFloatHours===null?r.totalFloatHours:Math.min(g.worstFloatHours,r.totalFloatHours);wbsGroups.set(id,g);}
+ for(const r of rows){const id=r.wbsId??'',g=wbsGroups.get(id)??{wbsId:r.wbsId,wbs:wbsPath(r.wbsId),activityCount:0,pressureCount:0,drivingCount:0,criticalCount:0,negativeFloatCount:0,nearCriticalCount:0,missedStartCount:0,overdueFinishCount:0,previousSlippageCount:0,worstFloatHours:null,worstFloatActivityId:null,worstFloatCalendarIds:[]};
+   g.activityCount++;if(pressureSet.has(r.activityId))g.pressureCount++;if(unfinished(r)&&drivingIds.has(r.activityId))g.drivingCount++;if(r.criticality==='critical')g.criticalCount++;if(numeric(r.totalFloatHours)&&r.totalFloatHours<0)g.negativeFloatCount++;if(r.criticality==='near_critical')g.nearCriticalCount++;if(r.missedPlannedStart)g.missedStartCount++;if(r.finishOverdue)g.overdueFinishCount++;if((previousMovement(r.activityId)??0)>0)g.previousSlippageCount++;if(numeric(r.totalFloatHours)&&!g.worstFloatCalendarIds.includes(r.calendarId??null))g.worstFloatCalendarIds.push(r.calendarId??null);if(numeric(r.totalFloatHours)&&(g.worstFloatHours===null||r.totalFloatHours<g.worstFloatHours)){g.worstFloatHours=r.totalFloatHours;g.worstFloatActivityId=r.activityId;}wbsGroups.set(id,g);}
  const wbsRows=[...wbsGroups.values()].sort((a,b)=>b.drivingCount-a.drivingCount||b.pressureCount-a.pressureCount||(a.worstFloatHours??Infinity)-(b.worstFloatHours??Infinity)||a.wbs.localeCompare(b.wbs))
    .map(row=>({...row,drivingCount:network?row.drivingCount:null}));
  timed('wbs_grouping');
@@ -213,10 +227,14 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const unite=(a:string,b:string)=>{const ra=find(a),rb=find(b);if(ra!==rb)parent.set(rb,ra);};
  for(const rel of model.relationships)if(pressureIds.has(rel.predecessorActivityId)&&pressureIds.has(rel.successorActivityId))unite(rel.predecessorActivityId,rel.successorActivityId);
  const componentSizes=new Map<string,number>();for(const id of pressureIds){const root=find(id);componentSizes.set(root,(componentSizes.get(root)??0)+1);}
- const family=(r:ActivityAnalyticsRow)=>String(r.name??r.activityId).toLowerCase().replace(/\b\d+\b/g,'#').replace(/\s+/g,' ').trim();
+ // Family labels and short WBS labels are pure functions of their source text;
+ // compute each distinct value once for the whole pressure population.
+ const familyLabels=new Map<string,string>(),shortWbsLabels=new Map<string|null,string>();
+ const family=(r:ActivityAnalyticsRow)=>{const name=String(r.name??r.activityId);let label=familyLabels.get(name);if(label===undefined){label=name.toLowerCase().replace(/\b\d+\b/g,'#').replace(/\s+/g,' ').trim();familyLabels.set(name,label);}return label;};
+ const shortWbsPath=(id:string|null)=>{let label=shortWbsLabels.get(id);if(label===undefined){label=shortWbs(wbsPath(id));shortWbsLabels.set(id,label);}return label;};
  const actionGroups=new Map<string,{rows:ActivityAnalyticsRow[];linked:any[];movement:number|null;firstRank:number}>();
  pressureRows.forEach((r,index)=>{const movement=previousMovement(r.activityId),linked=checksByActivity.get(r.activityId)??[],root=find(r.activityId),componentSize=componentSizes.get(root)??1;
-   const linkedKey=linked.map(c=>c.recordId).filter(Boolean).sort().join('|'),moveKey=numeric(movement)&&movement>0?movement.toFixed(6):null;
+   const linkedKey=linked.length?linked.map(c=>c.recordId).filter(Boolean).sort().join('|'):'',moveKey=numeric(movement)&&movement>0?movement.toFixed(6):null;
    const category=linkedKey?'linked:'+linkedKey:moveKey&&componentSize>1?'revision-chain:'+moveKey+':'+root:moveKey?'revision-family:'+moveKey+':'+family(r):'activity:'+r.activityId;
    let group=actionGroups.get(category);
    // Only the first 10 distinct ranked action families enter the published
@@ -226,9 +244,9 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    if(!group){if(actionGroups.size>=10)return;group={rows:[],linked:[],movement:numeric(movement)?movement:null,firstRank:index};actionGroups.set(category,group);}
    group.rows.push(r);group.linked.push(...linked);
  });
- const actions=[...actionGroups.values()].sort((a,b)=>a.firstRank-b.firstRank).slice(0,10).map((group,index)=>{const r=group.rows[0]!,linked=[...new Map(group.linked.map(c=>[[c.domain,c.recordId,c.explanation].join('|'),c])).values()],described=describe(r),wbsLabels=[...new Set(group.rows.map(x=>shortWbs(wbsPath(x.wbsId))))],move=group.movement;
+ const actions=[...actionGroups.values()].sort((a,b)=>a.firstRank-b.firstRank).slice(0,10).map((group,index)=>{const r=group.rows[0]!,linked=[...new Map(group.linked.map(c=>[[c.domain,c.recordId,c.explanation].join('|'),c])).values()],described=describe(r),wbsLabels=[...new Set(group.rows.map(x=>shortWbsPath(x.wbsId)))],move=group.movement;
    const groupedCount=group.rows.length,ids=group.rows.map(x=>x.activityId),movementText=numeric(move)&&move>0?(groupedCount+' activities moved '+move+' elapsed days later since the previous adopted revision'):'';
-   const individualWhy=[drivingIds.has(r.activityId)?'On the calculated finish-driving network':'',numeric(r.totalFloatHours)&&r.totalFloatHours<0?r.totalFloatHours+' hours source float':'',r.missedPlannedStart?'Should have started':'',r.finishOverdue?'Finish overdue':''].filter(Boolean).join('; ');
+   const individualWhy=[drivingIds.has(r.activityId)?'On the calculated finish-driving network':'',numeric(r.totalFloatHours)&&r.totalFloatHours<0?floatHoursText(r.totalFloatHours,sourceCalendarWorkingDays(model).workingDayHours(r.calendarId))+' source float':'',r.missedPlannedStart?'Should have started':'',r.finishOverdue?'Finish overdue':''].filter(Boolean).join('; ');
    const reason=groupedCount>1?(movementText||groupedCount+' related pressure activities in '+wbsLabels.slice(0,3).join('; ')+(wbsLabels.length>3?' and '+(wbsLabels.length-3)+' more WBS groups':'')):([individualWhy,movementText].filter(Boolean).join('; '));
    const linkedEvidence=!linked.length?'':linked.length===1?linked[0]!.explanation:(linked.length+' linked evidence records are available for this grouped finding.');
    const action=groupedCount>1?'Manage this as one grouped schedule finding; open the activities only when the detailed sequence or ownership is needed.':linked.length?'Resolve the identified linked blocker with its record owner and assess a recovery sequence.':r.finishOverdue?'Confirm remaining work and recovery dates for the overdue finish.':r.missedPlannedStart?'Establish why work has not started and agree a feasible start.':'Assess the remaining work and a feasible recovery sequence for this specific pressure activity.';

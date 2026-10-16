@@ -61,7 +61,15 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     for(const row of rows){const key=normalized(cell(row,'item no','item number','boq item','boq item id'));if(!key)continue;const group=byItem.get(key)??[];group.push(row);byItem.set(key,group);}
     const wbs=new Map(schedule.wbs.map(w=>[w.wbsId,w]));
     const activitiesByWbs=new Map<string,string[]>();
-    for(const activity of schedule.activities){let id=activity.wbsId;const seen=new Set<string>();while(id&&!seen.has(id)){seen.add(id);const list=activitiesByWbs.get(id)??[];list.push(activity.activityId);activitiesByWbs.set(id,list);id=wbs.get(id)?.parentWbsId??null;}}
+    // The cycle-safe ancestor walk depends only on the start WBS; walk it once
+    // per WBS and append each activity in the same source and ancestor order.
+    const ancestorChains=new Map<string,string[]>();
+    for(const activity of schedule.activities){
+      if(!activity.wbsId)continue;
+      let chain=ancestorChains.get(activity.wbsId);
+      if(!chain){chain=[];let id:string|null=activity.wbsId;const seen=new Set<string>();while(id&&!seen.has(id)){seen.add(id);chain.push(id);id=wbs.get(id)?.parentWbsId??null;}ancestorChains.set(activity.wbsId,chain);}
+      for(const id of chain){const list=activitiesByWbs.get(id);if(list)list.push(activity.activityId);else activitiesByWbs.set(id,[activity.activityId]);}
+    }
     const wbsByCode=new Map<string,typeof schedule.wbs>();
     for(const node of schedule.wbs)for(const value of new Set([node.wbsId,node.code,node.name].map(normalized).filter(Boolean))){const list=wbsByCode.get(value)??[];list.push(node);wbsByCode.set(value,list);}
     const wbsBySeparatorCode=indexWbsSeparatorCodes(schedule.wbs);
