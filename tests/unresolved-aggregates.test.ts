@@ -134,7 +134,7 @@ test('actual Activity Review renderer withholds incomplete headline counts, incl
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
   const fn=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='renderActivityAnalyticsVisual')!.getText(source);
-  const floatReview=source.statements.filter(isFunctionDeclaration).find(n=>n.name?.text==='activityFloatReviewHtml')!.getText(source);
+  const floatReview=source.statements.filter(isFunctionDeclaration).filter(n=>['activityFloatReviewHtml','sourceWorkingFloat'].includes(n.name?.text??'')).map(n=>n.getText(source)).join('\n');
   const model=schedule();model.activities[1].calendarId='UNREADABLE';model.activities[1].baselineFinishIso=null;
   const data=buildActivityAnalyticsProjection(model,options);
   const kpis:any[]=[];
