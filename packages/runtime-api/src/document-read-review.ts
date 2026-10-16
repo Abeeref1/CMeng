@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {parsePdfDocument,fragmentedPdfText,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
+import {parsePdfDocument,legiblePdfPageEvidence,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
 import type {SourceTable} from '../../truth-kernel/src';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
 
@@ -14,11 +14,11 @@ function physicalPdfCoverage(pdf:PdfDocumentResult){
     else if(page.method==='ocr')ocr++;
     else if(page.method==='blank')blank++;
     else failed++;
-    const unreadable=page.method==='native'&&fragmentedPdfText(page.text);
+    const unreadable=page.method==='native'&&!legiblePdfPageEvidence(page);
     if(unreadable)unreadableNative++;
     if(!Number.isInteger(page.pageNumber)||page.pageNumber<1||page.pageNumber>pdf.totalPages||seen.has(page.pageNumber))continue;
     seen.add(page.pageNumber);
-    if(page.method!=='failed'&&!unreadable&&page.aiReview?.status!=='review_required')readPages++;
+    if(legiblePdfPageEvidence(page)&&page.aiReview?.status!=='review_required')readPages++;
   }
   const complete=Number.isInteger(pdf.totalPages)&&pdf.totalPages>0&&
     pdf.pages.length===pdf.totalPages&&seen.size===pdf.totalPages&&readPages===pdf.totalPages&&
@@ -41,7 +41,7 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
   const checkpoint=document.fullTextReadCheckpoint;
   if(checkpoint?.sourceHashSha256===hash&&!fullReadComplete){
     const eligible=checkpoint.pages.filter(p=>Number.isInteger(p.pageNumber)&&p.pageNumber>=1&&p.pageNumber<=checkpoint.totalPages);
-    const read=new Set(eligible.filter(p=>p.method!=='failed'&&p.aiReview?.status!=='review_required'&&!(p.method==='native'&&fragmentedPdfText(p.text))).map(p=>p.pageNumber)).size;
+    const read=new Set(eligible.filter(p=>legiblePdfPageEvidence(p)&&p.aiReview?.status!=='review_required').map(p=>p.pageNumber)).size;
     const complete=Number.isInteger(checkpoint.totalPages)&&checkpoint.totalPages>0&&read===checkpoint.totalPages&&checkpoint.pages.length===checkpoint.totalPages&&eligible.length===checkpoint.totalPages;
     return {state:complete?'read':'partial',label:complete?'All pages read':'Partial page reading retained',note:read+' of '+checkpoint.totalPages+' pages read. '+(complete?'Physical reading is complete; structured fact validation and adoption remain separate.':'Saved pages will be reused on the next processing attempt; unreadable pages still require reading.'),method:'Native text / OCR',pageCount:checkpoint.totalPages,readPageCount:read,complete};
   }
@@ -123,10 +123,7 @@ export function refreshDeferredPdfRead(document:StoredEvidenceDocument,createPro
     // Keep source-legible pages with unresolved AI review in the checkpoint.
     // A provider-free retry must retain the review_required state, not
     // manufacture accepted reading from the same physical source bytes.
-    const reusable=retained.filter(page=>
-      (page.method==='native'||page.method==='ocr'||page.method==='blank')&&
-      typeof page.text==='string'&&(page.method==='blank'||page.text.trim().length>0)&&
-      !(page.method!=='blank'&&fragmentedPdfText(page.text)));
+    const reusable=retained.filter(legiblePdfPageEvidence);
     const pages=new Map(reusable.map(page=>[page.pageNumber,page]));
     let newPages=0;
     const result=await parsePdfDocument(bytes,{...(provider?{ocrProvider:provider}:{}),

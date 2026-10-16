@@ -14,3 +14,13 @@ export function fragmentedPdfText(text: string): boolean {
 export function hasUnreadableNativePages(result: {pages: readonly {method: string;text: string}[]}): boolean {
   return result.pages.some(page => page.method === 'native' && fragmentedPdfText(page.text));
 }
+
+/** Retained physical reading evidence must contain real readable text, or a truly
+ * blank page. Page identity and AI review are checked separately by the caller.
+ * Never infer readability from the saved method label alone. */
+export function legiblePdfPageEvidence(page:{method:string;text:string}):boolean {
+  if(typeof page.text!=='string')return false;
+  if(page.method==='blank')return page.text.trim().length===0;
+  return (page.method==='native'||page.method==='ocr')&&
+    /[\p{L}\p{N}]/u.test(page.text)&&!fragmentedPdfText(page.text);
+}

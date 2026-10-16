@@ -5,7 +5,7 @@ import type {
   PdfPageResult,
   PdfParseCheckpoint,
 } from "./types";
-import {fragmentedPdfText} from './text-quality';
+import {fragmentedPdfText,legiblePdfPageEvidence} from './text-quality';
 
 export interface PdfDocumentParserOptions {
   nativeTextCharacterThreshold?: number;
@@ -77,10 +77,7 @@ export async function parsePdfDocument(
         }
         const validReading = !repeatedPages.has(pageNumber) &&
           persisted.pageNumber === pageNumber &&
-          (persisted.method === 'native' || persisted.method === 'ocr' || persisted.method === 'blank') &&
-          typeof persisted.text === 'string' &&
-          (persisted.method === 'blank' || persisted.text.trim().length > 0) &&
-          !(persisted.method !== 'blank' && fragmentedPdfText(persisted.text));
+          legiblePdfPageEvidence(persisted);
         // Preserve an outstanding AI challenge when no verifier is available.
         // With a verifier, re-read from original bytes before clearing it.
         if (validReading && !(persisted.aiReview?.status === 'review_required' && options.aiVerifier)) {
@@ -159,7 +156,10 @@ export async function parsePdfDocument(
         const ocrText = ocr.text ?? "";
         const ocrCharacters = meaningfulCharacterCount(ocrText);
 
-        if (ocrCharacters === 0 && !fragmented) {
+        // Punctuation/noise is not proof of an empty scanned page. Only an
+        // actually empty native layer AND empty OCR response can be blank.
+        if (ocrCharacters === 0 && nativeText.trim().length === 0 &&
+            ocrText.trim().length === 0 && !fragmented) {
           append({
             pageNumber,
             method: "blank",

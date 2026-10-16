@@ -205,3 +205,35 @@ test('T02/T03 deferred reading retains unresolved review and candidate authority
  assert.equal(documentReadReview(doc,state).complete,false);
  assert.equal(doc.basisState,'candidate','no formal source adoption');
 });
+
+
+test('T02 PDF source receipts cannot certify absent OCR/native text or content masquerading as blank',()=>{
+ const state=new RuntimeProjectStore({durable:false}).getOrCreate('INDEPENDENT-PHYSICAL-READ');
+ const page=(pageNumber:number,method:string,text:string)=>({pageNumber,method,text,
+   nativeCharacterCount:method==='native'?text.length:0,ocrConfidence:null,aiReview:null,diagnostics:[]});
+ const pages=[page(1,'native','Original signed payment certificate records total 425000.'),
+   page(2,'ocr','Independent scanned register confirms invoice and date.'),page(3,'blank','')];
+ const original={totalPages:3,processedPages:3,nativePages:1,ocrPages:1,blankPages:1,
+   failedPages:0,unresolvedPages:0,coveragePercent:100,complete:true,pages,diagnostics:[]};
+ const doc={documentId:'physical-verified',sourceHashSha256:'original-physical-hash',
+   basisState:'candidate',fullTextRead:{sourceHashSha256:'original-physical-hash',result:original}} as unknown as StoredEvidenceDocument;
+ assert.equal(documentReadReview(doc,state).complete,true);
+ const corruptions:[number,string][]=[
+   [0,''],[0,'  '],[0,'?!!'],[1,''],[1,'---'],[2,'Falsely inserted approval 99999']];
+ for(const [index,text] of corruptions){
+   const corrupted={...original,pages:pages.map((p,i)=>i===index?{...p,text}:p)};
+   doc.fullTextRead!.result=corrupted as any;
+   const result=documentReadReview(doc,state);
+   assert.equal(result.complete,false,'a plausible saved method cannot replace source evidence');
+   assert.equal(result.readPageCount,2);
+   assert.equal(result.state,'partial');
+   const checkpoint={...doc,fullTextRead:undefined,
+     fullTextReadCheckpoint:{sourceHashSha256:doc.sourceHashSha256,totalPages:3,pages:corrupted.pages}} as StoredEvidenceDocument;
+   assert.equal(documentReadReview(checkpoint,state).complete,false,'checkpoint uses identical physical criterion');
+   assert.equal(documentReadReview(checkpoint,state).readPageCount,2);
+ }
+ doc.fullTextRead!.result=original as any;
+ assert.equal(documentReadReview(doc,state).complete,true);
+ assert.equal(doc.basisState,'candidate','source reading cannot adopt certificate');
+ assert.equal(pages[0]!.text,'Original signed payment certificate records total 425000.');
+});

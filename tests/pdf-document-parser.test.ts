@@ -224,3 +224,35 @@ test('T03 unresolved AI review stays unresolved through a no-AI PDF restart',asy
   assert.equal(verified.complete,true,'new accepted source verification clears only its own review');
   assert.equal(verified.pages[0]!.text,original.pages[0]!.text);
 });
+
+
+test('T02 punctuation-only OCR is unresolved, never an invented blank page',async()=>{
+  const pdf=await makePdf([null]);
+  const noisy=new FakeOcr({1:{text:'!? -- / !!!',confidence:0.99,language:'eng',diagnostics:[]}});
+  const unresolved=await parsePdfDocument(pdf,{ocrProvider:noisy});
+  assert.equal(unresolved.totalPages,1);
+  assert.equal(unresolved.blankPages,0);
+  assert.equal(unresolved.failedPages,1);
+  assert.equal(unresolved.complete,false);
+  assert.ok(unresolved.pages[0]!.diagnostics.includes('PDF_OCR_TEXT_UNREADABLE'));
+  assert.equal(unresolved.pages[0]!.text,'!? -- / !!!','retained OCR evidence is never deleted');
+  const empty=await parsePdfDocument(pdf,{ocrProvider:new FakeOcr({})});
+  assert.equal(empty.blankPages,1,'verified empty physical page remains distinct from unreadable noise');
+  assert.equal(empty.complete,true);
+});
+
+test('T02 falsified retained method/text cannot replace native original page after restart',async()=>{
+  const pdf=await makePdf(['Original certificate item A amount 100 and term 28 days.']);
+  const original=await parsePdfDocument(pdf);
+  assert.equal(original.complete,true);
+  for(const substitute of [
+    {...original.pages[0]!,method:'blank' as const,text:'Wrongly certified value 999'},
+    {...original.pages[0]!,text:'?!'},
+    {...original.pages[0]!,text:''},
+  ]){
+    const resumed=await parsePdfDocument(pdf,{checkpoint:{completedPages:[1],persistedPages:[substitute]}});
+    assert.equal(resumed.complete,true);
+    assert.equal(resumed.pages[0]!.method,'native');
+    assert.equal(resumed.pages[0]!.text,original.pages[0]!.text,'original source wins over unreadable checkpoint');
+  }
+});
