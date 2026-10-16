@@ -43,13 +43,15 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   const days = (a:unknown,b:unknown) => typeof a==='string'&&typeof b==='string'&&Number.isFinite(parseScheduleTime(a))&&Number.isFinite(parseScheduleTime(b))?(parseScheduleTime(b)-parseScheduleTime(a))/86400000:null;
   if(result.key==='schedule-change-report') {
     const rows=data.changedActivities??[];
-    for(const [kind,key] of [['added','addedActivityCount'],['removed','removedActivityCount'],['modified','modifiedActivityCount']])compare('changed_register_'+kind,data[key!],rows.filter((r:any)=>r.changeKind===kind).length);
     if(data.state==='ready'){
+      // A complete pair of revisions is required before any register count
+      // can be compared with a measured zero. Missing history is not zero.
+      for(const [kind,key] of [['added','addedActivityCount'],['removed','removedActivityCount'],['modified','modifiedActivityCount']])
+        compare('changed_register_'+kind,data[key!],rows.filter((r:any)=>r.changeKind===kind).length);
       compare('current_source_population',data.toActivityCount,model.activities.length);
       compare('matched_activity_partition',data.matchedActivityCount,data.modifiedActivityCount+data.unchangedActivityCount);
-      // Matching counts distinct identity pairs; added records retain every
-      // supplied row. Reconcile identities and source rows separately, without
-      // discarding duplicate evidence or accepting a dropped/invented row.
+      // Distinct matched identities and actual source rows remain separate.
+      // Duplicate source records must not be lost or invented.
       const currentIds=new Set(model.activities.map(activity=>activity.activityId));
       const addedIds=new Set<string>(rows.filter((row:any)=>row.changeKind==='added').map((row:any)=>row.activityId));
       const addedSourceRows=model.activities.filter(activity=>addedIds.has(activity.activityId)).length;
@@ -59,9 +61,18 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
       compare('added_source_population',data.addedActivityCount,addedSourceRows);
       compare('current_source_row_partition',matchedSourceRows+data.addedActivityCount,model.activities.length);
       compare('modified_identity_membership',rows.filter((row:any)=>row.changeKind==='modified').every((row:any)=>currentIds.has(row.toActivityId??row.activityId)),true);
+      compare('added_relationship_count',data.addedRelationshipCount,data.addedRelationships?.length);
+      compare('removed_relationship_count',data.removedRelationshipCount,data.removedRelationships?.length);
+    }else{
+      compare('change_report_history_state',data.state,'insufficient_history');
+      const unavailable=['matchedActivityCount','addedActivityCount','removedActivityCount',
+        'modifiedActivityCount','unchangedActivityCount','addedRelationshipCount','removedRelationshipCount'];
+      compare('unknown_change_counts_not_zero',unavailable.every(key=>data[key]===null),true);
+      compare('unknown_change_rows_not_invented',
+        Array.isArray(data.changedActivities)&&data.changedActivities.length===0&&
+        Array.isArray(data.addedRelationships)&&data.addedRelationships.length===0&&
+        Array.isArray(data.removedRelationships)&&data.removedRelationships.length===0,true);
     }
-    compare('added_relationship_count',data.addedRelationshipCount,data.addedRelationships?.length);
-    compare('removed_relationship_count',data.removedRelationshipCount,data.removedRelationships?.length);
   }
   if(result.key==='revision-trend'||result.key==='variance-trends') {
     const rows=data.points??[];
