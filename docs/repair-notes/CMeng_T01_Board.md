@@ -10,11 +10,11 @@ Starting point: guard run at b3c76d6, 11,822 failing of 43,401 checks, 39 rules,
 
 | Group | Rows | open_no_repair_linked | open_root_not_repaired | open_root_repair_saved_not_live | repair_saved_not_live_named_test | repair_live_no_named_test | repair_live_named_test_not_certified | originally_correct_watch |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SW | 57 | 48 | 0 | 0 | 8 | 0 | 1 | 0 |
-| F | 61 | 50 | 6 | 1 | 1 | 0 | 3 | 0 |
+| SW | 57 | 30 | 0 | 0 | 26 | 0 | 1 | 0 |
+| F | 61 | 46 | 4 | 3 | 5 | 0 | 3 | 0 |
 | S | 8 | 5 | 0 | 0 | 0 | 3 | 0 | 0 |
-| ABB | 641 | 57 | 176 | 346 | 0 | 0 | 0 | 62 |
-| All | 767 | 160 | 182 | 347 | 9 | 3 | 4 | 62 |
+| ABB | 641 | 57 | 120 | 402 | 0 | 0 | 0 | 62 |
+| All | 767 | 138 | 124 | 405 | 31 | 3 | 4 | 62 |
 
 Status meaning: `open_no_repair_linked` no repair commit linked; `open_root_*` the finding links to a proposed SW root, with or without saved repair on that root, and the finding itself is not reconciled; `repair_saved_not_live_*` a repair commit exists after the live release, with or without a named regression test, not independently checked (partial, not fixed); `repair_live_*` the repair commit is inside the live release, but the item was still open in the 13 Oct plan or guard and is not certified; `originally_correct_watch` correct in the original review, watched for regression.
 
@@ -22,26 +22,26 @@ Status meaning: `open_no_repair_linked` no repair commit linked; `open_root_*` t
 
 | ID | Defect | Cause | Tasks | Repair reference | Verification method | Named tests | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SW-01 | Page size counted as the total | The server sends the first 25 rows of each list plus the real total; screens count or chart the 25. | T05 | 12cedd6c (saved, not live), 0fcebe4e (saved, not live), 3634d35b (saved, not live), 413524f5 (saved, not live) | guard_rule: N1 | consultant-response-paging.test.ts, t05-counts-true-total-every-screen.test.ts, project-actions.test.ts | repair_saved_not_live_named_test |
+| SW-01 | Page size counted as the total | The server sends the first 25 rows of each list plus the real total; screens count or chart the 25. | T05 | 12cedd6c (saved, not live), 0fcebe4e (saved, not live, per-fix history), 3634d35b (saved, not live, per-fix history), 413524f5 (saved, not live), f47ed2f3 (saved, not live), ffd57dc0 (saved, not live) | guard_rule: N1 | consultant-response-paging.test.ts, t05-counts-true-total-every-screen.test.ts, project-actions.test.ts, t05-remaining-true-totals.test.ts | repair_saved_not_live_named_test |
 | SW-02 | Register paging skips rows | The page asks for 50 rows, receives 25, and Next moves on by 50. | T05 | 12cedd6c (saved, not live) | guard_rule: N9 | consultant-response-paging.test.ts | repair_saved_not_live_named_test |
 | SW-03 | Very large results become an empty page | A result too large for the response is replaced by a stub. | T11 | none yet; planned T11 | guard_rule: N10 | none | open_no_repair_linked |
-| SW-04 | Unknown shown as 0, No or clear | An empty or not-calculable value is printed as the "known" count (0) or a false flag. | T05 | 78b0de05 (saved, not live) | guard_rule: N2, S4, N3 | t05-governed-screen-counts.test.ts | repair_saved_not_live_named_test |
+| SW-04 | Unknown shown as 0, No or clear | An empty or not-calculable value is printed as the "known" count (0) or a false flag. | T05 | 78b0de05 (saved, not live), 9e44e026 (saved, not live) | guard_rule: N2, S4, N3 | t05-governed-screen-counts.test.ts, t05-same-measure-every-page.test.ts | repair_saved_not_live_named_test |
 | SW-05 | Role views blank | The role views read a separate role summary that is left empty, not the confirmed facts the page already holds. | T05, T10 | none yet; planned T05, T10 | guard_rule: N5 | none | open_no_repair_linked |
-| SW-06 | Wrong values in columns | Generic number formatter and wrong field bindings | T02 | none yet; planned T02 | guard_rule, independent_reader: N11, reader | none | open_no_repair_linked |
-| SW-07 | Pages contradict each other while the check says Pass | The consistency check compares stored facts, not what each screen shows. | T05 | 472aba80 (saved, not live), 85c8324b (saved, not live), 071ea238 (saved, not live), 413524f5 (saved, not live), d19a0d58 (saved, not live) | guard_rule: N4, S4 | source-only-forecast-isolation.test.ts, t11-dashboard-on-demand-original-content.test.ts | repair_saved_not_live_named_test |
+| SW-06 | Wrong values in columns | Generic number formatter and wrong field bindings | T02 | 83a98c55 (saved, not live), ffc6bc30 (saved, not live) | guard_rule, independent_reader: N11, reader | t02-register-reading-truth.test.ts | repair_saved_not_live_named_test |
+| SW-07 | Pages contradict each other while the check says Pass | The consistency check compares stored facts, not what each screen shows. | T05 | 472aba80 (saved, not live), 85c8324b (saved, not live, per-fix history), 071ea238 (saved, not live, per-fix history), 413524f5 (saved, not live), d19a0d58 (saved, not live), 9e44e026 (saved, not live) | guard_rule: N4, S4 | source-only-forecast-isolation.test.ts, t11-dashboard-on-demand-original-content.test.ts, t05-same-measure-every-page.test.ts | repair_saved_not_live_named_test |
 | SW-08 | Key figures held but not shown | The page does not place figures it already has. | T02, T05 | none yet; planned T02, T05 | independent_reader: reader | none | open_no_repair_linked |
-| SW-09 | Programme links do not attach | Confirmed in code (release b3c76d6): activities are keyed by project id plus task id, but link rows that carry no project id are keyed with an empty one ("native:::100001"), so none match. A source check found 12,665 of 12,669 relationships valid (2 missing predecessors, 2 self-links). | T02 | none yet; planned T02 | guard_rule, independent_reader: R4, reader | none | open_no_repair_linked |
-| SW-10 | Duplicate activity ids matched silently | Duplicates are not treated as ambiguous. | T02 | none yet; planned T02 | independent_reader: reader | none | open_no_repair_linked |
-| SW-11 | Files filed by file-name guess and never queued for review | Low-confidence guesses (0.38) are accepted; the "needs review" flag is set but the review queue flag is not. Source check: the misfiled report states certified to date, actual cost, cost to complete, EAC and a "Forecast Overrun" line of SAR 240,000,000; none is shown. | T02, T03 | none yet; planned T02, T03 | guard_rule: R2 | none | open_no_repair_linked |
-| SW-12 | Superseded cost file used as current | A newer candidate file is not applied, so the old one stays active. | T02, T07 | none yet; planned T02, T07 | guard_rule, independent_reader: R2, reader | none | open_no_repair_linked |
+| SW-09 | Programme links do not attach | Confirmed in code (release b3c76d6): activities are keyed by project id plus task id, but link rows that carry no project id are keyed with an empty one ("native:::100001"), so none match. A source check found 12,665 of 12,669 relationships valid (2 missing predecessors, 2 self-links). | T02 | 8ba1a7f5 (saved, not live) | guard_rule, independent_reader: R4, reader | t02-programme-reading-truth.test.ts | repair_saved_not_live_named_test |
+| SW-10 | Duplicate activity ids matched silently | Duplicates are not treated as ambiguous. | T02 | 8ba1a7f5 (saved, not live) | independent_reader: reader | t02-programme-reading-truth.test.ts | repair_saved_not_live_named_test |
+| SW-11 | Files filed by file-name guess and never queued for review | Low-confidence guesses (0.38) are accepted; the "needs review" flag is set but the review queue flag is not. Source check: the misfiled report states certified to date, actual cost, cost to complete, EAC and a "Forecast Overrun" line of SAR 240,000,000; none is shown. | T02, T03 | 5c81f67c (saved, not live), ffc6bc30 (saved, not live) | guard_rule: R2 | t02-register-reading-truth.test.ts | repair_saved_not_live_named_test |
+| SW-12 | Superseded cost file used as current | A newer candidate file is not applied, so the old one stays active. | T02, T07 | ffc6bc30 (saved, not live) | guard_rule, independent_reader: R2, reader | t02-register-reading-truth.test.ts | repair_saved_not_live_named_test |
 | SW-13 | Register columns ignored or not mapped | Fixed column-name and value lists miss them. | T02 | e7a4f6db (saved, not live) | guard_rule: R1 | t02-eastern-digit-source-reader.test.ts | repair_saved_not_live_named_test |
 | SW-14 | Uploaded documents left unread | Reading is deferred with no status to the user. | T02, T03 | none yet; planned T02, T03 | guard_rule: R3 | none | open_no_repair_linked |
 | SW-15 | Delay events made from the claims register | The claims register is used as the event register. | T07 | none yet; planned T07 | independent_reader: reader | none | open_no_repair_linked |
-| SW-16 | Activity type unknown for every activity | Source check: the programme file has no activity-type column and no zero-duration activities, so it truly has no milestones. The defect is the display (0 overdue in green, see SW-04) and no way to mark key dates. | T02, T06 | none yet; planned T02, T06 | guard_rule: S1 | none | open_no_repair_linked |
+| SW-16 | Activity type unknown for every activity | Source check: the programme file has no activity-type column and no zero-duration activities, so it truly has no milestones. The defect is the display (0 overdue in green, see SW-04) and no way to mark key dates. | T02, T06 | 8ba1a7f5 (saved, not live), ec3673c5 (saved, not live) | guard_rule: S1 | t02-programme-reading-truth.test.ts, t06-programme-hand-checked.test.ts | repair_saved_not_live_named_test |
 | SW-17 | Procurement need date | The earlier of the register and programme dates is used under the register's label; the overdue check reads an empty due-date field. | T08 | none yet; planned T08 | independent_reader: reader | none | open_no_repair_linked |
 | SW-18 | Readiness rules | "Not applicable" counted as known; dates treated as blockers; status vs forecast conflicts not raised | T08 | none yet; planned T08 | expert_review: design rule | none | open_no_repair_linked |
-| SW-19 | NCRs with unclear status counted as open | "Status unclear" added to open; closure-before-raised records given a wrong reason | T08 | none yet; planned T08 | independent_reader: reader | none | open_no_repair_linked |
-| SW-20 | Fixed default periods instead of contract rules | Defaults used although the contract rule is held | T07 | none yet; planned T07 | independent_calculator: notice calculator | none | open_no_repair_linked |
+| SW-19 | NCRs with unclear status counted as open | "Status unclear" added to open; closure-before-raised records given a wrong reason | T08 | ce20efc2 (saved, not live) | independent_reader: reader | t08-ncr-unclear-and-need-date.test.ts | repair_saved_not_live_named_test |
+| SW-20 | Fixed default periods instead of contract rules | Defaults used although the contract rule is held | T07 | 2df7f3df (saved, not live) | independent_calculator: notice calculator | t04-contract-terms-source-analysis.test.ts | repair_saved_not_live_named_test |
 | SW-21 | Variation position | The approved list is treated as the full change register. | T07 | none yet; planned T07 | independent_calculator: commercial ledger | none | open_no_repair_linked |
 | SW-22 | Contract time | The extended date is sought only in determinations. Source check: the main contract states "Original Completion 31 December 2028" on page 1 and the amendment states it again; CMeng records the original date as missing. | T07 | none yet; planned T07 | independent_reader, guard_rule: reader, N4 | none | open_no_repair_linked |
 | SW-23 | EOT windows | Largest single-activity shift used instead of completion movement | T07 | none yet; planned T07 | independent_calculator: CPM solver | none | open_no_repair_linked |
@@ -57,52 +57,81 @@ Status meaning: `open_no_repair_linked` no repair commit linked; `open_root_*` t
 | SW-33 | Handover readiness ignores the asset register | Fallback to programme names | T08 | none yet; planned T08 | independent_calculator: delivery state tables | none | open_no_repair_linked |
 | SW-34 | Interface candidates from package pairs | Generated pairs | T08 | none yet; planned T08 | expert_review: design rule | none | open_no_repair_linked |
 | SW-35 | HSE rates | Reconciliation result not displayed; no fallback to period totals | T08 | none yet; planned T08 | independent_reader: reader | none | open_no_repair_linked |
-| SW-36 | Held values never offered to confirm or choose | Candidates are not routed into any review queue. Source conflicts now have no action at all (earlier they were sent to re-upload). | T04 | be3851ee (saved, not live), 1066c47c (saved, not live), 413524f5 (saved, not live) | guard_rule: C1 | t04-clear-source-analysis-all-families.test.ts | repair_saved_not_live_named_test |
+| SW-36 | Held values never offered to confirm or choose | Candidates are not routed into any review queue. Source conflicts now have no action at all (earlier they were sent to re-upload). | T04 | be3851ee (saved, not live, per-fix history), 1066c47c (saved, not live, per-fix history), 413524f5 (saved, not live) | guard_rule: C1 | t04-clear-source-analysis-all-families.test.ts | repair_saved_not_live_named_test |
 | SW-37 | No input fields | Not built | T04 | none yet; planned T04 | guard_rule: C2 | none | open_no_repair_linked |
 | SW-38 | Stale confirmation banner | The banner reads per-record review state. | T04, T10 | none yet; planned T04, T10 | guard_rule: W10 | none | open_no_repair_linked |
-| SW-39 | Action loop | The panel was narrowed but the buttons were not changed. | T09 | none yet; planned T09 | guard_rule: A3, A2 | none | open_no_repair_linked |
-| SW-40 | Buttons to wrong or empty places | Hard-wired targets | T09 | none yet; planned T09 | guard_rule: A1 | none | open_no_repair_linked |
-| SW-41 | No page addresses | Single-address app | T09 | none yet; planned T09 | guard_rule: A5 | none | open_no_repair_linked |
+| SW-39 | Action loop | The panel was narrowed but the buttons were not changed. | T09 | ddedd70b (saved, not live) | guard_rule: A3, A2 | t09-actions-navigation.test.ts | repair_saved_not_live_named_test |
+| SW-40 | Buttons to wrong or empty places | Hard-wired targets | T09 | ddedd70b (saved, not live) | guard_rule: A1 | t09-actions-navigation.test.ts | repair_saved_not_live_named_test |
+| SW-41 | No page addresses | Single-address app | T09 | 7141811f (saved, not live), 2f8c88c0 (saved, not live) | guard_rule: A5 | t09-actions-navigation.test.ts | repair_saved_not_live_named_test |
 | SW-42 | Packages linked to finished work disappear | No close-out group for procurement | T08 | none yet; planned T08 | independent_calculator: delivery state tables | none | open_no_repair_linked |
 | SW-43 | No answer on the first screen | Layout order | T10 | none yet; planned T10 | guard_rule, expert_review: L1, design rule | none | open_no_repair_linked |
 | SW-44 | Very long, repeated pages | Generic renderers print every field. | T10 | none yet; planned T10 | guard_rule: L1, L3, W5 | none | open_no_repair_linked |
-| SW-45 | Developer language | No translation layer | T10 | fb318c1a (saved, not live), 6ffa8bea (saved, not live), 7f2f7429 (saved, not live), 413524f5 (saved, not live) | guard_rule: W1, W2, W3, W8 | t10-no-code-names-on-screen.test.ts, t10-diagnostic-heading-meaning.test.ts | repair_saved_not_live_named_test |
+| SW-45 | Developer language | No translation layer | T10 | fb318c1a (saved, not live, per-fix history), 6ffa8bea (saved, not live, per-fix history), 7f2f7429 (saved, not live, per-fix history), 413524f5 (saved, not live), 3b421deb (saved, not live) | guard_rule: W1, W2, W3, W8 | t10-no-code-names-on-screen.test.ts, t10-diagnostic-heading-meaning.test.ts, t10-wording-rules.test.ts | repair_saved_not_live_named_test |
 | SW-46 | Fixed notices that state false facts | Fixed sentences not checked against data | T10 | none yet; planned T10 | guard_rule, independent_reader: W8, reader | none | open_no_repair_linked |
-| SW-47 | Charts | Chart design | T10 | none yet; planned T10 | guard_rule: S3, X3 | none | open_no_repair_linked |
-| SW-48 | Filters and sorting | Not built | T05, T10 | none yet; planned T05, T10 | guard_rule: L5 | none | open_no_repair_linked |
-| SW-49 | Downloads and Generate report are raw dumps | Export renders the data object, not a report | T10 | none yet; planned T10 | guard_rule: X1 | none | open_no_repair_linked |
-| SW-50 | Screen figures missing from export | Separate producers | T10 | none yet; planned T10 | guard_rule: X2 | none | open_no_repair_linked |
-| SW-51 | Contrast and keyboard access | Styling | T10 | none yet; planned T10 | guard_rule: L6 | none | open_no_repair_linked |
+| SW-47 | Charts | Chart design | T10 | 428cf1dd (saved, not live) | guard_rule: S3, X3 | t10-look-sort-empty-access.test.ts | repair_saved_not_live_named_test |
+| SW-48 | Filters and sorting | Not built | T05, T10 | 428cf1dd (saved, not live) | guard_rule: L5 | t10-look-sort-empty-access.test.ts | repair_saved_not_live_named_test |
+| SW-49 | Downloads and Generate report are raw dumps | Export renders the data object, not a report | T10 | f8161902 (saved, not live) | guard_rule: X1 | t10-downloads-match-screen.test.ts | repair_saved_not_live_named_test |
+| SW-50 | Screen figures missing from export | Separate producers | T10 | f8161902 (saved, not live) | guard_rule: X2 | t10-downloads-match-screen.test.ts | repair_saved_not_live_named_test |
+| SW-51 | Contrast and keyboard access | Styling | T10 | 428cf1dd (saved, not live) | guard_rule: L6 | t10-look-sort-empty-access.test.ts | repair_saved_not_live_named_test |
 | SW-52 | Versions change with no new source | Background migrations | T11 | none yet; planned T11 | guard_rule: V1 | none | open_no_repair_linked |
 | SW-53 | Pages fail during deployments | No zero-downtime switch | T11 | none yet; planned T11 | guard_rule: P2 | none | open_no_repair_linked |
-| SW-54 | Speed | Background work on open | T11 | a315db76 (saved, not live), e0763583 (saved, not live), 78324421 (saved, not live), 7c1d356a (saved, not live), 64553c32 (saved, not live), 8ae4f958 (saved, not live), 986f7ed1 (saved, not live), 7ba5640d (saved, not live), 85c8324b (saved, not live), e4ac2948 (saved, not live), 1d17175e (saved, not live), 8b718627 (saved, not live), c0ebd7f3 (saved, not live), ad2a8588 (saved, not live), cd9aa73b (saved, not live), e2ecb802 (saved, not live), a145497b (saved, not live), 413524f5 (saved, not live) | guard_rule: P1 | t11-workfront-identical-source-reuse.test.ts, t11-variance-full-population.test.ts, t11-source-completion-base-parity.test.ts, t11-shared-plan-positions.test.ts, t11-retained-calculation-only.test.ts, t11-lookahead-cold-reuse-parity.test.ts, t11-dashboard-on-demand-original-content.test.ts | repair_saved_not_live_named_test |
+| SW-54 | Speed | Background work on open | T11 | a315db76 (saved, not live), e0763583 (saved, not live), 78324421 (saved, not live), 7c1d356a (saved, not live), 64553c32 (saved, not live), 8ae4f958 (saved, not live), 986f7ed1 (saved, not live), 7ba5640d (saved, not live), 85c8324b (saved, not live, per-fix history), e4ac2948 (saved, not live, per-fix history), 1d17175e (saved, not live, per-fix history), 8b718627 (saved, not live, per-fix history), c0ebd7f3 (saved, not live, per-fix history), ad2a8588 (saved, not live, per-fix history), cd9aa73b (saved, not live, per-fix history), e2ecb802 (saved, not live, per-fix history), a145497b (saved, not live, per-fix history), 413524f5 (saved, not live), 8994245b (saved, not live), c487cd37 (saved, not live), e833b9c7 (saved, not live), 697d0833 (saved, not live), 88a6e429 (saved, not live), 1762b984 (saved, not live) | guard_rule: P1 | t11-workfront-identical-source-reuse.test.ts, t11-variance-full-population.test.ts, t11-source-completion-base-parity.test.ts, t11-shared-plan-positions.test.ts, t11-retained-calculation-only.test.ts, t11-lookahead-cold-reuse-parity.test.ts, t11-dashboard-on-demand-original-content.test.ts, t11-owner-page-publication.test.ts, t11-cpm-engine-differential.test.ts, t11-revision-compare-aligned-parity.test.ts | repair_saved_not_live_named_test |
 | SW-55 | Test data listed as live projects | Listing | T01 | 2f5fc187 (live), 445e678d (live) | guard_rule: V2 | project-gateway-preservation.test.ts | repair_live_named_test_not_certified |
-| SW-56 | AI set-up | Configuration and design | T03 | none yet; planned T03 | guard_rule: R5 | none | open_no_repair_linked |
-| SW-57 | Project finish date in the programme file not read | From the programme's project table only the project name and last recalculation date are read (confirmed in code). | T02, T06 | none yet; planned T02, T06 | independent_reader: reader | none | open_no_repair_linked |
+| SW-56 | AI set-up | Configuration and design | T03 | 2de09398 (saved, not live), 756b7178 (saved, not live), 01d76392 (saved, not live) | guard_rule: R5 | t03-ai-reading-controls.test.ts | repair_saved_not_live_named_test |
+| SW-57 | Project finish date in the programme file not read | From the programme's project table only the project name and last recalculation date are read (confirmed in code). | T02, T06 | 8ba1a7f5 (saved, not live) | independent_reader: reader | t02-programme-reading-truth.test.ts | repair_saved_not_live_named_test |
 
 Notes on linked repairs:
 
-- **SW-01**: Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Not covered: N1 guard not re-run on all 23 projects; not live.
-- **SW-07**: Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Not covered: Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked.
+- **SW-01**: Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1). Not covered: N1 guard not re-run on all 23 projects; not live.
+- **SW-07**: Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4). Not covered: Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked.
 - **SW-36**: Clearly read unique candidate values used in more analysis families, labelled 'read from source; not formally adopted'; an adopted value is never erased by a candidate; disagreements shown (T04, part of the hold). Not covered: The pick / type your own / undo control required by C1 is not part of these commits.
-- **SW-45**: One shared field-label module for browser, server issue headings, report preview and downloads; internal field names and codes are not shown as headings, columns, labels or values (T10). Not covered: W1, W2, W3, W8 not re-run on all 23 projects; not live.
-- **SW-54**: Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Not covered: The 5-second gate with 4 cold projects at once is not proven by these tests.
+- **SW-45**: One shared field-label module for browser, server issue headings, report preview and downloads; internal field names and codes are not shown as headings, columns, labels or values (T10). Round 2: shared field label reads codes, units and joined names in plain words (W1/W4). Not covered: W1, W2, W3, W8 not re-run on all 23 projects; not live.
+- **SW-54**: Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Not covered: The 5-second gate with 4 cold projects at once is not proven by these tests.
 - **SW-13**: Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Not covered: Only numeral reading; ignored and unmapped register columns (R1) are not covered.
 - **SW-55**: Explicit, saved test-project flag and a separate test portfolio (commit subjects name F59). These commits are inside live release b3c76d6. Not covered: The verifier still saw test data in the live portfolio at b3c76d6 (cause table status: Seen again), so existing projects are not yet marked; check V2 is still to add.
-- **F12**: Keeps source owner authority in procurement readiness; commit subject names F12. Not covered: Owners from every register not covered.
+- **SW-04**: delay-claims shows unknown claim and event counts as unknown, never 0 (N2). Not covered: null
+- **SW-06**: cost code is no longer read as a money amount (T02). Not covered: Only the cost-code case. BOQ item 1.0001 shown as 1, WBS id instead of name and finished-task dates are not covered.
+- **SW-09**: XER links whose rows carry no project ID attach by the unique task_id; ambiguous ends are never guessed (R4). Not covered: R4 guard and the independent reader not re-run on all 23 projects.
+- **SW-10**: duplicate activity IDs reported with source lines and never matched by a link. Not covered: Independent reader not re-run.
+- **SW-11**: a file whose name says another type than its content is queued for review; content decides the type (R2). Not covered: R2 guard not re-run on all 23 projects.
+- **SW-12**: cost and register snapshots ordered by the report date inside the document, not the file name. Not covered: A report with no internal date keeps the old rule.
+- **SW-16**: activity type read from XER task_type and from the Activity Type column of schedule sheets; missing type stays unknown. Not covered: S1 guard not re-run.
+- **SW-19**: unclear NCR status is its own state with a reason, never open or closed (T08). Not covered: Independent reader not re-run.
+- **SW-20**: notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04). Not covered: Only the hold part of the cause (rule held but not used). The notice calculator has not checked the dates.
+- **SW-39**: module links never point back to the page that is open (A2). Not covered: A3 (one action in one place) and the repeated groups on 4 pages are not covered.
+- **SW-40**: buttons ignore a target that is not a registered page; every static button target is a registered page (A1). Not covered: A1 guard not re-run.
+- **SW-41**: opening a page from any button writes its own address and Back restores it (A5). Not covered: A5 check is still to add to the guard.
+- **SW-47**: a chart whose values are all zero shows the reason and the values (S3). Not covered: Missing plan curves, heatmap, timeline and X3 are not covered.
+- **SW-48**: every table header sorts by keyboard; filter lists with only All are switched off and say so (L5). Not covered: L5 check is still to add to the guard.
+- **SW-49**: module downloads carry reader words, units, data date and scope (X1). Not covered: Generate report and PDF outputs not covered; X1 still to add.
+- **SW-50**: every figure on the page is in report.json with the same value and full table population (X2). Not covered: X2 still to add to the guard.
+- **SW-51**: text colour tokens reach WCAG AA 4.5:1 on panel colours and focus is visible (L6). Not covered: Full accessibility scan (L6) still to add.
+- **SW-56**: explicit references before AI, cost shown before AI is on, resumable AI reading with a spending cap, R5 reading statement, AI-read roles left for review (T03). Not covered: No controlled real AI test has been run; AI still needs owner permission.
+- **SW-57**: PROJECT.scd_end_date read as the scheduled project finish, kept apart from plan_end_date; a multi-project data date conflict stays unknown. Not covered: Not shown or reconciled on the pages yet as far as the commit says; independent reader not re-run.
+- **F12**: Keeps source owner authority in procurement readiness; commit subject names F12. Round 2: an owner given only as a PMC role shows as missing with a way to set it; a named owner from the register is kept (A4). Not covered: Owners from every register not covered.
 - **F28**: Explicit-approval decision gates (live). Commit subject names F28. Not covered: Plan T04 (13 Oct) still requires ending the hold: no approval request for clear facts. Not certified.
 - **F56**: Managerial day precision (live). Commit subject names F56. Not covered: Guard N6 still failed on 21 projects at b3c76d6.
 - **F59**: Saved test-project flag and separate test portfolio (live). Not covered: Existing projects not yet marked; V2 still to add.
+- **F25**: clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04). Not covered: Only commercial registers; other register families not checked here.
+- **F39**: completed work excluded from remaining duration and remaining resource figures (T06). Not covered: RFIs and NCRs on finished work as close-out, and finished areas not blocked, are not covered.
+- **F57**: an empty table says why it is empty in one line (S2). Not covered: One plain status word list on every page is not covered.
+- **F58**: delivery document receipts list the columns no calculation uses (R1). Not covered: Per-file view of mapped columns on the Documents page not checked here.
 - **S02**: Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02. Not covered: Plan of 13 Oct still lists S02 open; Accountability 5 to 18 s at b3c76d6.
 - **S35**: Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35. Not covered: Plan of 13 Oct still lists S35 open.
 - **S45**: Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50. Not covered: Plan of 13 Oct still lists S45 open.
 - **SW-10** related, not a repair: 08667e87. Speed work that indexes calendar identity and keeps first-match behaviour unchanged, so it does not repair silent duplicate matching.
+- **SW-21** related, not a repair: e6a1c480. Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed.
+- **SW-22** related, not a repair: fda72dcb. Completion date read from a unique candidate contract; the cause (extended date sought only in determinations) is not addressed.
+- **SW-38** related, not a repair: 616ec8b8, 85f740b9. Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code.
+- **SW-37** related, not a repair: 616ec8b8, 85f740b9. Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code.
 
-How links were found: Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence.
+How links were found: Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence. Round 2 (v/int2): every commit in 413524f5..v/int2 was read with its body and the test files it changed. Links are made only where the commit names the SW item or its guard rule and a test file names the same case. A commit marked "per-fix history" is on v/history1 only; the same change is in squashed commit 413524f5 on this branch.
 
 Repairs saved with no SW row:
 
-- Rule N7: Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06). Commits fce008d1, ae15b20c, 1cf01767, 55f6e36b, 42231c15, 413524f5 (saved, not live). Tests: tests/t06-float-days-every-remaining-place.test.ts, tests/management-brief-acceptance.test.ts. No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect.
+- Rule N7: Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06). Commits fce008d1, ae15b20c, 1cf01767, 55f6e36b, 42231c15, 413524f5, 313fe7d8, bb348873, bb027e2d, 24c1554f (saved, not live). Tests: tests/t06-float-days-every-remaining-place.test.ts, tests/management-brief-acceptance.test.ts, tests/t06-durations-and-buckets-days.test.ts, tests/batch-c-near-critical-visibility.test.ts, tests/xer-calendar-recovery.test.ts. No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect.
+- Rule A4: Missing owners shown as missing with a way to set them; stored owner and keys unchanged. Commits ddedd70b (saved, not live). Tests: tests/t09-actions-navigation.test.ts. A4 is not assigned to any SW row in the plan; linked to consultant item F12.
+- Rule identity (brief rule): Issue keys, groups, de-duplication and finding ids use raw machine data, never display labels. Commits 85cf0aa6 (saved, not live). Tests: tests/t10-identity-independent-of-wording.test.ts. Guards the T10 label work (SW-45) against changing record identity; no SW row of its own.
 
 ## Consultant items F01 to F61 (274 findings D-001 to D-266 and N-1 to N-8)
 
@@ -112,19 +141,19 @@ Repairs saved with no SW row:
 | F02 | Securities from one rule | 3 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F03 | Schedule counts from one calculation | 7 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F04 | RFI and NCR counts from one register reading | 3 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
-| F05 | One action register | 3 | R1 | SW-39 | none yet; planned T09; consultant root R1 step 1 | guard_rule, expert_review (N4, N5, A3, A2) | open_root_not_repaired |
+| F05 | One action register | 3 | R1 | SW-39 | ddedd70b (saved, not live); consultant root R1 step 1 | guard_rule, expert_review (N4, N5, A3, A2) | open_root_repair_saved_not_live |
 | F06 | Claims and EOT facts shared | 6 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F07 | Shared inputs and prerequisites | 7 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F08 | One programme state and a real consistency check | 2 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F09 | Portfolio uses the same rules for every project | 1 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F10 | One page per question, no duplicate blocks | 14 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F11 | Director drawer and Ask CMeng read the same facts | 2 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
-| F12 | Owners from the registers, never hard-coded | 8 | R4 | none | 4eb29dd1 (saved, not live); consultant root R4 step 2 | independent_reader (R1, R2, R3) | repair_saved_not_live_named_test |
+| F12 | Owners from the registers, never hard-coded | 8 | R4 | none | 4eb29dd1 (saved, not live), ddedd70b (saved, not live); consultant root R4 step 2 | independent_reader (R1, R2, R3) | repair_saved_not_live_named_test |
 | F13 | Claims register fully read | 5 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F14 | Procurement register fully read; status drives delivered | 8 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F15 | Risk register fully read | 3 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F16 | Resource register actual hours | 2 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
-| F17 | Classify files by header, not file name | 4 | R4 | SW-11 | none yet; planned T02, T03; consultant root R4 step 2 | independent_reader, guard_rule (R1, R2, R3) | open_root_not_repaired |
+| F17 | Classify files by header, not file name | 4 | R4 | SW-11 | 5c81f67c (saved, not live), ffc6bc30 (saved, not live); consultant root R4 step 2 | independent_reader, guard_rule (R1, R2, R3) | open_root_repair_saved_not_live |
 | F18 | Bond register instrument column | 1 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F19 | VO and IPC registers | 2 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F20 | Commercial terms and dated payments | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
@@ -132,7 +161,7 @@ Repairs saved with no SW row:
 | F22 | Programme (XER) fields | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F23 | Programme fallback for empty delivery registers | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F24 | HSE report fields | 1 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
-| F25 | Clean registers used immediately | 9 | R2 | none | none yet; consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | open_no_repair_linked |
+| F25 | Clean registers used immediately | 9 | R2 | none | e6a1c480 (saved, not live); consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | repair_saved_not_live_named_test |
 | F26 | A normal constraint does not block CPM or the forecast | 5 | R2 | none | none yet; consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | open_no_repair_linked |
 | F27 | Arithmetic is shown, not withheld | 8 | R2 | none | none yet; consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | open_no_repair_linked |
 | F28 | Candidate values do not create approval requests | 3 | R2 | none | cb7443bf (live); consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | repair_live_named_test_not_certified |
@@ -146,7 +175,7 @@ Repairs saved with no SW row:
 | F36 | Payment rules | 8 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F37 | Cost rules | 4 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F38 | CPM, driving path and programme quality checks | 5 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
-| F39 | Finished work is not open work | 9 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
+| F39 | Finished work is not open work | 9 | R5 | none | 7597c612 (saved, not live), a42a6be5 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | repair_saved_not_live_named_test |
 | F40 | Programme change analysis | 9 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F41 | Float trend charts | 1 | R5 | SW-25 | none yet; planned T06; consultant root R5 step 4 | independent_calculator, expert_review | open_root_not_repaired |
 | F42 | Look-ahead blockers | 4 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
@@ -160,12 +189,12 @@ Repairs saved with no SW row:
 | F50 | Portfolio card content | 1 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F51 | Priority by consequence, one action per chain | 3 | R6 | none | none yet; consultant root R6 step 5 | guard_rule, expert_review (A3) | open_no_repair_linked |
 | F52 | Summary pages open with the answer | 5 | R7 | SW-43 | none yet; planned T10; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_root_not_repaired |
-| F53 | No internal IDs, codes or data paths on screen | 9 | R7 | SW-45 | fb318c1a (saved, not live), 6ffa8bea (saved, not live), 7f2f7429 (saved, not live), 413524f5 (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3, W3) | open_root_repair_saved_not_live |
+| F53 | No internal IDs, codes or data paths on screen | 9 | R7 | SW-45 | fb318c1a (saved, not live, per-fix history), 6ffa8bea (saved, not live, per-fix history), 7f2f7429 (saved, not live, per-fix history), 413524f5 (saved, not live), 3b421deb (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3, W3) | open_root_repair_saved_not_live |
 | F54 | Name the record, the blocker and the issue | 6 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
 | F55 | Accountability grouped by owner | 1 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
 | F56 | Precision and formats | 8 | R7 | none | cb7443bf (live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | repair_live_named_test_not_certified |
-| F57 | Plain state words and empty states | 18 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
-| F58 | Documents page shows fields used and ignored | 1 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
+| F57 | Plain state words and empty states | 18 | R7 | none | 428cf1dd (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | repair_saved_not_live_named_test |
+| F58 | Documents page shows fields used and ignored | 1 | R7 | none | 83a98c55 (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | repair_saved_not_live_named_test |
 | F59 | Test projects out of the live portfolio | 1 | R7 | SW-55 | 2f5fc187 (live), 445e678d (live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3, V2) | repair_live_named_test_not_certified |
 | F60 | Empty modules load normally | 11 | R8 | none | none yet; consultant root R8 step 7 | guard_rule (P2, N10) | open_no_repair_linked |
 | F61 | Page weight | 2 | R8 | none | none yet; consultant root R8 step 7 | guard_rule (P2, N10) | open_no_repair_linked |
@@ -191,20 +220,20 @@ Per-row repair reference and method are in the ledger. Summary by proposed SW ro
 
 | SW root | Findings | Root repair | Status of these findings |
 | --- | --- | --- | --- |
-| SW-01 | 64 | 12cedd6c (saved, not live), 0fcebe4e (saved, not live), 3634d35b (saved, not live), 413524f5 (saved, not live) | open_root_repair_saved_not_live |
-| SW-04 | 26 | 78b0de05 (saved, not live) | open_root_repair_saved_not_live |
+| SW-01 | 64 | 12cedd6c (saved, not live), 0fcebe4e (saved, not live, per-fix history), 3634d35b (saved, not live, per-fix history), 413524f5 (saved, not live), f47ed2f3 (saved, not live), ffd57dc0 (saved, not live) | open_root_repair_saved_not_live |
+| SW-04 | 26 | 78b0de05 (saved, not live), 9e44e026 (saved, not live) | open_root_repair_saved_not_live |
 | SW-05 | 25 | none yet; planned T05, T10 | open_root_not_repaired |
-| SW-06 | 48 | none yet; planned T02 | open_root_not_repaired |
-| SW-09 | 20 | none yet; planned T02 | open_root_not_repaired |
-| SW-11 | 38 | none yet; planned T02, T03 | open_root_not_repaired |
+| SW-06 | 48 | 83a98c55 (saved, not live), ffc6bc30 (saved, not live) | open_root_repair_saved_not_live |
+| SW-09 | 20 | 8ba1a7f5 (saved, not live) | open_root_repair_saved_not_live |
+| SW-11 | 38 | 5c81f67c (saved, not live), ffc6bc30 (saved, not live) | open_root_repair_saved_not_live |
 | SW-13 | 38 | e7a4f6db (saved, not live) | open_root_repair_saved_not_live |
 | SW-28 | 12 | none yet; planned T06 | open_root_not_repaired |
-| SW-36 | 34 | be3851ee (saved, not live), 1066c47c (saved, not live), 413524f5 (saved, not live) | open_root_repair_saved_not_live |
+| SW-36 | 34 | be3851ee (saved, not live, per-fix history), 1066c47c (saved, not live, per-fix history), 413524f5 (saved, not live) | open_root_repair_saved_not_live |
 | SW-37 | 12 | none yet; planned T04 | open_root_not_repaired |
-| SW-39 | 36 | none yet; planned T09 | open_root_not_repaired |
-| SW-40 | 36 | none yet; planned T09 | open_root_not_repaired |
+| SW-39 | 36 | ddedd70b (saved, not live) | open_root_repair_saved_not_live |
+| SW-40 | 36 | ddedd70b (saved, not live) | open_root_repair_saved_not_live |
 | SW-44 | 83 | none yet; planned T10 | open_root_not_repaired |
-| SW-45 | 184 | fb318c1a (saved, not live), 6ffa8bea (saved, not live), 7f2f7429 (saved, not live), 413524f5 (saved, not live) | open_root_repair_saved_not_live |
+| SW-45 | 184 | fb318c1a (saved, not live, per-fix history), 6ffa8bea (saved, not live, per-fix history), 7f2f7429 (saved, not live, per-fix history), 413524f5 (saved, not live), 3b421deb (saved, not live) | open_root_repair_saved_not_live |
 | SW-46 | 136 | none yet; planned T10 | open_root_not_repaired |
 | no root yet | 57 | none yet (root mapping pending) | open_no_repair_linked |
 | originally correct | 62 | not needed | originally_correct_watch |
