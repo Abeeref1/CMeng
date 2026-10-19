@@ -423,7 +423,7 @@ function buildDelivery(state:ProjectRuntimeState){
  // Keep the original producer and its full output, evaluated only when used.
  const workfrontGeneratedAt=new Date().toISOString();
  const calculateWorkfrontMatrix=()=>{
- const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>}>();
+ const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>;groupSource?:string}>();
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
  // A specialist workfront register enriches the programme; its absence must
  // not hide programme progress that is already classified in Activity Review.
@@ -435,8 +435,13 @@ function buildDelivery(state:ProjectRuntimeState){
   if(missing.length){
    const rows=projectScopeClassification(state,model).rows;
    for(const dimension of missing)for(const row of rows){
-    const label=row[dimension]??'Unclassified',key=dimension+'|'+label;
-    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};
+    // SW-27: the programme's own activity codes, then WBS level (location),
+    // then a labelled name match; the source label stays with its group.
+    const value=dimension==='discipline'?row.disciplineGroup:row.locationGroup;
+    const source=(dimension==='discipline'?row.disciplineGroupSource:row.locationGroupSource)??null;
+    const label=value&&source?value:'Unclassified',groupSource=value&&source?source:'Not grouped';
+    const key=dimension+'|'+(label==='Unclassified'?label:JSON.stringify([groupSource,label]));
+    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>(),groupSource};
     group.activityIds.add(row.activityId);scopeGroups.set(key,group);
    }
   }
@@ -487,7 +492,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const total=progress?.overallSummary??null;
   const linkedBlockers=selected.filter(a=>a.status!=='completed').flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
   const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=linkedBlockers.length||gates.some(r=>r.state==='blocked')?'blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
-  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
+  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
    // SW-27: a group total is calculated from its known members; the members
    // it could not use are counted beside it, never blanking the whole group.
    plannedPercent:total?.currentPlanPercent??null,baselinePlannedPercent:total?.baselinePlannedPercent??null,scheduleProgressPercent:total?.durationWeightedProgressPercent??null,
