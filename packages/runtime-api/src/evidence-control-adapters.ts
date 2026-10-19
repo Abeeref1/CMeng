@@ -1,5 +1,5 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
+import {canonicalHeader,prepareEvidenceRows,registerDate,securityInstrumentKind} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import {ncrStatusFromSource} from './operational-reporting';
 import type {
@@ -171,18 +171,11 @@ function variationState(
 
 function bondKind(
   raw: string,
+  reference = "",
 ): BondRecord["kind"] {
-  const value = norm(raw);
-  if (
-    value.includes("performance")
-  ) return "performance";
-  if (
-    value.includes("advance")
-  ) return "advance_payment";
-  if (
-    value.includes("retention")
-  ) return "retention";
-  return "other";
+  // F18: the shared instrument-type rule (truth-kernel security-state).
+  const kind = securityInstrumentKind(raw, reference);
+  return kind === "insurance" ? "other" : kind;
 }
 
 function bondStatus(
@@ -893,7 +886,7 @@ export function deriveControlsFromCsv(
       // stores bonds, guarantees and policies in one register. Leave them out
       // of the legacy bond collection; the commercial canonical layer reads
       // them as insurance from the same retained source row.
-      if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(rawKind+' '+bondId))continue;
+      if(securityInstrumentKind(rawKind,bondId)==='insurance')continue;
       bonds.push({
         bondId,
         amount,
@@ -902,6 +895,7 @@ export function deriveControlsFromCsv(
         kind:
           bondKind(
             rawKind,
+            bondId,
           ),
         status:
           bondStatus(

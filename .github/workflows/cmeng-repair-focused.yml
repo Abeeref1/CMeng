@@ -164,6 +164,7 @@ jobs:
             dist/tests/w3-commercial-headline-basis.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \
             dist/tests/w1-f14-delivered-status-without-date.test.js \
+            dist/tests/f18-security-instrument-type.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
             dist/tests/f26-constraint-comparison.test.js
