@@ -176,7 +176,9 @@ jobs:
             dist/tests/w1-f15-risk-register-fully-read.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
-            dist/tests/f26-constraint-comparison.test.js
+            dist/tests/f26-constraint-comparison.test.js \
+            dist/tests/f60-empty-project-every-page.test.js \
+            dist/tests/f61-management-page-weight.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

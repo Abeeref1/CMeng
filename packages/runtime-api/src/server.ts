@@ -390,6 +390,22 @@ function withActionAssignments<T>(projectId:string,body:T):T{
   return applyActionAssignments(body,state.controls.actionAssignments,projectControlSchedule(state)?.revision.model.dataDateIso??null);
 }
 
+/** F61: the management bundle carried the SAME canonical project facts once per
+ * constituent page (four copies of up to ~0.9 MB). When every page holds an
+ * identical fact snapshot it is sent once at /projectFacts and each page names
+ * it with projectFactsRef. Pages whose facts differ keep their own copy, so no
+ * fact is hidden or replaced. Each page's other content is unchanged. */
+export function sharedManagementBundleFacts<T extends Record<string,any>>(bundle:T):T{
+  const keys=['masterDashboard','commandCenter','masterControlProgramme','sourceQuality'].filter(key=>bundle?.[key]&&typeof bundle[key]==='object'&&bundle[key].projectFacts!=null);
+  if(keys.length<2||bundle.projectFacts!=null)return bundle;
+  const first=bundle[keys[0]!].projectFacts;
+  const text=JSON.stringify(first);
+  if(!keys.every(key=>bundle[key].projectFacts===first||JSON.stringify(bundle[key].projectFacts)===text))return bundle;
+  const out:Record<string,any>={...bundle,projectFacts:first};
+  for(const key of keys){const {projectFacts:_shared,...page}=bundle[key];out[key]={...page,projectFactsRef:'/projectFacts'};}
+  return out as T;
+}
+
 function json(
   res: ServerResponse,
   statusCode: number,
@@ -3028,10 +3044,10 @@ async function route(
     json(
       res,
       200,
-      {
+      sharedManagementBundleFacts({
         ...surfaces,
         ...canonicalManagementPages,
-      },
+      }),
     );
     return;
   }
