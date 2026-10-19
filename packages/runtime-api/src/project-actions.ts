@@ -5,7 +5,7 @@ import {scheduleScopeClassification} from './schedule-scope-classification';
 import {milestoneReviewBasis} from './milestone-review';
 import {hseReportPosition} from './hse-report-evidence';
 import {documentClassificationForReview,documentClassificationChoices} from './document-identification';
-import {sourceTables} from '../../truth-kernel/src';
+import {sourceTables,controlIssueField} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
@@ -44,6 +44,11 @@ export interface ProjectAction {
   evidenceSummary?:string[];reviewFingerprint?:string;reviewSourceRefs?:string[];
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
+/** A finding's id is hashed from machine data only (kind, code, raw field,
+ * raw evidence paths, modules and source references), never from its display
+ * summary or wording, so a reworded label keeps the same id. */
+export const actionFindingId=(issue:ControlIssue)=>identity([issue.kind,issue.code,controlIssueField(issue),
+  [...issue.evidencePaths].sort(),[...issue.moduleKeys].sort(),[...issue.sourceRefs].sort()]);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
 /** Only original SHA-bound evidence for this project may be opened from an
  * action. A foreign or absent reference never becomes a synthetic link. */
@@ -325,7 +330,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const sourceFiles=actionSourceFilenames(state,refs);
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
       const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>{
-        const subject=[issue.summary,...(issue.evidencePaths??[])].join(' ');
+        const subject=[controlIssueField(issue),...(issue.evidencePaths??[])].join(' ');
         const advance=/advance.?payment.?bond|advance.?payment.?security/i.test(subject)&&heldAdvanceBonds.length>0;
         const certified=/certified.?progress/i.test(subject)&&heldCertificates.length>0;
         return {field:advance?'Advance-payment bond is held; confirm only the contractual requirement not stated in its source':
@@ -333,7 +338,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
           issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file:advance?heldAdvanceBonds.map(b=>b.bondId).join('; '):file,owner};
       }):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
-        recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(i=>identity([i.kind,i.code,i.summary,i.detail,i.sourceRefs])),affectedPages:pages,
+        recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(actionFindingId),affectedPages:pages,
         ...(group.key==='schedule-calculation'?{completionPosition:context.completionPosition}:{}),...(evidenceSummary.length?{evidenceSummary}:{}),...(fingerprint?{reviewFingerprint:fingerprint}:{})};
       if(refs.length){
         item.correctionRecords=refs.map(ref=>actionSourceCorrectionRecord(state,ref))

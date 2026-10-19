@@ -203,6 +203,9 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(diagnostics.length||issueStates.has(value.state)||value.population?.exclusions?.length){
     const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
     const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
+    // Identity is the raw field name; the reader heading below is display only.
+    const rawField=path.replace(/\[\*\]/g,'').split('.').slice(-2).join('.')+(typeof value.topic==='string'?'|'+value.topic:'');
+    const firstFinding=issues.length;
     // T10: issue headings use the shared reader label for each path segment.
     const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segment=>readablePathLabel(segment)||readableFieldLabel(segment.replace(/\[[^\]]*\]/g,''))).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
@@ -246,6 +249,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         invalidDates.length+' retained record(s) contain a date that failed date validation.',
         'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs);
     }
+    for(let i=firstFinding;i<issues.length;i++)issues[i]!.field=rawField;
     }
     for(const key of Object.keys(value)) {
       const child=value[key];

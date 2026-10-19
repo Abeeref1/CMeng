@@ -4,8 +4,19 @@ import type {ProjectRuntimeState} from './project-state-types';
 /** Group the underlying matter, not the page on which its consequences appear.
  * Every original finding and affected page remains in the group. Missing optional
  * domains are coverage information, not tasks created merely by uploading a XER. */
+/** Words of the raw field name ('position.dataDateIso' -> 'position · data Date Iso'),
+ * split only at camelCase boundaries. Machine data, independent of reader labels,
+ * so rewording a heading cannot move a finding into another group. */
+function rawFieldWords(field:string|undefined){
+  if(!field)return '';
+  const [segments='',...topic]=field.split('|');
+  return segments.split('.').join(' · ').replace(/([a-z])([A-Z])/g,'$1 $2')+(topic.length?' · '+topic.join('|'):'');
+}
 export function projectReviewGroup(issue:ControlIssue,state:ProjectRuntimeState){
-  const path=[issue.sourceFactKey??'',issue.code,...issue.evidencePaths,issue.summary,issue.detail].join(' ').toLowerCase().replaceAll('_',' ');
+  // Matching uses machine data only: semantic key, code, raw paths, raw field
+  // name and producer detail. issue.summary is a display heading: it is never
+  // matched, only shown as the title of an ungrouped finding.
+  const path=[issue.sourceFactKey??'',issue.code,...issue.evidencePaths,rawFieldWords(issue.field),issue.detail].join(' ').toLowerCase().replaceAll('_',' ');
   const modules=issue.moduleKeys.join(' ');
   const docs=state.evidenceDocuments.filter(d=>['active','additive','candidate'].includes(d.basisState));
   const has=(pattern:RegExp)=>docs.some(d=>pattern.test(d.documentType+' '+d.category));
@@ -34,5 +45,6 @@ export function projectReviewGroup(issue:ControlIssue,state:ProjectRuntimeState)
   if(/payment|cash|certificate|certified|invoice|retention/.test(path+' '+modules))return group('payments','Payments and cash records',has(/payment|cash|certificate|invoice/),'Payment and cash measures need their own dated records and amounts; they do not gate programme analysis.');
   if(/\bvariation\b|\bcommercial\b|\bcost\b|\bcontractual\b|\bcontract\b(?!or)|\bbond\b|\bcurrency\b|\binsurance\b/.test(path+' '+modules))return group('commercial','Contract and commercial information',has(/contract|boq|cost|variation|commercial|bond/),'Review the relevant contract particulars, amounts, currency and dates together. Each unavailable measure keeps its own limitation.');
   if(/schedule|programme|critical|float|lookahead/.test(path+' '+modules))return group('programme-information','Programme inputs and comparison scope',state.schedules.length>0,'Review the specific programme fields listed below. Available activities, dates and calculations stay visible.');
+  // The fallback key is machine data; the summary is used only as its title.
   return group('source:'+ (issue.sourceFactKey??issue.code+':'+issue.evidencePaths.join('|')),issue.summary,issue.kind!=='missing_information'||issue.sourceRefs.length>0,issue.action);
 }
