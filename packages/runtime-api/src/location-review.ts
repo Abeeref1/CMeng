@@ -59,7 +59,9 @@ export function projectScopeClassification(state:ProjectRuntimeState,model:Canon
  const locations=new Map(assignments.map(a=>[a.wbsId,a.location])),nodes=new Map(model.wbs.map(n=>[n.wbsId,n]));
  const resolved=new Map<string,string|null>();
  const locationFor=(id:string)=>{if(resolved.has(id))return resolved.get(id)!;let current:string|null=id;const seen=new Set<string>();let location:string|null=null;while(current&&!seen.has(current)){seen.add(current);if(locations.has(current)){location=locations.get(current)!;break;}current=nodes.get(current)?.parentWbsId??null;}resolved.set(id,location);return location;};
- const rows=base.rows.map(row=>{const location=!row.location&&row.wbsId?locationFor(row.wbsId):null;return location?{...row,location,classificationBasis:{...row.classificationBasis,location:'user_reviewed' as const}}:row;});
+ const rows=base.rows.map(row=>{const location=!row.location&&row.wbsId?locationFor(row.wbsId):null;return location?{...row,location,classificationBasis:{...row.classificationBasis,location:'user_reviewed' as const},
+  // A reviewed WBS location mapping is a confirmed decision: it replaces the raw WBS-level or name-match group, never a source activity code.
+  ...(row.locationGroupBasis==='activity_code'?{}:{locationGroup:location,locationGroupBasis:'user_reviewed' as const,locationGroupSource:'From reviewed WBS location mapping'})}:row;});
  const classified=rows.filter(r=>r.location!==null).length;
  const result={...base,rows,coverage:base.coverage.map(c=>c.key==='location'?{...c,classified,coveragePercent:rows.length?Number((classified/rows.length*100).toFixed(4)):null,basis:'Explicit source locations; otherwise user-reviewed WBS mappings. Original WBS and activity fields retained.'}:c)};
  projectionCache.set(base,{key,value:result});return result;

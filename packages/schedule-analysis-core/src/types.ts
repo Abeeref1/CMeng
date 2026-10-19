@@ -103,6 +103,8 @@ export interface CanonicalScheduleActivity {
 
   /** Explicit source constraints are retained separately from network logic. */
   sourceConstraints?: Array<{type:string;dateIso:string|null}>;
+  /** Source activity code assignments (XER TASKACTV -> ACTVCODE -> ACTVTYPE). Absent when the source has none. */
+  activityCodes?: Array<{typeName:string;value:string;description:string|null}>;
 
   originalDurationHours: number | null;
   remainingDurationHours: number | null;

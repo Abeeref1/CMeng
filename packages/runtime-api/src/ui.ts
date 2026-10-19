@@ -3248,7 +3248,13 @@ function renderScopeClassificationVisual(data){
   if(!Array.isArray(p.coverage))return"";
   const coverageRows=p.coverage.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(fmt(row.classified))+' / '+escapeHtml(fmt(row.total))+'</td><td>'+escapeHtml(row.coveragePercent===null?"Not established":fmt(row.coveragePercent)+"%")+'</td><td>'+escapeHtml(row.basis)+'</td></tr>').join("");
   const dimensions=['zone','floor','level','tower','building','area','workFront','phase','section','chainage','discipline','trade','system','package','cbs','contractor','subcontractor'];
-  const grouped=dimensions.map(key=>{
+  // SW-27: discipline and location groups come from the programme's own codes and WBS, each labelled with its source.
+  const sourceGrouped=['discipline','location'].map(key=>{
+    const g=p.dimensionGroups?.[key]?.sourceGrouping;if(!g||!Array.isArray(g.rows))return"";
+    const rows=g.rows.map(row=>'<tr><td>'+escapeHtml(row.value)+'</td><td>'+escapeHtml(row.source)+'</td><td>'+escapeHtml(fmt(row.activityCount))+'</td></tr>').join("")+(g.notGrouped?.activityCount?'<tr><td><i>'+escapeHtml(g.notGrouped.label)+'</i></td><td></td><td>'+escapeHtml(fmt(g.notGrouped.activityCount))+'</td></tr>':"");
+    return '<details class="source-scope"><summary>'+escapeHtml(humanizeKey(key))+' groups · from source '+escapeHtml(fmt(g.sourceGroupedActivityCount))+' · '+escapeHtml(g.nameMatchLabel)+' '+escapeHtml(fmt(g.nameMatchActivityCount))+' · Not grouped '+escapeHtml(fmt(g.notGrouped?.activityCount??0))+'</summary><div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Source</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+  }).join("");
+  const grouped=sourceGrouped+dimensions.map(key=>{
     const group=p.dimensionGroups?.[key],values=new Map();
     if(!group&&responseListPopulation(p.rows||[]).total===(p.rows||[]).length)for(const row of p.rows||[]){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())values.set(String(value),(values.get(String(value))||0)+1);}
     const items=group?.rows||[...values].map(([value,activityCount])=>({value,activityCount}));

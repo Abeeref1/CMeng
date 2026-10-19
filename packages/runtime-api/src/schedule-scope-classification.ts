@@ -26,6 +26,28 @@ export interface ActivityScopeClassification {
   plot:string|null;
   location:string|null;
   classificationBasis:Record<string,ScopeClassificationBasis>;
+  /** SW-27 source-grounded groups: activity code first, then (location only)
+   * the WBS level, then a labelled name match; null when nothing classifies it. */
+  disciplineGroup?:string|null;
+  disciplineGroupBasis?:SourceGroupBasis|null;
+  disciplineGroupSource?:string|null;
+  locationGroup?:string|null;
+  locationGroupBasis?:SourceGroupBasis|null;
+  locationGroupSource?:string|null;
+}
+export type SourceGroupBasis='activity_code'|'wbs_level'|'user_reviewed'|'name_match';
+export const NAME_MATCH_GROUP_SOURCE='Grouped by name match';
+const DISCIPLINE_CODE_TYPES=[/\bdiscipline\b/i,/\btrades?\b/i];
+const LOCATION_CODE_TYPES=[/\blocation\b/i,/\barea\b/i,/\bzone\b/i,/\bbuilding\b/i,/\btower\b/i,/\bplot\b/i,/\blevel\b/i,/\bfloor\b/i];
+/** First code type (in priority order) with exactly one value on the activity. */
+function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
+  const codes=activity.activityCodes??[];
+  for(const type of types){
+    const matching=codes.filter(code=>type.test(code.typeName));
+    const values=new Set(matching.map(code=>code.value));
+    if(values.size===1)return {value:matching[0]!.value,basis:'activity_code' as const,source:'From activity code: '+matching[0]!.typeName};
+  }
+  return null;
 }
 export interface ClassificationCoverage {
   key:keyof Omit<ActivityScopeClassification,'activityId'|'classificationBasis'>;
@@ -49,8 +71,28 @@ export function scopeClassificationGroups(classification:ScheduleScopeClassifica
   for(const row of classification.rows){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())counts.set(String(value),(counts.get(String(value))??0)+1);else notGrouped++;}
   // SW-27: activities matching no group are an explicit, counted bucket.
   return [key,{valueCount:counts.size,rows:[...counts].map(([value,activityCount])=>({value,activityCount})).sort((a,b)=>b.activityCount-a.activityCount||a.value.localeCompare(b.value)),
-   notGrouped:{label:'Not grouped',activityCount:notGrouped}}];
+   notGrouped:{label:'Not grouped',activityCount:notGrouped},
+   ...(key==='discipline'||key==='location'?{sourceGrouping:sourceGrouping(classification,key)}:{})}];
  }));
+}
+
+/** Source-grounded groups with their source label; name matches and
+ * unclassified activities are counted separately (SW-27). */
+function sourceGrouping(classification:ScheduleScopeClassification,dimension:'discipline'|'location'){
+  const groups=new Map<string,{value:string;source:string;basis:SourceGroupBasis;activityCount:number}>();
+  let sourceGrouped=0,nameMatch=0,notGrouped=0;
+  for(const row of classification.rows){
+    const value=dimension==='discipline'?row.disciplineGroup:row.locationGroup;
+    const basis=dimension==='discipline'?row.disciplineGroupBasis:row.locationGroupBasis;
+    const source=dimension==='discipline'?row.disciplineGroupSource:row.locationGroupSource;
+    if(!value||!basis||!source){notGrouped++;continue;}
+    if(basis==='name_match')nameMatch++;else sourceGrouped++;
+    const key=JSON.stringify([source,value]);
+    const group=groups.get(key)??{value,source,basis,activityCount:0};group.activityCount++;groups.set(key,group);
+  }
+  return {rows:[...groups.values()].sort((a,b)=>b.activityCount-a.activityCount||a.source.localeCompare(b.source)||a.value.localeCompare(b.value)),
+    sourceGroupedActivityCount:sourceGrouped,nameMatchActivityCount:nameMatch,nameMatchLabel:NAME_MATCH_GROUP_SOURCE,
+    notGrouped:{label:'Not grouped',activityCount:notGrouped}};
 }
 
 const clean=(value:string)=>value.replace(/\s+/g,' ').trim();
@@ -238,7 +280,17 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
     phase:phase.basis,section:section.basis,chainage:chainage.basis,discipline:discipline?'source_derived':'unavailable',trade:trade.basis,system:system.basis,
     package:packageValue.basis,cbs:cbs.basis,contractor:contractor.basis,subcontractor:subcontractor.basis,location:spatial.length?'source_derived':'unavailable'
   };
-  return {activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,
+  const disciplineSource=codeGroup(activity,DISCIPLINE_CODE_TYPES)??(discipline?{value:discipline,basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
+  // Location: activity code, then the programme's own WBS level 2 (level 1
+  // when the WBS has one level), then a labelled name match.
+  const chain:CanonicalWbsNode[]=[];{let current=node;const seen=new Set<string>();while(current&&!seen.has(current.wbsId)){seen.add(current.wbsId);chain.unshift(current);current=current.parentWbsId?nodes.get(current.parentWbsId):undefined;}}
+  const wbsLevel=chain.length>=2?2:chain.length;
+  const levelName=wbsLevel?(chain[wbsLevel-1]!.name??'').trim():'';
+  const locationSource=codeGroup(activity,LOCATION_CODE_TYPES)??(levelName?{value:levelName,basis:'wbs_level' as const,source:'From WBS level '+wbsLevel}:null)
+    ??(spatial.length?{value:spatial.join(' / '),basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
+  return {disciplineGroup:disciplineSource?.value??null,disciplineGroupBasis:disciplineSource?.basis??null,disciplineGroupSource:disciplineSource?.source??null,
+    locationGroup:locationSource?.value??null,locationGroupBasis:locationSource?.basis??null,locationGroupSource:locationSource?.source??null,
+    activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,
     phase:phase.value,section:section.value,chainage:chainage.value,discipline,trade:trade.value,system:system.value,package:packageValue.value,cbs:cbs.value,contractor:contractor.value,subcontractor:subcontractor.value,
     plot:plot.value,location:spatial.length?spatial.join(' / '):null,classificationBasis:basis};
 }
