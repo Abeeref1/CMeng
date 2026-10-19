@@ -235,10 +235,12 @@ function milestoneSummary(
       )
       .map((activity) => activity.activityId),
     inferredFromZeroDurationIds: milestones
+      // Only activities whose type was actually inferred from a zero
+      // duration. A source-typed "Milestone" is not an inference.
       .filter(
         (activity) =>
           activity.activityType === "milestone" &&
-          activity.originalDurationHours === 0,
+          activity.diagnostics.includes("SCHEDULE_ACTIVITY_TYPE_INFERRED_ZERO_DURATION"),
       )
       .map((activity) => activity.activityId),
   };

@@ -75,6 +75,7 @@ function actualUnits(
 
 function atCompletionUnits(
   assignment: CanonicalResourceAssignment,
+  remainingUnits: number | null = assignment.remainingUnits,
 ): number | null {
   if (assignment.atCompletionUnits !== null) {
     return assignment.atCompletionUnits;
@@ -83,12 +84,12 @@ function atCompletionUnits(
   const actual = actualUnits(assignment);
   if (
     actual === null ||
-    assignment.remainingUnits === null
+    remainingUnits === null
   ) {
     return null;
   }
 
-  return actual + assignment.remainingUnits;
+  return actual + remainingUnits;
 }
 
 function calendarFor(
@@ -213,6 +214,7 @@ function peakRate(
   resource: CanonicalResource,
   schedule: CanonicalScheduleModel,
   mode: "planned" | "remaining",
+  activityCompleted: (assignment: CanonicalResourceAssignment) => boolean = () => false,
 ): {
   peak: number | null;
   peakAtIso: string | null;
@@ -229,14 +231,17 @@ function peakRate(
   const assumptions: string[] = [];
 
   for (const assignment of assignments) {
+    // A completed activity has no remaining demand. A stale source remaining
+    // quantity or rate on it must not add to the remaining-work peak.
+    const done = mode === "remaining" && activityCompleted(assignment);
     const units =
       mode === "planned"
         ? assignment.plannedUnits
-        : assignment.remainingUnits;
+        : done ? 0 : assignment.remainingUnits;
     const explicitRate =
       mode === "planned"
         ? assignment.plannedUnitsPerHour
-        : assignment.remainingUnitsPerHour;
+        : done ? 0 : assignment.remainingUnitsPerHour;
     const startIso =
       mode === "planned"
         ? assignment.plannedStartIso
@@ -486,6 +491,14 @@ export function buildResourceUtilizationProjection(
     schedule.activities.map(activity => [activity.activityId, activity]),
   );
 
+  // Completed work is excluded from remaining figures: its remaining units
+  // are zero whatever stale value the source still carries.
+  const activityCompleted = (assignment: CanonicalResourceAssignment) =>
+    Boolean(assignment.activityId) &&
+    activityById.get(assignment.activityId)?.status === "completed";
+  const remainingUnitsOf = (assignment: CanonicalResourceAssignment) =>
+    activityCompleted(assignment) ? 0 : assignment.remainingUnits;
+
   const rows: ResourceUtilizationRow[] =
     resources.resources.map((resource) => {
       const assignments =
@@ -509,12 +522,12 @@ export function buildResourceUtilizationProjection(
       );
       const remaining = aggregate(
         assignments,
-        (assignment) =>
-          assignment.remainingUnits,
+        remainingUnitsOf,
       );
       const atCompletion = aggregate(
         assignments,
-        atCompletionUnits,
+        (assignment) =>
+          atCompletionUnits(assignment, remainingUnitsOf(assignment)),
       );
 
       const plannedPeak = canAssessCapacity
@@ -537,6 +550,7 @@ export function buildResourceUtilizationProjection(
             resource,
             schedule,
             "remaining",
+            activityCompleted,
           )
         : {
             peak: null,
@@ -573,7 +587,8 @@ export function buildResourceUtilizationProjection(
       const affectedActivityIds = [...new Set(assignments.map(assignment => assignment.activityId).filter(Boolean))];
       const affectedWbsIds = [...new Set(affectedActivityIds.map(id => activityById.get(id)?.wbsId ?? null).filter((id): id is string => Boolean(id)))];
       const affectedActivities = affectedActivityIds.map(id => activityById.get(id)).filter((row): row is NonNullable<typeof row> => Boolean(row));
-      const pressureCount = affectedActivities.filter(activity => typeof activity.totalFloatHours === "number" && activity.totalFloatHours <= 0).length;
+      // Finished work is not under schedule pressure, whatever float it still shows.
+      const pressureCount = affectedActivities.filter(activity => activity.status !== "completed" && typeof activity.totalFloatHours === "number" && activity.totalFloatHours <= 0).length;
       const programmeEffect = affectedActivities.length === 0 ? null : pressureCount > 0
         ? String(pressureCount) + " affected activity(ies) are on submitted critical/negative-float scope."
         : "Affected programme scope is identified; project-completion effect is not established from resource evidence alone.";

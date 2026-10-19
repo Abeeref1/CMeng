@@ -97,8 +97,10 @@ function buildRow(
           (activity.originalDurationHours ?? 0),
         0,
       ),
+    // Completed work has no remaining duration. A stale source value on a
+    // completed activity must not be carried into the remaining-work figure.
     remainingDurationHoursKnown:
-      activities.reduce(
+      unfinished.reduce(
         (sum, activity) =>
           sum +
           (activity.remainingDurationHours ?? 0),
