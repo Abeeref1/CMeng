@@ -93,6 +93,8 @@ export interface ProjectFactsSnapshot {
   };
   commercial:{
     securityValidity?:ReturnType<typeof securityValidityReview>;
+    /** F34: the one shared sectional LD position (contract controls), read by Dashboard, Director and Financial Claims. */
+    sectionalLd?:import('../../commercial-contract-controls/src').SectionalLdPosition|null;
     variationRecordCount:ProjectFact<number>;
     approvedVariationCount:ProjectFact<number>;
     pendingVariationCount:ProjectFact<number>;
@@ -543,6 +545,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         insuranceRefs,
       ),
       securityValidity:securityValidityReview(scoped,commercial.sourceLedger?.bonds??[],submittedFinish?.dateIso??null),
+      sectionalLd:commercial.contractControls?.liquidatedDamages?.sectionalPosition??null,
       currencies:commercial.currencies.map(row=>({
         currency:row.currency,
         forecastEac:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.forecastEac??{value:null,state:'missing',sourceRefs:[]},'Latest source EAC in its reporting period, currency and tax basis.');})(),

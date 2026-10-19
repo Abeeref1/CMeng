@@ -1,5 +1,6 @@
 import { partitionAsOf } from "../../truth-kernel/src";
 import {performanceSecurityValidity} from './security-validity';
+import {sectionalLdPosition} from './sectional-ld';
 import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
@@ -1802,6 +1803,7 @@ function liquidatedDamages(
     decisionRequired:rateState==='candidate'||capState==='candidate',
     scenarios,
     sectionScenarios,
+    sectionalPosition:sectionalLdPosition(sectionScenarios),
     diagnostics: [
       "CLAIM_REGISTER_DAY_SUMS_ARE_NOT_PROJECT_EOT_AND_NEVER_ADJUST_COMPLETION",
       "SCHEDULE_MOVEMENT_EOT_POSITION_AND_LD_AMOUNT_REMAIN_SEPARATE",

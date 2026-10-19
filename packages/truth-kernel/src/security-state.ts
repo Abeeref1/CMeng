@@ -37,3 +37,12 @@ export function securityCoverage(input:{expiryIso:string|null|undefined;required
  return short>0?{coverageState:'gap',requiredEndIso:end,daysShort:short,reason:'Security expires '+expiry+', '+short+' days before the required cover end '+end+(input.requiredEndBasis?' ('+input.requiredEndBasis+')':'')+'.'}
   :{coverageState:'covered',requiredEndIso:end,daysShort:0,reason:'Security expiry '+expiry+' is on or after the required cover end '+end+(input.requiredEndBasis?' ('+input.requiredEndBasis+')':'')+'.'};
 }
+/** Calendar end of a stated period after a date (month ends clamp). Null when either input is unknown. */
+export function addStatedPeriodIso(startIso:string|null|undefined,count:number|null|undefined,unit:string|null|undefined):string|null{
+ const start=day(startIso);if(!start||typeof count!=='number'||!Number.isFinite(count)||!unit)return null;
+ const u=unit.toLowerCase().replace(/s$/,'');const end=new Date(start+'T00:00:00.000Z');
+ if(u==='day')end.setUTCDate(end.getUTCDate()+count);
+ else if(u==='month'||u==='year'){const d=end.getUTCDate();end.setUTCDate(1);end.setUTCMonth(end.getUTCMonth()+count*(u==='year'?12:1));const last=new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth()+1,0)).getUTCDate();end.setUTCDate(Math.min(d,last));}
+ else return null;
+ return end.toISOString().slice(0,10);
+}

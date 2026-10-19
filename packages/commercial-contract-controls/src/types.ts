@@ -493,6 +493,8 @@ export interface LiquidatedDamagesProjection {
     CommercialFindingState;
   scenarios: LdScenario[];
   sectionScenarios: SectionLdScenario[];
+  /** F34: shared sectional LD position (additive field). */
+  sectionalPosition?: import('./sectional-ld').SectionalLdPosition | null;
   diagnostics: string[];
 }
 

@@ -4931,6 +4931,17 @@ function commercialFindingTitle(metric){
   if(!metric||typeof metric!=="object")return"";
   return "State: "+commercialSourceState(metric)+(metric.diagnostics?.length?" · "+[...new Set(metric.diagnostics.map(humanizeKey))].join(" · "):"");
 }
+// F34: one shared sectional LD position (projectFacts.commercial.sectionalLd); the Dashboard,
+// Director and Financial Claims show this same figure, never a page-level recalculation.
+function sectionalLdText(pos){
+  if(!pos)return "Not applicable: no sectional LD terms";
+  return pos.state==="calculated"?fmt(pos.cappedTotal)+" "+(pos.currency||""):"Needs review";
+}
+function renderSectionalLdPosition(pos){
+  if(!pos)return "";
+  const rows=(pos.sections||[]).map(s=>'<tr><td><b>'+escapeHtml(s.label||("Section "+s.sectionId))+'</b></td><td>'+escapeHtml(s.rate==null?"Not established":fmt(s.rate))+'</td><td>'+escapeHtml(s.capAmount==null?"Not established":fmt(s.capAmount))+'</td><td>'+escapeHtml(s.lateDays==null?"Not established":fmt(s.lateDays))+'</td><td>'+escapeHtml(s.cappedExposure==null?"Not established":fmt(s.cappedExposure))+'</td><td>'+escapeHtml((s.missingInputs||[]).join("; ")||"Complete")+'</td></tr>').join("");
+  return '<section class="planning-panel sectional-ld-position"><div class="planning-panel-head"><div><h4>Sectional delay damages position</h4><p>'+escapeHtml(pos.basis||"")+'</p></div></div><div class="planning-panel-body"><div class="scalar"><b>Sectional LD (capped)</b><span class="sectional-ld-figure">'+escapeHtml(sectionalLdText(pos))+'</span></div><p class="muted">'+escapeHtml(pos.reason||"")+'</p><div class="table-wrap"><table><thead><tr><th>Section</th><th>Rate</th><th>Cap</th><th>Late days</th><th>Capped</th><th>Missing inputs</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section>';
+}
 function renderManagementCommercial(rows){
   if(!Array.isArray(rows)||!rows.length)return '<div class="empty">No confirmed commercial currency position is established.</div>';
   const fields=[
@@ -5986,7 +5997,7 @@ function renderModuleResultBody(result){
   const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
+  const primaryView=(['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd):'')+(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
   const floatReview=result.key==='independent-forecast'?renderActivityFloatReconciliation(data.activityFloatReconciliation):['activity-analytics','near-critical'].includes(result.key)?'<p>'+managementModuleLink('independent-forecast','Review submitted and calculated float, classifications and exact source evidence')+'</p>':'';
 
   el("directorDrawer").open=false;
@@ -6088,7 +6099,8 @@ function renderDirector(d){
     ["Awarded EOT",c.officialApprovedEotDays===null||c.officialApprovedEotDays===undefined?"Not established":c.officialApprovedEotDays,"Dated awards through the reporting date"],
     ["Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","graph/calculation coverage only; source float and calendars require reconciliation"],
     ["Claims linked",c.claimCount===null||c.claimCount===undefined?"Not established":screenCountText(c.fullyLinkedClaimCount)+" / "+fmt(c.claimCount),"claim → event → activity"],
-    ["LD Scenario",d.ld.cappedAmount===null||d.ld.cappedAmount===undefined?"Not established":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state)]
+    ["LD Scenario",d.ld.cappedAmount===null||d.ld.cappedAmount===undefined?"Not established":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state)],
+    ...(d.projectFacts?.commercial?.sectionalLd?[["Sectional LD (capped)",sectionalLdText(d.projectFacts.commercial.sectionalLd),d.projectFacts.commercial.sectionalLd.state==="calculated"?"sum of section scenarios":(d.projectFacts.commercial.sectionalLd.reason||"needs review")]]:[])
   ]);
   let html='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Available management position</h4><p>Established information is shown first. Measures needing more evidence are grouped separately and are never converted to zero.</p></div></div><div class="planning-panel-body">'+programmeKpis+'</div></section>';
   html+='<div class="grid two"><div class="card"><h3>Commercial exposure by currency</h3><div class="grid three">';

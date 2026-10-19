@@ -369,3 +369,60 @@ test("F35 coverage gap is raised when the security ends before the required peri
   assert.equal(securityCoverage({expiryIso:"2027-12-31",requiredEndIso:"2028-10-06",requirementEstablished:false}).coverageState,"not_established");
   assert.equal(securityCoverage({expiryIso:null,requiredEndIso:"2028-10-06",requirementEstablished:true}).coverageState,"not_established");
 });
+
+import {sectionalLdPosition,type SectionLdTermInput} from "../packages/commercial-contract-controls/src";
+import {performanceSecurityValidity} from "../packages/commercial-contract-controls/src/security-validity";
+import {runtimeProjects} from "../packages/runtime-api/src/project-state";
+import {moduleForProject} from "../packages/runtime-api/src/project-projections";
+import {cmengUatHtml} from "../packages/runtime-api/src/ui";
+
+const section=(o:Partial<SectionLdTermInput>):SectionLdTermInput=>({sectionId:"1",label:"Section 1",rate:35_000,rateBasis:"fixed_amount_per_day",currency:"SAR",
+  capAmount:10_000_000,capPercent:null,contractCompletionIso:"2026-06-30",extendedCompletionIso:null,programmeCompletionIso:"2026-07-10",milestoneId:"M1",sourceRefs:["test:s1"],...o});
+
+test("F34 one sectional LD figure: sum of capped section amounts when every section is complete", () => {
+  const sections=[section({}),section({sectionId:"2",label:"Section 2",rate:60_000,capAmount:21_000_000,contractCompletionIso:"2026-09-01",programmeCompletionIso:"2026-09-21",sourceRefs:["test:s2"]})];
+  const cc=buildContractControls({...minimalContractInput(),sectionTerms:sections} as never);
+  const pos=cc.liquidatedDamages.sectionalPosition!;
+  assert.equal(pos.state,"calculated");
+  assert.equal(pos.cappedTotal,10*35_000+20*60_000);
+  assert.equal(pos.currency,"SAR");
+  assert.deepEqual(pos.missingInputs,[]);
+  // The cap applies per section.
+  const capped=sectionalLdPosition(buildContractControls({...minimalContractInput(),sectionTerms:[section({capAmount:100_000})]} as never).liquidatedDamages.sectionScenarios)!;
+  assert.equal(capped.cappedTotal,100_000);assert.equal(capped.uncappedTotal,350_000);
+});
+
+test("F34 an unclear sectional basis stays needs review with the reason, never a partial total", () => {
+  const cc=buildContractControls({...minimalContractInput(),sectionTerms:[section({}),section({sectionId:"2",label:"Section 2",rate:60_000,capAmount:null,contractCompletionIso:null})]} as never);
+  const pos=cc.liquidatedDamages.sectionalPosition!;
+  assert.equal(pos.state,"needs_review");
+  assert.equal(pos.cappedTotal,null);assert.equal(pos.uncappedTotal,null);
+  assert.ok(pos.missingInputs.includes("Section 2: Section contractual completion date"),pos.missingInputs.join("|"));
+  assert.ok(pos.missingInputs.includes("Section 2: Section monetary cap"),pos.missingInputs.join("|"));
+  assert.match(pos.reason,/^Needs review: /);
+  const pct=sectionalLdPosition(buildContractControls({...minimalContractInput(),sectionTerms:[section({rateBasis:"percent_of_section_value_per_day"})]} as never).liquidatedDamages.sectionScenarios)!;
+  assert.equal(pct.state,"needs_review");
+  assert.equal(sectionalLdPosition([]),null,"no sectional terms is not applicable, not zero");
+});
+
+test("F34 Dashboard, Director and Financial Claims read the same shared sectional LD position", () => {
+  const projectId="W2-SECTIONAL-LD-PAGES";
+  const state:any=runtimeProjects.getOrCreate(projectId);state.testProject=true;runtimeProjects.touch(state);
+  const dash=moduleForProject(projectId,"master-dashboard").data as any,claims=moduleForProject(projectId,"commercial-claims-notices").data as any;
+  assert.ok(dash.projectFacts?.commercial&&"sectionalLd" in dash.projectFacts.commercial);
+  assert.ok(claims.projectFacts?.commercial&&"sectionalLd" in claims.projectFacts.commercial);
+  assert.deepEqual(dash.projectFacts.commercial.sectionalLd,claims.projectFacts.commercial.sectionalLd);
+  const html=cmengUatHtml();
+  assert.ok(html.includes("['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd)"));
+  assert.ok(html.includes('sectionalLdText(d.projectFacts.commercial.sectionalLd)'),"Director reads the same shared position");
+});
+
+test("F35 contract-controls security validity uses the shared coverage rule", () => {
+  const clauses=[{clauseId:"C1",textPreview:"The Performance Security shall remain valid until the Contractor has remedied all defects. The Defects Notification Period is 365 days.",sourceRef:"test:c1"}] as never;
+  const bond={bondId:"PB-01",kind:"performance",status:"active",expiryIso:"2027-12-31",amount:21_000_000,currency:"SAR",sourceRefs:["test:pb"]} as never;
+  const gap=performanceSecurityValidity(bond,clauses,"2027-10-06")!;
+  assert.equal(gap.coverageState,"gap");assert.equal(gap.requiredCoverEndIso,"2028-10-05");assert.equal(gap.coverageGapDays,279);
+  assert.match(gap.message,/before the required cover end 2028-10-05/);
+  const noPeriod=performanceSecurityValidity(bond,[{clauseId:"C2",textPreview:"The Performance Security shall remain valid until the Contractor has remedied all defects.",sourceRef:"test:c2"}] as never,"2027-10-06")!;
+  assert.equal(noPeriod.coverageState,"not_established");assert.equal(noPeriod.coverageGapDays,null);
+});
