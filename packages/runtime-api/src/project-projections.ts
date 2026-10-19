@@ -1,3 +1,5 @@
+import {projectDocumentReading,readingSetup} from './document-read-review';
+import {configuredProviderState} from '../../project-ask/src/provider';
 import {projectScopeClassification} from './location-review';
 import {attachSourceActivityCalendars} from './source-milestone-calendar-join';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
@@ -9288,6 +9290,8 @@ export function overviewForProject(
       ).length,
     evidenceDocumentCount:
       state.evidenceDocuments.length,
+    // SW-14: reading state of every uploaded document, same rule as the documents page.
+    documentReading:projectDocumentReading(state,readingSetup(process.env,configuredProviderState().providerConfigured)).summary,
     evidenceCategoryCounts:
       state.evidenceDocuments.reduce(
         (counts, document) => {

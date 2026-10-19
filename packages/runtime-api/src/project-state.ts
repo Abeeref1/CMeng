@@ -18,7 +18,7 @@ import {readRegisterWorkbook,registerCsv} from './register-workbook';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
-import {refreshDeferredPdfRead} from './document-read-review';
+import {refreshDeferredPdfRead,noteDeferredReading} from './document-read-review';
 import {retainedControlAssertionRead} from './control-assertion-read-cache';
 import {quantityModelFromBoq,quarantineBoqQuantityModel} from './boq-source';
 import { synchronizeCanonicalTimeClaims } from "./canonical-time-claims";
@@ -2420,6 +2420,7 @@ export class RuntimeProjectStore {
       for(const document of [...state.evidenceDocuments]){
         if(onlyDocumentId&&document.documentId!==onlyDocumentId)continue;
         try{
+          noteDeferredReading(document,'reading');
           const contractRead=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===document.sourceHashSha256)?.result.pdf;
           if(contractRead?.complete&&!contractRead.pages.some(p=>p.method==='native'&&fragmentedPdfText(p.text)))continue;
           const refreshedBoq=await refreshDeferredPdfBoq(document,state,()=>process.env.CMENG_OCR_ENABLED?.trim()==='0'?undefined:this.createOcrProvider(),onPageRead);
@@ -2452,7 +2453,7 @@ export class RuntimeProjectStore {
             if(!changedProjects.includes(state.projectId))changedProjects.push(state.projectId);
             this.persistSnapshot();
           }
-        }
+        }finally{noteDeferredReading(document,'done');}
       }
     }
     return {refreshedDocumentCount,diagnostics,changedProjects};

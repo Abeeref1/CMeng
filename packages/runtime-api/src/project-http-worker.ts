@@ -4,6 +4,7 @@ import {createCmengServer,projectDocumentRegister} from './server';
 import {runtimeProjects} from './project-state';
 import {projectMetadata} from './project-catalog';
 import {scheduleIdleProjectWork} from './project-idle-work';
+import {noteDeferredReading} from './document-read-review';
 import type {AddressInfo} from 'node:net';
 
 void (async()=>{
@@ -13,6 +14,8 @@ void (async()=>{
   await runtimeProjects.refreshSpreadsheetRegisters();
   await runtimeProjects.refreshHseReports();
   await runtimeProjects.refreshCorrespondenceNarratives();
+  // SW-14: every PDF in this worker's idle reading queue shows as queued.
+  for(const document of runtimeProjects.get(id)?.evidenceDocuments??[])if(/pdf/i.test(document.mediaType??''))noteDeferredReading(document,'queued');
 
   let documentVersion:number|null=null;
   const publishDocuments=()=>{
