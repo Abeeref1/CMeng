@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'node:crypto';
-import JSZip from 'jszip';
+import type JSZip from 'jszip';
+import {jsZip} from '../../shared/src/lazy-jszip';
 import {parsePdfDocument,TesseractOcrProvider} from '../../pdf-document-parser/src';
 import {AskError} from '../../project-ask/src/catalogue';
 import type {AskSession} from '../../project-ask/src/types';
@@ -18,7 +19,7 @@ export async function readAskReference(projectId:string,user:AskSession,filename
     const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(bytes as any);
     workbook.eachSheet(sheet=>{const lines:string[]=[];sheet.eachRow(row=>{lines.push((row.values as unknown[]).slice(1).map(v=>typeof v==='object'&&v!==null?JSON.stringify(v):String(v??'')).join('\t'));});pages.push({page:pages.length+1,text:sheet.name+'\n'+lines.join('\n'),method:'spreadsheet'});});
   }else if(/\.docx$/i.test(name)){
-    const zip=await JSZip.loadAsync(bytes);const xml=await zip.file('word/document.xml')?.async('string');if(!xml)throw new AskError(422,'reference_unreadable','This Word document has no readable document body.');
+    const zip=await jsZip().loadAsync(bytes);const xml=await zip.file('word/document.xml')?.async('string');if(!xml)throw new AskError(422,'reference_unreadable','This Word document has no readable document body.');
     const text=xml.replace(/<\/w:p>/g,'\n').replace(/<[^>]*>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');pages=[{page:1,text,method:'word_text'}];reading='Word body read; pagination and embedded images require separate inspection.';
   }else if(/\.(txt|csv|tsv|md|json)$/i.test(name)){pages=[{page:1,text:bytes.toString('utf8'),method:'text'}];}
   else throw new AskError(415,'reference_type_unsupported','Attach PDF, Word, Excel, CSV, TSV, JSON or text.');

@@ -1,5 +1,6 @@
 import {readableXlsx} from '../../shared/src/xlsx';
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
+import {excelJs} from "../../shared/src/lazy-exceljs";
 import type {
   BoqCell,
   BoqCellKind,
@@ -8,20 +9,20 @@ import type {
 } from "./types";
 
 function cellKind(cell: ExcelJS.Cell): BoqCellKind {
-  if (cell.type === ExcelJS.ValueType.Formula) return "formula";
+  if (cell.type === excelJs().ValueType.Formula) return "formula";
   if (cell.value === null || cell.value === undefined) return "blank";
 
   switch (cell.type) {
-    case ExcelJS.ValueType.Number:
+    case excelJs().ValueType.Number:
       return "number";
-    case ExcelJS.ValueType.String:
-    case ExcelJS.ValueType.RichText:
+    case excelJs().ValueType.String:
+    case excelJs().ValueType.RichText:
       return "string";
-    case ExcelJS.ValueType.Date:
+    case excelJs().ValueType.Date:
       return "date";
-    case ExcelJS.ValueType.Boolean:
+    case excelJs().ValueType.Boolean:
       return "boolean";
-    case ExcelJS.ValueType.Error:
+    case excelJs().ValueType.Error:
       return "error";
     default:
       return "string";
@@ -79,7 +80,7 @@ export function readBoqCell(
 }
 
 export async function loadBoqWorkbook(bytes: Uint8Array): Promise<ExcelJS.Workbook> {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (excelJs().Workbook)();
   await workbook.xlsx.load(await readableXlsx(bytes) as any);
   return workbook;
 }

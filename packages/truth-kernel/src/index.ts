@@ -430,9 +430,12 @@ export function inferTableSemanticRoute(
   input:readonly string[][],
   hintedDocumentType='',
   confirmations:readonly EvidenceColumnConfirmation[]=[],
+  // The table analysis of this exact input and confirmations, when the caller
+  // already has it (analyzeEvidenceTable is deterministic for its inputs).
+  known?:EvidenceTableIntelligence,
 ):TableSemanticRoute|null{
   if(!input.length)return null;
-  const intelligence=analyzeEvidenceTable(input,confirmations);
+  const intelligence=known??analyzeEvidenceTable(input,confirmations);
   if(!intelligence.structurallyReadable)return null;
   const raw=input[intelligence.headerRowIndex]??[];
   const confirmed=new Map(confirmations.map(c=>[c.columnIndex,c.meaning] as const));
@@ -471,8 +474,9 @@ export function prepareEvidenceRows(
   documentType='',
   confirmations:readonly EvidenceColumnConfirmation[]=[],
   semanticMeanings:readonly EvidenceSemanticColumnMeaning[]=[],
+  known?:EvidenceTableIntelligence,
 ){
-  const intelligence=analyzeEvidenceTable(input,confirmations);
+  const intelligence=known??analyzeEvidenceTable(input,confirmations);
   const meaningByColumn=new Map<number,string>();
   for(const item of semanticMeanings)meaningByColumn.set(item.columnIndex,item.meaning);
   for(const item of confirmations)meaningByColumn.set(item.columnIndex,item.meaning);
@@ -510,9 +514,12 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
         const storedSemantic=('semantic' in sheet&&sheet.semantic?.documentType)?sheet.semantic:undefined;
-        const inferred=storedSemantic?null:inferTableSemanticRoute(sheet.rows,doc.documentType,confirmations);
+        // T11: one table analysis per sheet, shared by the semantic route and
+        // the row preparation (both analysed the same rows and confirmations).
+        const analysis=sheet.rows.length?analyzeEvidenceTable(sheet.rows,confirmations):undefined;
+        const inferred=storedSemantic?null:inferTableSemanticRoute(sheet.rows,doc.documentType,confirmations,analysis);
         const semanticType=reviewedType??storedSemantic?.documentType??inferred?.documentType??doc.documentType;
-        const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations,storedSemantic?.columnMeanings??[]),{headers,rows,intelligence}=prepared;
+        const prepared=prepareEvidenceRows(sheet.rows,semanticType,confirmations,storedSemantic?.columnMeanings??[],analysis),{headers,rows,intelligence}=prepared;
         const effectiveDocument=(storedSemantic||inferred)
           ?({...doc,documentType:semanticType} as EvidenceDocument)
           :doc;

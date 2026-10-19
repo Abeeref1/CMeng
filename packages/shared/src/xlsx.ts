@@ -1,8 +1,9 @@
-import JSZip from 'jszip';
+import type JSZip from 'jszip';
+import {jsZip} from './lazy-jszip';
 /** ExcelJS expects the usual default SpreadsheetML namespace. Valid producers
  * may bind it to a prefix. Normalize XML names, preserving source cell text. */
 export async function readableXlsx(bytes:Uint8Array):Promise<Buffer>{
- const zip=await JSZip.loadAsync(bytes);let changed=false;
+ const zip=await jsZip().loadAsync(bytes);let changed=false;
  for(const file of Object.values(zip.files).filter(f=>!f.dir&&/\.xml$/.test(f.name))){
   const xml=await file.async('string');
   const prefixes=[...xml.matchAll(/xmlns:([\w.-]+)=["'](http:\/\/schemas\.openxmlformats\.org\/(?:spreadsheetml\/2006\/main|package\/2006\/(?:relationships|content-types)))["']/g)];

@@ -6,7 +6,8 @@ import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import {jsZip} from "../../shared/src/lazy-jszip";
 
 import {
   TesseractOcrProvider,
@@ -238,7 +239,7 @@ async function verifiedMediaType(
   ) {
     try {
       const zip =
-        await JSZip.loadAsync(
+        await jsZip().loadAsync(
           Buffer.from(bytes),
         );
       const names =
@@ -694,7 +695,7 @@ async function extractDocxSample(
   bytes: Uint8Array,
 ): Promise<string> {
   const zip =
-    await JSZip.loadAsync(
+    await jsZip().loadAsync(
       Buffer.from(bytes),
     );
   const document =

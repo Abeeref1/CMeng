@@ -1,4 +1,5 @@
-import JSZip from 'jszip';
+import type JSZip from 'jszip';
+import {jsZip} from '../../shared/src/lazy-jszip';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
@@ -157,7 +158,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
 }
 function wordParagraph(text:string,style='Normal'){return '<w:p><w:pPr><w:pStyle w:val="'+style+'"/>'+(/[\u0600-\u06ff]/.test(text)?'<w:bidi/>':'')+'</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">'+text.split('\n').map(line=>xml(line)).join('</w:t><w:br/><w:t xml:space="preserve">')+'</w:t></w:r></w:p>';}
 async function word(result:AnalysisResult,view?:AskExportView){
-  const zip=new JSZip();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
+  const zip=new (jsZip())();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
   for(const n of result.narrative)body+=wordParagraph(n.heading,'Heading1')+wordParagraph(n.text);
   body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);
   const relationships:string[]=[];let imageIndex=0;
@@ -182,7 +183,7 @@ export async function exportAskAnalysis(source:AnalysisResult,format:string,inpu
   else if(format==='docx'){bytes=await word(result,view);type='application/vnd.openxmlformats-officedocument.wordprocessingml.document';extension='docx';}
   else if(format==='json'){bytes=Buffer.from(JSON.stringify(result));type='application/json';extension='json';}
   else if(format==='csv'||format==='powerbi'){
-    const zip=new JSZip();zip.file('analysis.json',JSON.stringify(result));zip.file('project.csv','projectId,dataDate,analysisId,snapshotHash\r\n'+[result.scope.projectId,result.scope.dataDate,result.id,result.snapshotHash].map(csv).join(','));
+    const zip=new (jsZip())();zip.file('analysis.json',JSON.stringify(result));zip.file('project.csv','projectId,dataDate,analysisId,snapshotHash\r\n'+[result.scope.projectId,result.scope.dataDate,result.id,result.snapshotHash].map(csv).join(','));
     const datasets:any[]=[];rows(result).forEach((table,i)=>{const name=String(i+1).padStart(2,'0')+'_'+safe(table.id)+'.csv';zip.file(name,'\uFEFF'+['projectId','analysisId',...table.columns.map(c=>c.key)].map(csv).join(',')+'\r\n'+table.rows.map(r=>[result.scope.projectId,result.id,...table.columns.map(c=>r[c.key])].map(csv).join(',')).join('\r\n'));datasets.push({file:name,title:table.title,columns:table.columns,rows:table.rows.length,basis:table.basis});});
     zip.file('dataset-schema.json',JSON.stringify({projectId:result.scope.projectId,dataDate:result.scope.dataDate,analysisId:result.id,snapshotHash:result.snapshotHash,datasets,relationships:[{from:'datasets.projectId',to:'project.projectId',cardinality:'many-to-one'}]},null,2));
     zip.file('README.txt','CMeng Project dataset\nImport the UTF-8 CSV tables into Power BI or Excel. projectId and analysisId identify their exact scope. Blank evidence is represented as Not established, never zero. Unit and currency groups remain separate. See dataset-schema.json and analysis.json for metadata, evidence, filters and exclusions. This is a populated Power BI-ready dataset, not a PBIX file.');bytes=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});type='application/zip';extension='zip';

@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import {jsZip} from "../../shared/src/lazy-jszip";
 import { XMLParser } from "fast-xml-parser";
 
 import { detectAllBoqHeaders } from "./headers";
@@ -730,7 +731,7 @@ async function parseFastSheet(
 export async function parseBoqOoxmlWorkbook(
   bytes: Uint8Array,
 ): Promise<BoqParseResult> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await jsZip().loadAsync(bytes);
   const workbookXml = await xmlFile(zip, "xl/workbook.xml");
   const relsXml = await xmlFile(zip, "xl/_rels/workbook.xml.rels");
   const shared = await sharedStrings(zip);

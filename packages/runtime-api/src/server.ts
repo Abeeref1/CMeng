@@ -25,7 +25,8 @@ import {withRequestAudit} from './audit-context';
 import {managementForecastPosition} from '../../management-surfaces/src';
 import {documentReadReview} from './document-read-review';
 import {analyticalOperationalDocuments} from './operational-reporting';
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import {jsZip} from "../../shared/src/lazy-jszip";
 import {
   createServer,
   type IncomingMessage,
@@ -1465,7 +1466,7 @@ async function route(
 
     if (isZip) {
       const archive =
-        await JSZip.loadAsync(
+        await jsZip().loadAsync(
           Buffer.from(body),
         );
       const entries =

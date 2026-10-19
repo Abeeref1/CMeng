@@ -1,4 +1,5 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
+import {jsZip} from "../../shared/src/lazy-jszip";
 import type {
   ContractDocxBlock,
   ContractDocxSource,
@@ -109,7 +110,7 @@ export async function parseContractDocxSource(
   let xml: string;
 
   try {
-    const zip = await JSZip.loadAsync(Buffer.from(bytes));
+    const zip = await jsZip().loadAsync(Buffer.from(bytes));
     const documentXml = zip.file("word/document.xml");
     if (!documentXml) {
       return {
