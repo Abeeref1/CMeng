@@ -40,11 +40,11 @@ function rows():Row[]{
  out.push({no:'IPC-024',type:'Interim',periodEnd:monthEnd(23),certificateDate:'',paymentDate:'',dueDate:'',gross:2_948_260,variations:0,retention:147_413,advance:294_789,net:2_506_058,paid:null,status:'Applied'});
  return out;
 }
-function register(withDueDates=false){
+function register(withDueDates=false,withAdvanceRow=true){
  const head=['Certificate No','Payment Type','Period End','Certificate Date',...(withDueDates?['Payment Due Date']:[]),'Payment Date','Gross Work','Variations','Retention','Advance Recovery','Other Deductions','Net Certified','Paid Amount','Currency','VAT Basis','Status','Certified Amount Basis','Paid Amount Basis'];
  const body=rows().map(r=>[r.no,r.type,r.periodEnd,r.certificateDate,...(withDueDates?[r.dueDate]:[]),r.paymentDate,r.gross,r.variations,r.retention,r.advance,0,r.net,r.paid??'','QAR','Exclusive',r.status,'Incremental','Incremental'].join(','));
  const advance=['AP-001','Advance payment','2024-08-31','2024-09-05',...(withDueDates?['2024-10-20']:[]),'2024-09-20',21_000_000,0,0,0,0,21_000_000,21_000_000,'QAR','Exclusive','Paid','Incremental','Incremental'].join(',');
- return [head.join(','),advance,...body].join('\n')+'\n';
+ return [head.join(','),...(withAdvanceRow?[advance]:[]),...body].join('\n')+'\n';
 }
 const XER_CAL='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()('+(i<5?'(0||0(s|07:00|f|16:00)())':'')+'))').join('')+'))(0||Exceptions()())))';
 const xer=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tVLC\t'+DATA_DATE+' 07:00',
@@ -62,13 +62,13 @@ const CONTRACT=[
  'Sub-Clause 14.2 Advance Payment','The amount of the advance payment is 10% of the Accepted Contract Amount.',
  'Sub-Clause 14.7 Payment','Payment of each interim amount shall be made within 45 days after the Engineer receives the Statement and supporting documents.',
 ];
-async function project(t:any,id:string,options:{dueDates?:boolean;contract?:string[]}={}){
+async function project(t:any,id:string,options:{dueDates?:boolean;contract?:string[];advanceRow?:boolean}={}){
  const dir=mkdtempSync(join(tmpdir(),'f36-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false});const state=store.getOrCreate(id);
  const stamp=DATA_DATE+'T12:00:00Z';
  await store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(xer),mediaType:'text/plain',sourceFilename:'P8 Update02.xer',uploadedAt:stamp,uploadIntent:'replace_current_basis',scheduleRole:'update'});
  await store.ingestContract({projectId:id,bytes:await contractPdf(options.contract??CONTRACT),mediaType:'application/pdf',sourceFilename:'Main_Contract.pdf',role:'main',uploadedAt:stamp});
- await store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(register(options.dueDates)),mediaType:'text/csv',sourceFilename:'IPC_Register.csv',category:'boq_cost',documentType:'payment_certificates',uploadedAt:stamp});
+ await store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(register(options.dueDates,options.advanceRow??true)),mediaType:'text/csv',sourceFilename:'IPC_Register.csv',category:'boq_cost',documentType:'payment_certificates',uploadedAt:stamp});
  runtimeProjects.replace(state);
  return state;
 }
@@ -92,6 +92,18 @@ test('F36 gross and net certified are separate, the application IPC-024 is exclu
  const ipc24=checks.rows.find((r:any)=>r.certificateReference==='IPC-024');
  assert.equal(ipc24.state,'application_not_certified');assert.equal(ipc24.includedInCertifiedTotals,false);
  assert.equal(checks.appliedExcludedCount,1);
+});
+
+test('F36 without the contract advance percentage the outstanding advance is the advance paid less the recoveries to date',async t=>{
+ const contract=CONTRACT.filter(line=>!/advance payment/i.test(line));
+ const paid=qar(await project(t,'F36-ADVANCE-PAID',{contract}));
+ assert.equal(paid.advanceBalance.value,1_396_548,'AP-001 paid 21,000,000 less 19,603,452 recovered to IPC-023');
+ assert.deepEqual(paid.advanceBalance.diagnostics,['ADVANCE_BALANCE_FROM_ADVANCE_PAID_LESS_CERTIFIED_RECOVERIES']);
+ assert.ok(paid.advanceBalance.sourceRefs.length>0,'the balance names its source rows');
+ // Neither the contract advance nor an advance paid: the balance stays not established, never 0.
+ const unknown=qar(await project(t,'F36-ADVANCE-UNKNOWN',{contract,advanceRow:false}));
+ assert.equal(unknown.advanceBalance.value,null);
+ assert.ok(unknown.advanceBalance.diagnostics.includes('ADVANCE_BALANCE_REQUIRES_CONTRACT_ADVANCE_AND_CERTIFIED_RECOVERIES'));
 });
 
 test('F36 a 1-riyal rounding between the stated net and the sum of the lines is not an arithmetic failure',async t=>{

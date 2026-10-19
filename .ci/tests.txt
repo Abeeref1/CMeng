@@ -47,3 +47,10 @@ universal-reporting-contract
 t05-same-measure-every-page
 f61-management-page-weight
 f61-adversarial-list-paging
+batch-g-commercial
+hour-one-shared
+p0-source-integration
+runtime-commercial-c1
+system-root-causes
+system-shared-rules
+unresolved-aggregates
