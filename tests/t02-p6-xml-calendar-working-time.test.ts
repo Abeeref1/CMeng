@@ -110,7 +110,8 @@ const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Sa
 function xmlFile(baseline=false):Buffer{
   const {dataDate,acts}=programme(baseline);
   const t=(value:string)=>value.replace(' ','T')+':00';
-  const ms=(hours:number)=>String(hours*3600000);
+  // P6 XML states durations and lags as hours (PMXML; MPXJ XmlProjectReader).
+  const ms=(hours:number)=>String(hours);
   const lastMinute=(hour:number)=>pad(hour-1)+':59:00';
   const calendar=(c:Cal)=>'<Calendar><BaseCalendarObjectId xsi:nil="true"/><HoursPerDay>'+c.hoursPerDay+'</HoursPerDay><HoursPerWeek>'+c.hoursPerDay*c.workDays.length+'</HoursPerWeek>'+
     '<IsDefault>false</IsDefault><Name>'+c.name+'</Name><ObjectId>'+c.id+'</ObjectId><Type>Global</Type><StandardWorkWeek>'+
@@ -303,5 +304,35 @@ test('a P6 XML programme stored before this reader gets its calendars from the r
   assert.equal(s.revision.revisionId,stored.revision.revisionId);
   assert.equal(calculateCpm(model,{allowElapsedFallback:false}).complete,true);
   const again=new RuntimeProjectStore({dataDir:root,durable:true}).get('XMLCAL')!;
+  assert.equal(again.version,restored.version,'second restart is idempotent');
+});
+
+test('a P6 XML programme stored under the former millisecond reading gets its durations, float and lags in hours on restart',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'cmeng-xml-hours-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const store=new RuntimeProjectStore({dataDir:root,durable:true});
+  await store.ingestSchedule({projectId:'XMLHRS',bytes:xmlFile(),sourceFilename:'calendar programme.xml',mediaType:'application/xml',role:'update',uploadedAt:'2027-01-04T09:00:00Z',uploadIntent:'replace_current_basis'});
+  new RuntimeProjectStore({dataDir:root,durable:true});
+  const file=store.persistenceStatus().stateFile;
+  const snapshot=readSnapshotJson<any>(file),project=snapshot.projects.find((p:any)=>p.projectId==='XMLHRS');
+  const stored=project.schedules[0],fresh=structuredClone(stored.revision.model);
+  assert.ok(fresh.activities.some((a:any)=>a.originalDurationHours>0),'the source states durations');
+  assert.ok(fresh.relationships.some((l:any)=>l.lagHours>0),'the source states a lag');
+  // The stored shape of the same file read by the v2 reader: plain numbers taken as milliseconds.
+  stored.calendarReaderVersion='p6xml-calendar-work-time-lagcal-v2';
+  const asMs=(v:number|null)=>v===null?null:v/3_600_000;
+  for(const a of stored.revision.model.activities){a.originalDurationHours=asMs(a.originalDurationHours);a.remainingDurationHours=asMs(a.remainingDurationHours);a.totalFloatHours=asMs(a.totalFloatHours);}
+  for(const l of stored.revision.model.relationships)l.lagHours=asMs(l.lagHours);
+  writeSnapshotJson(file,snapshot);
+
+  const restored=new RuntimeProjectStore({dataDir:root,durable:true}).get('XMLHRS')!;
+  const s=restored.schedules[0]!,model=s.revision.model;
+  assert.equal(s.calendarReaderVersion,P6XML_CALENDAR_READER_VERSION);
+  assert.deepEqual(model.activities,fresh.activities,'durations and float in hours, as the source states');
+  assert.deepEqual(model.relationships,fresh.relationships,'lags in hours');
+  assert.equal(s.calendarReadRefresh!.correctedDurationActivityCount,fresh.activities.filter((a:any)=>[a.originalDurationHours,a.remainingDurationHours,a.totalFloatHours].some(v=>v!==null&&v!==0)).length);
+  assert.equal(s.calendarReadRefresh!.correctedLagCount,fresh.relationships.filter((l:any)=>l.lagHours!==null&&l.lagHours!==0).length);
+  assert.equal(s.revision.revisionId,stored.revision.revisionId);
+  assert.equal(calculateCpm(model,{allowElapsedFallback:false}).complete,true);
+  const again=new RuntimeProjectStore({dataDir:root,durable:true}).get('XMLHRS')!;
   assert.equal(again.version,restored.version,'second restart is idempotent');
 });

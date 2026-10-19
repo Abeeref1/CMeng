@@ -20,9 +20,9 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <Name>Excavation</Name>
       <WBSObjectId>100</WBSObjectId>
       <CalendarObjectId>500</CalendarObjectId>
-      <OriginalDuration>288000000</OriginalDuration>
-      <RemainingDuration>144000000</RemainingDuration>
-      <TotalFloat>57600000</TotalFloat>
+      <OriginalDuration>80</OriginalDuration>
+      <RemainingDuration>40</RemainingDuration>
+      <TotalFloat>16</TotalFloat>
     </Activity>
     <Activity>
       <ProjectObjectId>10</ProjectObjectId>
@@ -31,8 +31,8 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <Name>Foundation</Name>
       <WBSObjectId>100</WBSObjectId>
       <CalendarObjectId>500</CalendarObjectId>
-      <OriginalDuration>432000000</OriginalDuration>
-      <RemainingDuration>432000000</RemainingDuration>
+      <OriginalDuration>120</OriginalDuration>
+      <RemainingDuration>120</RemainingDuration>
       <TotalFloat>0</TotalFloat>
     </Activity>
     <Relationship>
@@ -41,7 +41,7 @@ test("Primavera XML reads projects activities WBS calendars and relationships", 
       <PredecessorActivityObjectId>1000</PredecessorActivityObjectId>
       <SuccessorActivityObjectId>1001</SuccessorActivityObjectId>
       <Type>Finish to Start</Type>
-      <Lag>28800000</Lag>
+      <Lag>8</Lag>
     </Relationship>
   </APIBusinessObjects>`;
 
@@ -112,7 +112,10 @@ test("duplicate Primavera XML activity identity is explicit", () => {
   assert.ok(parsed.diagnostics.some(d=>d.startsWith("P6XML_DUPLICATE_ACTIVITY_IDENTITIES")));
 });
 
-test("P6 XML simple numeric duration is milliseconds, not hours", () => {
+// A plain number in a P6 XML duration field is hours (Primavera PMXML; MPXJ
+// XmlProjectReader reads it with TimeUnit.HOURS). This test used to assert the
+// former millisecond reading (3600000 -> 1 h), which made a real 40 h task 0.00001 h.
+test("P6 XML simple numeric duration is hours, not milliseconds", () => {
   const xml = `
   <APIBusinessObjects>
     <Project><ObjectId>10</ObjectId><Id>P88</Id></Project>
@@ -120,12 +123,12 @@ test("P6 XML simple numeric duration is milliseconds, not hours", () => {
       <ProjectObjectId>10</ProjectObjectId>
       <ObjectId>1001</ObjectId>
       <Id>A200</Id>
-      <OriginalDuration>3600000</OriginalDuration>
+      <OriginalDuration>1</OriginalDuration>
     </Activity>
   </APIBusinessObjects>`;
 
   const parsed = parsePrimaveraXml(Buffer.from(xml, "utf8"));
-  assert.equal(parsed.activities[0]!.originalDurationRaw, "3600000");
+  assert.equal(parsed.activities[0]!.originalDurationRaw, "1");
   assert.equal(parsed.activities[0]!.originalDurationHours, 1);
 });
 

@@ -47,8 +47,8 @@ test("actual XER and Primavera XML parser outputs reconcile on the same activity
       <CalendarObjectId>77</CalendarObjectId>
       <StartDate>2026-01-01</StartDate>
       <FinishDate>2026-01-02</FinishDate>
-      <OriginalDuration>28800000</OriginalDuration>
-      <RemainingDuration>28800000</RemainingDuration>
+      <OriginalDuration>8</OriginalDuration>
+      <RemainingDuration>8</RemainingDuration>
       <TotalFloat>0</TotalFloat>
     </Activity>
   </APIBusinessObjects>`;
@@ -100,7 +100,7 @@ test("actual XER/XML reconciliation exposes a total-float disagreement", () => {
       <ObjectId>100</ObjectId>
       <Id>A100</Id>
       <Name>Excavation</Name>
-      <TotalFloat>-28800000</TotalFloat>
+      <TotalFloat>-8</TotalFloat>
     </Activity>
   </APIBusinessObjects>`;
 

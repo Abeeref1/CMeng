@@ -13,8 +13,11 @@ import type {ProjectRuntimeState,StoredScheduleRevision} from './project-state-t
 export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-v5';
 /** P6 XML calendar working time (StandardWorkWeek, HolidayOrExceptions) read
  * into the shared P6 calendar model; v2 also the project option
- * Project.RelationshipLagCalendar. */
-export const P6XML_CALENDAR_READER_VERSION='p6xml-calendar-work-time-lagcal-v2';
+ * Project.RelationshipLagCalendar; v3 plain-number durations, float and lag
+ * read as hours (P6 PMXML convention) instead of milliseconds. */
+export const P6XML_CALENDAR_READER_VERSION='p6xml-calendar-work-time-lagcal-hours-v3';
+/** Activity values that come only from the P6 XML duration fields. */
+const P6XML_DURATION_KEYS=['originalDurationHours','remainingDurationHours','totalFloatHours'] as const;
 /** The stated lag calendar option of a fresh read replaces the stored one (absent stays absent). */
 function refreshLagCalendar(old:StoredScheduleRevision['revision']['model'],fresh:StoredScheduleRevision['revision']['model']){
   if(fresh.relationshipLagCalendar)old.relationshipLagCalendar=fresh.relationshipLagCalendar;else delete old.relationshipLagCalendar;
@@ -76,8 +79,10 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
 /** A P6 XML programme stored before its calendar working time was read:
  * calendars, calendar diagnostics and the activity calendar links that were
  * not established (project default activity calendar) are filled from the
- * unchanged retained source. Activity dates, durations, relationships,
- * identities, selections and approvals stay as stored. */
+ * unchanged retained source. Durations, total float and relationship lags
+ * stored under the former millisecond reading are replaced by the hours the
+ * same source states. Activity dates, relationships, identities, selections
+ * and approvals stay as stored. */
 function refreshStoredP6XmlCalendars(projectId:string,documents:ProjectRuntimeState['evidenceDocuments'],stored:StoredScheduleRevision):boolean{
   const old=stored.revision.model;
   const document=documents.find(d=>d.linkedArtifactId===stored.revision.revisionId&&d.sourceHashSha256===stored.sourceHashSha256);
@@ -95,14 +100,26 @@ function refreshStoredP6XmlCalendars(projectId:string,documents:ProjectRuntimeSt
     // Links are filled only for an activity ID that is unique in the file.
     const count=new Map<string,number>();for(const a of fresh.activities)count.set(a.activityId,(count.get(a.activityId)??0)+1);
     const freshById=new Map(fresh.activities.filter(a=>count.get(a.activityId)===1).map(a=>[a.activityId,a]));
-    let linkedActivityCalendarCount=0;
+    // Relationship lags are refreshed only when every link has the same identity and ends.
+    const sameLinks=old.relationships.length===fresh.relationships.length&&old.relationships.every((link,i)=>{const f=fresh.relationships[i]!;
+      return f.relationshipId===link.relationshipId&&f.predecessorActivityId===link.predecessorActivityId&&f.successorActivityId===link.successorActivityId&&f.type===link.type;});
+    if(!sameLinks&&old.relationships.some((link,i)=>link.lagHours!==fresh.relationships[i]?.lagHours))return failure('SCHEDULE_REFRESH_RELATIONSHIP_IDENTITY_MISMATCH');
+    let linkedActivityCalendarCount=0,correctedDurationActivityCount=0,correctedLagCount=0;
     old.activities=old.activities.map(activity=>{
-      const recovered=activity.calendarId===null?freshById.get(activity.activityId):undefined;
-      if(!recovered||recovered.calendarId===null)return activity;
-      linkedActivityCalendarCount++;
-      return {...activity,calendarId:recovered.calendarId,
-        diagnostics:[...activity.diagnostics,...recovered.diagnostics.filter(d=>d.startsWith('P6XML_ACTIVITY_CALENDAR_FROM_PROJECT_DEFAULT:'))]};
+      const recovered=freshById.get(activity.activityId);
+      if(!recovered)return activity;
+      let next=activity;
+      if(activity.calendarId===null&&recovered.calendarId!==null){
+        linkedActivityCalendarCount++;
+        next={...next,calendarId:recovered.calendarId,
+          diagnostics:[...next.diagnostics,...recovered.diagnostics.filter(d=>d.startsWith('P6XML_ACTIVITY_CALENDAR_FROM_PROJECT_DEFAULT:'))]};
+      }
+      const changedKeys=P6XML_DURATION_KEYS.filter(key=>next[key]!==recovered[key]);
+      if(changedKeys.length){correctedDurationActivityCount++;next={...next,...Object.fromEntries(changedKeys.map(key=>[key,recovered[key]]))};}
+      return next;
     });
+    if(sameLinks)old.relationships=old.relationships.map((link,i)=>{const lagHours=fresh.relationships[i]!.lagHours;
+      if(link.lagHours===lagHours)return link;correctedLagCount++;return {...link,lagHours};});
     const previousDiagnostics=old.diagnostics.filter(isCalendarDiagnostic);
     const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
     old.calendars=fresh.calendars;
@@ -111,7 +128,7 @@ function refreshStoredP6XmlCalendars(projectId:string,documents:ProjectRuntimeSt
     document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
     stored.calendarReaderVersion=P6XML_CALENDAR_READER_VERSION;
     stored.calendarReadRefresh={readerVersion:P6XML_CALENDAR_READER_VERSION,sourceHashSha256:stored.sourceHashSha256,
-      refreshedAt:new Date().toISOString(),previousDiagnostics,diagnostics,linkedActivityCalendarCount,
+      refreshedAt:new Date().toISOString(),previousDiagnostics,diagnostics,linkedActivityCalendarCount,correctedDurationActivityCount,correctedLagCount,
       resolvedCalendarCount:fresh.calendars.filter(c=>c.semanticComplete).length,totalCalendarCount:fresh.calendars.length};
     return true;
   }catch{return failure('CALENDAR_REFRESH_READ_FAILED');}

@@ -22,8 +22,8 @@ test('T02 R1 P6 XML: unread Activity fields are listed as unused with a sample; 
   <WBS><ObjectId>100</ObjectId><ProjectObjectId>10</ProjectObjectId><Code>1.1</Code></WBS>
   <Calendar><ObjectId>500</ObjectId><Name>5 Day</Name></Calendar>
   <Activity><ProjectObjectId>10</ProjectObjectId><ObjectId>1000</ObjectId><Id>A100</Id><Name>Excavation</Name>
-   <WBSObjectId>100</WBSObjectId><CalendarObjectId>500</CalendarObjectId><OriginalDuration>288000000</OriginalDuration>
-   <RemainingDuration>144000000</RemainingDuration><TotalFloat>57600000</TotalFloat><LocationName>Zone B</LocationName></Activity>
+   <WBSObjectId>100</WBSObjectId><CalendarObjectId>500</CalendarObjectId><OriginalDuration>80</OriginalDuration>
+   <RemainingDuration>40</RemainingDuration><TotalFloat>16</TotalFloat><LocationName>Zone B</LocationName></Activity>
  </APIBusinessObjects>`;
  const model=canonicalScheduleFromPrimaveraXml(parsePrimaveraXml(Buffer.from(xml,'utf8')),{sourceRevisionId:'x1',projectId:'P88'});
  const audit=model.sourceColumnAudit as Audit|undefined;
@@ -93,9 +93,9 @@ test('T02 R1 P6 XML: Project, WBS, Calendar and Relationship fields are listed; 
    <WBS><ObjectId>100</ObjectId><ProjectObjectId>10</ProjectObjectId><ParentObjectId>10</ParentObjectId><Code>B1</Code><Name>Building 1</Name></WBS>
    <WBS><ObjectId>110</ObjectId><ProjectObjectId>10</ProjectObjectId><ParentObjectId>100</ParentObjectId><Code>SUB</Code><Name>Substructure</Name><Sequence>3</Sequence></WBS>
    <Activity><ProjectObjectId>10</ProjectObjectId><ObjectId>1000</ObjectId><Id>A100</Id><Name>Excavation</Name><WBSObjectId>110</WBSObjectId><CalendarObjectId>500</CalendarObjectId>
-    <OriginalDuration>288000000</OriginalDuration><RemainingDuration>144000000</RemainingDuration><TotalFloat>57600000</TotalFloat></Activity>
+    <OriginalDuration>80</OriginalDuration><RemainingDuration>40</RemainingDuration><TotalFloat>16</TotalFloat></Activity>
    <Activity><ProjectObjectId>10</ProjectObjectId><ObjectId>1001</ObjectId><Id>A200</Id><Name>Foundation</Name><WBSObjectId>110</WBSObjectId><CalendarObjectId>500</CalendarObjectId>
-    <OriginalDuration>288000000</OriginalDuration><RemainingDuration>288000000</RemainingDuration><TotalFloat>0</TotalFloat></Activity>
+    <OriginalDuration>80</OriginalDuration><RemainingDuration>80</RemainingDuration><TotalFloat>0</TotalFloat></Activity>
    <Relationship><PredecessorProjectObjectId>10</PredecessorProjectObjectId><SuccessorProjectObjectId>10</SuccessorProjectObjectId>
     <PredecessorActivityObjectId>1000</PredecessorActivityObjectId><SuccessorActivityObjectId>1001</SuccessorActivityObjectId><Type>Finish to Start</Type><Lag>0</Lag><Comments>Crane needed</Comments></Relationship>
    <ResourceAssignment><ObjectId>9000</ObjectId><ActivityObjectId>1000</ActivityObjectId><ResourceObjectId>300</ResourceObjectId><CostAccountObjectId>700</CostAccountObjectId><PlannedUnits>16</PlannedUnits></ResourceAssignment>

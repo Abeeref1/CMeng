@@ -18,9 +18,13 @@ export function parseP6ApiDuration(
     };
   }
 
+  // A plain number is a duration in hours: Primavera P6 XML (PMXML, APIBusinessObjects)
+  // writes PlannedDuration, RemainingDuration, AtCompletionDuration, TotalFloat and
+  // Relationship Lag as doubles in hours, and the reference P6 XML reader (MPXJ
+  // XmlProjectReader.getDuration: Duration.getInstance(value, TimeUnit.HOURS)) reads them so.
   if (/^[+\-]?\d+(?:\.\d+)?$/.test(raw)) {
-    const milliseconds = Number(raw);
-    if (!Number.isFinite(milliseconds)) {
+    const hours = Number(raw);
+    if (!Number.isFinite(hours)) {
       return {
         raw,
         status: "invalid",
@@ -31,8 +35,8 @@ export function parseP6ApiDuration(
     return {
       raw,
       status: "valid",
-      hours: milliseconds / 3_600_000,
-      reason: "Simple Integration API duration interpreted as milliseconds",
+      hours,
+      reason: "P6 XML numeric duration in hours",
     };
   }
 
