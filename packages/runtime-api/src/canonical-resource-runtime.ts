@@ -24,7 +24,7 @@ export function criticalResourceHours(model:import('../../schedule-analysis-core
 export function programmeRecordedLaborHours(resources:import('../../schedule-resource-core/src').CanonicalResourceModel|null|undefined){
  if(!resources)return {hours:null,assignmentCount:0,knownAssignmentCount:0,reason:'No programme resource assignments are stored for the current programme.'};
  const eligible=new Set(resources.resources.filter(resourceLaborHourEligible).map(r=>r.resourceId));
- const labor=resources.assignments.filter(a=>eligible.has(a.resourceId));
+ const labor=resources.assignments.filter(a=>a.resourceId!==null&&eligible.has(a.resourceId));
  const known=labor.filter(a=>typeof a.actualRegularUnits==='number'&&Number.isFinite(a.actualRegularUnits)&&typeof a.actualOvertimeUnits==='number'&&Number.isFinite(a.actualOvertimeUnits));
  const hours=labor.length&&known.length===labor.length?round(known.reduce((n,a)=>n+a.actualRegularUnits!+a.actualOvertimeUnits!,0),2):null;
  return {hours,assignmentCount:labor.length,knownAssignmentCount:known.length,
