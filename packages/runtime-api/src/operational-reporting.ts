@@ -10,7 +10,17 @@ const responsibility=(row:SourceRow)=>({owner:cell(row,'owner','responsible pers
 const dates=(row:SourceRow)=>({raisedIso:dateValue(cell(row,'raised date','opened date','issue date','identified date')),
   closedIso:dateValue(cell(row,'close date','closed date','response date','answered date')),
   statusAsOfIso:dateValue(cell(row,'status as of','status date','snapshot date','as of date','last reviewed'))});
-const ncrStatus=(raw:string):NcrRecord['status']=>/^(closed|complete|completed|resolved)$/.test(norm(raw))?'closed':/^(open|active|in progress|overdue)$/.test(norm(raw))?'open':'unknown';
+/** SW-19: the one NCR source-status mapping (register rows and stored adapter
+ * records). Only an exact open or closed wording is open or closed. Anything
+ * else (blank, TBC, under review, rejected, closed pending verification) is
+ * unclear: its own state, never counted as open or closed, with the reason. */
+export function ncrStatusFromSource(raw:string):{status:NcrRecord['status'];reason:string|null}{
+  const value=norm(raw);
+  if(/^(closed|complete|completed|resolved)$/.test(value))return {status:'closed',reason:null};
+  if(/^(open|active|in progress|overdue)$/.test(value))return {status:'open',reason:null};
+  return {status:'unknown',reason:value?'Source status "'+String(raw).trim()+'" is not a clear open or closed status':'Source status is blank'};
+}
+const ncrStatus=(raw:string):NcrRecord['status']=>ncrStatusFromSource(raw).status;
 const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
 
 /** The register's own business-status column takes part in every NCR/RFI/risk
@@ -74,7 +84,8 @@ function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(r
     const closed=dateValue(row.closedIso??''),raised=dateValue(row.raisedIso??'');
     let status=row.status;
     if(closed&&raised&&closed<raised){status='unknown';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE:'+id(row));}
-    else if(closed&&cutoff)status=closed<=cutoff?(row.status==='answered'?'answered':'closed'):'open';
+    // SW-19: a closure date on or before the Data Date never turns an unclear source status into closed.
+    else if(closed&&cutoff)status=closed<=cutoff?(row.status==='unknown'?'unknown':row.status==='answered'?'answered':'closed'):'open';
     else if(row.status!=='open'&&(!row.statusAsOfIso||!cutoff||row.statusAsOfIso>cutoff))status='unknown';
     return {...row,status};
   });
