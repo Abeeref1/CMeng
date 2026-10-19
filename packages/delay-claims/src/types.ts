@@ -64,21 +64,22 @@ export interface DelayClaimsProjection {
   projectId: string;
   evidenceRevisionId: string;
 
-  eventCount: number;
-  claimCount: number;
+  /** Event and claim population counts are null when no contractor delay-claim population is established (none submitted, or quarantined); 0 only means an established empty register. */
+  eventCount: number | null;
+  claimCount: number | null;
   windowCount: number;
-  claimLinkedEventCount: number;
-  activityLinkedEventCount: number;
-  windowLinkedEventCount: number;
-  noticeLinkedEventCount: number;
-  determinationLinkedEventCount: number;
-  fullDeterminationChainEventCount: number;
-  determinationChainIncompleteEventCount: number;
-  activityEvidenceInsufficientEventCount: number;
-  activityCorrespondenceAcceptedCount: number;
-  activityCorrespondenceCandidateCount: number;
-  activityCorrespondenceAmbiguousCount: number;
-  activityCorrespondenceUnresolvedCount: number;
+  claimLinkedEventCount: number | null;
+  activityLinkedEventCount: number | null;
+  windowLinkedEventCount: number | null;
+  noticeLinkedEventCount: number | null;
+  determinationLinkedEventCount: number | null;
+  fullDeterminationChainEventCount: number | null;
+  determinationChainIncompleteEventCount: number | null;
+  activityEvidenceInsufficientEventCount: number | null;
+  activityCorrespondenceAcceptedCount: number | null;
+  activityCorrespondenceCandidateCount: number | null;
+  activityCorrespondenceAmbiguousCount: number | null;
+  activityCorrespondenceUnresolvedCount: number | null;
 
   observedPositiveIndependentMovementDays: number | null;
   /** Positive submitted completion shifts summed across windows; recoveries remain separate. Not causal delay or EOT. */

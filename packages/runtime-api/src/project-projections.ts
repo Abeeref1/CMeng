@@ -2000,6 +2000,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         generatedAt,
         producerVersion:
           versions.delay,
+        populationEstablished:delayModel!==null&&!claimPopulationQuarantined,
       },
     );
   const linkedClaimCount =
@@ -5174,8 +5175,8 @@ const claimsFastContextCache =
         ReturnType<
           typeof buildDelayEotEvidenceChain
         >;
-      linkedClaimCount: number;
-      unlinkedClaimCount: number;
+      linkedClaimCount: number | null;
+      unlinkedClaimCount: number | null;
       revisionLabels:
         Record<string, string>;
     }
@@ -5245,6 +5246,8 @@ function claimsFastContext(
       ),
     );
 
+  const claimPopulationIntegrity = claimsIntegrity(delayModel);
+  const claimPopulationQuarantined = claimsQuarantined(delayModel);
   const delay =
     buildDelayClaimsProjection(
       windows,
@@ -5253,10 +5256,9 @@ function claimsFastContext(
         generatedAt,
         producerVersion:
           "delay-claims-fast-v3",
+        populationEstablished: delayModel !== null && !claimPopulationQuarantined,
       },
     );
-  const claimPopulationIntegrity = claimsIntegrity(delayModel);
-  const claimPopulationQuarantined = claimsQuarantined(delayModel);
   const notices = buildNoticesClaimsProjection(
     analyticalDelayModel,
     {
@@ -5277,16 +5279,18 @@ function claimsFastContext(
     quarantinedClaimCount: claimPopulationIntegrity?.quarantinedClaimCount ?? null,
   });
 
+  // Same rule as the full projection path: no established claim population means unknown, not 0.
+  const claimPopulationEstablished = delayModel !== null && !claimPopulationQuarantined;
   const linkedClaimCount =
-    analyticalDelayModel.claims.filter(
+    claimPopulationEstablished ? analyticalDelayModel.claims.filter(
       (claim) =>
         claim.eventIds.length >
         0,
-    ).length;
+    ).length : null;
   const unlinkedClaimCount =
-    analyticalDelayModel
+    claimPopulationEstablished && linkedClaimCount !== null ? analyticalDelayModel
       .claims.length -
-    linkedClaimCount;
+    linkedClaimCount : null;
   const revisionLabels =
     Object.fromEntries(
       ordered.map(
@@ -5530,6 +5534,7 @@ function buildSpecialistModuleFast(
               generatedAt,
               producerVersion:
                 "claims-without-programme:delay-v1",
+              populationEstablished: !claimPopulationQuarantined,
             },
           );
         const sourceActivityReferenceEventCount =
@@ -6550,7 +6555,7 @@ function buildSpecialistModuleFast(
             eventLinkageState:
               delay.events.length >
                 0 &&
-              linkedClaimCount > 0
+              linkedClaimCount !== null && linkedClaimCount > 0
                 ? "linked"
                 : "not_established",
             revisionLabels:
@@ -6565,7 +6570,7 @@ function buildSpecialistModuleFast(
           ],
           !claimPopulationQuarantined&&
           delay.events.length > 0 &&
-          linkedClaimCount > 0
+          linkedClaimCount !== null && linkedClaimCount > 0
             ? "ready"
             : "partial",
           claimPopulationQuarantined

@@ -1001,8 +1001,8 @@ export function buildProjectDirectorPosition(
       input.evidenceAvailability
         ?.claims,
       (input.noticesClaims.claimCount !== null && input.noticesClaims.claimCount > 0) ||
-      input.delayClaims
-        .eventCount > 0,
+      (input.delayClaims.eventCount !== null && input.delayClaims
+        .eventCount > 0),
     );
 
   const hseEvidenceState =
