@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {moduleForProject,projectActionRegisterForState} from '../packages/runtime-api/src/project-projections';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
+import {buildDeliveryChallengeProjection} from '../packages/delivery-challenge/src';
 
 // T05 / N2, N4: one measure, one value on every page. Scaled-down copy of the
 // ACCOUNTABILITY-SCALE fixture in scripts/release-latency.cjs (chained
@@ -83,19 +84,20 @@ test('T05 schedule float measures are identical on Dashboard, PMO analysis and N
  assert.equal(dashboard.visualControl.schedule.criticalCount,pmo.schedule.criticalCount,'critical: Dashboard chart = PMO');
 });
 
-test('T05 concurrent work fronts: Delivery challenge equals Resource utilisation and is never negative',()=>{
- // Every fixture activity is unfinished with a stored finish before the Data Date,
- // so no remaining work window is established: unknown on both pages, never -N or 0.
+test('T05 concurrent work fronts: overdue open work is counted from its remaining duration, never 0 or negative',()=>{
+ // Fixture: 300 not-started tasks, stored finish 2031-03-0x before the Data Date 2031-04-03,
+ // remaining 24 h each on 24-hour calendars. All are open work in the next 24 h from the Data Date.
  const projectId=fixture();
  const challenge=data(projectId,'challenge-contract'),resources=data(projectId,'resource-utilization');
- const fronts=resources.averageConcurrentWorkFronts;
  for(const basis of ['scheduleChallenge','manpowerChallenge']){
   const row=challenge.deliveryChallenge?.[basis];
   assert.ok(row,basis+' present');
-  assert.equal(row.averageConcurrentWorkFronts,fronts,basis+' average work fronts = Resource utilisation');
-  assert.equal(row.peakConcurrentWorkFronts,resources.peakConcurrentWorkFronts,basis+' peak work fronts = Resource utilisation');
-  assert.ok(row.averageConcurrentWorkFronts===null||row.averageConcurrentWorkFronts>=0,'a count of work fronts is never negative');
+  assert.equal(row.averageConcurrentWorkFronts,300,basis+': 300 open activities in one 24 h window');
+  assert.equal(row.peakConcurrentWorkFronts,300,basis+': peak 300');
  }
+ assert.equal(challenge.deliveryChallenge.scheduleChallenge.workFrontActivityCount,300,'all 300 open activities are work fronts');
+ // Resource utilisation withholds every figure without resource-loaded evidence; when it shows one it is the same producer value.
+ if(resources.averageConcurrentWorkFronts!==null)assert.equal(resources.averageConcurrentWorkFronts,challenge.deliveryChallenge.manpowerChallenge.averageConcurrentWorkFronts);
 });
 
 test('T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages',()=>{
@@ -162,4 +164,58 @@ test('T05 Accountability action count names its populations: team groups plus yo
  assert.equal(accountability.actionCount,accountability.teamActionCount+accountability.userDecisionCount,'all actions = team groups + decisions');
  assert.equal(accountability.actionCount,register.actions.length,'all actions = shared action register');
  assert.match(accountability.actionCountBasis,/decisions/);
+});
+
+// Hand-checked work-front cases on the producer itself. Data Date 2031-04-01 00:00,
+// 24-hour calendar C24. Expected values are worked out by hand in each comment.
+const wfActivity=(id:string,over:any)=>({projectId:'WF',activityId:id,nativeId:id,name:id,wbsId:null,calendarId:'C24',
+ activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:null,currentFinishIso:null,
+ actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:48,
+ remainingDurationHours:48,totalFloatHours:0,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[],...over});
+const wfFronts=(activities:any[])=>{
+ const schedule:any={projectId:'WF',source:'xer',sourceRevisionId:'R',dataDateIso:'2031-04-01',activities,relationships:[],wbs:[],
+  calendars:[{...ELAPSED_24H_CALENDAR,calendarId:'C24'}],diagnostics:[]};
+ const result:any=buildDeliveryChallengeProjection({generatedAt:'2031-04-01',producerVersion:'WF',schedule,quantities:null,resources:null,
+  independentForecast:{sourceForecastCompletionIso:'2031-04-03',independentForecastCompletionIso:'2031-04-03',requiredFinishIso:'2031-04-03',origin:'deterministic_source_calendar',assumptions:[]} as any,contractTimeBasis:null,submittedManpowerPlan:null});
+ return result.scheduleChallenge;
+};
+const inProgress=wfActivity('IP',{status:'in_progress',actualStartIso:'2031-03-25',currentStartIso:'2031-03-25',currentFinishIso:'2031-04-03',remainingDurationHours:48});
+const overdueNotStarted=wfActivity('OD',{currentStartIso:'2031-01-01',currentFinishIso:'2031-03-01',remainingDurationHours:48});
+const finished=wfActivity('FIN',{status:'completed',actualStartIso:'2031-01-01',actualFinishIso:'2031-02-01',currentStartIso:'2031-01-01',currentFinishIso:'2031-02-01',remainingDurationHours:0});
+
+test('T05 work fronts hand check: in progress + overdue not started + finished',()=>{
+ // IP: Data Date to its finish 04-03 = [04-01, 04-03]. OD: stale finish 03-01, remaining 48 h from the
+ // Data Date on a 24 h calendar = [04-01, 04-03]. FIN: completed, not a work front.
+ // Two fronts open together for the whole 2-day span: average 2, peak 2, 2 activities.
+ const fronts=wfFronts([inProgress,overdueNotStarted,finished]);
+ assert.equal(fronts.averageConcurrentWorkFronts,2);
+ assert.equal(fronts.peakConcurrentWorkFronts,2);
+ assert.equal(fronts.workFrontActivityCount,2);
+ assert.equal(fronts.workFrontUnresolvedActivityCount,0);
+ assert.equal(fronts.workFrontNotEstablishedReason,null);
+});
+
+test('T05 work fronts hand check: overdue open work with unknown remaining duration is not established, never 0',()=>{
+ const unknown=wfActivity('UNK',{currentStartIso:'2031-01-01',currentFinishIso:'2031-03-01',remainingDurationHours:null});
+ const fronts=wfFronts([inProgress,unknown]);
+ assert.equal(fronts.averageConcurrentWorkFronts,null);
+ assert.equal(fronts.peakConcurrentWorkFronts,null);
+ assert.equal(fronts.workFrontActivityCount,null,'count is not established, not 0');
+ assert.equal(fronts.workFrontUnresolvedActivityCount,1);
+ assert.match(fronts.workFrontNotEstablishedReason,/1 open activities .* not established/);
+});
+
+test('T05 work fronts hand check: overdue work on an unknown calendar is not established (no assumed day length)',()=>{
+ const noCalendar=wfActivity('NOCAL',{calendarId:'MISSING',currentStartIso:'2031-01-01',currentFinishIso:'2031-03-01',remainingDurationHours:48});
+ const fronts=wfFronts([noCalendar]);
+ assert.equal(fronts.workFrontActivityCount,null);
+ assert.equal(fronts.averageConcurrentWorkFronts,null);
+ assert.equal(fronts.workFrontUnresolvedActivityCount,1);
+});
+
+test('T05 work fronts hand check: only finished work gives 0 work fronts with no figure invented',()=>{
+ const fronts=wfFronts([finished]);
+ assert.equal(fronts.workFrontActivityCount,0);
+ assert.equal(fronts.averageConcurrentWorkFronts,null);
+ assert.equal(fronts.peakConcurrentWorkFronts,null);
 });
