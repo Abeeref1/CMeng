@@ -1,5 +1,6 @@
 import {parseXerDateStrict} from './dates';
 import type {XerRow} from './types';
+import {noteXerRead} from './read-tracking';
 import type {XerCalendarAssessment} from './calendar-integrity';
 import type {P6CalendarDataResult,P6CalendarDay,P6CalendarInterval} from './calendar-data';
 
@@ -18,7 +19,7 @@ export function reconcileCalendarWithP6Dates(
   const workdayCount=weekHours/dayHours;
   if(!Number.isInteger(workdayCount)||workdayCount<1||workdayCount>7)return null;
   const dated:Array<{start:number;finish:number;hours:number}>=[];
-  const get=(row:XerRow,key:string)=>row.data?.[key]?.trim()||'';
+  const get=(row:XerRow,key:string)=>{noteXerRead(row.table,key);return row.data?.[key]?.trim()||'';};
   for(const row of rows){
     if(get(row,'clndr_id')!==calendar.calendarId||/complete/i.test(get(row,'status_code')))continue;
     const startRaw=get(row,'early_start_date')||get(row,'restart_date');

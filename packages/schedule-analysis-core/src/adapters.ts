@@ -9,6 +9,7 @@ import type { PrimaveraXmlResult } from "../../primavera-xml-parser/src";
 import type { ScheduleTabularResult } from "../../schedule-tabular-parser/src";
 import { parseScheduleDate } from "../../schedule-values/src";
 import {reconcileCalendarWithP6Dates} from "../../xer-parser/src/calendar-date-reconciliation";
+import {noteXerRead,trackXerReads,xerSourceColumnAudit} from "../../xer-parser/src/read-tracking";
 import {sourceColumnAuditEntry} from "../../truth-kernel/src/register-schema";
 import {
   normalizeActivityStatus,
@@ -33,14 +34,11 @@ function xerRows(
   );
 }
 
-// Columns the XER schedule adapter actually reads, per table, while one
-// adapter run is active (for the shared unused-column report).
-let xerReadFields: Map<string,Set<string>> | null = null;
 function xerField(
   row: XerRow,
   name: string,
 ): string | null {
-  if(xerReadFields){let set=xerReadFields.get(row.table);if(!set)xerReadFields.set(row.table,set=new Set());set.add(name);}
+  noteXerRead(row.table, name);
   const value = row.data?.[name]?.trim();
   return value ? value : null;
 }
@@ -312,6 +310,7 @@ export function canonicalScheduleFromTabular(
     projectId: input.projectId ?? null,
     source,
     sourceRevisionId: input.sourceRevisionId,
+    ...(result.columnAudit ? {sourceColumnAudit: result.columnAudit} : {}),
     dataDateIso,
     activities,
     relationships,
@@ -328,31 +327,43 @@ export function canonicalScheduleFromXer(
     projectId?: string | null;
   },
 ): CanonicalScheduleModel {
-  const previous=xerReadFields,read=new Map<string,Set<string>>();
-  xerReadFields=read;
-  let model: CanonicalScheduleModel;
-  try{model=canonicalScheduleFromXerRead(result,input);}finally{xerReadFields=previous;}
   // Every column of every table received, not only TASK/TASKPRED/PROJWBS.
-  const sourceColumnAudit=result.tableOrder.flatMap(table=>{
-    const rows=result.tables.get(table)?.rows??[];
-    const headers=[...new Set((result.tables.get(table)?.fieldSets??[]).flat())];
-    return headers.map(header=>({table,...sourceColumnAuditEntry(header,header,'other',read.get(table)?.has(header)??false,
-      'Read by the XER schedule adapter into the canonical schedule model.',
-      rows.map(row=>row.data?.[header]?.trim()).find(value=>!!value)??null)}));
-  });
-  return {...model,sourceColumnAudit};
+  // Ingestion recomputes this over the schedule and resource readers together.
+  const {value:model,read}=trackXerReads(()=>canonicalScheduleFromXerRead(result,input));
+  return {...model,sourceColumnAudit:xerSourceColumnAudit(result,read)};
 }
 
-function xerActivityCodes(result: XerParseResult): Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]> {
-  const types=new Map(xerRows(result,"ACTVTYPE").map(row=>[xerField(row,"actv_code_type_id"),xerField(row,"actv_code_type")] as const));
-  const codes=new Map(xerRows(result,"ACTVCODE").map(row=>[xerField(row,"actv_code_id"),row] as const));
-  const byTask=new Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]>();
-  for(const row of xerRows(result,"TASKACTV")){
+/** WBS path (root to node, by WBS code, else name) for each PROJWBS id. A
+ * missing parent or a loop ends the path; nothing is guessed. */
+function xerWbsPaths(result: XerParseResult): Map<string,string[]> {
+  const nodes=new Map(xerRows(result,"PROJWBS").map(row=>[xerField(row,"wbs_id"),row] as const));
+  const paths=new Map<string,string[]>();
+  for(const id of nodes.keys()){
+    if(!id)continue;
+    const path:string[]=[],seen=new Set<string>();
+    let current:string|null=id;
+    while(current&&nodes.has(current)&&!seen.has(current)){
+      seen.add(current);const node=nodes.get(current)!;
+      path.unshift(xerField(node,"wbs_short_name")??xerField(node,"wbs_name")??current);
+      current=xerField(node,"parent_wbs_id");
+    }
+    paths.set(id,path);
+  }
+  return paths;
+}
+
+/** Resource and cost-account assignments per task (TASKRSRC with RSRC and ACCOUNT). */
+function xerResourceAssignments(result: XerParseResult): Map<string,{resourceId:string|null;resourceName:string|null;costAccountId:string|null;costAccountCode:string|null;costAccountName:string|null}[]> {
+  const resources=new Map(xerRows(result,"RSRC").map(row=>[xerField(row,"rsrc_id"),row] as const));
+  const accounts=new Map(xerRows(result,"ACCOUNT").map(row=>[xerField(row,"acct_id"),row] as const));
+  const byTask=new Map<string,{resourceId:string|null;resourceName:string|null;costAccountId:string|null;costAccountCode:string|null;costAccountName:string|null}[]>();
+  for(const row of xerRows(result,"TASKRSRC")){
     const taskId=xerField(row,"task_id");if(!taskId)continue;
-    const code=codes.get(xerField(row,"actv_code_id"));
-    const typeId=xerField(row,"actv_code_type_id")??(code?xerField(code,"actv_code_type_id"):null);
+    const resourceId=xerField(row,"rsrc_id"),costAccountId=xerField(row,"acct_id");
+    const resource=resources.get(resourceId),account=accounts.get(costAccountId);
     const list=byTask.get(taskId)??[];
-    list.push({codeType:typeId?types.get(typeId)??null:null,codeValue:code?xerField(code,"short_name"):null,codeDescription:code?xerField(code,"actv_code_name"):null});
+    list.push({resourceId,resourceName:resource?xerField(resource,"rsrc_name"):null,costAccountId,
+      costAccountCode:account?xerField(account,"acct_short_name"):null,costAccountName:account?xerField(account,"acct_name"):null});
     byTask.set(taskId,list);
   }
   return byTask;
@@ -365,7 +376,8 @@ function canonicalScheduleFromXerRead(
     projectId?: string | null;
   },
 ): CanonicalScheduleModel {
-  const activityCodes=xerActivityCodes(result);
+  const wbsPaths=xerWbsPaths(result);
+  const resourceAssignments=xerResourceAssignments(result);
   const projectRows = xerRows(result, "PROJECT");
   const taskRows = xerRows(result, "TASK");
   const predRows = xerRows(result, "TASKPRED");
@@ -472,7 +484,8 @@ function canonicalScheduleFromXerRead(
           activityId,
           nativeId,
           name: xerField(row, "task_name"),
-          ...(()=>{const codes=nativeId?activityCodes.get(nativeId):undefined;return codes?.length?{sourceActivityCodes:codes}:{};})(),
+          ...(()=>{const wbsId=xerField(row,"wbs_id"),path=wbsId?wbsPaths.get(wbsId):undefined;return path?.length?{sourceWbsPath:path}:{};})(),
+          ...(()=>{const list=nativeId?resourceAssignments.get(nativeId):undefined;return list?.length?{sourceResourceAssignments:list}:{};})(),
           sourceConstraints: [
             {type:xerField(row,'cstr_type'),dateIso:xerDate(xerField(row,'cstr_date'))},
             {type:xerField(row,'cstr_type2'),dateIso:xerDate(xerField(row,'cstr_date2'))},
@@ -1066,10 +1079,12 @@ function canonicalScheduleFromXerRead(
   };
 }
 
+let rawFieldNamesRead: Set<string> | null = null;
 function rawField(
   raw: Record<string, unknown>,
   names: readonly string[],
 ): string | null {
+  if (rawFieldNamesRead) for (const name of names) rawFieldNamesRead.add(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
   const wanted = new Set(
     names.map((name) =>
       name
@@ -1096,6 +1111,28 @@ function rawField(
 }
 
 export function canonicalScheduleFromPrimaveraXml(
+  result: PrimaveraXmlResult,
+  input: {
+    sourceRevisionId: string;
+    projectId?: string | null;
+  },
+): CanonicalScheduleModel {
+  const previous=rawFieldNamesRead,read=new Set<string>(result.activityFieldsRead??[]);
+  rawFieldNamesRead=read;
+  let model: CanonicalScheduleModel;
+  try{model=canonicalScheduleFromPrimaveraXmlRead(result,input);}finally{rawFieldNamesRead=previous;}
+  // Every Activity field in the file: read by the reader/adapter, or unused with a sample.
+  const headers=new Map<string,string|null>();
+  for(const activity of result.activities)for(const [key,value] of Object.entries(activity.raw)){
+    const sample=typeof value==='string'||typeof value==='number'||typeof value==='boolean'?String(value).trim()||null:null;
+    if(!headers.has(key)||(headers.get(key)===null&&sample!==null))headers.set(key,sample);
+  }
+  const sourceColumnAudit=[...headers].map(([header,sample])=>({table:'Activity',...sourceColumnAuditEntry(header,header,'other',read.has(header.toLowerCase().replace(/[^a-z0-9]/g,'')),
+    'Read by the P6 XML schedule reader into the canonical schedule model.',sample)}));
+  return {...model,sourceColumnAudit};
+}
+
+function canonicalScheduleFromPrimaveraXmlRead(
   result: PrimaveraXmlResult,
   input: {
     sourceRevisionId: string;

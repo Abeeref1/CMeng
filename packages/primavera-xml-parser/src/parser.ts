@@ -26,7 +26,11 @@ function keyNorm(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// Field names the activity reader asks for while one activity is read
+// (shared R1 unused-column report).
+let fieldNamesRead: Set<string> | null = null;
 function field(obj: AnyObject, names: string[]): string | null {
+  if (fieldNamesRead) for (const name of names) fieldNamesRead.add(keyNorm(name));
   const wanted = new Set(names.map(keyNorm));
   for (const [key, value] of Object.entries(obj)) {
     if (!wanted.has(keyNorm(key))) continue;
@@ -228,7 +232,10 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
   const missingWbsReferences = new Set<string>();
   const missingCalendarReferences = new Set<string>();
 
-  const activities: PrimaveraXmlActivity[] = (
+  const activityFieldsRead = new Set<string>();
+  fieldNamesRead = activityFieldsRead;
+  let activities: PrimaveraXmlActivity[];
+  try { activities = (
     found.get("activity") ?? []
   ).map((obj) => {
     const rowDiagnostics: string[] = [];
@@ -316,7 +323,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
     activity.status =
       rowDiagnostics.length === 0 ? "verified" : "unresolved";
     return activity;
-  });
+  }); } finally { fieldNamesRead = null; }
 
   const activityObjectIds = new Set(
     activities
@@ -448,6 +455,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
   return {
     projects,
     activities,
+    activityFieldsRead: [...activityFieldsRead].sort(),
     relationships,
     calendarsSeen: (found.get("calendar") ?? []).length,
     wbsSeen: (found.get("wbs") ?? []).length,

@@ -73,6 +73,7 @@ import {
 import {
   parseXerBytes,
 } from "../../xer-parser/src";
+import {trackXerReads,xerSourceColumnAudit} from "../../xer-parser/src/read-tracking";
 import {
   TesseractOcrProvider,
   fragmentedPdfText,
@@ -5776,26 +5777,14 @@ export class RuntimeProjectStore {
         parseXerBytes(
           input.bytes,
         );
-      model =
-        canonicalScheduleFromXer(
-          parsed,
-          {
-            sourceRevisionId:
-              revisionId,
-            projectId:
-              input.projectId,
-          },
-        );
-      resourceModel =
-        canonicalResourcesFromXer(
-          parsed,
-          {
-            sourceRevisionId:
-              revisionId,
-            projectId:
-              input.projectId,
-          },
-        );
+      // One column audit over both XER readers: a column read by the
+      // resource reader is not listed as unused (shared R1 report).
+      const tracked=trackXerReads(()=>({
+        schedule:canonicalScheduleFromXer(parsed,{sourceRevisionId:revisionId,projectId:input.projectId}),
+        resources:canonicalResourcesFromXer(parsed,{sourceRevisionId:revisionId,projectId:input.projectId}),
+      }));
+      model={...tracked.value.schedule,sourceColumnAudit:xerSourceColumnAudit(parsed,tracked.read)};
+      resourceModel=tracked.value.resources;
     } else if (
       format ===
       "primavera_xml"

@@ -81,8 +81,10 @@ export interface CanonicalCalendar {
 }
 
 export interface CanonicalScheduleActivity {
-  /** Source activity codes (XER TASKACTV/ACTVCODE/ACTVTYPE); additive. */
-  sourceActivityCodes?: {codeType:string|null;codeValue:string|null;codeDescription:string|null}[];
+  /** Source WBS path, root to the activity's WBS node (XER PROJWBS codes); additive. */
+  sourceWbsPath?: string[];
+  /** Source resource and cost-account assignments (XER TASKRSRC, RSRC, ACCOUNT); additive. */
+  sourceResourceAssignments?: {resourceId:string|null;resourceName:string|null;costAccountId:string|null;costAccountCode:string|null;costAccountName:string|null}[];
   projectId: string | null;
   activityId: string;
   nativeId: string | null;
@@ -144,9 +146,12 @@ export interface CanonicalScheduleRelationship {
   diagnostics: string[];
 }
 
+/** One source column of a programme file: read into a field, or unused with a sample. */
+export interface SourceColumnAudit {table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}
+
 export interface CanonicalScheduleModel {
   /** Every source column of every table: read into a field or listed as unused with a sample; additive. */
-  sourceColumnAudit?: {table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}[];
+  sourceColumnAudit?: SourceColumnAudit[];
   projectId: string | null;
   source: CanonicalScheduleSource;
   sourceRevisionId: string;

@@ -1,5 +1,6 @@
 import { parseP6CalendarData, type P6CalendarDataResult } from "./calendar-data";
 import type { XerParseResult, XerRow } from "./types";
+import { noteXerRead } from "./read-tracking";
 
 export interface XerCalendarAssessment {
   calendarId: string;
@@ -28,6 +29,7 @@ function parsedRows(result: XerParseResult, table: string): XerRow[] {
 }
 
 function field(row: XerRow, name: string): string | null {
+  noteXerRead(row.table, name);
   const value = row.data?.[name]?.trim();
   return value ? value : null;
 }
