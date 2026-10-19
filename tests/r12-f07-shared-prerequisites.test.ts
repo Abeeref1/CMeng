@@ -125,9 +125,12 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
  const prerequisite=(k:string)=>challenge.featureAvailability.prerequisites.find((p:any)=>p.key===k);
  const tracking=delivery.boqIntelligence.mappingCoverage.find((r:any)=>r.dimension==='quantity tracking');
  const forecast=page(id,'independent-forecast');
+ // Progress Breakdown states BOQ items and measured items per area; the areas partition the BOQ.
+ const areas=breakdown.decisionAnalysis.areas as any[],sum=(f:string)=>areas.reduce((n,a)=>n+a[f],0);
+ const breakdownItems=sum('itemCount'),breakdownMeasured=sum('measuredItemCount');
  // Page against page first (what each screen states), then each page against the facts.
  const installedShown={quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),challenge:prerequisite('remaining_quantities').established,
-  breakdown:breakdown.decisionAnalysis.quantities.measuredItemCount>0,delivery:tracking.mappedCount>0,facts:confirmed(inputs?.installedQuantities?.state)};
+  breakdown:breakdownMeasured>0,delivery:tracking.mappedCount>0,facts:confirmed(inputs?.installedQuantities?.state)};
  assert.equal(new Set(Object.values(installedShown)).size,1,'installed quantities confirmed on one page are confirmed on all: '+JSON.stringify(installedShown));
  const boqShown={challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0,facts:confirmed(inputs?.quantities?.state)};
  assert.equal(new Set(Object.values(boqShown)).size,1,'BOQ quantities confirmed on one page are confirmed on all: '+JSON.stringify(boqShown));
@@ -139,8 +142,9 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
  assert.equal(quantity.installedQuantityStatus.boqItemCount,inputs.quantities.boqItemCount);
  assert.equal(quantity.boqItemCount,inputs.quantities.boqItemCount,'Quantities BOQ items = facts');
  assert.equal(quantity.knownQuantityItemCount,inputs.quantities.readableQuantityItemCount,'Quantities readable quantities = facts');
- assert.equal(breakdown.decisionAnalysis.quantities.itemCount,inputs.quantities.boqItemCount,'Progress Breakdown BOQ items = facts');
- assert.equal(breakdown.decisionAnalysis.quantities.measuredItemCount,inputs.installedQuantities.measuredItemCount,'Progress Breakdown measured items = facts');
+ assert.equal(breakdownItems,inputs.quantities.boqItemCount,'Progress Breakdown BOQ items = facts');
+ assert.equal(quantity.decisionAnalysis.quantities.measuredItemCount,inputs.installedQuantities.measuredItemCount,'Quantities decision analysis measured items = facts');
+ assert.equal(breakdownMeasured,inputs.installedQuantities.measuredItemCount,'Progress Breakdown measured items = facts');
  assert.equal(delivery.boqIntelligence.itemCount,inputs.quantities.boqItemCount,'Delivery value mapping BOQ items = facts');
  assert.equal(tracking.mappedCount,inputs.installedQuantities.measuredItemCount,'Delivery quantity tracking = facts');
  // CPM coverage and publication against the facts.
