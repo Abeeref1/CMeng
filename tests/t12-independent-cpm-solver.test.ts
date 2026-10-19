@@ -21,7 +21,7 @@ const C7 = {id: 'C7', workDays: [0, 1, 2, 3, 4, 5, 6], startHour: 0, hoursPerDay
 const MON = '2027-01-04T08:00:00Z';
 
 type Row = Record<string, unknown>;
-function rows(result: {activities: Row[]}) { return new Map(result.activities.map(a => [a.id as string, a])); }
+function rows(result: {activities: Row[]}) { return new Map(result.activities.map(a => [a.id as string, a] as [string, Row])); }
 const t = (s: string) => new Date(s).toISOString();
 function expectRow(result: {activities: Row[]}, id: string, e: {es: string; ef: string; ls?: string; lf?: string; tf?: number | null; ff?: number | null; tfd?: number; ffd?: number; crit?: boolean | null}) {
   const r = rows(result).get(id)!;

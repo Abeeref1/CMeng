@@ -182,7 +182,7 @@ test('mixed-calendar start-type links and milestones: differences stay inside th
     const r = compare(net);
     if (r.real.length === 0) continue;
     networksWithDifferences += 1;
-    const cal = new Map(net.activities.map(a => [a.id, a.calendar]));
+    const cal = new Map(net.activities.map(a => [a.id, a.calendar] as [string, string]));
     const trigger = net.activities.some(a => a.duration === 0) ||
       net.relationships.some(x => x.type !== 'FS' && cal.get(x.pred) !== cal.get(x.succ));
     assert.ok(trigger, 'seed ' + s + ' differs without a documented basis trigger: ' + JSON.stringify(r.real.slice(0, 4)));
