@@ -120,10 +120,21 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const risks:RiskControlRecord[]=[...manual(state.controls.risks,'risk_register'),...rows('risk_register').map(row=>{
     const source=sourceStatusFor(row,'risk',diagnostics);
     const raw=source.value;
+    const statusFromSource:RiskControlRecord['status']=/^(open|active|mitigating|in progress)$/.test(norm(raw))?'open':/^(closed|resolved)$/.test(norm(raw))?'closed':'unknown';
+    // F15: a separate "Closed" column is read. Yes/closed closes a risk whose status
+    // column is blank or unclear; it contradicts an open status, which then counts
+    // neither open nor closed. "No" never reopens anything.
+    const closedColumn=norm(cell(row,'closed')),closedYes=/^(yes|y|true|closed)$/.test(closedColumn);
+    const status:RiskControlRecord['status']=closedYes?(statusFromSource==='open'?'unknown':'closed'):statusFromSource;
+    // F15: Last Reviewed is its own field, with the register's stated review interval (whole days) or next review date.
+    const interval=/^(\d{1,4})\s*(?:calendar\s+)?(?:days?|d)?$/i.exec(cell(row,'review interval','review frequency','review cycle','review period days'));
     return {riskId:cell(row,'risk id'),...responsibility(row),category:cell(row,'category','risk category','discipline')||null,
-      status:(/^(open|active|mitigating|in progress)$/.test(norm(raw))?'open':/^(closed|resolved)$/.test(norm(raw))?'closed':'unknown') as RiskControlRecord['status'],
+      status,
       sourceStatus:source.conflicted?'Conflicting source status columns: '+source.observed.map(entry=>entry.field+'='+entry.raw).join('; '):raw,
-      rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),sourceRefs:refs(row)};
+      rating:cell(row,'rating')||null,owner:cell(row,'owner')||null,dueIso:dateValue(cell(row,'due date')),...dates(row),
+      ...(closedColumn?{sourceClosed:cell(row,'closed')}:{}),
+      lastReviewedIso:dateValue(cell(row,'last reviewed')),reviewIntervalDays:interval?Number(interval[1]):null,nextReviewIso:dateValue(cell(row,'next review','next review date','review due date')),
+      sourceRefs:refs(row)};
   })];
   const prepare=<T>(items:T[],type:string,id:(r:T)=>string)=>{
     const ds=diagnostics.filter(d=>[...docIds(type)].some(key=>d.includes(key)));

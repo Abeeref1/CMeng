@@ -391,6 +391,11 @@ export interface RiskControlRecord {
   rating: string | null;
   owner: string | null;
   dueIso: string | null;
+  /** F15 (additive): source "Closed" column, Last Reviewed date, stated review interval and next review date. */
+  sourceClosed?: string;
+  lastReviewedIso?: string | null;
+  reviewIntervalDays?: number | null;
+  nextReviewIso?: string | null;
   sourceRefs: string[];
 }
 
