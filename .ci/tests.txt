@@ -38,3 +38,6 @@ t11-module-issues-walk-parity
 f61-management-page-weight
 f61-adversarial-list-paging
 blind-project-generator
+v1-f01-page-figures-match-api
+v1-f07-shared-input-status
+w3-commercial-round10
