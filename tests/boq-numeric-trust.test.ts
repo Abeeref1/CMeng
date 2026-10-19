@@ -18,6 +18,7 @@ import {AskStore} from '../packages/runtime-api/src/ask-store';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {buildModuleJsonDownload,buildModuleWorkbook} from '../packages/runtime-api/src/module-report';
 import ExcelJS from 'exceljs';
+import {fieldKeyColumn,worksheetWithFieldKeys} from './workbook-field-keys';
 
 const flag='BOQ_NUMERIC_SOURCE_CONFIRMATION_REQUIRED';
 const observations=Array.from({length:100},(_,i)=>({id:String(i+1),trueQuantity:(i+1)/100,quantity:i+1,rate:7,amount:(i+1)*7}));
@@ -91,9 +92,9 @@ test('Ask, module JSON and Excel preserve unknown calculation fields and separat
  const result=moduleForProject(state.projectId,'challenge-contract'),download=JSON.parse(buildModuleJsonDownload(state.projectId,'challenge-contract',result).toString());
  const rows=download.result.data.suppliedBoq.rows;assert.equal(rows.length,100);assert.ok(rows.every((row:any)=>row.quantity===null&&row.rate===null&&row.amount===null));assert.equal(rows[0].sourceNumericReadings.quantity,1);
  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await buildModuleWorkbook(state.projectId,'challenge-contract',result) as any);
- const sheet=workbook.worksheets.find(sheet=>sheet.getRow(1).values&&Array.from(sheet.getRow(1).values as any[]).includes('sourceNumericReadings.quantity'));
+ const sheet=worksheetWithFieldKeys(workbook,['sourceNumericReadings.quantity']);
  assert.ok(sheet,'Source observations must be explicitly named in the workbook');
- const header=sheet.getRow(1).values as any[],quantity=header.indexOf('quantity'),rate=header.indexOf('rate'),amount=header.indexOf('amount'),observed=header.indexOf('sourceNumericReadings.quantity');
+ const column=(key:string)=>fieldKeyColumn(workbook,sheet!.name,key),quantity=column('quantity'),rate=column('rate'),amount=column('amount'),observed=column('sourceNumericReadings.quantity');
  assert.ok(quantity>0&&rate>0&&amount>0);assert.equal(sheet.rowCount,101);
  for(let n=2;n<=sheet.rowCount;n++){const row=sheet.getRow(n);assert.equal(row.getCell(quantity).value,null);assert.equal(row.getCell(rate).value,null);assert.equal(row.getCell(amount).value,null);assert.equal(row.getCell(observed).value,n-1);}
 });
