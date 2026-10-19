@@ -4,6 +4,7 @@ import path from 'node:path';
 import {buildCommercialFoundation} from '../packages/commercial-foundation/src';
 import {buildCommercialPerformance} from '../packages/commercial-performance/src';
 import {buildContractControls} from '../packages/commercial-contract-controls/src';
+import {buildCommercialControlPosition} from '../packages/commercial-control/src';
 import {assessEventNotice, type CanonicalDelayEvent, type CanonicalNoticeRecord, type NoticeRequirement} from '../packages/delay-analysis-core/src';
 
 // T07 judged against the T12 independent calculators (tools/independent, plain JS,
@@ -194,4 +195,56 @@ test('T07 sectional LD: CMeng section scenarios equal the ledger (rate x delay, 
   // adds sections into a whole-project figure, so no overall cap is applied.
   assert.equal(cm[3]!.cappedExposure, null);
   assert.equal(ind.rows[3].capped, 5000);
+});
+
+const controlPosition = (invoices: Array<{invoiceId: string; certifiedAmount: number | null; paidAmount: number | null}>,
+  retentions: Array<{retentionId: string; amount: number; state: 'held' | 'released'}>, contractTimeBasis: any) =>
+  buildCommercialControlPosition({generatedAt, projectId: 'T07-CC', contractValue: {amount: 1000000, currency: 'AED', sourceRefs: ['C']},
+    variations: [], invoices: invoices.map(i => ({...i, currency: 'AED', sourceRefs: [i.invoiceId]})),
+    retentions: retentions.map(r => ({...r, currency: 'AED', sourceRefs: [r.retentionId]})), bonds: [], claimCommercials: [], contractTimeBasis,
+    commercialEvidenceSubmitted: true, paymentEvidenceSubmitted: true, variationEvidenceSubmitted: true, bondEvidenceSubmitted: true, claimEvidenceSubmitted: true});
+
+test('T07 payments vs certificates and retention: commercial-control equals the ledger', () => {
+  const invoices = [{invoiceId: 'I1', certifiedAmount: 100000.1, paidAmount: 90000}, {invoiceId: 'I2', certifiedAmount: 50000.2, paidAmount: 50000.2}];
+  const p = controlPosition(invoices, [
+    {retentionId: 'R1', amount: 5000, state: 'held'}, {retentionId: 'R2', amount: 2500.5, state: 'held'}, {retentionId: 'R3', amount: 3000, state: 'released'}], null).currencies[0]!;
+  const ind = ledger.paymentPosition(invoices.map(i => ({certified: i.certifiedAmount, paid: i.paidAmount})));
+  assert.equal(p.grossCertifiedAmount.value, ind.certified);
+  assert.equal(p.paidAmount.value, ind.paid);
+  assert.equal(p.certifiedUnpaidAmount.value, ind.outstanding);
+  // Basis difference in input shape only: each CMeng retention record is one item that is
+  // either held or released. As a ledger that is three deductions with R3 released.
+  const ret = ledger.retentionPosition({deductions: [5000, 2500.5, 3000], releases: [3000]});
+  assert.equal(p.retentionHeldAmount.value, ret.held);
+});
+
+test('T07 paid above certified is not a clear zero balance (CMeng defect fixed in commercial-control)', () => {
+  // Before: Math.max(0, certified - paid) showed an established unpaid balance of 0 for
+  // certified 100 / paid 150, hiding a 50 overpayment or a missing certificate.
+  const ind = ledger.paymentPosition([{certified: 100, paid: 150}]);
+  assert.equal(ind.outstanding, -50);
+  const p = controlPosition([{invoiceId: 'I1', certifiedAmount: 100, paidAmount: 150}], [], null).currencies[0]!;
+  assert.equal(p.certifiedUnpaidAmount.value, null);
+  assert.notEqual(p.certifiedUnpaidAmount.state, 'established');
+  assert.ok(p.certifiedUnpaidAmount.diagnostics.includes('PAID_EXCEEDS_CERTIFIED_UNPAID_BALANCE_NOT_ESTABLISHED'));
+  // Exactly paid stays an established 0.
+  const even = controlPosition([{invoiceId: 'I1', certifiedAmount: 100.1, paidAmount: 100.1}], [], null).currencies[0]!;
+  assert.equal(even.certifiedUnpaidAmount.value, 0); assert.equal(even.certifiedUnpaidAmount.state, 'established');
+});
+
+test('T07 EOT: adjusted completion = contract completion + awarded calendar days; EOT already in an amendment is not added again', () => {
+  const basis = {contractualCompletionIso: '2026-06-30', contractualCompletionState: 'official', officialApprovedEotDays: 25,
+    officialApprovedEotState: 'official', eotDayBasis: 'calendar_days', eotDayBasisState: 'official', sourceRefs: ['T']};
+  const t = controlPosition([], [], basis).timeExposure;
+  assert.equal(t.officialAdjustedCompletion.value, nd.revisedCompletion('2026-06-30', [{days: 25}]).revisedIso);
+  // Amendment date already includes its EOT and the overlap with determinations is not
+  // reconciled: no further days are added (judgment on overlap stays with the user).
+  const amended = controlPosition([], [], {...basis, incorporatedEotDays: 25, additionalApprovedEotDays: null, overlapResolution: 'unresolved'}).timeExposure;
+  assert.equal(amended.officialAdjustedCompletion.value, null);
+  assert.equal(amended.contractualCompletion.value, '2026-06-30');
+  // Only the extra, reconciled days are added on top of the amended date.
+  const extra = controlPosition([], [], {...basis, incorporatedEotDays: 25, additionalApprovedEotDays: 10, overlapResolution: 'resolved'}).timeExposure;
+  assert.equal(extra.officialAdjustedCompletion.value, nd.revisedCompletion('2026-06-30', [{days: 10}]).revisedIso);
+  // Working-day EOT basis: no calendar date is guessed.
+  assert.equal(controlPosition([], [], {...basis, eotDayBasis: 'working_days'}).timeExposure.officialAdjustedCompletion.value, null);
 });
