@@ -47,6 +47,7 @@ function uniq(values: string[]): string[] {
  * do not reconcile (overpayment or a missing certificate), so no balance is
  * established instead of showing a false clear 0. */
 const PAID_EXCEEDS_CERTIFIED = "PAID_EXCEEDS_CERTIFIED_UNPAID_BALANCE_NOT_ESTABLISHED";
+const CERTIFIED_UNPAID_GROSS_ONLY = "CERTIFIED_UNPAID_REQUIRES_NET_CERTIFIED_CERTIFICATES_STATE_GROSS_ONLY";
 function unpaidBalance(certified: number, paid: number): number | null {
   const balance = Number((certified - paid).toFixed(8));
   return balance < 0 ? null : balance;
@@ -933,7 +934,12 @@ export function buildCommercialControlPosition(
                 ]
               : [],
           ),
-        certifiedUnpaidAmount:
+        // R12 follow-up: gross certification less cash received is not an unpaid
+        // balance (retention and deductions are not payable). Certificates read from
+        // a Gross Certified column leave it not established until net is stated.
+        certifiedUnpaidAmount: certified.some((row) => row.certifiedAmountColumn === "gross")
+          ? moneyMetric(null, "missing_information", invoiceRefs, [CERTIFIED_UNPAID_GROSS_ONLY])
+          :
           moneyMetric(
             grossCertified !== null &&
             paidTotal !== null &&
@@ -1245,7 +1251,9 @@ export function buildCommercialControlPosition(
     explainMissingInformation(position.paidAmount,
       certificateHasNoPaidColumn?"Paid: not supplied in this certificate register.":"Actual payment amounts and receipt dates are not confirmed.",
       certificateHasNoPaidColumn?"No cash receipt is inferred. Attach actual payment evidence when available.":"Supply dated payments or receipts, references and certificate allocations.");
-    explainMissingInformation(position.certifiedUnpaidAmount,"Unpaid balance needs confirmed certification and payment records.","Reconcile dated certificates with their allocated payments; missing payments are not zero.");
+    if(position.certifiedUnpaidAmount.diagnostics.includes(CERTIFIED_UNPAID_GROSS_ONLY))
+      explainMissingInformation(position.certifiedUnpaidAmount,"The certificates state gross certified amounts only; gross less cash received is not the unpaid balance.","Supply the net certified (payable) amount of each certificate; retention and deductions are not treated as unpaid.");
+    else explainMissingInformation(position.certifiedUnpaidAmount,"Unpaid balance needs confirmed certification and payment records.","Reconcile dated certificates with their allocated payments; missing payments are not zero.");
     explainMissingInformation(position.retentionHeldAmount,"Held balance needs opening retention and release records.","Reconcile the retention deductions with opening balances and dated releases.");
     explainMissingInformation(position.advanceBalance,"Advance balance is not supported by the current records.","Supply the original advance payment, receipt date and recovery allocation.");
   }

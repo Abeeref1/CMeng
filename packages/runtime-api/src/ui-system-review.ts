@@ -65,7 +65,7 @@ function renderProgrammeCashScenario(scenario){
   ['Future retention',group.retention,group.currency],
   ['Advance recovery',group.advanceRecovery,group.currency],
   ['Indicative net receipts',group.netReceipts,group.currency]
- ])+(group.missingInputs?.length?'<p>Missing inputs: '+escapeHtml(group.missingInputs.join('; '))+'. Gross and net scenarios remain separate.</p>':'')+(group.rows?.length?
+ ])+(group.notEstablishedReason?'<p><b>Future receipts not established:</b> '+escapeHtml(group.notEstablishedReason.charAt(0).toUpperCase()+group.notEstablishedReason.slice(1))+'</p>':'')+(group.missingInputs?.length?'<p>Missing inputs: '+escapeHtml(group.missingInputs.join('; '))+'. Gross and net scenarios remain separate.</p>':'')+(group.rows?.length?
   (typeof renderLineChart==='function'?renderLineChart(group.curvePoints||group.rows.map(row=>({dateIso:row.periodEndIso,grossValuation:row.grossValuation,netReceipt:row.netReceipt})),[{key:'grossValuation',label:'Cumulative gross valuation',color:'#506579'},{key:'netReceipt',label:'Cumulative receipts after payment period',color:'#2c7a57'}],null,{title:'Forward receipts · '+group.currency,unit:group.currency,dataDateIso:scenario.dataDateIso,dateKey:'dateIso'}):'')+
   experienceDisclosure('Monthly assumed receipts · '+group.currency,
     basisTable(['Statement date','Gross valuation','Net receipt','Assumed receipt date'],group.rows.map(row=>
