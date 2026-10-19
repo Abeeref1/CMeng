@@ -165,3 +165,46 @@ test('T04 commercial register screens show the not-adopted label beside records 
   for(const id of ['variationId','invoiceId','bondId'])
     assert.ok(src.includes("escapeHtml(row."+id+")+'</b>'+(row.sourceAnalyticalNote?' <span class=\"muted\">· '+escapeHtml(row.sourceAnalyticalNote)+'</span>':'')"),id+' row carries the label');
 });
+
+test('T04 a commercial adopted-vs-unadopted conflict is choosable: pick, type own, change, undo, kept after restart',async()=>{
+  const {mkdtempSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const root=mkdtempSync(join(tmpdir(),'cmeng-t04-commercial-decision-'));
+  try{
+    const store=new RuntimeProjectStore({dataDir:root,durable:false});
+    const state=store.getOrCreate('T04-COMMERCIAL-F') as any;const p=state.projectId;
+    const adopted=doc(p,'vo-adopted','variation_register','commercial:variations','active');
+    const unadopted=doc(p,'vo-site-copy','variation_register','commercial:variation-site');
+    withVariations(state,adopted,100000);withVariations(state,unadopted,150000);
+    rebuildDerivedControls(state);
+    const action=()=>projectActions(state,summarizeControlIssues([])).actions.find((a:any)=>a.id==='matter:commercial-record:variations:VO-1') as any;
+    const open=action();
+    assert.ok(open,'one decision for the record');assert.equal(open.category,'confirmation');
+    assert.deepEqual(open.target.reviewOptions.map((o:any)=>o.value),['keep_adopted','use_source:'+unadopted.documentId,'enter_value']);
+    assert.match(open.reason,/vo-site-copy\.csv, a source that is not formally adopted/);
+    const decide=(choice:string,enteredValue?:number)=>{
+      const decisions={...(state.controls.reviewDecisions??{})};
+      if(choice==='undo')delete decisions['commercial-record:variations:VO-1'];
+      else decisions['commercial-record:variations:VO-1']={sourceFingerprint:action().reviewFingerprint,choice,...(enteredValue!==undefined?{enteredValue}:{}),confirmedAt:'2031-05-01T00:00:00Z',sourceRefs:[]};
+      store.updateControls(p,{reviewDecisions:decisions});rebuildDerivedControls(state);store.touch(state);
+    };
+    decide('use_source:'+unadopted.documentId);
+    assert.equal(state.controls.variations.length,1);assert.equal(state.controls.variations[0].amount,150000,'picked source value used');
+    assert.match(state.controls.variations[0].sourceAnalyticalNote,/not formally adopted/);
+    assert.equal(action().category,'information');assert.equal(action().target.reviewChoice,'use_source:'+unadopted.documentId);
+    assert.ok(action().target.reviewOptions.some((o:any)=>o.value==='undo'),'undo offered after a decision');
+    decide('enter_value',120000);
+    assert.equal(state.controls.variations[0].amount,120000,'typed value used');
+    assert.match(state.controls.variations[0].sourceAnalyticalNote,/entered in the decision place; not formally adopted/);
+    rebuildDerivedControls(state);assert.equal(state.controls.variations[0].amount,120000,'rebuild keeps the decision');
+    const restored=new RuntimeProjectStore({dataDir:root,durable:false}).get(p) as any;
+    assert.equal(restored.controls.variations.find((r:any)=>r.variationId==='VO-1').amount,120000,'kept after restart');
+    assert.equal(restored.controls.reviewDecisions['commercial-record:variations:VO-1'].enteredValue,120000);
+    decide('keep_adopted');
+    assert.equal(state.controls.variations[0].amount,100000);assert.equal(state.controls.variations[0].sourceAnalyticalUse,undefined);
+    decide('undo');
+    assert.equal(state.controls.variations[0].amount,100000,'undo returns to the adopted value');
+    assert.equal(action().category,'confirmation','undo reopens the decision');
+    assert.ok(state.evidenceDocuments.every((d:any)=>d.basisState===(d.documentId===adopted.documentId?'active':'candidate')),'stored basisState unchanged');
+  }finally{rmSync(root,{recursive:true,force:true});}
+});
