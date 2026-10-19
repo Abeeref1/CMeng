@@ -19,7 +19,8 @@ import {join} from 'node:path';
 // The real page functions, taken from the built page script by name.
 const PAGE_FUNCTIONS=['conditionalNotice','knownScreenCount','screenCountText',
   'resourcePerHourNotAssessableNote','manhourUnitNote','manhourActualMissingNote',
-  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual','renderIssueAssessment','renderForecastHistoryVisual','readyChecksPassedCount'];
+  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual','renderIssueAssessment','renderForecastHistoryVisual','readyChecksPassedCount',
+  'contractTimeLines'];
 function pageScript():string {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
