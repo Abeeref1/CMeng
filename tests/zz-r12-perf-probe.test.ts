@@ -10,7 +10,7 @@ import {join,resolve} from 'node:path';
 // (base, fixed, base, fixed) without a profiler, then compares every page and
 // Ask answer of both builds (masked for run timestamps, random ids and paths).
 // Finally one profiled run of the fixed build prints the hottest functions.
-const BASE='5da3be8f4da660c13f7cedbe33098d934475847e';
+const BASE='92d3c03fe57c653c2acf8f2ce3217cdac5cf6cf4';
 const cpuModel=(()=>{try{return (/model name\s*:\s*(.*)/.exec(readFileSync('/proc/cpuinfo','utf8'))?.[1]??'unknown').trim();}catch{return 'unknown';}})();
 const seed='r12-perf2-fixed-seed::J8-FINAL-REAL-ACCEPTANCE';
 
