@@ -12,7 +12,7 @@ import {conditionalNotice} from '../packages/runtime-api/src/conditional-notice'
 // The real page functions, taken from the built page script by name.
 const PAGE_FUNCTIONS=['conditionalNotice','knownScreenCount','screenCountText',
   'resourcePerHourNotAssessableNote','manhourUnitNote','manhourActualMissingNote',
-  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual'];
+  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual','renderIssueAssessment','renderForecastHistoryVisual'];
 function pageScript():string {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
@@ -23,7 +23,7 @@ const joinText=(...args:unknown[])=>args.filter(arg=>typeof arg==='string').join
 function render(call:string,p:Record<string,unknown>):string {
   return vm.runInNewContext(pageScript()+'\n'+call+'(p);',{
     p,projectionFor:(value:unknown)=>value,escapeHtml:text,fmt:text,humanizeKey:text,planningShortDate:text,resourceUnitLabel:text,
-    planningKpis:()=>'',planningRevisionLabel:text,moduleEvidenceGate:()=>'',renderLineChart:()=>'',renderResourceBasisReview:()=>'',moduleBarList:()=>'',
+    planningKpis:()=>'',planningRevisionLabel:text,issueBadge:()=>'',readerIssue:(i:any)=>({title:text(i?.title),owner:'',action:''}),readerText:text,names:{},renderForecastCalculationChecks:()=>'',planningCalendarDaysBetween:()=>null,planningDateTrend:()=>'',shortRevision:text,moduleEvidenceGate:()=>'',renderLineChart:()=>'',renderResourceBasisReview:()=>'',moduleBarList:()=>'',
     experienceDisclosure:joinText,managementPanel:joinText,renderVisualPanel:joinText,visualSection:joinText,
   }) as string;
 }
@@ -102,4 +102,22 @@ test('SW-46 Resources: a programme without a stored resource model reports assig
   const html=render('renderResourceVisual',{rows:[],assignedResourceCount:null,assignmentRecordCount:null,perHourCapacityBasedResourceCount:0,capacityCoveragePercent:null});
   assert.doesNotMatch(html,/has no resource assignments|contains resource assignments/);
   assert.match(html,/Resource assignments for the current programme are not established/);
+});
+
+test('SW-46 Review findings: "The listed checks passed" is not shown when the check state is missing',()=>{
+  const missing=render('renderIssueAssessment',{issues:[],counts:{}});
+  assert.doesNotMatch(missing,/The listed checks passed/);
+  assert.match(missing,/The result of the listed calculation checks is not established\./);
+  const passed=render('renderIssueAssessment',{issues:[],counts:{},systemCheckState:'listed_checks_passed'});
+  assert.match(passed,/The listed checks passed\. Other calculations may remain outside their scope\./);
+  const failed=render('renderIssueAssessment',{issues:[],counts:{},systemCheckState:'failed'});
+  assert.match(failed,/Calculation failures require correction before reliance\./);
+});
+
+test('SW-46 Forecast history: "Source forecast history is available" is not shown when no revision has a submitted finish',()=>{
+  const none=render('renderForecastHistoryVisual',{points:[{sourceRevisionId:'R1',sourceForecastCompletionIso:null}],establishedForecastCount:0});
+  assert.doesNotMatch(none,/Source forecast history is available/);
+  assert.match(none,/No submitted forecast finish is recorded in these revisions\./);
+  const some=render('renderForecastHistoryVisual',{points:[{sourceRevisionId:'R1',sourceForecastCompletionIso:'2027-03-01'}],establishedForecastCount:0});
+  assert.match(some,/Source forecast history is available\.<\/b> Programme calendar recalculation could not be established/);
 });
