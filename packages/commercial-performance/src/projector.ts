@@ -1282,13 +1282,13 @@ function costControl(
     ) {
       managementSummary.push(
         (position.calculatedVac.state==='established'?'':'Provisional '+position.calculatedVac.state+' evidence: ') + position.currency +
-          " forecast indicates an overrun against BAC of " +
+          " forecast is " +
           Math.abs(
             position
               .calculatedVac
               .value,
           ) +
-          ".",
+          " above the original budget (BAC) only; approved variations are excluded, so this is not the current-contract comparison.",
       );
     }
   }
