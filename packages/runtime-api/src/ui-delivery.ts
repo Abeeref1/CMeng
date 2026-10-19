@@ -194,7 +194,7 @@ function deliverySourceAvailabilityHtml(p){
 }
 function renderProgrammeTaskScope(p){
  if(!p)return '';
- return '<section class="card"><h4>Programme task scope</h4><p>'+escapeHtml(p.basis)+'</p><p>'+escapeHtml(p.qualification)+'</p><p>'+escapeHtml(fmt(p.selectedCount))+' selected tasks · '+escapeHtml(p.sourceFilename)+'</p><button class="btn" onclick="openProjectActions()">Review programme task IDs</button><button class="btn" onclick="selected=\'activity-analytics\';localStorage.setItem(\'cmeng-module\',selected);renderNav();loadModule(selected)">Open Activity Review</button>'+(p.additionalCandidates.length?deliveryTable('programmeValidationCandidates','Additional validation candidates · not selected',p.additionalCandidates,[['activityId','Activity ID'],['name','Source activity name'],['status','Source status'],['basis','Qualification']]):'')+'</section>';
+ return '<section class="card"><h4>Programme task scope</h4><p>'+escapeHtml(p.basis)+'</p><p>'+escapeHtml(p.qualification)+'</p><p>'+escapeHtml(fmt(p.selectedCount))+' selected tasks · '+escapeHtml(p.sourceFilename)+'</p><button class="btn" onclick="openProjectActions()">Review programme task IDs</button><button class="btn" onclick="selected=\'activity-analytics\';localStorage.setItem(\'cmeng-module\',selected);syncBrowserRoute();renderNav();loadModule(selected)">Open Activity Review</button>'+(p.additionalCandidates.length?deliveryTable('programmeValidationCandidates','Additional validation candidates · not selected',p.additionalCandidates,[['activityId','Activity ID'],['name','Source activity name'],['status','Source status'],['basis','Qualification']]):'')+'</section>';
 }
 function renderHandoverSourceComparison(p){
  if(!p)return '';

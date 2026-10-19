@@ -4,7 +4,7 @@ import {boqSectionReviewScript} from './ui-boq-section-review';
 import {decisionFactsScript} from './ui-decision-facts';
 import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
-import {pmcRoleOwner,ownerDisplayState} from './action-priority';
+import {pmcRoleOwner} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
@@ -534,7 +534,6 @@ ${managementDate.toString()}
 ${managementValue.toString()}
 ${managementText.toString()}
 ${pmcRoleOwner.toString()}
-${ownerDisplayState.toString()}
 const fmt=v=>{
  if(v===null||v===undefined)return "Not in source";
  if(typeof v==='number')return managementNumber(v);
@@ -5565,13 +5564,6 @@ function applyPmcDisplayOwners(root,defaultDomain){
    if(!missing(node.textContent))return;
    node.innerHTML=ownerMissingHtml(pmcDisplayOwner(defaultDomain||'project controls'));
  });
-}
-/** A missing owner is shown as missing, with its accountable role and the way to
- * set it: a named owner in the source register is always kept (pmcRoleOwner). */
-function ownerMissingHtml(owner){
- const state=ownerDisplayState(owner);
- if(state.named)return escapeHtml(owner);
- return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' <button type="button" class="management-module-link" data-module="documents" data-set-owner>Name the owner in the source register</button>';
 }
 function applyProjectDisplayText(root){
  if(!root||typeof document==='undefined'||typeof document.createTreeWalker!=='function')return;

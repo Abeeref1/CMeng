@@ -1,7 +1,16 @@
+import {ownerDisplayState} from './action-priority';
 export const projectActionsStyles=String.raw`
 .action-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;color:#4a5e72}.project-action-list{display:grid;gap:12px}.project-action{border:1px solid #d6e1eb;border-left:4px solid #b57a26;border-radius:9px;background:#fff;padding:18px;scroll-margin-top:110px}.project-action h4{margin:0 0 8px;font-size:17px}.project-action p{margin:7px 0;line-height:1.5}.project-action footer{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.action-filters{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.action-filters input{flex:1;min-width:180px}.action-filters input,.action-filters select,.project-action select,.project-action input[type="text"],.project-action input[type="date"],.project-action input[type="file"]{padding:10px;border:1px solid #bdcbd8;border-radius:7px;font:inherit;background:#fff}.project-action-count{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:10px;background:#fff0d5;color:#6f4616}.action-notification{font-size:13px;color:#7a541c;margin:0 0 12px}.project-action small{color:#546c81}.action-resolution{display:grid;gap:9px;margin-top:12px;padding:12px;border:1px solid #e1e8ef;border-radius:8px;background:#fbfdff}.action-resolution-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px}.action-resolution label{display:grid;gap:5px;font-size:11px;font-weight:750;color:#5b6d80}.action-resolution .btn{justify-self:start}.action-inline-message{min-height:18px;font-size:12px;color:#526579}.action-information{border-left-color:#9aa8b5;background:#fbfcfd}.action-information .action-resolution{display:none}.action-information.action-review-recorded .action-resolution{display:grid}.action-findings-preview{margin:12px 0;padding:13px 16px;border-radius:8px;background:#f5f8fc;border:1px solid #dce5ee;font-size:13px;line-height:1.55}.action-correction-note{font-size:13px;line-height:1.55}.review-evidence{border:1px solid #d6e2ef;background:#f6f9fd;padding:12px 16px;margin:12px 0;border-radius:8px;line-height:1.6}.review-evidence li{margin:6px 0}.review-matrix{width:100%;min-height:90px}.action-follow-up{border-left-color:#8796a4}.action-type{display:block;font-size:12px;font-weight:700;color:#536579;margin:0 0 8px}
 `;
 export const projectActionsScript=String.raw`
+${ownerDisplayState.toString()}
+/** A missing owner is shown as missing, with its accountable role and the way to
+ * set it: a named owner in the source register is always kept (pmcRoleOwner). */
+function ownerMissingHtml(owner){
+ const state=ownerDisplayState(owner);
+ if(state.named)return escapeHtml(owner);
+ return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' <button type="button" class="management-module-link" data-module="documents" data-set-owner>Name the owner in the source register</button>';
+}
 let projectActionState=null,projectActionRequest=0,projectActionSearch='',projectActionFilter='all',projectActionPage=0,projectDataGapsPage=0,projectActionSearchTimer=null;
 function actionStateCurrent(){return projectActionState?.projectId===project();}
 function updateActionIndicator(){
