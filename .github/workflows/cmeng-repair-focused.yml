@@ -175,6 +175,7 @@ jobs:
             dist/tests/y11-sw46-conditional-notices.test.js \
             dist/tests/w2-securities-shared-state.test.js \
             dist/tests/w3-commercial-headline-basis.test.js \
+            dist/tests/w3-commercial-round10.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \
             dist/tests/w1-f14-delivered-status-without-date.test.js \
             dist/tests/w1-f48-expired-permits-linked-to-work.test.js \

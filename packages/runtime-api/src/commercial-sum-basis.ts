@@ -93,3 +93,75 @@ export function paymentDueBasisLabel(due:DueDateFindingLike|null|undefined,certi
   }
   return 'Due-date basis not established';
 }
+
+// F36: one like-for-like rule for "certified work as a share of the contract".
+// Certified gross work excludes variations and advance applications, so it is
+// compared with the original contract value (same scope), in the same currency
+// and on the same stated tax basis. If either tax basis is not stated, or they
+// differ, the ratio is not established. Nothing is inferred.
+export type StatedTaxBasis='exclusive'|'inclusive';
+export interface ContractTaxEvidence{currency:string|null;amount:number|null;taxBasis:string|null|undefined;sourceRefs:readonly string[]}
+export interface ContractTaxBasisFinding{value:StatedTaxBasis|null;state:'source'|'conflicted'|'not_established';sourceRefs:string[];reason:string|null}
+
+const stated=(v:unknown):StatedTaxBasis|null=>v==='exclusive'||v==='inclusive'?v:null;
+
+export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currency:string,amount:number|null):ContractTaxBasisFinding{
+  if(amount===null||!Number.isFinite(amount))return {value:null,state:'not_established',sourceRefs:[],reason:'Original contract value is not established.'};
+  const matches=evidence.filter(e=>e.currency===currency&&typeof e.amount==='number'&&Math.abs(e.amount-amount)<=0.01&&stated(e.taxBasis)!==null);
+  const bases=[...new Set(matches.map(e=>stated(e.taxBasis)!))];
+  const sourceRefs=[...new Set(matches.flatMap(e=>[...e.sourceRefs]))];
+  if(bases.length===1)return {value:bases[0]!,state:'source',sourceRefs,reason:null};
+  if(bases.length>1)return {value:null,state:'conflicted',sourceRefs,reason:'Sources state different tax bases for the original contract value.'};
+  return {value:null,state:'not_established',sourceRefs:[],reason:'No source states the tax basis of the original contract value.'};
+}
+
+export interface CertifiedRatioInput{
+  currency:string;
+  certifiedGrossWork:number|null;
+  certificateTaxBasis:string|null|undefined;
+  originalContract:number|null;
+  contractTax:ContractTaxBasisFinding;
+  asOf?:string|null;
+  certificateCount?:number|null;
+}
+export interface CertifiedRatio{
+  valuePercent:number|null;
+  state:'calculated'|'not_established';
+  certifiedWork:number|null;
+  contractValue:number|null;
+  taxBasis:StatedTaxBasis|null;
+  reason:string|null;
+  basis:string;
+}
+
+export function likeForLikeCertifiedRatio(input:CertifiedRatioInput):CertifiedRatio{
+  const work=typeof input.certifiedGrossWork==='number'&&Number.isFinite(input.certifiedGrossWork)?input.certifiedGrossWork:null;
+  const contract=typeof input.originalContract==='number'&&Number.isFinite(input.originalContract)&&input.originalContract>0?input.originalContract:null;
+  const certificateTax=stated(input.certificateTaxBasis);
+  const reason=work===null?'Dated certified gross work is not established.':
+    contract===null?'Original contract value is not established.':
+    certificateTax===null?'Certificate tax basis is not stated.':
+    input.contractTax.value===null?(input.contractTax.reason??'Original contract tax basis is not established.'):
+    input.contractTax.value!==certificateTax?'Certificates are '+certificateTax+' of tax but the original contract value is '+input.contractTax.value+'.':null;
+  const taxBasis=reason===null?certificateTax:null;
+  const records=input.certificateCount===null||input.certificateCount===undefined?'dated issued certificates':input.certificateCount+' dated issued certificate'+(input.certificateCount===1?'':'s');
+  return {
+    valuePercent:reason===null?work!/contract!*100:null,
+    state:reason===null?'calculated':'not_established',
+    certifiedWork:work,contractValue:contract,taxBasis,reason,
+    basis:'Certified gross work (excludes variations and advance applications) divided by the same-currency original contract value on the same tax basis; financial certification, not measured physical completion. '+
+      sumBasisLabel({records,currency:input.currency,taxBasis:taxBasis===null?null:taxBasis+' of tax',asOf:input.asOf}),
+  };
+}
+
+// F37: a retained register total above the same-currency current contract sum is
+// a query to reconcile, never a figure to rely on.
+export interface RegisterContractCheckLike{register:string;currency:string;registerTotal:number;currentContractValue:number;comparisonDifference?:number|null;state:string;sourceRecordCount?:number|null}
+export function registerAboveContractQueries(rows:readonly RegisterContractCheckLike[]):Array<{currency:string;register:string;excess:number;text:string}>{
+  return rows.filter(r=>r.state==='query_required'&&Number.isFinite(r.registerTotal)&&Number.isFinite(r.currentContractValue)&&r.registerTotal>r.currentContractValue).map(r=>{
+    const excess=r.registerTotal-r.currentContractValue;
+    const money=(v:number)=>v.toLocaleString('en-US',{maximumFractionDigits:2})+' '+r.currency;
+    return {currency:r.currency,register:r.register,excess,
+      text:r.register+(r.sourceRecordCount!==null&&r.sourceRecordCount!==undefined?' ('+r.sourceRecordCount+' records)':'')+' totals '+money(r.registerTotal)+', above the current contract sum '+money(r.currentContractValue)+' by '+money(excess)+'; reconcile scope, duplicates, tax and currency before relying on it.'};
+  });
+}

@@ -11,6 +11,6 @@ export function sourceProgressEvidence(state:ProjectRuntimeState){
  if(rows.length!==1||typeof rows[0].valuePercent!=='number')return existing;
  const row=rows[0];
  return {...existing,certified:{valuePercent:row.valuePercent,asOfIso:position.sourceLedger?.dataDateIso??position.dataDateIso??projectDataDate(state),coveragePercent:null,
-   sourceRefs:[...row.sourceRefs,'Certified financial work / current contract · '+row.currency+' · '+row.taxBasis],
+   sourceRefs:[...row.sourceRefs,'Certified financial work / original contract · '+row.currency+' · '+row.taxBasis],
    basis:row.basis}};
 }
