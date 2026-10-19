@@ -34,6 +34,7 @@ jobs:
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
+            dist/tests/t11-module-issues-walk-parity.test.js \
             dist/tests/t10-downloads-match-screen.test.js \
             dist/tests/t11-activity-movement-source-date-reuse.test.js \
             dist/tests/t11-activity-analytics-date-population.test.js \
