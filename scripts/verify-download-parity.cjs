@@ -98,6 +98,36 @@ function compareScreenWithWorkbook(screen,summaryRows,sheetHeaders,labelOf){
   return problems;
 }
 
+/** X3: a chart drawn from buckets must account for the population of the
+ * table it summarises. Checked shapes (all produced in shared code):
+ * - histogram groups {count,lowerHours} sum to knownCount;
+ * - value distributions: knownCount + unknownCount = totalCount, groups never
+ *   exceed knownCount, and totalCount equals the sibling population denominator;
+ * - screening buckets (floatDistribution [{count}]) plus distributionUnresolvedCount
+ *   equal populationCount. */
+function checkChartTables(body){
+  const problems=[];
+  const walk=(v,pointer,parent)=>{
+    if(Array.isArray(v)){v.forEach((x,i)=>walk(x,pointer+'/'+i,null));return;}
+    if(!v||typeof v!=='object')return;
+    const groups=Array.isArray(v.groups)?v.groups.filter(g=>g&&typeof g==='object'&&typeof g.count==='number'):null;
+    if(groups&&typeof v.knownCount==='number'){
+      const sum=groups.reduce((a,g)=>a+g.count,0);
+      if(groups.some(g=>'lowerHours' in g)){if(sum!==v.knownCount)problems.push({rule:'X3',pointer,problem:'histogram bars total '+sum+', table known count '+v.knownCount});}
+      else if(sum>v.knownCount)problems.push({rule:'X3',pointer,problem:'distribution groups total '+sum+' above known count '+v.knownCount});
+      if(typeof v.unknownCount==='number'&&typeof v.totalCount==='number'&&v.knownCount+v.unknownCount!==v.totalCount)problems.push({rule:'X3',pointer,problem:'known '+v.knownCount+' + unknown '+v.unknownCount+' is not total '+v.totalCount});
+      if(parent&&typeof v.totalCount==='number'&&typeof parent.denominator==='number'&&parent.denominator!==v.totalCount)problems.push({rule:'X3',pointer,problem:'chart total '+v.totalCount+', table population '+parent.denominator});
+    }
+    if(Array.isArray(v.floatDistribution)&&typeof v.populationCount==='number'){
+      const sum=v.floatDistribution.reduce((a,g)=>a+(typeof g?.count==='number'?g.count:0),0),unresolved=typeof v.distributionUnresolvedCount==='number'?v.distributionUnresolvedCount:0;
+      if(sum+unresolved!==v.populationCount)problems.push({rule:'X3',pointer:pointer+'/floatDistribution',problem:'chart buckets '+sum+' + unresolved '+unresolved+', table population '+v.populationCount});
+    }
+    for(const [k,x] of Object.entries(v))walk(x,pointer+'/'+token(k),v);
+  };
+  walk(body,'',null);
+  return problems;
+}
+
 async function workbookParts(bytes){
   const ExcelJS=require('exceljs');
   const book=new ExcelJS.Workbook();await book.xlsx.load(bytes);
@@ -117,7 +147,8 @@ async function verifyProject(base,projectId,repo){
   const keysOf=x=>(Array.isArray(x)?x:(x.modules??x.data??[])).map(m=>m.key??m.moduleKey).filter(Boolean);
   const sched=keysOf(JSON.parse((await get('/api/schedule/modules')).bytes)),comm=keysOf(JSON.parse((await get('/api/commercial/modules')).bytes));
   const P='/api/projects/'+encodeURIComponent(projectId);
-  const pages=[...sched.map(k=>P+'/schedule/modules/'+k),...comm.map(k=>P+'/commercial/modules/'+k)];
+  const deliv=keysOf(JSON.parse((await get('/api/delivery/modules')).bytes));
+  const pages=[...sched.map(k=>P+'/schedule/modules/'+k),...comm.map(k=>P+'/commercial/modules/'+k),...deliv.map(k=>P+'/delivery/modules/'+k)];
   const surfaces=JSON.stringify(JSON.parse((await get(P+'/management-surfaces')).bytes)).match(/"key":"[a-z0-9-]+"/g)??[];
   for(const k of new Set(surfaces.map(s=>s.slice(7,-1))))pages.push(P+'/management/'+k);
   const report=[];
@@ -128,6 +159,7 @@ async function verifyProject(base,projectId,repo){
     const problems=[];
     if(json.status!==200)problems.push({rule:'X2',pointer:'',problem:'report.json status '+json.status});
     else problems.push(...compareScreenWithJson(body,JSON.parse(json.bytes)));
+    problems.push(...checkChartTables(body));
     if(xlsx.status===200){const parts=await workbookParts(xlsx.bytes);problems.push(...compareScreenWithWorkbook(body,parts.summaryRows,parts.headers,readablePathLabel));}
     else if(xlsx.status!==409)problems.push({rule:'X2',pointer:'',problem:'report.xlsx status '+xlsx.status});
     report.push({page,problems});
@@ -160,6 +192,15 @@ function fixtureProject(repo){
 async function main(){
   const args=process.argv.slice(2),arg=n=>{const i=args.indexOf(n);return i>=0?args[i+1]:null;};
   const repo=arg('--repo')??process.cwd();
+  if(arg('--x3')){
+    // X3 over saved page responses (for example a parity snapshot directory).
+    const fs=require('node:fs'),dir=arg('--x3');let pages=0,charts=0;
+    for(const name of fs.readdirSync(dir).filter(n=>n.endsWith('.json')&&!n.startsWith('_summary'))){
+      const problems=checkChartTables(JSON.parse(fs.readFileSync(join(dir,name),'utf8')));pages++;
+      if(problems.length){charts+=problems.length;console.log(name+': '+problems.length+' chart mismatch(es)');for(const p of problems.slice(0,8))console.log('  [X3] '+p.pointer+' : '+p.problem);}
+    }
+    console.log('chart parity: '+pages+' responses, '+charts+' mismatch(es)');if(charts)process.exitCode=1;return;
+  }
   let base=arg('--base'),projectId=arg('--project'),child=null,root=null;
   if(args.includes('--fixture')){
     const {mkdtempSync}=require('node:fs'),{tmpdir}=require('node:os'),{spawn}=require('node:child_process');
@@ -192,5 +233,5 @@ async function main(){
     if(root)require('node:fs').rmSync(root,{recursive:true,force:true});
   }
 }
-module.exports={compareScreenWithJson,compareScreenWithWorkbook,workbookParts,pointerGet};
+module.exports={compareScreenWithJson,compareScreenWithWorkbook,checkChartTables,workbookParts,pointerGet};
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});
