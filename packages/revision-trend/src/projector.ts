@@ -12,6 +12,7 @@ import type {
   RevisionTrendPoint,
   RevisionTrendProjection,
 } from "./types";
+import {floatPopulationShares,summarizeFloatTrend} from "./float-share";
 
 function completion(
   result: ReturnType<typeof analyzeSchedule>,
@@ -76,6 +77,7 @@ export function buildRevisionTrendProjection(
       changeCategories: comparison && previous ? classifyScheduleChanges(comparison.activityChanges,previous.model,revision.model) : null,
       executionActivityCount: analytics.population.executableActivityCount,
       unfinishedExecutionActivityCount: analytics.float.totalActivities,
+      ...floatPopulationShares(analytics.float),
       sourceActivityCount: analytics.activityCount,
       scheduleProgressCoveragePercent: analytics.progress.durationWeightedPercentComplete.coveragePercent,
       revisionId: revision.revisionId,
@@ -144,6 +146,7 @@ export function buildRevisionTrendProjection(
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     revisionCount: points.length,
+    floatTrend: summarizeFloatTrend(points),
     points,
   };
 }

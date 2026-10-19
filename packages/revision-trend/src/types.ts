@@ -1,4 +1,6 @@
-export interface RevisionTrendPoint {
+import type {FloatPopulationShares,FloatTrendSummary} from "./float-share";
+
+export interface RevisionTrendPoint extends Partial<FloatPopulationShares> {
   changeCategories?: Array<{category:string;activityCount:number}> | null;
   unfinishedExecutionActivityCount?: number;
   executionActivityCount?: number; sourceActivityCount?: number; scheduleProgressCoveragePercent?: number | null;
@@ -42,5 +44,7 @@ export interface RevisionTrendProjection {
   generatedAt: string;
   producerVersion: string;
   revisionCount: number;
+  /** SW-25: first-to-latest float movement judged on the share of unfinished execution activities. */
+  floatTrend?: FloatTrendSummary;
   points: RevisionTrendPoint[];
 }

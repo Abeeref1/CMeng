@@ -17,6 +17,7 @@ import type {
   VarianceTrendPoint,
   VarianceTrendsProjection,
 } from "./types";
+import {floatPopulationShares,summarizeFloatTrend} from "../../revision-trend/src/float-share";
 
 function ms(value: string | null): number | null {
   if (!value) return null;
@@ -262,6 +263,7 @@ export function buildVarianceTrendsProjection(
         sourceActivityCount: totalActivities,
         executionActivityCount: analytics.population.executableActivityCount,
       unfinishedExecutionActivityCount: analytics.float.totalActivities,
+        ...floatPopulationShares(analytics.float),
         variancePopulationBasis: "source_records" as const,
         unmatchedActivityCount: totalActivities - comparable,
         movementDistribution: numericDistribution(controlledValues),
@@ -394,6 +396,7 @@ export function buildVarianceTrendsProjection(
     producerVersion: input.producerVersion,
     revisionCount: points.length,
     revisionLabels: Object.fromEntries(ordered.map(revision => [revision.revisionId, revision.label || `Revision ${revision.sequence}`])),
+    floatTrend: summarizeFloatTrend(points),
     points,
     activityTrends,
   };

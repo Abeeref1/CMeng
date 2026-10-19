@@ -1,4 +1,6 @@
-export interface VarianceTrendPoint {
+import type {FloatPopulationShares,FloatTrendSummary} from "../../revision-trend/src/float-share";
+
+export interface VarianceTrendPoint extends Partial<FloatPopulationShares> {
   sourceActivityCount?: number;
   unfinishedExecutionActivityCount?: number;
   executionActivityCount?: number;
@@ -47,6 +49,8 @@ export interface VarianceTrendsProjection {
   producerVersion: string;
   revisionCount: number;
   revisionLabels: Record<string, string>;
+  /** SW-25: first-to-latest float movement judged on the share of unfinished execution activities. */
+  floatTrend?: FloatTrendSummary;
   points: VarianceTrendPoint[];
   activityTrends: ActivityVarianceTrend[];
 }
