@@ -363,5 +363,5 @@ function renderDeliveryDashboard(p){if(!p)return '';
    kpi('Design source rows',design?.readableRowCount??(design?.documentCount?design.documentCount+' document(s)':'Not established'),design?.basis||'design control population not established')+
    kpi('Quality source rows',quality?.readableRowCount??(quality?.documentCount?quality.documentCount+' document(s)':'Not established'),quality?.basis||'quality control population not established')+
    kpi('Handover readiness',p.handoverReadinessPercent??'Not established','% of confirmed requirements only')+
-   '</div><button class="btn" onclick="selected=\'delivery-control\';loadModule(selected);renderNav()">Open Delivery Control</button></section>';}
+   '</div><button class="btn" onclick="selected=\'delivery-control\';syncBrowserRoute();loadModule(selected);renderNav()">Open Delivery Control</button></section>';}
 `;}

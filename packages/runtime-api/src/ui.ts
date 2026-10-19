@@ -6729,6 +6729,7 @@ document.addEventListener("click",event=>{
   if(!key||!names[key])return;
   selected=key;
   localStorage.setItem("cmeng-module",selected);
+  syncBrowserRoute(); // the page change writes its own address, so Back and reload work
   renderNav();
   loadModule(selected);
 });

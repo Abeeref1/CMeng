@@ -75,3 +75,24 @@ test('A1/A2: module links go to an existing page and never back to the page they
     assert.match(html,new RegExp('data-module="'+key+'"'),key);
   }
 });
+
+test('A5: opening a page from any button writes its own address, and Back restores it', ()=>{
+  const pushed:string[]=[];let href='http://x/?view=project&project=P1&module=payments';
+  const history={pushState:(_s:unknown,_t:string,next:string)=>{pushed.push(next);href='http://x'+next;},replaceState:(_s:unknown,_t:string,next:string)=>{href='http://x'+next;}};
+  const location={get href(){return href;},get pathname(){return new URL(href).pathname;},get search(){return new URL(href).search;},get hash(){return new URL(href).hash;}};
+  const ctx=createContext({URL,window:{history,location},browserRouteRestoring:false,browserRouteBooting:false,appView:'project',selected:'payments',project:()=>'P1'});
+  runInContext(functions(['syncBrowserRoute']),ctx);
+  runInContext('selected="cost-forecast";syncBrowserRoute();',ctx);
+  assert.deepEqual(pushed,['/?view=project&project=P1&module=cost-forecast']);
+  runInContext('syncBrowserRoute();',ctx);
+  assert.equal(pushed.length,1,'the same page does not add a second history entry');
+  runInContext('browserRouteRestoring=true;selected="payments";syncBrowserRoute();',ctx);
+  assert.equal(pushed.length,1,'restoring from Back never pushes a new entry');
+  // Every button that changes the page writes the address before the page loads:
+  // main navigation and tabs (already), module links, action buttons and the delivery shortcut.
+  const changes=[...script.matchAll(/selected=[^;]{1,60};(?:localStorage\.setItem\([^)]*\);)?([^\n]{0,80})loadModule\(selected\)/g)].map(m=>m[0]);
+  assert.ok(changes.length>=3,'the walk must find the page-change handlers');
+  for(const change of changes)assert.match(change,/syncBrowserRoute\(\)|setAppView\(/,change);
+  assert.match(script,/selected=key;\s*localStorage\.setItem\("cmeng-module",selected\);\s*syncBrowserRoute\(\);/);
+  assert.match(script,/window\.addEventListener\('popstate',\(\)=>\{void restoreBrowserRoute\(\);\}\)/);
+});

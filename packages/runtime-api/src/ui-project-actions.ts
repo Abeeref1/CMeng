@@ -246,7 +246,7 @@ async function openProjectActions(inlineForCurrentPage=false){
 function bindProjectActions(root){
  root.querySelectorAll('[data-action-page]').forEach(b=>b.onclick=()=>{projectActionPage=Math.max(0,projectActionPage+Number(b.dataset.actionPage));void loadProjectActions();});
  root.querySelectorAll('[data-gap-page]').forEach(b=>b.onclick=()=>{projectDataGapsPage=Math.max(0,projectDataGapsPage+Number(b.dataset.gapPage));void loadProjectActions();});
- root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{if(!names[b.dataset.actionModule])return;const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected);});
+ root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{if(!names[b.dataset.actionModule])return;const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);syncBrowserRoute();renderNav();loadModule(selected);});
  root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
  root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview));
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
