@@ -1458,8 +1458,13 @@ function metricValue(metric){
   if(typeof metric==="object"&&typeof metric.value==="number"&&Number.isFinite(metric.value))return metric.value;
   return null;
 }
+// R12: the certified figure carries the shared label of the register column it
+// came from; a net or unlabelled column is never shown under a gross label.
+function commercialFieldLabel(row,field,label){
+  return field==="grossCertifiedAmount"&&row&&row.grossCertifiedAmountColumn&&row.grossCertifiedAmountColumn!=="gross"&&row.grossCertifiedAmountLabel?row.grossCertifiedAmountLabel:label;
+}
 function renderCommercialMetricBars(row,fields){
-  const items=(fields||[]).map(([label,field,tone])=>({label,value:metricValue(row?.[field]),tone:tone||"accent"})).filter(item=>item.value!==null);
+  const items=(fields||[]).map(([label,field,tone])=>({label:commercialFieldLabel(row,field,label),value:metricValue(row?.[field]),tone:tone||"accent"})).filter(item=>item.value!==null);
   return renderVisualBars(items,row?.currency||"");
 }
 function renderLineChart(points,series,yMaxHint=null,options={}){
@@ -4182,7 +4187,7 @@ function renderCommercialVisual(key,data){
   const chartFields=chartFieldsByKey[key]||chartFieldsByKey["commercial-overview"];
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
-        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency,data?.reportingContract?.dataDateIso||null)+'</strong></div>').join("");
+        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency,data?.reportingContract?.dataDateIso||null)+'</strong></div>').join("");
         return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';

@@ -304,7 +304,11 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   if(registration.id==='evm')evmAuthority(b,d);
   if(['commercial','payments','variations','contract','financial-claims'].includes(registration.id)){
     const fields=registration.id==='payments'?['certifiedAmount','paidAmount','certifiedUnpaidAmount','retentionHeldAmount']:registration.id==='variations'?['approvedVariationAmount','pendingVariationAmount']:registration.id==='financial-claims'?['claimedAmount','assessedClaimAmount']:['originalContractValue','currentContractValue','approvedVariationAmount','paidAmount'];
-    for(const [i,c]of(d?.position?.currencies??[]).entries())for(const name of fields){const m=c[name];b.metric(name+'-'+c.currency,label(name)+' · '+c.currency,m?.value,c.currency,m?.basis??'Existing Commercial authority; currency and temporal basis retained.',{path:'position.currencies.'+i+'.'+name,state:m?.state,refs:m?.sourceRefs??[]});}
+    // R12: the payments "certified amount" is the shared certified figure (the position
+    // has no field of that name, so it always read empty), under the label of the
+    // register column it came from. The metric id is unchanged.
+    for(const [i,c]of(d?.position?.currencies??[]).entries())for(const name of fields){const field=name==='certifiedAmount'?'grossCertifiedAmount':name,m=c[field];
+      b.metric(name+'-'+c.currency,(field==='grossCertifiedAmount'?String(c.grossCertifiedAmountLabel??label(field)):label(name))+' · '+c.currency,m?.value,c.currency,m?.basis??'Existing Commercial authority; currency and temporal basis retained.',{path:'position.currencies.'+i+'.'+field,state:m?.state,refs:m?.sourceRefs??[]});}
     const table=registration.id==='payments'?'position.foundation.paymentRegister.rows':registration.id==='variations'?'position.contractControls.variations.rows':registration.id==='financial-claims'?'position.claimsNotices.claims':null;
     if(table)b.table('records',title,at(d,table),'Current records selected by the existing Commercial authority.',overrides);
   }

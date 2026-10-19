@@ -64,8 +64,13 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
     missingInputs,
     basis:'Straight-line source-qualified future receipts, not actual cash.'}];
  });
+ // R12: the certified figure is named by the register column it came from; net or
+ // unlabelled certification is never called gross. The figures are unchanged.
+ const certifiedNames=[...new Set((position?.currencies??[]).filter(c=>finite(c?.grossCertifiedAmount?.value)!==null)
+  .map(c=>c.grossCertifiedAmountColumn&&c.grossCertifiedAmountColumn!=='gross'&&c.grossCertifiedAmountLabel?'the dated certified amount "'+c.grossCertifiedAmountLabel+'"':'dated gross certification'))];
+ const certifiedBasisText=certifiedNames.length?certifiedNames.join(' / '):'dated gross certification';
  const missingInputs=[!dataDateIso?'Programme Data Date':null,!finishIso?'Submitted programme forecast finish':null,!(position?.currencies?.length)?'Currency-specific contract and certification records':null,...missingTerms,...groups.flatMap(g=>g.missingInputs)].filter((v):v is string=>v!==null);
  return {missingInputs:[...new Set(missingInputs)],state:groups.length&&groups.every(group=>group.rows.length>0)?'calculated_with_stated_assumption':groups.length?'incomplete_source_scenario':'missing',dataDateIso,programmeFinishIso:finishIso,retentionPercent,paymentDays,groups,
-  basis:'Straight-line valuation of current contract value less dated gross certification from the day after the Data Date to the '+(submittedProgrammeFinishIso?'submitted programme finish':'explicit forecast scenario finish (not adopted)')+'. Monthly statements are assumed at period end. Remaining advance recovery is spread over the future receipts; retention uses the recorded contract rate. Receipt dates assume the recorded payment period in calendar days after each statement. This is a receipts-only planning scenario based on the submitted programme, not actual cash or a contractual determination.',
+  basis:'Straight-line valuation of current contract value less '+certifiedBasisText+' from the day after the Data Date to the '+(submittedProgrammeFinishIso?'submitted programme finish':'explicit forecast scenario finish (not adopted)')+'. Monthly statements are assumed at period end. Remaining advance recovery is spread over the future receipts; retention uses the recorded contract rate. Receipt dates assume the recorded payment period in calendar days after each statement. This is a receipts-only planning scenario based on the submitted programme, not actual cash or a contractual determination.',
   exclusions:'Existing unpaid certificates, tax, retention release, financing and future expenditure are excluded. Net funding requirements need a separate expenditure forecast.'};
 }
