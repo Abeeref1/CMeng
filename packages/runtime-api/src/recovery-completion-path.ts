@@ -1,7 +1,7 @@
 import type {CanonicalScheduleModel,CanonicalCalendar} from '../../schedule-analysis-core/src';
 import {activityNearCriticalThresholdHours,DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../../schedule-analysis-core/src';
 import {calculateCpm} from '../../schedule-cpm/src/engine';
-import {workingHoursBetween} from '../../schedule-cpm/src/calendar';
+import {workingHoursBetween,resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import type {RecoveryScenario} from './recovery-acceleration';
 
 /** The programme change a scenario makes, expressed so CMeng's CPM can run it. */
@@ -11,7 +11,7 @@ export interface RecoveryCpmChange {
   /** Remaining duration of each listed activity multiplied by the stated factor (crew or shift ratio). */
   durationScale?:Array<{activityId:string;factor:number}>;
 }
-type ForecastView={complete:boolean;drivingNetwork?:{activityIds:string[]}|undefined;activities:Array<{activityId:string;independentTotalFloatHours:number|null}>};
+type ForecastView={complete:boolean;drivingNetwork?:{activityIds:string[];finishActivityIds?:string[]}|undefined;activities:Array<{activityId:string;independentTotalFloatHours:number|null}>};
 
 // Each extra full-network CPM run costs as much as the forecast itself. Runs
 // beyond this bound are reported as not established, never estimated.
@@ -65,6 +65,17 @@ export function classifyRecoveryAgainstCompletion(
     const threshold=activityNearCriticalThresholdHours(programme!,activity,DEFAULT_SCHEDULE_ANALYSIS_CONFIG,calendarById);
     return threshold===null?null:float<=threshold;
   };
+  // The gain is counted on the completion milestone calendar. Where the
+  // programme has no single completion milestone, the project finish is the
+  // CPM finish activity's, so its source calendar is the completion calendar
+  // when every CPM finish activity shares it. Day hours come from that source
+  // calendar only; none are assumed.
+  const finishIds=complete?forecast!.drivingNetwork!.finishActivityIds??[]:[];
+  const finishCalendarIds=[...new Set(finishIds.map(id=>activityById.get(id)?.calendarId??null))];
+  const finishCalendar=!completionCalendar&&finishIds.length&&finishCalendarIds.length===1&&finishCalendarIds[0]!==null
+    ?resolveWorkingCalendar(finishCalendarIds[0],programme!.calendars,false)?.calendar??null:null;
+  const gainCalendar=completionCalendar??finishCalendar;
+  const gainCalendarLabel=completionCalendar?'completion milestone calendar':'calendar '+(finishCalendar?.calendarId??'')+' of the CPM finish activity';
   let runs=0;const baseline=()=>programme?cpmFinish(programme,null):null;
   for(const scenario of scenarios){
     const ids=scenario.affectedActivities;
@@ -82,16 +93,16 @@ export function classifyRecoveryAgainstCompletion(
     if(scenario.pathRole!=='recovery_option'){scenario.completionGainBasis='Not a recovery option on the path to completion; no completion gain is claimed.';continue;}
     const change=scenario.cpmChange??null;
     if(!change){scenario.completionGainBasis='Not established: this option is not expressed as a programme change that CMeng\'s CPM can run.';continue;}
-    if(!completionCalendar?.standardDayHours){scenario.completionGainBasis='Not established: the completion milestone calendar or its working-day hours are not established.';continue;}
+    if(!gainCalendar?.standardDayHours){scenario.completionGainBasis='Not established: neither the completion milestone calendar nor one shared CPM finish-activity calendar with stated working-day hours is established.';continue;}
     if(runs>=RECOVERY_CPM_RUN_LIMIT){scenario.completionGainBasis='Not established: CPM scenario run limit ('+RECOVERY_CPM_RUN_LIMIT+') reached for this view.';continue;}
     runs++;
     const before=baseline(),after=cpmFinish(programme!,change);
     if(!before||!after){scenario.completionGainBasis='Not established: the CMeng CPM run did not produce a complete project finish.';continue;}
     try{
       const a=Date.parse(after),b=Date.parse(before);
-      const hours=a<=b?workingHoursBetween(completionCalendar,a,b):-workingHoursBetween(completionCalendar,b,a);
-      scenario.completionGainWorkingDays=Number((hours/completionCalendar.standardDayHours).toFixed(2));
-      scenario.completionGainBasis='CMeng CPM run with the scenario change ('+change.removeRelationshipIds.length+' link(s) removed, '+change.addRelationships.length+' added'+(change.durationScale?.length?', remaining duration of '+change.durationScale.map(row=>row.activityId+' × '+Number(row.factor.toFixed(6))).slice(0,5).join(', '):'')+'): project finish '+after.slice(0,10)+' against '+before.slice(0,10)+' unchanged, in completion milestone calendar working days.';
+      const hours=a<=b?workingHoursBetween(gainCalendar,a,b):-workingHoursBetween(gainCalendar,b,a);
+      scenario.completionGainWorkingDays=Number((hours/gainCalendar.standardDayHours).toFixed(2));
+      scenario.completionGainBasis='CMeng CPM run with the scenario change ('+change.removeRelationshipIds.length+' link(s) removed, '+change.addRelationships.length+' added'+(change.durationScale?.length?', remaining duration of '+change.durationScale.map(row=>row.activityId+' × '+Number(row.factor.toFixed(6))).slice(0,5).join(', '):'')+'): project finish '+after.slice(0,10)+' against '+before.slice(0,10)+' unchanged, in working days of the '+gainCalendarLabel+'.';
     }catch{scenario.completionGainBasis='Not established: working time between the two CPM finishes could not be measured on the completion calendar.';}
   }
   return {recoveryOptionCount:scenarios.filter(s=>s.pathRole==='recovery_option').length,

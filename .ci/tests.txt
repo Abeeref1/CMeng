@@ -1,1 +1,5 @@
 t06-recovery-completion-path
+recovery-eligibility-coverage
+recovery-scenario
+stage1-notice-recovery-regressions
+ui-management-experience
