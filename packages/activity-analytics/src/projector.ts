@@ -1,5 +1,6 @@
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {activityDateExceptionReader,activityDelayStatus} from './exceptions';
+import {isExecutionActivity,isRemainingWork,LIVE_ACTIVITY_MEASURES} from './live-population';
 import {
   buildScheduleActivityLogicIndex,
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
@@ -81,13 +82,14 @@ function finishVarianceDays(
 }
 
 export function activityAnalyticsCounts(rows: readonly ActivityAnalyticsRow[]) {
-  const executionRows = rows.filter(row => !['level_of_effort', 'wbs_summary'].includes(row.activityType));
-  const openRows=executionRows.filter(row=>row.status!=='completed');
+  // T05/N12: the same population and rules as the register filters with these labels.
+  const executionRows = rows.filter(isExecutionActivity);
+  const openRows=executionRows.filter(isRemainingWork);
   return {
-    critical: aggregateCount(openRows, row => row.totalFloatHours === null ? null : row.criticality === 'critical'),
-    nearCritical: aggregateCount(openRows, row => row.criticality === 'unknown' || row.floatRiskWatchlist === null ? null : row.criticality === 'near_critical'),
-    floatRisk: aggregateCount(openRows, row => row.floatRiskWatchlist),
-    late: aggregateCount(openRows, row => row.finishVarianceDays === null ? null : row.finishVarianceDays > 0),
+    critical: aggregateCount(openRows, LIVE_ACTIVITY_MEASURES.critical),
+    nearCritical: aggregateCount(openRows, LIVE_ACTIVITY_MEASURES.nearCritical),
+    floatRisk: aggregateCount(openRows, LIVE_ACTIVITY_MEASURES.floatRisk),
+    late: aggregateCount(openRows, LIVE_ACTIVITY_MEASURES.late),
     missedStart: aggregateCount(executionRows, row => row.missedPlannedStart),
     overdueFinish: aggregateCount(executionRows, row => row.finishOverdue),
     scheduleDelayed: aggregateCount(executionRows, row => activityDelayStatus(row).scheduleDelayed),
