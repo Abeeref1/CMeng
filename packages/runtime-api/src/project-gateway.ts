@@ -22,7 +22,7 @@ import {ExternalHttp} from '../../external-intelligence/src/http';
 import {externalAuthorityMetadata} from '../../external-intelligence/src/authority-metadata';
 import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../external-intelligence/src/types';
 
-type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number};
+type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number;unpublished?:{version:number;served:string}|undefined};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[]}={}){
   await clearDerivedReadCaches(root,calculationRelease());
@@ -90,23 +90,47 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       }else await response.arrayBuffer().catch(()=>{});
     }catch(error){console.warn('[overview-snapshot] '+id+': '+String(error));}
     overviewPublished();
-    // The owner pages below are projections of the SAME full calculation. A
-    // recycled worker otherwise discards it, and the next Accountability or
-    // Dashboard request repeats the entire analysis. Publish each one for this
-    // exact version while the worker still holds the finished calculation. The
-    // worker refuses (409) unless that calculation is already cached, so this
-    // path never starts a new full analysis.
-    for(const route of [prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/director-position',prefix+'/management-surfaces']){
-      if(route===pathname)continue;
-      if(closing||(updating.get(id)??0)>0)return;
-      if(await reads(id).get(calculationRelease(),version,route))continue;
-      try{
-        const response=await fetch('http://127.0.0.1:'+port+route,{headers:{'x-cmeng-retained-calculation-only':'1'},signal:AbortSignal.timeout(20000)});
-        if(!response.ok||Number(response.headers.get('x-cmeng-project-version'))!==version){await response.arrayBuffer().catch(()=>{});continue;}
-        const page=Buffer.from(await response.arrayBuffer());
-        if(page.length<=MAX_PROJECT_READ_BYTES&&!closing&&!(updating.get(id)??0))await reads(id).put(calculationRelease(),version,route,page);
-      }catch(error){console.warn('[owner-page-snapshot] '+id+': '+String(error));}
-    }
+    // The owner pages are projections of the SAME full calculation. They are
+    // published later, off the foreground critical path: when this lane is idle
+    // with no project waiting for a worker, or just before the lane is evicted.
+    const lane=lanes.get(id);
+    if(lane)lane.unpublished={version,served:pathname};
+  }
+  const ownerRoutes=(id:string)=>{const prefix='/api/projects/'+encodeURIComponent(id);
+    return [prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/director-position',prefix+'/management-surfaces'];};
+  // A recycled worker otherwise discards the finished calculation, and the next
+  // Accountability or Dashboard request repeats the entire analysis. Each page
+  // is fetched for this exact version while the worker still holds the finished
+  // calculation. The worker refuses (409) unless that calculation is already
+  // cached, so this path never starts a new full analysis. Each page is its own
+  // lane turn, so a foreground request for this project waits for one page at most.
+  function publishRetainedOwnerPages(id:string,lane:Lane):Promise<void>{
+    const retained=lane.unpublished;lane.unpublished=undefined;
+    if(!retained)return Promise.resolve();
+    const {version,served}=retained;
+    lane.pending++;
+    const publication=(async()=>{
+      for(const route of ownerRoutes(id)){
+        if(route===served)continue;
+        if(closing||(updating.get(id)??0)>0||lanes.get(id)!==lane)return;
+        if(await reads(id).get(calculationRelease(),version,route))continue;
+        const turn=lane.tail.then(()=>lane.ready).then(async port=>{
+          if(closing||(updating.get(id)??0)>0)return;
+          if(await reads(id).get(calculationRelease(),version,route))return;
+          try{
+            const response=await fetch('http://127.0.0.1:'+port+route,{headers:{'x-cmeng-retained-calculation-only':'1'},signal:AbortSignal.timeout(20000)});
+            if(!response.ok||Number(response.headers.get('x-cmeng-project-version'))!==version){await response.arrayBuffer().catch(()=>{});return;}
+            const page=Buffer.from(await response.arrayBuffer());
+            if(page.length<=MAX_PROJECT_READ_BYTES&&!closing&&!(updating.get(id)??0))await reads(id).put(calculationRelease(),version,route,page);
+          }catch(error){console.warn('[owner-page-snapshot] '+id+': '+String(error));}
+        });
+        lane.tail=turn.then(()=>{},()=>{});
+        await turn.catch(()=>{});
+      }
+    })().finally(()=>{lane.pending--;signal();});
+    siblingPublications.add(publication);
+    void publication.then(()=>siblingPublications.delete(publication),()=>siblingPublications.delete(publication));
+    return publication;
   }
   let closing=false,catalogWrites=Promise.resolve();
   let lastForegroundProjectRequestAt=Date.now();
@@ -114,6 +138,16 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const reservations=new Map<string,Promise<Lane>>();
   const waiters=new Set<()=>void>();
   const signal=()=>{for(const wake of waiters)wake();waiters.clear();};
+  // Projects currently waiting for a free worker. Idle owner-page publication
+  // never runs while another project waits; eviction publishes first instead.
+  // Projects waiting for a worker are served strictly in arrival order: only
+  // the head of this queue may claim (or publish and then evict) an idle lane.
+  const workerQueue:object[]=[];
+  let waitingForWorker=0;
+  const publishIdleLanes=()=>{
+    if(closing||waitingForWorker>0)return;
+    for(const [id,lane] of lanes)if(lane.pending===0&&lane.unpublished)void publishRetainedOwnerPages(id,lane);
+  };
   const saveCatalog=()=>{catalogWrites=catalogWrites.then(()=>atomicJson(join(root,'project-catalog.json'),{schemaVersion:1,projectIds:[...catalog.keys()]}));return catalogWrites;};
   async function register(id:string){
     if(catalog.has(id))return;
@@ -126,12 +160,21 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const existing=lanes.get(id);if(existing){existing.pending++;return existing;}
     const reserved=reservations.get(id);if(reserved)return reserved.then(lane=>{lane.pending++;return lane;});
     const allocation=(async()=>{
-      while(lanes.size>=maxWorkers){
-        const idle=[...lanes].filter(([,lane])=>lane.pending===0).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];
-        if(idle){lanes.delete(idle[0]);void idle[1].worker.terminate();break;}
-        await new Promise<void>(resolve=>{waiters.add(resolve);setTimeout(()=>{waiters.delete(resolve);resolve();},1000).unref();});
-        if(closing)throw new Error('SERVICE_RESTARTING');
-      }
+      let waiting=false;const ticket={};
+      try{
+        while(lanes.size>=maxWorkers){
+          if(!waiting){waiting=true;waitingForWorker++;workerQueue.push(ticket);}
+          const idle=workerQueue[0]===ticket?[...lanes].filter(([,lane])=>lane.pending===0).sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0]:undefined;
+          if(idle){
+            // Never discard a finished calculation: publish its owner pages
+            // first, then re-check that the lane is still idle before eviction.
+            if(idle[1].unpublished){await publishRetainedOwnerPages(idle[0],idle[1]);if(closing)throw new Error('SERVICE_RESTARTING');continue;}
+            lanes.delete(idle[0]);void idle[1].worker.terminate();break;
+          }
+          await new Promise<void>(resolve=>{waiters.add(resolve);setTimeout(()=>{waiters.delete(resolve);resolve();},1000).unref();});
+          if(closing)throw new Error('SERVICE_RESTARTING');
+        }
+      }finally{if(waiting){workerQueue.splice(workerQueue.indexOf(ticket),1);signal();waitingForWorker--;queueMicrotask(publishIdleLanes);}}
       const directory=projectDirectory(root,id);
       const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory};
       if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
@@ -161,7 +204,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const lane=await acquire(id);
     const result=lane.tail.then(()=>lane.ready).then(action);
     lane.tail=result.then(()=>{},()=>{});
-    try{return await result;}finally{lane.pending--;lane.lastUsed=Date.now();signal();}
+    try{return await result;}finally{lane.pending--;lane.lastUsed=Date.now();signal();queueMicrotask(publishIdleLanes);}
   }
   const updating=new Map<string,number>(),summaryJobs=new Map<string,Promise<void>>(),summaryAttempts=new Map<string,number>();
   const summaryFailures=new Map<string,number|undefined>();
@@ -314,7 +357,17 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(uploadId)progress.set(id+'::'+uploadId,{projectId:id,uploadId,state:'receiving',percent:0,filename:progressFilename,message:'Waiting to receive project documents',receivedBytes:0,totalBytes:null,documentTotal:null,processedDocuments:0,identifiedDocuments:0});
     let succeeded=false;
     try{
-      await work(id,port=>new Promise<void>((resolve,reject)=>{
+      await work(id,async port=>{
+        // A read queued behind an owner-page publication of the same version
+        // reuses that saved result instead of repeating it in the worker.
+        const version=catalog.get(id)?.metadata?.version;
+        if(!mutation&&cacheableProjectRead(req.method,path)&&version!==undefined&&!(updating.get(id)??0)){
+          const cached=await reads(id).get(calculationRelease(),version,path);
+          if(cached&&catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0)){
+            succeeded=true;sendHttpBody(res,200,{'content-type':'application/json','cache-control':'no-store','x-cmeng-project-version':String(version)},cached);return;
+          }
+        }
+        return new Promise<void>((resolve,reject)=>{
         if(req.aborted||((req.method==='GET'||req.method==='HEAD')&&res.destroyed&&!res.writableFinished)){reject(new Error('UPLOAD_CONNECTION_CLOSED'));return;}
         const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,...actorHeaders.get(req),host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
@@ -342,7 +395,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         if(req.method==='GET'||req.method==='HEAD')abortProjectProxyOnDisconnect(req,res,upstream);
         else req.once('aborted',()=>upstream.destroy(new Error('UPLOAD_CONNECTION_CLOSED')));
         req.pipe(upstream);
-      }));
+      });});
     }catch(error){
       if(uploadId){const prior=progress.get(id+'::'+uploadId);progress.set(id+'::'+uploadId,{...prior,state:'failed',message:'The upload could not finish. Check the document register before retrying.'});}
       send(res,503,{error:'project_work_unavailable',message:'This project could not finish its request. Other projects remain available.'});
@@ -448,6 +501,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   let activeSummaryWarmups=0;
   const maxSummaryWarmups=Math.max(1,Math.min(3,maxWorkers-1));
   const warmSweep=()=>{
+    publishIdleLanes();
     // Never begin heavyweight background calculations while project pages are
     // being opened or uploaded; these jobs previously queued ahead of the
     // first Overview, making a light read take more than five seconds.
