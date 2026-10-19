@@ -281,6 +281,20 @@ On 2026-10-19 09:20 +04, build v/int2 at bb027e2d (dist built from v/int2; this 
 
 T12 independent CPM solver (18 hand-worked networks), EVM, notice/date and commercial ledger calculators now exist in tools/independent; CMeng CPM judged against the solver. These are verification tools, not repairs of a row. Commits aba6b6fa, 595854cc, 6975b694, 4d894cd6, 0d971961. Tests: tests/t12-independent-cpm-solver.test.ts, tests/t12-independent-commercial-calculators.test.ts, tests/t07-commercial-vs-independent.test.ts, tests/t06-cmeng-cpm-vs-independent.test.ts.
 
+## Saved on agent branches, not in this build
+
+Commits on agent branches that are not in v/int3 (this build) when scanned at 2026-10-19T07:50:09.833Z. They are not linked to rows and change no status until they are merged and their tests pass on the merged build. v/int4 was at 1153164d, the same as v/int3, so no round-4 commit had landed in a build.
+
+- v/a2-commercial: 258438f5 fix(T04): commercial adopted-vs-unadopted conflicts are choosable in the decision place
+- v/a3c: 06c7d870 fix(T04): lineage review releases a sole candidate only when its cause is known and no live basis is involved; d4bfcb32 fix(T04): review findings on the one candidate rule (type review, lineage, combined resource value); 30561bc4 fix(T04): one candidate admission rule for governedTables, resource capacity and delivery records
+- v/c1-float: 3edbd51e wip(T06): durations, revision float shift and variance-trend float in working days (NOT BUILT, NOT TESTED - do not merge yet)
+- v/d2-wording-r3-pending: a08d76cb fix(T10) PENDING TESTS: unique module xlsx headings + Field keys sheet; basis sentences via shared label; diagnosis plural agreement
+- v/d2-wording-xlsx-unverified: 1ae11272 wip(T10) UNVERIFIED: readable xlsx headings with a Field keys sheet; tests look up columns by key
+- v/d4-downloads: 3e432e0d fix(T10): Generate report carries every page figure; diagnosis download headings in reader words
+- v/final2: e80e2163 fix(T01-T11): verifier repair round 2, combined on bd851ecc
+- v/i1-commercial: 76bc3f4a fix(T07): paid above certified is no longer an established zero unpaid balance
+- v/l1-cpm-solver: ae63aca4 fix(T06 D1, D2): CPM late start of milestones and SS/SF lag from started work
+
 ## Still open with no repair linked
 
 Rows: SW-03, SW-05, SW-08, SW-14, SW-15, SW-18, SW-21, SW-22, SW-23, SW-24, SW-25, SW-26, SW-27, SW-28, SW-29, SW-30, SW-31, SW-32, SW-33, SW-34, SW-35, SW-37, SW-38, SW-42, SW-43, SW-44, SW-46, SW-52, SW-53, F01, F02, F03, F04, F06, F07, F08, F09, F10, F11, F13, F14, F15, F16, F18, F19, F20, F21, F22, F23, F24, F26, F27, F29, F30, F31, F32, F34, F35, F36, F37, F38, F40, F42, F44, F45, F46, F47, F48, F49, F50, F51, F54, F55, F60, F61, S06, S07, S17, S21, S32. Plus 57 page findings.

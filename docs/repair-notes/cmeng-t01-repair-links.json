@@ -754,5 +754,100 @@
     "repair_live_no_named_test": 3,
     "repair_live_named_test_not_certified": 4,
     "originally_correct_watch": 62
+  },
+  "agentBranches": {
+    "scannedAt": "2026-10-19T07:50:09.833Z",
+    "note": "Commits on agent branches that are not in v/int3 (this build) when scanned at 2026-10-19T07:50:09.833Z. They are not linked to rows and change no status until they are merged and their tests pass on the merged build. v/int4 was at 1153164d, the same as v/int3, so no round-4 commit had landed in a build.",
+    "branches": [
+      {
+        "branch": "v/a2-commercial",
+        "commits": [
+          {
+            "sha": "258438f5",
+            "subject": "fix(T04): commercial adopted-vs-unadopted conflicts are choosable in the decision place"
+          }
+        ]
+      },
+      {
+        "branch": "v/a3c",
+        "commits": [
+          {
+            "sha": "06c7d870",
+            "subject": "fix(T04): lineage review releases a sole candidate only when its cause is known and no live basis is involved"
+          },
+          {
+            "sha": "d4bfcb32",
+            "subject": "fix(T04): review findings on the one candidate rule (type review, lineage, combined resource value)"
+          },
+          {
+            "sha": "30561bc4",
+            "subject": "fix(T04): one candidate admission rule for governedTables, resource capacity and delivery records"
+          }
+        ]
+      },
+      {
+        "branch": "v/c1-float",
+        "commits": [
+          {
+            "sha": "3edbd51e",
+            "subject": "wip(T06): durations, revision float shift and variance-trend float in working days (NOT BUILT, NOT TESTED - do not merge yet)"
+          }
+        ]
+      },
+      {
+        "branch": "v/d2-wording-r3-pending",
+        "commits": [
+          {
+            "sha": "a08d76cb",
+            "subject": "fix(T10) PENDING TESTS: unique module xlsx headings + Field keys sheet; basis sentences via shared label; diagnosis plural agreement"
+          }
+        ]
+      },
+      {
+        "branch": "v/d2-wording-xlsx-unverified",
+        "commits": [
+          {
+            "sha": "1ae11272",
+            "subject": "wip(T10) UNVERIFIED: readable xlsx headings with a Field keys sheet; tests look up columns by key"
+          }
+        ]
+      },
+      {
+        "branch": "v/d4-downloads",
+        "commits": [
+          {
+            "sha": "3e432e0d",
+            "subject": "fix(T10): Generate report carries every page figure; diagnosis download headings in reader words"
+          }
+        ]
+      },
+      {
+        "branch": "v/final2",
+        "commits": [
+          {
+            "sha": "e80e2163",
+            "subject": "fix(T01-T11): verifier repair round 2, combined on bd851ecc"
+          }
+        ]
+      },
+      {
+        "branch": "v/i1-commercial",
+        "commits": [
+          {
+            "sha": "76bc3f4a",
+            "subject": "fix(T07): paid above certified is no longer an established zero unpaid balance"
+          }
+        ]
+      },
+      {
+        "branch": "v/l1-cpm-solver",
+        "commits": [
+          {
+            "sha": "ae63aca4",
+            "subject": "fix(T06 D1, D2): CPM late start of milestones and SS/SF lag from started work"
+          }
+        ]
+      }
+    ]
   }
 }
