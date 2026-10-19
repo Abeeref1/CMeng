@@ -1,7 +1,7 @@
 import { parseScheduleTime, activityPopulation, isProgressActivity, scheduleProgress,
   type CanonicalCalendar, type CanonicalScheduleActivity, type CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
-import { resolveWorkingCalendar, workingHoursBetween } from "../../schedule-cpm/src/calendar";
+import { resolveWorkingCalendar, statedCalendarWorkBasis, workingHoursBetween, type StatedCalendarWorkBasis } from "../../schedule-cpm/src/calendar";
 import type { ActualProgressSnapshot, ProgressScurvePoint, ProgressScurveProjection } from "./types";
 import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-core/src';
 
@@ -11,7 +11,7 @@ const ms = (value: string | null): number | null => {
   const parsed = parseScheduleTime(value); return Number.isFinite(parsed) ? parsed : null;
 };
 const coverage = (known: number, total: number) => total ? Number((known / total * 100).toFixed(4)) : null;
-interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar | null; clock?: (at: number) => number; clockStart?: number; work?: number; }
+interface WeightedActivity { activityId: string; weight: number; start: number; finish: number; calendar: CanonicalCalendar | null; clock?: (at: number) => number; clockStart?: number; work?: number; stated?: StatedCalendarWorkBasis; }
 
 function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalScheduleActivity) => [string | null, string | null], diagnostics: string[]): WeightedActivity[] {
   const rows: WeightedActivity[] = [];
@@ -19,6 +19,7 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
   // all activities referencing the same original ID. Preserve ambiguous and
   // missing calendars as null rather than assuming a working-day pattern.
   const calendarBySourceId=new Map<string|null,CanonicalCalendar|null>();
+  const statedBasisBySourceId=new Map<string|null,StatedCalendarWorkBasis|null>();
   // Same activities in the same order as filtering first, without a second
   // 8k+-row array per call.
   for (const activity of model.activities) {
@@ -33,9 +34,27 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
       calendar=resolveWorkingCalendar(calendarId,model.calendars,false)?.calendar??null;
       calendarBySourceId.set(calendarId,calendar);
     }
-    if (!calendar) diagnostics.push("PROGRESS_WORKING_CALENDAR_UNRESOLVED:" + activity.activityId);
-    rows.push({ activityId: activity.activityId, weight: activity.originalDurationHours, start, finish, calendar });
+    // No detailed work pattern: use the calendar's own stated hours per day and
+    // days per week (labelled), never an assumed day. Neither stated: unknown.
+    let stated:StatedCalendarWorkBasis|null=null;
+    if(!calendar){
+      if(statedBasisBySourceId.has(calendarId))stated=statedBasisBySourceId.get(calendarId)!;
+      else{stated=statedCalendarWorkBasis(calendarId,model.calendars);statedBasisBySourceId.set(calendarId,stated);}
+    }
+    if (!calendar&&!stated) diagnostics.push("PROGRESS_WORKING_CALENDAR_UNRESOLVED:" + activity.activityId);
+    rows.push(stated?{ activityId: activity.activityId, weight: activity.originalDurationHours, start, finish, calendar, stated }:{ activityId: activity.activityId, weight: activity.originalDurationHours, start, finish, calendar });
   }
+  // Stated basis: the same average working rate at every instant of the week
+  // (hours/day x days/week over 168 hours), because the source does not state
+  // which weekdays or shift times are worked. Labelled per calendar.
+  const statedUsed=new Map<string,StatedCalendarWorkBasis>();
+  for (const row of rows) {
+    if(!row.stated)continue;
+    const rate=row.stated.weeklyHours/168;
+    row.clock=(at:number)=>(at/3_600_000)*rate;row.clockStart=row.clock(row.start);row.work=row.clock(row.finish)-row.clockStart;
+    statedUsed.set(row.stated.calendarId,row.stated);
+  }
+  for(const basis of statedUsed.values())diagnostics.push("PROGRESS_STATED_CALENDAR_BASIS:"+basis.calendarId+":"+basis.hoursPerDay+"_HOURS_PER_DAY:"+basis.daysPerWeek+"_DAYS_PER_WEEK");
   // One daily working-time prefix per calendar: queries never scan the whole activity span for every chart point.
   const byCalendar = new Map<CanonicalCalendar, WeightedActivity[]>();
   for (const row of rows) { if(!row.calendar)continue;const group = byCalendar.get(row.calendar) ?? []; group.push(row); byCalendar.set(row.calendar, group); }
@@ -152,7 +171,7 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
   // sampled interval/series, without adding one chart point per source activity.
   const sampled=[...dates].sort((a,b)=>a-b);
   for(const source of [baseline,current]){
-    const unresolved=source.filter(row=>!row.calendar);
+    const unresolved=source.filter(row=>!row.calendar&&!row.stated);
     for(let index=1;index<sampled.length;index++){
       const left=sampled[index-1]!,right=sampled[index]!;
       const row=unresolved.find(row=>row.start<right&&row.finish>left);
@@ -170,6 +189,7 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
       actualProgressPercent: observed ? observedValue(observed[1]) : null };
   });
   diagnostics.push("SCURVE_WORKING_CALENDAR_PHASING", "SCHEDULE_SNAPSHOTS_ARE_NOT_CERTIFIED_PHYSICAL_PROGRESS");
+  if([baseline,current].some(source=>source.some(row=>row.stated)))diagnostics.push("SCURVE_STATED_CALENDAR_BASIS_PHASING");
   if (snapshots.length <= 1) diagnostics.push("SCURVE_ACTUAL_HISTORY_NOT_RECONSTRUCTED_FROM_SINGLE_SNAPSHOT");
   return {
     schemaVersion: "1.0", projectionKey: "progress_scurve", generatedAt: input.generatedAt, producerVersion: input.producerVersion,
