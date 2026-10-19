@@ -42,6 +42,7 @@ jobs:
             dist/tests/v1b-f07-risk-rows-trade-capacity.test.js \
             dist/tests/r12-f07-shared-prerequisites.test.js \
             dist/tests/f01-real-browser-every-page.test.js \
+            dist/tests/r12-certified-column-label.test.js \
             dist/tests/t09-action-assignment.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-module-issues-walk-parity.test.js \
@@ -174,6 +175,7 @@ jobs:
             dist/tests/t02-xer-column-audit-activity-codes.test.js \
             dist/tests/t02-programme-column-audit-formats.test.js \
             dist/tests/t02-r1-stored-size-load.test.js \
+            dist/tests/t02-p6-xml-calendar-working-time.test.js \
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-remaining-true-totals.test.js \

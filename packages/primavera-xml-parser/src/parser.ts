@@ -5,8 +5,10 @@ import {
   parseScheduleDate,
 } from "../../schedule-values/src";
 import { sourceColumnAuditEntry } from "../../truth-kernel/src/register-schema";
+import { p6CalendarDataFromWorkPeriods, type P6StatedWorkPeriod } from "../../xer-parser/src/calendar-data";
 import type {
   PrimaveraXmlActivity,
+  PrimaveraXmlCalendar,
   PrimaveraXmlProject,
   PrimaveraXmlRelationship,
   PrimaveraXmlResult,
@@ -129,6 +131,74 @@ function dateField(
   return { raw, iso: parsed.iso };
 }
 
+/** A child element's value by local name (no read registration). */
+function childValue(obj: unknown, name: string): unknown {
+  if (!isObject(obj)) return undefined;
+  const wanted = keyNorm(name);
+  for (const [key, value] of Object.entries(obj)) if (keyNorm(key) === wanted) return value;
+  return undefined;
+}
+
+function childText(obj: unknown, name: string): string | null {
+  const value = childValue(obj, name);
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  return String(value).trim() || null;
+}
+
+/** P6 XML WorkTime clock (xsd:time "HH:MM:SS") as HH:MM. P6 states a work
+ * period's Finish as its last working minute (a 12:00-13:00 period is
+ * exported as Start 12:00:00, Finish 12:59:00), so a Finish on minute 59 is
+ * read as the end of that minute (23:59 is the end of the day, 24:00). Any
+ * other Finish is read as stated. Text that is not a whole-minute clock time
+ * is passed on unchanged and the shared interval rule reports it invalid. */
+function p6XmlClock(raw: string | null, finish: boolean): string | null {
+  if (raw === null) return null;
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.0+)?)?$/);
+  if (!match || (match[3] !== undefined && match[3] !== "00") || Number(match[2]) > 59) return raw;
+  const minutes = Number(match[1]) * 60 + Number(match[2]) + (finish && match[2] === "59" ? 1 : 0);
+  return String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
+}
+
+/** WorkTime periods of a StandardWorkHours or HolidayOrException element. A
+ * nil or empty WorkTime states no working period. */
+function workPeriods(parent: unknown, exception: boolean): P6StatedWorkPeriod[] {
+  const stated = arr(childValue(parent, "WorkTime") as unknown[] | unknown | undefined).flatMap((work) => {
+    if (!isObject(work)) return [];
+    const start = childText(work, "Start"), finish = childText(work, "Finish");
+    if (start === null && finish === null) return [];
+    return [{ start, finish }];
+  });
+  // P6 writes a holiday (non-working exception date) as one 00:00 to 23:59
+  // period; it is not a 24-hour working day.
+  if (exception && stated.length === 1 && /^00:00(?::00)?$/.test(stated[0]!.start ?? "") && /^23:59(?::00)?$/.test(stated[0]!.finish ?? "")) return [];
+  return stated.map((period) => ({ start: p6XmlClock(period.start, false), finish: p6XmlClock(period.finish, true) }));
+}
+
+const P6_XML_DAY_INDEX: Record<string, number> = {
+  sunday: 1, monday: 2, tuesday: 3, wednesday: 4, thursday: 5, friday: 6, saturday: 7,
+};
+
+/** A P6 XML Calendar's StandardWorkWeek and HolidayOrExceptions in the shared
+ * P6 calendar model (the same model as XER clndr_data). */
+function calendarWorkingTime(obj: AnyObject): PrimaveraXmlCalendar["data"] {
+  const week = childValue(obj, "StandardWorkWeek");
+  const holidays = childValue(obj, "HolidayOrExceptions");
+  const weekStated = week !== undefined && week !== "" && !(isObject(week) && Object.keys(week).every((key) => key.startsWith("@_")));
+  const holidaysStated = holidays !== undefined && holidays !== "" && !(isObject(holidays) && Object.keys(holidays).every((key) => key.startsWith("@_")));
+  if (!weekStated && !holidaysStated) return null;
+  const days = arr(childValue(week, "StandardWorkHours") as unknown[] | unknown | undefined).filter(isObject).map((hours) => {
+    const label = childText(hours, "DayOfWeek") ?? "<missing>";
+    return { dayIndex: P6_XML_DAY_INDEX[label.toLowerCase()] ?? null, label, periods: workPeriods(hours, false) };
+  });
+  const exceptions = arr(childValue(holidays, "HolidayOrException") as unknown[] | unknown | undefined).filter(isObject).map((exception) => {
+    const label = childText(exception, "Date") ?? "";
+    // The exception's day is the date part of its P6 dateTime.
+    const date = label.match(/^(\d{4}-\d{2}-\d{2})(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/);
+    return { isoDate: date ? date[1]! : null, label, periods: workPeriods(exception, true) };
+  });
+  return p6CalendarDataFromWorkPeriods({ days, exceptions });
+}
+
 function collectByLocalName(
   root: unknown,
   names: Set<string>,
@@ -236,6 +306,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       dataDate: field(obj, ["DataDate"]),
       scheduledFinishDate: field(obj, ["ScheduledFinishDate"]),
       mustFinishByDate: field(obj, ["MustFinishByDate"]),
+      activityDefaultCalendarObjectId: field(obj, ["ActivityDefaultCalendarObjectId"]),
     }),
   );
 
@@ -258,6 +329,16 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       .map((obj) => field(obj, ["ObjectId", "CalendarObjectId"]))
       .filter((value): value is string => !!value),
   );
+  // Calendar working time, read into the shared P6 calendar model.
+  const calendars: PrimaveraXmlCalendar[] = (found.get("calendar") ?? []).map((obj) => ({
+    objectId: field(obj, ["ObjectId", "CalendarObjectId"]),
+    name: field(obj, ["Name", "CalendarName"]),
+    baseCalendarObjectId: field(obj, ["BaseCalendarObjectId"]),
+    hoursPerDayRaw: field(obj, ["HoursPerDay"]),
+    hoursPerWeekRaw: field(obj, ["HoursPerWeek"]),
+    data: calendarWorkingTime(obj),
+  }));
+  readsFor("calendar").add(keyNorm("StandardWorkWeek")).add(keyNorm("HolidayOrExceptions"));
 
   const missingWbsReferences = new Set<string>();
   const missingCalendarReferences = new Set<string>();
@@ -519,6 +600,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
     resourceAssignments,
     columnAudit,
     relationships,
+    calendars,
     calendarsSeen: (found.get("calendar") ?? []).length,
     wbsSeen: (found.get("wbs") ?? []).length,
     activityCount: activities.length,

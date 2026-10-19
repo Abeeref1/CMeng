@@ -34,6 +34,7 @@ import {earnedHoursForState} from './earned-hours';
 import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
 import {contractTimeDatesFrom} from './contract-time-reader';
 import {extractContractLdTerms} from '../../contract-commercial/src';
+import {certifiedAmountLabel} from '../../commercial-control/src';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -133,6 +134,10 @@ export interface ProjectFactsSnapshot {
       approvedVariationAmount:ProjectFact<number>;
       pendingVariationAmount:ProjectFact<number>;
       grossCertifiedAmount:ProjectFact<number>;
+      /** R12 (additive): the register column the certified figure came from (null: none read). */
+      grossCertifiedAmountColumn?:'gross'|'net'|'unstated'|null;
+      /** R12 (additive): the shared label of the certified figure. */
+      grossCertifiedAmountLabel?:string;
       netCertifiedAmount:ProjectFact<number>;
       paidAmount:ProjectFact<number>;
       interimCertificateCount:ProjectFact<number>;
@@ -157,6 +162,12 @@ export interface ProjectFactsSnapshot {
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+/** R12: the stated basis of the certified figure follows the register column it came from. */
+const CERTIFIED_FIGURE_BASIS={
+  gross:'Dated gross certification before retention and advance deductions; applications excluded.',
+  net:'Dated certified amounts from a net certified column (after deductions); the gross certified amount is not stated in the source. Applications excluded.',
+  unstated:'Dated certified amounts from a column that does not say gross or net; the source does not state which. Applications excluded.',
+} as const;
 
 /** F20: the brief and every page read one dated cash series; this is its summary per currency. */
 function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|undefined,currency:string){
@@ -626,7 +637,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         forecastEac:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.forecastEac??{value:null,state:'missing',sourceRefs:[]},'Latest source EAC in its reporting period, currency and tax basis.');})(),
         cpi:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.cpi??{value:null,state:'missing',sourceRefs:[]},'EV / AC from the same reporting period, currency and tax basis.');})(),
         pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
-        grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
+        grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,CERTIFIED_FIGURE_BASIS[row.grossCertifiedAmountColumn??'gross']),
+        grossCertifiedAmountColumn:row.grossCertifiedAmountColumn??null,
+        grossCertifiedAmountLabel:row.grossCertifiedAmountLabel??certifiedAmountLabel(null),
         netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),
         paidAmount:commercialFact(row.paidAmount,'Evidenced cash receipts through the Data Date.'),
         interimCertificateCount:commercialFact(row.interimCertificateCount,'Certificates issued through the Data Date; applications excluded.'),

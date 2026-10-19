@@ -4,6 +4,7 @@ import type { CommercialPerformanceProjection } from "../../commercial-performan
 import type { ContractControlsProjection } from "../../commercial-contract-controls/src";
 import type {
   BondRecord,
+  CertifiedAmountColumn,
   ClaimCommercialRecord,
   InvoiceRecord,
   MoneyValue,
@@ -55,6 +56,11 @@ export interface CommercialMoneyPosition {
     CommercialMetric<number>;
   grossCertifiedAmount:
     CommercialMetric<number>;
+  /** R12 (additive): the register column grossCertifiedAmount came from; null
+   * when no certified amount is read. A net or unlabelled column is never gross. */
+  grossCertifiedAmountColumn?: CertifiedAmountColumn | null;
+  /** R12 (additive): the one label every page, answer and download gives grossCertifiedAmount. */
+  grossCertifiedAmountLabel?: string;
   paidAmount:
     CommercialMetric<number>;
   certifiedUnpaidAmount:

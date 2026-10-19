@@ -5154,7 +5154,7 @@
           "tests/t11-issue-summary-fold-parity.test.ts"
         ],
         "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs. Round 11 (r11-perf): cold Dashboard within the owner's 10 s at 8,900 activities and 38,300 register rows; delay notices grouped once per event and claim; identical findings folded in linear time with the same result as the one-at-a-time fold; per-row lookups indexed in Delivery risks, Director claims and commercial variations.",
-        "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests. Round 11: The temporary profiling probes (4abd2df3, a8373994) were removed before merge (2a760d05) and are not linked. The owner 10 s case (t11-large-register-cold-dashboard) fails on this 2-CPU board machine: cold Dashboard 18,133 ms and 18,487 ms (exclusive CPU) on ca04db07, and 18,611 ms on ff5fa80d, the r11-perf merge point that 2a760d05 states was verified on CI run 39304244064. The later merges did not slow it; the result depends on the machine, so the 10 s limit is not proven for production hardware."
+        "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests. Round 11: The temporary profiling probes (4abd2df3, a8373994) were removed before merge (2a760d05) and are not linked. The owner 10 s case (t11-large-register-cold-dashboard) fails on this 2-CPU board machine: cold Dashboard 18,133 ms and 18,487 ms (exclusive CPU) on ca04db07, and 18,611 ms on ff5fa80d, the r11-perf merge point that 2a760d05 states was verified on CI run 39304244064. The later merges did not slow it; the result depends on the machine, so the 10 s limit is not proven for production hardware. Final update: the lead reports CI measured 5.6 s on the merged state; not re-run on this machine by instruction. Production hardware is not measured."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5707,13 +5707,17 @@
           "d1efdca8",
           "ba08b6d7",
           "57ed6515",
-          "1e53b68e"
+          "1e53b68e",
+          "647a086f",
+          "04abe158",
+          "88864efc"
         ],
         "regressionFiles": [
-          "tests/v1-f01-page-figures-match-api.test.ts"
+          "tests/v1-f01-page-figures-match-api.test.ts",
+          "tests/f01-real-browser-every-page.test.ts"
         ],
-        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515).",
-        "notCovered": "Partial. A real browser test over every page is pending branch r11-f01 (lead, round 11); the check still runs the assembled browser script against the project facts. REEM-specific checks cannot run without the REEM file (lead, round 11)."
+        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515). Round 12 (r11-f01): a real headless Chrome test walks 63 surfaces against answers computed from the source (\"F01 real browser: every page shows the source answer key, one value per fact, no banned words, pages under 2 MB\"); fixes found by it: the Portfolio address opens Portfolio, and a stated gross certified column is the gross (04abe158).",
+        "notCovered": "\"Not established\" is the platform's shared unknown label and is not on the banned list; showing it where the source has the value fails the answer-key check instead. The test is in the focused CI workflow; running it on the exact release commit before a deploy is a release step the test does not show. The net-only certified label is pending branch r12-netgross (lead). REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5751,6 +5755,27 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "647a086f",
+            "subject": "test(F01): real headless Chrome walks every page against a source answer key (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "04abe158",
+            "subject": "fix(F01): Portfolio address keeps Portfolio; a stated gross certified column is the gross",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "88864efc",
+            "subject": "test(F01): portfolio card readings; clean shutdown of own process groups; no browser cache",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -5768,7 +5793,8 @@
         "consultantExpectedCheck": "All four checks run on the exact release commit and pass before any deploy to the review site.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/v1-f01-page-figures-match-api.test.ts"
+          "tests/v1-f01-page-figures-match-api.test.ts",
+          "tests/f01-real-browser-every-page.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -6445,14 +6471,17 @@
           "db04de76",
           "26bae0a7",
           "bf579660",
-          "6e3bbca1"
+          "6e3bbca1",
+          "ce3054f6",
+          "d06b8bfa"
         ],
         "regressionFiles": [
           "tests/v1-f10-no-duplicate-page-blocks.test.ts",
-          "tests/r11-f10-one-owner-page-per-block.test.ts"
+          "tests/r11-f10-one-owner-page-per-block.test.ts",
+          "tests/t05-built-script-zero-fallback-guard.test.ts"
         ],
-        "repairNotes": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added. Round 11 (r11-f10): one owner page per topic; no full block appears on two pages of a rich project; every replaced block links to its owner page; the Dashboard stays the summary page.",
-        "notCovered": "Each page's own review section and findings D-31 / D-259 are not in scope (agent r11-f10 report). REEM-specific checks cannot run without the REEM file (lead, round 11)."
+        "repairNotes": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added. Round 11 (r11-f10): one owner page per topic; no full block appears on two pages of a rich project; every replaced block links to its owner page; the Dashboard stays the summary page. Round 12 (lead): the notice provision owner link keeps an unknown count unknown, never \"0 retained provisions\" (ce3054f6, t05 zero-fallback guard); the earned-hours block has one owner page (Man-Hour S-Curve) and Resources links to it (d06b8bfa, r11-f10-one-owner-page-per-block failed on the merged state before it).",
+        "notCovered": "Each page's own review section and findings D-31 / D-259 are not in scope (agent r11-f10 report). REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6490,6 +6519,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "ce3054f6",
+            "subject": "fix(F10 follow-up): notice provision link figure keeps an unknown count unknown",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d06b8bfa",
+            "subject": "fix(F10 x F45): earned hours block has one owner page (Man-Hour S-Curve); Resources links to it",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -6512,7 +6555,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/v1-f10-no-duplicate-page-blocks.test.ts",
-          "tests/r11-f10-one-owner-page-per-block.test.ts"
+          "tests/r11-f10-one-owner-page-per-block.test.ts",
+          "tests/t05-built-script-zero-fallback-guard.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -6925,14 +6969,19 @@
           "83b3d39b",
           "e4c196f9",
           "8b599dd6",
-          "3600a201"
+          "3600a201",
+          "67f6f87c",
+          "b370bba9",
+          "b0a31587",
+          "63e510ae"
         ],
         "regressionFiles": [
           "tests/resource-actual-hours-headings.test.ts",
-          "tests/resource-stated-capacity-programme-hours.test.ts"
+          "tests/resource-stated-capacity-programme-hours.test.ts",
+          "tests/f16-f45-resource-hours-earned.test.ts"
         ],
-        "repairNotes": "Rounds 9 and 10 (w5): recorded hours read from Actual Hours / Actual Man-hours headings and timesheet registers; stated register capacity for utilization; programme-recorded actual hours when no register gives them; absent utilization stated once with the reason.",
-        "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested. Pending branch r11-f16 (lead, round 11). REEM-specific checks cannot run without the REEM file (lead, round 11)."
+        "repairNotes": "Rounds 9 and 10 (w5): recorded hours read from Actual Hours / Actual Man-hours headings and timesheet registers; stated register capacity for utilization; programme-recorded actual hours when no register gives them; absent utilization stated once with the reason. Round 12 (r11-f16): recorded hours by trade and week from the shared resource reader; the Look-Ahead resources column gives each activity its trade hours in the window and the latest recorded hours from the same reader; week-column registers read the same on both pages; an unstated measure or a dd/mm date is not guessed.",
+        "notCovered": "REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6984,6 +7033,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "67f6f87c",
+            "subject": "test(F16,F45): REEM register case through the upload path: hours by trade and week, Look-Ahead resources column, earned hours",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b370bba9",
+            "subject": "fix(F16,F45): hours by trade and week from the shared resource reader; Look-Ahead resources column; earned hours",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b0a31587",
+            "subject": "fix(F16): Look-Ahead rows carry only their trades and own remaining hours; trade hours stated once per trade",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "63e510ae",
+            "subject": "fix: one canonicalResources import after the int5 merge",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -7006,7 +7083,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/resource-actual-hours-headings.test.ts",
-          "tests/resource-stated-capacity-programme-hours.test.ts"
+          "tests/resource-stated-capacity-programme-hours.test.ts",
+          "tests/f16-f45-resource-hours-earned.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8589,7 +8667,7 @@
           "tests/f29-f36-payment-rules.test.ts"
         ],
         "repairNotes": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established. Round 11 (w3, r11-f29): like-for-like certified ratio (certified gross work over the original contract), a query when the contract states no tax basis; gross and net separate; application IPC-024 excluded; advance outstanding is advance less recoveries; a 1-riyal rounding is not a failure; the due date is shown with its basis beside Sub-Clause 14.7 and a register due date is compared with it.",
-        "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11)."
+        "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11). The net-only certified label is pending branch r12-netgross (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -9376,9 +9454,22 @@
         "evidence": "Per-item curves replace unit sums, but they now load on every management page (N-5)."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "48c3c870",
+          "7f467b15",
+          "79e78940",
+          "1b2ada3d",
+          "b370bba9",
+          "d06b8bfa"
+        ],
+        "regressionFiles": [
+          "tests/r11-f45-progress-quantity-rules.test.ts",
+          "tests/f16-f45-resource-hours-earned.test.ts",
+          "tests/r11-f10-one-owner-page-per-block.test.ts"
+        ],
+        "repairNotes": "Round 12 (r11-f45, r11-f16): one shared measured-progress calculation gives progress by area (Villa Type B its own row, not-mapped part shown), period and required rate to the governing completion, fractional lump-sum quantities queried and never summed with other units, installed value against certified gross work on the same currency and tax basis, and repeated BOQ item numbers matched by section; earned hours from stated BOQ labour hours per unit first, else programme budgeted units x % complete, against programme-recorded hours spent; no stated budget stays not established. Per-item curves on management pages are covered under F61.",
+        "notCovered": "The net-only certified label is pending branch r12-netgross (lead). REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -9387,10 +9478,53 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "48c3c870",
+            "subject": "test(F45): REEM-like upload case for progress and quantity rules (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "7f467b15",
+            "subject": "test(F45): probe type fix",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "79e78940",
+            "subject": "fix(F45): progress and quantity rules from one shared measured-progress calculation",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "1b2ada3d",
+            "subject": "test(F45): remove fixture dump; full CI selection",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b370bba9",
+            "subject": "fix(F16,F45): hours by trade and week from the shared resource reader; Look-Ahead resources column; earned hours",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d06b8bfa",
+            "subject": "fix(F10 x F45): earned hours block has one owner page (Man-Hour S-Curve); Resources links to it",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R5",
         "plannedConsultantStep": 4
       },
@@ -9404,9 +9538,13 @@
         "detail": "Engineering rule: independent calculators (CPM solver, EVM workbook, commercial ledger, notice calculator, delivery state tables) and the stage challenge, not the guard (plan, 'All 57 system defects').",
         "consultantExpectedCheck": "Villa Type B progress shown separately; 132 LS items queried; installed value vs 184.26M certified; earned hours about 752,200 vs 755,452 spent.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/r11-f45-progress-quantity-rules.test.ts",
+          "tests/f16-f45-resource-hours-earned.test.ts",
+          "tests/r11-f10-one-owner-page-per-block.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F46",
@@ -73948,8 +74086,7 @@
         "repair_live_named_test_not_certified": 1
       },
       "F": {
-        "repair_saved_not_live_named_test": 58,
-        "open_no_repair_linked": 1,
+        "repair_saved_not_live_named_test": 59,
         "repair_live_named_test_not_certified": 2
       },
       "S": {
