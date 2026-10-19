@@ -246,6 +246,7 @@ if(links.fNotCovered??links.fNotCoveredRound8){
   if(links.round10Search)L.push(links.round10Search,'');
   if(links.round11Search)L.push(links.round11Search,'');
   if(links.round12Search)L.push(links.round12Search,'');
+  if(links.round13Search)L.push(links.round13Search,'');
 }
 L.push('## S-items','','| ID | Repair reference | Verification method | Status |','| --- | --- | --- | --- |');
 for(const s of ledger.s)L.push('| '+[s.id,commitsCell(s.repairReference)+'. '+s.repairReference.note,'expert review once defined',s.boardStatus].join(' | ')+' |');
