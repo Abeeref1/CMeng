@@ -152,7 +152,12 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     // it with a negative result, so re-entry never hides a later finding.
     let answer=false,open=false;
     if(Array.isArray(item)){
-      for(const child of item)if(child&&typeof child==='object'){
+      // T11: an indexed read visits the same elements in the same order as
+      // for-of on an array (a hole reads as undefined either way) without
+      // creating an iterator for each of the many scanned arrays.
+      for(let i=0;i<item.length;i++){
+        const child=item[i];
+        if(!child||typeof child!=='object')continue;
         if(!open){open=true;eligibility.set(item,true);}
         if(arrayItemCanContainIssue(child,depth+1)){answer=true;break;}
       }
@@ -254,6 +259,12 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     for(const key of Object.keys(value)) {
       const child=value[key];
       if(!child||typeof child!=='object'||excludedKeys.has(key))continue;
+      // T11: the same entry test walk() applies first, in the same order,
+      // read before the child path text is built. A rejected child returns
+      // at once in walk() too; an accepted child repeats the test with the
+      // same answer (nothing is visited in between), so findings, paths and
+      // their order are unchanged.
+      if(depth+1>9||visited.has(child)||!arrayItemCanContainIssue(child))continue;
       walk(child,path?path+'.'+key:key,depth+1);
     }
   };
