@@ -158,6 +158,15 @@ export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null
  return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
   recordIds:rows.map(r=>r.recordId),basis:decision?.note??'Confirm that all applicable records have been captured before relying on a percentage.',confirmedAt:decision?.recordedAt??null};
 }
+/** W10: the one rule for what still waits for a decision on a Delivery page.
+ * A record waits when it needs its own decision (working, conflicted, stale, or
+ * a source row that cannot be used as current), or when it is a usable source
+ * row whose register population is not yet confirmed. The confirmed population
+ * decision (deliveryPopulationPosition, bound to the record fingerprint) ends
+ * that wait; the per-record source flag alone does not keep it open. */
+export function deliveryAwaitingDecision(records:DeliveryRecord[],populationOf:(kind:DeliveryKind)=>{state:string}|null|undefined){
+ return records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state)&&!(deliveryCurrentRecord(r)&&populationOf(r.kind)?.state==='established'));
+}
 function deliveryLinkValidator(state:ProjectRuntimeState,records:DeliveryRecord[]){
  const model=projectControlSchedule(state)?.revision.model,boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;
  const eligible=records.filter(r=>['governed','verified'].includes(r.state)),items=new Map(boq?.items.map(i=>[i.quantityItemId,i])??[]);
