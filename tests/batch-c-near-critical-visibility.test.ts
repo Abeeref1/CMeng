@@ -11,7 +11,9 @@ function render(overrides:Record<string,unknown>={}):string {
   assert.ok(start>=0&&end>start);
   // Real list-total and count-text helpers from the built page script (T05).
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
-  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+parsed.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
+  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+parsed.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText',
+    // T06: real shared float-threshold and float-summary helpers from the same page script.
+    'floatThresholdText','floatBucketDaysNote','floatDistributionSummary'].includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
   const p={rows:[],watchlistRows:[],criticalRows:[],negativeFloatRows:[],managementGroups:[],
     nearCriticalCount:0,floatRiskWatchlistCount:0,zeroFloatCount:0,negativeFloatCount:0,
     floatCoveragePercent:100,classificationCoveragePercent:100,unresolvedActivityCount:0,
@@ -36,7 +38,7 @@ for(const [authority,label] of [
   const visible=visibleWithoutOpeningDetails(html);
   assert.match(visible,/Float screening basis:/);
   assert.ok(visible.includes(label));
-  assert.match(visible,/Critical = TF ≤ 0 h; Near-Critical screening = TF > 0 h and ≤ 40 h/);
+  assert.match(visible,/Critical = TF ≤ 0 working days; Near-Critical screening = TF > 0 working days and ≤ 40 h \(an hours threshold; working days differ by activity calendar\)/);
   assert.ok(html.indexOf('Float classification coverage:')<html.indexOf('Float screening basis:'));
   assert.ok(html.indexOf('Float screening basis:')<html.indexOf('Work packages closest to critical'));
   assert.equal((html.match(/Float screening basis:/g)||[]).length,1,'one canonical basis, not duplicate disclosures');
