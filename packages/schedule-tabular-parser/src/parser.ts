@@ -9,6 +9,7 @@ import {
   type ScheduleDurationValue,
 } from "../../schedule-values/src";
 import { detectAllScheduleHeaders } from "./headers";
+import { sourceColumnAuditEntry } from "../../truth-kernel/src/register-schema";
 import type {
   ScheduleActivityRow,
   ScheduleCellLocator,
@@ -1114,6 +1115,26 @@ function activityDataDates(
   return out;
 }
 
+/** Every column under each detected programme header, read into a role or
+ * listed as unused with its first non-empty value (shared R1 report). */
+function programmeColumnAudit(
+  table: string,
+  rows: string[][],
+  headers: ReturnType<typeof detectAllScheduleHeaders>,
+): NonNullable<ScheduleTabularResult["columnAudit"]> {
+  return headers.flatMap((mapping, index) => {
+    const next = headers[index + 1];
+    const body = rows.slice(mapping.row, next ? next.row - 1 : rows.length);
+    return Object.entries(mapping.headers).flatMap(([column, header]) => {
+      if (!String(header ?? "").trim()) return [];
+      const role = mapping.roles[Number(column)] ?? "unknown";
+      const sample = body.map((row) => String(row[Number(column)] ?? "").trim()).find(Boolean) ?? null;
+      return [{table, ...sourceColumnAuditEntry(header, role, "other", role !== "unknown",
+        "Read by the programme reader as " + role + ".", sample)}];
+    });
+  });
+}
+
 export function parseScheduleCsv(
   bytes: Uint8Array,
 ): ScheduleTabularResult {
@@ -1171,6 +1192,7 @@ export function parseScheduleCsv(
 
   const result = finalize("csv", sets, diagnostics);
   result.dataDateValues = activityDataDates("csv", null, rows, headers, result.activities);
+  result.columnAudit = programmeColumnAudit("csv", rows, headers);
   return result;
 }
 
@@ -1184,6 +1206,7 @@ export async function parseScheduleXlsx(
   const metadataSheets: ScheduleMetadataSheet[] = [];
   const diagnostics: string[] = [];
   const dataDateValues: NonNullable<ScheduleTabularResult["dataDateValues"]> = [];
+  const columnAudit: NonNullable<ScheduleTabularResult["columnAudit"]> = [];
 
   for (const sheet of workbook.worksheets) {
     const rows: string[][] = [];
@@ -1238,7 +1261,8 @@ export async function parseScheduleXlsx(
       );
     }
     dataDateValues.push(...activityDataDates("xlsx", sheet.name, rows, headers, sets.flatMap(set => set.activities)));
+    columnAudit.push(...programmeColumnAudit(sheet.name, rows, headers));
   }
 
-  return {...finalize("xlsx", sets, diagnostics, metadataSheets), dataDateValues};
+  return {...finalize("xlsx", sets, diagnostics, metadataSheets), dataDateValues, columnAudit};
 }

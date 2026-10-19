@@ -145,6 +145,7 @@ jobs:
             dist/tests/t02-register-reading-truth.test.js \
             dist/tests/t02-cost-report-content-date-formats.test.js \
             dist/tests/t02-xer-column-audit-activity-codes.test.js \
+            dist/tests/t02-programme-column-audit-formats.test.js \
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-remaining-true-totals.test.js \

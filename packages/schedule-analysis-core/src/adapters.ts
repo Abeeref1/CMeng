@@ -312,6 +312,7 @@ export function canonicalScheduleFromTabular(
     projectId: input.projectId ?? null,
     source,
     sourceRevisionId: input.sourceRevisionId,
+    ...(result.columnAudit ? {sourceColumnAudit: result.columnAudit} : {}),
     dataDateIso,
     activities,
     relationships,
@@ -1066,10 +1067,12 @@ function canonicalScheduleFromXerRead(
   };
 }
 
+let rawFieldNamesRead: Set<string> | null = null;
 function rawField(
   raw: Record<string, unknown>,
   names: readonly string[],
 ): string | null {
+  if (rawFieldNamesRead) for (const name of names) rawFieldNamesRead.add(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
   const wanted = new Set(
     names.map((name) =>
       name
@@ -1096,6 +1099,28 @@ function rawField(
 }
 
 export function canonicalScheduleFromPrimaveraXml(
+  result: PrimaveraXmlResult,
+  input: {
+    sourceRevisionId: string;
+    projectId?: string | null;
+  },
+): CanonicalScheduleModel {
+  const previous=rawFieldNamesRead,read=new Set<string>(result.activityFieldsRead??[]);
+  rawFieldNamesRead=read;
+  let model: CanonicalScheduleModel;
+  try{model=canonicalScheduleFromPrimaveraXmlRead(result,input);}finally{rawFieldNamesRead=previous;}
+  // Every Activity field in the file: read by the reader/adapter, or unused with a sample.
+  const headers=new Map<string,string|null>();
+  for(const activity of result.activities)for(const [key,value] of Object.entries(activity.raw)){
+    const sample=typeof value==='string'||typeof value==='number'||typeof value==='boolean'?String(value).trim()||null:null;
+    if(!headers.has(key)||(headers.get(key)===null&&sample!==null))headers.set(key,sample);
+  }
+  const sourceColumnAudit=[...headers].map(([header,sample])=>({table:'Activity',...sourceColumnAuditEntry(header,header,'other',read.has(header.toLowerCase().replace(/[^a-z0-9]/g,'')),
+    'Read by the P6 XML schedule reader into the canonical schedule model.',sample)}));
+  return {...model,sourceColumnAudit};
+}
+
+function canonicalScheduleFromPrimaveraXmlRead(
   result: PrimaveraXmlResult,
   input: {
     sourceRevisionId: string;

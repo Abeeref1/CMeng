@@ -48,6 +48,8 @@ export interface PrimaveraXmlRelationship {
 export interface PrimaveraXmlResult {
   projects: PrimaveraXmlProject[];
   activities: PrimaveraXmlActivity[];
+  /** Normalised Activity field names the reader reads (shared R1 unused-column report). */
+  activityFieldsRead?: string[];
   relationships: PrimaveraXmlRelationship[];
   calendarsSeen: number;
   wbsSeen: number;

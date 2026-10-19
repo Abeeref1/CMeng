@@ -140,6 +140,8 @@ export interface ScheduleMetadataSheet {
 
 export interface ScheduleTabularResult {
   sourceType: "csv" | "xlsx";
+  /** Every programme column found under a detected header: read into a role, or unused with a sample (shared R1 report). */
+  columnAudit?: Array<{table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}>;
   /** Explicit programme dates supplied on activity rows, including duplicate columns. */
   dataDateValues?: Array<{ raw: string; locator: ScheduleCellLocator }>;
   metadataSheets: ScheduleMetadataSheet[];
