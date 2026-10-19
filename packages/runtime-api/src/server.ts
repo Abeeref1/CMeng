@@ -697,8 +697,9 @@ function json(
   // T09 A4: an owner known only as an accountable PMC role is sent as a missing
   // owner (owner null, ownerState 'missing', accountableRole); keys are unchanged.
   const present=projectMatch?(value:unknown)=>presentMissingOwners(floatDays!(value)):undefined;
-  const screenPage=screen?pageProjectResponse(body,requestUrl,undefined,present):undefined;
-  const payload = screen?takeSerializedPage(screenPage)??JSON.stringify(screenPage):JSON.stringify(projectMatch&&statusCode===200?presentMissingOwners(withActionAssignments(decodeURIComponent(projectMatch[1]!),body)):body);
+  const output = screen?pageProjectResponse(body,requestUrl,undefined,present):projectMatch&&statusCode===200?presentMissingOwners(withActionAssignments(decodeURIComponent(projectMatch[1]!),body)):body;
+  // T11: a screen page measured by pageProjectResponse is sent as the text it measured.
+  const payload = (screen?takeSerializedPage(output):undefined)??JSON.stringify(output);
   // The public gateway can only keep a version-safe result after this header
   // proves which project snapshot was used. Previously it was never sent, so
   // every visit after worker eviction repeated the complete analysis.
