@@ -236,35 +236,9 @@ function strongestMovement(
         "independent_cpm",
     };
   }
-  const activityPositiveIsDistinct =
-    input.activityPositive !== null &&
-    (
-      input.sourceForecast === null ||
-      Math.abs(
-        input.activityPositive -
-          input.sourceForecast,
-      ) > 0.000001
-    );
-
-  if (activityPositiveIsDistinct) {
-    return {
-      days: input.activityPositive,
-      basis:
-        "matched_activity_finish_shift",
-    };
-  }
-  if (
-    input.activityNegative !== null &&
-    input.sourceForecast === null &&
-    input.sourceBoundary === null
-  ) {
-    return {
-      days: input.activityNegative,
-      basis:
-        "matched_activity_finish_shift",
-    };
-  }
-
+  // SW-23: window programme movement is the movement of the completion
+  // (project finish) between revisions. The largest shift of any one activity
+  // is kept only in its own activity fields and never stands in for it.
   if (input.sourceForecast !== null) {
     return {
       days:

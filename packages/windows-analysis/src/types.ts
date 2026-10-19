@@ -61,9 +61,10 @@ export interface ScheduleWindowResult {
   scheduleBoundaryMovementDays: number | null;
 
   /**
-   * Analytical window movement: the strongest matched-activity finish shift
-   * for the window. This is deliberately separate from project completion
-   * movement and is not entitlement/EOT.
+   * Window programme movement: the completion (project finish) movement
+   * between the two revisions, independent CPM first, then the submitted
+   * forecast, then the schedule boundary (SW-23). The largest single-activity
+   * shift stays in strongestPositive/NegativeActivity* only. Not entitlement/EOT.
    */
   strongestProgrammeMovementDays: number | null;
   strongestProgrammeMovementBasis:
