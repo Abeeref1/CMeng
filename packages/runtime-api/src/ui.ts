@@ -6359,6 +6359,19 @@ function positionText(p){
   return["missing","Position not established"];
 }
 function portfolioNeedsAttention(p){return p.positionState==="needs_information"||p.positionState==="needs_review"||(p.managementActionCount||0)>0;}
+// F50: the Portfolio card's attention text follows the shared project facts.
+// "No immediate management action" is stated only when the open-action count
+// is known to be zero; an unknown count stays unknown.
+function portfolioAttentionText(p){
+  if(p.analysisError)return p.analysisError;
+  const first=(p.managementActions||[])[0];if(first)return first;
+  if(p.positionState==="needs_information")return "Add the core programme and BOQ records to establish the current position.";
+  if(p.positionState==="needs_review")return "Update the project position using the latest project records.";
+  const count=p.managementActionCount;
+  if(count===0)return "No immediate management action identified.";
+  if(typeof count==="number"&&count>0)return count+" open management action"+(count===1?"":"s")+" · open the project for details.";
+  return "Management actions not established.";
+}
 function projectCard(p){
   const [positionClass,positionLabel]=positionText(p);
   const forecast=p.forecastCompletionIso?planningShortDate(p.forecastCompletionIso):"Not established";
@@ -6375,13 +6388,7 @@ function projectCard(p){
   const lateness=comparisonPrefix+(typeof comparisonDays==='number'?(comparisonDays>0?fmtManagementDayCount(comparisonDays)+' after current contract':comparisonDays===0?'On the current contract date':fmtManagementDayCount(comparisonDays)+' before current contract'):'Contract comparison unavailable');
   const money=(p.commercialSummary||[]).map(row=>row.currency+' · Current contract '+(row.currentContractValue==null?'Not supplied':fmtExecutive(row.currentContractValue))+' · EAC '+(row.forecastEac==null?'Not supplied':fmtExecutive(row.forecastEac))+' · Unpaid '+(row.certifiedUnpaidAmount==null?'Not supplied':fmtExecutive(row.certifiedUnpaidAmount))).join(' | ');
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
-  const attention=p.analysisError||(p.managementActions||[])[0]||(
-    p.positionState==="needs_information"
-      ?"Add the core programme and BOQ records to establish the current position."
-      :p.positionState==="needs_review"
-        ?"Update the project position using the latest project records."
-        :"No immediate management action identified."
-  );
+  const attention=portfolioAttentionText(p);
   const attentionClass=portfolioNeedsAttention(p)?"project-attention":"project-attention no-action";
   return '<article class="portfolio-project">'+
     '<div class="portfolio-project-main">'+
