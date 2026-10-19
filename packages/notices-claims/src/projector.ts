@@ -1,6 +1,7 @@
 import {
   assessAllEventNotices,
   delayEventPopulation,
+  eventFromEventSource,
   type DelayClaimsModel,
 } from "../../delay-analysis-core/src";
 import type {
@@ -91,6 +92,8 @@ export function buildNoticesClaimsProjection(
     );
   }
 
+  // SW-15: event dates come only from an event source, never from a claim row.
+  const claimRowEvent = (event: DelayClaimsModel["events"][number]) => !eventFromEventSource(event, model);
   const events = model.events.map(
     (event) => {
       const assessment =
@@ -105,8 +108,8 @@ export function buildNoticesClaimsProjection(
           event.responsibility,
         responsibilityState:
           event.responsibilityState,
-        eventStartIso: event.startIso,
-        eventEndIso: event.endIso,
+        eventStartIso: claimRowEvent(event) ? null : event.startIso,
+        eventEndIso: claimRowEvent(event) ? null : event.endIso,
         noticeId:
           assessment?.noticeId ??
           null,

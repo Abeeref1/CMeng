@@ -1,4 +1,4 @@
-import { reportingScope } from "../../truth-kernel/src";
+import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import { buildCommercialPerformance } from "../../commercial-performance/src";
 import {
@@ -317,7 +317,7 @@ function commercialClaimsNotices(
     undatedNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
     dimensionalEvidenceGaps:lifecycleQuarantined
       ? {requirementMissing:null,eventDateMissing:null,noticeDateMissing:null}
-      : {requirementMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:assessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
+      : {requirementMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
     evidenceRevisionId:
       lifecycle
         ?.evidenceRevisionId ??
@@ -554,11 +554,14 @@ export function buildCommercialControlPosition(
             row.state ===
             "approved",
         );
+      // SW-21: a change whose lifecycle stage is withdrawn (shared contract-controls
+      // rule) is closed; it is never pending money.
+      const withdrawnIds=new Set((input.contractControls?.variations?.rows??[]).filter(row=>row.lifecycleStage==='withdrawn').map(row=>row.variationId));
       const pendingVariations =
         variations.filter(
           (row) =>
             row.state ===
-            "pending",
+            "pending" && !withdrawnIds.has(row.variationId),
         );
       const knownPendingAmount=pendingVariations.length?sum(pendingVariations.map(row=>row.amount)):null;
       const pendingIds=new Set(pendingVariations.map(row=>row.variationId));
@@ -569,7 +572,7 @@ export function buildCommercialControlPosition(
       };
       const pendingAmountsComplete=!variationPopulation||
         !(variationPopulation.undatedRows??[]).some(relevantCurrency)&&
-        variationPopulation.rows.filter(relevantCurrency).every(row=>['approved','rejected'].includes(row.lifecycleStage)||row.lifecycleStage!=='unknown'&&pendingIds.has(row.variationId));
+        variationPopulation.rows.filter(relevantCurrency).every(row=>['approved','rejected','withdrawn'].includes(row.lifecycleStage)||row.lifecycleStage!=='unknown'&&pendingIds.has(row.variationId));
       const invoices =
         input.invoices.filter(
           (row) =>
@@ -662,11 +665,8 @@ export function buildCommercialControlPosition(
               .toUpperCase() ===
               currency &&
             row.status === "active" &&
-            (
-              !(input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso) ||
-              !row.expiryIso ||
-              row.expiryIso.slice(0,10) >= (input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso)!.slice(0,10)
-            ),
+            // F02: the shared Data Date rule; expired or released never counts as active.
+            !["expired","released"].includes(securityStateAtDataDate(row,input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso).state),
         );
       const claims =
         input.claimCommercials.filter(
@@ -1786,7 +1786,7 @@ export function buildCommercialControlPosition(
         .claimCommercials.length||null,
     claimsNotices,
     registers: {
-      variationStateCounts:input.variations.reduce<Record<string,number>>((counts,row)=>{counts[row.state]=(counts[row.state]??0)+1;return counts;},{}),
+      variationStateCounts:input.variations.reduce<Record<string,number>>((counts,row)=>{const state=(input.contractControls?.variations?.rows??[]).some(v=>v.variationId===row.variationId&&v.lifecycleStage==='withdrawn')?'withdrawn':row.state;counts[state]=(counts[state]??0)+1;return counts;},{}),
       variations:
         input.variations.map(
           (row) => ({

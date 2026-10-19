@@ -723,7 +723,9 @@ test("P0-3 merges EOT activity and explicit window references into the governed 
       producerVersion: "sales-blocker-test",
     },
   );
-  assert.equal(windows.windows[0]!.delayEvents[0]?.eventId, "EV-001");
+  // SW-15: EV-001 exists only as claims register row CL01 (no event register, no notice stating
+  // the event), so it is not a delay event and is not matched to a window.
+  assert.equal(windows.windows[0]!.delayEvents[0]?.eventId, undefined);
   const delay = buildDelayClaimsProjection(
     windows,
     canonical.delayClaims!,
@@ -736,7 +738,7 @@ test("P0-3 merges EOT activity and explicit window references into the governed 
   // the row, but event counts are not established without an event source (null, never 1).
   const row = delay.events.find((item) => item.eventId === "EV-001")!;
   assert.ok(row.relatedActivityIds.length > 0);
-  assert.ok(row.overlappingWindowIds.length > 0);
+  assert.equal(row.overlappingWindowIds.length, 0);
   assert.ok(row.noticeIds.length > 0);
   assert.ok(row.determinationIds.length > 0);
   assert.equal(row.evidenceChainState, "full_determination_chain");

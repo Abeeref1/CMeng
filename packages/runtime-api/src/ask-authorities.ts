@@ -17,6 +17,18 @@ import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ProjectRuntimeState} from './project-state-types';
 
+
+/** F13/F47: flatten the claim register's determination and detailed-claim
+ * time-bar values so Ask tables carry them (nested objects are not table cells). */
+export function askClaimRegisterColumns(r:any):Record<string,unknown>{
+  const t=r?.detailedClaimTimeBar,d=r?.registerDetermination;
+  return {
+    ...(t&&typeof t==='object'?{detailedClaimStatus:t.status,detailedClaimTriggerBasis:t.triggerBasis,detailedClaimTriggerDateIso:t.triggerDateIso,
+      detailedClaimDueDateIso:t.dueDateIso,detailedClaimAllowedDays:t.allowedDays,detailedClaimDaysToSubmission:t.daysToSubmission,detailedClaimBasis:t.basis}:{}),
+    ...(d&&typeof d==='object'?{registerDeterminationText:d.text,registerDeterminationDateIso:d.dateIso,registerDeterminationDays:d.days,registerDeterminationReference:d.reference}:{}),
+  };
+}
+
 export interface AskProducerContext {state:ProjectRuntimeState}
 const percent:Partial<Column>={type:'number',unit:'%',aggregate:'none'};
 const quantity:Partial<Column>={type:'number',unit:'row unit',aggregate:'sum'};
@@ -63,10 +75,10 @@ const registrations:Record<string,Registration>={
   'variations-change':{id:'variations',concepts:['variation','change order','تغيير'],domains:['commercial']},
   'commercial-claims-notices':{id:'financial-claims',concepts:['financial claim','claimed amount','money claim'],domains:['claims','commercial']},
   'contract-particulars-bonds':{id:'contract',concepts:['contract particulars','bonds','insurance','retention','العقد','ضمان'],domains:['commercial','claims']},
-  'delay-claims':{id:'delay',concepts:['delay event','delay claim','تأخير'],domains:['claims','schedule'],tables:['events','rows']},
-  'notices-claims':{id:'notices',concepts:['notice','claim notice','اخطار'],domains:['claims'],tables:['claimsReporting.current.notices']},
+  'delay-claims':{id:'delay',concepts:['delay event','delay claim','تأخير'],domains:['claims','schedule'],tables:['events','rows','claimsReporting.reported.rows']},
+  'notices-claims':{id:'notices',concepts:['notice','claim notice','اخطار'],domains:['claims'],tables:['claimsReporting.current.notices','claimsReporting.reported.rows']},
   'windows-analysis':{id:'windows',concepts:['windows analysis','concurrent','causation','time impact'],domains:['claims','schedule'],tables:['windows','rows']},
-  'eot-assessment':{id:'eot',concepts:['eot','extension','claims','entitlement','تمديد'],domains:['claims','schedule'],metrics:[['officialApprovedEotDays','Approved EOT','calendar days'],['analyticalTimeImpactCandidateDays','Analytical time impact candidate — not entitlement','calendar days'],['officialAdjustedCompletionIso','Official adjusted completion',null]],tables:['windowCandidates']},
+  'eot-assessment':{id:'eot',concepts:['eot','extension','claims','entitlement','تمديد'],domains:['claims','schedule'],metrics:[['officialApprovedEotDays','Approved EOT','calendar days'],['analyticalTimeImpactCandidateDays','Analytical time impact candidate — not entitlement','calendar days'],['officialAdjustedCompletionIso','Official adjusted completion',null]],tables:['windowCandidates','claimsReporting.reported.rows']},
   'procurement-packages':{id:'procurement',concepts:['procurement','package','مشتريات','توريد'],domains:['delivery','commercial']},
   'material-tracking':{id:'materials',concepts:['material','ordered','delivered','installation','المواد','تسليم'],domains:['delivery','boq','schedule']},
   'long-lead':{id:'long-lead',concepts:['long lead','long-lead','transformer','lead time','latest order'],domains:['delivery','commercial','schedule']},
@@ -121,7 +133,7 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope,plan?:Analysis
   if(intelligence.longLead.length)b.table('long-lead-candidates','Candidate long-lead items',intelligence.longLead,'Professional long-lead screening of actual BOQ scope. Priority is advisory; confirmed supplier lead time and latest order date require Project/supplier evidence.',{...overrides,packageCandidate:{label:'Candidate package',dimension:true},procurementPriority:{label:'Professional priority',dimension:true},amount:{unit:'row currency'}});
   const drivers=intelligence.topCostDrivers.flatMap(group=>group.items.map((row,index)=>({rank:index+1,...row})));
   if(drivers.length)b.table('top-cost-drivers','Top cost drivers by currency',drivers,'Top 20 readable BOQ line amounts within each currency. No exchange rate is assumed across currencies.',{...overrides,rank:{type:'number'},amount:{unit:'row currency'},discipline:{dimension:true},zone:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true}});
-  if(intelligence.risks.length)b.table('candidate-risks','BOQ-derived candidate management risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
+  if(intelligence.risks.length)b.table('candidate-risks','Candidates from BOQ wording, not risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
   if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ items are readable. CMeng has also classified the scope it can support from the BOQ itself: '+intelligence.coverage.discipline+' discipline-classified items, '+intelligence.coverage.location+' location-classified items, '+intelligence.packages.length+' candidate packages and '+intelligence.longLead.length+' candidate long-lead items. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This BOQ source is awaiting confirmation.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
@@ -150,7 +162,8 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
         :key==='construction-locations'
           ?p.records.filter(r=>['workfront','location'].includes(r.kind)&&!['superseded','scenario'].includes(r.state)).length
           :0;
-  const useBoqCandidates=governedRows.length===0&&candidateRows.length>0&&relevantSourceRecords===0;
+  // SW-32: Ask follows the Delivery Risks rule; BOQ wording never becomes the risk list, counts or position.
+  const useBoqCandidates=key!=='delivery-risks'&&governedRows.length===0&&candidateRows.length>0&&relevantSourceRecords===0;
   const state=useBoqCandidates?'candidate':evidenceState(result.status);
   const explanation=useBoqCandidates?'No current confirmed '+title.toLowerCase()+' register is available, so CMeng is showing useful scope intelligence derived from the BOQ. Candidate classifications are clearly separated from actual supplier/status records.':result.reason??'';
   const b=new AuthorityBuilder(id,title,key,scope,state,explanation);
@@ -275,7 +288,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     return b.result;
   }
   for(const [path,name,unit] of registration.metrics??[])b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
-  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
+  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,...askClaimRegisterColumns(r),late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
     b.metric('dataDate','Programme Data Date',scope.dataDate,null,'Selected programme authority.',{fact:true});
     sharedMetric('source-finish','Submitted programme completion',shared.schedule.submittedProgrammeCompletionIso,null);

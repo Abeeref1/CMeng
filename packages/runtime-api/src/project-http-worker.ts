@@ -1,7 +1,7 @@
 import {flushWorkerCompileCache} from './worker-compile-cache';
 import {parentPort,workerData} from 'node:worker_threads';
 import {createCmengServer,projectDocumentRegister} from './server';
-import {runtimeProjects} from './project-state';
+import {runtimeProjects,normalizeProjectCode} from './project-state';
 import {projectMetadata} from './project-catalog';
 import {scheduleIdleProjectWork} from './project-idle-work';
 import {noteDeferredReading} from './document-read-review';
@@ -47,7 +47,7 @@ void (async()=>{
       documentId,
       diagnosticCodes:result.diagnostics.map(item=>item.split(':')[0]),
     }));
-    if(result.changedProjects.includes(id)){publishDocuments();publishMetadata();}
+    if(result.changedProjects.some(changed=>normalizeProjectCode(changed)===normalizeProjectCode(id))){publishDocuments();publishMetadata();}
     return pendingPdfIds.length>0;
   },{idleMillis:4000,onError:error=>console.error('CMENG_DEFERRED_PDF_WORK_FAILED:'+String(error))});
 

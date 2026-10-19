@@ -1,0 +1,61 @@
+name: CMeng Agent Check
+
+# Builds one pushed candidate and runs the test files and J8 batches named in .ci/tests.txt
+# and .ci/j8.txt on that branch. Used for fast parallel verification of single fixes.
+# Test files, assertions and the tests' own timeouts are not changed.
+on:
+  push:
+    branches: ['verifier/ci-**']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact candidate
+        run: npm run build
+      - name: Run named tests
+        shell: bash
+        run: |
+          set +e
+          code=0
+          files=""
+          if [ -f .ci/tests.txt ]; then
+            for t in $(grep -v '^#' .ci/tests.txt); do files="$files dist/tests/$t.test.js"; done
+          fi
+          if [ -n "$files" ]; then
+            node --test --test-concurrency=1 --test-reporter=tap $files > tests.tap 2>&1; c=$?; [ $c -ne 0 ] && code=$c
+            echo "== named tests"; grep -E '^# (tests|pass|fail|cancelled)' tests.tap | tail -4
+            grep -E '^not ok|^    not ok' tests.tap | head -40
+            grep -A30 -E '^not ok|^    not ok' tests.tap | grep -E 'location:|error:|^ +[+-] |expected:|actual:' | head -60
+          fi
+          if [ -f .ci/j8.txt ]; then
+            while IFS= read -r p; do
+              [ -z "$p" ] && continue
+              node --test --test-concurrency=1 --test-reporter=tap "--test-name-pattern=$p" dist/tests/j8-feature-batch-blind-acceptance.test.js > j8.tap 2>&1; c=$?; [ $c -ne 0 ] && code=$c
+              echo "== j8 $p"; grep -E '^# (tests|pass|fail)' j8.tap | tail -3
+              grep -A30 '^not ok' j8.tap | grep -E 'error:|^    [A-Z0-9].*|expected:|actual:' | head -20
+              cat j8.tap >> tests.tap
+            done < .ci/j8.txt
+          fi
+          echo "exit_code=$code"
+          exit $code
+      - name: Keep TAP output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tap-check
+          path: tests.tap
+          if-no-files-found: ignore

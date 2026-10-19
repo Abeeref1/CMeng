@@ -43,13 +43,14 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
   capacityConfirmations:(state.resourceCapacityConfirmations??[]).filter(row=>row.sourceRevisionId===current.revision.revisionId)}):null;
   const weeklyAssignedResourceCount=new Set(summary.points.map(p=>p.resourceId).filter(Boolean)).size;
   const distinctResourceCount=summary.masterResources.length||summary.observedResourceCount||hourly?.resourceCount||summary.resourceCount;
-  const distinctAssignedResourceCount=hourly?.assignedResourceCount??0;
+  // SW-46: without a stored resource model the assignment counts are not established (null), never 0.
+  const distinctAssignedResourceCount=hourly?hourly.assignedResourceCount:resourceModel?0:null;
   data={...(hourly??{schemaVersion:'1.0',projectionKey:'resource_utilization',rows:[],assignedResourceCount:0,assignmentRecordCount:0,resourcePopulationBasis:'weekly_resource_evidence'}),
    producerVersion:'resource-source-integration-v1',generatedAt,projectId:state.projectId,sourceRevisionId:current?.revision.revisionId??null,dataDateIso:summary.dataDateIso,
    utilizationBasis:'separate_p6_rates_and_weekly_evidence',resourcePopulationBasis:hourly?'p6_assignments':'weekly_resource_evidence',
    weeklyObservedResourceCount:weeklyAssignedResourceCount,sourceMasterResourceCount:summary.masterResources.length,p6ResourceMasterCount:hourly?.resourceCount??null,
    resourceCount:hourly?.resourceCount??distinctResourceCount,assignedResourceCount:distinctAssignedResourceCount,
-   assignmentRecordCount:resourceModel?.assignments.length??0,
+   assignmentRecordCount:resourceModel?resourceModel.assignments.length:null,
    resourcePeriodRowCount:summary.rowCount,comparableResourcePeriodRowCount:summary.comparableRowCount,
    utilizationApplicableResourceCount:summary.resourceCount,capacityBasedResourceCount:hourly?.capacityBasedResourceCount??0,
    capacityCoveragePercent:hourly?.capacityCoveragePercent??null,weeklyCapacityCoveragePercent:summary.capacityCoveragePercent,perHourCapacityBasedResourceCount:hourly?.capacityBasedResourceCount??0,

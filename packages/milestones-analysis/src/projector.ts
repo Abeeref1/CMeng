@@ -1,6 +1,6 @@
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {naturalCompare} from '../../shared/src/natural-order';
-import { parseScheduleTime } from "../../schedule-analysis-core/src";
+import { parseScheduleTime, finishVarianceBetween, firstSourceCalendars } from "../../schedule-analysis-core/src";
 import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   nearCriticalThresholdBasis,
@@ -20,7 +20,64 @@ import type {
   MilestoneMovementBasis,
   MilestoneRow,
   MilestonesProjection,
+  CompletedLateMilestone,
+  CompletedLateMilestones,
 } from "./types";
+
+/**
+ * F49: completed milestones that finished late. One shared rule.
+ * Milestone date = finish date (start date for a start milestone, the same
+ * pairing as the row's baselineDateIso / actualDateIso).
+ * Late when actual > baseline. lateWorkingDays = working hours between the two
+ * instants on the milestone's own source calendar / that calendar's working-day
+ * length (finishVarianceBetween); null when the calendar is unusable. A completed
+ * milestone without both dates is "not comparable" (unknown), never on time.
+ */
+export function completedLateMilestones(
+  model: CanonicalScheduleModel,
+  rows: readonly MilestoneRow[],
+): CompletedLateMilestones {
+  const calendars = firstSourceCalendars(model.calendars ?? []);
+  const completedRows = rows.filter((row) => row.status === "completed");
+  const notComparable: string[] = [];
+  const late: CompletedLateMilestone[] = [];
+  let comparable = 0;
+  for (const row of completedRows) {
+    const baselineMs = dateMs(row.baselineDateIso);
+    const actualMs = dateMs(row.actualDateIso);
+    if (baselineMs === null || actualMs === null || !row.baselineDateIso || !row.actualDateIso) {
+      notComparable.push(row.activityId);
+      continue;
+    }
+    comparable++;
+    if (!(actualMs > baselineMs)) continue;
+    const calendar = row.calendarId ? calendars.get(row.calendarId) ?? null : null;
+    const variance = finishVarianceBetween(baselineMs, actualMs, calendar);
+    late.push({
+      activityId: row.activityId,
+      name: row.name,
+      calendarId: row.calendarId,
+      baselineDateIso: row.baselineDateIso,
+      actualDateIso: row.actualDateIso,
+      lateCalendarDays: Number(variance.calendarDays.toFixed(6)),
+      lateWorkingDays: variance.workingDays,
+    });
+  }
+  late.sort((a, b) =>
+    (b.lateWorkingDays ?? -Infinity) - (a.lateWorkingDays ?? -Infinity) ||
+    b.lateCalendarDays - a.lateCalendarDays ||
+    naturalCompare(a.activityId, b.activityId));
+  return {
+    basis: "actual_date_after_baseline_date",
+    formula: "days late (working) = working hours between baseline date and actual date on the milestone calendar / that calendar's working-day hours; late when actual date > baseline date",
+    completedCount: completedRows.length,
+    comparableCount: comparable,
+    notComparableCount: notComparable.length,
+    notComparableActivityIds: notComparable,
+    count: late.length,
+    milestones: late,
+  };
+}
 
 function dateMs(value: string | null): number | null {
   if (!value) return null;
@@ -589,6 +646,7 @@ export function buildMilestonesProjection(
         .map(
           (row) => row.activityId,
         ),
+    completedLate: completedLateMilestones(model, rows),
     rows,
   };
 }

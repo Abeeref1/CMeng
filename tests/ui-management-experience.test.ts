@@ -161,7 +161,7 @@ test('result-first pages retain source context after their result in every role'
   for(const role of ['overall','planning','controls','project-director','program-director','executive']){
     const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("progress-scurve",{},"PRIMARY-CHART")',{
       ...common,selectedRoleView:role,roleViews:{[role]:{label:role}},experienceBrief:()=>({facts:[],note:'ROLE-NOTE',review:''}),
-      experienceSourceContext:()=>'SOURCE-DETAIL',experiencePreview:()=>'PRIMARY-CHART',
+      experienceSourceContext:()=>'SOURCE-DETAIL',experiencePreview:(view:string)=>({preview:'PRIMARY-CHART',rest:view}),
     });
     assert.ok(html.indexOf('PRIMARY-CHART')<html.indexOf('SOURCE-DETAIL'),role);
     assert.match(html,/SOURCE-DETAIL/);
@@ -295,7 +295,7 @@ test('all six lenses retain access to the full module and leadership does not in
   const roleViews=Object.fromEntries(roles.map(r=>[r,{label:r}]));
   for(const role of roles){
     const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>","<aside>comparison</aside>",true)',{
-      ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>chart</svg>'
+      ...common,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[{label:'Known value',value:17,display:'17',basis:'Source'}],note:'Current position',review:'Review one specific issue.'}),experienceSourceContext:()=>'',experiencePreview:(view:string)=>({preview:'<svg>chart</svg>',rest:view})
     });
     assert.equal((html.match(/evidence-row/g)||[]).length,1,role);
     assert.match(html,/comparison/,role);
@@ -323,7 +323,7 @@ test('Task 56 role lenses lead with materially different canonical management co
   } as Record<string,string[]>;
   for(const role of roles){
     const html=runInNewContext(functions(['experienceRoleContent','experienceDisclosure','experienceRoleReview','experienceRoleLensContext','pageRoleLensContext','findProjectionRoot','roleLensFacts','roleLensTable','experienceValue'])+';experienceRoleContent("test",{},"<table>evidence-row</table>")',{
-      ...common,overview,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[],note:'',review:''}),experienceSourceContext:()=>'',experiencePreview:()=>'<svg>page-chart</svg>',
+      ...common,overview,selectedRoleView:role,roleViews,experienceBrief:()=>({facts:[],note:'',review:''}),experienceSourceContext:()=>'',experiencePreview:(view:string)=>({preview:'<svg>page-chart</svg>',rest:view}),
       renderProjectDiagnosis:()=>'',renderCompletionPosition:()=>''
     });
     for(const phrase of expected[role]!)assert.ok(html.includes(phrase),role+' missing '+phrase);

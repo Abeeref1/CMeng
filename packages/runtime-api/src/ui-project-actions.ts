@@ -160,7 +160,7 @@ function renderProjectActionList(){
   return '<article class="project-action '+(information?'action-information'+(a.target?.kind?.startsWith('review-')?' action-review-recorded':''):team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
-   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+ownerMissingHtml(a.owner,a.accountableRole)+'</p>'+records+
+   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+(a.assignedOwner?escapeHtml(a.assignedOwner)+' <small>Assigned in CMeng</small>':ownerMissingHtml(a.owner,a.accountableRole))+'</p>'+records+(information?'':actionAssignEditor(a))+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner))).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
@@ -180,6 +180,26 @@ async function resolveReviewDecision(id){
  setActionBusy(id,true);actionMessage(id,'Recording the decision…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,sourceFingerprint:a.reviewFingerprint,choice,matrixText,noticeSourceKeys:Array.from(node?.querySelectorAll('.review-notice-source:checked')||[]).map(input=>input.value),locationAssignmentsText:node?.querySelector('.review-location-assignments')?.value,activityIds:(node?.querySelector('.review-activity-ids')?.value||'').split(/\r?\n/).map(id=>id.trim()).filter(Boolean),asOfIso:node?.querySelector('.review-as-of')?.value,additionalDays:node?.querySelector('.review-additional-days')?.value,enteredValue:node?.querySelector('.review-entered-value')?.value,reference:node?.querySelector('.review-reference')?.value,reviewedRates:Object.fromEntries(['trir','trirBasisHours','ltifr','ltifrBasisHours'].map(key=>[key,node?.querySelector('.review-hse-'+key)?.value]))})});
+  if(project()===owner)await refresh(false);
+ }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+}
+/** T09: inline owner and due-date inputs (save and clear) for an open action. */
+function actionAssignEditor(a){
+ return (a.assignedDueIso?'<p><b>Assigned due date:</b> '+escapeHtml(planningShortDate(a.assignedDueIso))+(a.assignedOverdue===true?' · overdue at the Data Date':'')+'</p>':'')+
+  '<div class="action-assign"><label>Owner <input class="action-assign-owner" maxlength="120" autocomplete="name" value="'+escapeHtml(a.assignedOwner||'')+'"></label> '+
+  '<label>Due date <input type="date" class="action-assign-due" value="'+escapeHtml(a.assignedDueIso||'')+'"></label> '+
+  '<button type="button" class="management-module-link" data-assign-save="'+escapeHtml(a.id)+'">Save owner and due date</button>'+
+  (a.assignmentState==='assigned'?' <button type="button" class="management-module-link" data-assign-clear="'+escapeHtml(a.id)+'">Clear</button>':'')+
+  '<p class="action-inline-message" aria-live="polite"></p></div>';
+}
+async function saveActionAssignment(id,clear=false){
+ if(!actionStateCurrent()||projectActionState.status!=='ready')return;
+ const owner=project(),version=projectActionState.data.projectVersion,node=actionNode(id);
+ const body=clear?{action:'clear'}:{owner:(node?.querySelector('.action-assign-owner')?.value||'').trim(),dueIso:node?.querySelector('.action-assign-due')?.value||''};
+ if(!clear&&!body.owner&&!body.dueIso){actionMessage(id,'Enter an owner name or a due date.');return;}
+ setActionBusy(id,true);actionMessage(id,clear?'Clearing…':'Saving…');
+ try{
+  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/assign',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,...body})});
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
@@ -288,6 +308,8 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{if(!names[b.dataset.actionModule])return;const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);syncBrowserRoute();renderNav();loadModule(selected);});
  root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
  root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview));
+ root.querySelectorAll('[data-assign-save]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignSave));
+ root.querySelectorAll('[data-assign-clear]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignClear,true));
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
  root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));

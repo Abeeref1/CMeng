@@ -33,7 +33,8 @@ function experienceManagementReading(key,brief){
  const facts=(brief.facts||[]).filter(item=>item.value!==null&&item.value!==undefined&&item.display!=='Not established').slice(0,4);
  const absent=(brief.facts||[]).filter(item=>item.value===null||item.value===undefined||item.display==='Not established').slice(0,3);
  if(!facts.length&&!absent.length&&!brief.review)return '';
- const established=facts.length?'<p><b>Established from project records:</b> '+facts.map(f=>escapeHtml(f.label)+': <strong>'+escapeHtml(f.display)+'</strong>').join(' · ')+'</p>':'';
+ const explanation=f=>f.explanationHtml||(f.basis?escapeHtml(f.basis):'');
+ const established=facts.length?'<p><b>Established from project records:</b> '+facts.map(f=>escapeHtml(f.label)+': <strong>'+escapeHtml(f.display)+'</strong>'+(explanation(f)?' <small class="figure-explanation">('+explanation(f)+')</small>':'')).join(' · ')+'</p>':'';
  const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. This is not a zero result.</p>':'';
  const attention=brief.review?'<p><b>What needs attention:</b> '+escapeHtml(brief.review)+'</p>':'';
  const context=brief.note?'<details><summary>How to interpret these figures</summary><p>'+escapeHtml(brief.note)+'</p></details>':'';
@@ -341,28 +342,81 @@ function experienceRoleLensContext(role,data){
   }
   return '';
 }
+// T10 SW-44: a small HTML element scanner, so the page layout helpers below work
+// on the page HTML string itself (pure functions, no DOM). Each element keeps its
+// tag, attributes, classes and [start,end) offsets; unclosed elements are marked.
+function experienceHtmlElements(html){
+  const text=String(html??''),out=[],stack=[];
+  const voids=/^(?:area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/;
+  const tags=/<!--[\s\S]*?-->|<\/([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+  let m;
+  while((m=tags.exec(text))){
+    if(m[1]){const name=m[1].toLowerCase();for(let i=stack.length-1;i>=0;i--)if(stack[i].tag===name){stack[i].end=tags.lastIndex;stack[i].closed=true;stack.length=i;break;}continue;}
+    if(!m[2])continue;
+    const attrs=m[3]||'',cls=(/(?:^|\s)class\s*=\s*"([^"]*)"/.exec(attrs)||/(?:^|\s)class\s*=\s*'([^']*)'/.exec(attrs)||[])[1]||'';
+    const node={tag:m[2].toLowerCase(),attrs,classes:cls.split(/\s+/).filter(Boolean),start:m.index,end:tags.lastIndex,closed:false};
+    out.push(node);
+    if(voids.test(node.tag)||/\/\s*$/.test(attrs))node.closed=true;else stack.push(node);
+  }
+  return out;
+}
+// Role views lead with a short chart preview. The preview panels are moved, not
+// copied: the returned rest is the same page without them, so each chart is
+// printed once and nothing is removed from the page.
 function experiencePreview(primaryView,limit=2){
-  const host=document.createElement('template');host.innerHTML=primaryView;
-  const panels='[data-visual-panel],.chart-card,.planning-panel';
-  const visual='svg,.visual-bars,.donut-ring,.certificate-columns,.date-ladder,.cash-movement-bars,.waterfall-chart,.milestone-date-chart,.lookahead-timeline,.signed-bars,.status-band,.pressure-matrix,.float-histogram,.constraint-bars,.finish-period-bars';
-  // All chart families share the overview, including planning timelines. Select leaf panels so a register or entire module is never copied into the preview.
-  const charts=[...host.content.querySelectorAll(panels)].filter(n=>!n.querySelector(panels)&&!n.querySelector('table')&&n.querySelector(visual));
-  return charts.length?'<div class="experience-preview">'+charts.slice(0,limit).map(n=>n.outerHTML).join('')+'</div>':'';
+  const view=String(primaryView??''),nodes=experienceHtmlElements(view).filter(n=>n.closed);
+  const visual=['visual-bars','donut-ring','certificate-columns','date-ladder','cash-movement-bars','waterfall-chart','milestone-date-chart','lookahead-timeline','signed-bars','status-band','pressure-matrix','float-histogram','constraint-bars','finish-period-bars'];
+  const isPanel=n=>/(?:^|\s)data-visual-panel(?:[\s=]|$)/.test(n.attrs)||n.classes.includes('chart-card')||n.classes.includes('planning-panel');
+  const isVisual=n=>n.tag==='svg'||n.classes.some(c=>visual.includes(c));
+  const inside=(outer,inner)=>inner.start>outer.start&&inner.end<=outer.end;
+  const panels=nodes.filter(isPanel);
+  // All chart families share the overview, including planning timelines. Select leaf panels so a register or entire module is never moved into the preview.
+  const charts=panels.filter(p=>!panels.some(q=>q!==p&&inside(p,q))&&!nodes.some(n=>n.tag==='table'&&inside(p,n))&&nodes.some(n=>isVisual(n)&&inside(p,n))).slice(0,limit);
+  if(!charts.length)return {preview:'',rest:view};
+  let rest='',at=0;for(const chart of charts){rest+=view.slice(at,chart.start);at=chart.end;}rest+=view.slice(at);
+  return {preview:'<div class="experience-preview">'+charts.map(chart=>view.slice(chart.start,chart.end)).join('')+'</div>',rest};
+}
+function experienceRegExpText(value){return String(value).replace(/[.*+?^$(){}|[\]\\]/g,'\\$&');}
+// SW-44: the summary box and the page's figure cards share one printed-figure
+// list. A card that repeats a figure the summary prints (same label, same shown
+// value) keeps its label and explanation and shows "Shown above" instead of the
+// value; the summary carries that card's explanation, so nothing unique is lost.
+function experienceShareSummaryFigures(brief,primaryView){
+  let view=String(primaryView??'');
+  const printed=new Set((brief.facts||[]).filter(item=>item.value!==null&&item.value!==undefined&&item.display!=='Not established').slice(0,4));
+  const facts=(brief.facts||[]).map(f=>{
+    if(!printed.has(f))return f;
+    const label=experienceRegExpText(escapeHtml(f.label)),shown=experienceRegExpText(escapeHtml(f.display));
+    let explanationHtml=null;
+    const keep=(head,small,text)=>{if(explanationHtml===null&&text)explanationHtml=text;return head;};
+    view=view.replace(new RegExp('(<div class="planning-kpi[^"]*"><span>'+label+'</span>)<strong>'+shown+'</strong>(<small>([^<]*)</small>)?','g'),(all,head,small,text)=>keep(head,small,text)+'<strong class="figure-shown-above">Shown above</strong>'+(small||''));
+    view=view.replace(new RegExp('(<div class="kpi-label">'+label+'</div>)<div class="kpi-value">'+shown+'</div>(<div class="kpi-sub">([^<]*)</div>)?','g'),(all,head,small,text)=>keep(head,small,text)+'<div class="kpi-value figure-shown-above">Shown above</div>'+(small||''));
+    return explanationHtml?{...f,explanationHtml}:f;
+  });
+  return {brief:{...brief,facts},view};
 }
 function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTechnical=false){
-  const role=selectedRoleView,brief=experienceBrief(key,data),leadership=['project-director','program-director','executive'].includes(role);
+  const role=selectedRoleView,shared=key==='pmo-analysis'?{brief:experienceBrief(key,data),view:primaryView}:experienceShareSummaryFigures(experienceBrief(key,data),primaryView),brief=shared.brief,leadership=['project-director','program-director','executive'].includes(role);
+  primaryView=shared.view;
   const roleContext=experienceRoleLensContext(role,data);
   const reading=key==='pmo-analysis'?'':experienceManagementReading(key,brief);
   const briefHtml=role==='overall'?'':'<section class="experience-brief"><div class="experience-brief-heading"><h4>Page-specific review</h4><span>'+escapeHtml(roleViews[role].label)+'</span></div>'+(brief.note?'<p>'+escapeHtml(brief.note)+'</p>':'')+experienceRoleReview(role,brief,key,data)+'</section>';
   const analysis='<div class="role-primary-analysis">'+primaryView+'</div>';
+  // Each lens shows a chart once: the preview charts lead and the full-detail
+  // disclosure holds the rest of the same page.
+  const lensPreview=role==='overall'||role==='planning'||key==='pmo-analysis'?null:experiencePreview(primaryView,role==='executive'?1:2);
+  const lensRest=lensPreview?'<div class="role-primary-analysis">'+lensPreview.rest+'</div>':analysis;
   // Planning keeps the full technical page visible. Controls leads with its
   // canonical variance/forecast context and a concise visual preview. Director
   // and executive lenses lead with cross-domain decisions. Every lens retains
   // one unchanged full-detail disclosure, so presentation never changes facts.
-  const content=key==='pmo-analysis'?(role==='overall'?analysis:roleContext+analysis):role==='overall'?analysis
+  // F52: the Management Brief opens with its answer. A role lens's activity
+  // tables (for example every finish-driving activity with its float) follow the
+  // brief, collapsed; nothing is removed.
+  const content=key==='pmo-analysis'?(role==='overall'||!roleContext?analysis:analysis+experienceDisclosure('Role detail · '+roleViews[role].label,roleContext,'Activity tables for this role; same project facts')):role==='overall'?analysis
     :role==='planning'?roleContext+analysis
-    :role==='controls'?roleContext+experiencePreview(primaryView,2)+experienceDisclosure('Detailed controls, charts and records',analysis,'Same canonical page facts')
-    :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+experiencePreview(primaryView,role==='executive'?1:2)+experienceDisclosure('All charts and records',analysis,'Full details for this page');
+    :role==='controls'?roleContext+lensPreview.preview+experienceDisclosure('Detailed controls, charts and records',lensRest,'Same canonical page facts')
+    :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+lensPreview.preview+experienceDisclosure('All charts and records',lensRest,'Full details for this page');
   const sourceContext=experienceSourceContext(key,data);
   if(['variance-trends','progress-scurve','manhour-scurve','quantity-scurve','commercial-claims-notices','contract-particulars-bonds'].includes(key))return '<div class="role-view-'+role+'">'+reading+content+briefHtml+experienceDisclosure('Source context',sourceContext,'Supporting records and basis')+challengeHtml+'</div>';
   return '<div class="role-view-'+role+'">'+reading+content+briefHtml+experienceDisclosure('Additional source context',sourceContext,'Supporting information')+challengeHtml+'</div>';

@@ -1,4 +1,4 @@
-import {canonicalHeader,selectCostMetricRows} from '../../truth-kernel/src';
+import {canonicalHeader,selectCostMetricRows,securityStatusAtDataDate} from '../../truth-kernel/src';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
@@ -225,14 +225,15 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  const bondTables=tables.filter(t=>has(t,'bond id')&&(has(t,'bond type')||has(t,'type')));
  const refreshedBondDocuments=new Set(bondTables.map(t=>t.document.documentId));
- const bonds:BondRecord[]=state.controls.bonds.filter(row=>!row.sourceRefs.some(ref=>[...refreshedBondDocuments].some(id=>ref.startsWith('evidence-document:'+id+':'))));
+ // F02: a carried-over stored status is re-decided at the current Data Date by the shared rule.
+ const bonds:BondRecord[]=state.controls.bonds.filter(row=>!row.sourceRefs.some(ref=>[...refreshedBondDocuments].some(id=>ref.startsWith('evidence-document:'+id+':')))).map(row=>({...row,status:securityStatusAtDataDate(row,dataDateIso)}));
  for(const t of bondTables)for(const r of t.rows){
   const instrument=cell(r,'bond type','type'),bondId=cell(r,'bond id');
   if(!bondId||!instrument)continue;
   if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+bondId))continue;
   const expiryIso=dateValue(cell(r,'expiry date','expiration date','valid until'));
   const rawStatus=cell(r,'status');
-  const status:BondRecord['status']=/released|returned|cancelled|canceled/i.test(rawStatus)?'released':expiryIso&&dataDateIso?expiryIso<dataDateIso?'expired':'active':/expired/i.test(rawStatus)?'expired':'active';
+  const status:BondRecord['status']=securityStatusAtDataDate({status:rawStatus,expiryIso,releaseIso:dateValue(cell(r,'release date','released on','return date'))},dataDateIso);
   const kind:BondRecord['kind']=/performance/i.test(instrument)?'performance':/advance/i.test(instrument)?'advance_payment':/retention/i.test(instrument)?'retention':'other';
   const value=moneyFromHeader(r,amountHeader(t.headers,'bond amount','guarantee amount','amount'),'security face value',inheritedCurrency,dataDateIso);
   bonds.push({bondId,kind,status,expiryIso,amount:value.value,currency:value.currency??'',sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator]});
