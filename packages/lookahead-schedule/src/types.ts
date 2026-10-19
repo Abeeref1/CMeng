@@ -29,10 +29,9 @@ export type ReadinessDimensionState =
   | "not_applicable";
 
 export interface ReadinessEvidence {
-  state: Exclude<
-    ReadinessDimensionState,
-    "not_applicable"
-  >;
+  // SW-18: a source can state that a dimension is not applicable; that is its
+  // own state (not ready, not blocked, not unknown).
+  state: ReadinessDimensionState;
   sourceRefs: string[];
   note?: string | null;
   diagnostics?: string[];
@@ -60,6 +59,8 @@ export interface LookAheadReadiness {
   readyCount: number;
   blockedCount: number;
   unknownCount: number;
+  /** SW-18: not-applicable dimensions, shown apart from ready/blocked/unknown. */
+  notApplicableCount?: number;
   dimensions: ReadinessDimension[];
 }
 
