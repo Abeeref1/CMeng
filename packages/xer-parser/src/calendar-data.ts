@@ -193,11 +193,20 @@ function intervalFromNode(
   diagnostics: string[],
 ): P6CalendarInterval | null {
   const attrs = attrMap(node.attributes);
-  const start = attrs.get("s");
-  const finish = attrs.get("f");
+  return intervalFromTimes(attrs.get("s"), attrs.get("f"), node.name, diagnostics);
+}
+
+/** One work period from its stated start and finish (HH:MM). Shared by the
+ * XER structured text and the P6 XML WorkTime fields. */
+function intervalFromTimes(
+  start: string | null | undefined,
+  finish: string | null | undefined,
+  label: string,
+  diagnostics: string[],
+): P6CalendarInterval | null {
   if (!start && !finish) return null;
   if (!start || !finish) {
-    diagnostics.push(`CALENDAR_INTERVAL_INCOMPLETE:${node.name}`);
+    diagnostics.push(`CALENDAR_INTERVAL_INCOMPLETE:${label}`);
     return null;
   }
 
@@ -223,7 +232,13 @@ function intervalsFrom(
     const interval = intervalFromNode(child, diagnostics);
     if (interval) intervals.push(interval);
   }
+  return orderedIntervals(intervals, diagnostics);
+}
 
+function orderedIntervals(
+  intervals: P6CalendarInterval[],
+  diagnostics: string[],
+): P6CalendarInterval[] {
   const sorted = [...intervals].sort((a, b) => {
     return (timeToMinutes(a.start) ?? 0) - (timeToMinutes(b.start) ?? 0);
   });
@@ -518,6 +533,85 @@ export function parseP6CalendarData(source: string): P6CalendarDataResult {
     days: days.sort((a, b) => a.dayIndex - b.dayIndex),
     exceptions: exceptions.sort((a, b) => a.serialDay - b.serialDay),
     unknownTopLevelNodes,
+    diagnostics,
+  };
+}
+
+/** A work period as stated by separate source fields (P6 XML WorkTime Start
+ * and Finish), already as HH:MM. */
+export interface P6StatedWorkPeriod {
+  start: string | null;
+  finish: string | null;
+}
+
+/** The same calendar result as parseP6CalendarData, from working time stated
+ * as fields (P6 XML Calendar StandardWorkWeek and HolidayOrExceptions)
+ * instead of XER clndr_data text. Days are P6 day indexes (1 = Sunday). The
+ * same interval, day, exception and status rules apply, so both P6 formats
+ * give one calendar model. A day without periods is a non-working day; an
+ * exception without periods is a non-working date. */
+export function p6CalendarDataFromWorkPeriods(input: {
+  days: ReadonlyArray<{ dayIndex: number | null; label: string; periods: readonly P6StatedWorkPeriod[] }>;
+  exceptions: ReadonlyArray<{ isoDate: string | null; label: string; periods: readonly P6StatedWorkPeriod[] }>;
+}): P6CalendarDataResult {
+  const diagnostics: string[] = [];
+  const periodsToIntervals = (periods: readonly P6StatedWorkPeriod[]) => {
+    const intervals: P6CalendarInterval[] = [];
+    for (const period of periods) {
+      const interval = intervalFromTimes(period.start, period.finish, "WorkTime", diagnostics);
+      if (interval) intervals.push(interval);
+    }
+    return orderedIntervals(intervals, diagnostics);
+  };
+
+  const days: P6CalendarDay[] = [];
+  const seen = new Set<number>();
+  for (const day of input.days) {
+    const dayIndex = day.dayIndex;
+    if (dayIndex === null || !Number.isInteger(dayIndex) || dayIndex < 1 || dayIndex > 7) {
+      diagnostics.push(`CALENDAR_DAY_INDEX_INVALID:${day.label}`);
+      continue;
+    }
+    if (seen.has(dayIndex)) {
+      diagnostics.push(`CALENDAR_DAY_INDEX_DUPLICATE:${dayIndex}`);
+      continue;
+    }
+    seen.add(dayIndex);
+    const intervals = periodsToIntervals(day.periods);
+    days.push({
+      dayIndex,
+      intervals,
+      workMinutes: intervals.reduce((sum, item) => sum + item.minutes, 0),
+    });
+  }
+
+  const exceptions: P6CalendarException[] = [];
+  for (const exception of input.exceptions) {
+    const match = exception.isoDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const ms = match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : Number.NaN;
+    if (!match || !Number.isFinite(ms) || new Date(ms).toISOString().slice(0, 10) !== exception.isoDate) {
+      diagnostics.push(`CALENDAR_EXCEPTION_DATE_INVALID:${exception.label || "<missing>"}`);
+      continue;
+    }
+    const intervals = periodsToIntervals(exception.periods);
+    exceptions.push({
+      serialDay: Math.round((ms - Date.UTC(1899, 11, 30)) / 86400000),
+      isoDate: exception.isoDate!,
+      intervals,
+      nonWorking: intervals.length === 0,
+    });
+  }
+
+  return {
+    status: diagnostics.some((item) =>
+      /SYNTAX_ERROR|INVALID|DUPLICATE|OVERLAP|INCOMPLETE/.test(item),
+    )
+      ? "invalid"
+      : "valid",
+    root: null,
+    days: days.sort((a, b) => a.dayIndex - b.dayIndex),
+    exceptions: exceptions.sort((a, b) => a.serialDay - b.serialDay),
+    unknownTopLevelNodes: [],
     diagnostics,
   };
 }

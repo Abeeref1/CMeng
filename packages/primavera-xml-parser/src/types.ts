@@ -1,3 +1,5 @@
+import type { P6CalendarDataResult } from "../../xer-parser/src/calendar-data";
+
 export interface PrimaveraXmlProject {
   objectId: string | null;
   id: string | null;
@@ -8,6 +10,20 @@ export interface PrimaveraXmlProject {
   scheduledFinishDate?: string | null;
   /** Raw P6 XML Project.MustFinishByDate text (declared finish, XER plan_end_date). */
   mustFinishByDate?: string | null;
+  /** P6 XML Project.ActivityDefaultCalendarObjectId: the project's default activity calendar. */
+  activityDefaultCalendarObjectId?: string | null;
+}
+
+/** One P6 XML Calendar element. Its working time (StandardWorkWeek and
+ * HolidayOrExceptions) is read into the same P6 calendar model as XER
+ * clndr_data; null when the element states neither. */
+export interface PrimaveraXmlCalendar {
+  objectId: string | null;
+  name: string | null;
+  baseCalendarObjectId: string | null;
+  hoursPerDayRaw: string | null;
+  hoursPerWeekRaw: string | null;
+  data: P6CalendarDataResult | null;
 }
 
 export interface PrimaveraXmlActivity {
@@ -58,6 +74,8 @@ export interface PrimaveraXmlResult {
   /** Fields of every collected element except Activity: read, or unused with a sample (shared R1 report). */
   columnAudit?: Array<{table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}>;
   relationships: PrimaveraXmlRelationship[];
+  /** Calendar elements with their working time (additive). */
+  calendars?: PrimaveraXmlCalendar[];
   calendarsSeen: number;
   wbsSeen: number;
   activityCount: number;
