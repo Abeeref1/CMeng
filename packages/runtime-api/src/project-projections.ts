@@ -3450,7 +3450,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ),
         bonds:
           state.controls.bonds,
-        bondMonitoring:{expiredCount:canonicalCommercial.contractControls?.bondsInsurance.expiredBondCount??null,expiring30Count:canonicalCommercial.contractControls?.bondsInsurance.expiringBondCount==null?null:canonicalCommercial.contractControls.bondsInsurance.bonds.filter(row=>row.expiryState==='expiring_30').length},
+        bondMonitoring:{expiredCount:canonicalCommercial.contractControls?.bondsInsurance.expiredBondCount??null,expiring30Count:canonicalCommercial.contractControls?.bondsInsurance.expiringBondCount==null?null:canonicalCommercial.contractControls.bondsInsurance.bonds.filter(row=>row.securityState?.state==='expiring').length},
         commercialByCurrency:
           directorCommercialByCurrency,
         hseIncidents:

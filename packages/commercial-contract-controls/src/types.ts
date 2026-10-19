@@ -538,6 +538,10 @@ export interface InsurancePosition {
     | "date_missing";
   sourceRequirement: string | null;
   sourceRefs: string[];
+  /** F02: shared Data Date rule (additive field). */
+  securityState?: import('../../truth-kernel/src').SecurityStateResult;
+  /** F35: cover against the contract-stated period (additive field). */
+  coverage?: ReturnType<typeof import('./security-validity').insuranceCoverValidity>;
 }
 
 export interface BondsInsuranceProjection {
@@ -555,6 +559,8 @@ export interface BondsInsuranceProjection {
   activeBondCount: number | null;
   expiredBondCount: number | null;
   expiringBondCount: number | null;
+  /** F35: policies ending before their contract-stated cover period (additive). */
+  insuranceCoverGapCount?: number | null;
   activeInsuranceCount: number | null;
   expiredInsuranceCount: number | null;
   expiringInsuranceCount: number | null;
