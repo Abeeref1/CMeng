@@ -90,3 +90,81 @@ test("milestones: source-typed milestones are not reported as inferred from zero
   // A600 is typed "Milestone" in the file; only A700 was inferred.
   assert.deepEqual(result.milestones.inferredFromZeroDurationIds, ["A700"]);
 });
+
+test("completed work is excluded from the remaining duration figure", () => {
+  const projection = buildProgressBreakdownProjection(model(), {
+    generatedAt: "2026-01-08T00:00:00.000Z",
+    producerVersion: "t06-test",
+  });
+  const overall = projection.overallSummary!;
+  // Execution population excludes the level-of-effort A500: 9 activities.
+  assert.equal(overall.activityCount, 9);
+  assert.equal(overall.completedCount, 2);
+  // Unfinished execution work: A110 0 + A200 24 + A300 24 + A400 0 + A600 0
+  // + A700 0 + A800 8 = 56 hours. The completed A900 carries a stale 8 hours
+  // that must not be counted (the old figure was 64).
+  assert.equal(overall.remainingDurationHoursKnown, 56);
+  // Original duration still covers all execution work: 16+0+40+24+0+0+0+8+16 = 104.
+  assert.equal(overall.originalDurationHoursKnown, 104);
+});
+
+function activity(
+  id: string,
+  fields: Partial<CanonicalScheduleActivity>,
+): CanonicalScheduleActivity {
+  return {
+    projectId: "T06",
+    activityId: id,
+    nativeId: null,
+    name: id,
+    wbsId: "W1",
+    calendarId: "CAL5",
+    activityType: "task",
+    status: "not_started",
+    baselineStartIso: null,
+    baselineFinishIso: null,
+    currentStartIso: null,
+    currentFinishIso: null,
+    actualStartIso: null,
+    actualFinishIso: null,
+    forecastStartIso: null,
+    forecastFinishIso: null,
+    originalDurationHours: null,
+    remainingDurationHours: null,
+    totalFloatHours: null,
+    freeFloatHours: null,
+    percentComplete: null,
+    sourceRefs: [],
+    diagnostics: [],
+    ...fields,
+  };
+}
+
+test("completed work is excluded from remaining duration on every WBS row (typed model)", () => {
+  const m: CanonicalScheduleModel = {
+    projectId: "T06",
+    source: "xer",
+    sourceRevisionId: "t06-typed",
+    dataDateIso: "2026-01-08",
+    activities: [
+      // Completed, stale remaining 8 h in the source: must count as 0.
+      activity("B100", { status: "completed", originalDurationHours: 16, remainingDurationHours: 8, actualFinishIso: "2026-01-06", percentComplete: 100 }),
+      activity("B200", { status: "in_progress", originalDurationHours: 40, remainingDurationHours: 24, percentComplete: 40 }),
+      activity("B300", { status: "not_started", originalDurationHours: 24, remainingDurationHours: 24, percentComplete: 0 }),
+      // Unknown remaining stays out of the known sum.
+      activity("B400", { status: "not_started", originalDurationHours: 8, remainingDurationHours: null, percentComplete: 0 }),
+    ],
+    relationships: [],
+    wbs: [{ wbsId: "W1", name: "Substructure", parentWbsId: null, sourceRefs: [] }],
+    calendars: [],
+    diagnostics: [],
+  } as CanonicalScheduleModel;
+  const projection = buildProgressBreakdownProjection(m, {
+    generatedAt: "2026-01-08T00:00:00.000Z",
+    producerVersion: "t06-test",
+  });
+  // 24 + 24 = 48 hours of known remaining duration on unfinished work.
+  assert.equal(projection.overallSummary!.remainingDurationHoursKnown, 48);
+  const w1 = projection.rows.find((row) => row.wbsId === "W1")!;
+  assert.equal(w1.remainingDurationHoursKnown, 48);
+});
