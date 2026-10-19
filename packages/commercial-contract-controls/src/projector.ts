@@ -1,6 +1,6 @@
 import { partitionAsOf } from "../../truth-kernel/src";
 import {performanceSecurityValidity} from './security-validity';
-import { reportingScope } from "../../truth-kernel/src";
+import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
   CommercialFindingAuthority,
@@ -1887,6 +1887,7 @@ function bondsInsurance(
           );
         return {
           bondId: row.bondId,
+          securityState: securityStateAtDataDate(row,input.dataDateIso),
           contractValidity:performanceSecurityValidity(row,input.contractClauses,input.ldTime.programmeCompletionIso),
           kind: row.kind,
           status: row.status,
@@ -2040,26 +2041,19 @@ function bondsInsurance(
     activeBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.status ===
-            "active" &&
-          row.expiryState !==
-            "expired",
+          row.securityState?.inForce === true,
       ).length : null,
     expiredBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.expiryState ===
-          "expired" ||
-          row.status ===
-            "expired",
+          row.securityState?.state ===
+          "expired",
       ).length : null,
     expiringBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.expiryState ===
-            "expiring_30" ||
-          row.expiryState ===
-            "expiring_90",
+          row.securityState?.state ===
+            "expiring",
       ).length : null,
     activeInsuranceCount:
       insuranceDatesEstablished ? insurances.filter(

@@ -1,4 +1,5 @@
 import type {ProjectRuntimeState} from './project-state-types';
+import {securityCoverage} from '../../truth-kernel/src';
 import type {BondRecord} from '../../project-director/src';
 import {analyticalOperationalDocuments,sourceAnalyticalCandidateIds,SOURCE_ANALYTICAL_USE} from './operational-reporting';
 
@@ -26,7 +27,10 @@ export function securityValidityReview(state:ProjectRuntimeState,bonds:BondRecor
  return bonds.filter(b=>b.kind==='performance'&&b.status!=='released').map(b=>{
   const expiry=b.expiryIso?.slice(0,10)??null,finish=finishIso?.slice(0,10)??null;
   const daysAfterFinish=expiry&&finish?(Date.parse(expiry)-Date.parse(finish))/86400000:null;
+  // F35: shared coverage check against the required end (completion plus the contract defects period).
+  const coverage=securityCoverage({expiryIso:expiry,requiredEndIso:assumedEnd,requirementEstablished:requirements.length>0,requiredEndBasis:'programme completion plus the contract defects period'});
   return {bondId:b.bondId,expiryIso:expiry,programmeFinishIso:finish,daysAfterProgrammeFinish:daysAfterFinish,assumedDefectsEndIso:assumedEnd,
+   coverageState:coverage.coverageState,coverageGapDays:coverage.daysShort,coverageReason:coverage.reason,
    state:requirements.length?'review_required':'requirement_not_established',
    requirement:requirements.length?'Keep performance security valid through completion and the recorded defects-release obligation.':'The supplied contract does not establish the performance-security release condition.',
    finding:requirements.length?(assumedEnd&&expiry&&expiry<assumedEnd?'Security expires before the defects-period planning end.':daysAfterFinish!==null&&daysAfterFinish<0?'Security expires before programme completion.':'Validity through completion and remedy of defects is not demonstrated by the expiry date alone.'):'Check the security release condition against the applicable contract.',

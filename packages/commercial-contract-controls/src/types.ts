@@ -495,6 +495,8 @@ export interface LiquidatedDamagesProjection {
 }
 
 export interface BondPosition {
+  /** F02: shared Data Date rule (additive field). */
+  securityState?: import('../../truth-kernel/src').SecurityStateResult;
   contractValidity?:ReturnType<typeof import('./security-validity').performanceSecurityValidity>;
   bondId: string;
   kind: BondControlInput["kind"];
