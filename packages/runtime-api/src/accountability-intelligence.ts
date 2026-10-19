@@ -138,6 +138,15 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       d==='security'||d==='bond'||d==='insurance'?'Commercial Manager':
       'Project Controls Manager';
   };
+  // F54: an activity action names the RFI, NCR or package that concerns it, read
+  // from the linked source record (its activity links), not from wording.
+  const linkedRecordsByActivity=new Map<string,string[]>();
+  for(const item of eligible.values()){
+    if(actionRecordKey(item.domain,'').split('|')[0]==='schedule')continue;
+    const name=item.reference??item.recordId;
+    for(const id of item.activityIds){const list=linkedRecordsByActivity.get(id)??[];if(!list.includes(name))list.push(name);linkedRecordsByActivity.set(id,list);}
+  }
+  const namedList=(names:string[])=>names.slice(0,3).join(', ')+(names.length>3?' and '+(names.length-3)+' more':'');
   const actionRows:ManagementAction[]=[...byRecord.entries()].map(([key,items])=>{
     const first=eligible.get(key)!,dimension=(name:Dimension)=>items.find(item=>item.dimension===name)?.value??null;
     const organisation=dimension('organisation')??dimension('contractor')??dimension('subcontractor');
@@ -167,7 +176,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       domain==='schedule'?'Confirm the remaining work, driving logic, accountable delivery party and recovery date.':
       'Assign ownership, confirm the required completion date and close the underlying control item.';
     return managementAction({
-      actionId:'accountability:'+(['rfi','ncr'].includes(domain)?domain.toUpperCase():domain)+'|'+(first.reference??first.recordId),recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue,consequence,affectedScope:scope,affectedMilestones:[],
+      actionId:'accountability:'+(['rfi','ncr'].includes(domain)?domain.toUpperCase():domain)+'|'+(first.reference??first.recordId),recordKey:actionRecordKey(first.domain,first.reference??first.recordId),issue:(first.reference?first.reference+' · ':'')+first.issue+(domain==='schedule'&&first.activityIds.some(id=>linkedRecordsByActivity.has(id))?' · Linked records: '+namedList([...new Set(first.activityIds.flatMap(id=>linkedRecordsByActivity.get(id)??[]))]):''),consequence,affectedScope:scope,affectedMilestones:[],
       owner,organisation,requiredAction:owner?requiredAction:'Assign an accountable party. '+requiredAction,dueIso:first.dueDate,sourceOverdueDays:overdue,escalation:(overdue??0)>0?'Escalate because the required date is already past.':null,
       severity:completedRegisterFollowUp?'low':(overdue??0)>0||['procurement','ncr','rfi','schedule'].includes(domain)?'high':'medium',
       authority:first.authority==='confirmed_record'?'source':'source',sourceRefs:first.sourceRefs,
@@ -198,6 +207,8 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
     const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
     const sourceCount=new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size;
+    // F54: name the records, highest-ranked first (members keep the ranked order).
+    const memberNames=[...new Set(members.map(m=>{const id=String(m.actionId);return id.includes('|')?id.split('|').slice(1).join('|'):id.replace(/^[^:]*:/,'');}).filter(Boolean))];
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
     const sourceDueIso=members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null;
@@ -210,7 +221,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       dueIso:null,sourceDueIso,sourceOverdueDays,sourceOverdueCount,knownSourceOverdueCount,sourceUnknownDueRecordCount,
       escalation:knownSourceOverdueCount?'Escalate '+knownSourceOverdueCount+' overdue source record(s); the oldest required date is '+sourceOverdueDays+' calendar days past at the reporting date. Agree a follow-up deadline.':members.find(m=>m.escalation)?.escalation??null,
       recordKey:'accountability-owner-group:'+key,
-      issue:(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)',
+      issue:(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)'+(memberNames.length?': '+namedList(memberNames):''),
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
       affectedScope:scope.slice(0,20),
       requiredAction:first.requiredAction,
