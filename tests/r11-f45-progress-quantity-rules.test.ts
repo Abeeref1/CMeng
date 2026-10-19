@@ -219,19 +219,3 @@ test('F45 pages render progress by area, period and required rate, lump-sum quer
   'Required value / calendar day to contract completion','Installed value against certified gross work','Progress by area',
   'lump-sum items need checking'])assert.ok(html.includes(text),text);
 });
-
-test('F45 TEMP fixture dump',async()=>{
- const id=await reemCase(),state=runtimeProjects.get(id)!;
- const q:any=projectDecisionFacts(reportingState(state)).quantities;
- console.log('DUMP_DOCS '+JSON.stringify(state.evidenceDocuments.map((d:any)=>[d.sourceFilename,d.documentType,d.basisState,d.category])));
- console.log('DUMP_CONTRACTS '+JSON.stringify(state.contractDocuments.map((d:any)=>[d.documentId,d.role])));
- const facts=projectFactsForState(state);
- console.log('DUMP_TIME '+JSON.stringify(facts.time.governingContractCompletionIso)+' '+JSON.stringify(facts.time.contractualCompletionIso));
- console.log('DUMP_ITEMS '+JSON.stringify(q.items.map((r:any)=>[r.itemNumber,r.section,r.unit,r.area,r.areaMappingState,r.contractQuantity,r.installedQuantity,r.periodInstalledQuantity,r.installedValue,r.certifiedValue,r.currency])));
- console.log('DUMP_AREAS '+JSON.stringify(q.areas.map((a:any)=>[a.area,a.currency,a.itemCount,a.measuredItemCount,a.contractValue,a.installedValue,a.physicalProgressPercent,a.certifiedValue])));
- console.log('DUMP_MEAS '+JSON.stringify((reportingState(state) as any).quantities?.measurementReview));
- const c:any=(require('../packages/runtime-api/src/commercial-runtime') as any).commercialPositionForState(reportingState(state));
- console.log('DUMP_CERT '+JSON.stringify((c.certificateProfile?.groups??[]).map((g:any)=>[g.currency,g.taxBasis,g.cumulativeBasis,g.certifiedTotals,g.certifiedCount])));
- const qs:any=moduleForProject(id,'quantity-scurve').data;
- console.log('DUMP_QQ '+JSON.stringify(qs.quantityQueries));
-});
