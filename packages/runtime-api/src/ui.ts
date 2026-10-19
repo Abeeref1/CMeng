@@ -7585,6 +7585,9 @@ async function bootstrapWorkspace(){
   if(storedProject){
     try{
       await openProject(storedProject);
+      // F01: the address names the page. A reload or link on Portfolio or
+      // Projects keeps that page; the remembered project stays loaded behind it.
+      if(initialView==='portfolio'||initialView==='projects'){setAppView(initialView);return;}
       if(initialView==='ai')setAppView('ai');
       loadPortfolio();
       return;
