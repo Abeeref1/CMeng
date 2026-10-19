@@ -21,7 +21,10 @@ const mask=(text:string)=>text
   .replace(/20\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/g,(v)=>/^2026-1[0-2]/.test(v)?'<ts>':v)
   .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,'<uuid>')
   .replace(/("[A-Za-z]*Ms"):\s*-?\d+(?:\.\d+)?/g,'$1:<ms>')
-  .replace(/\b17\d{11}\b/g,'<epoch>');
+  .replace(/\b17\d{11}\b/g,'<epoch>')
+  .replace(/cmeng-r12-perf2-[A-Za-z0-9]{6}/g,'<root>')
+  .replace(/Session [0-9a-f]{8} \(identity unverified\)/g,'Session <session> (identity unverified)')
+  .replace(/"snapshotHash":"[0-9a-f]{64}"/g,'"snapshotHash":"<hash>"');
 const hash=(text:string)=>createHash('sha256').update(text).digest('hex').slice(0,16);
 function pagePath(projectId:string,page:(typeof moduleRegistry)[number]){
   return '/api/projects/'+encodeURIComponent(projectId)+(page.area==='management'?'/management/'+page.key:'/'+page.area+'/modules/'+page.key);

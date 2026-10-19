@@ -492,6 +492,12 @@ export function prepareEvidenceRows(
 }
 
 const tableCache = new Map<string, SourceTable>();
+// T11: a multi-sheet workbook was read again (file, hash and every sheet's
+// analysis) on every call, while a single-sheet table is kept by the same
+// content key. Its sheets and the diagnostics its reading reported are kept by
+// that key too; a hit returns them with the caller's current document object,
+// exactly as a new reading of the same content would.
+const workbookCache = new Map<string, {tables:Array<{table:SourceTable;retyped:boolean}>;diagnostics:string[]}>();
 export function sourceTables(documents: readonly EvidenceDocument[], diagnostics: string[], options: {includeHistorical?: boolean} = {}): SourceTable[] {
   const result: SourceTable[] = [], hashes = new Set<string>();
   for (const doc of [...documents].sort((a,b)=>Number(b.basisState!=='candidate')-Number(a.basisState!=='candidate'))) {
@@ -507,10 +513,17 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
       const reviewedType=doc.classificationDecision&&doc.classificationDecision.sourceHash===identity&&doc.classificationDecision.documentType!=='mixed_register_workbook'?doc.classificationDecision.documentType:undefined;
       const key = [doc.documentId, identity, doc.documentType, reviewedType, doc.tabularRead?.producerVersion, semanticFingerprint, doc.basisState, doc.linkedArtifactId, confirmationFingerprint, doc.storedPath, stat.size, stat.mtimeMs, stat.ctimeMs].join(':');
       const cached = tableCache.get(key); if (cached) { result.push(cached); continue; }
+      const workbook = workbookCache.get(key);
+      if (workbook) {
+        diagnostics.push(...workbook.diagnostics);
+        for (const {table,retyped} of workbook.tables) result.push({...table,document:retyped?({...doc,documentType:table.document.documentType} as EvidenceDocument):doc});
+        continue;
+      }
       const bytes = readFileSync(doc.storedPath);
       if (createHash('sha256').update(bytes).digest('hex') !== identity) { diagnostics.push('SOURCE_HASH_MISMATCH:' + doc.documentId); continue; }
       const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf16le' : 'utf8';
       const sheets=doc.tabularRead?.sourceHashSha256===identity?doc.tabularRead.sheets:[{name:'CSV',rows:csv(bytes.toString(encoding)),...(doc.csvSemantic?{semantic:doc.csvSemantic}:{})}];
+      const diagnosticsFrom=diagnostics.length,tablesFrom=result.length,retypedTables=new Set<SourceTable>();
       for(const sheet of sheets){
         const confirmations=(doc.tableConfirmations??[]).filter(c=>c.sheetName===sheet.name);
         const storedSemantic=('semantic' in sheet&&sheet.semantic?.documentType)?sheet.semantic:undefined;
@@ -556,6 +569,11 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
         }))};
         // Multi-sheet workbooks remain distinct and retain their sheet/row references.
         if(sheets.length===1){if(tableCache.size>=64)tableCache.delete(tableCache.keys().next().value!);tableCache.set(key,table);}result.push(table);
+        if(effectiveDocument!==doc)retypedTables.add(table);
+      }
+      if(sheets.length>1){
+        if(workbookCache.size>=64)workbookCache.delete(workbookCache.keys().next().value!);
+        workbookCache.set(key,{tables:result.slice(tablesFrom).map(table=>({table,retyped:retypedTables.has(table)})),diagnostics:diagnostics.slice(diagnosticsFrom)});
       }
     } catch (error) { diagnostics.push('SOURCE_READ_FAILURE:' + doc.documentId + ':' + (error instanceof Error ? error.message : 'unknown')); }
   }

@@ -15,7 +15,12 @@ export function responseSourceLabels(catalogue:Record<string,string>|undefined,v
  const selected:Record<string,string>={};
  catalogue={...(catalogue??{})};
  const scanned=new Set<object>();
+ // T11: the identity pass walks the same objects in the same order (same
+ // skipped key, same once-only objects) as the alias pass did, so it records
+ // the strings for the alias pass instead of walking the response twice.
+ const strings:string[]=[];
  const identify=(input:any):void=>{
+  if(typeof input==='string'){strings.push(input);return;}
   if(!input||typeof input!=='object'||scanned.has(input))return;scanned.add(input);
   if(Array.isArray(input)){input.forEach(identify);return;}
   const identities=[['populationId',input.name??input.populationName??({execution_control:'Execution activities',source_records:'Source activity records',unfinished_execution:'Remaining execution activities'} as Record<string,string>)[String(input.basis)]],['revisionId',input.label??input.revisionName??input.sourceFilename],['itemId',input.itemNumber],['quantityItemId',input.itemNumber]];
@@ -23,7 +28,6 @@ export function responseSourceLabels(catalogue:Record<string,string>|undefined,v
   for(const[key,child]of Object.entries(input))if(key!=='sourceLabels')identify(child);
  };
  identify(value);
- const seen=new Set<object>();
  // A string or token selects the same aliases every time it is read (the
  // catalogue is complete before this pass), so each is read once.
  const readStrings=new Set<string>(),readTokens=new Set<string>();
@@ -35,14 +39,9 @@ export function responseSourceLabels(catalogue:Record<string,string>|undefined,v
    const last=candidate.lastIndexOf(':');if(last<0)break;candidate=candidate.slice(0,last);
   }
  };
- const visit=(input:any,key='')=>{
-  if(key==='sourceLabels')return;
-  if(typeof input==='string'){
-   if(readStrings.has(input))return;readStrings.add(input);
-   add(input);for(const token of identityTokens(input))add(token);return;
-  }
-  if(!input||typeof input!=='object'||seen.has(input))return;seen.add(input);
-  if(Array.isArray(input))input.forEach(v=>visit(v));else for(const[k,v]of Object.entries(input))visit(v,k);
- };
- visit(value);return selected;
+ for(const text of strings){
+  if(readStrings.has(text))continue;readStrings.add(text);
+  add(text);for(const token of identityTokens(text))add(token);
+ }
+ return selected;
 }
