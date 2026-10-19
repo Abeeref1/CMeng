@@ -122,11 +122,36 @@ export interface ProjectFactsSnapshot {
       certifiedUnpaidAmount:ProjectFact<number>;
       advanceBalance:ProjectFact<number>;
       activeBondAmount:ProjectFact<number>;
+      /** F20: summary of the shared dated cash series (commercial position datedCashSeries). */
+      cashSeries?:{
+        periodCount:number;latestActualPeriod:string|null;
+        latestPeriod:{period:string;certified:number|null;paid:number|null;sourceRefs:string[]}|null;
+        certifiedToDate:number|null;paidToDate:number|null;
+        forecastBasis:string;forecastBasisLabel:string;forecastReason:string|null;
+        nextForecastPeriod:string|null;nextForecast:{forecastIncome:number|null;forecastExpenditure:number|null}|null;
+        forecastIncomeTotal:number|null;forecastExpenditureTotal:number|null;
+      };
     }>;
   };
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+
+/** F20: the brief and every page read one dated cash series; this is its summary per currency. */
+function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|undefined,currency:string){
+  const row=series?.currencies.find(c=>c.currency===currency);
+  if(!row)return {};
+  const actual=row.periods.filter(p=>p.certified!==null||p.paid!==null);
+  const latest=actual.at(-1)??null,next=row.nextForecastPeriod?row.periods.find(p=>p.period===row.nextForecastPeriod)??null:null;
+  return {cashSeries:{
+    periodCount:row.periods.length,latestActualPeriod:row.latestActualPeriod,
+    latestPeriod:latest?{period:latest.period,certified:latest.certified,paid:latest.paid,sourceRefs:latest.sourceRefs.slice(0,10)}:null,
+    certifiedToDate:row.certifiedToDate,paidToDate:row.paidToDate,
+    forecastBasis:row.forecastBasis,forecastBasisLabel:row.forecastBasisLabel,forecastReason:row.forecastReason,
+    nextForecastPeriod:row.nextForecastPeriod,nextForecast:next?{forecastIncome:next.forecastIncome,forecastExpenditure:next.forecastExpenditure}:null,
+    forecastIncomeTotal:row.forecastIncomeTotal,forecastExpenditureTotal:row.forecastExpenditureTotal,
+  }};
+}
 
 function fact<T>(
   value:T|null,
@@ -587,6 +612,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
           row.activeBondAmount,
           'Valid active security amounts only; currencies remain separate.',
         ),
+        ...cashSeriesSummary(commercial.datedCashSeries,row.currency),
       })),
     },
   };

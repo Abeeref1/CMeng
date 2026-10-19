@@ -171,12 +171,24 @@ function renderProjectBrief(d,data=null){
   ['Major / critical NCRs',controls.openCriticalMajorNcrCount,'Open source records, qualified if incomplete'],
   ['Open risks',controls.openRiskCount,'Register count only when established']
  ];
+ // F20: the cost line reads the one shared dated cash series (projectFacts commercial cashSeries).
+ const cashAmount=(v,currency)=>v===null||v===undefined?'Not established':fmt(v)+' '+currency;
+ const briefCashSeries=c=>{
+  const s=c.cashSeries;
+  if(!s||!s.periodCount)return '<p><b>'+escapeHtml(c.currency)+' dated cash series:</b> Not established. No dated certificates, receipts or forecast periods are recorded in this currency.</p>';
+  const latest=s.latestPeriod;
+  const next=s.nextForecastPeriod&&s.nextForecast?' Next forecast period '+escapeHtml(s.nextForecastPeriod)+': '+escapeHtml(s.nextForecast.forecastIncome!==null?cashAmount(s.nextForecast.forecastIncome,c.currency)+' income/work value':'')+escapeHtml(s.nextForecast.forecastExpenditure!==null?(s.nextForecast.forecastIncome!==null?', ':'')+cashAmount(s.nextForecast.forecastExpenditure,c.currency)+' expenditure':'')+'.':'';
+  return '<p><b>'+escapeHtml(c.currency)+' dated cash series:</b> '+(latest?'latest period '+escapeHtml(latest.period)+' certified '+escapeHtml(cashAmount(latest.certified,c.currency))+', paid '+escapeHtml(cashAmount(latest.paid,c.currency))+'; ':'')+
+   'to the Data Date certified '+escapeHtml(cashAmount(s.certifiedToDate,c.currency))+', paid '+escapeHtml(cashAmount(s.paidToDate,c.currency))+' over '+escapeHtml(fmt(s.periodCount))+' monthly period(s). '+
+   'Forecast basis: '+escapeHtml(s.forecastBasisLabel)+'.'+next+(s.forecastBasis==='not_established'&&s.forecastReason?' '+escapeHtml(s.forecastReason):'')+'</p>';
+ };
  const deliveryAndCommercial='<section class="diagnosis-section"><h4>Delivery controls and commercial exposure</h4>'+
   planningKpis(deliveryRows.map(row=>[row[0],displayFact(row[1]),row[2]]))+
   (financial.length?financial.slice(0,2).map(c=>'<p><b>'+escapeHtml(c.currency)+' commercial position:</b> Current contract value '+escapeHtml(displayFact(c.currentContractValue))+
     '; approved variation amount '+escapeHtml(displayFact(c.approvedVariationAmount))+
     '; CPI '+escapeHtml(displayFact(c.cpi))+
-    '; forecast cost at completion '+escapeHtml(displayFact(c.forecastEac))+'.</p>').join(''):'<p>No reconciled currency-specific commercial position is available.</p>')+
+    '; forecast cost at completion '+escapeHtml(displayFact(c.forecastEac))+
+    '; certified unpaid '+escapeHtml(displayFact(c.certifiedUnpaidAmount))+'.</p>'+briefCashSeries(c)).join(''):'<p>No reconciled currency-specific commercial position is available.</p>')+
   '<p>These are independent source measures. Do not add variations to the current contract value or infer cost performance without a consistent stated basis.</p>'+
   '<p>'+managementModuleLink('commercial-overview','Open Commercial Overview')+' '+managementModuleLink('cross-domain-accountability','Open accountable team work')+'</p></section>';
  const sourceDetails='<details class="management-brief-support"><summary>Full completion calculations and evidence qualifications</summary>'+

@@ -4232,6 +4232,9 @@ function renderCommercialVisual(key,data){
         const budgetValue=metricValue(row.expenditureBudget);
         const forecastValue=metricValue(row.expenditureForecast);
         const netReady=sourceReadiness?sourceReadiness.netCashReady===true:netValue!==null;
+        // F20/F29: the shared dated cash series for this currency; its forecast basis replaces a bare "No source rows".
+        const datedSeries=(position.datedCashSeries?.currencies||[]).find(series=>series.currency===row.currency)||null;
+        const sourceExpenditureForecast=Boolean(datedSeries&&datedSeries.forecastBasis==="source_cash_flow_forecast"&&datedSeries.points.some(point=>point.kind==="forecast"&&point.flow==="expenditure"));
         const readinessStateLabel=state=>state==="ready"?"Ready":state==="not_aggregable"?"Needs series basis":state==="partial"?"Partial":"Missing";
         const readinessTone=state=>state==="ready"?"ready":state==="not_aggregable"?"partial":"blocked";
         const basisLabel=basis=>basis==="no_rows"?"No source rows":basis==="project_cumulative"?"Project cumulative":basis==="certificate_cumulative"?"Certificate cumulative":basis==="incremental"?"Incremental":basis==="mixed"?"Mixed":"Unknown";
@@ -4301,7 +4304,7 @@ function renderCommercialVisual(key,data){
                 '<div><span>Expenditure plan coverage</span><b>'+escapeHtml(readinessStateLabel(sourceReadiness.forwardPlan.state))+'</b></div>'+
                 '<span class="badge '+readinessTone(sourceReadiness.forwardPlan.state)+'">'+escapeHtml(sourceReadiness.forwardPlan.state==="missing"&&sourceReadiness.forwardPlan.budgetRecordCount===0&&sourceReadiness.forwardPlan.forecastRecordCount===0?"Not established":fmt(sourceReadiness.forwardPlan.budgetRecordCount)+" budget · "+fmt(sourceReadiness.forwardPlan.forecastRecordCount)+" forecast")+'</span>'+
                 '<small>'+escapeHtml(sourceReadiness.forwardPlan.consequence||"")+'</small>'+
-                '<div class="cash-readiness-basis"><span>Budget / forecast basis</span><b>'+escapeHtml(basisLabel(sourceReadiness.forwardPlan.budgetBasis)+" / "+basisLabel(sourceReadiness.forwardPlan.forecastBasis))+'</b></div>'+
+                '<div class="cash-readiness-basis"><span>Budget / forecast basis</span><b>'+escapeHtml(basisLabel(sourceReadiness.forwardPlan.budgetBasis)+" / "+(sourceReadiness.forwardPlan.forecastBasis==="no_rows"&&sourceExpenditureForecast?"Source cash-flow forecast (future periods)":basisLabel(sourceReadiness.forwardPlan.forecastBasis)))+'</b></div>'+
                 managementModuleLink("cost-forecast",sourceReadiness.forwardPlan.state==="ready"?"Open source":"Resolve source")+
               '</div>'+
             '</div>'
@@ -4351,6 +4354,17 @@ function renderCommercialVisual(key,data){
             renderCashMovementBars(knownPeriodMovements,row.currency)
           ));
         }
+        const seriesAmount=value=>value===null||value===undefined?"Not established":experienceValue(value,row.currency);
+        const datedSeriesPanel=datedSeries
+          ? '<details class="cash-flow-register-detail dated-cash-series"'+(datedSeries.periods.length?' open':'')+'><summary><div><b>Dated cash series by month</b><span>'+escapeHtml(fmt(datedSeries.periods.length))+' periods</span></div><small>Cash forecast basis: '+escapeHtml(datedSeries.forecastBasisLabel)+'</small></summary>'+
+              (datedSeries.forecastReason?'<p class="certificate-footnote">'+escapeHtml(datedSeries.forecastReason)+'</p>':'')+
+              (datedSeries.periods.length
+                ? '<div class="table-wrap"><table><thead><tr><th>Period</th><th>Certified</th><th>Paid</th><th>Forecast income / work value</th><th>Forecast expenditure</th><th>Sources</th></tr></thead><tbody>'+
+                  datedSeries.periods.map(period=>'<tr><td>'+escapeHtml(period.period)+'</td><td>'+escapeHtml(seriesAmount(period.certified))+'</td><td>'+escapeHtml(seriesAmount(period.paid))+'</td><td>'+escapeHtml(seriesAmount(period.forecastIncome))+'</td><td>'+escapeHtml(seriesAmount(period.forecastExpenditure))+'</td><td>'+escapeHtml(fmt(period.sourceRefs.length))+'</td></tr>').join("")+
+                  '</tbody></table></div>'
+                : '<div class="empty-visual">No dated certificates, receipts or forecast periods are recorded in this currency.</div>')+
+            '</details>'
+          : '';
         const register=entries.length
           ? '<details class="cash-flow-register-detail"><summary><div><b>Confirmed dated cash-flow register</b><span>'+escapeHtml(screenCountText(listTotal(entries)))+' entries</span></div><small>Receipts, payments and document references</small></summary><div class="cash-flow-register-body">'+table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+'</div></details>'
           : '';
@@ -4362,6 +4376,7 @@ function renderCommercialVisual(key,data){
           curve+
           experienceDisclosure("Cash inputs and coverage",readinessGrid,"Receipts, expenditure and plan")+
           (secondary.length?'<div class="commercial-visual-grid cash-flow-secondary">'+secondary.join("")+'</div>':'')+
+          datedSeriesPanel+
           register+
           diagnostics+
           '</div></section>';

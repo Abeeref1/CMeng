@@ -1,6 +1,7 @@
 import {sourceCommercialEvidence} from './source-commercial-evidence';
 import {certificateProfile} from "./certificate-profile";
 import {programmeCashScenario} from './programme-cash-scenario';
+import {buildDatedCashSeries} from './dated-cash-series';
 import {projectControlSchedule} from './canonical-time-claims';
 import {amendmentAmounts,variationBasisReview,costBasisReview} from "./commercial-basis-review";
 import {contractNoticeRules} from "./contract-notice-rules";
@@ -241,6 +242,8 @@ export function commercialPositionForState(
   const submittedProgrammeFinish=sourceFinishDates.length?
     sourceFinishDates.reduce((latest,date)=>Date.parse(date)>Date.parse(latest)?date:latest):null;
   position.programmeCashScenario=programmeCashScenario(position,sourceCommercialCutoff,submittedProgrammeFinish);
+  // F20/F29: the one shared dated cash series (certified, paid, forecast by month).
+  position.datedCashSeries=buildDatedCashSeries(state,position,sourceCommercialCutoff);
   cache.set(
     state,
     {
