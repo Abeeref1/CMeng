@@ -33,6 +33,24 @@ export function ownerDisplayState(owner:string|null|undefined):{named:boolean;ro
  * missing (null with ownerState / accountableOwnerState 'missing') or still held as a
  * role-only placeholder reads "Owner not set · Accountable role: <role>". Any other
  * value is returned unchanged. The browser script embeds this same function. */
+/** T09: the one due-date rule for screens, downloads and Ask. A due date the user
+ * assigned (assignmentState 'assigned') is used first; otherwise the action's own due
+ * date. Unknown stays null. The browser script embeds this same function. */
+export function apiDueIso(row:any,field:string='dueIso'):string|null{
+ if(row&&row.assignmentState==='assigned'&&typeof row.assignedDueIso==='string'&&row.assignedDueIso)return row.assignedDueIso;
+ const value=row?row[field]:null;
+ return typeof value==='string'&&value?value:null;
+}
+
+/** T09: overdue = the due date from apiDueIso is before the Data Date and the action is
+ * still open. An assigned due date uses the server's assignedOverdue (which also checks
+ * that the action is open). Unknown (no due date or no Data Date) stays null. */
+export function apiDueOverdue(row:any,dataDateIso:string|null|undefined,field:string='dueIso'):boolean|null{
+ if(row&&row.assignmentState==='assigned'&&typeof row.assignedDueIso==='string'&&row.assignedDueIso)return typeof row.assignedOverdue==='boolean'?row.assignedOverdue:null;
+ const due=apiDueIso(row,field),dataDate=typeof dataDateIso==='string'&&dataDateIso?dataDateIso.slice(0,10):null;
+ return due&&dataDate?due.slice(0,10)<dataDate:null;
+}
+
 export function apiOwnerText(row:any,field:string='owner'):unknown{
  if(field==='owner'&&row&&typeof row.assignedOwner==='string'&&row.assignedOwner.trim())return row.assignedOwner.trim();
  const value=row?row[field]:null;

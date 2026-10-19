@@ -5,7 +5,7 @@ import {decisionFactsScript} from './ui-decision-facts';
 import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
 import {conditionalNotice} from './conditional-notice';
-import {pmcRoleOwner,apiOwnerText} from './action-priority';
+import {pmcRoleOwner,apiOwnerText,apiDueIso,apiDueOverdue} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
@@ -689,6 +689,8 @@ async function api(path,opts={}){
  * owners through this one helper so such an owner shows as "Owner not set" with its
  * role, never blank and never replaced by another field. Other values are unchanged. */
 ${apiOwnerText.toString()}
+${apiDueIso.toString()}
+${apiDueOverdue.toString()}
 function escapeHtml(s){if(s===null||s===undefined)return"";return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))return"application/zip";if(n.endsWith(".xer"))return"text/plain";if(n.endsWith(".xml"))return"application/xml";if(n.endsWith(".csv"))return"text/csv";if(n.endsWith(".pdf"))return"application/pdf";if(n.endsWith(".docx"))return"application/vnd.openxmlformats-officedocument.wordprocessingml.document";if(n.endsWith(".png"))return"image/png";if(n.endsWith(".jpg")||n.endsWith(".jpeg"))return"image/jpeg";if(n.endsWith(".tif")||n.endsWith(".tiff"))return"image/tiff";if(n.endsWith(".bmp"))return"image/bmp";if(n.endsWith(".webp"))return"image/webp";if(n.endsWith(".xlsm"))return"application/vnd.ms-excel.sheet.macroEnabled.12";return file.type||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
 function inferScheduleRole(name){const n=name.toLowerCase();if(/(?:^|[_ .-])(draft|scenario|proposed)(?:[_ .-]|$)/.test(n))return"scenario";if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}
@@ -5233,10 +5235,11 @@ function commandActionItems(data){
   const key=(String(row.issue||"")+"|"+String(row.requiredAction||"")+"|"+(row.affectedScope||[]).join("|")).toLowerCase().replace(/\s+/g," ").trim();
   if(!key||unique.has(key))continue;unique.set(key,row);
  }
- return [...unique.values()].sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||(a.dueIso||"9999").localeCompare(b.dueIso||"9999"));
+ return [...unique.values()].sort((a,b)=>(rank[a.severity]??2)-(rank[b.severity]??2)||((typeof apiDueIso==='function'?apiDueIso(a):a.dueIso)||"9999").localeCompare((typeof apiDueIso==='function'?apiDueIso(b):b.dueIso)||"9999"));
 }
 function actionDeadlineText(action){
- const parts=[action.dueIso?'Action due '+planningShortDate(action.dueIso):'Follow-up deadline not agreed'];
+ const due=typeof apiDueIso==='function'?apiDueIso(action):action.dueIso,assigned=action.assignmentState==='assigned'&&!!action.assignedDueIso;
+ const parts=[due?(assigned?'Assigned due ':'Action due ')+planningShortDate(due)+(assigned&&action.assignedOverdue===true?' (overdue at the Data Date)':''):'Follow-up deadline not agreed'];
  if(action.sourceDueIso)parts.push('Earliest source due '+planningShortDate(action.sourceDueIso));
  if(action.sourceOverdueDays>0)parts.push('Source overdue '+fmt(action.sourceOverdueDays)+' calendar days at reporting date');
  return parts.join(' · ');
@@ -5270,9 +5273,10 @@ function renderCommandAccountability(data){
   if(action.severity==='critical'||action.severity==='high')group.material++;
   for(const milestone of action.affectedMilestones||[])if(milestone)group.milestones.add(milestone);
   for(const scope of action.affectedScope||[])if(scope)group.scopes.add(scope);
-  if(action.dueIso){
-   const due=String(action.dueIso).slice(0,10);
-   if(dd&&due<dd)group.overdue++;
+  const actionDue=typeof apiDueIso==='function'?apiDueIso(action):action.dueIso;
+  if(actionDue){
+   const due=String(actionDue).slice(0,10);
+   if(typeof apiDueOverdue==='function'?apiDueOverdue(action,dd)===true:(dd&&due<dd))group.overdue++;
    if(!group.nextDue||due<group.nextDue)group.nextDue=due;
   }
   if(action.sourceDueIso&&(!group.sourceDue||action.sourceDueIso<group.sourceDue))group.sourceDue=action.sourceDueIso;
@@ -5547,7 +5551,7 @@ async function loadAccountabilityGroup(encodedKey,page=0){
   const data=await api('/api/projects/'+encodeURIComponent(owner)+'/record-page?'+params);
   if(project()!==owner||seq!==projectRequestSeq||request!==accountabilityGroupSequence||currentModuleResult!==result)return;
   if(!Array.isArray(data.rows))throw new Error('Source action rows unavailable');
-  const rows=data.rows.map(row=>'<tr><td>'+escapeHtml(readerText(row.issue))+'</td><td>'+escapeHtml(pmcDisplayOwner(row.owningModule,(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner)))+'</td><td>'+escapeHtml(planningShortDate(row.dueIso))+'</td><td>'+escapeHtml(readerText(row.consequence||''))+'</td><td>'+escapeHtml(readerText(row.requiredAction))+'</td><td>'+accountabilityEvidenceLink(row)+'</td><td>'+accountabilityFixLink(row)+'</td></tr>').join('');
+  const rows=data.rows.map(row=>'<tr><td>'+escapeHtml(readerText(row.issue))+'</td><td>'+escapeHtml(pmcDisplayOwner(row.owningModule,(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner)))+'</td><td>'+escapeHtml(planningShortDate(typeof apiDueIso==='function'?apiDueIso(row):row.dueIso))+'</td><td>'+escapeHtml(readerText(row.consequence||''))+'</td><td>'+escapeHtml(readerText(row.requiredAction))+'</td><td>'+accountabilityEvidenceLink(row)+'</td><td>'+accountabilityFixLink(row)+'</td></tr>').join('');
   target.innerHTML='<p>Showing '+(data.total?data.offset+1:0)+'–'+Math.min(data.offset+data.rows.length,data.total)+' of '+data.total+' member actions.</p><div class="table-wrap"><table><thead><tr><th>Source action</th><th>Owner</th><th>Due</th><th>Consequence</th><th>Required action</th><th>Evidence</th><th>Place to fix</th></tr></thead><tbody>'+rows+'</tbody></table></div><button '+(page===0?'disabled ':'')+'onclick="loadAccountabilityGroup(&quot;'+encodedKey+'&quot;,'+(page-1)+')">Previous</button><button '+(!data.hasMore?'disabled ':'')+'onclick="loadAccountabilityGroup(&quot;'+encodedKey+'&quot;,'+(page+1)+')">Next</button>';
  }catch(error){if(project()===owner&&request===accountabilityGroupSequence)target.textContent='Action records could not load. Reopen the group to retry.';}
 }
