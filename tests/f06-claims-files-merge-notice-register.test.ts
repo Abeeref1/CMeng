@@ -39,6 +39,9 @@ const NOTICES='Notice Ref,Notice Date,Event ID,Subject\n'+
  'NTC-003,2026-05-18,EV-03,Notice of delay - utility diversion\n'+
  'NTC-004,2026-06-20,,Notice of delay - general weather conditions\n'+
  'NTC-005,,EV-05,Notice of delay - additional scope';
+// A notice document: one letter stating its reference, its date and the event it notifies.
+const LETTER='PROJECT CORRESPONDENCE\nReference: LTR-NTC-006\nDate: 2026-07-20\nSubject: Notice of delay - unforeseen ground conditions\n\n'+
+ 'Dear Sir,\nWe give notice under Sub-Clause 20.2 of delay event EV-06, unforeseen ground conditions found in the basement excavation.\n';
 const xer=(project:string)=>['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\t'+project+'\t2026-08-31',
  '%T\tPROJWBS','%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name','%R\t10\t1\t\tW1\tWorks',
  '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\ttarget_start_date\ttarget_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt',
@@ -53,7 +56,7 @@ async function withServer(fn:(base:string)=>Promise<void>){
 const pause=()=>new Promise(resolve=>setTimeout(resolve,15));
 async function upload(base:string,project:string,filename:string,body:string){
  await pause();
- const response=await fetch(base+'/api/projects/'+project+'/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':filename,'x-source-relative-path':'Uploads/'+filename},body});
+ const response=await fetch(base+'/api/projects/'+project+'/evidence/uploads',{method:'POST',headers:{'content-type':/\.txt$/.test(filename)?'text/plain':'text/csv','x-source-filename':filename,'x-source-relative-path':'Uploads/'+filename},body});
  assert.equal(response.status,201,await response.clone().text());
  return await response.json() as {documentId:string;documentType:string};
 }
@@ -79,7 +82,7 @@ const claimsPages=[['schedule','delay-claims'],['schedule','notices-claims'],['s
 test('F06: two claims files and a notice register uploaded through the real path: union of claims, one conflict query, notices linked to their events',async()=>{
  await withServer(async base=>{
   const project='F06-CLAIMS-FILES-UPLOAD-ORDER';
-  const {state,uploaded}=await claimsProject(base,project,[['Claims_Register.csv',CLAIMS],['EOT_Register.csv',EOT],['Notice_Register.csv',NOTICES]]);
+  const {state,uploaded}=await claimsProject(base,project,[['Claims_Register.csv',CLAIMS],['EOT_Register.csv',EOT],['Notice_Register.csv',NOTICES],['Notice_Letter_EV06.txt',LETTER]]);
 
   const delay=await page(base,project,'schedule','delay-claims');
   const notices=await page(base,project,'schedule','notices-claims');
@@ -90,8 +93,10 @@ test('F06: two claims files and a notice register uploaded through the real path
   assert.deepEqual(notices.claims.map((c:any)=>c.claimId).sort(),['CLM-01','CLM-02','CLM-03','CLM-04','CLM-05','CLM-06']);
   assert.equal(claim('CLM-04').claimedDays,11,'the later file (EOT register) states 11 days for CLM-04');
   assert.equal(claim('CLM-03').claimedDays,12,'same value in both files: no conflict');
-  assert.equal(claim('CLM-03').assessedDays,7,'the EOT register states days granted where the claims register is blank');
-  assert.equal(claim('CLM-01').assessedDays,6,'a value only in the earlier file is kept (a later file never erases it)');
+  const register=(id:string)=>notices.claimsReporting.reported.rows.find((row:any)=>row.claimId===id);
+  assert.equal(register('CLM-03').assessedDays,7,'the EOT register states days granted where the claims register is blank');
+  assert.equal(register('CLM-01').assessedDays,6,'a value only in the earlier file is kept (a later file never erases it)');
+  assert.equal(register('CLM-04').claimedDays,11);
   assert.equal(claim('CLM-05').claimedDays,5,'a claim only in the EOT register is read');
   // Days: claimed 10+8+12+11+5+14 = 60; register granted 6+7 = 13.
   for(const [area,key] of claimsPages){
@@ -116,13 +121,14 @@ test('F06: two claims files and a notice register uploaded through the real path
   assert.equal(facts.claims.pipeline.assessedDays,13);
   assert.deepEqual(facts.claims.pipeline.sourceRecordQueries.map((q:any)=>[q.recordId,q.field,q.usedValue]),[['CLM-04','days claimed','11']]);
 
-  // Notices: the claims register gives CLM-01..04 notices; the notice register gives NTC-001..005.
-  assert.equal(notices.noticeCount,9,'4 claims register notices and 5 notice register rows, none dropped');
+  // Notices: the claims register gives CLM-01..04 notices; the notice register gives NTC-001..005; the letter gives LTR-NTC-006.
+  assert.equal(notices.noticeCount,10,'4 claims register notices, 5 notice register rows and 1 notice letter, none dropped');
   const eventRow=(id:string)=>delay.events.find((e:any)=>e.eventId===id);
   assert.deepEqual([...eventRow('EV-01').noticeIds].sort(),['CLM-01:notice','NTC-001'],'NTC-001 states EV-01 and its date');
   assert.deepEqual([...eventRow('EV-02').noticeIds].sort(),['CLM-02:notice','NTC-002'],'NTC-002 states the exact event title');
   assert.deepEqual([...eventRow('EV-03').noticeIds].sort(),['CLM-03:notice','NTC-003']);
-  assert.deepEqual(eventRow('EV-05').noticeIds,[],'NTC-005 states no date, so it is not linked');
+  assert.ok(delay.events.every((e:any)=>!e.noticeIds.includes('NTC-005')),'NTC-005 states no date, so it is not linked');
+  assert.deepEqual(eventRow('EV-06').noticeIds,['LTR-NTC-006'],'the notice letter states EV-06 and its date');
   assert.ok(delay.events.every((e:any)=>!e.noticeIds.includes('NTC-004')),'NTC-004 names no event');
   const ev01=notices.events.find((e:any)=>e.eventId==='EV-01');
   assert.equal(ev01.noticeId,'NTC-001','the earliest notice of EV-01 is the notice register letter (1 Mar 2026)');
@@ -139,10 +145,13 @@ test('F06: two claims files and a notice register uploaded through the real path
   assert.equal(ntc2.noticeSource.linkBasis,'exact_event_title');
   assert.equal(ntc2.noticeSource.sourceFilename,'Notice_Register.csv','the notice is labelled with its source');
   assert.equal(model.notices.find((n:any)=>n.noticeId==='NTC-001').noticeSource.linkBasis,'event_id');
+  const letter=model.notices.find((n:any)=>n.noticeId==='LTR-NTC-006');
+  assert.equal(letter.eventId,'EV-06');assert.equal(letter.actualIssuedAt,'2026-07-20');
+  assert.equal(letter.noticeSource.kind,'notice_document');assert.equal(letter.noticeSource.sourceFilename,'Notice_Letter_EV06.txt');
 
   // The second claims reader (per-document adapter, combined in file order) gives the same claims and query.
   const docs=uploaded.map(u=>state.evidenceDocuments.find((d:any)=>d.documentId===u.documentId));
-  const adapter=docs.map((d:any)=>deriveControlsFromCsv({state,document:d,bytes:readFileSync(d.storedPath)}).delayClaims).filter(Boolean)
+  const adapter=docs.filter((d:any)=>/csv/i.test(d.mediaType)).map((d:any)=>deriveControlsFromCsv({state,document:d,bytes:readFileSync(d.storedPath)}).delayClaims).filter(Boolean)
    .reduce((combined:any,next:any)=>combineDelayModels(combined,next),null) as any;
   assert.deepEqual(adapter.claims.map((c:any)=>c.claimId).sort(),['CLM-01','CLM-02','CLM-03','CLM-04','CLM-05','CLM-06'],'second reader: union of both files');
   assert.equal(adapter.claims.find((c:any)=>c.claimId==='CLM-04').claimedDays,11);
@@ -162,12 +171,22 @@ test('F06: the later report date inside the files decides which value is used, n
   const notices=await page(base,project,'schedule','notices-claims');
   assert.equal(notices.claimCount,6);
   assert.equal(notices.claims.find((c:any)=>c.claimId==='CLM-04').claimedDays,9,'the claims register has the later report date (31 Aug 2026)');
-  assert.equal(notices.claims.find((c:any)=>c.claimId==='CLM-03').assessedDays,7,'a value stated only in the earlier dated file is still used');
+  assert.equal(notices.claimsReporting.reported.rows.find((row:any)=>row.claimId==='CLM-03').assessedDays,7,'a value stated only in the earlier dated file is still used');
   const r=notices.claimsReporting;
   assert.equal(r.reported.claimedDays.value,58);
   assert.equal(r.sourceRecordQueries.length,1,'the differing report dates are not a query; CLM-04 is');
   assert.equal(r.sourceRecordQueries[0].usedValue,'9');
   assert.equal(r.sourceRecordQueries[0].orderBasis,'report_date');
   assert.deepEqual(r.sourceRecordQueries[0].values.map((v:any)=>[v.sourceFilename,v.value]),[['EOT_Register.csv','11'],['Claims_Register.csv','9']]);
+ });
+});
+
+test('F06: a notice register alone does not establish a claims population (counts stay unknown, never 0)',async()=>{
+ await withServer(async base=>{
+  const project='F06-NOTICE-REGISTER-ONLY';
+  await claimsProject(base,project,[['Notice_Register.csv',NOTICES]]);
+  const delay=await page(base,project,'schedule','delay-claims'),notices=await page(base,project,'schedule','notices-claims');
+  assert.equal(delay.claimCount,null);assert.equal(notices.claimCount,null);assert.equal(notices.eventCount,null);
+  assert.equal(runtimeProjects.get(project)!.controls.delayClaims,null,'no claims or event population is invented from notices');
  });
 });

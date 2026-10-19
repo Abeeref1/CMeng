@@ -1,7 +1,7 @@
 import { registerColumnKind, registerDate } from '../../truth-kernel/src';
 import type { CanonicalDelayEvent, CanonicalNoticeRecord, DelayEvidenceRef, SourceRecordQuery } from '../../delay-analysis-core/src';
 import { norm } from '../../truth-kernel/src';
-import { EVENT_RECORD_SPEC, claimsRegisterHeaders, eventUnions, mergeSameIdentity } from './claims-source-merge';
+import { EVENT_RECORD_SPEC, claimsRegisterHeaders, eventUnions, mergeSameIdentity, type ClaimsSourceOrder } from './claims-source-merge';
 
 /**
  * SW-15 / F06: one shared reader for delay event sources, used by both claims
@@ -131,9 +131,7 @@ const uniq = (values: readonly string[]) => [...new Set(values)];
 
 /** File order for the shared merge rule (claims-source-merge): later files win where they state a value. */
 export interface SourceMergeOptions {
-  rank?: (documentId: string) => number;
-  filename?: (documentId: string) => string | null;
-  orderBasis?: () => SourceRecordQuery['orderBasis'];
+  order?: ClaimsSourceOrder | undefined;
   queries?: SourceRecordQuery[];
 }
 
@@ -147,7 +145,7 @@ export interface SourceMergeOptions {
  * Linear: events and source rows are grouped once by id.
  */
 export function mergeSourceEvents(events: CanonicalDelayEvent[], sourceEvents: readonly CanonicalDelayEvent[], diagnostics: string[], options: SourceMergeOptions = {}): Set<string> {
-  const documentOf = (event: CanonicalDelayEvent) => event.evidenceRefs[0]?.sourceId ?? '';
+  const documentOf = (event: CanonicalDelayEvent) => event.evidenceRefs?.[0]?.sourceId ?? '';
   const existingById = new Map<string, CanonicalDelayEvent[]>();
   for (const event of events) {
     const group = existingById.get(event.eventId);
@@ -167,10 +165,10 @@ export function mergeSourceEvents(events: CanonicalDelayEvent[], sourceEvents: r
     // A source event already in the population (another file) is the same event.
     const earlier = existing.filter((event) => (event.identitySource === 'event_register' || event.identitySource === 'notice') && !rows.some((row) => documentOf(row) === documentOf(event)));
     const all = [...earlier, ...rows];
-    if (options.rank && all.length > 1) all.sort((a, b) => options.rank!(documentOf(a)) - options.rank!(documentOf(b)));
+    const basis = all.length > 1 && options.order ? options.order.sort(all, documentOf) : 'upload_order';
     const source = all.length === 1 ? all[0]! : mergeSameIdentity('event', eventId,
-      all.map((record) => ({ record, documentId: documentOf(record), sourceFilename: options.filename?.(documentOf(record)) ?? null })),
-      EVENT_RECORD_SPEC, options.orderBasis?.() ?? 'upload_order', options.queries ?? [], eventUnions);
+      all.map((record) => ({ record, documentId: documentOf(record), sourceFilename: options.order?.filename(documentOf(record)) ?? null })),
+      EVENT_RECORD_SPEC, basis, options.queries ?? [], eventUnions);
     const withCorrespondence = cited.find((event) => event.activityCorrespondence);
     merged.push({
       ...source,
@@ -189,7 +187,9 @@ export function mergeSourceEvents(events: CanonicalDelayEvent[], sourceEvents: r
   }
   const kept = events.filter((event) => !sourcesById.has(event.eventId));
   events.length = 0;
-  events.push(...kept, ...merged);
+  // A loop, not a spread: a large register must not exceed the argument limit.
+  for (const event of kept) events.push(event);
+  for (const event of merged) events.push(event);
   return new Set(sourcesById.keys());
 }
 
@@ -274,6 +274,8 @@ export function linkStatedNotices(notices: readonly CanonicalNoticeRecord[], eve
   return notices.map((notice) => {
     const source = notice.noticeSource;
     if (!source) return notice;
+    if ((source.statedEventIds?.length ?? 0) > 1) return { ...notice, eventId: null,
+      noticeSource: { ...source, linkBasis: 'not_linked' as const, unlinkedReason: 'The notice names more than one event (' + source.statedEventIds!.join(', ') + ').' } };
     const titleMatch = source.statedEventId ? null
       : [source.statedEventTitle, notice.subject].map((text) => (text ? byTitle.get(norm(text)) ?? null : null)).find(Boolean) ?? null;
     const target = source.statedEventId ? (eventIds.has(source.statedEventId) ? source.statedEventId : null) : titleMatch;
@@ -289,3 +291,37 @@ export function linkStatedNotices(notices: readonly CanonicalNoticeRecord[], eve
 /** Notices from notice sources that are not linked to an event (listed on every claims page). */
 export const unlinkedSourceNotices = (notices: readonly CanonicalNoticeRecord[]) =>
   notices.filter((notice) => notice.noticeSource && notice.noticeSource.linkBasis === 'not_linked');
+
+/**
+ * F06: a notice document (one letter whose text is read) that states its own
+ * reference, its date and the event it notifies. It is a notice when its subject
+ * names a notice (or its document type is a notice). A document holding several
+ * letters (more than one reference or date heading) is not read as one notice.
+ * The event is an event id of the population named in the text, or (when it
+ * names none) an exact event title as its subject. Linear in the text length.
+ */
+export function noticeFromLetterText(text: string, documentType: string, eventIds: ReadonlySet<string>,
+  ref: { documentId: string; sourceFilename: string | null }): { notice: CanonicalNoticeRecord | null; diagnostic: string | null } {
+  const heading = (label: string) => [...new Set([...text.matchAll(new RegExp('^[ \\t]*' + label + '[ \\t]*:[ \\t]*(.+?)[ \\t]*$', 'gim'))].map((match) => match[1]!.trim()))];
+  const subject = heading('Subject')[0] ?? null;
+  const noticeType = /(?:^|_)(?:claim_|eot_)?notice$/.test(documentType);
+  if (!noticeType && !(subject && /\bnotice\b/i.test(subject))) return { notice: null, diagnostic: null };
+  const references = heading('(?:Our\\s+)?Ref(?:erence)?(?:\\s+No\\.?)?'), dates = heading('Date');
+  if (references.length > 1 || dates.length > 1) return { notice: null, diagnostic: 'NOTICE_DOCUMENT_NOT_A_SINGLE_LETTER:' + ref.documentId };
+  const reference = references[0] ?? '';
+  const named = new Set<string>();
+  for (const token of text.match(/[\p{L}\p{N}][\p{L}\p{N}_.:/-]*/gu) ?? []) {
+    const id = token.replace(/[.:/-]+$/, '');
+    if (id !== reference && eventIds.has(id)) named.add(id);
+  }
+  const ids = [...named];
+  return { diagnostic: null, notice: {
+    noticeId: reference || ref.documentId, kind: 'notice', eventId: null, claimId: null,
+    actualIssuedAt: dates[0] ? registerDate(dates[0]) : null, actualReceivedAt: null, plannedAt: null, subject,
+    clauseIdentifiers: [], evidenceRefs: [{ sourceType: 'notice', sourceId: ref.documentId, locator: 'document' }],
+    diagnostics: ['NOTICE_FROM_NOTICE_DOCUMENT'],
+    noticeSource: { kind: 'notice_document', documentId: ref.documentId, sourceFilename: ref.sourceFilename, locator: 'document',
+      statedEventId: ids.length === 1 ? ids[0]! : null, ...(ids.length > 1 ? { statedEventIds: ids } : {}),
+      statedEventTitle: ids.length ? null : subject, linkBasis: 'not_linked', unlinkedReason: null },
+  } };
+}

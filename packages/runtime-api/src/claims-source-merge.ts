@@ -19,38 +19,48 @@ import type {
  *   (the later value is used and the earlier one is kept in the query).
  */
 
-/** A claims/EOT register table: it states the claim itself (claimed days, or its event and notice date). */
+/**
+ * A claims/EOT register table: it states the claim itself (claimed days, or its
+ * event and notice date). Determination references and awards may follow as
+ * later lifecycle columns of the same register.
+ */
 export function claimsRegisterHeaders(headers: readonly string[]): boolean {
   const has = (name: string) => headers.includes(name);
-  return has('claim id') && !has('determination id') && (has('days claimed') || (has('event') && has('notice date')));
+  return has('claim id') && (has('days claimed') || (has('event') && has('notice date')));
 }
 
 export interface ClaimsSourceFile { documentId: string; sourceFilename: string | null; uploadedAt: string }
 export interface ClaimsSourceOrder {
-  rank(documentId: string): number;
-  basis(): SourceRecordQuery['orderBasis'];
+  /**
+   * Sorts the entries of ONE identity (earliest file first) and returns the
+   * basis: the report date inside each of their files when every one of them
+   * states one, otherwise upload order. Report dates are read lazily (only
+   * when one identity is stated in two files) and once per file.
+   */
+  sort<T>(entries: T[], documentOf: (entry: T) => string): SourceRecordQuery['orderBasis'];
   filename(documentId: string): string | null;
 }
 
-/** Report dates are read lazily: only when one identity is stated in two files. */
 export function claimsSourceOrder(files: readonly ClaimsSourceFile[], reportDate: (documentId: string) => string | null): ClaimsSourceOrder {
   const byId = new Map<string, ClaimsSourceFile>();
   for (const file of files) if (!byId.has(file.documentId)) byId.set(file.documentId, file);
-  let ranks: Map<string, number> | null = null;
-  let basis: SourceRecordQuery['orderBasis'] = 'upload_order';
-  const resolve = (): Map<string, number> => {
-    if (ranks) return ranks;
-    const list = [...byId.values()];
-    const dates = new Map(list.map((file) => [file.documentId, list.length > 1 ? reportDate(file.documentId) : null] as const));
-    basis = list.length > 1 && list.every((file) => dates.get(file.documentId)) ? 'report_date' : 'upload_order';
-    list.sort((a, b) => (basis === 'report_date' ? dates.get(a.documentId)!.localeCompare(dates.get(b.documentId)!) : 0)
-      || a.uploadedAt.localeCompare(b.uploadedAt) || a.documentId.localeCompare(b.documentId));
-    ranks = new Map(list.map((file, index) => [file.documentId, index] as const));
-    return ranks;
+  const dates = new Map<string, string | null>();
+  const dateOf = (documentId: string) => {
+    if (!dates.has(documentId)) dates.set(documentId, byId.has(documentId) ? reportDate(documentId) : null);
+    return dates.get(documentId) ?? null;
   };
+  const uploaded = (documentId: string) => byId.get(documentId)?.uploadedAt ?? '';
   return {
-    rank: (documentId) => resolve().get(documentId) ?? -1,
-    basis: () => { resolve(); return basis; },
+    sort: (entries, documentOf) => {
+      const documents = [...new Set(entries.map(documentOf))];
+      if (documents.length < 2) return 'upload_order';
+      const basis: SourceRecordQuery['orderBasis'] = documents.every((documentId) => dateOf(documentId)) ? 'report_date' : 'upload_order';
+      entries.sort((a, b) => {
+        const x = documentOf(a), y = documentOf(b);
+        return (basis === 'report_date' ? dateOf(x)!.localeCompare(dateOf(y)!) : 0) || uploaded(x).localeCompare(uploaded(y)) || x.localeCompare(y);
+      });
+      return basis;
+    },
     filename: (documentId) => byId.get(documentId)?.sourceFilename ?? null,
   };
 }
@@ -136,7 +146,7 @@ export function mergeStatedFields<T extends object>(input: {
 const refKey = (ref: DelayEvidenceRef) => ref.sourceType + '\u0000' + ref.sourceId + '\u0000' + (ref.locator ?? '');
 export function unionRefs(...lists: ReadonlyArray<readonly DelayEvidenceRef[]>): DelayEvidenceRef[] {
   const seen = new Set<string>(), out: DelayEvidenceRef[] = [];
-  for (const list of lists) for (const ref of list) { const key = refKey(ref); if (!seen.has(key)) { seen.add(key); out.push(ref); } }
+  for (const list of lists) for (const ref of list ?? []) { const key = refKey(ref); if (!seen.has(key)) { seen.add(key); out.push(ref); } }
   return out;
 }
 const unionText = (...lists: ReadonlyArray<readonly string[] | undefined>) => [...new Set(lists.flatMap((list) => list ?? []))];
@@ -162,7 +172,7 @@ export const NOTICE_RECORD_SPEC: StatedFieldSpec = {
   fields: ['kind', 'eventId', 'claimId', 'actualIssuedAt', 'actualReceivedAt', 'plannedAt', 'subject'],
 };
 
-const documentOf = (refs: readonly DelayEvidenceRef[], fallback: string) => refs[0]?.sourceId ?? fallback;
+const documentOf = (refs: readonly DelayEvidenceRef[] | undefined, fallback: string) => refs?.[0]?.sourceId ?? fallback;
 
 /** Merge one identity's records (file order, earliest first) with the shared rule. */
 export function mergeSameIdentity<T extends { evidenceRefs: DelayEvidenceRef[]; diagnostics: string[] }>(
@@ -186,17 +196,23 @@ export function mergeSameIdentity<T extends { evidenceRefs: DelayEvidenceRef[]; 
  */
 export function mergeRecordsByIdentity<T extends { evidenceRefs: DelayEvidenceRef[]; diagnostics: string[] }>(input: {
   kind: SourceRecordQuery['kind']; lists: ReadonlyArray<{ documentId: string; sourceFilename?: string | null; records: readonly T[] }>;
-  id: (record: T) => string; spec: StatedFieldSpec; orderBasis: SourceRecordQuery['orderBasis']; queries: SourceRecordQuery[];
+  id: (record: T) => string; spec: StatedFieldSpec; queries: SourceRecordQuery[];
+  /** The shared file order; without it, list order (earliest first) and upload order. */
+  order?: ClaimsSourceOrder | undefined;
   unions?: (merged: T, records: T[]) => void;
 }): T[] {
   const groups = new Map<string, StatedEntry<T>[]>();
-  for (const list of input.lists) for (const record of list.records) {
+  for (const list of input.lists) for (const record of list.records ?? []) {
     const key = input.id(record);
-    const entry = { record, documentId: documentOf(record.evidenceRefs, list.documentId), sourceFilename: list.sourceFilename ?? null };
+    const documentId = documentOf(record.evidenceRefs, list.documentId);
+    const entry = { record, documentId, sourceFilename: list.sourceFilename ?? input.order?.filename(documentId) ?? null };
     const group = groups.get(key);
     if (group) group.push(entry); else groups.set(key, [entry]);
   }
-  return [...groups].map(([key, entries]) => mergeSameIdentity(input.kind, key, entries, input.spec, input.orderBasis, input.queries, input.unions ?? (() => {})));
+  return [...groups].map(([key, entries]) => {
+    const basis = entries.length > 1 && input.order ? input.order.sort(entries, (entry) => entry.documentId) : 'upload_order';
+    return mergeSameIdentity(input.kind, key, entries, input.spec, basis, input.queries, input.unions ?? (() => {}));
+  });
 }
 
 export const claimUnions = (merged: CanonicalClaimRecord, records: CanonicalClaimRecord[]) => {

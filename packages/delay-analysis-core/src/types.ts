@@ -191,6 +191,8 @@ export interface CanonicalNoticeRecord {
     sourceFilename: string | null;
     locator: string | null;
     statedEventId: string | null;
+    /** A notice document naming more than one event id is never linked to one of them. */
+    statedEventIds?: string[];
     statedEventTitle: string | null;
     linkBasis: "event_id" | "exact_event_title" | "not_linked";
     unlinkedReason: string | null;

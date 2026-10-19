@@ -3,6 +3,7 @@ import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
 import type { ContractTimeBasis } from '../../eot-assessment/src';
@@ -13,7 +14,7 @@ import type {ClaimActivityCorrespondenceInput,ClaimActivityCorrespondenceResolut
 import { contractNoticeRules } from './contract-notice-rules';
 import { detailedClaimTimeBar } from './detailed-claim-time-bar';
 import { reportedClaim } from '../../delay-analysis-core/src/reporting';
-import { detectEventSourceTable, detectNoticeTable, eventFromSourceRow, eventSourceCandidate, linkStatedNotices, mergeSourceEvents, noticesFromNoticeTable } from './event-source-register';
+import { detectEventSourceTable, detectNoticeTable, eventFromSourceRow, eventSourceCandidate, linkStatedNotices, mergeSourceEvents, noticeFromLetterText, noticesFromNoticeTable } from './event-source-register';
 import { NOTICE_RECORD_SPEC, claimsRegisterHeaders, claimsSourceOrder, mergeRecordsByIdentity, mergeStatedFields, noticeUnions } from './claims-source-merge';
 import { contentReportDate, isReportDateHeader } from './evidence-control';
 import type { SourceRecordQuery } from '../../delay-analysis-core/src';
@@ -284,6 +285,13 @@ function correspondenceNarrativeSegments(
   return result;
 }
 
+/** F06: the text of a notice document when it is read: a completed full-page
+ * read of this exact PDF, or a plain-text letter (hash checked). */
+function noticeDocumentText(document:ProjectRuntimeState['evidenceDocuments'][number]):string|null{
+  if(document.fullTextRead?.sourceHashSha256===document.sourceHashSha256)return document.fullTextRead.result.pages.map(page=>page.text).join('\n');
+  if(!/^text\/plain/i.test(document.mediaType))return null;
+  try{const bytes=readFileSync(document.storedPath);return createHash('sha256').update(bytes).digest('hex')===document.sourceHashSha256?bytes.toString('utf8'):null;}catch{return null;}
+}
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId){
@@ -484,13 +492,13 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     entries.push({row:r,table});
   }
   for(const [claimId,entries] of claimEntries){
-    if(entries.length>1)entries.sort((a,b)=>sourceOrder.rank(a.row.receipt.documentId)-sourceOrder.rank(b.row.receipt.documentId));
+    const orderBasis=entries.length>1?sourceOrder.sort(entries,entry=>entry.row.receipt.documentId):'upload_order';
     const latest=entries.at(-1)!,table=latest.table;
     // Later file wins per field where it states a value; differing values are queries.
     const mergedCells=entries.length>1?mergeStatedFields({kind:'claim',recordId:claimId,
       entries:entries.map(entry=>({record:entry.row.cells as Record<string,string>,documentId:entry.row.receipt.documentId,sourceFilename:entry.table.document.sourceFilename??null})),
       spec:{fields:[...new Set(entries.flatMap(entry=>Object.keys(entry.row.cells)))],noQuery:field=>field==='claim id'||isReportDateHeader(field)},
-      orderBasis:sourceOrder.basis(),queries:sourceRecordQueries}):null;
+      orderBasis,queries:sourceRecordQueries}):null;
     const r:SourceRow=mergedCells?{cells:Object.freeze({...mergedCells.merged}),receipt:latest.row.receipt}:latest.row;
     const earlierRows=entries.slice(0,-1).map(entry=>entry.row);
     claimIds.add(claimId);
@@ -867,7 +875,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     eventSourceTables.push(table);
     table.rows.forEach((r,index)=>{const event=eventFromSourceRow(columns,values[index]!,{sourceId:r.receipt.documentId,locator:r.receipt.locator});if(event)sourceEvents.push(event);});
   }
-  const sourceEventIds=mergeSourceEvents(events,sourceEvents,diagnostics,{rank:sourceOrder.rank,filename:sourceOrder.filename,orderBasis:sourceOrder.basis,queries:sourceRecordQueries});
+  const sourceEventIds=mergeSourceEvents(events,sourceEvents,diagnostics,{order:sourceOrder,queries:sourceRecordQueries});
   // SW-15: a claim-cited event reference keeps its links but never an event date.
   for(const event of events)if(event.identitySource==='claims_register_row'){event.startIso=null;event.awarenessIso=null;event.endIso=null;}
   // F06: a notice register row (or a notice document read as a table) becomes a
@@ -875,31 +883,38 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   // (event id, or an exact event title) when it states its date; otherwise it
   // stays unlinked and listed. Shared reader: event-source-register.ts.
   const noticeTables:SourceTable[]=[];
-  const registerNotices:CanonicalNoticeRecord[]=[];
+  let registerNotices:CanonicalNoticeRecord[]=[];
   for(const table of delaySourceTables){
     const columns=detectNoticeTable({documentType:table.document.documentType,headers:table.headers});
     if(!columns)continue;
     noticeTables.push(table);
-    registerNotices.push(...noticesFromNoticeTable(columns,tableValues(table),index=>({documentId:table.rows[index]!.receipt.documentId,
-      sourceFilename:table.document.sourceFilename??null,locator:table.rows[index]!.receipt.locator})));
+    for(const notice of noticesFromNoticeTable(columns,tableValues(table),index=>({documentId:table.rows[index]!.receipt.documentId,
+      sourceFilename:table.document.sourceFilename??null,locator:table.rows[index]!.receipt.locator})))registerNotices.push(notice);
   }
-  registerNotices.splice(0,registerNotices.length,...linkStatedNotices(registerNotices,events));
+  // A notice document: one letter whose text is read (full-page read of a PDF, or
+  // a plain-text letter), stating its reference, date and the event it notifies.
+  const populationIds=new Set(events.map(event=>event.eventId));
+  const noticeDocuments:typeof state.evidenceDocuments=[];
+  for(const document of state.evidenceDocuments){
+    if(!['active','additive'].includes(document.basisState)||!/^(?:letters_notices|notice|claim_notice|eot_notice)$/.test(document.documentType))continue;
+    if(/csv/i.test(document.mediaType+' '+document.sourceFilename)||document.tabularRead)continue;
+    const text=noticeDocumentText(document);if(!text)continue;
+    const read=noticeFromLetterText(text,document.documentType,populationIds,{documentId:document.documentId,sourceFilename:document.sourceFilename??null});
+    if(read.diagnostic)diagnostics.push(read.diagnostic);
+    if(read.notice){registerNotices.push(read.notice);noticeDocuments.push(document);}
+  }
+  registerNotices=linkStatedNotices(registerNotices,events);
   if(registerNotices.length){
     // One notice id in two files (for example a claims register's notice reference
     // and the notice register row) is one notice, merged by the shared rule.
     const knownIds=new Set<string>();let collision=false;
     for(const notice of [...notices.filter(n=>n.kind!=='determination'),...registerNotices]){if(knownIds.has(notice.noticeId))collision=true;knownIds.add(notice.noticeId);}
-    if(!collision)notices.push(...registerNotices);
+    if(!collision){for(const notice of registerNotices)notices.push(notice);}
     else{
       const determinationNotices=notices.filter(n=>n.kind==='determination');
-      const byDocument=new Map<string,CanonicalNoticeRecord[]>();
-      for(const notice of [...notices.filter(n=>n.kind!=='determination'),...registerNotices]){
-        const documentId=notice.evidenceRefs[0]?.sourceId??'';const list=byDocument.get(documentId);
-        if(list)list.push(notice);else byDocument.set(documentId,[notice]);
-      }
-      const lists=[...byDocument].sort((a,b)=>sourceOrder.rank(a[0])-sourceOrder.rank(b[0])).map(([documentId,records])=>({documentId,sourceFilename:sourceOrder.filename(documentId),records}));
-      const merged=mergeRecordsByIdentity({kind:'notice',lists,id:notice=>notice.noticeId,spec:NOTICE_RECORD_SPEC,orderBasis:sourceOrder.basis(),queries:sourceRecordQueries,unions:noticeUnions});
-      notices.length=0;notices.push(...merged,...determinationNotices);
+      const merged=mergeRecordsByIdentity({kind:'notice',lists:[{documentId:'',records:[...notices.filter(n=>n.kind!=='determination'),...registerNotices]}],
+        id:notice=>notice.noticeId,spec:NOTICE_RECORD_SPEC,order:sourceOrder,queries:sourceRecordQueries,unions:noticeUnions});
+      notices.length=0;for(const notice of [...merged,...determinationNotices])notices.push(notice);
     }
   }
   const trustedClaims=claims;
@@ -1053,7 +1068,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const conflict=reported.state==='determined'&&!determinedClaimIds.has(claim.claimId);
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
-  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size||registerNotices.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)||noticeTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity,
+  // Notices alone (no claims register and no event source) do not establish a
+  // claims population: the claim and event counts stay unknown, never 0.
+  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify([...tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)||noticeTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]),
+    ...noticeDocuments.map(d=>[d.documentId,d.sourceHashSha256,d.basisState])])).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity,
     ...(sourceRecordQueries.length?{sourceRecordQueries}:{})}:null;
   // T04: a saved completion decision applies to the one shared time position.
   contractTimeBasis=applyCompletionDecision(state,contractTimeBasis) as ContractTimeBasis|null;

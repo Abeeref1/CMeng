@@ -3,7 +3,7 @@ import {canonicalHeader,prepareEvidenceRows,registerDate,securityInstrumentKind}
 import { numberValue } from "../../truth-kernel/src";
 import {ncrStatusFromSource} from './operational-reporting';
 import {detectEventSourceTable,detectNoticeTable,eventFromSourceRow,eventSourceCandidate,linkStatedNotices,mergeSourceEvents,noticesFromNoticeTable} from './event-source-register';
-import {CLAIM_CITED_EVENT_SPEC,CLAIM_RECORD_SPEC,EVENT_RECORD_SPEC,NOTICE_RECORD_SPEC,claimUnions,claimsSourceOrder,eventUnions,mergeRecordsByIdentity,noticeUnions,sourceEventRecord} from './claims-source-merge';
+import {CLAIM_CITED_EVENT_SPEC,CLAIM_RECORD_SPEC,EVENT_RECORD_SPEC,NOTICE_RECORD_SPEC,claimUnions,claimsSourceOrder,eventUnions,mergeRecordsByIdentity,noticeUnions,sourceEventRecord,type ClaimsSourceOrder} from './claims-source-merge';
 import {contentReportDate} from './evidence-control';
 import type {
   CanonicalClaimRecord,
@@ -1827,6 +1827,14 @@ export function deriveControlsFromCsv(
   return {};
 }
 
+/** F06: a notice register read alone (no claims, no events): it joins a claims
+ * or event population but never establishes one (counts stay unknown, never 0). */
+function noticeOnlyModel(model: DelayClaimsModel): boolean {
+  return model.claims.length === 0 && model.events.length === 0 && model.diagnostics.includes("NOTICES_FROM_NOTICE_REGISTER");
+}
+const withoutNoticeOnlyPopulation = <T extends { documentId: string }>(documents: T[], model: (document: T) => DelayClaimsModel): T[] =>
+  documents.some((document) => !noticeOnlyModel(model(document))) ? documents : [];
+
 /** True for a model read from an event register or notices only (no claims). */
 function eventSourceOnlyModel(model: DelayClaimsModel): boolean {
   return model.claims.length === 0 && model.events.length > 0 &&
@@ -1844,11 +1852,11 @@ function eventSourceOnlyModel(model: DelayClaimsModel): boolean {
  * where it states a value, and differing values are listed as queries. Notices
  * stated in a notice register are linked once the combined events are known.
  */
-export function combineDelayModels(current: DelayClaimsModel | null, next: DelayClaimsModel, orderBasis: "report_date" | "upload_order" = "upload_order"): DelayClaimsModel {
+export function combineDelayModels(current: DelayClaimsModel | null, next: DelayClaimsModel, order?: ClaimsSourceOrder): DelayClaimsModel {
   if (!current) return next;
   const queries = [...(current.sourceRecordQueries ?? []), ...(next.sourceRecordQueries ?? [])];
   const withQueries = (model: DelayClaimsModel): DelayClaimsModel => {
-    const linked: DelayClaimsModel = { ...model, notices: linkStatedNotices(model.notices, model.events) };
+    const linked: DelayClaimsModel = { ...model, notices: linkStatedNotices(model.notices ?? [], model.events ?? []) };
     if (queries.length) linked.sourceRecordQueries = queries; else delete linked.sourceRecordQueries;
     return linked;
   };
@@ -1857,32 +1865,32 @@ export function combineDelayModels(current: DelayClaimsModel | null, next: Delay
     const events = [...base.events];
     const diagnostics = [...base.diagnostics];
     // Source events already in the base are earlier in the shared order than `next`.
-    mergeSourceEvents(events, source.events, diagnostics, { orderBasis: () => orderBasis, queries });
+    mergeSourceEvents(events, source.events, diagnostics, { order, queries });
     const notices = mergeRecordsByIdentity({ kind: "notice", lists: [current, next].map((model) => ({ documentId: model.evidenceRevisionId, records: model.notices })),
-      id: (notice) => notice.noticeId, spec: NOTICE_RECORD_SPEC, orderBasis, queries, unions: noticeUnions });
+      id: (notice) => notice.noticeId, spec: NOTICE_RECORD_SPEC, order, queries, unions: noticeUnions });
     return withQueries({ ...base, events, notices, diagnostics: [...new Set([...diagnostics, ...source.diagnostics])] });
   }
-  const lists = <T,>(pick: (model: DelayClaimsModel) => readonly T[]) => [current, next].map((model) => ({ documentId: model.evidenceRevisionId, records: pick(model) }));
+  const lists = <T,>(pick: (model: DelayClaimsModel) => readonly T[]) => [current, next].map((model) => ({ documentId: model.evidenceRevisionId, records: pick(model) ?? [] }));
   // Claim-cited event references and source events are merged separately; source
   // events then take in the claim-cited links (SW-15: a claim row is never an event).
-  const events = mergeRecordsByIdentity({ kind: "event", lists: lists((model) => model.events.filter((event) => !sourceEventRecord(event))), id: (event) => event.eventId, spec: CLAIM_CITED_EVENT_SPEC, orderBasis, queries, unions: eventUnions });
-  const sourceEvents = mergeRecordsByIdentity({ kind: "event", lists: lists((model) => model.events.filter(sourceEventRecord)), id: (event) => event.eventId, spec: EVENT_RECORD_SPEC, orderBasis, queries, unions: eventUnions });
+  const events = mergeRecordsByIdentity({ kind: "event", lists: lists((model) => (model.events ?? []).filter((event) => !sourceEventRecord(event))), id: (event) => event.eventId, spec: CLAIM_CITED_EVENT_SPEC, order, queries, unions: eventUnions });
+  const sourceEvents = mergeRecordsByIdentity({ kind: "event", lists: lists((model) => (model.events ?? []).filter(sourceEventRecord)), id: (event) => event.eventId, spec: EVENT_RECORD_SPEC, order, queries, unions: eventUnions });
   const diagnostics = [...new Set([...current.diagnostics, ...next.diagnostics, "DELAY_CLAIMS_MERGED_BY_IDENTITY_FROM_SOURCE_FILES"])];
-  if (sourceEvents.length) mergeSourceEvents(events, sourceEvents, diagnostics);
+  if (sourceEvents.length) mergeSourceEvents(events, sourceEvents, diagnostics, { order, queries });
   return withQueries({
     ...next,
-    claims: mergeRecordsByIdentity({ kind: "claim", lists: lists((model) => model.claims), id: (claim) => claim.claimId, spec: CLAIM_RECORD_SPEC, orderBasis, queries, unions: claimUnions }),
+    claims: mergeRecordsByIdentity({ kind: "claim", lists: lists((model) => model.claims), id: (claim) => claim.claimId, spec: CLAIM_RECORD_SPEC, order, queries, unions: claimUnions }),
     events,
-    notices: mergeRecordsByIdentity({ kind: "notice", lists: lists((model) => model.notices), id: (notice) => notice.noticeId, spec: NOTICE_RECORD_SPEC, orderBasis, queries, unions: noticeUnions }),
+    notices: mergeRecordsByIdentity({ kind: "notice", lists: lists((model) => model.notices), id: (notice) => notice.noticeId, spec: NOTICE_RECORD_SPEC, order, queries, unions: noticeUnions }),
     diagnostics,
   });
 }
 
-/** F06: the shared file order for delay/claims documents (report date inside every file, else upload order). */
-function delayDocumentOrder(documents: readonly StoredEvidenceDocument[]) {
-  const order = claimsSourceOrder(documents.map((document) => ({ documentId: document.documentId, sourceFilename: document.sourceFilename ?? null, uploadedAt: document.uploadedAt })),
-    (documentId) => { const document = documents.find((item) => item.documentId === documentId); return document ? contentReportDate(document) : null; });
-  return { ordered: documents.length > 1 ? [...documents].sort((a, b) => order.rank(a.documentId) - order.rank(b.documentId)) : [...documents], basis: () => (documents.length > 1 ? order.basis() : "upload_order" as const) };
+/** F06: the shared file order for delay/claims documents (report date inside the files, else upload order), per identity. */
+export function delayDocumentOrder(documents: readonly StoredEvidenceDocument[]): ClaimsSourceOrder {
+  const byId = new Map(documents.map((document) => [document.documentId, document] as const));
+  return claimsSourceOrder(documents.map((document) => ({ documentId: document.documentId, sourceFilename: document.sourceFilename ?? null, uploadedAt: document.uploadedAt })),
+    (documentId) => { const document = byId.get(documentId); return document ? contentReportDate(document) : null; });
 }
 
 function derivedRef(
@@ -2031,7 +2039,8 @@ export function sourceReadCommercialControls(
       (rows[kind] as any[]).push({ ...sourceReadStates(list.at(-1)!.row), sourceAnalyticalUse: SOURCE_ANALYTICAL_USE, sourceAnalyticalNote: SOURCE_READ_NOTE });
     }
   }
-  const delayModelDocuments = documents.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims);
+  const delayModelDocuments = withoutNoticeOnlyPopulation(documents.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims),
+    (document) => state.derivedControlsByDocument[document.documentId]!.delayClaims!);
   // Event-register documents are merged into the claims population, never ranked against it.
   const eventSourceDocuments = delayModelDocuments.filter((document) => eventSourceOnlyModel(state.derivedControlsByDocument[document.documentId]!.delayClaims!));
   const delayDocuments = delayModelDocuments.filter((document) => !eventSourceDocuments.includes(document));
@@ -2050,10 +2059,10 @@ export function sourceReadCommercialControls(
     // in different families (two candidates of one family are held), so they are
     // read like the current basis: merged by identity in the shared file order;
     // differing values for one record are listed as queries, never dropped.
-    const order = delayDocumentOrder([...delayDocuments, ...eventSourceDocuments]);
-    const readDocuments = order.ordered;
+    const readDocuments = [...delayDocuments, ...eventSourceDocuments];
+    const order = delayDocumentOrder(readDocuments);
     const model = readDocuments.map((document) => state.derivedControlsByDocument[document.documentId]!.delayClaims!)
-      .reduce<DelayClaimsModel | null>((combined, next) => combineDelayModels(combined, next, order.basis()), null)!;
+      .reduce<DelayClaimsModel | null>((combined, next) => combineDelayModels(combined, next, order), null)!;
     delayClaims = { ...model, events: model.events.map(sourceReadStates), notices: model.notices.map(sourceReadStates),
       claims: model.claims.map(sourceReadStates), diagnostics: [...model.diagnostics, ...readDocuments.map((document) => sourceAnalyticalDiagnostic(document.documentId))] };
   }
@@ -2246,9 +2255,11 @@ export function rebuildDerivedControls(
 
   // F06: every delay/claims/notice document of the current basis is combined in
   // the shared file order (report date inside every file, else upload order).
-  const delayOrder = delayDocumentOrder(activeDocuments.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims));
-  for (const document of delayOrder.ordered)
-    derivedDelay = combineDelayModels(derivedDelay, state.derivedControlsByDocument[document.documentId]!.delayClaims!, delayOrder.basis());
+  const delayDocuments = withoutNoticeOnlyPopulation(activeDocuments.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims),
+    (document) => state.derivedControlsByDocument[document.documentId]!.delayClaims!);
+  const delayOrder = delayDocumentOrder(delayDocuments);
+  for (const document of delayDocuments)
+    derivedDelay = combineDelayModels(derivedDelay, state.derivedControlsByDocument[document.documentId]!.delayClaims!, delayOrder);
 
   state.controls.variations =
     latestById(
