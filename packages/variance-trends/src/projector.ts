@@ -102,9 +102,16 @@ export function buildVarianceTrendsProjection(
     sourceInstants.set(value,result);
     return result;
   };
+  // The rounded day value depends only on the exact millisecond difference.
+  // Thousands of rows repeat a few date pairs; round each difference once.
+  const roundedDays=new Map<number,number>();
   const sourceVarianceDays=(programme:string|null,forecast:string|null):number|null=>{
     const first=cachedMs(programme),last=cachedMs(forecast);
-    return first===null||last===null?null:Number(((last-first)/86_400_000).toFixed(6));
+    if(first===null||last===null)return null;
+    const difference=last-first;
+    let days=roundedDays.get(difference);
+    if(days===undefined){days=Number((difference/86_400_000).toFixed(6));roundedDays.set(difference,days);}
+    return days;
   };
 
 
@@ -193,14 +200,20 @@ export function buildVarianceTrendsProjection(
       for (const activity of revision.model.activities) {
         const measuredVariance = controlledVarianceDays(activity);
         if (measuredVariance !== null) controlledValues.push(measuredVariance);
-        const series =
+        let series =
           activitySeries.get(
             activity.activityId,
-          ) ?? {
+          );
+        // A new series is added once; later revisions extend the same entry
+        // (setting an existing key again changed neither value nor order).
+        if (!series) {
+          series = {
             activityId: activity.activityId,
             points: [],
             worseningFinishVarianceDays: null,
           };
+          activitySeries.set(activity.activityId, series);
+        }
 
         series.points.push({
           revisionId: revision.revisionId,
@@ -209,10 +222,6 @@ export function buildVarianceTrendsProjection(
           totalFloatHours:
             activity.totalFloatHours,
         });
-        activitySeries.set(
-          activity.activityId,
-          series,
-        );
       }
 
       // Every controlled variance contributes once to the full source
