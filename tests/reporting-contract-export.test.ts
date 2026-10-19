@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import {PDFParse} from 'pdf-parse';
 import {buildModuleWorkbook,buildModuleJsonDownload,exportModuleReport} from '../packages/runtime-api/src/module-report';
 import {publicModuleResult} from '../packages/runtime-api/src/registry';
+import {readablePathLabel} from '../packages/runtime-api/src/field-labels';
 
 test('report exports retain large populations and all contract fields without oversized Excel cells',async()=>{
  const members=Array.from({length:4000},(_,i)=>'LONG-SOURCE-ACTIVITY-'+String(i).padStart(5,'0'));
@@ -19,7 +20,7 @@ test('report exports retain large populations and all contract fields without ov
    if(typeof cell.value==='string'){
      maximumCell=Math.max(maximumCell,cell.value.length);
      if(known.has(cell.value))found++;
-     if(cell.value==='reportingContract.metricContracts.metric_1299')lastContractField=true;
+     if(cell.value===readablePathLabel('reportingContract.metricContracts.metric_1299'))lastContractField=true;
    }
  }));
  assert.equal(found,members.length);assert.ok(maximumCell<=32767);assert.equal(lastContractField,true);
@@ -73,7 +74,7 @@ test('Task 58 keeps value unit population Data Date state authority and qualific
 
  const rawExcel=await buildModuleWorkbook('SEMANTIC-PARITY','progress-report',result),rawBook=new ExcelJS.Workbook();await rawBook.xlsx.load(rawExcel as any);
  const rawCells:string[]=[];for(const sheet of rawBook.worksheets)sheet.eachRow(row=>row.eachCell(cell=>rawCells.push(String(cell.value??''))));
- assert.ok(rawCells.includes('reportingContract.metricContracts.progressPosition.value.authority'));assert.ok(rawCells.includes('source'));assert.ok(rawCells.includes('120'));
+ assert.ok(rawCells.includes(readablePathLabel('reportingContract.metricContracts.progressPosition.value.authority')));assert.ok(rawCells.includes('source'));assert.ok(rawCells.includes('120'));
 });
 
 test('module report preview definition drives Excel PDF Word CSV Power BI and JSON consistently',async()=>{

@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import {collectReportArrays,reportArrayRows} from '../packages/runtime-api/src/report-tables';
 import {buildModuleWorkbook,buildModuleJsonDownload,exportModuleReport,preparedModuleResult} from '../packages/runtime-api/src/module-report';
+import {readablePathLabel} from '../packages/runtime-api/src/field-labels';
 
 const fixture=()=>({key:'quantity-scurve',status:'partial' as const,reason:'Measured item histories remain separate.',dependencies:[],data:{projectionKey:'quantity_scurve',series:Array.from({length:61},(_,i)=>({quantityItemId:'Q'+i,itemNumber:'ITEM-'+i,unit:i%2?'m':'m3',points:[{dateIso:'2026-07-31',actualInstalledQuantity:0},{dateIso:'2026-08-31',actualInstalledQuantity:i===60?null:i+1}],sourceRefs:['SOURCE-'+i]}))}});
 
@@ -27,7 +28,7 @@ test('nested report populations retain every parent, path, zero and null without
 test('actual workbook and structured report include the last parent history with identifiable ownership',async()=>{
  const result=fixture(),before=JSON.stringify(result),bytes=await buildModuleWorkbook('P','quantity-scurve',result),book=new ExcelJS.Workbook();await book.xlsx.load(bytes as any);
  const sheet=book.getWorksheet('points')!;assert.ok(sheet);assert.equal(sheet.rowCount,123);
- const headers=sheet.getRow(1).values as string[],column=(key:string)=>headers.indexOf(key);
+ const headers=sheet.getRow(1).values as string[],column=(key:string)=>headers.indexOf(({parentReference:'Parent record',sourcePointer:'Record location'} as Record<string,string>)[key]??readablePathLabel(key));
  assert.ok(column('record.dateIso')>0);assert.ok(column('parentReference')>0);
  assert.equal(sheet.getRow(122).getCell(column('sourcePointer')).value,'/data/series/60/points/0');
  assert.equal(sheet.getRow(122).getCell(column('record.actualInstalledQuantity')).value,0);

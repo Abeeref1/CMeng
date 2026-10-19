@@ -6,7 +6,8 @@ import {buildDeliveryWorkbook} from './delivery-export';
 import {createHash} from 'node:crypto';
 import {exportAskAnalysis,type AskExportView} from './ask-export';
 import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell,EvidenceState} from '../../project-ask/src/types';
-import {pageApiKey,publicModuleResult} from './registry';
+import {pageApiKey,publicModuleResult,resolveModuleKey} from './registry';
+import {milestonePopulation} from './milestone-population';
 import type ExcelJS from "exceljs";
 import type {
   ModuleRuntimeResult,
@@ -98,7 +99,10 @@ function flattenRecord(
   > = {},
   depth = 0,
 ): Record<string, FlatValue> {
-  if (depth > 6) {
+  // T10 X2: the screen shows figures nested up to 12 levels deep
+  // (response-paging.ts PAGE_BUDGETS). Cutting the download at 6 levels
+  // replaced on-screen figures with '[nested data]'.
+  if (depth > 12) {
     if (prefix) {
       out[prefix] =
         "[nested data]";
@@ -239,6 +243,8 @@ function styleHeader(
   };
 }
 
+// Columns the report itself adds to nested tables (see report-tables.ts).
+const nestedColumnLabels:Record<string,string>={parentPointer:'Parent record location',sourcePointer:'Record location',parentReference:'Parent record'};
 const EXCEL_DATA_ROWS=1_048_575; // One header plus data must fit a worksheet.
 function flatArrayRow(row:unknown):Record<string,FlatValue> {
  return row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)};
@@ -263,7 +269,8 @@ async function addArraySheet(
   if(!section.rowCount){const empty=workbook.addWorksheet(worksheetName(base,usedNames));empty.addRow(['No records']).commit();empty.commit();return;}
   const open=()=>{
     const sheet=workbook.addWorksheet(worksheetName(base,usedNames),{views:[{state:'frozen',ySplit:1}]});
-    sheet.columns=headers.map(key=>({header:key,key,width:widths.get(key)!}));
+    // T10 X1 (W1): column headings in reader words; the column key is unchanged.
+    sheet.columns=headers.map(key=>({header:nestedColumnLabels[key]??(readablePathLabel(key)||key),key,width:widths.get(key)!}));
     styleHeader(sheet.getRow(1));sheet.getRow(1).commit();return sheet;
   };
   let sheet=open(),written=0,total=0;
@@ -277,6 +284,16 @@ async function addArraySheet(
   finish();
 }
 
+function reportDataDate(result:ModuleRuntimeResult):string|null{
+  const data=result.data as any;
+  const value=data?.reportingContract?.dataDateIso??data?.dataDateIso??null;
+  return typeof value==='string'&&value?value:null;
+}
+function reportProgrammeRevision(result:ModuleRuntimeResult):string|null{
+  const data=result.data as any;
+  const value=data?.programmeRevisionId??data?.reportingContract?.programmeRevisionId??null;
+  return typeof value==='string'&&value?value:null;
+}
 export async function buildModuleWorkbook(
   projectId: string,
   moduleKey: string,
@@ -355,6 +372,11 @@ export async function buildModuleWorkbook(
       new Date()
         .toISOString(),
     ],
+    // T10 X2: the page states its data date, programme revision and scope;
+    // the download carries the same values. Unknown stays unknown, never blank.
+    ["Data date",reportDataDate(result)??"Not established"],
+    ["Programme revision",reportProgrammeRevision(result)??"Not established"],
+    ["Scope","Project "+projectId+" · "+titleForModule(moduleKey)+" · complete population (no screen paging)"],
   ];
 
   for (
@@ -377,7 +399,9 @@ export async function buildModuleWorkbook(
     flattenRecord(data);
   summary.addRow([]);
   summary.addRow([
-    "Calculated / source fields",
+    "Figures on the page",
+    "Value",
+    "Unit",
   ]);
   const sectionHeader =
     summary.lastRow!;
@@ -395,13 +419,17 @@ export async function buildModuleWorkbook(
     },
   };
 
+  // T10 X1 (W1): each figure is labelled in reader words with its context
+  // ('Summary · total float hours'), never by its data path, and carries the
+  // unit declared by its reporting contract when one exists.
   for (
     const [key, value] of
       Object.entries(flat)
   ) {
     summary.addRow([
-      key,
+      readablePathLabel(key)||key,
       value,
+      reportMetricContract(data as Record<string,unknown>,key)?.unit??null,
     ]);
   }
 
@@ -409,6 +437,8 @@ export async function buildModuleWorkbook(
     42;
   summary.getColumn(2).width =
     46;
+  summary.getColumn(3).width =
+    14;
   summary.eachRow(
     (row, rowNumber) => {
       if (
@@ -655,8 +685,16 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
     presentation:{title:view?.title??titleForModule(moduleKey),audience,reviewLens,language:'en',detail,charts:true,preparedBy:null,jobTitle:null,company:null,reportNumber:null,confidentiality:'Project information',status:'Draft / Prepared',format:'interactive'},
     mode:'Deterministic CMeng Summary',sections,narrative:[{heading:'Current position',text:result.reason??'Current CMeng module position.',classification:'calculated_intelligence',traceIds:['module:summary']}],unresolved:[],referenceFiles:[],snapshotHash,factsHash:createHash('sha256').update(JSON.stringify(data)).digest('hex'),providerStatus:'not_needed'};
 }
+// T10 X2: the milestone page shows counts of the complete milestone population
+// (response-paging.ts adds them before the 25-row preview). The download carries
+// the same counts from the same rows, so the figures on screen are in the file.
+function withScreenPopulationCounts(moduleKey:string,result:ModuleRuntimeResult):ModuleRuntimeResult{
+  const data=result.data as any;
+  if(resolveModuleKey(moduleKey)!=='milestones'||!data||typeof data!=='object'||!Array.isArray(data.rows))return result;
+  return {...result,data:{...data,milestoneFullCounts:{...milestonePopulation(data.rows),identificationComplete:data.populationState!=='partial'}}};
+}
 export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){
-  const prepared=preparedModuleResult(result,view);
+  const prepared=withScreenPopulationCounts(moduleKey,preparedModuleResult(result,view));
   if(!view&&format==='xlsx')return {bytes:await buildModuleWorkbook(projectId,moduleKey,prepared),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename:moduleReportFilename(projectId,moduleKey,'xlsx')};
   if(!view&&format==='json')return {bytes:buildModuleJsonDownload(projectId,moduleKey,prepared),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
   const analysis=moduleAnalysis(projectId,moduleKey,prepared,view),exported=await exportAskAnalysis(analysis,format,view);
