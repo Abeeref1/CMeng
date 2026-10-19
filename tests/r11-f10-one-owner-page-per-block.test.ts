@@ -125,7 +125,7 @@ function isBlockTag(tag:string,attrs:string){
 //   supporting details") states this page's own review state; each review item is
 //   owned by Actions and Data gaps (F30), which the section already links to.
 // - Guidance text with no figure, date or record reference carries no project fact.
-const OWNER_LINK=/<section class="owner-link-panel"[\s\S]*?<\/section>/g;
+const OWNER_LINK=/<section class="owner-link-panel[^"]*"[\s\S]*?<\/section>/g;
 const OWN_REVIEW=/\bclass="[^"]*\b(?:position-verdict|page-review-summary|experience-audit)\b/;
 function headingOf(inner:string,attrs=''){
  if(TILE_GROUP.test(' '+attrs)){const named=attrs.match(/aria-label="([^"]*)"/);if(named)return decode(named[1]!);const t=inner.match(/<(?:span|div class="kpi-label")[^>]*>([\s\S]*?)<\/(?:span|div)>/i);return t?textOf(t[1]!):'';}
@@ -227,7 +227,7 @@ const attr=(tag:string,name:string)=>{const m=tag.match(new RegExp('\\b'+name+'=
 const openTags=(html:string,name:string)=>[...html.matchAll(new RegExp('<[a-zA-Z][^>]*\\b'+name+'="[^"]*"[^>]*>','g'))].map(m=>m[0]!);
 function ownerLinks(html:string){
  return openTags(html,'data-owner-link').map(tag=>{
-  const at=html.indexOf(tag),panel=tag.startsWith('<section class="owner-link-panel"')?html.slice(at,html.indexOf('</section>',at)+10):tag;
+  const at=html.indexOf(tag),panel=tag.startsWith('<section class="owner-link-panel')?html.slice(at,html.indexOf('</section>',at)+10):tag;
   return {topic:attr(tag,'data-owner-link')!,owner:attr(tag,'data-owner-page')!,pageScoped:attr(tag,'data-owner-scope')==='page',
    figure:(panel.match(/data-owner-figure="([^"]*)"/)?.[1]!==undefined)?decode(panel.match(/data-owner-figure="([^"]*)"/)![1]!):'',panel};
  });
@@ -252,7 +252,7 @@ test('F10: no full block appears on two pages of a rich project; every replaced 
    links++;linked.add(link.topic);
    assert.ok(moduleRegistry.some(page=>page.key===link.owner),key+': '+link.topic+' links to a real page');
    assert.notEqual(link.owner,key,key+': a page never links to itself for '+link.topic);
-   if(link.panel.startsWith('<section class="owner-link-panel"')){
+   if(link.panel.startsWith('<section class="owner-link-panel')){
     const title=moduleRegistry.find(page=>page.key===link.owner)!.title;
     assert.match(link.panel,new RegExp(': see '+title.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/&/g,'&amp;')+'</h4>'),key+': the link panel names its owner page');
     assert.match(link.panel,new RegExp('data-owner-open="'+link.owner+'"'),key+': the link panel opens its owner page');
