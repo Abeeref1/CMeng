@@ -3088,7 +3088,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
                 ? (
                     noticesClaims
                       ?.eventCount ??
-                    0
+                    null
                   )
                 : null,
             claimCount:
@@ -3096,7 +3096,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
                 ? (
                     noticesClaims
                       ?.claimCount ??
-                    0
+                    null
                   )
                 : null,
             observedPositiveMovementDays:
