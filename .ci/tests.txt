@@ -16,3 +16,10 @@ delay-chain
 t03-contract-ai-call-cap
 t03-ai-error-states
 t07-commercial-vs-independent
+f33-negative-float-constraint
+management-constraint-brief
+shared-decision-closure
+boq-priced-scope-source-amount
+detailed-claim-source-rule
+f13-f47-claim-register-time-bar
+register-contract-reconciliation
