@@ -644,6 +644,40 @@ export function sharedManagementBundleFacts<T extends Record<string,any>>(bundle
   return out as T;
 }
 
+/** F61: the bundle pages are built from the SAME shared management sections
+ * (accountability, visual control, management context, diagnosis, actions and
+ * others are one calculation attached to several pages). The bundle sent each
+ * such section once per page, so it grew past 2 MB on a large project. A
+ * section that is the same object, or has identical content, on two or more
+ * bundle pages is sent once at /sharedSections/<name>; each of those pages
+ * names it in sharedSectionRefs. A page whose section differs keeps its own
+ * copy, so nothing is hidden or replaced. Project facts keep their own rule. */
+export function sharedManagementBundleSections<T extends Record<string,any>>(bundle:T):T{
+  const pages=['masterDashboard','commandCenter','masterControlProgramme','sourceQuality'].filter(key=>bundle?.[key]&&typeof bundle[key]==='object'&&!Array.isArray(bundle[key]));
+  if(pages.length<2||bundle.sharedSections!=null)return bundle;
+  const texts=new Map<object,string>();
+  const text=(value:object)=>{let known=texts.get(value);if(known===undefined){known=JSON.stringify(value);texts.set(value,known);}return known;};
+  const sections:Record<string,unknown>={},refs:Record<string,Record<string,string>>={};
+  for(const field of new Set(pages.flatMap(key=>Object.keys(bundle[key])))){
+    if(['projectFacts','projectFactsRef','sharedSectionRefs'].includes(field))continue;
+    const holders=pages.filter(key=>bundle[key][field]!==null&&typeof bundle[key][field]==='object');
+    if(holders.length<2)continue;
+    const first=bundle[holders[0]!][field];
+    const same=holders.filter(key=>bundle[key][field]===first||text(bundle[key][field])===text(first));
+    if(same.length<2)continue;
+    sections[field]=first;
+    for(const key of same)(refs[key]??={})[field]='/sharedSections/'+field;
+  }
+  if(!Object.keys(sections).length)return bundle;
+  const out:Record<string,any>={...bundle,sharedSections:sections};
+  for(const key of Object.keys(refs)){
+    const page:Record<string,unknown>={...bundle[key]};
+    for(const field of Object.keys(refs[key]!))delete page[field];
+    out[key]={...page,sharedSectionRefs:refs[key]};
+  }
+  return out as T;
+}
+
 function json(
   res: ServerResponse,
   statusCode: number,
@@ -3084,10 +3118,10 @@ async function route(
     json(
       res,
       200,
-      sharedManagementBundleFacts({
+      sharedManagementBundleSections(sharedManagementBundleFacts({
         ...surfaces,
         ...canonicalManagementPages,
-      }),
+      })),
     );
     return;
   }
