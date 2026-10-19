@@ -19,6 +19,17 @@ export function criticalResourceHours(model:import('../../schedule-analysis-core
    activityIds:[...new Set(assignments.map(a=>a.activityId))],basis:'Remaining labour-hour assignments on unfinished execution activities with submitted total float at or below zero.'}];
  });
 }
+/** Actual labour hours recorded in the programme (XER TASKRSRC act_reg_qty + act_ot_qty) for hour-based labour
+ * resources. Established only when every such assignment states both values; otherwise unknown with the reason. */
+export function programmeRecordedLaborHours(resources:import('../../schedule-resource-core/src').CanonicalResourceModel|null|undefined){
+ if(!resources)return {hours:null,assignmentCount:0,knownAssignmentCount:0,reason:'No programme resource assignments are stored for the current programme.'};
+ const eligible=new Set(resources.resources.filter(resourceLaborHourEligible).map(r=>r.resourceId));
+ const labor=resources.assignments.filter(a=>eligible.has(a.resourceId));
+ const known=labor.filter(a=>typeof a.actualRegularUnits==='number'&&Number.isFinite(a.actualRegularUnits)&&typeof a.actualOvertimeUnits==='number'&&Number.isFinite(a.actualOvertimeUnits));
+ const hours=labor.length&&known.length===labor.length?round(known.reduce((n,a)=>n+a.actualRegularUnits!+a.actualOvertimeUnits!,0),2):null;
+ return {hours,assignmentCount:labor.length,knownAssignmentCount:known.length,
+  reason:hours!==null?null:!labor.length?'The programme has no hour-based labour assignments.':'The programme states actual regular and overtime hours for '+known.length+' of '+labor.length+' labour assignments; the total is not established.'};
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;summary:WeeklyResourceCapacitySummary}>();
 export function canonicalResources(state:ProjectRuntimeState):WeeklyResourceCapacitySummary{
  const cached=cache.get(state);if(cached?.version===state.version)return cached.summary;
@@ -70,6 +81,10 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
   const completeSum = (values:Array<number|null>) => values.length && values.every(v=>v!==null) ? sumKnown(values) : null;
   const planToDate = completeSum(historicalLabor.map(p=>p.plannedDemand));
   const actualToDate = completeSum(historicalLabor.map(p=>p.actualApprovedUsage));
+  // When no register gives recorded hours, the programme's own actual hours are used, labelled programme-recorded.
+  // They stay apart from the register plan-to-date comparison (different population), so actualHoursToDataDate is unchanged.
+  const registerActualKnown = actualLaborPoints.some(p=>p.actualApprovedUsage!==null);
+  const programme = registerActualKnown ? null : programmeRecordedLaborHours(resourceModel);
   const coverage = (values:Array<number|null>) => values.length ? round(values.filter(v=>v!==null).length/values.length*100) : null;
   let planned:number|null=0,actual:number|null=historicalLabor.length?0:null;
   const points=labor.map(p=>{planned=planned===null||p.plannedDemand===null?null:planned+p.plannedDemand;
@@ -79,7 +94,10 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
   data={schemaVersion:'1.0',projectionKey:'manhour_scurve',producerVersion:'resource-source-integration-v1',generatedAt,projectId:state.projectId,sourceRevisionId:current?.revision.revisionId??null,dataDateIso:summary.dataDateIso,
    unitBasis:'source_labor_hours',plannedTimePhasing:'source_weekly_demand',remainingTimePhasing:'not_established',actualHistoryMethod:'source_approved_weekly_usage',
    laborResourceCount:summary.resourceSummaries.filter(p=>p.resourceClass==='labor').length,laborAssignmentCount:resourceModel?.assignments.filter(a=>a.resourceType==='labor').length??null,
-   plannedHoursKnown:completeSum(labor.map(p=>p.plannedDemand)),actualHoursKnownCurrent:actualToDate,remainingHoursKnown:null,
+   plannedHoursKnown:completeSum(labor.map(p=>p.plannedDemand)),actualHoursKnownCurrent:actualToDate??programme?.hours??null,remainingHoursKnown:null,
+   actualHoursBasis:actualToDate!==null?'source_register':programme?.hours!=null?'programme_recorded':'not_established',
+   programmeRecordedActualHours:programme?.hours??null,programmeRecordedAssignmentCount:programme?.assignmentCount??null,programmeRecordedKnownAssignmentCount:programme?.knownAssignmentCount??null,
+   actualHoursNotEstablishedReason:actualToDate!==null||programme?.hours!=null?null:registerActualKnown?'Recorded hours are missing for some labour resource weeks on or before the Data Date.':'No register gives recorded hours on or before the Data Date. '+(programme?.reason??''),
    plannedHoursToDataDate:planToDate, actualHoursToDataDate:actualToDate,
    actualMinusPlannedHoursToDataDate:planToDate!==null&&actualToDate!==null?round(actualToDate-planToDate):null,
    plannedPeriodCoveragePercent:coverage(laborPoints.map(p=>p.plannedDemand)),
