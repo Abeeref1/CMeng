@@ -29,6 +29,41 @@ export function ownerDisplayState(owner:string|null|undefined):{named:boolean;ro
  return {named:true,role:null};
 }
 
+/** API presentation of owners (T09 A4). A role assigned only because no individual
+ * is named is sent as owner null with ownerState 'missing' and its accountableRole.
+ * Keys (recordKey, ownerGroupKey, key) are separate fields and are never changed, so
+ * identity, grouping and de-duplication stay exactly as calculated. Copy on write:
+ * unchanged parts of the response are returned as they are. */
+export function presentMissingOwners<T>(body:T):T{
+ const memo=new Map<object,unknown>();
+ const visit=(value:any,depth:number):any=>{
+  if(!value||typeof value!=='object'||depth>64)return value;
+  if(memo.has(value))return memo.get(value);
+  memo.set(value,value);
+  if(Array.isArray(value)){
+   let copy:any[]|null=null;
+   for(let i=0;i<value.length;i++){const next=visit(value[i],depth+1);if(next!==value[i])(copy??=value.slice())[i]=next;}
+   const result=copy??value;memo.set(value,result);return result;
+  }
+  if(Object.getPrototypeOf(value)!==Object.prototype&&Object.getPrototypeOf(value)!==null)return value;
+  let copy:Record<string,unknown>|null=null;
+  const set=(key:string,next:unknown)=>{(copy??={...value})[key]=next;};
+  for(const key of Object.keys(value)){const next=visit(value[key],depth+1);if(next!==value[key])set(key,next);}
+  for(const field of ['owner','accountableOwner'] as const){
+   const state=typeof value[field]==='string'?ownerDisplayState(value[field]):null;
+   if(!state||state.named||!state.role)continue;
+   set(field,null);set(field==='owner'?'ownerState':'accountableOwnerState','missing');
+   if(!('accountableRole' in value))set('accountableRole',state.role);
+  }
+  if(value.dimension==='owner'&&typeof value.value==='string'){
+   const state=ownerDisplayState(value.value);
+   if(!state.named&&state.role){set('value',null);set('ownerState','missing');if(!('accountableRole' in value))set('accountableRole',state.role);}
+  }
+  const result=copy??value;memo.set(value,result);return result;
+ };
+ return visit(body,0) as T;
+}
+
 export function actionRecordKey(domain:string,reference:string){
  const name=domain.toLowerCase();
  const kind=({design:'rfi',quality:'ncr',package:'procurement',activity:'schedule'} as Record<string,string>)[name]??name;

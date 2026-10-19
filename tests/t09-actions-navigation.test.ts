@@ -44,7 +44,7 @@ test('A4: action cards and owner columns never print a placeholder role as the o
   assert.ok(!script.includes('Suggested review role'),'review cards must not label the owner as suggested');
   assert.ok(!script.includes("cell.textContent=pmcDisplayOwner("),'owner cells must not be filled with a placeholder role');
   assert.ok(!script.includes("escapeHtml(a.owner||'PMC Project Controls Manager')"),'a missing action owner must not default to a role');
-  assert.ok(script.includes('ownerMissingHtml(a.owner)'));
+  assert.ok(script.includes('ownerMissingHtml(a.owner,a.accountableRole)'));
 });
 
 test('A1: every static button target in the browser script is a registered page', ()=>{
@@ -95,4 +95,24 @@ test('A5: opening a page from any button writes its own address, and Back restor
   for(const change of changes)assert.match(change,/syncBrowserRoute\(\)|setAppView\(/,change);
   assert.match(script,/selected=key;\s*localStorage\.setItem\("cmeng-module",selected\);\s*syncBrowserRoute\(\);/);
   assert.match(script,/window\.addEventListener\('popstate',\(\)=>\{void restoreBrowserRoute\(\);\}\)/);
+});
+
+test('A4 API: a role-only owner is sent as owner null with an explicit missing state; keys never change', async ()=>{
+  const {presentMissingOwners}=await import('../packages/runtime-api/src/action-priority');
+  const role=pmcRoleOwner('procurement',null),key=role+'|procurement-packages|active_control';
+  const body={data:{actions:[{recordKey:'accountability-owner-group:'+key,ownerGroupKey:key,owner:role,title:'A'},{recordKey:'rfi|r-1',owner:'Jane Smith'}],
+    groups:[{key,owner:role}],decisions:[{accountableOwner:role}],records:[{dimension:'owner',value:role,recordId:'D-1'},{dimension:'organisation',value:role}]}};
+  const before=JSON.stringify(body);
+  const out=presentMissingOwners(body) as any;
+  assert.equal(JSON.stringify(body),before,'the calculated result is not mutated');
+  assert.equal(JSON.stringify(out).includes('"owner":"'+role+'"'),false);
+  assert.deepEqual(out.data.actions[0],{recordKey:'accountability-owner-group:'+key,ownerGroupKey:key,owner:null,title:'A',ownerState:'missing',accountableRole:'PMC Procurement Manager'});
+  assert.equal(out.data.actions[1],body.data.actions[1],'a named owner is sent unchanged');
+  assert.deepEqual(out.data.groups[0],{key,owner:null,ownerState:'missing',accountableRole:'PMC Procurement Manager'});
+  assert.deepEqual(out.data.decisions[0],{accountableOwner:null,accountableOwnerState:'missing',accountableRole:'PMC Procurement Manager'});
+  assert.deepEqual(out.data.records[0],{dimension:'owner',value:null,recordId:'D-1',ownerState:'missing',accountableRole:'PMC Procurement Manager'});
+  assert.equal(out.data.records[1],body.data.records[1],'only owner values are changed');
+  // The JSON boundary applies it to every project response.
+  const server=require('node:fs').readFileSync(require('node:path').join(__dirname,'../../packages/runtime-api/src/server.ts'),'utf8');
+  assert.match(server,/pageProjectResponse\(body,requestUrl,undefined,present\):projectMatch&&statusCode===200\?presentMissingOwners\(body\):body/);
 });
