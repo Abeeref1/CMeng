@@ -16,6 +16,7 @@ import {sourceAnalyticalCandidateIds} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
+import {missingValueInputKind,missingValueInputGroup,openMissingValueInputs} from './missing-value-inputs';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
@@ -115,6 +116,17 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[],context:{compl
         target:{type:'inline',kind:'contract-completion',label:'Confirm contractual completion date',suggestedDateIso}
       };
     }
+    // T04 / C2: a missing value the user can supply gets its own input here.
+    case 'contract-value-entry':
+      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
+        instruction:'Enter the contract value and its currency here if you hold them. They are saved as your confirmation; nothing is calculated from an unknown value.',
+        completionRule:'This action closes when a contract value and currency are saved, or when a source establishes them.'},
+        target:{type:'inline',kind:'contract-value',label:'Save contract value'}};
+    case 'approved-eot-days-entry':
+      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
+        instruction:'Enter the total approved extension of time in days here if you hold it, including zero when none is approved. It is saved as your confirmation.',
+        completionRule:'This action closes when approved EOT days are saved, or when a source establishes them.'},
+        target:{type:'inline',kind:'approved-eot-days',label:'Save approved EOT days'}};
     case 'notice-term-versions':
       return {category:'confirmation',resolution:{kind:'choose',requiresUserAction:true,instruction:'Review the original notice periods and dates, then confirm whether the amendment applies prospectively.',completionRule:'The choice is stored against the same contract documents.'},target:{type:'inline',kind:'review-notice',label:'Confirm notice provisions',reviewOptions:[{value:'confirm_versions',label:'Confirm the dated notice provisions'},{value:'refer_contracts',label:'Refer the interpretation to the Contracts Manager'}]}};
     case 'risk-rating-rule':
@@ -312,6 +324,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const groups=new Map<string,{group:ReturnType<typeof projectReviewGroup>;issues:ControlIssue[]}>();
   const systemItems=assessment.issues.filter(i=>i.owner==='CMeng'||['system_defect','verification_pending'].includes(i.kind));
+  // A missing value the user can supply is its own input matter only while no
+  // source or confirmation holds it; once held, its findings group as before.
+  const openInputs=openMissingValueInputs(state);
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
@@ -319,7 +334,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     // count distinct problems. A combined request keeps every original as a
     // member (pages, source references, fields and actions), so nothing of
     // either original is lost by counting it once.
-    const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
+    const inputKind=missingValueInputKind(issue);
+    const group=inputKind&&openInputs.has(inputKind)?missingValueInputGroup(inputKind):projectReviewGroup(issue,state),existing=groups.get(group.key);
     if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
   const heldCommercial=commercialCanonical(state);

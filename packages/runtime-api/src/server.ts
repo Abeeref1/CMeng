@@ -2071,7 +2071,7 @@ async function route(
     }catch(err){json(res,409,{error:'recovery_scenario_not_saved',message:err instanceof Error?err.message:'The scenario was not saved.'});}return;}
     json(res,405,{error:'method_not_allowed'});return;
   }
-  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review))?$/.exec(url.pathname);
+  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review|confirm-missing-value))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
@@ -2198,6 +2198,21 @@ async function route(
       const updated=runtimeProjects.get(projectId)!;
       json(res,200,{projectId,projectVersion:updated.version,completedActionId:action.id,contractualCompletionIso:updated.controls.contractTimeBasis?.contractualCompletionIso??null});
     }catch(e){json(res,409,{error:'contract_completion_confirmation_not_completed',message:e instanceof Error?e.message:'The contractual completion date could not be confirmed.'});}return;}
+    // T04 / C2: one validated input for missing contract values the user can
+    // supply. The action must still be open, and a held value is never replaced.
+    if(req.method==='POST'&&actionsMatch[2]==='confirm-missing-value'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+      if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before saving.');
+      const {isMissingValueInputKind,missingValueInputPatch,heldMissingValue}=await import('./missing-value-inputs');
+      const action=projectActionRegisterForState(state).workflow.actions.find(a=>a.id===input.actionId);
+      const kind=action?.target.type==='inline'?action.target.kind:undefined;
+      if(!action||!isMissingValueInputKind(kind))throw new Error('This value is no longer awaiting input. Refresh Actions required.');
+      runtimeProjects.updateControls(projectId,missingValueInputPatch(state,kind,input));
+      invalidateProject(projectId);
+      const updated=runtimeProjects.get(projectId)!;
+      json(res,200,{projectId,projectVersion:updated.version,completedActionId:action.id,kind,value:heldMissingValue(updated,kind),
+        sourceRefs:kind==='contract-value'?updated.controls.contractValue?.sourceRefs??[]:updated.controls.contractTimeBasis?.sourceRefs??[]});
+    }catch(e){json(res,409,{error:'missing_value_not_saved',message:e instanceof Error?e.message:'The value could not be saved.'});}return;}
     json(res,405,{error:'action_not_supported'});return;
   }
 

@@ -2231,6 +2231,11 @@ export function rebuildDerivedControls(
     const currentTime =
       state.controls
         .contractTimeBasis;
+    // C2: approved EOT days the user entered stay held while the sources
+    // establish none; a source award replaces them and drops their reference.
+    const keepUserEot =
+      derivedContractTime.officialApprovedEotDays === null &&
+      Boolean(currentTime?.sourceRefs.some(ref => ref.startsWith("user-confirmation:approved-eot-days:")));
     state.controls
       .contractTimeBasis = {
       contractualCompletionIso:
@@ -2246,11 +2251,15 @@ export function rebuildDerivedControls(
           : derivedContractTime
               .contractualCompletionState,
       officialApprovedEotDays:
-        derivedContractTime
-          .officialApprovedEotDays,
+        keepUserEot
+          ? currentTime!.officialApprovedEotDays
+          : derivedContractTime
+              .officialApprovedEotDays,
       officialApprovedEotState:
-        derivedContractTime
-          .officialApprovedEotState,
+        keepUserEot
+          ? currentTime!.officialApprovedEotState
+          : derivedContractTime
+              .officialApprovedEotState,
       eotDayBasis:
         derivedContractTime
           .eotDayBasis !==
@@ -2275,7 +2284,7 @@ export function rebuildDerivedControls(
             currentTime
               ?.sourceRefs ??
             []
-          ),
+          ).filter(ref => keepUserEot || !ref.startsWith("user-confirmation:approved-eot-days:")),
           ...derivedContractTime
             .sourceRefs,
         ]),

@@ -129,6 +129,12 @@ function actionResolutionHtml(a){
   const candidateNote=candidate?'<p><b>Suggested candidate:</b> '+escapeHtml(planningShortDate(candidate))+' from the current submitted programme finish. This is not treated as contractual unless you confirm it.</p>':'';
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the contractual completion date.')+'</p>'+candidateNote+'<div class="action-resolution-grid"><label>Contractual completion date<input type="date" class="action-contract-completion-date" value="'+escapeHtml(candidate)+'"></label></div><button class="btn primary" data-resolve-contract-completion="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm contractual completion date')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
+ if(t.type==='inline'&&(t.kind==='contract-value'||t.kind==='approved-eot-days')){
+  const fields=t.kind==='contract-value'
+   ?'<label>Contract value<input type="text" inputmode="decimal" class="action-missing-amount" placeholder="Amount"></label><label>Currency<input type="text" class="action-missing-currency" maxlength="3" placeholder="SAR"></label>'
+   :'<label>Approved EOT (days)<input type="number" min="0" step="1" class="action-missing-days"></label>';
+  return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Enter the missing value.')+'</p><div class="action-resolution-grid">'+fields+'</div><button class="btn primary" data-resolve-missing-value="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Save value')+'</button><p class="action-inline-message" role="status"></p></div>';
+ }
  return '';
 }
 function actionSourceLink(row){
@@ -240,6 +246,18 @@ async function resolveContractCompletionAction(id){
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
+async function resolveMissingValueAction(id){
+ if(!actionStateCurrent()||projectActionState.status!=='ready')return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const node=actionNode(id),value=cls=>(node?.querySelector(cls)?.value||'').trim();
+ const body=a.target.kind==='contract-value'?{amount:value('.action-missing-amount'),currency:value('.action-missing-currency')}:{days:value('.action-missing-days')};
+ if(Object.values(body).some(v=>v==='')){actionMessage(id,'Enter every field before saving.');return;}
+ setActionBusy(id,true);actionMessage(id,'Saving…');
+ try{
+  await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-missing-value',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,...body})});
+  if(project()===owner)await refresh(false);
+ }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+}
 async function resolvePopulationAction(id){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
@@ -275,6 +293,7 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));
  root.querySelectorAll('[data-resolve-population]').forEach(b=>b.onclick=()=>resolvePopulationAction(b.dataset.resolvePopulation));
  root.querySelectorAll('[data-resolve-contract-completion]').forEach(b=>b.onclick=()=>resolveContractCompletionAction(b.dataset.resolveContractCompletion));
+ root.querySelectorAll('[data-resolve-missing-value]').forEach(b=>b.onclick=()=>resolveMissingValueAction(b.dataset.resolveMissingValue));
  root.querySelectorAll('.action-document-kind').forEach(select=>select.onchange=()=>{const label=select.closest('.action-resolution').querySelector('.action-document-target-label');if(label)label.hidden=select.value==='new_record';});
  root.querySelectorAll('[data-action-refresh]').forEach(b=>b.onclick=()=>loadProjectActions());
  root.querySelectorAll('[data-action-close]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');drawer.open=false;drawer.hidden=true;el('moduleContent')?.scrollIntoView({block:'start'});});
