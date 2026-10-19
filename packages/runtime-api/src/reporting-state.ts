@@ -12,6 +12,7 @@ import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
 import {reportingReadinessEvidence} from './evidence-readiness';
 import {noticeVersionCohorts} from './contract-notice-rules';
+import {unlinkedSourceNotices} from './event-source-register';
 import {withInstalledMeasurements} from './installed-measurements';
 import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-core/src';
 
@@ -108,7 +109,14 @@ export function claimsReporting(state: ProjectRuntimeState) {
   const reporting=delayClaimsAsOf(source,claimsDataDate);
   const notices=reporting.notices.asOf.filter(n=>n.kind!=='determination');
   const determinations=canonicalTimeClaims(state).determinations;
-  return {...reporting,noticeRuleVersions:noticeVersionCohorts(reporting.notices.asOf,source.noticeRequirements),
+  // F06: one list on every claims page: the same record stated differently in two
+  // current files (later file used, query listed) and notices that name no event.
+  const filename=new Map(state.evidenceDocuments.map(document=>[document.documentId,document.sourceFilename]));
+  const sourceRecordQueries=(source.sourceRecordQueries??[]).map(query=>({...query,values:query.values.map(value=>({...value,sourceFilename:value.sourceFilename??filename.get(value.documentId)??null}))}));
+  const unlinkedNotices=unlinkedSourceNotices(source.notices).map(notice=>({noticeId:notice.noticeId,kind:notice.kind,issuedAt:notice.actualIssuedAt,subject:notice.subject,claimId:notice.claimId,
+    statedEventId:notice.noticeSource!.statedEventId,statedEventTitle:notice.noticeSource!.statedEventTitle,reason:notice.noticeSource!.unlinkedReason,
+    sourceFilename:notice.noticeSource!.sourceFilename??filename.get(notice.noticeSource!.documentId)??null,locator:notice.noticeSource!.locator}));
+  return {...reporting,sourceRecordQueries,unlinkedNotices,noticeRuleVersions:noticeVersionCohorts(reporting.notices.asOf,source.noticeRequirements),
     correspondenceReview:{registerNoticeCount:notices.length,
       documentCoverage:state.evidenceDocuments.filter(d=>d.correspondenceNarrativeRefresh).map(d=>({sourceFilename:d.sourceFilename,...d.correspondenceNarrativeRefresh})),
       documentIdentityCount:notices.filter(n=>n.correspondenceEvidence?.identityFound).length,

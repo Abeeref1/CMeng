@@ -43,7 +43,7 @@ import {tenderReadinessForState} from './tender-readiness';
 import {managementVisualControl} from './management-visual-control';
 import {projectManagementContext} from './management-context';
 import {moduleFeatureAvailability} from './feature-availability';
-import {resourceUtilizationCapacity,calendarInputStatus,capacityInputStatus} from './project-input-status';
+import {resourceUtilizationCapacity,calendarInputStatus,capacityInputStatus,installedQuantityPageState} from './project-input-status';
 import {canonicalResources} from './canonical-resource-runtime';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
@@ -53,7 +53,7 @@ import { managementAction, reportingScope, summarizeControlIssues, totalChecksRu
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
 import {projectSourceLabels} from './project-presentation';
-import {attachProjectFacts,projectFactsForState,completedProjectFactsForState} from "./project-facts";
+import {attachProjectFacts,projectFactsForState,completedProjectFactsForState,quantityInputStatusForState} from "./project-facts";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
 import {analyticalOperationalDocuments,SOURCE_ANALYTICAL_USE} from "./operational-reporting";
@@ -3686,10 +3686,6 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
   const series = projection.series.map(series => ({ ...series, authority: scenario ? "scenario_mapping" : "governed_mapping",
     actualAuthority: "measured_installed_quantities",
     points: series.points.map(point => ({ ...point, actualInstalledQuantity: quantities.measurementReview?.complete!==false && model.dataDateIso !== null && point.dateIso.slice(0,10) <= model.dataDateIso.slice(0,10) ? point.actualInstalledQuantity : null })) }));
-  const measuredItems = new Set(basis.installedSnapshots.filter(row=>itemIds.has(row.quantityItemId)&&Number.isFinite(row.installedQuantity)&&row.installedQuantity>=0).map(row=>row.quantityItemId));
-  const measurementsPresent = !!quantities.measurementReview || quantities.installedSnapshots.length>0;
-  const hasMeasuredActual = series.some(group=>group.points.some(point=>point.actualInstalledQuantity!==null));
-  const measurementState = !hasMeasuredActual?"unresolved":measuredItems.size===quantities.items.length?"available":"partial";
   const productivityForecast = sourceProductivityForecastEvidence(state);
   const quantityProductivityRows = productivityForecast.rows.map(row=>({
     workPackageId:row.workPackageId,description:row.description,unit:row.unit,
@@ -3698,9 +3694,10 @@ function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRunti
     completionIso:row.completionIso,completionBasis:row.completionBasis,state:row.state,
     linkedActivityId:row.linkedActivityId,sourceRefs:row.sourceRefs,
   }));
-  const installedQuantityStatus = {state:measurementState,measuredItemCount:measurementsPresent?measuredItems.size:null,boqItemCount:quantities.items.length,
-    itemCoveragePercent:measurementsPresent&&quantities.items.length?measuredItems.size/quantities.items.length*100:null,
-    explanation:hasMeasuredActual?"Dated installed quantities are available for "+measuredItems.size+" of "+quantities.items.length+" BOQ items. Programme links are a separate requirement for planned curves.":"Dated installed quantities are unresolved. A measurement source label or programme link does not establish measured actuals."};
+  // F07: the installed-quantity status is the one shared project status (project facts), not decided here.
+  const sharedInstalled = quantityInputStatusForState(state).installedQuantities;
+  const installedQuantityStatus = {state:installedQuantityPageState(sharedInstalled),measuredItemCount:sharedInstalled.measuredItemCount,boqItemCount:sharedInstalled.boqItemCount,
+    itemCoveragePercent:sharedInstalled.itemCoveragePercent,explanation:sharedInstalled.reason+" Programme links are a separate requirement for planned curves."};
   const result = available("quantity-scurve", {
     ...projection, allocationState: scenario ? "partial" : projection.allocationState,
     mappingBasis, candidateMappingState: sameRevision ? "evaluated" : "revision_mismatch", inferredMapping,

@@ -131,9 +131,10 @@ function actionResolutionHtml(a){
   const candidateNote=candidate?'<p><b>Suggested candidate:</b> '+escapeHtml(planningShortDate(candidate))+' from the current submitted programme finish. This is not treated as contractual unless you confirm it.</p>':'';
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm the contractual completion date.')+'</p>'+candidateNote+'<div class="action-resolution-grid"><label>Contractual completion date<input type="date" class="action-contract-completion-date" value="'+escapeHtml(candidate)+'"></label></div><button class="btn primary" data-resolve-contract-completion="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm contractual completion date')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
- if(t.type==='inline'&&(t.kind==='contract-value'||t.kind==='approved-eot-days')){
+ if(t.type==='inline'&&(t.kind==='contract-value'||t.kind==='approved-eot-days'||t.kind==='commencement-date')){
   const fields=t.kind==='contract-value'
    ?'<label>Contract value<input type="text" inputmode="decimal" class="action-missing-amount" placeholder="Amount"></label><label>Currency<input type="text" class="action-missing-currency" maxlength="3" placeholder="SAR"></label>'
+   :t.kind==='commencement-date'?'<label>Commencement Date<input type="date" class="action-missing-date"></label>'
    :'<label>Approved EOT (days)<input type="number" min="0" step="1" class="action-missing-days"></label>';
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Enter the missing value.')+'</p><div class="action-resolution-grid">'+fields+'</div><button class="btn primary" data-resolve-missing-value="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Save value')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
@@ -289,7 +290,7 @@ async function resolveMissingValueAction(id){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
  const node=actionNode(id),value=cls=>(node?.querySelector(cls)?.value||'').trim();
- const body=a.target.kind==='contract-value'?{amount:value('.action-missing-amount'),currency:value('.action-missing-currency')}:{days:value('.action-missing-days')};
+ const body=a.target.kind==='contract-value'?{amount:value('.action-missing-amount'),currency:value('.action-missing-currency')}:a.target.kind==='commencement-date'?{dateIso:value('.action-missing-date')}:{days:value('.action-missing-days')};
  if(Object.values(body).some(v=>v==='')){actionMessage(id,'Enter every field before saving.');return;}
  setActionBusy(id,true);actionMessage(id,'Saving…');
  try{

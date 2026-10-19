@@ -1,4 +1,5 @@
 import {projectContractSections} from './project-contract-sections';
+import {governingCompletionFrom} from './contract-time-reader';
 import {
   buildContractControls,
   type ContractControlsProjection,
@@ -533,24 +534,31 @@ export function commercialContractControlsForState(
           .commercialTerms
           .insuranceRequirements
           .length,
-      sectionTerms:projectContractSections(state,
-        contractTime?.contractualCompletionIso??null,
+      sectionTerms:(()=>{
         // Only an evidenced additional whole-project award can extend the
         // whole-of-Works section. Other sections still require their own dates.
-        (()=>{
-          const original=contractTime?.contractualCompletionIso??null;
+        const original=contractTime?.contractualCompletionIso??null;
+        const wholeExtended=(()=>{
           const award=awardedOverlap==='resolved'?awardedDays:null;
           if(!original||!/^\d{4}-\d{2}-\d{2}$/.test(original)||
              !Number.isInteger(award)||award===null||award<=0||
              contractTime?.eotDayBasis!=='calendar_days')return null;
           const midnight=Date.parse(original+'T00:00:00Z');
           return Number.isFinite(midnight)?new Date(midnight+award*86400000).toISOString().slice(0,10):null;
-        })()
-      ).map(section=>({
+        })();
+        // F34: the whole-of-Works section uses the Works governing date, the same
+        // value as time.governingContractCompletionIso: contract + awarded EOT on
+        // the same time basis as the commercial time position (shared rule).
+        const worksAward=contractTime?.overlapResolution?(contractTime.additionalApprovedEotDays??null):(contractTime?.officialApprovedEotDays??null);
+        const originalMs=original?Date.parse(original):NaN;
+        const worksExtended=contractTime?.eotDayBasis==='calendar_days'&&worksAward!==null&&Number.isFinite(worksAward)&&Number.isFinite(originalMs)
+          ?new Date(originalMs+worksAward*86400000).toISOString().slice(0,10):null;
+        return projectContractSections(state,original,wholeExtended,governingCompletionFrom(original,contractTime?.officialApprovedEotDays??null,worksExtended));
+      })().map(section=>({
         sectionId:section.sectionId??'Section not identified',label:section.label,rate:section.rate,rateBasis:section.rateBasis,
         currency:section.currency,capAmount:section.capAmount,capPercent:section.capPercent,
         contractCompletionIso:section.contractCompletionIso,
-        extendedCompletionIso:section.extendedCompletionIso,
+        extendedCompletionIso:section.extendedCompletionIso,governingCompletionIso:section.governingCompletionIso,
         programmeCompletionIso:section.programmeCompletionIso,milestoneId:section.milestoneId,
         sourceRefs:section.sourceRefs
       })),

@@ -1751,7 +1751,7 @@ function liquidatedDamages(
   // Sectional rates never apply automatically to whole-project exposure.
   // A programme completion milestone is NOT the sectional contract due date.
   const sectionScenarios=(input.sectionTerms??[]).map(section=>{
-    const contractualDueDateIso=section.extendedCompletionIso??section.contractCompletionIso;
+    const contractualDueDateIso=section.governingCompletionIso!==undefined?section.governingCompletionIso:section.extendedCompletionIso??section.contractCompletionIso;
     const forecastCompletionIso=section.programmeCompletionIso;
     const missingInputs:string[]=[];
     if(!contractualDueDateIso)missingInputs.push('Section contractual completion date');

@@ -3,6 +3,7 @@ import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
 import type { ContractTimeBasis } from '../../eot-assessment/src';
@@ -13,12 +14,26 @@ import type {ClaimActivityCorrespondenceInput,ClaimActivityCorrespondenceResolut
 import { contractNoticeRules } from './contract-notice-rules';
 import { detailedClaimTimeBar } from './detailed-claim-time-bar';
 import { reportedClaim } from '../../delay-analysis-core/src/reporting';
-import { detectEventSourceTable, eventFromSourceRow, eventSourceCandidate, mergeSourceEvents } from './event-source-register';
+import { detectEventSourceTable, detectNoticeTable, eventFromSourceRow, eventSourceCandidate, linkStatedNotices, mergeSourceEvents, noticeFromLetterText, noticesFromNoticeTable } from './event-source-register';
+import { NOTICE_RECORD_SPEC, claimsRegisterHeaders, claimsSourceOrder, mergeRecordsByIdentity, mergeStatedFields, noticeUnions } from './claims-source-merge';
+import { contentReportDate, isReportDateHeader } from './evidence-control';
+import type { SourceRecordQuery } from '../../delay-analysis-core/src';
 export interface DeterminationRecord {
   determinationId: string; claimId: string; awardedDays: number | null; determinationDate: string | null;
   state: 'source_immutable' | 'candidate' | 'conflicted'; authority: string; sourceLetter: string | null;
   supersedes: string | null; incorporatedInAmendment: string | null; receipt: SourceReceipt;
   correspondenceReview?: {identityFound:boolean;awardTextDays:number|null;awardMatchesRegister:boolean|null;basis:string};
+  /** F34: the contract Section the award is stated for (null: the Works). */
+  section?: string | null;
+}
+/** F34: awarded EOT stated for one contract Section, effective at the Data Date. */
+export interface SectionalDeterminationAward {sectionId:string;awardedDays:number|null;determinationIds:string[];sourceRefs:string[]}
+/** F34: the scope a determination register states for an award. Blank or the
+ * Works is the Works; "Section 1" / "1" is that Section. */
+export function determinationSection(text:string):string|null{
+  const value=text.trim();
+  if(!value||/^(?:-|n\/?a|none|(?:the\s+)?(?:whole\s+(?:of\s+the\s+)?|entire\s+)?works|all(?:\s+sections)?|(?:whole\s+)?project)$/i.test(value))return null;
+  return /^(?:section\s*)?([0-9]+[A-Za-z]?)\b/i.exec(value)?.[1]??value;
 }
 export interface AmendmentTimeRecord {
   documentId: string; effectiveDate: string | null; completionIso: string; incorporatedEotDays: number | null;
@@ -30,6 +45,8 @@ export interface CanonicalTimeClaims {
   determinations: DeterminationRecord[]; amendments: AmendmentTimeRecord[];
   registerDeterminationDays: number | null; effectiveDeterminationDays: number | null;
   futureDeterminationCount: number; diagnostics: string[];
+  /** F34: awards stated for a contract Section; they extend that Section only. */
+  sectionalDeterminations?: SectionalDeterminationAward[];
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
 /** One deterministic association pass per source event/project version. A
@@ -281,6 +298,13 @@ function correspondenceNarrativeSegments(
   return result;
 }
 
+/** F06: the text of a notice document when it is read: a completed full-page
+ * read of this exact PDF, or a plain-text letter (hash checked). */
+function noticeDocumentText(document:ProjectRuntimeState['evidenceDocuments'][number]):string|null{
+  if(document.fullTextRead?.sourceHashSha256===document.sourceHashSha256)return document.fullTextRead.result.pages.map(page=>page.text).join('\n');
+  if(!/^text\/plain/i.test(document.mediaType))return null;
+  try{const bytes=readFileSync(document.storedPath);return createHash('sha256').update(bytes).digest('hex')===document.sourceHashSha256?bytes.toString('utf8'):null;}catch{return null;}
+}
 export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId){
@@ -425,7 +449,16 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   };
   const correspondence = correspondenceLinks(tables, diagnostics);
   const correspondenceNarratives=correspondenceNarrativeSegments(state);
-  const sourceTablesForClaims=tables.filter(t=>has(t,'claim id','event')&&has(t,'notice date'));
+  // F06: every claims/EOT register file of the current basis is read (a claim
+  // register states the claim: its claimed days, or its event and notice date).
+  const sourceTablesForClaims=tables.filter(t=>claimsRegisterHeaders(t.headers));
+  // One shared file order (report date inside every file, else upload order),
+  // resolved only when one identity is stated in two files.
+  const sourceRecordQueries:SourceRecordQuery[]=[];
+  const documentById=new Map(state.evidenceDocuments.map(document=>[document.documentId,document]));
+  const delaySourceTables=tables.filter(t=>claimsRegisterHeaders(t.headers)||eventSourceCandidate(t.document.documentType,t.headers)||detectNoticeTable({documentType:t.document.documentType,headers:t.headers})!==null);
+  const sourceOrder=claimsSourceOrder(delaySourceTables.map(t=>({documentId:t.document.documentId,sourceFilename:t.document.sourceFilename??null,uploadedAt:t.document.uploadedAt})),
+    documentId=>{const document=documentById.get(documentId);return document?contentReportDate(document):null;});
   const claimNarratives=new Map<string,string[]>();
   const claimDiagnosticSources=new Map<string,{
     tableDocumentId:string|null;
@@ -460,9 +493,28 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const claimIds=new Set<string>();
   // F47: the contract's own detailed-claim rule (notice calculator rules), read once.
   const detailedClaimRules=contractNoticeRules(state,'detailed_claim');
+  // F06: group every claims register row once by claim id. The same claim id in
+  // two files is one claim (merged field by field by the shared rule below); a
+  // repeat inside one file stays a reported duplicate (first row kept).
+  const claimEntries=new Map<string,Array<{row:SourceRow;table:SourceTable}>>();
   for(const table of sourceTablesForClaims) for(const r of table.rows){
     const claimId=cell(r,'claim id');if(!claimId)continue;
-    if(claimIds.has(claimId)){diagnostics.push('DUPLICATE_CLAIM_ID_REQUIRES_REVISION_RECONCILIATION:'+claimId);continue;}claimIds.add(claimId);
+    const entries=claimEntries.get(claimId);
+    if(!entries){claimEntries.set(claimId,[{row:r,table}]);continue;}
+    if(entries.some(entry=>entry.row.receipt.documentId===r.receipt.documentId)){diagnostics.push('DUPLICATE_CLAIM_ID_REQUIRES_REVISION_RECONCILIATION:'+claimId);continue;}
+    entries.push({row:r,table});
+  }
+  for(const [claimId,entries] of claimEntries){
+    const orderBasis=entries.length>1?sourceOrder.sort(entries,entry=>entry.row.receipt.documentId):'upload_order';
+    const latest=entries.at(-1)!,table=latest.table;
+    // Later file wins per field where it states a value; differing values are queries.
+    const mergedCells=entries.length>1?mergeStatedFields({kind:'claim',recordId:claimId,
+      entries:entries.map(entry=>({record:entry.row.cells as Record<string,string>,documentId:entry.row.receipt.documentId,sourceFilename:entry.table.document.sourceFilename??null})),
+      spec:{fields:[...new Set(entries.flatMap(entry=>Object.keys(entry.row.cells)))],noQuery:field=>field==='claim id'||isReportDateHeader(field)},
+      orderBasis,queries:sourceRecordQueries}):null;
+    const r:SourceRow=mergedCells?{cells:Object.freeze({...mergedCells.merged}),receipt:latest.row.receipt}:latest.row;
+    const earlierRows=entries.slice(0,-1).map(entry=>entry.row);
+    claimIds.add(claimId);
     const eventId=cell(r,'event id')||claimId+':event',title=cell(r,'event','title')||claimId;
     const primarySemanticFragments=semanticNarrativeFragments(r);
     claimDiagnosticSources.set(claimId,{
@@ -493,6 +545,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const anchoredCorrespondenceVerified=identityNarratives.length>0;
     const evidenceRefs=[
       evref(r),
+      ...earlierRows.map(row=>evref(row)),
       ...(linkedCorrespondence?[correspondenceRef(linkedCorrespondence)]:[]),
       ...linkedNarratives.map(item=>item.ref),
       ...(
@@ -562,7 +615,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(registerIssued&&correspondenceIssued&&registerIssued!==correspondenceIssued)diagnostics.push('NOTICE_DATE_CONFLICT:'+claimId+':'+sourceLetter);
     claims.push({claimId,title,state:claimStatus(cell(r,'status')),eventIds:[eventId],submittedAt:dateValue(cell(r,'submitted date','submission date')),
       claimedDays:n(r,'days claimed','claimed days'),claimedAmount:n(r,'claimed amount'),assessedDays:n(r,'source granted days','days granted'),assessedDaysState:n(r,'source granted days','days granted')===null?'missing':'candidate',
-      assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION']});
+      assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION',
+        ...(mergedCells?['SAME_IDENTITY_MERGED_FROM_SOURCE_FILES:'+entries.length,...mergedCells.conflictFields.map(field=>'SOURCE_FILE_VALUES_CONFLICT:'+field)]:[])]});
     const claim=claims.at(-1)!;
     // F13: the register's responsibility, awareness and determination columns are
     // carried on the claim as source values (unknown stays null, never inferred).
@@ -575,7 +629,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       responsibility:responsibilityValue,responsibilitySourceText:responsibilityText||null,awarenessIso,eventStartIso:eventStart,detailedClaimSubmittedIso:detailedSubmitted,
       registerDetermination:determinationText||determinationDateIso||determinationDays!==null||determinationReference?{text:determinationText,dateIso:determinationDateIso,days:determinationDays,reference:determinationReference}:null,
       detailedClaimTimeBar:detailedClaimTimeBar({awarenessIso,eventStartIso:eventStart,submittedIso:detailedSubmitted,cutoffIso:dataDateIso?dateValue(dataDateIso):null},detailedClaimRules)};
-    if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice')],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
+    if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice'),...earlierRows.map(row=>evref(row,'notice'))],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
     if(issued&&sourceLetter){
       notices.at(-1)!.correspondenceEvidence={sourceLetter,identityFound:Boolean(linkedCorrespondence)||anchoredCorrespondenceVerified,
         mentionedOnly:linkedNarratives.length>0&&!anchoredCorrespondenceVerified&&!linkedCorrespondence,
@@ -585,6 +639,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   }
   const byClaim=new Map(claims.map(c=>[c.claimId,c]));
   const eventById=new Map(events.map(event=>[event.eventId,event]));
+  // The first event row per id (what events.find returned), indexed once so the
+  // assessment and determination passes stay linear in their rows.
+  const firstEventById=new Map<string,CanonicalDelayEvent>();
+  for(const event of events)if(!firstEventById.has(event.eventId))firstEventById.set(event.eventId,event);
   for(const table of tables.filter(t=>has(t,'claim id')))for(const r of table.rows){
     const claimId=cell(r,'claim id');
     const c=byClaim.get(claimId);
@@ -694,7 +752,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     c.sourceRegister={...reportedClaim(c),assessedDays:c.assessedDays,
       employerDelayDays:n(r,'employer delay days'),contractorDelayDays:n(r,'contractor delay days'),
       evidenceRefs:[...c.evidenceRefs],diagnostics:[...c.diagnostics]};
-    const event=events.find(e=>e.eventId===c.eventIds[0]);if(event)event.evidenceRefs.push(evref(r));
+    const event=c.eventIds[0]===undefined?undefined:firstEventById.get(c.eventIds[0]);if(event)event.evidenceRefs.push(evref(r));
   }
 
 
@@ -712,13 +770,14 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const sourceDetermination=determinationRegister&&awardedDays!==null&&determinationDate!==null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState);
     const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays,determinationDate,
       state:sourceDetermination?'source_immutable':'candidate',
-      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
+      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'},
+      section:determinationSection(cell(r,'section','contract section','section id','section no','section number'))};
     if(!record.determinationId)continue;
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
     determinationById.set(record.determinationId,record);determinations.push(record);
     const c=byClaim.get(record.claimId);
-    const event=c?events.find(e=>e.eventId===c.eventIds[0]):null;
+    const event=c&&c.eventIds[0]!==undefined?firstEventById.get(c.eventIds[0])??null:null;
     const determinationLetter=record.sourceLetter?correspondence.get(norm(record.sourceLetter))??null:null;
     const determinationNarratives=record.sourceLetter?correspondenceNarratives.get(norm(record.sourceLetter))??[]:[];
     const ownDeterminationNarratives=determinationNarratives.filter(n=>ownLetterReference(n.text,record.sourceLetter!));
@@ -830,9 +889,48 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     eventSourceTables.push(table);
     table.rows.forEach((r,index)=>{const event=eventFromSourceRow(columns,values[index]!,{sourceId:r.receipt.documentId,locator:r.receipt.locator});if(event)sourceEvents.push(event);});
   }
-  const sourceEventIds=mergeSourceEvents(events,sourceEvents,diagnostics);
+  const sourceEventIds=mergeSourceEvents(events,sourceEvents,diagnostics,{order:sourceOrder,queries:sourceRecordQueries});
   // SW-15: a claim-cited event reference keeps its links but never an event date.
   for(const event of events)if(event.identitySource==='claims_register_row'){event.startIso=null;event.awarenessIso=null;event.endIso=null;}
+  // F06: a notice register row (or a notice document read as a table) becomes a
+  // notice record labelled with its source. It is linked to the event it states
+  // (event id, or an exact event title) when it states its date; otherwise it
+  // stays unlinked and listed. Shared reader: event-source-register.ts.
+  const noticeTables:SourceTable[]=[];
+  let registerNotices:CanonicalNoticeRecord[]=[];
+  for(const table of delaySourceTables){
+    const columns=detectNoticeTable({documentType:table.document.documentType,headers:table.headers});
+    if(!columns)continue;
+    noticeTables.push(table);
+    for(const notice of noticesFromNoticeTable(columns,tableValues(table),index=>({documentId:table.rows[index]!.receipt.documentId,
+      sourceFilename:table.document.sourceFilename??null,locator:table.rows[index]!.receipt.locator})))registerNotices.push(notice);
+  }
+  // A notice document: one letter whose text is read (full-page read of a PDF, or
+  // a plain-text letter), stating its reference, date and the event it notifies.
+  const populationIds=new Set(events.map(event=>event.eventId));
+  const noticeDocuments:typeof state.evidenceDocuments=[];
+  for(const document of state.evidenceDocuments){
+    if(!['active','additive'].includes(document.basisState)||!/^(?:letters_notices|notice|claim_notice|eot_notice)$/.test(document.documentType))continue;
+    if(/csv/i.test(document.mediaType+' '+document.sourceFilename)||document.tabularRead)continue;
+    const text=noticeDocumentText(document);if(!text)continue;
+    const read=noticeFromLetterText(text,document.documentType,populationIds,{documentId:document.documentId,sourceFilename:document.sourceFilename??null});
+    if(read.diagnostic)diagnostics.push(read.diagnostic);
+    if(read.notice){registerNotices.push(read.notice);noticeDocuments.push(document);}
+  }
+  registerNotices=linkStatedNotices(registerNotices,events);
+  if(registerNotices.length){
+    // One notice id in two files (for example a claims register's notice reference
+    // and the notice register row) is one notice, merged by the shared rule.
+    const knownIds=new Set<string>();let collision=false;
+    for(const notice of [...notices.filter(n=>n.kind!=='determination'),...registerNotices]){if(knownIds.has(notice.noticeId))collision=true;knownIds.add(notice.noticeId);}
+    if(!collision){for(const notice of registerNotices)notices.push(notice);}
+    else{
+      const determinationNotices=notices.filter(n=>n.kind==='determination');
+      const merged=mergeRecordsByIdentity({kind:'notice',lists:[{documentId:'',records:[...notices.filter(n=>n.kind!=='determination'),...registerNotices]}],
+        id:notice=>notice.noticeId,spec:NOTICE_RECORD_SPEC,order:sourceOrder,queries:sourceRecordQueries,unions:noticeUnions});
+      notices.length=0;for(const notice of [...merged,...determinationNotices])notices.push(notice);
+    }
+  }
   const trustedClaims=claims;
   const trustedEvents=events;
   const trustedNotices=notices;
@@ -855,10 +953,21 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const superseded = new Set(accepted.map(d => d.supersedes).filter(Boolean));
     return accepted.filter(d => !superseded.has(d.determinationId));
   }
-  const eligible = population(null);
+  // F34: an award stated for a contract Section extends that Section only, never the Works.
+  const worksAward = (d: DeterminationRecord) => !d.section;
+  const sectionalDeterminations: SectionalDeterminationAward[] = [...new Set(trustedDeterminations.filter(d => d.section).map(d => d.section!))].map(sectionId => {
+    const all = population(null).filter(d => d.section === sectionId);
+    const atDate = dataDateIso === null ? [] : population(dataDateIso).filter(d => d.section === sectionId);
+    const conflicted = trustedDeterminations.some(d => d.section === sectionId && d.state === 'conflicted');
+    const awardedDays = conflicted || dataDateIso === null || all.some(d => d.determinationDate === null) ? null :
+      atDate.length ? sumKnown(atDate.map(d => d.awardedDays)) : all.length ? 0 : null;
+    return {sectionId, awardedDays, determinationIds: atDate.map(d => d.determinationId), sourceRefs: atDate.map(d => 'evidence-document:' + d.receipt.documentId + ':' + d.receipt.locator)};
+  });
+  if (sectionalDeterminations.length) diagnostics.push('SECTIONAL_DETERMINATIONS_NOT_APPLIED_TO_WORKS:' + sectionalDeterminations.map(row => row.sectionId).join(','));
+  const eligible = population(null).filter(worksAward);
   const registerDeterminationDays = determinations.some(d => d.state === 'conflicted') ? null :
     sumKnown(eligible.map(d => d.awardedDays));
-  const effective = dataDateIso === null ? [] : population(dataDateIso);
+  const effective = dataDateIso === null ? [] : population(dataDateIso).filter(worksAward);
   const asOfConflict = trustedDeterminations.some(d => d.state === 'conflicted' &&
     (d.determinationDate === null || dataDateIso !== null && d.determinationDate <= dataDateIso));
   const effectiveDeterminationDays = asOfConflict || dataDateIso === null ||
@@ -978,15 +1087,21 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     }
   }
 
+  const determinedClaimIds=new Set(trustedDeterminations.map(d=>d.claimId));
   for(const claim of claims){
     const reported=reportedClaim(claim);
-    const conflict=reported.state==='determined'&&!trustedDeterminations.some(d=>d.claimId===claim.claimId);
+    const conflict=reported.state==='determined'&&!determinedClaimIds.has(claim.claimId);
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
-  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
+  // Notices alone (no claims register and no event source) do not establish a
+  // claims population: the claim and event counts stay unknown, never 0.
+  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify([...tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)||noticeTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]),
+    ...noticeDocuments.map(d=>[d.documentId,d.sourceHashSha256,d.basisState])])).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity,
+    ...(sourceRecordQueries.length?{sourceRecordQueries}:{})}:null;
   // T04: a saved completion decision applies to the one shared time position.
   contractTimeBasis=applyCompletionDecision(state,contractTimeBasis) as ContractTimeBasis|null;
-  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
+  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics,
+    ...(sectionalDeterminations.length?{sectionalDeterminations}:{})};
   cache.set(state,{version:state.version,value:result});return result;
 }
 /** A reporting view may reuse source extraction only when every extraction
@@ -1003,10 +1118,14 @@ export function synchronizeCanonicalTimeClaims(state:ProjectRuntimeState,force=f
   const model=canonicalTimeClaims(state,force),existing=state.controls.delayClaims;
   if(model.delayClaims && (!existing||/^(canonical-evidence|evidence-document):/.test(existing.evidenceRevisionId))){
     state.controls.delayClaims=model.delayClaims;
+    // The last history entry per event id, indexed once (linear in events and history).
+    const lastByEvent=new Map<string,ProjectRuntimeState['delayEventHistory'][number]>();
+    for(const entry of state.delayEventHistory)lastByEvent.set(entry.eventId,entry);
     for(const event of model.delayClaims?.events??[]){
       const fingerprint=createHash('sha256').update(JSON.stringify(event)).digest('hex');
-      const last=state.delayEventHistory.filter(h=>h.eventId===event.eventId).at(-1);if(last?.fingerprint===fingerprint)continue;
-      state.delayEventHistory.push({eventId:event.eventId,version:(last?.version??0)+1,fingerprint,effectiveAt:new Date().toISOString(),supersedesVersion:last?.version??null,evidenceRevisionId:model.delayClaims!.evidenceRevisionId,snapshot:JSON.parse(JSON.stringify(event))});
+      const last=lastByEvent.get(event.eventId);if(last?.fingerprint===fingerprint)continue;
+      const entry={eventId:event.eventId,version:(last?.version??0)+1,fingerprint,effectiveAt:new Date().toISOString(),supersedesVersion:last?.version??null,evidenceRevisionId:model.delayClaims!.evidenceRevisionId,snapshot:JSON.parse(JSON.stringify(event))};
+      state.delayEventHistory.push(entry);lastByEvent.set(event.eventId,entry);
     }
   }
   if (!model.delayClaims && existing?.evidenceRevisionId.startsWith('canonical-evidence:')) state.controls.delayClaims = null;

@@ -1,6 +1,7 @@
 import {naturalCompare} from '../../shared/src/natural-order';
 import {activityDateExceptionReader} from '../../activity-analytics/src/exceptions';
 import { addWorkingHours, resolveWorkingCalendar, parseScheduleInstant } from "../../schedule-cpm/src/calendar";
+import { relationshipLagCalendarBasis } from "../../schedule-cpm/src/lag-calendar";
 import {
   buildScheduleActivityLogicIndex,
   isExecutionActivity,
@@ -80,14 +81,15 @@ export function predecessorAssessmentMemo(): PredecessorAssessmentMemo {
   return { iso: new Map(), calendars: new Map(), lagged: new Map() };
 }
 
-/** T06/N7: lag in working days of the successor calendar (P6 lag convention,
- * as worked above), hours second. The first source calendar ID wins. An
- * unread calendar never becomes an 8-hour day. */
-function lagNoteText(model: CanonicalScheduleModel, successor: CanonicalScheduleActivity, lagHours: number): string {
-  const dayHours = calendarWorkingDayHours(model.calendars.find((c) => c.calendarId === successor.calendarId));
+/** T06/N7: lag in working days of the calendar it is counted on (the
+ * programme's stated "Calendar for scheduling Relationship Lag", else the
+ * successor calendar, as the CMeng CPM works it), hours second. The first
+ * source calendar ID wins. An unread calendar never becomes an 8-hour day. */
+function lagNoteText(model: CanonicalScheduleModel, lagCalendarId: string | null, label: string, lagHours: number, continuous = false): string {
+  const dayHours = continuous ? 24 : calendarWorkingDayHours(model.calendars.find((c) => c.calendarId === lagCalendarId));
   return dayHours === null
-    ? "lag working days not established (successor calendar hours per day not read) · " + lagHours + " working hours"
-    : "lag " + Number((lagHours / dayHours).toFixed(2)) + " working days (successor calendar) · " + lagHours + " working hours";
+    ? "lag working days not established (" + label + " hours per day not read) · " + lagHours + " working hours"
+    : "lag " + Number((lagHours / dayHours).toFixed(2)) + " working days (" + label + ") · " + lagHours + " working hours";
 }
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
   predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity,
@@ -100,15 +102,24 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
   const from = instant(predecessorAnchor), target = instant(successorAnchor);
   if (from === null || target === null) return unknown("Required relationship date evidence is incomplete.");
   let required = from;
-  if (relation.lagHours !== 0) {
+  // The lag calendar: as the programme states it, else the successor's.
+  const lagRule = relationshipLagCalendarBasis(model).rule;
+  const continuous = lagRule === "24_hour";
+  const lagCalendarId = lagRule === "predecessor" ? predecessor.calendarId
+    : lagRule === "project_default" ? relationshipLagCalendarBasis(model).projectDefaultCalendarId : successor.calendarId;
+  const lagLabel = lagRule === "predecessor" ? "predecessor calendar" : continuous ? "24-hour calendar"
+    : lagRule === "project_default" ? "project default calendar" : "successor calendar";
+  if (relation.lagHours !== 0 && continuous) required = from + relation.lagHours * 3_600_000;
+  else if (relation.lagHours !== 0) {
     let calendar: ReturnType<typeof resolveWorkingCalendar>;
-    if (memo && memo.calendars.has(successor.calendarId)) calendar = memo.calendars.get(successor.calendarId)!;
+    if (memo && memo.calendars.has(lagCalendarId)) calendar = memo.calendars.get(lagCalendarId)!;
     else {
-      calendar = resolveWorkingCalendar(successor.calendarId, model.calendars, false);
-      memo?.calendars.set(successor.calendarId, calendar);
+      calendar = resolveWorkingCalendar(lagCalendarId, model.calendars, false);
+      memo?.calendars.set(lagCalendarId, calendar);
     }
-    if (!calendar) return unknown("Successor working calendar is unresolved; lag cannot be evaluated.");
-    const lagKey = memo ? successor.calendarId + "|" + from + "|" + relation.lagHours : "";
+    if (!calendar) return unknown(lagRule === "successor" ? "Successor working calendar is unresolved; lag cannot be evaluated."
+      : "Lag calendar (" + lagLabel + ") is unresolved; lag cannot be evaluated.");
+    const lagKey = memo ? lagCalendarId + "|" + from + "|" + relation.lagHours : "";
     const known = memo?.lagged.get(lagKey);
     if (known === null) return unknown("Working-calendar lag calculation is unresolved.");
     if (known !== undefined) required = known;
@@ -125,7 +136,7 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
   }
   return { state: required > target ? "blocked" as const : "ready" as const,
     requiredIso,
-    note: relation.relationshipId + ": " + relation.type + ", " + lagNoteText(model, successor, relation.lagHours) + "; " +
+    note: relation.relationshipId + ": " + relation.type + ", " + lagNoteText(model, lagCalendarId, lagLabel, relation.lagHours, continuous) + "; " +
       (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
 }
 

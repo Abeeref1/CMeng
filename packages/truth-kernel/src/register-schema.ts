@@ -29,6 +29,10 @@ export function registerBusinessStatusFields(documentType:string):readonly strin
   }
 }
 
+/** R12 follow-up: a payment certificate's Net Payable column is its net certified
+ * amount. Readers use it only where no Net Certified column exists. */
+export const NET_PAYABLE_HEADERS:readonly string[]=['net payable','net amount payable','net payable amount'];
+
 export const normalizeHeader=(v:string)=>{
   const hit=normalizedHeaderMemo.get(v);
   if(hit!==undefined)return hit;
@@ -167,7 +171,7 @@ const fields=new Set([...Object.keys(groups),...businessStatusFields,
   'approved amount','submitted amount','payment type','type','bond type','issuer','beneficiary','actual delivery','required on site','supplier',
   'trir','ltifr','reporting month','tax basis','vat basis',
   'application amount','engineer assessed amount','employer certified amount','variation certified amount','variations',
-  'paid amount','outstanding amount','other deductions','other deduction','tax amount','payment reference','payment source status',
+  'paid amount','outstanding amount','other deductions','other deduction','tax amount','payment reference','payment source status',...NET_PAYABLE_HEADERS,
   'certified amount basis','paid amount basis','paid allocation basis','payment allocation basis',
   'application date','payment due date','retention release date','retention release due date','certification due date',
   'instruction id','issue date','quotation due date','quotation date','estimated amount','schedule impact days',
@@ -276,7 +280,10 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
     .filter(r=>r.some(v=>v.trim()))
     .filter(r=>!registerSummaryRow(r))
     .map(row=>row.map((raw,i)=>dateColumns[i]?registerDate(raw)??raw:raw));
-  const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no','net certified']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
-  const recognized=best>=2&&required.every(key=>headers.includes(key));
+  const required=/claim/.test(documentType)?['claim id']:/variation/.test(documentType)?['variation id']:/payment_cert/.test(documentType)?['certificate no']:/rfi/.test(documentType)?['rfi id']:/ncr/.test(documentType)?['ncr id']:/risk_register/.test(documentType)?['risk id']:/bond|security_register/.test(documentType)?['bond id']:[];
+  // R12 follow-up: a payment register is recognised by its certificate number and
+  // a stated certified column: net certified, net payable, or gross certified.
+  const requiredAny=/payment_cert/.test(documentType)?['net certified',...NET_PAYABLE_HEADERS,'gross certified amount']:[];
+  const recognized=best>=2&&required.every(key=>headers.includes(key))&&(!requiredAny.length||requiredAny.some(key=>headers.includes(key)));
   return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,columnAudit,recognized,readRowCount:rows.length};
 }

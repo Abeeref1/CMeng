@@ -10,6 +10,7 @@ import {configuredAskModel,type AskModel} from '../../project-ask/src/provider';
 import {createAskAuthorityCatalogue} from './ask-authorities';
 import {AskStore,askHash,type ReferenceFile} from './ask-store';
 import {runtimeProjects} from './project-state';
+import {lagCalendarName} from './activity-float-reconciliation';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {scheduleAuthorityReview} from './schedule-authority';
 import {historicalAskAuthority} from './ask-history';
@@ -49,7 +50,7 @@ function diagnosisAnswer(result:AnalysisResult):NarrativeBlock|null{
 function drivingPathAnswer(result:AnalysisResult):NarrativeBlock|null{
   const section=result.sections.find(s=>s.authorityId==='critical-path'),network=section?.tables.find(t=>t.id==='critical-path.network');if(!section||!network)return null;
   const links=section.tables.find(t=>t.id==='critical-path.relationships');
-  const preview=(links?.rows??[]).slice(0,5).map(r=>r.predecessorActivityId+' → '+r.successorActivityId+' ('+r.type+', '+(typeof r.lagWorkingDays==='number'?Number(r.lagWorkingDays.toFixed(2))+' working days lag (successor calendar) · ':'lag working days not established (successor calendar) · ')+r.lagHours+' working hours)');
+  const preview=(links?.rows??[]).slice(0,5).map(r=>r.predecessorActivityId+' → '+r.successorActivityId+' ('+r.type+', '+(typeof r.lagWorkingDays==='number'?Number(r.lagWorkingDays.toFixed(2))+' working days lag ('+lagCalendarName(r.lagDaysBasis)+') · ':'lag working days not established ('+lagCalendarName(r.lagDaysBasis)+') · ')+r.lagHours+' working hours)');
   return {heading:'Driving path to completion',text:section.explanation+'\n\n'+(preview.length?preview.join('\n'):'The maximum calculated finish is reached by the activity or parallel finish activities shown below.')+'\n\nThe ordered table gives names, WBS, dates, remaining hours, float and actual driving links. Adjacent rows may belong to parallel branches; the links show the sequence.',classification:'calculated_intelligence',traceIds:section.traces.map(t=>t.id)};
 }
 function completionAnswer(result:AnalysisResult):NarrativeBlock|null{

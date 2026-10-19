@@ -179,6 +179,41 @@ export interface CanonicalNoticeRecord {
     noticeContentLinked: boolean;
     evidenceRefs: DelayEvidenceRef[];
   };
+  /**
+   * Additive (F06): a notice read from a notice register or notice document,
+   * labelled with its source. The event it states (id or exact title) is kept as
+   * written; eventId is set only when that event is in the event population and
+   * the notice states its date. A notice that names no event stays unlinked.
+   */
+  noticeSource?: {
+    kind: "notice_register" | "notice_document";
+    documentId: string;
+    sourceFilename: string | null;
+    locator: string | null;
+    statedEventId: string | null;
+    /** A notice document naming more than one event id is never linked to one of them. */
+    statedEventIds?: string[];
+    statedEventTitle: string | null;
+    linkBasis: "event_id" | "exact_event_title" | "not_linked";
+    unlinkedReason: string | null;
+  };
+}
+
+/**
+ * Additive (F06): the same claim, event or notice identity stated with different
+ * values in two current source files. The later dated file's value is used and
+ * the difference is listed as a query; nothing is dropped silently.
+ */
+export interface SourceRecordQuery {
+  queryId: string;
+  kind: "claim" | "event" | "notice";
+  recordId: string;
+  field: string;
+  values: Array<{ documentId: string; sourceFilename: string | null; value: string }>;
+  usedValue: string;
+  usedDocumentId: string;
+  orderBasis: "report_date" | "upload_order";
+  question: string;
 }
 
 export type ClaimState =
@@ -281,6 +316,8 @@ export interface DelayClaimsModel {
   claims: CanonicalClaimRecord[];
   noticeRequirements: NoticeRequirement[];
   diagnostics: string[];
+  /** Additive (F06): differing values for one identity across current source files. */
+  sourceRecordQueries?: SourceRecordQuery[];
   /**
    * Source-population integrity is separate from claim merits. A quarantined
    * population remains retained for audit but must not feed management counts,

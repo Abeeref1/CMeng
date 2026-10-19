@@ -16,6 +16,10 @@ export interface ContractTimeBasis {
   contractualCompletionSourceNote?: string;
   /** Unadopted sources that state a different date than the adopted one. */
   contractualCompletionSourceConflicts?: string[];
+  /** F34: the contract states the Works Time for Completion as a period. label:
+   * the basis of the date (Commencement Date + the period); reason: why the date
+   * stays unknown (for example no Commencement Date is stated). */
+  contractualCompletionPeriod?: {label: string | null; reason: string | null; commencementIso: string | null};
   incorporatedEotDays?: number | null;
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";

@@ -26,6 +26,10 @@ export function activityRegisterView(data:any){
  const all=(Array.isArray(data?.rows)?data.rows:[]).map((row:any)=>({...classified.get(row.activityId),...Object.fromEntries(Object.entries(row).filter(([key,value])=>value!==null&&value!==undefined||!classified.get(row.activityId)?.[key]))})),execution=all.filter(isExecutionActivity);
  const keys=['activityId','name','activityType','status','criticality','totalFloatHours','nearCriticalThresholdHours','floatRiskWatchlist','finishVarianceDays','openStart','openFinish','isolated'];
  const filterOptions=Object.fromEntries(fields.map(key=>[key,[...new Set(execution.map((r:any)=>key==='floor'?r.floor??r.level:r[key]).filter((v:any)=>v!==null&&v!==undefined&&String(v).trim()))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))]));
+ // F07: the Discipline filter lists the one shared programme discipline list
+ // (project facts inputs.disciplines), never a list re-derived for this page.
+ const shared=data?.inputStatus?.disciplines?.disciplines;
+ if(Array.isArray(shared))filterOptions.discipline=shared.map((row:any)=>row.value).sort((a:string,b:string)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
  // Preserve the exact source WBS key for filtering while presenting the
  // controlled hierarchy/path as the option label. Unnamed codes are qualified.
  const wbsNames=new Map<string,string>();

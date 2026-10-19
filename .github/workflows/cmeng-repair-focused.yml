@@ -40,6 +40,7 @@ jobs:
             dist/tests/v1-f01-page-figures-match-api.test.js \
             dist/tests/v1-f07-shared-input-status.test.js \
             dist/tests/v1b-f07-risk-rows-trade-capacity.test.js \
+            dist/tests/r12-f07-shared-prerequisites.test.js \
             dist/tests/f01-real-browser-every-page.test.js \
             dist/tests/r12-certified-column-label.test.js \
             dist/tests/t09-action-assignment.test.js \
@@ -56,6 +57,7 @@ jobs:
             dist/tests/detailed-claim-source-rule.test.js \
             dist/tests/sw15-delay-events-not-from-claims.test.js \
             dist/tests/f06-event-register-content-both-readers.test.js \
+            dist/tests/f06-claims-files-merge-notice-register.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t12-independent-commercial-calculators.test.js \
             dist/tests/t07-commercial-vs-independent.test.js \
@@ -138,6 +140,7 @@ jobs:
             dist/tests/t06-float-days-every-remaining-place.test.js \
             dist/tests/t06-durations-and-buckets-days.test.js \
             dist/tests/t06-lag-working-days.test.js \
+            dist/tests/r12-relationship-lag-calendar.test.js \
             dist/tests/t06-delay-working-days.test.js \
             dist/tests/t06-start-and-completion-delay-days.test.js \
             dist/tests/t06-float-trend-share-of-unfinished.test.js \
@@ -193,6 +196,7 @@ jobs:
             dist/tests/sw14-document-reading-state.test.js \
             dist/tests/y11-sw46-conditional-notices.test.js \
             dist/tests/w2-securities-shared-state.test.js \
+            dist/tests/r12-f34-time-for-completion-from-commencement.test.js \
             dist/tests/w3-commercial-headline-basis.test.js \
             dist/tests/w3-commercial-round10.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \

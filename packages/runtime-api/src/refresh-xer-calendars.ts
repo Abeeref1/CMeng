@@ -5,9 +5,20 @@ import {parsePrimaveraXml} from '../../primavera-xml-parser/src';
 import {parseXerBytes} from '../../xer-parser/src';
 import type {ProjectRuntimeState,StoredScheduleRevision} from './project-state-types';
 
-export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-v4';
-/** P6 XML calendar working time (StandardWorkWeek, HolidayOrExceptions) read into the shared P6 calendar model. */
-export const P6XML_CALENDAR_READER_VERSION='p6xml-calendar-work-time-v1';
+// One reader version per format; a stored programme read by an older reader
+// is refreshed once from its unchanged retained source.
+// XER v5: also the project option "Calendar for scheduling Relationship Lag"
+// (PROJECT.sched_calendar_on_relationship_lag) and the project default
+// calendar it may name, so stored programmes use the stated lag calendar.
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-v5';
+/** P6 XML calendar working time (StandardWorkWeek, HolidayOrExceptions) read
+ * into the shared P6 calendar model; v2 also the project option
+ * Project.RelationshipLagCalendar. */
+export const P6XML_CALENDAR_READER_VERSION='p6xml-calendar-work-time-lagcal-v2';
+/** The stated lag calendar option of a fresh read replaces the stored one (absent stays absent). */
+function refreshLagCalendar(old:StoredScheduleRevision['revision']['model'],fresh:StoredScheduleRevision['revision']['model']){
+  if(fresh.relationshipLagCalendar)old.relationshipLagCalendar=fresh.relationshipLagCalendar;else delete old.relationshipLagCalendar;
+}
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 
 /** Refresh calendar interpretations and unresolved single-project links from the unchanged retained
@@ -49,6 +60,7 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
       const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
       old.calendars=fresh.calendars;
       old.declaredProjectFinishIso=fresh.declaredProjectFinishIso??null;
+      refreshLagCalendar(old,fresh);
       old.diagnostics=[...old.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       stored.calendarReaderVersion=XER_CALENDAR_READER_VERSION;
@@ -94,6 +106,7 @@ function refreshStoredP6XmlCalendars(projectId:string,documents:ProjectRuntimeSt
     const previousDiagnostics=old.diagnostics.filter(isCalendarDiagnostic);
     const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
     old.calendars=fresh.calendars;
+    refreshLagCalendar(old,fresh);
     old.diagnostics=[...old.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
     document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
     stored.calendarReaderVersion=P6XML_CALENDAR_READER_VERSION;

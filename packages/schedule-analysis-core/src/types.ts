@@ -170,11 +170,27 @@ export interface CanonicalScheduleModel {
   declaredProjectFinishIso?: string | null;
   /** Finish computed by the source scheduler at its last run (P6 PROJECT.scd_end_date). Not a declared or CPM finish. */
   scheduledProjectFinishIso?: string | null;
+  /** P6 project option "Calendar for scheduling Relationship Lag", as stated
+   * in the file (XER PROJECT.sched_calendar_on_relationship_lag, P6 XML
+   * Project.RelationshipLagCalendar), with the project default calendar
+   * (XER PROJECT.clndr_id, P6 XML Project.ActivityDefaultCalendarObjectId).
+   * Absent when the file does not state the option. Additive. */
+  relationshipLagCalendar?: SourceRelationshipLagCalendar;
   activities: CanonicalScheduleActivity[];
   relationships: CanonicalScheduleRelationship[];
   wbs: CanonicalWbsNode[];
   calendars: CanonicalCalendar[];
   diagnostics: string[];
+}
+
+/** The stated lag calendar option. `rule` is null when a value is stated but
+ * is not one of the four P6 options, or several projects state different
+ * values: the source value is kept and nothing is guessed from it. */
+export interface SourceRelationshipLagCalendar {
+  rule: "predecessor" | "successor" | "24_hour" | "project_default" | null;
+  sourceValue: string;
+  projectDefaultCalendarId: string | null;
+  sourceRef: string;
 }
 
 export interface ScheduleGraphNode {

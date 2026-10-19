@@ -1,7 +1,8 @@
 import {extractContractLdTerms} from '../../contract-commercial/src';
 import {dateValue} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
-import {projectControlSchedule} from './canonical-time-claims';
+import {canonicalTimeClaims,projectControlSchedule} from './canonical-time-claims';
+import {commencementDatePosition,completionFromStatedPeriod,contractDayDefinition,contractDocumentTexts,contractSourceName,governingCompletionFrom,sectionTimeForCompletion} from './contract-time-reader';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 
@@ -57,7 +58,12 @@ export function sectionStatedTerms(contract:{sections:Array<{text:string}>;pdf?:
  return {completionIso:dates.size===1&&!unreadable?[...dates][0]!:null,completionDateConflict:dates.size>1,capAmount:capAmount!==null&&Number.isFinite(capAmount)?capAmount:null};
 }
 
-export function projectContractSections(state:ProjectRuntimeState,originalFinish:string|null,extendedFinish:string|null){
+/** F34: a section's own contract date, its basis or the reason it is unknown,
+ * the EOT awarded for that section, and its governing date by the same rule as
+ * the Works (contract date + awarded EOT; unknown while an award exists but the
+ * extended date is not established). worksGoverningIso is the Works governing
+ * date (time.governingContractCompletionIso), used for the whole-of-Works section. */
+export function projectContractSections(state:ProjectRuntimeState,originalFinish:string|null,extendedFinish:string|null,worksGoverningIso?:string|null){
   // T04: with no adopted contract, the unique fully read unadopted main
   // contract (shared rule) is read and every section is labelled.
   const sources=contractSourceAnalysis(state);
@@ -66,31 +72,59 @@ export function projectContractSections(state:ProjectRuntimeState,originalFinish
   if(!contract)return [];
   const fromUnadoptedContract=!state.contract;
   const terms=extractContractLdTerms(contract),model=projectControlSchedule(state)?.revision.model,dependencies=contractCompletionDependencies(state);
+  const contractDocumentId=(fromUnadoptedContract?unadoptedMain[0]!.documentId:(state.contractDocuments??[]).find(document=>document.result===contract)?.documentId)??'contract';
+  const timeClaims=canonicalTimeClaims(state),worksPeriod=timeClaims.contractTimeBasis?.contractualCompletionPeriod??null,sectionalAwards=timeClaims.sectionalDeterminations??[];
+  // The contract's day definition is read only when a period or a section award needs it.
+  let dayDefinitionRead:ReturnType<typeof contractDayDefinition>|undefined;
+  const dayDefinition=()=>dayDefinitionRead===undefined?(dayDefinitionRead=contractDayDefinition(contractDocumentTexts(contract))):dayDefinitionRead;
   return terms.rateCandidates.filter(rate=>rate.sectionKey?.startsWith('contract-section:')).map(rate=>{
     const label=rate.sectionHeading??'Section '+rate.sectionIdentifier;
     const whole=/(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project)/i.test(label);
     const activity=sectionCompletionMilestone(model?.activities??[],label);
     const cap=terms.cap?.sectionKey===rate.sectionKey?terms.cap:null;
     const stated=sectionStatedTerms(contract,rate.sectionIdentifier??'',rate.textSnippet,rate.currency);
+    // F34: a section Time for Completion stated as a period counted from the
+    // Commencement Date gives Commencement Date + the period (shared reader).
+    const periods=whole||stated.completionIso||stated.completionDateConflict?[]:sectionTimeForCompletion(contract,rate.sectionIdentifier??'',contractDocumentId,fromUnadoptedContract,contractSourceName(state,contractDocumentId));
+    const fromPeriod=periods.length?completionFromStatedPeriod('Section '+rate.sectionIdentifier,periods,commencementDatePosition(state),dayDefinition()):null;
+    const contractCompletionIso=whole?(originalFinish??stated.completionIso):(stated.completionIso??fromPeriod?.dateIso??null);
+    const completionBasis=contractCompletionIso===null?null:whole&&originalFinish?(worksPeriod?.label??'Contract completion of the Works'):stated.completionIso?'Completion date stated in the contract for this section':fromPeriod?.basis??null;
+    const completionReason=contractCompletionIso!==null?null:whole?(worksPeriod?.reason??'The Works completion date is not established.')
+      :stated.completionDateConflict?'Different completion dates are stated for this section; the date stays unknown.':fromPeriod?.reason??'No completion date or Time for Completion is stated for this section.';
+    // An EOT stated for this section extends this section only.
+    const award=whole?null:sectionalAwards.find(row=>row.sectionId===rate.sectionIdentifier||row.sectionId.toLowerCase()===label.toLowerCase())??null;
+    const awardedEotDays=award?award.awardedDays:null;
+    const sectionExtended=!whole&&award&&awardedEotDays!==null&&awardedEotDays>0&&contractCompletionIso&&dayDefinition()!=='working'
+      ?new Date(Date.parse(contractCompletionIso.slice(0,10)+'T00:00:00Z')+awardedEotDays*86400000).toISOString().slice(0,10):null;
+    // The whole-of-Works section uses the Works governing date when the Works date
+    // is established; otherwise its own stated date, as before.
+    const governingCompletionIso=whole?(originalFinish!==null&&worksGoverningIso!==undefined?worksGoverningIso:(extendedFinish??contractCompletionIso))
+      :award&&awardedEotDays===null?null:governingCompletionFrom(contractCompletionIso,awardedEotDays,sectionExtended);
+    const governingBasis=whole?(governingCompletionIso?(originalFinish!==null&&worksGoverningIso!==undefined?'The Works governing date (contract completion including any awarded EOT for the Works).':extendedFinish?'Section contract date including the awarded EOT for the Works.':'Section contract date; no awarded EOT is applied.'):'The Works governing date is not established.')
+      :governingCompletionIso===null?(contractCompletionIso===null?completionReason:award&&awardedEotDays===null?'The awarded EOT for this section is not established; the section date stays unknown.':'An EOT of '+awardedEotDays+' days is awarded for this section'+(dayDefinition()==='working'?' and the contract defines a day as a working day; the extended date stays unknown.':', but the extended date is not established.'))
+      :sectionExtended?'Section contract date '+contractCompletionIso+' + '+awardedEotDays+' days EOT awarded for this section ('+award!.determinationIds.join(', ')+'), '+(dayDefinition()==='calendar'?'calendar days.':'calendar days assumed; the contract does not define a day.')
+      :'Section contract date; no EOT is awarded for this section.';
     const section={sectionId:rate.sectionIdentifier,label,rate:rate.amount,rateBasis:rate.basis,currency:rate.currency,
       capAmount:cap?.basis==='fixed_amount'?cap.amount:stated.capAmount,
       capPercent:cap?.percent??(Number(/cap(?:ped)?\s+(?:at|to)\s*(\d+(?:\.\d+)?)\s*%/i.exec(rate.textSnippet)?.[1]??NaN)||null),
       capBasis:cap?.basis==='fixed_amount'?'Explicit monetary cap from contract':/section.*estimated value/i.test(rate.textSnippet)?'Percentage of the section estimated value; section value required':'Percentage of the accepted contract amount',
       // The whole-of-Works section keeps the contract completion; every other
       // section uses only the date the contract states for that section.
-      contractCompletionIso:whole?(originalFinish??stated.completionIso):stated.completionIso,extendedCompletionIso:whole?extendedFinish:null,
+      contractCompletionIso,extendedCompletionIso:whole?extendedFinish:sectionExtended,
+      completionBasis,completionReason,awardedEotDays,governingCompletionIso,governingBasis,
       milestoneId:activity?.activityId??null,programmeCompletionIso:activity?(activity.actualFinishIso??activity.forecastFinishIso??activity.currentFinishIso):null,
       completionDependsOnSectionIds:dependencies.filter(row=>row.toSection===rate.sectionIdentifier).map(row=>row.fromSection),
-      authority:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'From contract, not yet confirmed',sourceRefs:rate.sourceRefs,
-      ...(fromUnadoptedContract||dependencies.some(row=>row.toSection===rate.sectionIdentifier&&row.sourceAnalyticalUse)
-        ?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'Section dependency read from a source that is not formally adopted.'}:{})};
+      authority:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'From contract, not yet confirmed',sourceRefs:[...rate.sourceRefs,...(fromPeriod?.dateIso?fromPeriod.sourceRefs:[]),...(award?.sourceRefs??[])],
+      ...(fromUnadoptedContract||dependencies.some(row=>row.toSection===rate.sectionIdentifier&&row.sourceAnalyticalUse)||(fromPeriod?.dateIso&&fromPeriod.sourceAnalytical)
+        ?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:fromPeriod?.dateIso&&fromPeriod.sourceAnalytical?'Section completion computed from a Commencement Date read from a source that is not formally adopted.':'Section dependency read from a source that is not formally adopted.'}:{})};
     return {...section,scenario:sectionDelayDamagesScenario(section)};
   });
 }
 
-/** Exact same section scenario is supplied to page and report. No determination. */
-export function sectionDelayDamagesScenario(section:{extendedCompletionIso:string|null;contractCompletionIso:string|null;programmeCompletionIso:string|null;rate:number|null;rateBasis:string;capAmount:number|null}){
- const due=section.extendedCompletionIso??section.contractCompletionIso,finish=section.programmeCompletionIso;
+/** Exact same section scenario is supplied to page and report. No determination.
+ * F34: a section's governing date (shared rule), when given, is the due date. */
+export function sectionDelayDamagesScenario(section:{extendedCompletionIso:string|null;contractCompletionIso:string|null;governingCompletionIso?:string|null;programmeCompletionIso:string|null;rate:number|null;rateBasis:string;capAmount:number|null}){
+ const due=section.governingCompletionIso!==undefined?section.governingCompletionIso:section.extendedCompletionIso??section.contractCompletionIso,finish=section.programmeCompletionIso;
  const a=due?Date.parse(due.slice(0,10)+'T00:00:00Z'):NaN,b=finish?Date.parse(finish.slice(0,10)+'T00:00:00Z'):NaN;
  const lateDays=Number.isFinite(a)&&Number.isFinite(b)?Math.max(0,Math.round((b-a)/86400000)):null;
  const perDay=typeof section.rate==='number'&&Number.isFinite(section.rate)?section.rateBasis==='fixed_amount_per_day'?section.rate:section.rateBasis==='fixed_amount_per_week'?section.rate/7:null:null;

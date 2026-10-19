@@ -1,5 +1,7 @@
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
-import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus} from './project-input-status';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,quantityInputStatus,installedQuantityInputStatus,cpmCoverageInputStatus,disciplineInputStatus,bindSharedInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus,type QuantityInputStatus,type InstalledQuantityInputStatus,type CpmCoverageInputStatus,type DisciplineInputStatus} from './project-input-status';
+import {boqSourceReporting} from './reporting-state';
+import {projectScopeClassification} from './location-review';
 import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -22,6 +24,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {securityValidityReview} from './security-validity';
+import {moduleFeatureAvailability} from './feature-availability';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
@@ -89,6 +92,9 @@ export interface ProjectFactsSnapshot {
     extendedContractCompletionIso:ProjectFact<string>;
     /** F33: the one date lateness and delay damages are measured against. */
     governingContractCompletionIso?:ProjectFact<string>;
+    /** F34: the Works Time for Completion is stated as a period: the basis of the
+     * date (Commencement Date + the period) or the reason it stays unknown. */
+    completionPeriod?:{label:string|null;reason:string|null;commencementIso:string|null};
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
@@ -105,7 +111,9 @@ export interface ProjectFactsSnapshot {
     expiredPermitCount?:ProjectFact<number>;
   };
   claims:{
-    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string};
+    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string;
+      /** Additive (F06): records stated with different values in two current files (later file used). */
+      sourceRecordQueries?:Array<{queryId:string;kind:string;recordId:string;field:string;usedValue:string;question:string}>};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -319,12 +327,15 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const bondRefs=securities?.bonds.flatMap(row=>row.sourceRefs)??[];
   const insuranceRefs=securities?.insurances.flatMap(row=>row.sourceRefs)??[];
   const noticeGaps=commercial.claimsNotices.dimensionalEvidenceGaps;
-  const reportedClaims=claimsReporting(scoped)?.reported;
+  const claimsReport=claimsReporting(scoped),reportedClaims=claimsReport?.reported;
   const pendingClaims=reportedClaims?.rows.filter(row=>['under_review','submitted'].includes(row.state))??[];
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
   const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
+  // F34: the period basis applies only to the date every page reads (or to its absence).
+  const statedPeriod=contractTime?.contractualCompletionPeriod??null;
+  const completionPeriod=statedPeriod&&(statedPeriod.label?contractTime!.contractualCompletionIso===commercial.timeExposure.contractualCompletion.value:commercial.timeExposure.contractualCompletion.value===null)?statedPeriod:null;
   // An adjustment identical to the original completion is not an extension.
   // Some source amendments echo the original date while a separate dated EOT
   // award exists. Retain both facts and present the calendared comparison
@@ -439,7 +450,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
       {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
         criticality:{config,thresholdMethod:controlBasis.nearCriticalThresholdMethod,headlineFloatBasis:floatBasis},previousRevision}),
-    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
+    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,currentContractCompletion),
     schedule:{
       floatBasis,
       criticalityLabel:governedCriticality.floatLabel,
@@ -503,10 +514,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,
         // T04: every page, report and Ask answer reading this fact shows the label.
-        contractTime?.contractualCompletionSourceUse==='qualified_source_read'
+        (contractTime?.contractualCompletionSourceUse==='qualified_source_read'
           ?'Canonical contract-time position used by every consumer. '+(contractTime.contractualCompletionSourceNote??'Read from source; not formally adopted.')
-          :'Canonical contract-time position used by every consumer.',
+          :'Canonical contract-time position used by every consumer.')+
+        // F34: a date computed from the Commencement Date and a stated period states that basis; an unknown date states why.
+        (completionPeriod?.label?' Basis: '+completionPeriod.label+'.':completionPeriod?.reason?' '+completionPeriod.reason:''),
       ),
+      ...(completionPeriod?{completionPeriod}:{}),
       awardedEotDays:commercialFact(
         commercial.timeExposure.approvedEotDays,
         'Official awarded EOT through the project Data Date.',
@@ -558,6 +572,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         pendingCount:pendingClaims.length,pendingAssessedDays,
         // F44: the CMeng CPM scenario; date arithmetic only as its labelled fallback.
         pendingScenarioCompletionIso:pendingScenario?.scenarioContractCompletionIso??null,pendingEotScenario:pendingScenario,
+        sourceRecordQueries:(claimsReport?.sourceRecordQueries??[]).map(query=>({queryId:query.queryId,kind:query.kind,recordId:query.recordId,field:query.field,usedValue:query.usedValue,question:query.question})),
         basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
       eventDateMissingCount:sourceCount(
         noticeGaps.eventDateMissing,
@@ -687,16 +702,48 @@ export interface ProjectInputStatus {
   riskOwners:RiskOwnerInputStatus;
   /** F07: the one risk register row count every risk page states. */
   riskRows:RiskRowInputStatus;
+  /** F07: BOQ quantities and units readable. */
+  quantities:QuantityInputStatus;
+  /** F07: installed measurement records matched to BOQ items at the Data Date. */
+  installedQuantities:InstalledQuantityInputStatus;
+  /** F07: share of activities the CMeng CPM calculates and whether it is publishable. */
+  cpmCoverage:CpmCoverageInputStatus;
+  /** F07: the programme's discipline list (activity codes, else the shared name rule). */
+  disciplines:DisciplineInputStatus;
+}
+const quantityInputCache=new WeakMap<ProjectRuntimeState,{version:number;value:{quantities:QuantityInputStatus;installedQuantities:InstalledQuantityInputStatus}}>();
+/** F07: the one BOQ quantity and installed quantity status of a project, read
+ * by the project facts and by the Quantities page producer alike. */
+export function quantityInputStatusForState(state:ProjectRuntimeState){
+  state=reportingState(state);
+  const cached=quantityInputCache.get(state);if(cached?.version===state.version)return cached.value;
+  const model=state.quantities??null;
+  const quantities=quantityInputStatus(boqSourceReporting(state),model?.items??null);
+  const installedQuantities=installedQuantityInputStatus(quantities,model,projectControlSchedule(state)?.revision.model.dataDateIso??null);
+  const value={quantities,installedQuantities};quantityInputCache.set(state,{version:state.version,value});return value;
+}
+/** F07: CMeng CPM coverage and publication, under the same gate and calendar
+ * rule the project facts use for the CMeng finish. */
+export function cpmCoverageInputStatusForState(state:ProjectRuntimeState):CpmCoverageInputStatus{
+  state=reportingState(state);
+  const model=projectControlSchedule(state)?.revision.model??null;
+  const forecast=model?scheduleCriticalityFacts(state).independentForecast:null;
+  const gate=model&&forecast?buildForecastReconciliationGate({model,forecast,requiredFinishIso:contractTimeDatesFrom(commercialPositionForState(state).timeExposure).governingCompletionIso}):null;
+  return cpmCoverageInputStatus(forecast,gate,!!forecast&&hasUnreconciledScheduleCalendar(forecast));
 }
 /** F07: shared input status for a project, from the same rules the pages use. */
 export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
   state=reportingState(state);
+  const model=projectControlSchedule(state)?.revision.model??null;
   return {
-    calendar:calendarInputStatus(projectControlSchedule(state)?.revision.model),
+    calendar:calendarInputStatus(model),
     capacity:capacityInputStatus(canonicalResources(state)),
     // No supplied risk rows: owner coverage is unknown, never 0 of 0.
     riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
     riskRows:riskRowInputStatus(operationalReporting(state).risk),
+    ...quantityInputStatusForState(state),
+    cpmCoverage:cpmCoverageInputStatusForState(state),
+    disciplines:disciplineInputStatus(model?projectScopeClassification(state,model).rows:null),
   };
 }
 
@@ -720,11 +767,18 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
-  const shown=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
+  const measured=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
+  // F07: pages that show or gate on a shared input read it from the project facts.
+  const inputs=bound.projectFacts.inputs;
+  const shown:Record<string,any>=bindSharedInputStatus(key,measured,inputs);
+  // F07: prerequisites shown on a page are decided from the shared inputs.
+  if(inputs&&shown.featureAvailability&&(key==='challenge-contract'||key==='quantity-scurve'))
+    shown.featureAvailability=moduleFeatureAvailability(key,shown,{calendar:inputs.calendar,quantities:inputs.quantities,installedQuantities:inputs.installedQuantities});
+  const cpmHeld=key==='independent-forecast'&&shown.forecastReconciliationGate?.heldBySharedRule===true;
   // F45: the Progress page shows the same measured progress by area.
   const measuredProgress=key==='progress-report'?measuredProgressByArea(scoped):null;
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
-  const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:cpmHeld?shown.managementReviewReason:result.reason;
+  return {...result,...(cpmHeld?{status:'partial' as const}:{}),reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }
