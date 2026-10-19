@@ -9,7 +9,8 @@ import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligen
 import {hseReportPosition} from './hse-report-evidence';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
-import {calendarWorkingDayHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
+import {calendarWorkingDayHours,sourceFloatCriticality,isExecutionActivity,scheduleProgress,type CanonicalScheduleActivity} from '../../schedule-analysis-core/src';
+import type {ProgressBreakdownRow} from '../../progress-breakdown/src/types';
 import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/src/calendar';
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
@@ -31,6 +32,17 @@ import {scheduleAuthorityReview,isAdoptedProgrammeRevision} from './schedule-aut
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 
 import {deliveryPages} from '../../delivery-core/src/registry';
+/** Members of one group whose plan or progress value is unknown, on the same
+ * eligible population the group's progress calculation uses (execution
+ * activities with a duration weight). null when nothing is eligible. */
+export function groupUnknownCounts(selected:readonly CanonicalScheduleActivity[],total:ProgressBreakdownRow|null){
+ const progress=scheduleProgress(selected.filter(isExecutionActivity)),eligible=progress.totalCount;
+ const unknown=(coveragePercent:number|null|undefined)=>eligible&&typeof coveragePercent==='number'?eligible-Math.round(coveragePercent*eligible/100):null;
+ return {eligibleActivityCount:eligible,
+  plannedUnknownActivityCount:total?unknown(total.currentPlanCoveragePercent):null,
+  baselinePlannedUnknownActivityCount:total?unknown(total.baselinePlanCoveragePercent):null,
+  scheduleProgressUnknownActivityCount:total&&eligible?eligible-progress.knownCount:null};
+}
 export {deliveryPages,isDeliveryPage} from '../../delivery-core/src/registry';
 export const field=(r:DeliveryRecord,...names:string[])=>{for(const n of names){const v=r.fields[canonicalHeader(n)];if(v!==null&&v!==undefined&&String(v).trim())return String(v).trim();}return '';};
 const numeric=(r:DeliveryRecord,...names:string[])=>numberValue(field(r,...names));
@@ -476,7 +488,10 @@ function buildDelivery(state:ProjectRuntimeState){
   const linkedBlockers=selected.filter(a=>a.status!=='completed').flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
   const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=linkedBlockers.length||gates.some(r=>r.state==='blocked')?'blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
   return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
-   plannedPercent:total?.currentPlanCoveragePercent===100?total.currentPlanPercent??null:null,baselinePlannedPercent:total?.baselinePlanCoveragePercent===100?total.baselinePlannedPercent??null:null,scheduleProgressPercent:total?.durationWeightedCoveragePercent===100?total.durationWeightedProgressPercent??null:null,
+   // SW-27: a group total is calculated from its known members; the members
+   // it could not use are counted beside it, never blanking the whole group.
+   plannedPercent:total?.currentPlanPercent??null,baselinePlannedPercent:total?.baselinePlannedPercent??null,scheduleProgressPercent:total?.durationWeightedProgressPercent??null,
+   ...groupUnknownCounts(selected,total),
    variancePercentagePoints:total?.currentPlanCoveragePercent===100&&total?.durationWeightedCoveragePercent===100?total.scheduleMinusCurrentPlanPercentagePoints??null:null,
    readinessState:ready,mainBlockers:[...new Set([...linkedBlockers,...gates.flatMap(g=>g.rows.filter(r=>r.applicable&&r.outcome==='blocked').map(r=>r.requirement))])],
    activityCount:selected.length,completedActivityCount:selected.filter(a=>a.status==='completed').length,

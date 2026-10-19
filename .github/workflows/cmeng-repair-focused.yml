@@ -147,7 +147,8 @@ jobs:
             dist/tests/t11-platform-paging-version-restart.test.js \
             dist/tests/t05-role-views-page-facts-shown.test.js \
             dist/tests/procurement-linked-work-closeout.test.js \
-            dist/tests/sw28-planned-progress-stated-calendar-basis.test.js
+            dist/tests/sw28-planned-progress-stated-calendar-basis.test.js \
+            dist/tests/sw27-group-totals-known-members.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

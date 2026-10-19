@@ -45,8 +45,11 @@ export interface ScheduleScopeClassification {
 export function scopeClassificationGroups(classification:ScheduleScopeClassification){
  return Object.fromEntries(classification.coverage.map(({key})=>{
   const counts=new Map<string,number>();
-  for(const row of classification.rows){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())counts.set(String(value),(counts.get(String(value))??0)+1);}
-  return [key,{valueCount:counts.size,rows:[...counts].map(([value,activityCount])=>({value,activityCount})).sort((a,b)=>b.activityCount-a.activityCount||a.value.localeCompare(b.value))}];
+  let notGrouped=0;
+  for(const row of classification.rows){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())counts.set(String(value),(counts.get(String(value))??0)+1);else notGrouped++;}
+  // SW-27: activities matching no group are an explicit, counted bucket.
+  return [key,{valueCount:counts.size,rows:[...counts].map(([value,activityCount])=>({value,activityCount})).sort((a,b)=>b.activityCount-a.activityCount||a.value.localeCompare(b.value)),
+   notGrouped:{label:'Not grouped',activityCount:notGrouped}}];
  }));
 }
 
