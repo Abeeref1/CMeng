@@ -50,7 +50,11 @@ export function walkParityDigest(assess:typeof assessModuleIssues):{digest:strin
   const context=shareContext?{eligibility:new WeakMap<object,boolean>()}:undefined;
   for(const key of ['activity-analytics','lookahead-schedule','cost-forecast','notices-claims'])for(const tree of trees){
    const assessed=assess(input(key,tree),pass,context);
-   issues+=assessed.issues.length;hash.update(JSON.stringify(assessed));hash.update('\n');
+   // SW-46 added the additive field checksRunCount (the listed checks that ran: 1 here). It is checked
+   // on its own and left out of the walk digest, so the digest still proves identical issues, paths and order.
+   assert.equal(assessed.checksRunCount,1);
+   const walked:Record<string,unknown>={...assessed};delete walked.checksRunCount;
+   issues+=assessed.issues.length;hash.update(JSON.stringify(walked));hash.update('\n');
   }
  }
  return {digest:hash.digest('hex'),issues};

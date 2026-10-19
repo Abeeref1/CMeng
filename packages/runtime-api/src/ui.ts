@@ -6120,6 +6120,13 @@ function renderDirector(d){
     ?'<p class="muted">Submitted versus calculated float differences are retained in the planner detail, not director-level conclusions. '+managementModuleLink('activity-analytics','Open Activity Review')+'</p>':'');
   applyPmcDisplayOwners(el('director'),'project controls');
 }
+// SW-46: a module counts as "listed checks passed" only when its checks ran and passed; a ready module whose
+// check result is not established makes the count not established (never a pass).
+function readyChecksPassedCount(states){
+  const ready=(states||[]).filter(x=>x.status==="ready");
+  if(ready.some(x=>!x.issueAssessment||!x.issueAssessment.systemCheckState))return null;
+  return ready.filter(x=>x.issueAssessment.systemCheckState==="listed_checks_passed").length;
+}
 function renderStatus(o){
   const ready=o.moduleStates.filter(x=>x.status==="ready").length;
   const partial=o.moduleStates.filter(x=>x.status==="partial").length;
@@ -6135,7 +6142,7 @@ function renderStatus(o){
     '<div class="scalar"><b>Project documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+
     '<div class="scalar"><b>Documents not fully read</b><span id="documentsUnreadCount">'+fmt(o.documentReading?o.documentReading.unreadCount:null)+'</span></div>'+
     '<div class="scalar"><b>Navigation views</b><span>'+fmt(moduleRegistry.length)+'</span></div>'+
-    '<div class="scalar"><b>Listed readiness checks passed</b><span>'+ready+'</span></div>'+
+    '<div class="scalar"><b>Listed readiness checks passed</b><span>'+escapeHtml(screenCountText(readyChecksPassedCount(o.moduleStates)))+'</span></div>'+
     '<div class="scalar"><b>Views requiring review</b><span>'+partial+'</span></div>'+
     '<div class="scalar"><b>Blocked specialist views</b><span>'+blocked+'</span></div>'+
   '</div>'+documentReadingNotice(o.documentReading);

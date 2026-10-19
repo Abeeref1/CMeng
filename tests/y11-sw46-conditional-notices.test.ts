@@ -8,11 +8,18 @@ import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {moduleFeatureAvailability} from '../packages/runtime-api/src/feature-availability';
 import {conditionalNotice} from '../packages/runtime-api/src/conditional-notice';
+import {summarizeControlIssues,totalChecksRun} from '../packages/truth-kernel/src';
+import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
+import {documentReadReview} from '../packages/runtime-api/src/document-read-review';
+import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 
 // The real page functions, taken from the built page script by name.
 const PAGE_FUNCTIONS=['conditionalNotice','knownScreenCount','screenCountText',
   'resourcePerHourNotAssessableNote','manhourUnitNote','manhourActualMissingNote',
-  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual','renderIssueAssessment','renderForecastHistoryVisual'];
+  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual','renderIssueAssessment','renderForecastHistoryVisual','readyChecksPassedCount'];
 function pageScript():string {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
@@ -120,4 +127,45 @@ test('SW-46 Forecast history: "Source forecast history is available" is not show
   assert.match(none,/No submitted forecast finish is recorded in these revisions\./);
   const some=render('renderForecastHistoryVisual',{points:[{sourceRevisionId:'R1',sourceForecastCompletionIso:'2027-03-01'}],establishedForecastCount:0});
   assert.match(some,/Source forecast history is available\.<\/b> Programme calendar recalculation could not be established/);
+});
+
+test('SW-46 issue assessment: "listed checks passed" only when at least one check ran',()=>{
+  assert.equal(summarizeControlIssues([]).systemCheckState,'unverified','unknown check count is not a pass');
+  assert.equal(summarizeControlIssues([]).checksRunCount,null);
+  assert.equal(summarizeControlIssues([],0).systemCheckState,'unverified','an empty check list is not a pass');
+  const ran=summarizeControlIssues([],3);
+  assert.equal(ran.systemCheckState,'listed_checks_passed');assert.equal(ran.checksRunCount,3);
+  const defect={kind:'system_defect' as const,code:'X',summary:'s',detail:'d',action:'a',owner:'CMeng' as const,moduleKeys:['m'],evidencePaths:[],sourceRefs:[],checkIds:[]};
+  assert.equal(summarizeControlIssues([defect],3).systemCheckState,'failed');
+  assert.equal(totalChecksRun([null,undefined]),null);
+  assert.equal(totalChecksRun([2,null,0,5]),7);
+});
+
+test('SW-46 module issues: a verified contract with an empty check list is not "listed checks passed"',()=>{
+  const pass={state:'pass' as const,failedCheckIds:[],checkCount:8};
+  const module=(checks:unknown)=>({key:'arbitrary-control',status:'ready' as const,engineState:'ready' as const,evidenceState:'established' as const,professionalState:'defensible' as const,reason:null,dependencies:[],
+    data:{systemEvidenceContract:{state:'verified_for_checked_metrics',checks},challenge:{reconciliationState:'within_tolerance'}}}) as any;
+  const empty=assessModuleIssues(module([]),pass);
+  assert.equal(empty.systemCheckState,'unverified');assert.equal(empty.checksRunCount,0);
+  const missing=assessModuleIssues(module(undefined),pass);
+  assert.equal(missing.systemCheckState,'unverified');assert.equal(missing.checksRunCount,null);
+  const ran=assessModuleIssues(module([{metric:'population',passed:true}]),pass);
+  assert.equal(ran.systemCheckState,'listed_checks_passed');assert.equal(ran.checksRunCount,1);
+});
+
+test('SW-46 Status page: "Listed readiness checks passed" counts only ready modules whose checks ran and passed',()=>{
+  const count=(states:unknown)=>vm.runInNewContext(pageScript()+'\nreadyChecksPassedCount(states);',{states}) as number|null;
+  assert.equal(count([{status:'ready',issueAssessment:{systemCheckState:'listed_checks_passed'}},{status:'ready',issueAssessment:{systemCheckState:'unverified'}},{status:'partial'}]),1);
+  assert.equal(count([{status:'ready',issueAssessment:{systemCheckState:'listed_checks_passed'}},{status:'ready'}]),null,'a ready module without a check result makes the count not established');
+});
+
+test('SW-46 Document reading: "identification or structured extraction is available" is not shown for a PDF that has neither',t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-sw46-read-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const state=new RuntimeProjectStore({dataDir:dir,durable:false}).getOrCreate('SW46-READ');
+  const bare={documentId:'pdf-1',documentType:'other',mediaType:'application/pdf',sourceHashSha256:'sha',parserState:'pending',basisState:'candidate'} as any;
+  const none=documentReadReview(bare,state);
+  assert.doesNotMatch(none.note!,/is available/);
+  assert.match(none.note!,/^No document identification, structured extraction or complete page-reading receipt is retained\. This does not establish/);
+  const identified=documentReadReview({...bare,parserState:'identified',identification:{pageCount:3}},state);
+  assert.equal(identified.note,'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.');
 });
