@@ -103,14 +103,16 @@ function summarise(label:string,profile:any){
 }
 
 test('r11-perf probe: profile cold Dashboard and dump management pages',{timeout:1_800_000},async t=>{
- const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
- t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
- const root='http://127.0.0.1:'+(server.address() as any).port;
  const session=new Session();session.connect();
  await post(session,'Profiler.enable');await post(session,'Profiler.setSamplingInterval',{interval:1000});
  for(const [label,build] of [['ADV',()=>adversarialProject()],['HALF',()=>adversarialProject(0.5,'R11-PERF-HALF')],['STD',async()=>standardProject()]] as const){
   const b0=performance.now();const id=await build();
   console.log('R11TIME '+label+' built in '+(performance.now()-b0).toFixed(0)+' ms');
+  // A fresh server per project: an idle keep-alive socket from the previous
+  // project's requests is never reused after a long build.
+  const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
+  const root='http://127.0.0.1:'+(server.address() as any).port;
   const P='/api/projects/'+encodeURIComponent(id);
   const timed=async(path:string)=>{const start=performance.now();const response=await fetch(root+P+path);const text=await response.text();return {status:response.status,text,ms:performance.now()-start};};
   process.env.CMENG_PROFILE_PERF='1';
