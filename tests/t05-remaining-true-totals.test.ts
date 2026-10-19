@@ -112,6 +112,7 @@ test('T05/N1 round 3: page counts and charts fed by cut lists read true totals o
     `const finishPeriods=listTotal(riskRows)===riskRows.length?planningFinishPeriodBars(riskRows)`,
     `bondTotal===(registers.bonds||[]).length`,
     `contractSignalTotal===(contract.signals||[]).length?renderVisualBars(contractCategoryItems)`,
+    `const histogram=p.floatHourHistogram||listTotal(riskRows)===riskRows.length?planningFloatHistogram(riskRows,maxThreshold,p.floatHourHistogram)`,
   ])assert.ok(script.includes(site),site);
   for(const old of [
     `<b>Information needed · '+fmt(missing.length)+'</b>`,
@@ -120,6 +121,7 @@ test('T05/N1 round 3: page counts and charts fed by cut lists read true totals o
     `escapeHtml(fmt(entries.length))+' entries</span>`,
     `' priority representatives from '+escapeHtml(fmt(source.length))+' open milestones.`,
     `const finishPeriods=planningFinishPeriodBars(riskRows);`,
+    `const histogram=planningFloatHistogram(riskRows,maxThreshold,p.floatHourHistogram);`,
   ])assert.ok(!script.includes(old),'old preview count still present: '+old);
 });
 
