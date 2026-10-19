@@ -18,6 +18,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {securityValidityReview} from './security-validity';
+import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 
@@ -73,7 +74,7 @@ export interface ProjectFactsSnapshot {
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
-    amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string}>;
+    amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string}>;
   };
   controls:{
     openRfiCount:ProjectFact<number>;
@@ -315,12 +316,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
 
+  // T04: the shared source-analytical rule; wording read only from an
+  // unadopted amendment is quoted with its label, never as adopted text.
+  const amendmentSources=contractSourceAnalysis(scoped);
   const amendmentEotStatements=(scoped.contractDocuments??[])
     .filter(doc=>doc.role==='amendment')
-    .filter(doc=>{
-      const row=scoped.evidenceDocuments.find(record=>record.documentId===doc.documentId);
-      return !row||['active','additive'].includes(row.basisState);
-    }).map(doc=>{
+    .filter(doc=>amendmentSources.eligible(doc.documentId,true)).map(doc=>{
+      const unadopted=amendmentSources.unadopted(doc.documentId);
       const fragments=[
         ...(doc.result.pdf?.pages??[]).filter(page=>Boolean(page.text?.trim()))
           .map(page=>({text:page.text,locator:'page:'+page.pageNumber})),
@@ -333,14 +335,17 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         return {wording:explicit?.[0]??zero?.[0]??null,locator:part.locator};
       }).find(item=>item.wording!==null);
       const sourceRefs=['contract-document:'+doc.documentId,...(phrase?['contract-document:'+doc.documentId+':'+phrase.locator]:[])];
-      return {documentId:doc.documentId,
-        statement:phrase?'Amendment states: "'+phrase.wording!.replace(/\s+/g,' ').trim()+'"':
+      const statement=phrase?'Amendment states: "'+phrase.wording!.replace(/\s+/g,' ').trim()+'"':
           fragments.length
             ?'amendment text not found: no explicit EOT statement identified in the extracted wording; the determination-register award remains separate.'
-            :'amendment text not found; the determination-register award remains separate.',
+            :'amendment text not found; the determination-register award remains separate.';
+      const basis=phrase?'Quoted extracted source text; not an independent award determination':
+          fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete';
+      return {documentId:doc.documentId,
+        statement:unadopted?statement+' ('+CONTRACT_SOURCE_ANALYTICAL_NOTE.replace(/\.$/,'').toLowerCase()+')':statement,
         sourceRefs,
-        basis:phrase?'Quoted extracted source text; not an independent award determination':
-          fragments.length?'Source does not explicitly state an EOT period':'Document extraction incomplete'};
+        basis:unadopted?basis+'. '+CONTRACT_SOURCE_ANALYTICAL_NOTE:basis,
+        ...(unadopted?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{})};
     });
   const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={

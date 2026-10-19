@@ -2,13 +2,18 @@ import {dateValue, reportingScope} from '../../truth-kernel/src';
 import type {CanonicalCommercialModel, CommercialVariation} from './commercial-canonical';
 import type {ProjectRuntimeState} from './project-state-types';
 import type {ReturnCertificateProfile} from './certificate-profile';
+import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 
-export interface AmendmentAmount {documentId:string;sourceFilename?:string;effectiveDate:string|null;currency:string;taxBasis:string;amount:number;sourceRefs:string[]}
+export interface AmendmentAmount {documentId:string;sourceFilename?:string;effectiveDate:string|null;currency:string;taxBasis:string;amount:number;sourceRefs:string[];sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string}
 
 /** Explicit amendment amounts retain their effective date, currency and source.
  * Neither a budget delta nor a future approval is substituted for this evidence. */
 export function amendmentAmounts(state:ProjectRuntimeState):AmendmentAmount[]{
-  return state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId&&['active','additive'].includes(e.basisState))).flatMap(d=>{
+  // T04: the shared source-analytical rule; an amendment read only from an
+  // unadopted source is listed with its label, never as an adopted amendment.
+  const sources=contractSourceAnalysis(state);
+  return state.contractDocuments.filter(d=>d.role==='amendment'&&state.evidenceDocuments.some(e=>e.documentId===d.documentId)&&sources.eligible(d.documentId)).flatMap(d=>{
+    const label=sources.unadopted(d.documentId)?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{};
     const fragments=[...(d.result.pdf?.pages??[]).map(p=>({text:p.text,locator:'page:'+p.pageNumber})),
       ...d.result.sections.map(s=>({text:s.text,locator:s.startPage?'page:'+s.startPage:s.sectionKey}))];
     const effective=/effective\s+date\s*[:\n]?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2})/i.exec(fragments.map(f=>f.text).join('\n'));
@@ -18,7 +23,7 @@ export function amendmentAmounts(state:ProjectRuntimeState):AmendmentAmount[]{
       const key=[currency,amount,taxBasis].join('|'),ref='evidence-document:'+d.documentId+':'+f.locator;
       const prior=groups.get(key);
       if(prior){if(!prior.sourceRefs.includes(ref))prior.sourceRefs.push(ref);}
-      else groups.set(key,{documentId:d.documentId,sourceFilename:state.evidenceDocuments.find(e=>e.documentId===d.documentId)?.sourceFilename??d.documentId,effectiveDate:effective?dateValue(effective[1]!):null,currency,taxBasis,amount,sourceRefs:[ref]});
+      else groups.set(key,{documentId:d.documentId,sourceFilename:state.evidenceDocuments.find(e=>e.documentId===d.documentId)?.sourceFilename??d.documentId,effectiveDate:effective?dateValue(effective[1]!):null,currency,taxBasis,amount,sourceRefs:[ref],...label});
     }
     return [...groups.values()];
   });

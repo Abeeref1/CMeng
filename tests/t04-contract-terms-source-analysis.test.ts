@@ -5,6 +5,11 @@ import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {contractCompletionPosition} from '../packages/runtime-api/src/contract-completion';
 import {contractTermVersions,termAtEvent,contractTermSelectionFactState} from '../packages/runtime-api/src/contract-term-versions';
 import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
+import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+import {amendmentAmounts} from '../packages/runtime-api/src/commercial-basis-review';
+import {contractCompletionDependencies} from '../packages/runtime-api/src/project-contract-sections';
+import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 
 // T04: contract dates and terms follow the one shared source-analytical rule.
 // A unique, fully read contract candidate is used in analysis and labelled as
@@ -118,4 +123,70 @@ test('T04 an adopted contract term is never erased by a different unadopted valu
   assert.equal(retention.sourceAnalyticalUse,undefined);
   assert.deepEqual(retention.sourceConflicts,['UNADOPTED_SOURCE_CONTRACT_TERM_DIFFERS:retentionPercent:10 %:'+particulars.documentId]);
   assert.deepEqual(contractTermSelectionFactState(retention),{state:'established',authority:'source'});
+});
+
+test('T04 notice periods read from a unique candidate are used, labelled and never official; an adopted rule is never shortened by one',()=>{
+  const state=setup('T04-CT-G');
+  const source=evidence(state.projectId,'contract','contract:main');
+  state.evidenceDocuments.push(source);
+  (state.contractDocuments as any[]).push(contract(source.documentId,'main','Initial claim notice: 28 days'));
+  const [rule]=contractNoticeRules(state) as any[];
+  assert.equal(rule?.noticePeriodDays,28,'clear notice period is used, not held');
+  assert.equal(rule.state,'candidate','never official without adoption');
+  assert.equal(rule.sourceAnalyticalUse,'qualified_source_read');
+  assert.match(rule.sourceAnalyticalNote,/not formally adopted/);
+
+  const mixed=setup('T04-CT-H');
+  const adopted=evidence(mixed.projectId,'contract','contract:main','active');
+  const amendment=evidence(mixed.projectId,'amendment','contract:amendment-1');
+  mixed.evidenceDocuments.push(adopted,amendment);
+  (mixed.contractDocuments as any[]).push(contract(adopted.documentId,'main','Initial claim notice: 28 days'),
+    contract(amendment.documentId,'amendment','Effective date: 2031-01-01\nInitial claim notice: 14 days'));
+  const rules=contractNoticeRules(mixed) as any[];
+  assert.deepEqual(rules.map(r=>[r.noticePeriodDays,r.state,r.effectiveToIso]),[[28,'official',null]],'adopted rule kept whole');
+  assert.deepEqual(rules[0].sourceConflicts,['UNADOPTED_SOURCE_NOTICE_PERIOD_DIFFERS:claim_notice:14 days:'+amendment.documentId]);
+  assert.equal(rules[0].sourceAnalyticalUse,undefined);
+});
+
+test('T04 amendment amounts and EOT wording read from a unique candidate amendment are used with the not-adopted label',()=>{
+  const state=setup('T04-CT-I');
+  const amendment=evidence(state.projectId,'amendment','contract:amendment-1');
+  state.evidenceDocuments.push(amendment);
+  (state.contractDocuments as any[]).push(contract(amendment.documentId,'amendment','Effective date: 2031-01-01\nAmendment value: SAR 1,000,000 excluding VAT\nEOT granted: 30 calendar days'));
+  const [amount]=amendmentAmounts(state);
+  assert.equal(amount?.amount,1000000,'clear amendment amount is used, not held');
+  assert.equal(amount?.sourceAnalyticalUse,'qualified_source_read');
+  assert.match(amount?.sourceAnalyticalNote??'',/not formally adopted/);
+  const statement=(projectFactsForState(state).time as any).amendmentEotStatements?.find((s:any)=>s.documentId===amendment.documentId);
+  assert.ok(statement,'amendment wording is quoted');
+  assert.match(statement.statement,/EOT granted: 30 calendar days/);
+  assert.match(statement.statement,/not formally adopted/,'every screen that shows the wording shows the label');
+  assert.equal(statement.sourceAnalyticalUse,'qualified_source_read');
+  assert.equal(state.evidenceDocuments[0]!.basisState,'candidate');
+});
+
+test('T04 section completion dependencies read from a unique candidate contract are used and labelled',()=>{
+  const state=setup('T04-CT-J');
+  const source=evidence(state.projectId,'contract','contract:main');
+  state.evidenceDocuments.push(source);
+  (state.contractDocuments as any[]).push(contract(source.documentId,'main','Section 2 shall not be taken over until Section 1 is complete.'));
+  const rows=contractCompletionDependencies(state);
+  assert.deepEqual(rows.map(r=>[r.fromSection,r.toSection,r.sourceAnalyticalUse]),[['1','2','qualified_source_read']]);
+});
+
+test('T04 contract currency from a unique candidate is used and labelled; a different unadopted currency never replaces the adopted one',()=>{
+  const state=setup('T04-CT-K');
+  const source=evidence(state.projectId,'contract','contract:main');
+  state.evidenceDocuments.push(source);
+  (state.contractDocuments as any[]).push(contract(source.documentId,'main','Contract currency: SAR'));
+  assert.ok(commercialCanonical(state).diagnostics.includes('SOURCE_ANALYTICAL_NOT_ADOPTED:'+source.documentId+':contract-currency'));
+
+  const mixed=setup('T04-CT-L');
+  const adopted=evidence(mixed.projectId,'contract','contract:main','active');
+  const particulars=evidence(mixed.projectId,'particulars','contract:particulars');
+  mixed.evidenceDocuments.push(adopted,particulars);
+  (mixed.contractDocuments as any[]).push(contract(adopted.documentId,'main','Contract currency: SAR'),contract(particulars.documentId,'main','Contract currency: USD'));
+  const diagnostics=commercialCanonical(mixed).diagnostics;
+  assert.ok(diagnostics.includes('UNADOPTED_SOURCE_CONTRACT_CURRENCY_DIFFERS:USD:'+particulars.documentId));
+  assert.ok(!diagnostics.some(d=>d.startsWith('SOURCE_ANALYTICAL_NOT_ADOPTED:')),'the adopted currency is not labelled unadopted');
 });
