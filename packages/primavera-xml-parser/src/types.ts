@@ -50,6 +50,13 @@ export interface PrimaveraXmlResult {
   activities: PrimaveraXmlActivity[];
   /** Normalised Activity field names the reader reads (shared R1 unused-column report). */
   activityFieldsRead?: string[];
+  /** WBS nodes, resources, cost accounts and resource assignments as stated in the file (exact ObjectIds). */
+  wbsNodes?: Array<{objectId:string|null;parentObjectId:string|null;code:string|null;name:string|null}>;
+  resources?: Array<{objectId:string|null;id:string|null;name:string|null}>;
+  costAccounts?: Array<{objectId:string|null;id:string|null;name:string|null}>;
+  resourceAssignments?: Array<{activityObjectId:string|null;resourceObjectId:string|null;costAccountObjectId:string|null}>;
+  /** Fields of every collected element except Activity: read, or unused with a sample (shared R1 report). */
+  columnAudit?: Array<{table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}>;
   relationships: PrimaveraXmlRelationship[];
   calendarsSeen: number;
   wbsSeen: number;

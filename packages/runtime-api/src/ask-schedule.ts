@@ -15,7 +15,7 @@ const columns={activityId:{label:'Activity ID'},name:{label:'Activity'},wbs:{lab
   plannedStartIso:{label:'Planned start'},plannedFinishIso:{label:'Forecast finish'},
   totalFloatHours:{label:'Programme float',unit:'hours'},independentTotalFloatHours:{label:'Calculated float',unit:'hours'},
   totalFloatWorkingDays:{label:'Programme float (working days)',unit:'working days (activity calendar)'},submittedTotalFloatWorkingDays:{label:'Submitted float (working days)',unit:'working days (activity calendar)'},independentTotalFloatWorkingDays:{label:'Calculated float (working days)',unit:'working days (activity calendar)'},
-  percentComplete:{label:'Progress',unit:'%'},startOverdueCalendarDays:{label:'Start overdue',unit:'calendar days'},finishOverdueCalendarDays:{label:'Finish overdue',unit:'calendar days'}};
+  percentComplete:{label:'Progress',unit:'%'},startOverdueCalendarDays:{label:'Start overdue',unit:'calendar days'},finishOverdueCalendarDays:{label:'Finish overdue',unit:'calendar days'},startOverdueWorkingDays:{label:'Start overdue (working days)',unit:'working days (activity calendar)'},finishOverdueWorkingDays:{label:'Finish overdue (working days)',unit:'working days (activity calendar)'},startSlippageWorkingDays:{label:'Start slippage (working days)',unit:'working days (activity calendar)'},startSlippageCalendarDays:{label:'Start slippage',unit:'calendar days'},finishVarianceWorkingDays:{label:'Finish vs baseline (working days)',unit:'working days (activity calendar)'}};
 const execution=(r:ActivityAnalyticsRow)=>!['level_of_effort','wbs_summary'].includes(r.activityType);
 export function askScheduleActivities(scope:ProjectScope){
   const source=moduleForProject(scope.projectId,'activity-analytics'),data=source.data as any;

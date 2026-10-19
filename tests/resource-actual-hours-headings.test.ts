@@ -68,7 +68,7 @@ test('Resources weekly detail: absent actual utilization is stated once with the
  assert.match(none,/No recorded \(actual\) hours on or before the Data Date were found in the resource, timesheet or man-hour registers\./);
  assert.doesNotMatch(none,/<th>Actual utilization<\/th>/,'no per-row actual utilization column');
  const unapproved=renderResources({...base,weeklyCapacityEvidence:{dataDateIso:'2031-01-31',weeklyTotals:[],actualPeriodCoveragePercent:50,resourceSummaries:[row('R1',null)]}});
- assert.match(unapproved,/Recorded hours are supplied, but no approved available capacity exists/);
+ assert.match(unapproved,/Recorded hours are supplied, but no available capacity \(approved, or stated by a register without an approval column\) exists/);
  const some=renderResources({...base,weeklyCapacityEvidence:{dataDateIso:'2031-01-31',weeklyTotals:[],actualPeriodCoveragePercent:100,resourceSummaries:[row('R1',70),row('R2',null)]}});
  assert.match(some,/<th>Actual utilization<\/th>/);assert.match(some,/70%/);assert.doesNotMatch(some,/Actual utilization is not established\./);
 });
