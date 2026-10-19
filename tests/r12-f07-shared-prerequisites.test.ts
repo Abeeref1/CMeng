@@ -121,25 +121,30 @@ test('F07 shared prerequisites: every page that shows or gates on these inputs c
 
 test('F07 shared prerequisites: a page cannot show an input confirmed while another shows it missing',async()=>{
  const id=await reemCase(),state=runtimeProjects.get(id)!,facts=projectFactsForState(state) as any,inputs=facts.inputs;
- // Installed quantities and BOQ quantities.
  const quantity=page(id,'quantity-scurve'),challenge=page(id,'challenge-contract'),breakdown=page(id,'progress-breakdown'),delivery=page(id,'delivery-control');
  const prerequisite=(k:string)=>challenge.featureAvailability.prerequisites.find((p:any)=>p.key===k);
+ const tracking=delivery.boqIntelligence.mappingCoverage.find((r:any)=>r.dimension==='quantity tracking');
+ const forecast=page(id,'independent-forecast');
+ // Page against page first (what each screen states), then each page against the facts.
+ const installedShown={quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),challenge:prerequisite('remaining_quantities').established,
+  breakdown:breakdown.decisionAnalysis.quantities.measuredItemCount>0,delivery:tracking.mappedCount>0,facts:confirmed(inputs?.installedQuantities?.state)};
+ assert.equal(new Set(Object.values(installedShown)).size,1,'installed quantities confirmed on one page are confirmed on all: '+JSON.stringify(installedShown));
+ const boqShown={challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0,facts:confirmed(inputs?.quantities?.state)};
+ assert.equal(new Set(Object.values(boqShown)).size,1,'BOQ quantities confirmed on one page are confirmed on all: '+JSON.stringify(boqShown));
+ const independentDays=facts.time.independentDaysAfterCurrentContract?.value;
+ assert.equal(forecast.forecastReconciliationGate.publishable,independentDays!==null&&independentDays!==undefined,
+  'the Completion Forecast publishes the CMeng finish only when the Dashboard does');
+ // Installed quantities and BOQ quantities against the facts.
  assert.equal(quantity.installedQuantityStatus.measuredItemCount,inputs.installedQuantities.measuredItemCount,'Quantities measured items = facts');
  assert.equal(quantity.installedQuantityStatus.boqItemCount,inputs.quantities.boqItemCount);
  assert.equal(quantity.boqItemCount,inputs.quantities.boqItemCount,'Quantities BOQ items = facts');
  assert.equal(quantity.knownQuantityItemCount,inputs.quantities.readableQuantityItemCount,'Quantities readable quantities = facts');
  assert.equal(breakdown.decisionAnalysis.quantities.itemCount,inputs.quantities.boqItemCount,'Progress Breakdown BOQ items = facts');
  assert.equal(breakdown.decisionAnalysis.quantities.measuredItemCount,inputs.installedQuantities.measuredItemCount,'Progress Breakdown measured items = facts');
- const tracking=delivery.boqIntelligence.mappingCoverage.find((r:any)=>r.dimension==='quantity tracking');
  assert.equal(delivery.boqIntelligence.itemCount,inputs.quantities.boqItemCount,'Delivery value mapping BOQ items = facts');
  assert.equal(tracking.mappedCount,inputs.installedQuantities.measuredItemCount,'Delivery quantity tracking = facts');
- const installedShown={facts:confirmed(inputs.installedQuantities.state),quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),
-  challenge:prerequisite('remaining_quantities').established,breakdown:breakdown.decisionAnalysis.quantities.measuredItemCount>0,delivery:tracking.mappedCount>0};
- assert.deepEqual(new Set(Object.values(installedShown)).size,1,'installed quantities confirmed on one page are confirmed on all: '+JSON.stringify(installedShown));
- const boqShown={facts:confirmed(inputs.quantities.state),challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0};
- assert.deepEqual(new Set(Object.values(boqShown)).size,1,'BOQ quantities confirmed on one page are confirmed on all: '+JSON.stringify(boqShown));
- // CPM coverage and publication.
- const cpm=inputs.cpmCoverage,forecast=page(id,'independent-forecast');
+ // CPM coverage and publication against the facts.
+ const cpm=inputs.cpmCoverage;
  for(const key of ['schedule-analytics','near-critical'])assert.equal(page(id,key).independentCpmState,cpm.calculationComplete?'established':'not_established',key+' CPM state = facts');
  assert.equal(page(id,'pmo-analysis').schedule.independentCpmState,cpm.calculationComplete?'established':'not_established','Management Brief CPM state = facts');
  assert.equal(page(id,'pmo-analysis').forecast.activityCoveragePercent,cpm.coveragePercent,'Management Brief CPM coverage = facts');
@@ -147,8 +152,6 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
  assert.equal(forecast.calculatedActivityCount,cpm.calculatedActivityCount);
  assert.equal(forecast.forecastReconciliationGate.publishable,cpm.publishable,'Completion Forecast publication = facts');
  assert.equal(forecast.managementReviewState,cpm.publishable?'accepted_for_analysis':'review_required');
- const dashboardPublishes=facts.time.independentDaysAfterCurrentContract?.value!==null&&facts.time.independentDaysAfterCurrentContract?.value!==undefined;
- assert.equal(forecast.forecastReconciliationGate.publishable,dashboardPublishes,'the Completion Forecast publishes the CMeng finish only when the Dashboard does');
  // Discipline list: filters, Construction by discipline, schedule breakdowns.
  const values=inputs.disciplines.disciplines.map((r:any)=>r.value);
  const filters=activityRegisterView(page(id,'activity-analytics')).activitySummary.filterOptions.discipline;
