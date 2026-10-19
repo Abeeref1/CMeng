@@ -17,6 +17,18 @@ import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ProjectRuntimeState} from './project-state-types';
 
+
+/** F13/F47: flatten the claim register's determination and detailed-claim
+ * time-bar values so Ask tables carry them (nested objects are not table cells). */
+export function askClaimRegisterColumns(r:any):Record<string,unknown>{
+  const t=r?.detailedClaimTimeBar,d=r?.registerDetermination;
+  return {
+    ...(t&&typeof t==='object'?{detailedClaimStatus:t.status,detailedClaimTriggerBasis:t.triggerBasis,detailedClaimTriggerDateIso:t.triggerDateIso,
+      detailedClaimDueDateIso:t.dueDateIso,detailedClaimAllowedDays:t.allowedDays,detailedClaimDaysToSubmission:t.daysToSubmission,detailedClaimBasis:t.basis}:{}),
+    ...(d&&typeof d==='object'?{registerDeterminationText:d.text,registerDeterminationDateIso:d.dateIso,registerDeterminationDays:d.days,registerDeterminationReference:d.reference}:{}),
+  };
+}
+
 export interface AskProducerContext {state:ProjectRuntimeState}
 const percent:Partial<Column>={type:'number',unit:'%',aggregate:'none'};
 const quantity:Partial<Column>={type:'number',unit:'row unit',aggregate:'sum'};
@@ -63,10 +75,10 @@ const registrations:Record<string,Registration>={
   'variations-change':{id:'variations',concepts:['variation','change order','تغيير'],domains:['commercial']},
   'commercial-claims-notices':{id:'financial-claims',concepts:['financial claim','claimed amount','money claim'],domains:['claims','commercial']},
   'contract-particulars-bonds':{id:'contract',concepts:['contract particulars','bonds','insurance','retention','العقد','ضمان'],domains:['commercial','claims']},
-  'delay-claims':{id:'delay',concepts:['delay event','delay claim','تأخير'],domains:['claims','schedule'],tables:['events','rows']},
-  'notices-claims':{id:'notices',concepts:['notice','claim notice','اخطار'],domains:['claims'],tables:['claimsReporting.current.notices']},
+  'delay-claims':{id:'delay',concepts:['delay event','delay claim','تأخير'],domains:['claims','schedule'],tables:['events','rows','claimsReporting.reported.rows']},
+  'notices-claims':{id:'notices',concepts:['notice','claim notice','اخطار'],domains:['claims'],tables:['claimsReporting.current.notices','claimsReporting.reported.rows']},
   'windows-analysis':{id:'windows',concepts:['windows analysis','concurrent','causation','time impact'],domains:['claims','schedule'],tables:['windows','rows']},
-  'eot-assessment':{id:'eot',concepts:['eot','extension','claims','entitlement','تمديد'],domains:['claims','schedule'],metrics:[['officialApprovedEotDays','Approved EOT','calendar days'],['analyticalTimeImpactCandidateDays','Analytical time impact candidate — not entitlement','calendar days'],['officialAdjustedCompletionIso','Official adjusted completion',null]],tables:['windowCandidates']},
+  'eot-assessment':{id:'eot',concepts:['eot','extension','claims','entitlement','تمديد'],domains:['claims','schedule'],metrics:[['officialApprovedEotDays','Approved EOT','calendar days'],['analyticalTimeImpactCandidateDays','Analytical time impact candidate — not entitlement','calendar days'],['officialAdjustedCompletionIso','Official adjusted completion',null]],tables:['windowCandidates','claimsReporting.reported.rows']},
   'procurement-packages':{id:'procurement',concepts:['procurement','package','مشتريات','توريد'],domains:['delivery','commercial']},
   'material-tracking':{id:'materials',concepts:['material','ordered','delivered','installation','المواد','تسليم'],domains:['delivery','boq','schedule']},
   'long-lead':{id:'long-lead',concepts:['long lead','long-lead','transformer','lead time','latest order'],domains:['delivery','commercial','schedule']},
@@ -276,7 +288,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     return b.result;
   }
   for(const [path,name,unit] of registration.metrics??[])b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
-  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
+  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,...askClaimRegisterColumns(r),late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
     b.metric('dataDate','Programme Data Date',scope.dataDate,null,'Selected programme authority.',{fact:true});
     sharedMetric('source-finish','Submitted programme completion',shared.schedule.submittedProgrammeCompletionIso,null);
