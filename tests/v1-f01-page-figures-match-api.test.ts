@@ -135,6 +135,15 @@ test('F01: completion dates and money shown on every page equal the API answer k
       if(currency&&byCurrency.has(currency))check(key+' executive',metric.label,metric.value,money(label!,currency));
     }
     check(key+' role view','Submitted completion',day(lens.controls?.submittedCompletionIso),dates['Submitted completion']);
+    // Cost and contract comparison panel (commercial basis review): the same
+    // current contract value, and the source EAC where one position exists.
+    const reviews=(data.position?.costBasisReview??[]).filter((r:any)=>!data.position?.sourceLedger?.dataDateIso||r.asOf<=data.position.sourceLedger.dataDateIso);
+    for(const r of reviews){
+      if(!byCurrency.has(r.currency))continue;
+      check(key+' cost comparison','Current contract value · '+r.currency,r.currentContractValue,money('Current contract value',r.currency));
+      if(reviews.filter((x:any)=>x.currency===r.currency).length===1&&r.sourceEac!=null)
+        check(key+' cost comparison','Source EAC · '+r.currency,r.sourceEac,money('Forecast at completion',r.currency));
+    }
   }
   assert.ok(compared>=20,'dates and money are compared on many pages ('+compared+')');
   assert.deepEqual(mismatches,[],'page dates and money equal the API answer key');
