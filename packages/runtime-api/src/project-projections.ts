@@ -8804,7 +8804,11 @@ export function managementSurfacesForProject(
     .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||
       (b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||
       String(a.activityId).localeCompare(String(b.activityId))).slice(0,60);
-  const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,counts:activities.counts,
+  // The Activity Review page publishes these counts through the shared
+  // canonical fact binding. The Dashboard is published without that pass, so
+  // the same binding is applied here to keep one count on every page.
+  const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,
+    counts:activities.counts?bindProjectFacts('activity-analytics',{counts:activities.counts},canonicalFacts).counts:activities.counts,
     totalDelayedOpenCount:delayedSourceRows.length,detailModule:'activity-analytics',
     rows:exceptionPreview.map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,
       currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,
