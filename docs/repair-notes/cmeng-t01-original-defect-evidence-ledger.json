@@ -1237,17 +1237,20 @@
           "eb9bfce8",
           "99bd23c1",
           "e0b7b9c2",
-          "b5d59fea"
+          "b5d59fea",
+          "203e27ef",
+          "38c1c0b8"
         ],
         "regressionFiles": [
           "tests/t02-eastern-digit-source-reader.test.ts",
           "tests/t02-xer-column-audit-activity-codes.test.ts",
           "tests/t02-programme-column-audit-formats.test.ts",
           "tests/t02-r1-stored-size-load.test.ts",
-          "tests/t02-p6-xml-calendar-working-time.test.ts"
+          "tests/t02-p6-xml-calendar-working-time.test.ts",
+          "tests/primavera-xml.test.ts"
         ],
-        "repairNotes": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Rounds 9 and 10 (R1, programme files): every XER table column, and P6 XML, CSV and xlsx programme fields, are listed as read or unused with a sample; activity codes, WBS path, resources and cost accounts reach the activity; the audit is stored with the schedule revision. Round 12 (r12-xmlcal): P6 XML calendar working time is read into the same calendar model as the XER calendar; the same programme as XER and as P6 XML gives identical CMeng CPM dates, floats and working-day delays, equal to the independent solver; calendar faults stay unknown.",
-        "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered. Rounds 9 and 10: Register files other than programmes keep the earlier R1 coverage. Round 12: P6 XML duration units (hours) are pending branch r13-xmldur (lead)."
+        "repairNotes": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Rounds 9 and 10 (R1, programme files): every XER table column, and P6 XML, CSV and xlsx programme fields, are listed as read or unused with a sample; activity codes, WBS path, resources and cost accounts reach the activity; the audit is stored with the schedule revision. Round 12 (r12-xmlcal): P6 XML calendar working time is read into the same calendar model as the XER calendar; the same programme as XER and as P6 XML gives identical CMeng CPM dates, floats and working-day delays, equal to the independent solver; calendar faults stay unknown. Round 13 (r13-xmldur-lead, 203e27ef): P6 XML plain-number durations, float and lag are read as hours, not milliseconds (primavera-xml \"P6 XML simple numeric duration is hours, not milliseconds\"); a P6 XML programme stored under the former millisecond reading gets its durations, float and lags in hours on restart (t02-p6-xml-calendar-working-time). Lead commit 38c1c0b8 is a test-only change: the T02 R1 stored-file load time is measured with 15 samples instead of 5 (t02-r1-stored-size-load).",
+        "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered. Rounds 9 and 10: Register files other than programmes keep the earlier R1 coverage."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1366,6 +1369,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "203e27ef",
+            "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "38c1c0b8",
+            "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -1388,7 +1405,8 @@
           "tests/t02-xer-column-audit-activity-codes.test.ts",
           "tests/t02-programme-column-audit-formats.test.ts",
           "tests/t02-r1-stored-size-load.test.ts",
-          "tests/t02-p6-xml-calendar-working-time.test.ts"
+          "tests/t02-p6-xml-calendar-working-time.test.ts",
+          "tests/primavera-xml.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -12252,6 +12270,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -16423,6 +16455,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -17282,6 +17328,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -18211,6 +18271,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -18885,6 +18959,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -30480,6 +30568,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -33917,6 +34019,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -34268,6 +34384,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -34559,6 +34689,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -38762,6 +38906,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -40213,6 +40371,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -41285,6 +41457,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -43357,6 +43543,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -44157,6 +44357,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -44300,6 +44514,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -47124,6 +47352,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -47777,6 +48019,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -48868,6 +49124,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -49418,6 +49688,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -52806,6 +53090,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -53070,6 +53368,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -54123,6 +54435,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -55717,6 +56043,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -56920,6 +57260,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -57428,6 +57782,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -60182,6 +60550,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -60325,6 +60707,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -60517,6 +60913,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -61568,6 +61978,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -63510,6 +63934,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -65493,6 +65931,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -66136,6 +66588,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -69480,6 +69946,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -70130,6 +70610,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -70681,6 +71175,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -70824,6 +71332,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -72055,6 +72577,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -74078,6 +74614,20 @@
             {
               "sha": "b5d59fea",
               "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "203e27ef",
+              "subject": "fix(T02 SW-13): P6 XML plain-number durations, float and lag are hours, not milliseconds",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "38c1c0b8",
+              "subject": "test(T02 R1): measure stored-file load time with 15 samples instead of 5",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
