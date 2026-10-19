@@ -268,10 +268,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // One choosable decision per commercial record whose adopted value differs
   // from an unadopted source: keep adopted, use the source value, type your
   // own; change or undo later. Saved in reviewDecisions (kept after restart).
+  // T04: a saved decision (category information) goes to the information list.
+  // The register publishes only open decisions as actions; confirm-review also
+  // searches the information list, so change and undo stay reachable.
+  const savedContractDecisions:ProjectAction[]=[];
   for(const key of [...new Set(commercialConflicts.filter(c=>c.against==='adopted'&&c.decisionKey).map(c=>c.decisionKey!))]){
     const group=commercialConflicts.filter(c=>c.decisionKey===key),first=group[0]!,saved=first.decision??null;
     const label=first.kind.replace(/([A-Z])/g,' $1').toLowerCase();
-    actions.push({id:'matter:'+key,category:saved?'information':'confirmation',title:'Choose the '+label+' value for '+first.recordId,owner:'Commercial Manager',recordCount:group.length,
+    (saved?savedContractDecisions:actions).push({id:'matter:'+key,category:saved?'information':'confirmation',title:'Choose the '+label+' value for '+first.recordId,owner:'Commercial Manager',recordCount:group.length,
       reason:'The adopted record ('+first.againstDocumentIds.map(fileOf).join('; ')+') differs from '+group.map(c=>fileOf(c.documentId)).join('; ')+', a source that is not formally adopted. The adopted value is used until you decide.',
       evidenceSummary:[...group.map(c=>'Unadopted source: '+fileOf(c.documentId)),...(saved?['Saved decision: '+saved+(first.enteredValue!=null?' ('+first.enteredValue+')':'')]:[])],
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Keep the adopted value, use the value read from the unadopted source, or enter your own'+(first.numericField?' '+first.numericField:'')+'. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
@@ -283,8 +287,6 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // T04: contract terms whose read values disagree, or whose reading is unsure,
   // are decided here with both values, their sources and the effect: pick a
   // read value, enter your own, change or undo. One shared reader applies it.
-  // Saved contract decisions go to the information list, where change and undo stay reachable.
-  const savedContractDecisions:ProjectAction[]=[];
   {
     // T04 (a): the contractual completion date, same decision place and controls.
     const item=completionDecisionItem(state);
