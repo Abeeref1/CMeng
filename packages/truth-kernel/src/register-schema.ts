@@ -246,6 +246,16 @@ function registerSummaryRow(row:readonly string[]):boolean{
   return /^(?:grand total|sub ?total|total|totals|الإجمالي|الاجمالي|المجموع)$/.test(first);
 }
 
+/** Shared column-audit kind for one source column (date, days, amount or other), from its raw and canonical header. */
+export function registerColumnKind(rawHeader:string,field:string):'date'|'days'|'amount'|'other' {
+  const text=normalizeHeader(rawHeader+' '+field);
+  return isRegisterDateHeader(field)||/(?:^| )(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)(?: |$)/.test(text)?'date':
+    /(?:^| )(days|day count|duration|working days|calendar days)(?: |$)/.test(text)?'days':
+    // A code, id or reference names a record (cost code, payment no); it is never a money amount.
+    /(?:^| )(code|id|no|number|ref|reference)$/.test(normalizeHeader(rawHeader))?'other':
+    /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
+}
+
 export function prepareRegisterRows(input:readonly string[][],documentType='') {
   let headerIndex=0,best=0;
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
@@ -254,12 +264,7 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   const columnAudit=rawHeaders.map((rawHeader,index)=>{
     const field=headers[index]??normalizeHeader(rawHeader);
     const mapped=fields.has(field)||fields.has(field.replace(/ [a-z]{3}$/,''));
-    const text=normalizeHeader(rawHeader+' '+field);
-    const kind=isRegisterDateHeader(field)||/(?:^| )(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)(?: |$)/.test(text)?'date':
-      /(?:^| )(days|day count|duration|working days|calendar days)(?: |$)/.test(text)?'days':
-      // A code, id or reference names a record (cost code, payment no); it is never a money amount.
-      /(?:^| )(code|id|no|number|ref|reference)$/.test(normalizeHeader(rawHeader))?'other':
-      /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
+    const kind=registerColumnKind(rawHeader,field);
     return sourceColumnAuditEntry(rawHeader,field,kind,mapped,
       'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.');
   });
