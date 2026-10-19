@@ -204,3 +204,24 @@ test('SW-46 Final account: closeout and handover are "clear" only when records w
   // A page reason, when the page gives one, is kept as the detail; the state still needs checked records.
   assert.deepEqual(deliveryCheckState({status:'ready',reason:'Page reason.',data:{rows:[]}},'closeout'),{state:'unresolved',detail:'Page reason.'});
 });
+
+test('SW-46 Notices issue: "have passed the listed checks" only when the module checks ran; identity and counts unchanged',()=>{
+  const pass={state:'pass' as const,failedCheckIds:[],checkCount:8};
+  const notices=(checks:unknown)=>({key:'notices-claims',status:'partial' as const,engineState:'ready' as const,evidenceState:'partial' as const,professionalState:'review_required' as const,reason:null,dependencies:[],
+    data:{systemEvidenceContract:{state:'verified_for_checked_metrics',checks},noticeEventDateMissingCount:2,challenge:{reconciliationState:'within_tolerance'}}}) as any;
+  const issue=(a:any)=>a.issues.find((i:any)=>i.code==='NOTICE_TRIGGER_DATES_MISSING');
+  const ran=assessModuleIssues(notices([{metric:'population',passed:true}]),pass);
+  const none=assessModuleIssues(notices([]),pass);
+  const unknown=assessModuleIssues(notices(undefined),pass);
+  assert.equal(issue(ran).detail,'2 events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.');
+  assert.doesNotMatch(issue(none).detail,/have passed the listed checks/);
+  assert.equal(issue(none).detail,'2 events have no event/awareness date. No listed calculation check is recorded for this module, so population, claimed-day retention and timing arithmetic are not verified.');
+  assert.doesNotMatch(issue(unknown).detail,/have passed the listed checks/);
+  assert.match(issue(unknown).detail,/listed calculation checks for this module are not established/);
+  // Wording never changes identity: same member ids and the same counts in every case.
+  for(const other of [none,unknown]){
+    assert.deepEqual(issue(other).memberIssueIds,issue(ran).memberIssueIds);
+    assert.deepEqual(other.counts,ran.counts);
+    assert.deepEqual(other.issues.map((i:any)=>[i.kind,i.code]),ran.issues.map((i:any)=>[i.kind,i.code]));
+  }
+});
