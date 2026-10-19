@@ -283,12 +283,15 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // T04: contract terms whose read values disagree, or whose reading is unsure,
   // are decided here with both values, their sources and the effect: pick a
   // read value, enter your own, change or undo. One shared reader applies it.
+  // Saved contract decisions go to the information list, where change and undo stay reachable.
+  const savedContractDecisions:ProjectAction[]=[];
   {
     // T04 (a): the contractual completion date, same decision place and controls.
     const item=completionDecisionItem(state);
     if(item){
       const saved=item.decision,describeDate=(c:typeof item.candidates[number])=>c.date+(c.documentIds.length?' from '+c.documentIds.map(fileOf).join('; '):'')+(c.userConfirmed?' (confirmed by user)':c.adopted?' (adopted)':' (read from source; not formally adopted)');
-      actions.push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contractual completion date',owner:'Contracts Manager',recordCount:item.candidates.length,
+      // A saved decision stays reachable (change or undo) in the information list.
+      (saved?savedContractDecisions:actions).push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contractual completion date',owner:'Contracts Manager',recordCount:item.candidates.length,
         reason:(item.reason==='sources_disagree'?'The sources state different contractual completion dates: '+item.candidates.map(describeDate).join(' versus ')+'.':'The contractual completion date is read as '+item.candidates.map(describeDate).join(' versus ')+', but the amendment applicability is unresolved.')+
           ' Effect: the chosen date drives the completion position, EOT, delay damages, notices, Ask and downloads.',
         evidenceSummary:[...item.candidates.map(c=>'Read value: '+describeDate(c)),...(saved?['Saved decision: '+(saved.choice==='enter_value'?'your own date '+saved.enteredDateIso:'the date '+saved.choice.slice(4))+'. Not formally adopted.']:[])],
@@ -302,7 +305,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const saved=item.decision;
     const describe=(c:typeof item.candidates[number])=>c.value+' '+c.unit+' from '+c.documentIds.map(fileOf).join('; ')+(c.adopted?' (adopted)':' (read from source; not formally adopted)');
     const savedText=saved?(saved.choice==='enter_value'?'your own value '+saved.enteredValue+' '+item.enterUnit:'the read value '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.value??'')+' '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.unit??'')):'';
-    actions.push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contract '+item.label,owner:'Contracts Manager',recordCount:item.candidates.length,
+    (saved?savedContractDecisions:actions).push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contract '+item.label,owner:'Contracts Manager',recordCount:item.candidates.length,
       reason:(item.reason==='sources_disagree'?'The contract sources state different values for the '+item.label+(item.dataDateIso?' in force at '+item.dataDateIso:'')+': '+item.candidates.map(describe).join(' versus ')+'.':'The '+item.label+' is read as '+item.candidates.map(describe).join(' versus ')+', but the amendment applicability is unresolved.')+
         ' Effect: until you decide, the '+item.label+' stays unresolved on every page (commercial, notices, delay damages, Ask and downloads).',
       evidenceSummary:[...item.candidates.map(c=>'Read value: '+describe(c)),...(saved?['Saved decision: '+savedText+'. Not formally adopted.']:[])],
@@ -376,7 +379,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const dataDate=projectControlSchedule(state)?.revision.model.dataDateIso?.slice(0,10)??null;
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
-  const information:ProjectAction[]=[...classificationInformation];
+  const information:ProjectAction[]=[...classificationInformation,...savedContractDecisions];
   const noticeBasis=noticeReviewBasis(state),noticeVersions=noticeBasis.candidates;
   // The saved selection can resolve the original conflict. Keep the decision
   // reachable from its source provisions independently of stale issue groups.
