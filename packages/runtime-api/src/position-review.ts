@@ -17,13 +17,25 @@ export function issueCounters(a?:ControlIssueAssessment) {
     review:(c?.comparison_difference??0)+(c?.governance_review??0),pending:c?.verification_pending??0};
 }
 const number=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
+/** SW-29 (W8): why a module result is blocked. It is a missing input only when
+ * the producer names the inputs it lacks and its engine did not fail. A failed
+ * engine, or a blocked result that names no missing input, is a CMeng
+ * calculation that did not complete; it is never reported as the user's input
+ * problem. Shared by the position verdict and the browser view. */
+export function blockedCause(result:{status?:string|null;engineState?:string|null;dependencies?:readonly string[]|null}):'missing_input'|'calculation_incomplete'|null{
+  if(!result||result.status!=='blocked')return null;
+  if(result.engineState==='failed')return 'calculation_incomplete';
+  return Array.isArray(result.dependencies)&&result.dependencies.length>0?'missing_input':'calculation_incomplete';
+}
 export function positionVerdict(result:ModuleRuntimeResult) {
   const d:any=result.data??{},p=d.result??d,a=result.issueAssessment??d.issueAssessment,counts=issueCounters(a);
   const facts:{noticeEventDateMissingCount?:number}={};
   let text='The results, records and follow-up actions for this view are shown below.',rag:'red'|'amber'|'green'|'unknown'='amber';
   let specific=false;
   let nextAction:string|null=null,assignTo='Project Controls';
-  if(result.status==='blocked'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
+  const blockedBy=blockedCause(result);
+  if(blockedBy==='missing_input'){text='This position cannot yet be calculated. The missing inputs are listed below.';rag='unknown';}
+  else if(blockedBy==='calculation_incomplete'){text='CMeng did not complete this calculation, so no result is shown. No missing input has been identified for it.';rag='unknown';nextAction='CMeng must complete the calculation and repeat its checks.';assignTo='CMeng Support';}
   else if(result.key==='master-dashboard'){
     const metrics=d.metrics??[],get=(k:string)=>metrics.find((m:any)=>m.key===k)?.value;
     const independent=get('independent-forecast-finish'),submitted=get('submitted-programme-finish'),contract=get('contract-finish');
@@ -95,7 +107,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   // first issue to a different page headline.
   // Findings qualify the result in supporting details. An arbitrary first finding
   // is never a substitute for the question this page answers.
-  if(!nextAction)nextAction=result.status==='blocked'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
+  if(!nextAction)nextAction=blockedBy==='missing_input'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
     nextAction,owner:assignTo,assignTo,

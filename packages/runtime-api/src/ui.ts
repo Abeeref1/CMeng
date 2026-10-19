@@ -16,7 +16,8 @@ import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {MANAGEMENT_DIAGNOSTIC_LABELS} from '../../truth-kernel/src';
 import {moduleRegistry, titleForModule} from './registry';
-import {STATUS_LABELS} from './position-review';
+import {STATUS_LABELS,blockedCause} from './position-review';
+import {challengeValueFromSubmission} from '../../module-challenge/src/projector';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
 import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
@@ -446,6 +447,8 @@ ${boqPageReviewStyles}
 </div>
 <script>
 ${aggregateCount.toString()}
+${blockedCause.toString()}
+${challengeValueFromSubmission.toString()}
 ${experienceScript}
 ${answerFirstScript}
 ${tableLookScript}
@@ -789,9 +792,9 @@ function renderUniversalChallenge(challenge){
     const submittedText=sub.state==="not_submitted"?"Not provided":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
     const gapText=conflicted?"Parallel calculations below":withUnit(gap.value,gap.unit);
     const main='<tr>'+
-      '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(item.evidenceState?humanizeKey(item.evidenceState):"")+'</span></td>'+
+      '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(challengeValueFromSubmission(ind)?"Submitted basis":item.evidenceState?humanizeKey(item.evidenceState):"")+'</span></td>'+
       '<td>'+escapeHtml(submittedText)+(sub.note?'<br><span class="muted">'+escapeHtml(sub.note)+'</span>':'')+'</td>'+
-      '<td>'+escapeHtml(withUnit(ind.value,ind.unit))+'<br><span class="muted">'+escapeHtml(ind.state?humanizeKey(ind.state):"")+(ind.note?" · "+escapeHtml(ind.note):"")+'</span></td>'+
+      '<td>'+escapeHtml(withUnit(ind.value,ind.unit))+'<br><span class="muted">'+escapeHtml(challengeValueFromSubmission(ind)?"From submitted records, not an independent check":ind.state?humanizeKey(ind.state):"")+(ind.note?" · "+escapeHtml(ind.note):"")+'</span></td>'+
       '<td>'+escapeHtml(gapText)+(!conflicted&&gap.note?'<br><span class="muted">'+escapeHtml(gap.note)+'</span>':'')+'</td>'+
       '<td>'+escapeHtml(item.consequence||"—")+'</td>'+
       '<td>'+escapeHtml(item.action||"—")+'</td>'+
@@ -808,14 +811,14 @@ function renderUniversalChallenge(challenge){
   const attentionItems=[
     ...missingItems.map(item=>({kind:"Submitted value missing",item})),
     ...conflictedItems.map(item=>({kind:"Conflicting submitted values",item})),
-    ...varianceItems.map(item=>({kind:"Variance to CMeng check",item}))
+    ...varianceItems.map(item=>({kind:challengeValueFromSubmission(item.independent)?"Variance between submitted values":"Variance to CMeng check",item}))
   ];
   const attentionHtml=attentionItems.length
     ?'<div class="challenge-attention"><div class="challenge-attention-head"><strong>What needs attention</strong><span>These are the specific metrics behind the count above. "Missing" means a comparable submitted value was not found; it does not mean the whole document is missing.</span></div>'+attentionItems.map(entry=>{
       const item=entry.item||{};
       const independent=item.independent||{};
       const independentText=independent.value===null||independent.value===undefined?"Not derivable":withUnit(independent.value,independent.unit);
-      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>CMeng check: '+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(readerAuditAction(item.action)):'')+'</span></div>';
+      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>'+(challengeValueFromSubmission(independent)?'From submitted records: ':'CMeng check: ')+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(readerAuditAction(item.action)):'')+'</span></div>';
     }).join("")+'</div>'
     :"";
   const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
@@ -828,7 +831,7 @@ function renderUniversalChallenge(challenge){
       '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(fmt(challenge.notSubmittedCount))+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(fmt(challenge.unavailableCheckCount))+'</span></div>'+
       '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(fmt(challenge.scenarioCount))+'</span></div>'+
     '</div>'+attentionHtml+
-    '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>CMeng independent check</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>'+(challenge.items.some(item=>challengeValueFromSubmission(item.independent))?'CMeng value and basis':'CMeng independent check')+'</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 function renderContractSourceContext(contract){
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
@@ -5828,7 +5831,9 @@ function renderModuleResultBody(result){
   if(result.key==='challenge-contract'&&result.data?.suppliedBoq?.rows?.length&&renderDeliveryChallenge(result.data,result.reason,result.status))return;
   const hasUsefulPayload=!!result.data&&typeof result.data==="object"&&Object.keys(result.data).some(key=>!["projectionKey","schemaVersion","projectId","projectVersion","producerVersion","generatedAt"].includes(key));
   if(result.status==="blocked"&&!hasUsefulPayload){
-    const blockedBody='<div class="view-state-bar"><strong>'+escapeHtml(moduleName)+'</strong><span>There is not enough Project information for this calculation yet.</span></div><div class="notice warn">'+escapeHtml(userFacingModuleReason(result.key,result.reason)||"More Project information is needed for this view.")+'</div>';
+    // SW-29: a calculation that did not complete is never shown as missing Project information.
+    const calculationIncomplete=blockedCause(result)==="calculation_incomplete";
+    const blockedBody='<div class="view-state-bar"><strong>'+escapeHtml(moduleName)+'</strong><span>'+(calculationIncomplete?'CMeng did not complete this calculation. No missing input has been identified for it.':'There is not enough Project information for this calculation yet.')+'</span></div><div class="notice warn">'+escapeHtml(userFacingModuleReason(result.key,result.reason)||(calculationIncomplete?"CMeng must complete this calculation and repeat its checks.":"More Project information is needed for this view."))+'</div>';
     el("moduleContent").innerHTML=blockedBody+renderModuleReadiness({issueAssessment:result.issueAssessment},result.reason);
     return;
   }
@@ -6939,7 +6944,7 @@ function openModuleReport(){
   }
   const hasUsefulData=!!currentModuleResult.data&&typeof currentModuleResult.data==="object"&&Object.keys(currentModuleResult.data).some(key=>!["projectionKey","schemaVersion","projectId","projectVersion","producerVersion","generatedAt"].includes(key));
   if(currentModuleResult.status==="blocked"&&!hasUsefulData){
-    alert("This report needs more Project information before it can be prepared.");
+    alert(blockedCause(currentModuleResult)==="calculation_incomplete"?"CMeng did not complete this calculation, so the report cannot be prepared yet.":"This report needs more Project information before it can be prepared.");
     return;
   }
   const reportWindow=window.open("","_blank");

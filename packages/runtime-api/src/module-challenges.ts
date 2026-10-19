@@ -864,6 +864,9 @@ function metricsFor(
           "activities",
           "calculated",
           [sourceRef],
+          // SW-30: counted from the total float in the submitted programme; the
+          // float is the contractor's figure, not a CMeng calculation.
+          { authority: "submitted" },
         ),
         spec(
           "near_critical_count",
@@ -876,6 +879,9 @@ function metricsFor(
           "activities",
           "calculated",
           [sourceRef],
+          // SW-30: counted from the total float in the submitted programme; the
+          // float is the contractor's figure, not a CMeng calculation.
+          { authority: "submitted" },
         ),
         spec(
           "negative_float_count",
@@ -888,6 +894,9 @@ function metricsFor(
           "activities",
           "calculated",
           [sourceRef],
+          // SW-30: counted from the total float in the submitted programme; the
+          // float is the contractor's figure, not a CMeng calculation.
+          { authority: "submitted" },
         ),
       ];
 
@@ -1852,6 +1861,8 @@ function metricsFor(
           "activities",
           "calculated",
           [sourceRef],
+          // SW-30: both sources count the submitted programme float.
+          { authority: "submitted" },
         ),
       ];
 
