@@ -19,7 +19,13 @@ const number=(value:unknown):number|null=>typeof value==='number'&&Number.isFini
 
 /** F07: shared project inputs. When supplied, a prerequisite is decided from the
  * one project status every page reads, not from this page's own copy. */
-export interface FeatureAvailabilityInputs {calendar?:{calendarActivityCount:number|null}|null}
+export interface FeatureAvailabilityInputs {
+  calendar?:{calendarActivityCount:number|null}|null;
+  /** F07: shared BOQ quantity and installed-quantity status (project facts). */
+  quantities?:{state:string;boqItemCount:number|null;readableItemCount:number|null;reason:string}|null;
+  installedQuantities?:{state:string;measuredItemCount:number|null;boqItemCount:number|null;reason:string}|null;
+}
+const sharedConfirmed=(status:{state:string}|null|undefined)=>status?.state==='established'||status?.state==='partial';
 export function moduleFeatureAvailability(key:string,data:unknown,inputs:FeatureAvailabilityInputs={}):RuntimeFeatureAvailability {
   const d=(data&&typeof data==='object'?data:{}) as any;
   if(key==='forecast-history'){
@@ -50,7 +56,10 @@ export function moduleFeatureAvailability(key:string,data:unknown,inputs:Feature
     // F07: readable programme calendars come from the shared project status.
     const calendarActivities=(inputs.calendar?inputs.calendar.calendarActivityCount:f.programmeChecks?.calendarActivityCount)??0;
     const prerequisites=[
+      // F07: BOQ quantities and installed quantities come from the shared project status.
+      inputs.quantities?{key:'boq',label:'BOQ',established:sharedConfirmed(inputs.quantities),evidence:inputs.quantities.reason}:
       {key:'boq',label:'BOQ',established:boqCount>0,evidence:boqCount>0?String(boqCount)+' BOQ item(s) available.':'BOQ quantity scope not established.'},
+      inputs.installedQuantities?{key:'remaining_quantities',label:'Remaining quantities',established:sharedConfirmed(inputs.installedQuantities),evidence:'Dated installed quantity and contract quantity on the same BOQ item. '+inputs.installedQuantities.reason}:
       {key:'remaining_quantities',label:'Remaining quantities',established:rows.some((row:any)=>number(row?.remainingQuantity)!==null),evidence:'Dated installed quantity and contract quantity on the same BOQ item.'},
       {key:'activity_links',label:'Activity links',established:rows.some((row:any)=>typeof row?.activityId==='string'&&row.activityId.length>0),evidence:'Current-revision BOQ-to-activity link.'},
       {key:'productivity',label:'Productivity',established:rows.some((row:any)=>number(row?.laborHoursPerUnit)!==null),evidence:'Supported labour-hours-per-unit or same-scope measured productivity.'},
@@ -92,7 +101,9 @@ export function moduleFeatureAvailability(key:string,data:unknown,inputs:Feature
   }
   if(key==='quantity-scurve'){
     const series=array(d.series),mapped=series.filter((row:any)=>array(row?.points).length>0).length;
-    const measured=d.installedQuantityStatus?.state==='available'||number(d.measurementReview?.measuredItemCount)!==null&&Number(d.measurementReview?.measuredItemCount)>0;
+    // F07: measured installation is the shared installed-quantity status when supplied.
+    const measured=inputs.installedQuantities?sharedConfirmed(inputs.installedQuantities):
+      d.installedQuantityStatus?.state==='available'||number(d.measurementReview?.measuredItemCount)!==null&&Number(d.measurementReview?.measuredItemCount)>0;
     const boqCount=number(d.boqItemCount)??number(d.suppliedBoq?.itemCount)??0;
     const useful=boqCount>0||series.length>0||Boolean(d.boqRevisionId)||Boolean(d.suppliedBoq?.revisionId)||Boolean(d.measurementReview);
     return {

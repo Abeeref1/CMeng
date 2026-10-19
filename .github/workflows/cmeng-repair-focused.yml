@@ -40,6 +40,7 @@ jobs:
             dist/tests/v1-f01-page-figures-match-api.test.js \
             dist/tests/v1-f07-shared-input-status.test.js \
             dist/tests/v1b-f07-risk-rows-trade-capacity.test.js \
+            dist/tests/r12-f07-shared-prerequisites.test.js \
             dist/tests/f01-real-browser-every-page.test.js \
             dist/tests/r12-certified-column-label.test.js \
             dist/tests/t09-action-assignment.test.js \
