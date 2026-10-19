@@ -257,13 +257,17 @@ function renderDashboardDecisions(data){
   if(!Array.isArray(data?.actions))return managementPanel('Source decisions','Not established','<p>Source decision population is not established. Missing action data does not mean no review is needed.</p>');
   const decisions=data.actions.filter(row=>row.recordKey?.startsWith('review|'));
   const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.consequence||row.requiredAction))+'</p>'+managementModuleLink('source-quality','Review findings and existing evidence before deciding')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
-  return managementPanel('Source decisions',fmt(decisions.length)+' source reviews within the shared project action list.',body);
+  // T05/N1: data.actions is a 25-row preview on large projects. A subset of it
+  // is counted only when the preview is the whole list; otherwise say so.
+  const decisionTotal=listTotal(decisions);
+  return managementPanel('Source decisions',(decisionTotal===null?fmt(decisions.length)+' source reviews among the '+fmt(data.actions.length)+' of '+screenCountText(listTotal(data.actions))+' shared project actions received here.':fmt(decisionTotal)+' source reviews within the shared project action list.'),body);
 }
 function renderDashboardExceptions(data){
   if(!Array.isArray(data?.actions))return managementPanel('Priority project actions','Not established','<p>Project action population is not established. Missing action data is not a cleared project position.</p>',true);
   const actions=data.actions;
   const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?sourceWorkingFloatField(row.priorityBasis,'linkedFloatHours')+' float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),actionDeadlineText(row),readerText(row.requiredAction)]));
-  return managementPanel('Priority project actions',fmt(actions.length)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+fmt(actions.length)+' project actions'):'<p>No current project actions are identified.</p>',true);
+  const actionTotal=listTotal(actions);
+  return managementPanel('Priority project actions',screenCountText(actionTotal)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+screenCountText(actionTotal)+' project actions'):'<p>No current project actions are identified.</p>',true);
 }
 function renderDashboardScheduleExceptions(data){
   const p=data.scheduleExceptions;if(!p)return managementPanel('Activities needing attention','Schedule status','<p>Adopt a programme in Documents to see missed starts, overdue finishes and critical activities.</p>',true);

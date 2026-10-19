@@ -1118,6 +1118,27 @@ function listTotal(records){
   return origins[0].total>origins[0].shown?null:records.length;
  return records.length;
 }
+// T05: the same true-total rule for a list held in a response other than the
+// current module (the paged /actions register). A list the transport cut to
+// 25 returns its retained server total, an uncut list its own length.
+const rootListTotalIndex=new WeakMap();
+function responseListTotalIn(root,records){
+ if(!Array.isArray(records))return null;
+ if(!root||typeof root!=='object')return records.length;
+ let index=rootListTotalIndex.get(root);
+ if(!index){
+  index=new WeakMap();rootListTotalIndex.set(root,index);
+  const totals=new Map((root.responsePaging?.tables||[]).filter(t=>t.kind==='array').map(t=>[t.pointer,t.total]));
+  const seen=new Set();
+  const walk=(value,pointer)=>{if(!totals.size||!value||typeof value!=='object'||seen.has(value))return;seen.add(value);
+   if(Array.isArray(value)){if(totals.has(pointer))index.set(value,totals.get(pointer));value.forEach((row,i)=>walk(row,pointer+'/'+i));}
+   else for(const[key,child]of Object.entries(value))if(key!=='sourceLabels'&&key!=='responsePaging')walk(child,pointer+'/'+key.replace(/~/g,'~0').replace(/\//g,'~1'));
+  };
+  walk(root,'');
+ }
+ const total=index.get(records);
+ return typeof total==='number'&&Number.isFinite(total)?Math.max(total,records.length):records.length;
+}
 function sourcePopulationControl(records,label='Browse all source records'){
  const population=responseListPopulation(records);
  if(!population.pointer||population.total<=records.length)return '';
@@ -2420,7 +2441,7 @@ function renderScheduleAnalyticsVisual(data){
   return '<section class="planning-view programme-review"><div class="notice info"><b>Programme Review = whole-programme control.</b><p>This page answers programme health, logic, float, finish dates and baseline variance. Use Activity Review for individual activity filtering and detailed row investigation.</p></div>'+kpis+planningKpis([['Delayed open activities',data.projectFacts?.schedule?.delayedOpenActivityCount?.value??'Missing','includes open milestones'],['Delayed open execution',data.projectFacts?.schedule?.delayedExecutionActivityCount?.value??'Missing','completed work excluded']])+renderProgrammeQuality(data.projectFacts?.programmeQuality)+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+quality+'<p>Submitted Near Critical label: '+escapeHtml(fmt(p.controlBasis?.sourceReportedNearCriticalLabelCount))+'; strict confirmed near-critical: '+escapeHtml(fmt(r.float.nearCriticalCount))+'; float-risk watchlist: '+escapeHtml(fmt(r.float.floatRiskWatchlistCount))+'. These definitions are reconciled separately.</p></div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Recorded finish variance · completed and open work</h4><p>Controlled-baseline comparison by '+escapeHtml(humanizeKey(variance.populationBasis??'not_established'))+'. Denominator: '+escapeHtml(fmt(variance.denominator??null))+'.</p></div></div><div class="planning-panel-body">'+varianceBand+distributionSummary(variance.distribution)+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
 function renderMovementConcentration(m,fallback){
-  if(!m)return planningSignedBars(fallback,"calendar days");
+  if(!m)return Array.isArray(fallback)?planningSignedBars(fallback,"calendar days"):'<div class="empty-visual">Largest finish movements: Not established. Only a preview of the activity rows was received.</div>';
   const signed=v=>v==null?"Not established":(v>0?"+":"")+fmt(v)+" d";
   const c=m.comparison||{},pop=m.population||{},all=m.maximumRows||[];
   if(m.distribution?.maximum==null)return '<div class="notice info"><b>Maximum movement: Not established</b><p>Activities sharing maximum: Not established. Comparable controlled-baseline and current finish dates are needed to establish a maximum and its population.</p></div>';
@@ -2552,7 +2573,13 @@ function renderActivityAnalyticsVisual(data){
     ["Not established criticality",unknownCriticality,"unfinished execution activities awaiting classification"]
   ]);
   const repeatedMovementWarning="";
-  const topLate=[...allRows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}));
+  // T05/N1: the top-5 ranking is computed by the server over every activity.
+  // A ranking of the transported preview rows is drawn only when that preview
+  // is the whole list; otherwise the chart states the ranking is not established.
+  const serverLate=p.activitySummary?.largestFinishMovements;
+  const topLate=Array.isArray(serverLate)?serverLate.map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}))
+    :listTotal(allRows)===allRows.length?[...allRows].filter(r=>typeof r.finishVarianceDays==="number").sort((a,b)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.finishVarianceDays}))
+    :null;
   const pressure=planningActivityPressure(allRows,p.activitySummary?.pressureMatrix);
   const visualOverview='<div class="visual-chart-grid">'+
     renderVisualPanel("Execution status","Activities by current status.",renderDonutChart([
@@ -5047,9 +5074,19 @@ function renderPmcScope(values){
  if(clean.length<=4)return escapeHtml(clean.join('; '));
  return '<details><summary>'+escapeHtml(clean.slice(0,2).join('; '))+' · '+fmt(clean.length)+' scope references</summary><p>'+escapeHtml(clean.join('; '))+'</p></details>';
 }
+// T05/N1: the true number of current actions behind commandActionItems. The
+// canonical list keeps its retained server total. The fallback list merges
+// several registers; if any of them arrived cut, the merged total is unknown.
+function commandActionTotal(data,items){
+ if(Array.isArray(data.actions))return listTotal(data.actions);
+ const sources=[data.accountability?.actions,data.alerts,data.deliveryExceptions?.actions,data.decisions].filter(Array.isArray);
+ return sources.every(list=>listTotal(list)===list.length)?items.length:null;
+}
 function renderCommandAccountability(data){
  const actions=commandActionItems(data);
  if(!actions.length)return '<div class="notice info">No current accountable action population is established.</div>';
+ const actionTotal=commandActionTotal(data,actions);
+ const basis=actionTotal===actions.length?'':'<p class="muted">Owner counts below cover the '+fmt(actions.length)+' of '+screenCountText(actionTotal)+' current actions received here. Full owner totals are on the Accountability page.</p>';
  const dd=String(data?.reportingContract?.dataDateIso||overview?.latestDataDateIso||'').slice(0,10);
  const groups=new Map();
  for(const action of actions){
@@ -5071,14 +5108,14 @@ function renderCommandAccountability(data){
   groups.set(key,group);
  }
  const rows=[...groups.values()].sort((a,b)=>(a.unassigned?0:1)-(b.unassigned?0:1)||b.overdue-a.overdue||b.material-a.material||b.actions-a.actions||a.party.localeCompare(b.party));
- return '<div class="table-wrap"><table><thead><tr><th>Owner / accountable party</th><th>Open actions</th><th>Overdue action deadlines</th><th>Groups with overdue source records</th><th>High / critical</th><th>Threatened milestones</th><th>Affected scope</th><th>Next action due</th><th>Earliest source due</th><th>Escalations</th></tr></thead><tbody>'+rows.map(group=>'<tr><td><b>'+escapeHtml(group.party)+'</b>'+(group.unassigned?'<br><span class="state-pill review">Assignment required</span>':'')+'</td><td>'+escapeHtml(fmt(group.actions))+'</td><td>'+escapeHtml(fmt(group.overdue))+'</td><td>'+escapeHtml(fmt(group.sourceOverdue))+'</td><td>'+escapeHtml(fmt(group.material))+'</td><td>'+escapeHtml([...group.milestones].join('; ')||'Not linked')+'</td><td>'+renderPmcScope([...group.scopes])+'</td><td>'+escapeHtml(group.nextDue?planningShortDate(group.nextDue):'Not set')+'</td><td>'+escapeHtml(group.sourceDue?planningShortDate(group.sourceDue):'Not set')+'</td><td>'+escapeHtml(fmt(group.escalations))+'</td></tr>').join('')+'</tbody></table></div>';
+ return basis+'<div class="table-wrap"><table><thead><tr><th>Owner / accountable party</th><th>Open actions</th><th>Overdue action deadlines</th><th>Groups with overdue source records</th><th>High / critical</th><th>Threatened milestones</th><th>Affected scope</th><th>Next action due</th><th>Earliest source due</th><th>Escalations</th></tr></thead><tbody>'+rows.map(group=>'<tr><td><b>'+escapeHtml(group.party)+'</b>'+(group.unassigned?'<br><span class="state-pill review">Assignment required</span>':'')+'</td><td>'+escapeHtml(fmt(group.actions))+'</td><td>'+escapeHtml(fmt(group.overdue))+'</td><td>'+escapeHtml(fmt(group.sourceOverdue))+'</td><td>'+escapeHtml(fmt(group.material))+'</td><td>'+escapeHtml([...group.milestones].join('; ')||'Not linked')+'</td><td>'+renderPmcScope([...group.scopes])+'</td><td>'+escapeHtml(group.nextDue?planningShortDate(group.nextDue):'Not set')+'</td><td>'+escapeHtml(group.sourceDue?planningShortDate(group.sourceDue):'Not set')+'</td><td>'+escapeHtml(fmt(group.escalations))+'</td></tr>').join('')+'</tbody></table></div>';
 }
 
 function renderCommandActionTable(data){
  const actions=commandActionItems(data);
  if(!actions.length)return '<div class="notice info"><b>No current action is established from the available Project information.</b><p>Information gaps remain listed separately below.</p></div>';
  const rows=actions.slice(0,30).map(action=>'<tr><td><span class="state-pill '+(action.severity==="critical"?"blocked":action.severity==="high"?"review":"not_applicable")+'">'+escapeHtml(humanizeKey(action.severity))+'</span></td><td><b>'+escapeHtml(typeof readerText==='function'?readerText(action.issue):action.issue)+'</b></td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.consequence||"Consequence not yet established"):action.consequence||"Consequence not yet established")+'</td><td>'+renderPmcScope(action.affectedScope)+'</td><td>'+escapeHtml(action.owner||action.organisation||pmcDisplayOwner(action.owningModule||action.module||'project controls'))+'</td><td>'+escapeHtml(typeof readerText==='function'?readerText(action.requiredAction||"Review required"):action.requiredAction||"Review required")+'</td><td>'+escapeHtml(actionDeadlineText(action))+'</td><td>'+escapeHtml(action.escalation||"Not set")+'</td><td>'+managementModuleLink(action.module,"Open")+'</td></tr>').join("");
- return '<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue</th><th>Consequence</th><th>Scope</th><th>Owner</th><th>Action</th><th>Due</th><th>Escalation</th><th>Control</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="muted">Showing '+fmt(Math.min(30,actions.length))+' of '+fmt(actions.length)+' distinct current actions. Missing owners, due dates and escalation are not invented.</p>';
+ return '<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue</th><th>Consequence</th><th>Scope</th><th>Owner</th><th>Action</th><th>Due</th><th>Escalation</th><th>Control</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="muted">Showing '+fmt(Math.min(30,actions.length))+' of '+screenCountText(commandActionTotal(data,actions))+' distinct current actions. Missing owners, due dates and escalation are not invented.</p>';
 }
 function renderMcpProgrammeControl(data){
  const context=data.managementContext||{},stages=context.schedule?.programmeStages||[],vc=data.visualControl||{};
