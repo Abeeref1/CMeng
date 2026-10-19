@@ -1,0 +1,8 @@
+v1-f10-no-duplicate-page-blocks
+t09-actions-navigation
+project-actions
+t05-same-measure-every-page
+t10-identity-independent-of-wording
+ui-management-experience
+universal-reporting-contract
+ui-workspace

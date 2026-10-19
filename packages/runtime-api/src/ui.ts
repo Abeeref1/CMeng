@@ -5844,6 +5844,22 @@ function insertAfterPageAnswer(container,html){
   const answer=typeof container.querySelector==='function'?container.querySelector(':scope>.position-verdict'):null;
   if(answer)answer.insertAdjacentHTML('afterend',html);else container.insertAdjacentHTML('afterbegin',html);
 }
+// F10: one page shows each block once, whichever renderer added it. A later
+// top-level block whose markup is identical to an earlier one carries nothing
+// unique and is removed; the first copy (the one handlers were bound to) stays.
+// Empty placeholders and rows inside a block are never touched, so repeated
+// source records are never merged.
+function removeDuplicatePageBlocks(container){
+  if(!container||!container.children)return 0;
+  const seen=new Set();let removed=0;
+  for(const block of Array.from(container.children)){
+    const html=String(block.outerHTML||'');
+    if(!html||!String(block.textContent||'').trim())continue;
+    if(seen.has(html)){block.remove();removed++;continue;}
+    seen.add(html);
+  }
+  return removed;
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -5941,6 +5957,7 @@ function renderModuleResult(result){
     container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
+  removeDuplicatePageBlocks(container);
 }
 function progressBreakdownSystemFailures(data){
   const failures=(data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='system_defect');
