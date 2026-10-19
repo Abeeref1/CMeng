@@ -11,6 +11,8 @@ import {withInstalledMeasurements} from './installed-measurements';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {canonicalHeader} from '../../truth-kernel/src';
+import {assignScope,reconcileScope,type ScopeAssignment} from './boq-scope-mapping';
+import {projectScopeClassification} from './location-review';
 
 /** Management decisions derived once per source version. Screens and exports
  * consume these same results; no renderer reconstructs an engineering answer. */
@@ -180,6 +182,15 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
  const modelById=new Map((model?.activities??[]).map((a:any)=>[a.activityId,a]));
  const linksByItem=new Map((links?.rows??[]).map((r:any)=>[r.itemId,r]));
  const numberCounts=new Map<string,number>();for(const item of q?.items??[]){const key=norm(item.itemNumber);numberCounts.set(key,(numberCounts.get(key)??0)+1);}
+ // F21: the programme's own areas (activity code, WBS level or reviewed
+ // location; never a name match) for activities linked to a BOQ item, and
+ // the programme area / WBS names a BOQ section can match exactly.
+ const classification=model?.activities?projectScopeClassification(state,model):null;
+ const programmeArea=new Map<string,string>();
+ for(const row of classification?.rows??[])if(row.locationGroup&&row.locationGroupBasis&&row.locationGroupBasis!=='name_match')programmeArea.set(row.activityId,row.locationGroup);
+ const programmeNames=new Map<string,string[]>();
+ for(const name of [...programmeArea.values(),...(model?.wbs??[]).map((w:any)=>w.name)])if(name){const k=norm(name);if(k&&!(programmeNames.get(k)??[]).includes(name))programmeNames.set(k,[...(programmeNames.get(k)??[]),name]);}
+ const areaAssignments=new Map<string,ScopeAssignment>();
  const items=(q?.items??[]).map(item=>{
   const xs=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>String(a.asOfIso).localeCompare(String(b.asOfIso)));
   const now=xs.at(-1),prior=xs.filter(s=>date(s.asOfIso)!<date(now?.asOfIso)!).at(-1);
@@ -209,11 +220,19 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const periodActuals=sourceRows.filter(r=>date(cell(r,'period end','measurement date','as of'))===date(now?.asOfIso)&&(!prior||date(cell(r,'period start','from date'))===date(prior.asOfIso)));
   const actualHs=periodActuals.map(r=>numberValue(cell(r,'actual labor hours','actual labour hours','actual man hours','actual hours'))).filter((v):v is number=>v!==null);
   const actualHours=actualHs.length===1?actualHs[0]!:null;
-  const areaCandidates=[...new Set(sourceRows.map(r=>cell(r,'plot','area','zone','location','workfront')).filter(Boolean))];
-  const area=areaCandidates.length===1?areaCandidates[0]!:item.section??null;
+  // F21 shared area rule: the item's own area/zone/plot reference first, then
+  // the programme area of its linked activities, then a BOQ section equal to
+  // exactly one programme area or WBS name. Several candidates stay unmapped
+  // with the candidates listed; a section is never itself taken as an area.
+  const areaAssignment=assignScope({values:sourceRows.map(r=>cell(r,'plot','area','zone','location','workfront','plot code','area code','zone code','location code')),basis:'Explicit measurement/BOQ area'},[
+   {values:linked.map((id:string)=>programmeArea.get(id)),basis:'Programme area of the BOQ item\'s linked activities'},
+   {values:programmeNames.get(norm(item.section))??[],basis:'BOQ section equals one programme area or WBS name'}]);
+  areaAssignments.set(item.quantityItemId,areaAssignment);
+  const area=areaAssignment.group;
   const installedValue=installed!==null&&rate!==null?installed*rate:null;
   const itemCertification=certifiedValueFromRows(sourceRows,cutoff,currency),certifiedValue=itemCertification.value;
-  return {itemId:item.quantityItemId,itemNumber:item.itemNumber,description:item.description,unit:item.unit,area,areaBasis:areaCandidates.length===1?'Explicit measurement/BOQ area':'BOQ section; no finer area allocation inferred',currency,
+  return {itemId:item.quantityItemId,itemNumber:item.itemNumber,description:item.description,unit:item.unit,area,areaBasis:areaAssignment.state==='ambiguous'?'Area references disagree; not mapped ('+areaAssignment.basis+')':areaAssignment.state==='unmapped'?'No explicit area reference and no unique programme area match; not mapped':areaAssignment.basis,
+   areaMappingState:areaAssignment.state,areaCandidates:areaAssignment.candidates,section:item.section??null,currency,
    contractQuantity:contract,installedQuantity:installed,installedPercent:contract!==null&&contract>0&&installed!==null?100*installed/contract:null,
    periodInstalledQuantity:period,periodStartIso:date(prior?.asOfIso),periodEndIso:date(now?.asOfIso),
    periodProgressPercent:period!==null&&contract!==null&&contract>0?100*period/contract:null,
@@ -232,7 +251,9 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
  const certificates=(commercial.sourceLedger?.payments??[]).filter((r:any)=>date(r.certificationDate)&&(!cutoff||date(r.certificationDate)!<=cutoff)&&!/applied|application|draft|submitted/i.test(r.sourceStatus??''));
  const areas=[...areaMap].map(([key,xs])=>{const[area,currency]=JSON.parse(key);const pricedRows=xs.filter(r=>r.contractValue!==null),measuredRows=xs.filter(r=>r.installedValue!==null);
   const contractValue=pricedRows.length?pricedRows.reduce((s,r)=>s+r.contractValue!,0):null,installedValue=measuredRows.length?measuredRows.reduce((s,r)=>s+r.installedValue!,0):null;
-  const certRows=rows.filter(r=>norm(cell(r,'plot','area','zone','location','workfront','section'))===norm(area)&&(!currency||cell(r,'currency')===currency));
+  // The unmapped part never receives certificates: a row without an area
+  // reference (such as a whole-project certificate) is not an area allocation.
+  const certRows=area===null?[]:rows.filter(r=>norm(cell(r,'plot','area','zone','location','workfront','section'))===norm(area)&&(!currency||cell(r,'currency')===currency));
   const certification=certRows.filter(r=>{const d=date(cell(r,'certification date','certificate date'));return !!d&&(!cutoff||d<=cutoff)&&!/applied|application|draft|submitted/i.test(cell(r,'status'));});
   const byCert=new Map<string,{amount:number;date:string;basis:string}>();let ambiguous=false;
   for(const r of certification){
@@ -250,7 +271,7 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    basisSet.size===1&&basisSet.has('incremental')?certValues.reduce((s,v)=>s+v.amount,0):
    basisSet.size===1&&basisSet.has('cumulative')?certValues.at(-1)!.amount:null;
 
-  return {area:area??'Area not recorded',currency,itemCount:xs.length,measuredItemCount:measuredRows.length,pricedItemCount:pricedRows.length,
+  return {area:area??'Area not recorded',mapped:area!==null,currency,itemCount:xs.length,measuredItemCount:measuredRows.length,pricedItemCount:pricedRows.length,
    contractValue,installedValue,physicalProgressPercent:installedValue!==null&&contractValue!==null&&contractValue>0?100*installedValue/contractValue:null,
    sourceAmountItemCount:xs.filter(r=>r.contractValueBasis==='Source BOQ amount').length,
    calculatedAmountItemCount:xs.filter(r=>r.contractValue!==null&&r.contractValueBasis!=='Source BOQ amount').length,
@@ -261,7 +282,8 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    certificationBasis:'Explicit certificate number, dated certification and area allocation. Whole-project certificates are not apportioned to areas.',
    missingInputs:[installedValue===null?'Measured installed quantities and rates for this area':null,contractValue===null?'Priced BOQ scope in this area':null,certifiedValue===null?'Dated certificate amounts explicitly allocated to this area, with a consistent incremental or cumulative basis':null].filter(Boolean)};
  });
- return {items,itemCount:q?items.length:null,measuredItemCount:items.filter(r=>r.installedQuantity!==null).length,areas,certificateCount:certificates.length,
+ const areaReconciliation=reconcileScope(items.map(r=>({itemId:r.itemId,itemNumber:r.itemNumber,currency:r.currency,value:r.contractValue})),r=>areaAssignments.get(r.itemId)!,'Area not recorded');
+ return {items,itemCount:q?items.length:null,measuredItemCount:items.filter(r=>r.installedQuantity!==null).length,areas,areaReconciliation,certificateCount:certificates.length,
   basis:'Full retained BOQ item population; area and currency totals use explicit source associations. Quantities with unlike units are never summed into a project physical percentage.'};
 }
 
@@ -301,8 +323,13 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
   const applied=/applied|application|draft|submitted|pending certification/i.test(r.sourceStatus??'')||!start;
   const rawDue=lifecycle.paymentDueDate, due=typeof rawDue?.value==='string'?date(rawDue.value):null;
   const method=rawDue?.basis?.method??null;
+  // F36: a register due date is shown beside the date the contract payment
+  // period gives from the certificate date (same producer rule), and compared.
+  const periodDue=method==='explicit_source_due_date'?lifecycle.contractPeriodDueDate:rawDue;
+  const contractPeriodDue=typeof periodDue?.value==='string'?date(periodDue.value):null;
+  const dueDateCheck=!due?'not_established':method!=='explicit_source_due_date'?'contract_period_only':!contractPeriodDue?'contract_period_not_established':contractPeriodDue===due?'register_matches_contract_period':'register_differs_from_contract_period';
   return {certificateReference:r.paymentId,sourceStatus:r.sourceStatus,certificationDateIso:start,actualPaymentDateIso:paid,
-   paymentPeriodDays:period,contractDueDateIso:due,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
+   paymentPeriodDays:period,contractDueDateIso:due,contractPeriodDueDateIso:contractPeriodDue,dueDateCheck,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
    state:applied?'application_not_certified':!due?'due_basis_missing':!paid?'payment_not_recorded':paid>due?'paid_late':'paid_within_period',
    includedInCertifiedTotals:!applied,paymentDueDate:rawDue??null,
    basis:method?String(method).replaceAll('_',' '):'The contract payment trigger, period or date basis is not established.',
@@ -311,6 +338,7 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
    sourceRefs:r.sourceRefs??[]};
  });
  return {rows,total:rows.length,appliedExcludedCount:rows.filter((r:any)=>!r.includedInCertifiedTotals).length,lateCount:rows.filter((r:any)=>r.state==='paid_late').length,
+  registerDueDateDifferenceCount:rows.filter((r:any)=>r.dueDateCheck==='register_differs_from_contract_period').length,
   basis:'Applications are not certifications. Due dates are the same contract-version-aware dates used in the issued payment register; no trigger or working-day calendar is inferred.'};
 }
 
@@ -332,6 +360,12 @@ function procurementSourceTotals(state:ProjectRuntimeState):ProcurementCompariso
   return {currency,amount,recordId:r.recordId,
    sourceRefs:r.receipts.map(receipt=>'evidence-document:'+receipt.documentId+':'+receipt.locator)};
  });
+}
+
+/** F37: the same register-to-contract rule, limited to the procurement package
+ * register so a dashboard can show its query without BOQ measurement work. */
+export function packageRegisterContractChecks(state:ProjectRuntimeState,commercial:any){
+ return buildRegisterChecks(commercial,{},null,procurementSourceTotals(state)).checkedRows.filter((r:any)=>String(r.register).startsWith('Procurement package register'));
 }
 
 /** Source-qualified commercial comparison, whether or not an exception exists.
@@ -395,7 +429,7 @@ export function decisionAnalysisForModule(state:ProjectRuntimeState,key:string,p
   case 'near-critical':return {...basis,kind:'float_erosion',trends:d.trends};
   case 'variance-trends':return {...basis,kind:'finish_slip',slipRate:d.trends.slipRate,comparisonDateIso:d.trends.comparisonDateIso,elapsedMonths:d.trends.elapsedMonths};
   case 'quantity-scurve':return {...basis,kind:'measured_productivity',quantities:{...d.quantities,areas:undefined}};
-  case 'progress-breakdown':return {...basis,kind:'area_progress',areas:d.quantities.areas,areaCount:d.quantities.areas.length};
+  case 'progress-breakdown':return {...basis,kind:'area_progress',areas:d.quantities.areas,areaCount:d.quantities.areas.length,areaReconciliation:d.quantities.areaReconciliation};
   case 'progress-scurve':return {...basis,kind:'monthly_evm',series:d.monthlyEvm};
   case 'notices-claims':return {...basis,kind:'detailed_claims',claimChecks:d.claimChecks};
   case 'windows-analysis':{

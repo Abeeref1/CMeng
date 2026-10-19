@@ -12,6 +12,8 @@ import {commercialCanonical} from './commercial-canonical';
 import {plotCrewScenarios} from './plot-crew-scenarios';
 import {classifyRecoveryAgainstCompletion,type RecoveryCpmChange} from './recovery-completion-path';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
+import {tradeChainResourcesForState} from './trade-chain-resources';
+import {heldDataCrewCandidates} from './recovery-held-data';
 
 const dayDiff=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Number(((Date.parse(later)-Date.parse(earlier))/86400000).toFixed(2)):null;
 export interface RecoveryScenario {
@@ -241,6 +243,12 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     supportingBasisAvailable,
     actualEligibilityChecksPerformed:supportingBasisAvailable?actualEligibilityChecksPerformed:null,
   };
+  // F29: crew candidates from the data held, kept apart from the scenarios so
+  // every existing count and figure above is unchanged.
+  const heldDataCandidates=heldDataCrewCandidates({scenarios,drivingNetworkEstablished:!!drivingNetwork,drivingOpen,
+    tradeChains:programme?tradeChainResourcesForState(state):null,resources,
+    productivityActivityIds:new Set(feasibilityChecks.filter(check=>typeof check.requiredLaborHours==='number').map(check=>check.activityId)),
+    calculatedNeedCount:crewEligibleChecks.length});
   const scenarioState=calculated.length?'calculated_options_available':recoveryOptions.length?'options_need_assumptions':'no_eligible_recovery_basis';
   const eligibilityAssessmentState=
     calculated.length
@@ -267,6 +275,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     calculatedScenarioCount:calculated.length,assumptionRequiredCount:recoveryOptions.length-calculated.length,scenarioState,eligibility,
     recoveryOptionCount:completionPath.recoveryOptionCount,lateWorkCount:completionPath.lateWorkCount,pathNotEstablishedCount:completionPath.pathNotEstablishedCount,
     eligibilityAssessmentState,
+    heldDataCandidates,
     managementPosition,
     basis:'Scenarios use existing BOQ/productivity/resource feasibility, source calendars, resource costs where fully supported, governed workfront permissions and package need-date calculations. They never replace the current programme, do not assert entitlement, and retain local-effect versus Project-completion effect separately.'};
 }

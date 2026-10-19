@@ -100,17 +100,24 @@ const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp
   {stage:'construction',label:'Construction',pattern:/\bconstruct(?:ion)?\b|\binstall(?:ation|ing)?\b|\bcivil\b|\bstructur(?:al|e)\b|\bexcavat(?:e|ion)\b|\bconcrete\b|\bmep\b|\bmechanical\b|\belectrical\b|\bpipe(?:work)?\b|\bblockwork\b|\bplaster(?:ing)?\b|\bpaint(?:ing)?\b|\btil(?:e|ing)\b|\bwaterproof(?:ing)?\b|\broof(?:ing)?\b|\bbackfill(?:ing)?\b|\bformwork\b|\brebar\b|\bfa[cç]ade\b|\bcladding\b|\bdoors?\b|\bwindows?\b|\bceilings?\b|\bscreed\b|\bjoinery\b/i},
 ];
 
-export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {
-  const paths=wbsPathById(model);
-  const buckets=new Map<ProgrammeControlStage,Array<typeof model.activities[number]>>();
-  const stageByActivity=new Map<string,ProgrammeControlStage>();
-  const stageFor=(activity:typeof model.activities[number]):ProgrammeControlStage=>{
+/** The shared programme-stage name rule (activity name, then WBS path text),
+ * with the label each stage carries. F38 reuses it, labelled as a name match. */
+export function programmeControlStageClassifier(model: CanonicalScheduleModel, paths: Map<string,string> = wbsPathById(model)) {
+  return (activity:typeof model.activities[number]):ProgrammeControlStage=>{
     const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
     const direct=stageRules.find(rule=>rule.pattern.test(activity.name??''));
     if(direct)return direct.stage;
     if(activity.activityType==='finish_milestone'&&/complet(?:e|ion)/i.test(activity.name??''))return 'handover';
     return stageRules.find(rule=>rule.pattern.test(text))?.stage??(/\binfrastructure\b|\broads?\b|\bpaving\b|\bdrainage\b|\bsewer\b|\birrigation\b|\bvillas?\b/i.test(text)?'construction':'other');
   };
+}
+export const programmeControlStageLabel=(stage:ProgrammeControlStage)=>stageRules.find(r=>r.stage===stage)?.label??'Other programme scope';
+
+export function programmeControlStages(model: CanonicalScheduleModel): ProgrammeControlStagePosition[] {
+  const paths=wbsPathById(model);
+  const buckets=new Map<ProgrammeControlStage,Array<typeof model.activities[number]>>();
+  const stageByActivity=new Map<string,ProgrammeControlStage>();
+  const stageFor=programmeControlStageClassifier(model,paths);
   for(const activity of model.activities){
     if(['level_of_effort','wbs_summary'].includes(activity.activityType))continue;
     const stage=stageFor(activity),rows=buckets.get(stage)??[];

@@ -99,7 +99,11 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   bind('time.extendedContractCompletionIso',['claims.officialAdjustedCompletionIso','schedule.officialAdjustedCompletionIso']);
   // The original contract date is historical evidence, not the current amended date.
   if(key==='eot-assessment'){bind('time.awardedEotDays',['officialApprovedEotDays']);bind('time.extendedContractCompletionIso',['officialAdjustedCompletionIso']);bind('schedule.submittedProgrammeCompletionIso',['sourceForecastCompletionIso']);}
-  if(key==='independent-forecast')bind(facts.time.extendedContractCompletionIso.value!==null?'time.extendedContractCompletionIso':'time.contractualCompletionIso',['requiredFinishIso','forecastTaxonomy.contractualCompletion.completionIso']);
+  // F33 follow-up: the required finish is the shared governing date (contract +
+  // awarded EOT; the contract date only when no EOT is awarded). When an EOT is
+  // awarded but the extended date is unknown it stays unknown, never the
+  // original contract date.
+  if(key==='independent-forecast'&&facts.time.governingContractCompletionIso)bind('time.governingContractCompletionIso',['requiredFinishIso','forecastTaxonomy.contractualCompletion.completionIso']);
   for(const base of ['completionPosition','projectDiagnosis.completion','completion']){
     if(!at(data,base))continue;
     data=write(data,(base+'.extendedContractFinishIso').split('.'),facts.time.extendedContractCompletionIso.value);

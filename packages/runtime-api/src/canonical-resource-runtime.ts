@@ -1,4 +1,5 @@
 import { weeklyResourceCapacityEvidence, type WeeklyResourceCapacitySummary } from './canonical-resource-evidence';
+import {capacityInputStatus,tradeCapacityRows} from './project-input-status';
 import { projectDataDate, projectControlSchedule } from './canonical-time-claims';
 import { buildResourceUtilizationProjection } from '../../resource-utilization/src';
 import { sumKnown, round } from '../../truth-kernel/src';
@@ -70,6 +71,8 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    weeklyOverloadedResourceCount:new Set(summary.points.filter(p=>p.availableCapacity!==null&&p.plannedDemand!==null&&p.plannedDemand>p.availableCapacity).map(p=>p.resourceId)).size,
    plannedUtilizationPercent:summary.plannedAverageToDataDate,actualUtilizationPercent:summary.actualAverageToDataDate,
    weeklyCapacityEvidence:summary,weeklyResourceRows:summary.resourceSummaries,diagnostics:summary.diagnostics,
+   // F07: every trade in the register with its stated weekly capacity (shared rule).
+   tradeCapacity:tradeCapacityRows(summary.points,summary.masterResources),
    criticalResourceHours:current&&resourceModel?criticalResourceHours(current.revision.model,resourceModel):[],
   };
  }else{
@@ -113,6 +116,7 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    receipts:summary.points.filter(p=>p.resourceClass==='labor').flatMap(p=>p.receipts),
   };
  }
- data={...(data as object),basisComparison:resourceBasisReview(state,summary)};
+ // F07: the page states capacity with the one shared rule the project facts use.
+ data={...(data as object),basisComparison:resourceBasisReview(state,summary),...(key==='resource-utilization'?{capacityStatus:capacityInputStatus(summary)}:{})};
  return {key,status:summary.state==='available'&&key==='resource-utilization'?'ready':'partial',reason:key==='manhour-scurve'?'Measured weekly labor history; remaining-hours forecast not established.':summary.state==='available'?null:'Source candidate or reconciliation gaps require review.',dependencies:['resource master','weekly capacity','approved usage','programme Data Date'],data};
 }

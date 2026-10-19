@@ -1674,6 +1674,12 @@ function buildPaymentRegister(
             eventPaymentPeriod,
             "certification_date_plus_contract_payment_period",
           );
+        // F36: the contract-period date by the same rule, without the explicit
+        // source date, so a register due date can be shown beside its contract basis.
+        const contractPeriodDueDate =
+          payment.paymentDueDate
+            ? dateDueFinding(null,payment.certificationDate,eventPaymentPeriod,"certification_date_plus_contract_payment_period")
+            : null;
         const amountFindings:
           Record<
             string,
@@ -1723,6 +1729,7 @@ function buildPaymentRegister(
                 .certificationDate,
             certificationDueDate,
             paymentDueDate,
+            ...(contractPeriodDueDate?{contractPeriodDueDate}:{}),
             paymentDate:
               payment.paymentDate,
             paymentTimestamp:
