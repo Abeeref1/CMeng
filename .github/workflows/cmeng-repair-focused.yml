@@ -180,6 +180,7 @@ jobs:
             dist/tests/w1-f48-expired-permits-linked-to-work.test.js \
             dist/tests/w1-f15-risk-register-fully-read.test.js \
             dist/tests/f18-security-instrument-type.test.js \
+            dist/tests/f20-f29-dated-cash-series.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
             dist/tests/f26-constraint-comparison.test.js \
