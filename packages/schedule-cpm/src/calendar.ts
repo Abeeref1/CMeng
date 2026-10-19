@@ -293,6 +293,39 @@ export function resolveWorkingCalendar(
   };
 }
 
+/** A source calendar that has no detailed working-time pattern but STATES its
+ * hours per day (calendar table field day_hr_cnt / hours_per_day) and its days
+ * per week (one "<n>D" / "<n> Day" token in the calendar name, e.g. 6D, 5D, 7D).
+ * Which weekdays and shift times are worked is not stated, so only the stated
+ * average weekly rate (hours per day x days per week) is established. Nothing
+ * is assumed: no 8-hour day, no default week. A conflicting stated week-hours
+ * value, several different day counts, or a missing value returns null. */
+export interface StatedCalendarWorkBasis {
+  calendarId: string;
+  hoursPerDay: number;
+  daysPerWeek: number;
+  weeklyHours: number;
+  basis: "stated_hours_per_day_and_days_per_week";
+}
+export function statedCalendarWorkBasis(
+  calendarId: string | null,
+  calendars: readonly CanonicalCalendar[],
+): StatedCalendarWorkBasis | null {
+  if (calendarId === null) return null;
+  const source = calendars.find((calendar) => calendar.calendarId === calendarId);
+  if (!source || calendarHasUsableWorkPattern(source)) return null;
+  const hoursPerDay = source.sourceConversionDayHours;
+  if (typeof hoursPerDay !== "number" || !Number.isFinite(hoursPerDay) || hoursPerDay <= 0 || hoursPerDay > 24) return null;
+  const counts = new Set<number>();
+  for (const match of (source.name ?? "").matchAll(/(?:^|[^0-9a-z])([1-7])\s*-?\s*(?:days?|d)(?![a-wyz])/gi)) counts.add(Number(match[1]));
+  if (counts.size !== 1) return null;
+  const daysPerWeek = [...counts][0]!;
+  const weeklyHours = hoursPerDay * daysPerWeek;
+  const statedWeek = source.sourceConversionWeekHours;
+  if (typeof statedWeek === "number" && Number.isFinite(statedWeek) && Math.abs(statedWeek - weeklyHours) > 0.001) return null;
+  return { calendarId, hoursPerDay, daysPerWeek, weeklyHours, basis: "stated_hours_per_day_and_days_per_week" };
+}
+
 const instantParseMemo=new Map<string,number|null>();
 export function parseScheduleInstant(value:string|null):number|null {
  if(!value)return null;
