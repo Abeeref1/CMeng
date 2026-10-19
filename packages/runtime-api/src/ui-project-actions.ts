@@ -133,7 +133,7 @@ function renderProjectActionList(){
   return '<article class="project-action '+(information?'action-information'+(a.target?.kind?.startsWith('review-')?' action-review-recorded':''):team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
-   '<p><b>'+(team?'Responsible project-team role:':a.category==='review'?'Suggested review role:':'Decision owner:')+'</b> '+escapeHtml(a.owner||'PMC Project Controls Manager')+'</p>'+records+
+   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+ownerMissingHtml(a.owner)+'</p>'+records+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
@@ -246,7 +246,7 @@ async function openProjectActions(inlineForCurrentPage=false){
 function bindProjectActions(root){
  root.querySelectorAll('[data-action-page]').forEach(b=>b.onclick=()=>{projectActionPage=Math.max(0,projectActionPage+Number(b.dataset.actionPage));void loadProjectActions();});
  root.querySelectorAll('[data-gap-page]').forEach(b=>b.onclick=()=>{projectDataGapsPage=Math.max(0,projectDataGapsPage+Number(b.dataset.gapPage));void loadProjectActions();});
- root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected);});
+ root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{if(!names[b.dataset.actionModule])return;const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);renderNav();loadModule(selected);});
  root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
  root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview));
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
