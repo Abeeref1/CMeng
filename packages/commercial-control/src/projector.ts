@@ -1,4 +1,4 @@
-import { reportingScope } from "../../truth-kernel/src";
+import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import { buildCommercialPerformance } from "../../commercial-performance/src";
 import {
@@ -662,11 +662,8 @@ export function buildCommercialControlPosition(
               .toUpperCase() ===
               currency &&
             row.status === "active" &&
-            (
-              !(input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso) ||
-              !row.expiryIso ||
-              row.expiryIso.slice(0,10) >= (input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso)!.slice(0,10)
-            ),
+            // F02: the shared Data Date rule; expired or released never counts as active.
+            !["expired","released"].includes(securityStateAtDataDate(row,input.sourceLedger?.dataDateIso ?? input.foundation?.dataDateIso).state),
         );
       const claims =
         input.claimCommercials.filter(
