@@ -10,6 +10,11 @@ import {moduleFeatureAvailability} from '../packages/runtime-api/src/feature-ava
 import {conditionalNotice} from '../packages/runtime-api/src/conditional-notice';
 import {summarizeControlIssues,totalChecksRun} from '../packages/truth-kernel/src';
 import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
+import {documentReadReview} from '../packages/runtime-api/src/document-read-review';
+import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 
 // The real page functions, taken from the built page script by name.
 const PAGE_FUNCTIONS=['conditionalNotice','knownScreenCount','screenCountText',
@@ -152,4 +157,15 @@ test('SW-46 Status page: "Listed readiness checks passed" counts only ready modu
   const count=(states:unknown)=>vm.runInNewContext(pageScript()+'\nreadyChecksPassedCount(states);',{states}) as number|null;
   assert.equal(count([{status:'ready',issueAssessment:{systemCheckState:'listed_checks_passed'}},{status:'ready',issueAssessment:{systemCheckState:'unverified'}},{status:'partial'}]),1);
   assert.equal(count([{status:'ready',issueAssessment:{systemCheckState:'listed_checks_passed'}},{status:'ready'}]),null,'a ready module without a check result makes the count not established');
+});
+
+test('SW-46 Document reading: "identification or structured extraction is available" is not shown for a PDF that has neither',t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-sw46-read-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const state=new RuntimeProjectStore({dataDir:dir,durable:false}).getOrCreate('SW46-READ');
+  const bare={documentId:'pdf-1',documentType:'other',mediaType:'application/pdf',sourceHashSha256:'sha',parserState:'pending',basisState:'candidate'} as any;
+  const none=documentReadReview(bare,state);
+  assert.doesNotMatch(none.note!,/is available/);
+  assert.match(none.note!,/^No document identification, structured extraction or complete page-reading receipt is retained\. This does not establish/);
+  const identified=documentReadReview({...bare,parserState:'identified',identification:{pageCount:3}},state);
+  assert.equal(identified.note,'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.');
 });

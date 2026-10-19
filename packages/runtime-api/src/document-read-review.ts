@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {parsePdfDocument,legiblePdfPageEvidence,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
 import {sourceTables,type SourceTable} from '../../truth-kernel/src';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
+import {conditionalNotice} from './conditional-notice';
 
 /** Validate actual PDF page identities instead of trusting aggregate counts.
  * Physical source reading does not establish document adoption or authority. */
@@ -94,7 +95,8 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
   }
   if (/pdf/i.test(document.mediaType ?? '') && document.parserState !== 'error') {
     return {state:'partial',label:'Full-page coverage unresolved',
-      note:'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.',
+      // SW-46: "identification or extraction is available" only when the document carries one.
+      note:conditionalNotice(Boolean(document.identification)||document.parserState==='parsed','Document identification or structured extraction is available, but no matching complete page-reading receipt is retained.','No document identification, structured extraction or complete page-reading receipt is retained.')+' This does not establish that every page was read or that every fact was extracted.',
       method:document.identification?.method ?? null,pageCount:document.identification?.pageCount ?? null,readPageCount:null,complete:false};
   }
   if(/^text\//.test(document.mediaType)&&!/csv/.test(document.mediaType)){
