@@ -102,7 +102,12 @@
         "6a7ceff6",
         "e49b88ac",
         "9a533b60",
-        "7147bbd2"
+        "7147bbd2",
+        "2c12fc6f",
+        "3f8f3f73",
+        "12a9ed2c",
+        "4b437941",
+        "de6a9028"
       ],
       "tests": [
         "tests/t11-retained-calculation-only.test.ts",
@@ -114,10 +119,12 @@
         "tests/t11-scope-literal-prefilter.test.ts",
         "tests/t11-change-category-single-pass-parity.test.ts",
         "tests/t11-module-issues-walk-parity.test.ts",
-        "tests/t11-worker-compile-cache.test.ts"
+        "tests/t11-worker-compile-cache.test.ts",
+        "tests/t11-large-register-cold-dashboard.test.ts",
+        "tests/t11-issue-summary-fold-parity.test.ts"
       ],
-      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs.",
-      "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
+      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs. Round 11 (r11-perf): cold Dashboard within the owner's 10 s at 8,900 activities and 38,300 register rows; delay notices grouped once per event and claim; identical findings folded in linear time with the same result as the one-at-a-time fold; per-row lookups indexed in Delivery risks, Director claims and commercial variations.",
+      "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests. Round 11: The temporary profiling probes (4abd2df3, a8373994) were removed before merge (2a760d05) and are not linked. The owner 10 s case (t11-large-register-cold-dashboard) fails on this 2-CPU board machine: cold Dashboard 18,133 ms and 18,487 ms (exclusive CPU) on ca04db07, and 18,611 ms on ff5fa80d, the r11-perf merge point that 2a760d05 states was verified on CI run 39304244064. The later merges did not slow it; the result depends on the machine, so the 10 s limit is not proven for production hardware."
     },
     "SW-13": {
       "commits": [
@@ -1143,13 +1150,16 @@
     },
     "F01": {
       "commits": [
-        "d1efdca8"
+        "d1efdca8",
+        "ba08b6d7",
+        "57ed6515",
+        "1e53b68e"
       ],
       "tests": [
         "tests/v1-f01-page-figures-match-api.test.ts"
       ],
-      "what": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable).",
-      "notCovered": "Partial. The test runs the assembled browser script against the project facts, not a browser opening all 50 REEM pages, 7 tabs, project review, documents, director drawer and portfolio; it is not wired to run on the exact release commit before a deploy."
+      "what": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515).",
+      "notCovered": "Partial. A real browser test over every page is pending branch r11-f01 (lead, round 11); the check still runs the assembled browser script against the project facts. REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F02": {
       "commits": [
@@ -1206,13 +1216,17 @@
     },
     "F10": {
       "commits": [
-        "db04de76"
+        "db04de76",
+        "26bae0a7",
+        "bf579660",
+        "6e3bbca1"
       ],
       "tests": [
-        "tests/v1-f10-no-duplicate-page-blocks.test.ts"
+        "tests/v1-f10-no-duplicate-page-blocks.test.ts",
+        "tests/r11-f10-one-owner-page-per-block.test.ts"
       ],
-      "what": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added.",
-      "notCovered": "Partial. Blocks copied across pages (one owner page per topic, others link to it) are not covered."
+      "what": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added. Round 11 (r11-f10): one owner page per topic; no full block appears on two pages of a rich project; every replaced block links to its owner page; the Dashboard stays the summary page.",
+      "notCovered": "Each page's own review section and findings D-31 / D-259 are not in scope (agent r11-f10 report). REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F13": {
       "commits": [
@@ -1259,7 +1273,7 @@
         "tests/resource-stated-capacity-programme-hours.test.ts"
       ],
       "what": "Rounds 9 and 10 (w5): recorded hours read from Actual Hours / Actual Man-hours headings and timesheet registers; stated register capacity for utilization; programme-recorded actual hours when no register gives them; absent utilization stated once with the reason.",
-      "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested."
+      "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested. Pending branch r11-f16 (lead, round 11). REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F18": {
       "commits": [
@@ -1285,14 +1299,17 @@
       "commits": [
         "c10a8cd7",
         "054e1910",
-        "54de38d8"
+        "54de38d8",
+        "1265ffb9",
+        "054f4805"
       ],
       "tests": [
         "tests/t02-xer-column-audit-activity-codes.test.ts",
-        "tests/sw27-source-grounded-grouping.test.ts"
+        "tests/sw27-source-grounded-grouping.test.ts",
+        "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
       ],
-      "what": "Round 9: XER activity codes reach the activity and discipline / location groups come from the programme's own codes, labelled with their source.",
-      "notCovered": "Partial. Baseline dates from the baseline file, plot and zone parsed from names and clean filter values are not tested."
+      "what": "Round 9: XER activity codes reach the activity and discipline / location groups come from the programme's own codes, labelled with their source. Round 11 (u1): baseline dates come from the baseline project the XER carries (sum_base_proj_id), labelled, one rule for the schedule and resource readers; discipline and plot come from the programme activity codes first, then WBS / names.",
+      "notCovered": "Zone parsing and clean filter values are not named in the test. REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F24": {
       "commits": [
@@ -1318,23 +1335,28 @@
     "F27": {
       "commits": [
         "1f58dd34",
-        "3a6defd0"
+        "3a6defd0",
+        "a8ba98f6"
       ],
       "tests": [
-        "tests/w3-commercial-headline-basis.test.ts"
+        "tests/w3-commercial-headline-basis.test.ts",
+        "tests/canonical-source-integration.test.ts"
       ],
-      "what": "Round 9 (w3): commercial money sums state their basis (records, currency, tax basis, date) through one shared label.",
-      "notCovered": "Partial. The basis of the extended date, notice proxy and actual-hours point is not tested."
+      "what": "Round 9 (w3): commercial money sums state their basis (records, currency, tax basis, date) through one shared label. Round 11 (w3): the remaining sums state their basis: a date addition states the start date and the exact days added (extended date), elapsed notice days carry the dated trigger they count from, and non-money sums such as actual hours show records and date only.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F29": {
       "commits": [
-        "7401975d"
+        "7401975d",
+        "b5ab3da6"
       ],
       "tests": [
-        "tests/f20-f29-dated-cash-series.test.ts"
+        "tests/f20-f29-dated-cash-series.test.ts",
+        "tests/f29-best-available-recovery.test.ts",
+        "tests/f29-f36-payment-rules.test.ts"
       ],
-      "what": "Round 10 (v2): the cash forecast reads a supplied forecast, else cost-loaded programme assignments with the basis stated, else says exactly why not.",
-      "notCovered": "Partial. Plaster-chain feasibility (see F46), recovery scenarios and the late-payment test (11 of 21 IPCs) are not in this test."
+      "what": "Round 10 (v2): the cash forecast reads a supplied forecast, else cost-loaded programme assignments with the basis stated, else says exactly why not. Round 11 (r11-f29): crew candidates come from the data held, with the inputs that limit them; Challenge the Contract shows the plaster-chain feasibility from the shared trade-chain calculation; the late-payment test counts 11 of 21 late from certificate dates and the contract payment period.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F30": {
       "commits": [
@@ -1373,14 +1395,16 @@
         "85e55c75",
         "dc14e31f",
         "4c73da1e",
-        "2bc53675"
+        "2bc53675",
+        "ca5daacc"
       ],
       "tests": [
         "tests/f33-negative-float-constraint.test.ts",
-        "tests/f33-extended-completion-every-page.test.ts"
+        "tests/f33-extended-completion-every-page.test.ts",
+        "tests/f33b-required-finish-governing-date.test.ts"
       ],
-      "what": "Rounds 9 and 10 (v3): one shared contract time reader gives the extended completion and days late on every page and finish chart; the constraint that sets the most negative float is named.",
-      "notCovered": "The REEM pages (21 Sep 2027, 15 days late) are not hand-checked."
+      "what": "Rounds 9 and 10 (v3): one shared contract time reader gives the extended completion and days late on every page and finish chart; the constraint that sets the most negative float is named. Round 11 (v3b): the Completion Forecast required finish is bound to the shared governing date; an awarded EOT with an unknown extended date keeps the required finish unknown, never the original date.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F34": {
       "commits": [
@@ -1408,37 +1432,53 @@
     },
     "F36": {
       "commits": [
-        "1f58dd34"
+        "1f58dd34",
+        "051f55f7",
+        "a8ba98f6",
+        "15cbcf23",
+        "b6db450e",
+        "b5ab3da6",
+        "02bd50ee"
       ],
       "tests": [
-        "tests/w3-commercial-headline-basis.test.ts"
+        "tests/w3-commercial-headline-basis.test.ts",
+        "tests/w3-commercial-round10.test.ts",
+        "tests/shared-decision-closure.test.ts",
+        "tests/f29-f36-payment-rules.test.ts"
       ],
-      "what": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established.",
-      "notCovered": "Partial. Gross vs net, applications not certified, 1-riyal rounding and like-for-like ratios are not tested."
+      "what": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established. Round 11 (w3, r11-f29): like-for-like certified ratio (certified gross work over the original contract), a query when the contract states no tax basis; gross and net separate; application IPC-024 excluded; advance outstanding is advance less recoveries; a 1-riyal rounding is not a failure; the due date is shown with its basis beside Sub-Clause 14.7 and a register due date is compared with it.",
+      "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F37": {
       "commits": [
         "1f58dd34",
-        "ac8bc66c"
+        "ac8bc66c",
+        "051f55f7"
       ],
       "tests": [
-        "tests/w3-commercial-headline-basis.test.ts"
+        "tests/w3-commercial-headline-basis.test.ts",
+        "tests/w3-commercial-round10.test.ts"
       ],
-      "what": "Round 9 (w3): the cost headline compares EAC with the current approved contract; omission-labelled variations are queried; the Dashboard cost tile uses the shared comparison.",
-      "notCovered": "The query of a register value above the contract sum (292.5M package value) is not tested."
+      "what": "Round 9 (w3): the cost headline compares EAC with the current approved contract; omission-labelled variations are queried; the Dashboard cost tile uses the shared comparison. Round 11 (w3): a package register subtotal above the current contract sum becomes a Dashboard query; the cost tile shows the like-for-like comparison, omission queries and the package query.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F38": {
       "commits": [
         "3c97d370",
         "4c183709",
         "fc5d7798",
-        "11538178"
+        "11538178",
+        "7ecaecc8",
+        "211c428b",
+        "9c79e78e",
+        "79b10871"
       ],
       "tests": [
-        "tests/f38-programme-quality-driving-chain.test.ts"
+        "tests/f38-programme-quality-driving-chain.test.ts",
+        "tests/f38-stage-erosion-bei.test.ts"
       ],
-      "what": "Round 10 (w8): driving chain to completion and independent CPLI come from the independent CPM and match the solver; missing-logic, resources and missed-task checks state their formula.",
-      "notCovered": "Partial. Stage classification and float erosion rate are not done (agent w8 report); BEI and the criticality definition are not named in the test."
+      "what": "Round 10 (w8): driving chain to completion and independent CPLI come from the independent CPM and match the solver; missing-logic, resources and missed-task checks state their formula. Round 11 (r11-f38): driving chain by stage from codes and WBS; CMeng CPM float erosion with the turns-critical-by date, checked against the independent solver; BEI named; criticality definition stated; float erosion not established without two dated revisions with matching ids.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     },
     "F42": {
       "commits": [
@@ -1580,15 +1620,41 @@
         "80c518eb",
         "b3387749",
         "5d79ef66",
-        "d7352d7b"
+        "d7352d7b",
+        "d5ee9533"
       ],
       "tests": [
         "tests/f61-management-page-weight.test.ts",
         "tests/f61-adversarial-list-paging.test.ts",
         "tests/claims-reporting-population.test.ts"
       ],
-      "what": "Rounds 9 and 10 (w6): the management bundle sends shared facts once; every list that grows with source records is paged on management pages; a page still over budget is flagged; pages stay under 2 MB at 8,900 activities and 896 item curves and on an adversarial project.",
-      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+      "what": "Rounds 9 and 10 (w6): the management bundle sends shared facts once; every list that grows with source records is paged on management pages; a page still over budget is flagged; pages stay under 2 MB at 8,900 activities and 896 item curves and on an adversarial project. Round 11 (w6b): the management bundle sends each shared section once at /sharedSections; owner blocks no longer repeat member id lists.",
+      "notCovered": "Named test f61-management-page-weight failed on 40df19d9 before w6b merged (/management-surfaces 2,375,201 bytes, CI run 39303798113, noted in e68500f2); on ca04db07 it passes with w6b (f61 tests 3 of 3 pass on this branch, /management-surfaces 1,554,931 bytes on the adversarial project). REEM-specific checks cannot run without the REEM file (lead, round 11)."
+    },
+    "F07": {
+      "commits": [
+        "736defe3",
+        "3c1336b6",
+        "4e191f18",
+        "9594bd24"
+      ],
+      "tests": [
+        "tests/v1-f07-shared-input-status.test.ts",
+        "tests/v1b-f07-risk-rows-trade-capacity.test.ts"
+      ],
+      "what": "Round 11 (v1, v1b): calendars, capacity and risk owners are one shared input status on every page and in the project facts; the risk register and Delivery risks state the same 110-row population; every trade in the resource register is on the Resources page with its capacity, never promoted from a candidate.",
+      "notCovered": "Quantities, CPM coverage, installed quantities and the discipline list as one shared status are not named in these tests. REEM-specific checks cannot run without the REEM file (lead, round 11)."
+    },
+    "F21": {
+      "commits": [
+        "1265ffb9",
+        "33b9f0b2"
+      ],
+      "tests": [
+        "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
+      ],
+      "what": "Round 11 (u1): one shared BOQ mapping rule: BOQ items map to programme areas (explicit area, BOQ WBS code, exact section) and to packages from the register; disagreement stays unmapped with candidates; area totals add up.",
+      "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
     }
   },
   "s": {
@@ -1637,7 +1703,7 @@
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
     "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
-    "F": "Round 10 (v/int5 at 851c9051): 3 F rows have no tested shared fix; each reason is under \"F rows not covered by any tested shared fix\".",
+    "F": "Round 11 (v/int5 at ca04db07): 1 F row(s) have no tested shared fix; each reason is under \"F rows not covered by any tested shared fix\".",
     "SW-32": "Linked in round 9 (44abafc1, t08-sw32-risk-register-only)."
   },
   "namedTestRun": {
@@ -1788,13 +1854,12 @@
   },
   "round8Search": "Round 8 (v/int5 at fbf01a6a): every F row read with its evidence; each round-4 to round-6 commit in 1153164d..v/int5 and the named tests of the SW rows read case by case. An F row is linked only where a named test case proves the F case; the rest of the F case is stated under Not covered. Named test run 2026-10-19 16:22 +04 on the v/int5 build at fbf01a6a (this branch differs only in docs and scripts): node --test --test-concurrency=1 on the 10 newly linked files (t05-same-measure-every-page, sw15-delay-events-not-from-claims, t05-role-views-page-facts-shown, t02-register-reading-truth, t07-commercial-position-checks, t08-delivery-supplied-register-first, t07-contract-time-original-and-completion-movement, t06-float-trend-share-of-unfinished, t06-recovery-completion-path, t10-no-code-names-on-screen): 43 tests, 43 pass, 0 fail. A passing test proves only the case it names.",
   "fNotCovered": {
-    "note": "Round 10 (v/int5 at 851c9051): F rows with no tested shared fix. Each reason states what is wrong in the product at the last consultant check and why no commit up to 851c9051 covers it. Nothing here is certified.",
+    "note": "Round 11 (v/int5 at ca04db07): F rows with no tested shared fix. Each reason states what is wrong in the product at the last consultant check and why no commit up to ca04db07 covers it. Nothing here is certified. REEM-specific checks cannot run without the REEM file (lead, round 11).",
     "rows": {
-      "F07": "Calendars, quantities, CPM coverage, capacity, discipline list, risk owners and row counts are still decided per page; no shared prerequisite status and no test. Round 10: the x4 decision place shares contract decisions, not these prerequisites.",
-      "F21": "BOQ WBS-to-programme mapping to the 14 areas and BOQ-to-package links have no named test.",
-      "F45": "Per-item curves on management pages are covered under F61 (page weight). Progress by area, period and required rate, fractional LS query, installed value vs certified, earned hours and % installed have no fix; no BOQ earned-hours split (agent w5 report). 413f1ac2 names F45 only for the page-weight part."
+      "F45": "Per-item curves on management pages are covered under F61 (page weight). Progress by area, period and required rate, fractional LS query, installed value vs certified, earned hours and % installed have no fix; no BOQ earned-hours split (agent w5 report). 413f1ac2 names F45 only for the page-weight part. Pending branch r11-f45 (lead, round 11)."
     }
   },
-  "fNotCoveredHistory": "Round 8 (fbf01a6a) listed 43 F rows not covered; rounds 9 and 10 linked 40 of them, many in part (see each row's Not covered).",
-  "round10Search": "Rounds 9 and 10 (4c9b4bd4..851c9051, 144 commits, read on branch v/x1c-board): every fix commit read with the test files it changed and the case names in those tests; linked to the SW and F rows its subject names, or whose case its test names. CI-list chores, wip and debug commits, and fix commits that changed no test and are not covered by a test of the same change, are not linked (named per row). Every linked commit is saved, not live: the live release is still b3c76d6. The named tests were not run in this round by the board agent; the linking agents and CI runs named in the commit subjects ran them."
+  "fNotCoveredHistory": "Round 8 (fbf01a6a) listed 43 F rows not covered; rounds 9 and 10 linked 40 of them; round 11 linked F07 and F21.",
+  "round10Search": "Rounds 9 and 10 (4c9b4bd4..851c9051, 144 commits, read on branch v/x1c-board): every fix commit read with the test files it changed and the case names in those tests; linked to the SW and F rows its subject names, or whose case its test names. CI-list chores, wip and debug commits, and fix commits that changed no test and are not covered by a test of the same change, are not linked (named per row). Every linked commit is saved, not live: the live release is still b3c76d6. The named tests were not run in this round by the board agent; the linking agents and CI runs named in the commit subjects ran them.",
+  "round11Search": "Round 11 (851c9051..ca04db07, 79 commits, merged into v/x1c-board): every commit read with the test files it changed and the case names in those tests, the same way. CI-list chores and the temporary probes (4abd2df3, a8373994, e9eb7d77, removed before merge) are not linked. Every linked commit is saved, not live: the live release is still b3c76d6. Named tests run on this branch (built at ca04db07 plus docs): f61-management-page-weight and f61-adversarial-list-paging 3 of 3 pass; the 14 round-11 test files 161 of 162 pass, the one failure is the cold Dashboard 10 s timing case (see SW-54)."
 }

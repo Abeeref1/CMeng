@@ -5128,7 +5128,12 @@
           "6a7ceff6",
           "e49b88ac",
           "9a533b60",
-          "7147bbd2"
+          "7147bbd2",
+          "2c12fc6f",
+          "3f8f3f73",
+          "12a9ed2c",
+          "4b437941",
+          "de6a9028"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
@@ -5144,10 +5149,12 @@
           "tests/t11-scope-literal-prefilter.test.ts",
           "tests/t11-change-category-single-pass-parity.test.ts",
           "tests/t11-module-issues-walk-parity.test.ts",
-          "tests/t11-worker-compile-cache.test.ts"
+          "tests/t11-worker-compile-cache.test.ts",
+          "tests/t11-large-register-cold-dashboard.test.ts",
+          "tests/t11-issue-summary-fold-parity.test.ts"
         ],
-        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs.",
-        "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
+        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs. Round 11 (r11-perf): cold Dashboard within the owner's 10 s at 8,900 activities and 38,300 register rows; delay notices grouped once per event and claim; identical findings folded in linear time with the same result as the one-at-a-time fold; per-row lookups indexed in Delivery risks, Director claims and commercial variations.",
+        "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests. Round 11: The temporary profiling probes (4abd2df3, a8373994) were removed before merge (2a760d05) and are not linked. The owner 10 s case (t11-large-register-cold-dashboard) fails on this 2-CPU board machine: cold Dashboard 18,133 ms and 18,487 ms (exclusive CPU) on ca04db07, and 18,611 ms on ff5fa80d, the r11-perf merge point that 2a760d05 states was verified on CI run 39304244064. The later merges did not slow it; the result depends on the machine, so the 10 s limit is not proven for production hardware."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5359,6 +5366,41 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "2c12fc6f",
+            "subject": "perf(T11): group delay notices once per event and claim instead of scanning every notice per row",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "3f8f3f73",
+            "subject": "perf(T11): label each issue path segment once; score only matched activities per claim",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "12a9ed2c",
+            "subject": "perf(T11): fold identical findings into one request without re-copying earlier members",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "4b437941",
+            "subject": "perf(T11): index per-row lookups in Delivery risks, Director claims and commercial variations",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "de6a9028",
+            "subject": "test(T11): large-register cold Dashboard within the owner's 10 s; linear delay notice reading and finding fold",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -5390,7 +5432,9 @@
           "tests/t11-scope-literal-prefilter.test.ts",
           "tests/t11-change-category-single-pass-parity.test.ts",
           "tests/t11-module-issues-walk-parity.test.ts",
-          "tests/t11-worker-compile-cache.test.ts"
+          "tests/t11-worker-compile-cache.test.ts",
+          "tests/t11-large-register-cold-dashboard.test.ts",
+          "tests/t11-issue-summary-fold-parity.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -5660,13 +5704,16 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "d1efdca8"
+          "d1efdca8",
+          "ba08b6d7",
+          "57ed6515",
+          "1e53b68e"
         ],
         "regressionFiles": [
           "tests/v1-f01-page-figures-match-api.test.ts"
         ],
-        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable).",
-        "notCovered": "Partial. The test runs the assembled browser script against the project facts, not a browser opening all 50 REEM pages, 7 tabs, project review, documents, director drawer and portfolio; it is not wired to run on the exact release commit before a deploy."
+        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515).",
+        "notCovered": "Partial. A real browser test over every page is pending branch r11-f01 (lead, round 11); the check still runs the assembled browser script against the project facts. REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5680,6 +5727,27 @@
           {
             "sha": "d1efdca8",
             "subject": "test(F01): every page's shown main figures equal the API answer key",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "ba08b6d7",
+            "subject": "test(F01): widen the page/API check to completion dates and money",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "57ed6515",
+            "subject": "fix(F01): pages show the reporting contract completion the API facts show",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "1e53b68e",
+            "subject": "test(F01): also compare the cost comparison panel's contract value and EAC with the API",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -6121,9 +6189,19 @@
         "evidence": ""
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "736defe3",
+          "3c1336b6",
+          "4e191f18",
+          "9594bd24"
+        ],
+        "regressionFiles": [
+          "tests/v1-f07-shared-input-status.test.ts",
+          "tests/v1b-f07-risk-rows-trade-capacity.test.ts"
+        ],
+        "repairNotes": "Round 11 (v1, v1b): calendars, capacity and risk owners are one shared input status on every page and in the project facts; the risk register and Delivery risks state the same 110-row population; every trade in the resource register is on the Resources page with its capacity, never promoted from a candidate.",
+        "notCovered": "Quantities, CPM coverage, installed quantities and the discipline list as one shared status are not named in these tests. REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6132,10 +6210,39 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "736defe3",
+            "subject": "fix(F07): calendars, capacity and risk owners are one shared input status",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "3c1336b6",
+            "subject": "fix(F07): one risk register row count and one per-trade capacity rule on every page",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "4e191f18",
+            "subject": "test(F07): deliveryScript is a function",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9594bd24",
+            "subject": "fix(F07): Resources page calls the trade capacity panel like other optional helpers",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R1",
         "plannedConsultantStep": 1
       },
@@ -6152,9 +6259,12 @@
         "detail": "Shared facts: same measure, same value on every page and role view; then stage challenge.",
         "consultantExpectedCheck": "A prerequisite confirmed on one page is confirmed on all; risk register 110 rows; capacity shown for all 12 trades.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/v1-f07-shared-input-status.test.ts",
+          "tests/v1b-f07-risk-rows-trade-capacity.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F08",
@@ -6332,13 +6442,17 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "db04de76"
+          "db04de76",
+          "26bae0a7",
+          "bf579660",
+          "6e3bbca1"
         ],
         "regressionFiles": [
-          "tests/v1-f10-no-duplicate-page-blocks.test.ts"
+          "tests/v1-f10-no-duplicate-page-blocks.test.ts",
+          "tests/r11-f10-one-owner-page-per-block.test.ts"
         ],
-        "repairNotes": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added.",
-        "notCovered": "Partial. Blocks copied across pages (one owner page per topic, others link to it) are not covered."
+        "repairNotes": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added. Round 11 (r11-f10): one owner page per topic; no full block appears on two pages of a rich project; every replaced block links to its owner page; the Dashboard stays the summary page.",
+        "notCovered": "Each page's own review section and findings D-31 / D-259 are not in scope (agent r11-f10 report). REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6352,6 +6466,27 @@
           {
             "sha": "db04de76",
             "subject": "fix(F10): remove repeated identical blocks on a module page with one shared rule",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "26bae0a7",
+            "subject": "test(F10): probe - render every page of a rich project and find blocks copied across pages",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "bf579660",
+            "subject": "fix(F10): one owner page per topic; other pages link to it instead of copying the block",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "6e3bbca1",
+            "subject": "F10: procurement link figure keeps its % unit; CI list adds the new integration tests",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -6376,7 +6511,8 @@
         "consultantExpectedCheck": "No block appears on two pages; merged pages are tabs of one workspace.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/v1-f10-no-duplicate-page-blocks.test.ts"
+          "tests/v1-f10-no-duplicate-page-blocks.test.ts",
+          "tests/r11-f10-one-owner-page-per-block.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -6796,7 +6932,7 @@
           "tests/resource-stated-capacity-programme-hours.test.ts"
         ],
         "repairNotes": "Rounds 9 and 10 (w5): recorded hours read from Actual Hours / Actual Man-hours headings and timesheet registers; stated register capacity for utilization; programme-recorded actual hours when no register gives them; absent utilization stated once with the reason.",
-        "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested."
+        "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested. Pending branch r11-f16 (lead, round 11). REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7190,9 +7326,16 @@
         "evidence": "Mapping 100% in data; Progress Breakdown shows three progress columns. Package link not checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "1265ffb9",
+          "33b9f0b2"
+        ],
+        "regressionFiles": [
+          "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
+        ],
+        "repairNotes": "Round 11 (u1): one shared BOQ mapping rule: BOQ items map to programme areas (explicit area, BOQ WBS code, exact section) and to packages from the register; disagreement stays unmapped with candidates; area totals add up.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7201,10 +7344,25 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "1265ffb9",
+            "subject": "fix(F21,F22): shared BOQ area/package mapping; XER baseline project, discipline and plot codes",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "33b9f0b2",
+            "subject": "fix(F21): type the BOQ source rows used for package codes",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R4",
         "plannedConsultantStep": 2
       },
@@ -7221,9 +7379,11 @@
         "detail": "Register and file reading checked by the independent reader from the source files.",
         "consultantExpectedCheck": "Mapping 100%; Progress Breakdown physical and certified columns filled; BOQ items linked to packages where the register allows.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F22",
@@ -7248,14 +7408,17 @@
         "sourceCommits": [
           "c10a8cd7",
           "054e1910",
-          "54de38d8"
+          "54de38d8",
+          "1265ffb9",
+          "054f4805"
         ],
         "regressionFiles": [
           "tests/t02-xer-column-audit-activity-codes.test.ts",
-          "tests/sw27-source-grounded-grouping.test.ts"
+          "tests/sw27-source-grounded-grouping.test.ts",
+          "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
         ],
-        "repairNotes": "Round 9: XER activity codes reach the activity and discipline / location groups come from the programme's own codes, labelled with their source.",
-        "notCovered": "Partial. Baseline dates from the baseline file, plot and zone parsed from names and clean filter values are not tested."
+        "repairNotes": "Round 9: XER activity codes reach the activity and discipline / location groups come from the programme's own codes, labelled with their source. Round 11 (u1): baseline dates come from the baseline project the XER carries (sum_base_proj_id), labelled, one rule for the schedule and resource readers; discipline and plot come from the programme activity codes first, then WBS / names.",
+        "notCovered": "Zone parsing and clean filter values are not named in the test. REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7286,6 +7449,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "1265ffb9",
+            "subject": "fix(F21,F22): shared BOQ area/package mapping; XER baseline project, discipline and plot codes",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "054f4805",
+            "subject": "fix(F22): one XER baseline-project rule shared by the schedule and resource readers",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -7308,7 +7485,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/t02-xer-column-audit-activity-codes.test.ts",
-          "tests/sw27-source-grounded-grouping.test.ts"
+          "tests/sw27-source-grounded-grouping.test.ts",
+          "tests/u1-f21-f22-boq-mapping-programme-fields.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -7640,13 +7818,15 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "1f58dd34",
-          "3a6defd0"
+          "3a6defd0",
+          "a8ba98f6"
         ],
         "regressionFiles": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/canonical-source-integration.test.ts"
         ],
-        "repairNotes": "Round 9 (w3): commercial money sums state their basis (records, currency, tax basis, date) through one shared label.",
-        "notCovered": "Partial. The basis of the extended date, notice proxy and actual-hours point is not tested."
+        "repairNotes": "Round 9 (w3): commercial money sums state their basis (records, currency, tax basis, date) through one shared label. Round 11 (w3): the remaining sums state their basis: a date addition states the start date and the exact days added (extended date), elapsed notice days carry the dated trigger they count from, and non-money sums such as actual hours show records and date only.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7667,6 +7847,13 @@
           {
             "sha": "3a6defd0",
             "subject": "F27: commercial money sums state their basis through the shared sumBasisLabel",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "a8ba98f6",
+            "subject": "F27: date, notice-day and actual-hour sums state their basis through the shared label; F36 type fixes",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -7692,7 +7879,8 @@
         "consultantExpectedCheck": "Unpaid 9,899,013; extended date 21 Sep 2027; pending VOs 0; notice days for CLM-003 (44) and CLM-004 (42); actual 755,452 h plotted.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/canonical-source-integration.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -7800,13 +7988,16 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "7401975d"
+          "7401975d",
+          "b5ab3da6"
         ],
         "regressionFiles": [
-          "tests/f20-f29-dated-cash-series.test.ts"
+          "tests/f20-f29-dated-cash-series.test.ts",
+          "tests/f29-best-available-recovery.test.ts",
+          "tests/f29-f36-payment-rules.test.ts"
         ],
-        "repairNotes": "Round 10 (v2): the cash forecast reads a supplied forecast, else cost-loaded programme assignments with the basis stated, else says exactly why not.",
-        "notCovered": "Partial. Plaster-chain feasibility (see F46), recovery scenarios and the late-payment test (11 of 21 IPCs) are not in this test."
+        "repairNotes": "Round 10 (v2): the cash forecast reads a supplied forecast, else cost-loaded programme assignments with the basis stated, else says exactly why not. Round 11 (r11-f29): crew candidates come from the data held, with the inputs that limit them; Challenge the Contract shows the plaster-chain feasibility from the shared trade-chain calculation; the late-payment test counts 11 of 21 late from certificate dates and the contract payment period.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7820,6 +8011,13 @@
           {
             "sha": "7401975d",
             "subject": "fix(F20 F29): one shared dated cash series by month; brief cost line reads it; cash forecast reads supplied data or states its programme basis",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b5ab3da6",
+            "subject": "fix(F29,F36): crew candidates from the data held; driving-chain feasibility on Challenge; register due date beside the contract period",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -7845,7 +8043,9 @@
         "consultantExpectedCheck": "Plaster-chain feasibility shown; recovery scenarios generated; cash forecast from remaining value on the programme; 11 of 21 IPCs paid late.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/f20-f29-dated-cash-series.test.ts"
+          "tests/f20-f29-dated-cash-series.test.ts",
+          "tests/f29-best-available-recovery.test.ts",
+          "tests/f29-f36-payment-rules.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8096,14 +8296,16 @@
           "85e55c75",
           "dc14e31f",
           "4c73da1e",
-          "2bc53675"
+          "2bc53675",
+          "ca5daacc"
         ],
         "regressionFiles": [
           "tests/f33-negative-float-constraint.test.ts",
-          "tests/f33-extended-completion-every-page.test.ts"
+          "tests/f33-extended-completion-every-page.test.ts",
+          "tests/f33b-required-finish-governing-date.test.ts"
         ],
-        "repairNotes": "Rounds 9 and 10 (v3): one shared contract time reader gives the extended completion and days late on every page and finish chart; the constraint that sets the most negative float is named.",
-        "notCovered": "The REEM pages (21 Sep 2027, 15 days late) are not hand-checked."
+        "repairNotes": "Rounds 9 and 10 (v3): one shared contract time reader gives the extended completion and days late on every page and finish chart; the constraint that sets the most negative float is named. Round 11 (v3b): the Completion Forecast required finish is bound to the shared governing date; an awarded EOT with an unknown extended date keeps the required finish unknown, never the original date.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8143,6 +8345,13 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "ca5daacc",
+            "subject": "fix(F33 follow-up): Completion Forecast required finish bound to the shared governing date",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -8168,7 +8377,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it. Rules of the overlapping SW item added.",
         "namedTests": [
           "tests/f33-negative-float-constraint.test.ts",
-          "tests/f33-extended-completion-every-page.test.ts"
+          "tests/f33-extended-completion-every-page.test.ts",
+          "tests/f33b-required-finish-governing-date.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8364,13 +8574,22 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "1f58dd34"
+          "1f58dd34",
+          "051f55f7",
+          "a8ba98f6",
+          "15cbcf23",
+          "b6db450e",
+          "b5ab3da6",
+          "02bd50ee"
         ],
         "regressionFiles": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/w3-commercial-round10.test.ts",
+          "tests/shared-decision-closure.test.ts",
+          "tests/f29-f36-payment-rules.test.ts"
         ],
-        "repairNotes": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established.",
-        "notCovered": "Partial. Gross vs net, applications not certified, 1-riyal rounding and like-for-like ratios are not tested."
+        "repairNotes": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established. Round 11 (w3, r11-f29): like-for-like certified ratio (certified gross work over the original contract), a query when the contract states no tax basis; gross and net separate; application IPC-024 excluded; advance outstanding is advance less recoveries; a 1-riyal rounding is not a failure; the due date is shown with its basis beside Sub-Clause 14.7 and a register due date is compared with it.",
+        "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8384,6 +8603,48 @@
           {
             "sha": "1f58dd34",
             "subject": "F37/F36/F27: shared cost comparison, due-date basis and sum basis label",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "051f55f7",
+            "subject": "F36/F37: like-for-like certified work ratio; package-above-contract query on the cost tile",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "a8ba98f6",
+            "subject": "F27: date, notice-day and actual-hour sums state their basis through the shared label; F36 type fixes",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "15cbcf23",
+            "subject": "test(F36): certified progress needs a stated contract tax basis",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b6db450e",
+            "subject": "F36 (owner decision): unstated contract tax basis gives the certified ratio as a query",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b5ab3da6",
+            "subject": "fix(F29,F36): crew candidates from the data held; driving-chain feasibility on Challenge; register due date beside the contract period",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "02bd50ee",
+            "subject": "fix(F36): outstanding advance from the advance paid less certified recoveries when the contract percentage is not established",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -8405,7 +8666,10 @@
         "consultantExpectedCheck": "Gross 196,034,538; net 166,629,358; IPC-024 excluded; advance 1,396,548; rounding passes; due-date basis shown.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/w3-commercial-round10.test.ts",
+          "tests/shared-decision-closure.test.ts",
+          "tests/f29-f36-payment-rules.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8432,13 +8696,15 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "1f58dd34",
-          "ac8bc66c"
+          "ac8bc66c",
+          "051f55f7"
         ],
         "regressionFiles": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/w3-commercial-round10.test.ts"
         ],
-        "repairNotes": "Round 9 (w3): the cost headline compares EAC with the current approved contract; omission-labelled variations are queried; the Dashboard cost tile uses the shared comparison.",
-        "notCovered": "The query of a register value above the contract sum (292.5M package value) is not tested."
+        "repairNotes": "Round 9 (w3): the cost headline compares EAC with the current approved contract; omission-labelled variations are queried; the Dashboard cost tile uses the shared comparison. Round 11 (w3): a package register subtotal above the current contract sum becomes a Dashboard query; the cost tile shows the like-for-like comparison, omission queries and the package query.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8462,6 +8728,13 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "051f55f7",
+            "subject": "F36/F37: like-for-like certified work ratio; package-above-contract query on the cost tile",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -8480,7 +8753,8 @@
         "consultantExpectedCheck": "Headline: EAC 218.4M is 3.37M below current contract 221.78M; 4 omission VOs queried; 292.5M package value queried.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/w3-commercial-headline-basis.test.ts"
+          "tests/w3-commercial-headline-basis.test.ts",
+          "tests/w3-commercial-round10.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8510,13 +8784,18 @@
           "3c97d370",
           "4c183709",
           "fc5d7798",
-          "11538178"
+          "11538178",
+          "7ecaecc8",
+          "211c428b",
+          "9c79e78e",
+          "79b10871"
         ],
         "regressionFiles": [
-          "tests/f38-programme-quality-driving-chain.test.ts"
+          "tests/f38-programme-quality-driving-chain.test.ts",
+          "tests/f38-stage-erosion-bei.test.ts"
         ],
-        "repairNotes": "Round 10 (w8): driving chain to completion and independent CPLI come from the independent CPM and match the solver; missing-logic, resources and missed-task checks state their formula.",
-        "notCovered": "Partial. Stage classification and float erosion rate are not done (agent w8 report); BEI and the criticality definition are not named in the test."
+        "repairNotes": "Round 10 (w8): driving chain to completion and independent CPLI come from the independent CPM and match the solver; missing-logic, resources and missed-task checks state their formula. Round 11 (r11-f38): driving chain by stage from codes and WBS; CMeng CPM float erosion with the turns-critical-by date, checked against the independent solver; BEI named; criticality definition stated; float erosion not established without two dated revisions with matching ids.",
+        "notCovered": "REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8554,6 +8833,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "7ecaecc8",
+            "subject": "test(F38): stage-labelled driving chain, float erosion with turns-critical date, BEI and criticality definition (probe on the unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "211c428b",
+            "subject": "test(F38): typed link tuples for the probe",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9c79e78e",
+            "subject": "fix(F38): driving chain by stage, CMeng CPM float erosion with turns-critical date, BEI named and criticality stated",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "79b10871",
+            "subject": "fix(F38): Near-Critical panel nested in its page function; Data Dates read as the CPM reads them",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -8572,7 +8879,8 @@
         "consultantExpectedCheck": "Driving chain 34 activities (Plot B42 to B70, MEP, painting, snagging, PC); constraints / lags / relationship checks; BEI and CPLI; \"turns critical by\" date.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/f38-programme-quality-driving-chain.test.ts"
+          "tests/f38-programme-quality-driving-chain.test.ts",
+          "tests/f38-stage-erosion-bei.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -10269,15 +10577,16 @@
           "80c518eb",
           "b3387749",
           "5d79ef66",
-          "d7352d7b"
+          "d7352d7b",
+          "d5ee9533"
         ],
         "regressionFiles": [
           "tests/f61-management-page-weight.test.ts",
           "tests/f61-adversarial-list-paging.test.ts",
           "tests/claims-reporting-population.test.ts"
         ],
-        "repairNotes": "Rounds 9 and 10 (w6): the management bundle sends shared facts once; every list that grows with source records is paged on management pages; a page still over budget is flagged; pages stay under 2 MB at 8,900 activities and 896 item curves and on an adversarial project.",
-        "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+        "repairNotes": "Rounds 9 and 10 (w6): the management bundle sends shared facts once; every list that grows with source records is paged on management pages; a page still over budget is flagged; pages stay under 2 MB at 8,900 activities and 896 item curves and on an adversarial project. Round 11 (w6b): the management bundle sends each shared section once at /sharedSections; owner blocks no longer repeat member id lists.",
+        "notCovered": "Named test f61-management-page-weight failed on 40df19d9 before w6b merged (/management-surfaces 2,375,201 bytes, CI run 39303798113, noted in e68500f2); on ca04db07 it passes with w6b (f61 tests 3 of 3 pass on this branch, /management-surfaces 1,554,931 bytes on the adversarial project). REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -10354,6 +10663,13 @@
           {
             "sha": "d7352d7b",
             "subject": "fix(F61): delay events carry their linked claim figures; claim pipeline list paged like other fact lists",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d5ee9533",
+            "subject": "fix(F61): management bundle sends each shared section once; owner blocks no longer repeat member id lists",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -73632,8 +73948,8 @@
         "repair_live_named_test_not_certified": 1
       },
       "F": {
-        "repair_saved_not_live_named_test": 56,
-        "open_no_repair_linked": 3,
+        "repair_saved_not_live_named_test": 58,
+        "open_no_repair_linked": 1,
         "repair_live_named_test_not_certified": 2
       },
       "S": {
