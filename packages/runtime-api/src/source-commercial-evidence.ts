@@ -99,9 +99,10 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
   return {group,ratio:likeForLikeCertifiedRatio({currency:group.currency,certifiedGrossWork:group.certifiedTotals?.grossWork??null,certificateTaxBasis:group.taxBasis,
    originalContract:currency?.originalContractValue?.value??null,contractTax,asOf:reportingDate,certificateCount:group.certifiedCount??null})};
  });
- const certifiedProgress=certifiedRatios.filter(r=>r.ratio.state==='calculated').map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,valuePercent:ratio.valuePercent,
-    certifiedWork:ratio.certifiedWork,contractValue:ratio.contractValue,contractValueBasis:'original_contract',basis:ratio.basis,sourceRefs:group.sourceRefs??[]}));
- const certifiedProgressNotEstablished=certifiedRatios.filter(r=>r.ratio.state!=='calculated'&&r.ratio.certifiedWork!==null).map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,
+ const certifiedProgress=certifiedRatios.filter(r=>r.ratio.state!=='not_established').map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,valuePercent:ratio.valuePercent,
+    certifiedWork:ratio.certifiedWork,contractValue:ratio.contractValue,contractValueBasis:'original_contract',state:ratio.state,query:ratio.state==='queried'?ratio.reason:null,
+    basis:ratio.basis,sourceRefs:group.sourceRefs??[]}));
+ const certifiedProgressNotEstablished=certifiedRatios.filter(r=>r.ratio.state==='not_established'&&r.ratio.certifiedWork!==null).map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,
     certifiedWork:ratio.certifiedWork,contractValue:ratio.contractValue,reason:ratio.reason,basis:ratio.basis}));
  return {paymentLinkage:{total:reportingDate?eligible.length:null,linked:reportingDate?linked:null,unlinked:reportingDate?eligible.length-linked:null,coveragePercent:reportingDate&&eligible.length?linked/eligible.length*100:null,rows:links,
    basis:'Dated actual-payment records linked by certificate business reference, date and currency. Unpaid applications are not actual receipts.'},

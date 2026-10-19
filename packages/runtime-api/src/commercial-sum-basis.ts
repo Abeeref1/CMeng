@@ -98,14 +98,19 @@ export function paymentDueBasisLabel(due:DueDateFindingLike|null|undefined,certi
 
 // F36: one like-for-like rule for "certified work as a share of the contract".
 // Certified gross work excludes variations and advance applications, so it is
-// compared with the original contract value (same scope), in the same currency
-// and on the same stated tax basis. If either tax basis is not stated, or they
-// differ, the ratio is not established. Nothing is inferred.
+// compared with the original contract value (same scope), in the same currency.
+// Tax basis (owner decision):
+// 1. contract basis stated and equal to the certificates' basis: established;
+// 2. contract basis stated but different, or sources conflict: not established;
+// 3. contract basis not stated anywhere: the ratio is calculated and shown as a
+//    query, assuming the certificates' basis, with that assumption stated.
 export type StatedTaxBasis='exclusive'|'inclusive';
 export interface ContractTaxEvidence{currency:string|null;amount:number|null;taxBasis:string|null|undefined;sourceRefs:readonly string[]}
-export interface ContractTaxBasisFinding{value:StatedTaxBasis|null;state:'source'|'conflicted'|'not_established';sourceRefs:string[];reason:string|null}
+export interface ContractTaxBasisFinding{value:StatedTaxBasis|null;state:'source'|'conflicted'|'not_stated'|'not_established';sourceRefs:string[];reason:string|null}
 
 const stated=(v:unknown):StatedTaxBasis|null=>v==='exclusive'||v==='inclusive'?v:null;
+
+export const CONTRACT_TAX_NOT_STATED_QUERY='The contract value does not state whether it includes tax; the ratio assumes the same basis as the certificates.';
 
 export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currency:string|null,amount:number|null):ContractTaxBasisFinding{
   if(currency===null)return {value:null,state:'not_established',sourceRefs:[],reason:'Currency is not established.'};
@@ -115,7 +120,7 @@ export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currenc
   const sourceRefs=[...new Set(matches.flatMap(e=>[...e.sourceRefs]))];
   if(bases.length===1)return {value:bases[0]!,state:'source',sourceRefs,reason:null};
   if(bases.length>1)return {value:null,state:'conflicted',sourceRefs,reason:'Sources state different tax bases for the original contract value.'};
-  return {value:null,state:'not_established',sourceRefs:[],reason:'No source states the tax basis of the original contract value.'};
+  return {value:null,state:'not_stated',sourceRefs:[],reason:'No source states the tax basis of the original contract value.'};
 }
 
 export interface CertifiedRatioInput{
@@ -129,10 +134,11 @@ export interface CertifiedRatioInput{
 }
 export interface CertifiedRatio{
   valuePercent:number|null;
-  state:'calculated'|'not_established';
+  state:'established'|'queried'|'not_established';
   certifiedWork:number|null;
   contractValue:number|null;
   taxBasis:StatedTaxBasis|null;
+  // Why the value is withheld (not_established) or what it assumes (queried).
   reason:string|null;
   basis:string;
 }
@@ -141,19 +147,24 @@ export function likeForLikeCertifiedRatio(input:CertifiedRatioInput):CertifiedRa
   const work=typeof input.certifiedGrossWork==='number'&&Number.isFinite(input.certifiedGrossWork)?input.certifiedGrossWork:null;
   const contract=typeof input.originalContract==='number'&&Number.isFinite(input.originalContract)&&input.originalContract>0?input.originalContract:null;
   const certificateTax=stated(input.certificateTaxBasis);
-  const reason=work===null?'Dated certified gross work is not established.':
+  const contractTax=input.contractTax;
+  const withheld=work===null?'Dated certified gross work is not established.':
     contract===null?'Original contract value is not established.':
     certificateTax===null?'Certificate tax basis is not stated.':
-    input.contractTax.value===null?(input.contractTax.reason??'Original contract tax basis is not established.'):
-    input.contractTax.value!==certificateTax?'Certificates are '+certificateTax+' of tax but the original contract value is '+input.contractTax.value+'.':null;
-  const taxBasis=reason===null?certificateTax:null;
+    contractTax.state==='conflicted'?(contractTax.reason??'Sources state different tax bases for the original contract value.'):
+    contractTax.value!==null&&contractTax.value!==certificateTax?'Certificates are '+certificateTax+' of tax but the original contract value is '+contractTax.value+'.':
+    contractTax.value===null&&contractTax.state!=='not_stated'?(contractTax.reason??'Original contract tax basis is not established.'):null;
+  const state:CertifiedRatio['state']=withheld!==null?'not_established':contractTax.value===null?'queried':'established';
+  const taxBasis=withheld===null?certificateTax:null;
   const records=input.certificateCount===null||input.certificateCount===undefined?'dated issued certificates':input.certificateCount+' dated issued certificate'+(input.certificateCount===1?'':'s');
+  const taxLabel=taxBasis===null?null:taxBasis+' of tax'+(state==='queried'?' (certificates; contract value basis not stated)':'');
   return {
-    valuePercent:reason===null?work!/contract!*100:null,
-    state:reason===null?'calculated':'not_established',
-    certifiedWork:work,contractValue:contract,taxBasis,reason,
+    valuePercent:withheld===null?work!/contract!*100:null,
+    state,
+    certifiedWork:work,contractValue:contract,taxBasis,
+    reason:withheld??(state==='queried'?CONTRACT_TAX_NOT_STATED_QUERY:null),
     basis:'Certified gross work (excludes variations and advance applications) divided by the same-currency original contract value on the same tax basis; financial certification, not measured physical completion. '+
-      sumBasisLabel({records,currency:input.currency,taxBasis:taxBasis===null?null:taxBasis+' of tax',asOf:input.asOf}),
+      sumBasisLabel({records,currency:input.currency,taxBasis:taxLabel,asOf:input.asOf}),
   };
 }
 

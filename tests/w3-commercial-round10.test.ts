@@ -8,6 +8,9 @@ import {assessEventNotice} from '../packages/delay-analysis-core/src/notices';
 import {sourceCommercialEvidence} from '../packages/runtime-api/src/source-commercial-evidence';
 import {buildRegisterChecks} from '../packages/runtime-api/src/project-decision-facts';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {buildProgressScurveProjection} from '../packages/progress-scurve/src';
+import {buildProgressReportProjection} from '../packages/progress-report/src';
+import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 
 // ---- F36: certified work / contract is like for like ----
 
@@ -34,10 +37,9 @@ test('F36: certified progress divides certified gross work by the original contr
   assert.deepEqual(result.originalContractTaxBases[0],{currency:'SAR',value:'exclusive',state:'source',sourceRefs:['evidence-document:COST:row:1'],reason:null});
 });
 
-test('F36: different or unstated tax bases leave the ratio not established',()=>{
+test('F36: a stated but different tax basis leaves the ratio not established',()=>{
   for(const [contractTax,certificateTax,reason] of [
     ['inclusive','exclusive',/Certificates are exclusive of tax but the original contract value is inclusive/],
-    ['unknown','exclusive',/No source states the tax basis of the original contract value/],
     ['exclusive','unknown',/Certificate tax basis is not stated/],
   ] as const){
     const {state,ledger,position}=evidenceInput(contractTax,certificateTax);
@@ -49,10 +51,33 @@ test('F36: different or unstated tax bases leave the ratio not established',()=>
   }
 });
 
+test('F36: a contract value that states no tax basis gives the ratio as a query, value kept',()=>{
+  const {state,ledger,position}=evidenceInput('unknown','exclusive');
+  const result:any=sourceCommercialEvidence(state,ledger,position,'2027-03-31');
+  const row=result.heldEvidence.certifiedProgress.rows[0];
+  assert.equal(row.valuePercent,25);
+  assert.equal(row.state,'queried');
+  assert.equal(row.query,'The contract value does not state whether it includes tax; the ratio assumes the same basis as the certificates.');
+  assert.match(row.basis,/tax basis exclusive of tax \(certificates; contract value basis not stated\)/);
+  assert.equal(result.heldEvidence.certifiedProgress.state,'calculated');
+  const stated=evidenceInput('exclusive','exclusive');
+  const established:any=sourceCommercialEvidence(stated.state,stated.ledger,stated.position,'2027-03-31');
+  assert.equal(established.heldEvidence.certifiedProgress.rows[0].state,'established');
+  assert.equal(established.heldEvidence.certifiedProgress.rows[0].query,null);
+});
+
+test('F36: conflicting stated contract tax bases leave the ratio not established',()=>{
+  const ev=(taxBasis:string,ref:string)=>({currency:'SAR',amount:200,taxBasis,sourceRefs:[ref]});
+  const r=likeForLikeCertifiedRatio({currency:'SAR',certifiedGrossWork:50,certificateTaxBasis:'exclusive',originalContract:200,contractTax:contractTaxBasis([ev('exclusive','a'),ev('inclusive','b')],'SAR',200)});
+  assert.equal(r.state,'not_established');
+  assert.equal(r.valuePercent,null);
+  assert.match(r.reason!,/different tax bases/);
+});
+
 test('F36: contract tax basis comes only from a source that states it for the same amount',()=>{
   const ev=(amount:number,taxBasis:string,ref:string)=>({currency:'SAR',amount,taxBasis,sourceRefs:[ref]});
   assert.equal(contractTaxBasis([ev(200,'exclusive','a')],'SAR',200).value,'exclusive');
-  assert.equal(contractTaxBasis([ev(201,'exclusive','a')],'SAR',200).state,'not_established','a different amount is not this contract value');
+  assert.equal(contractTaxBasis([ev(201,'exclusive','a')],'SAR',200).state,'not_stated','a different amount is not this contract value');
   assert.equal(contractTaxBasis([ev(200,'exclusive','a'),ev(200,'inclusive','b')],'SAR',200).state,'conflicted');
   assert.equal(contractTaxBasis([ev(200,'exclusive','a')],'SAR',null).state,'not_established');
   const r=likeForLikeCertifiedRatio({currency:'SAR',certifiedGrossWork:null,certificateTaxBasis:'exclusive',originalContract:200,contractTax:contractTaxBasis([ev(200,'exclusive','a')],'SAR',200)});
@@ -149,4 +174,32 @@ test('F27: notice days, actual hours and commercial sums on the page go through 
   assert.equal((script.match(/sumBasisLabel\(\{records:"notice "/g)||[]).length,2,'both notice-day tables');
   assert.match(script,/"Actual labor hours"[^\n]*sumBasisLabel\(\{records:p\.actualHoursBasis==="programme_recorded"\?"programme-recorded \(P6 actual hours\)[^\n]*:weekly\?/);
   assert.match(script,/function sumBasisLabel\(/);
+});
+
+// Schedule fixture copied verbatim from tests/batch-d-completion.test.ts (not exported there).
+const calendar:any={calendarId:'C1',name:'5d',semanticComplete:true,weeklyWorkIntervals:[{dayIndex:1,intervals:[{start:'08:00',finish:'16:00',minutes:480}]}],sourceRefs:[]};
+function schedule():CanonicalScheduleModel{return {projectId:'D',source:'schedule_xlsx',sourceRevisionId:'R1',dataDateIso:'2030-01-05',calendars:[calendar],wbs:[],relationships:[],diagnostics:[],activities:[{projectId:'D',activityId:'A1',nativeId:'1',name:'Work',wbsId:null,calendarId:'C1',activityType:'task',status:'in_progress',baselineStartIso:'2030-01-01',baselineFinishIso:'2030-01-10',currentStartIso:'2030-01-01',currentFinishIso:'2030-01-12',actualStartIso:'2030-01-01',actualFinishIso:null,forecastStartIso:'2030-01-01',forecastFinishIso:'2030-01-12',originalDurationHours:80,remainingDurationHours:40,totalFloatHours:8,freeFloatHours:null,percentComplete:25,sourceRefs:[],diagnostics:[]}]};}
+
+test('F36: the Progress report keeps a queried certified value and carries its query to the headline',()=>{
+ const model=schedule();
+ const scurve=buildProgressScurveProjection(model,{generatedAt:'2030-01-05',producerVersion:'D'});
+ const dummy:any={producerVersion:'x',projectId:'D',sourceRevisionId:'R1',result:{projectId:'D',sourceRevisionId:'R1',dataDateIso:'2030-01-05',population:{sourceActivityCount:1,executableActivityCount:1,excludedActivityCount:0,excludedByType:{wbsSummaryCount:0,levelOfEffortCount:0,otherExcludedCount:0},basis:'execution_control_population'},activityCount:1,relationshipCount:0,graph:{complete:true,openStartActivityIds:[],openFinishActivityIds:[]},float:{criticalCount:0,nearCriticalCount:0,negativeFloatCount:0,coveragePercent:100},status:{completed:0,inProgress:1,notStarted:0,unknown:0},progress:{durationWeightedPercentComplete:{value:25,coveragePercent:100}},diagnostics:[]}};
+ const milestones:any={producerVersion:'m',projectId:'D',sourceRevisionId:'R1',milestoneCount:0,completedCount:0,openCount:0,lateOpenCount:0};
+ const look:any={producerVersion:'l',projectId:'D',sourceRevisionId:'R1',windowDays:42,incompleteActivityCount:1,datedIncompleteActivityCount:1,currentDateCoveragePercent:100,overdueCount:0};
+ const forecast:any={producerVersion:'f',projectId:'D',sourceRevisionId:'R1',sourceForecastCompletionIso:null,independentForecastCompletionIso:null,forecastVarianceDays:null,origin:'unresolved',complete:false,activityCoveragePercent:null,diagnostics:[]};
+ const query='The contract value does not state whether it includes tax; the ratio assumes the same basis as the certificates.';
+ const p=buildProgressReportProjection({generatedAt:'2030-01-05',producerVersion:'D',scheduleAnalytics:dummy,milestones,lookAhead:look,progressScurve:scurve,independentForecast:forecast,
+  progressEvidence:{certified:{valuePercent:30,sourceRefs:['ipc'],asOfIso:'2030-01-05',basis:'Certified gross work divided by the original contract value.',query}}});
+ assert.equal(p.progressBases.certified.valuePercent,30,'the value is kept');
+ assert.equal(p.progressBases.certified.query,query);
+ assert.equal(p.progressBases.certified.basis,'Certified gross work divided by the original contract value.');
+ assert.equal(p.headlineProgress.key,'certified');
+ assert.match(p.headlineProgress.basis,/Query: The contract value does not state whether it includes tax/);
+ const plain=buildProgressReportProjection({generatedAt:'2030-01-05',producerVersion:'D',scheduleAnalytics:dummy,milestones,lookAhead:look,progressScurve:scurve,independentForecast:forecast,
+  progressEvidence:{certified:{valuePercent:30,sourceRefs:['ipc'],asOfIso:'2030-01-05'}}});
+ assert.equal(plain.progressBases.certified.query,undefined);
+ assert.doesNotMatch(plain.headlineProgress.basis,/Query:/);
+ // The Progress page line names the query next to the value.
+ assert.match(script,/x\[1\]\.query\?" · queried":""/);
+ assert.match(script,/x\[1\]\.query\?"Query: "\+x\[1\]\.query:"separate source basis"/);
 });
