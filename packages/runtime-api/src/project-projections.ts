@@ -93,7 +93,7 @@ import { sourceProductivityForecastEvidence } from "./source-productivity-foreca
 import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
 import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
-import { canonicalResourceModule, canonicalResources } from "./canonical-resource-runtime";
+import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { registerHourUnit } from "./resource-trade-week-hours";
 import { resourceLaborHourEligible } from "../../schedule-resource-core/src";
 import { createHash } from "node:crypto";
