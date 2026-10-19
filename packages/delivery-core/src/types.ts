@@ -13,6 +13,9 @@ export interface DeliveryRecord {
  receipts:SourceReceipt[];diagnostics:string[];sourceActive:boolean;evidenceRevision?:string;
  sourceFields?:DeliveryFields;
  sourceValueReview?:{reference:string;recordedAt:string;actorId:string;originalValues:DeliveryFields};
+ /** F21: how each BOQ reference cited by the source row was resolved
+  * (exact BOQ item ID, unique item number, or ambiguous with candidates). */
+ boqReferences?:Array<{reference:string;itemId:string|null;state:'exact_item_id'|'unique_item_number'|'ambiguous'|'not_found';candidates:string[]}>;
 }
 export interface DeliveryDecision {
  batchId?:string;

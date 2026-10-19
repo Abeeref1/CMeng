@@ -1,6 +1,6 @@
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,CanonicalWbsNode} from '../../schedule-analysis-core/src';
 
-export type ScopeClassificationBasis='source_wbs'|'source_activity_text'|'source_derived'|'user_reviewed'|'unavailable';
+export type ScopeClassificationBasis='source_wbs'|'source_activity_text'|'source_activity_code'|'source_derived'|'user_reviewed'|'unavailable';
 export interface ActivityScopeClassification {
   activityId:string;
   wbsId:string|null;
@@ -39,6 +39,8 @@ export type SourceGroupBasis='activity_code'|'wbs_level'|'user_reviewed'|'name_m
 export const NAME_MATCH_GROUP_SOURCE='Grouped by name match';
 const DISCIPLINE_CODE_TYPES=[/\bdiscipline\b/i,/\btrades?\b/i];
 const LOCATION_CODE_TYPES=[/\blocation\b/i,/\barea\b/i,/\bzone\b/i,/\bbuilding\b/i,/\btower\b/i,/\bplot\b/i,/\blevel\b/i,/\bfloor\b/i];
+/** F22: the programme's own Plot code. */
+const PLOT_CODE_TYPES=[/\bplot\b/i];
 /** First code type (in priority order) with exactly one value on the activity. */
 function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
   const codes=activity.activityCodes??[];
@@ -240,7 +242,10 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
     const fromActivity=first(activityText,patterns,activityLowered);if(fromActivity)return {value:normalizedToken(label,fromActivity),basis:'source_activity_text' as const};
     return {value:null,basis:'unavailable' as const};
   };
-  const plot=pick('Plot',sourceScopePatterns.plot);
+  // F22: a programme Plot activity code (one value on the activity) is the
+  // source plot; WBS and activity wording are read only when it is absent.
+  const plotCode=codeGroup(activity,PLOT_CODE_TYPES);
+  const plot=plotCode?{value:/^plot\b/i.test(plotCode.value)?clean(plotCode.value):normalizedToken('Plot',plotCode.value),basis:'source_activity_code' as const}:pick('Plot',sourceScopePatterns.plot);
   const zone=pick('Zone',sourceScopePatterns.zone);
   const floor=pick('Floor',sourceScopePatterns.floor);
   const level=pick('Level',sourceScopePatterns.level);
@@ -263,24 +268,28 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   // hundreds of activities in the same WBS previously repeated identical
   // parent-path splits and all discipline regex checks. Cache only the source
   // WBS fallback within this one immutable classification calculation.
-  const explicitDiscipline=derivedDiscipline(activityText,activityLowered);
+  // F22: a programme Discipline/Trade activity code (one value) is the
+  // discipline the programme itself states; name matching is only the
+  // fallback when the programme carries no such code for the activity.
+  const disciplineCode=codeGroup(activity,DISCIPLINE_CODE_TYPES);
+  const explicitDiscipline=disciplineCode?null:derivedDiscipline(activityText,activityLowered);
   let parentDiscipline:string|null=null;
-  if(!explicitDiscipline){
+  if(!disciplineCode&&!explicitDiscipline){
     if(node&&wbsDisciplineCache?.has(node.wbsId))parentDiscipline=wbsDisciplineCache.get(node.wbsId)!;
     else{
       parentDiscipline=wbsText.split(' > ').reverse().map(segment=>derivedDiscipline(segment)).find(Boolean)??null;
       if(node&&wbsDisciplineCache)wbsDisciplineCache.set(node.wbsId,parentDiscipline);
     }
   }
-  const discipline=explicitDiscipline??parentDiscipline;
+  const discipline=disciplineCode?.value??explicitDiscipline??parentDiscipline;
   const spatial=[plot.value,tower.value,building.value,area.value,zone.value,floor.value,level.value,section.value,chainage.value,workFront.value].filter(Boolean) as string[];
   const basis:Record<string,ScopeClassificationBasis>={
     wbsId:activity.wbsId?'source_wbs':'unavailable',wbsPath:hierarchy.path?'source_wbs':'unavailable',wbsLevel:hierarchy.level?'source_wbs':'unavailable',
     plot:plot.basis,zone:zone.basis,floor:floor.basis,level:level.basis,tower:tower.basis,building:building.basis,area:area.basis,workFront:workFront.basis,
-    phase:phase.basis,section:section.basis,chainage:chainage.basis,discipline:discipline?'source_derived':'unavailable',trade:trade.basis,system:system.basis,
+    phase:phase.basis,section:section.basis,chainage:chainage.basis,discipline:disciplineCode?'source_activity_code':discipline?'source_derived':'unavailable',trade:trade.basis,system:system.basis,
     package:packageValue.basis,cbs:cbs.basis,contractor:contractor.basis,subcontractor:subcontractor.basis,location:spatial.length?'source_derived':'unavailable'
   };
-  const disciplineSource=codeGroup(activity,DISCIPLINE_CODE_TYPES)??(discipline?{value:discipline,basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
+  const disciplineSource=disciplineCode??(discipline?{value:discipline,basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
   // Location: activity code, then the programme's own WBS level 2 (level 1
   // when the WBS has one level), then a labelled name match.
   const chain:CanonicalWbsNode[]=[];{let current=node;const seen=new Set<string>();while(current&&!seen.has(current.wbsId)){seen.add(current.wbsId);chain.unshift(current);current=current.parentWbsId?nodes.get(current.parentWbsId):undefined;}}
@@ -304,7 +313,7 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
   const wbsDisciplineCache=new Map<string,string|null>();
   const rows=activities.map(activity=>classifyScheduleActivity(model,activity,nodes,pathCache,wbsPickCache,wbsDisciplineCache));
   const dimensions:[ClassificationCoverage['key'],string,string][]=[
-    ['plot','Plot','Explicit plot identifier in WBS or activity text'],
+    ['plot','Plot','Programme Plot activity code; else explicit plot identifier in WBS or activity text'],
     ['wbsId','WBS','Explicit activity WBS resolved to the source WBS hierarchy'],
     ['wbsPath','WBS path','Source WBS parent hierarchy'],
     ['wbsLevel','WBS hierarchy level','Root level is 1 and depth follows source parent relationships'],
@@ -318,7 +327,7 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
     ['phase','Phase','Explicit Phase wording found in source WBS or activity text'],
     ['section','Section','Explicit Section wording found in source WBS or activity text'],
     ['chainage','Chainage','Explicit Chainage/CH wording found in source WBS or activity text'],
-    ['discipline','Discipline','Deterministic source-text classification from WBS/activity terminology; ambiguous multi-discipline rows remain unclassified'],
+    ['discipline','Discipline','Programme Discipline/Trade activity code; else deterministic source-text classification from WBS/activity terminology; ambiguous multi-discipline rows remain unclassified'],
     ['trade','Trade','Explicit Trade wording found in source WBS or activity text'],
     ['system','System','Explicit System wording found in source WBS or activity text'],
     ['package','Package','Explicit Package/PKG wording found in source WBS or activity text'],

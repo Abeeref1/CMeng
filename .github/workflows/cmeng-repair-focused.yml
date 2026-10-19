@@ -170,6 +170,7 @@ jobs:
             dist/tests/sw28-planned-progress-stated-calendar-basis.test.js \
             dist/tests/sw27-group-totals-known-members.test.js \
             dist/tests/sw27-source-grounded-grouping.test.js \
+            dist/tests/u1-f21-f22-boq-mapping-programme-fields.test.js \
             dist/tests/t06-recovery-completion-path.test.js \
             dist/tests/sw14-document-reading-state.test.js \
             dist/tests/y11-sw46-conditional-notices.test.js \
