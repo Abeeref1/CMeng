@@ -311,7 +311,7 @@ export function installedQuantityInputStatus(quantities:QuantityInputStatus,mode
   return {state,boqItemCount:total,measuredItemCount:measured,unmeasuredItemCount:total-measured,itemCoveragePercent:percentOf(measured,total),...rows,basis,
     reason:!measured?'No installed measurement is matched to a BOQ item on or before the Data Date.':
       measured+' of '+plural(total,'BOQ item')+' have a matched installed measurement on or before the Data Date'+
-      (unresolved?'; '+plural(unresolved,'measurement row')+' match no BOQ item and need review':'')+
+      (unresolved?'; '+plural(unresolved,'measurement row')+(unresolved===1?' matches no BOQ item and needs review':' match no BOQ item and need review'):'')+
       (quantities.state==='candidate'?'; the BOQ is a candidate source, not adopted.':'.')};
 }
 
