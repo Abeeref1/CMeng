@@ -12,7 +12,7 @@ import {delayClaimsAsOf,reportedClaimSummary} from '../packages/delay-analysis-c
 
 // T11 / owner requirement: the first (cold) Dashboard of a project with large
 // registers opens within 10 seconds. Before this repair the F61 adversarial
-// project (8,900 activities, 38,000 register rows) took about 38 to 46 s on
+// project (8,900 activities, 29,300 register rows) took about 38 to 52 s on
 // the CI runner: every delay event re-read the whole notice register (and
 // re-dated every notice), every claim re-scanned it, identical findings were
 // re-copied once per finding, and per-row lookups scanned whole registers.
@@ -136,7 +136,7 @@ async function largeRegisterProject(){
  return id;
 }
 
-test('T11 owner requirement: cold Dashboard within 10 s at 8,900 activities and 38,300 register rows',async t=>{
+test('T11 owner requirement: cold Dashboard within 10 s at 8,900 activities and 29,300 register rows',async t=>{
  const id=await largeRegisterProject();
  const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
