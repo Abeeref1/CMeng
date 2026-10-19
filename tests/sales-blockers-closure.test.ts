@@ -741,7 +741,8 @@ test("P0-3 merges EOT activity and explicit window references into the governed 
   assert.equal(row.overlappingWindowIds.length, 0);
   assert.ok(row.noticeIds.length > 0);
   assert.ok(row.determinationIds.length > 0);
-  assert.equal(row.evidenceChainState, "full_determination_chain");
+  // No event source and no window match, so the event-to-window link of the chain is missing.
+  assert.equal(row.evidenceChainState, "determination_chain_incomplete");
   assert.equal(delay.eventPopulationState, "not_established");
   assert.equal(delay.activityLinkedEventCount, null);
   assert.equal(delay.windowLinkedEventCount, null);
