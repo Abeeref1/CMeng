@@ -1,7 +1,7 @@
 import {prepareBoqPageReview,boqPageReview,type BoqPageReviewInput} from './boq-page-review';
 import {hasSourceDocumentIdentity} from './evidence-control';
 import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
-import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
+import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION,P6XML_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
 import {restoreSourcePaths} from './restore-source-paths';
 import {refreshTabularScheduleDates,TABULAR_DATE_READER_VERSION} from './schedule-date-refresh';
 import {isDeepStrictEqual} from 'node:util';
@@ -5848,7 +5848,7 @@ export class RuntimeProjectStore {
         model,
       },
       format,
-      ...(format==='xer'?{calendarReaderVersion:XER_CALENDAR_READER_VERSION}:{}),
+      ...(format==='xer'?{calendarReaderVersion:XER_CALENDAR_READER_VERSION}:format==='primavera_xml'?{calendarReaderVersion:P6XML_CALENDAR_READER_VERSION}:{}),
       ...(['schedule_csv','schedule_xlsx'].includes(format)?{tabularDateReaderVersion:TABULAR_DATE_READER_VERSION}:{}),
       sourceFilename:
         input.sourceFilename?.trim() ||
