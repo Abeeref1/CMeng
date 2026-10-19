@@ -131,24 +131,27 @@ for (const run of RUNS) {
     const state = runtimeProjects.get(projectId)!;
     const model: any = projectControlSchedule(reportingState(state))!.revision.model;
     const hand = HAND[run.key]!;
-    // The reader keeps the stated option and the project default calendar.
-    if (run.option) assert.deepEqual(model.relationshipLagCalendar, {rule: run.key, sourceValue: run.option, projectDefaultCalendarId: 'C6', sourceRef: 'XER PROJECT.sched_calendar_on_relationship_lag'});
-    else assert.equal(model.relationshipLagCalendar, undefined, 'file without the field: nothing stated');
-
-    const ind = independent(run.solverRule);
-    assert.equal(ind.lagCalendarRule, run.solverRule === '24_hour' ? '24_hour_continuous_both_passes' : (run.solverRule ?? 'successor') + '_calendar_both_passes');
-    assert.equal(ind.projectFinish, hand.finish, 'solver finish = hand');
+    // 1. The defect: every CMeng CPM date and float = the hand calculation.
     const cpm = cpmOf(model, {durationBasis: 'remaining', applySourceConstraints: true});
     assert.equal(cpm.complete, true, JSON.stringify(cpm.diagnostics));
-    assert.equal(cpm.projectFinishIso, hand.finish, 'CMeng CPM finish = hand');
-    assert.equal(cpm.relationshipLagCalendarMethod, hand.method);
-    assert.deepEqual(cpm.assumptions, [], 'a stated (or not stated) option adds no assumption');
     for (const [id, row] of Object.entries(hand.rows)) {
       const c = cpm.activities.find((a: any) => a.activityId === id)!;
-      const s = ind.activities.find((a: {id: string}) => a.id === id);
       assert.deepEqual([c.earlyStartIso, c.earlyFinishIso, c.lateStartIso, c.lateFinishIso, c.totalFloatHours], row, id + ' CMeng CPM = hand');
+    }
+    assert.equal(cpm.projectFinishIso, hand.finish, 'CMeng CPM finish = hand');
+    // 2. The independent solver, applying the same stated rule on its own, agrees.
+    const ind = independent(run.solverRule);
+    for (const [id, row] of Object.entries(hand.rows)) {
+      const s = ind.activities.find((a: {id: string}) => a.id === id);
       assert.deepEqual([s.earlyStart, s.earlyFinish, s.lateStart, s.lateFinish, s.totalFloatHours], row, id + ' solver = hand');
     }
+    assert.equal(ind.projectFinish, hand.finish, 'solver finish = hand');
+    assert.equal(ind.lagCalendarRule, run.solverRule === '24_hour' ? '24_hour_continuous_both_passes' : (run.solverRule ?? 'successor') + '_calendar_both_passes');
+    // 3. The reader keeps the stated option and the project default calendar.
+    if (run.option) assert.deepEqual(model.relationshipLagCalendar, {rule: run.key, sourceValue: run.option, projectDefaultCalendarId: 'C6', sourceRef: 'XER PROJECT.sched_calendar_on_relationship_lag'});
+    else assert.equal(model.relationshipLagCalendar, undefined, 'file without the field: nothing stated');
+    assert.equal(cpm.relationshipLagCalendarMethod, hand.method);
+    assert.deepEqual(cpm.assumptions, [], 'a stated (or not stated) option adds no assumption');
 
     // The forecast page of the uploaded project carries the same CPM dates and the basis.
     const page = moduleForProject(projectId, 'independent-forecast').data as any;
