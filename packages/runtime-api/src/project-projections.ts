@@ -43,6 +43,8 @@ import {tenderReadinessForState} from './tender-readiness';
 import {managementVisualControl} from './management-visual-control';
 import {projectManagementContext} from './management-context';
 import {moduleFeatureAvailability} from './feature-availability';
+import {resourceUtilizationCapacity,calendarInputStatus,capacityInputStatus} from './project-input-status';
+import {canonicalResources} from './canonical-resource-runtime';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -92,6 +94,8 @@ import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./fore
 import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
+import { registerHourUnit } from "./resource-trade-week-hours";
+import { resourceLaborHourEligible } from "../../schedule-resource-core/src";
 import { createHash } from "node:crypto";
 import {
   scheduleProgress,
@@ -399,7 +403,7 @@ function revisionChronology(
         b.revision.sequence;
 }
 
-function analyticalHistory(
+export function analyticalHistory(
   state: ProjectRuntimeState,
 ): ProjectRuntimeState["schedules"] {
   const cutoff=projectControlSchedule(state)?.revision.model.dataDateIso??null;
@@ -658,6 +662,13 @@ function calculationSnapshotTime(state:ProjectRuntimeState):string {
   return sourceTimes.sort().at(-1)??new Date().toISOString();
 }
 
+/** F01: the contract-time basis object behind the shared reader (contractTimeDates):
+ * the reporting view's basis, which the project facts and every commercial
+ * consumer read. A stored governed basis is not dropped because it was not
+ * re-derived from documents. Used only for fields the shared reader does not carry. */
+function reportingContractTime(state:ProjectRuntimeState){
+  return reportingState(state).controls.contractTimeBasis??null;
+}
 // One full calculation per project version. The Dashboard, Accountability,
 // every specialist page, the shared facts and the action register all read
 // this same bundle; no caller receives a reduced or deferred variant.
@@ -1829,49 +1840,22 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     // The initial map contains blocked placeholders for every module. A real
     // assignment calculation must replace its placeholder; the canonical weekly
     // integration below then takes precedence over this assignment basis.
+    // F07: the same shared capacity rule as the single-page build below.
+    const sharedCapacity=resourceUtilizationCapacity(resourceUtilization,weeklyCapacity);
     modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
         {
           ...resourceUtilization,
-          scheduleCapacityCoveragePercent:
-            resourceUtilization
-              .capacityCoveragePercent,
-          capacityCoveragePercent:
-            weeklyCapacity
-              .capacityCoveragePercent ??
-            resourceUtilization
-              .capacityCoveragePercent,
-          plannedUtilizationPercent:
-            weeklyCapacity
-              .plannedUtilizationPercent ??
-            null,
-          actualUtilizationPercent:
-            weeklyCapacity
-              .actualUtilizationPercent ??
-            null,
-          utilizationByUnit:
-            weeklyCapacity
-              .utilizationByUnit,
-          weeklyCapacityEvidence:
-            weeklyCapacity,
+          ...sharedCapacity.fields,
         },
         [
           "resource-loaded XER",
           "governed resource evidence",
         ],
-        weeklyCapacity.state ===
-            "available" ||
-          resourceUtilization
-            .capacityBasedResourceCount >
-            0
-          ? "ready"
-          : "partial",
-        weeklyCapacity.state ===
-            "candidate"
-          ? "Resource support evidence exists only as candidate and is not promoted to confirmed utilization."
-          : null,
+        sharedCapacity.status,
+        sharedCapacity.reason,
       ),
     );
     modules.set(
@@ -1913,6 +1897,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           diagnostics: [
             "RESOURCE_ASSIGNMENTS_AND_GOVERNED_WEEKLY_RESOURCE_EVIDENCE_NOT_ESTABLISHED",
           ],
+          // F07: the same shared capacity status as the project facts.
+          capacityStatus: capacityInputStatus(canonicalResources(state)),
         },
         ["resource-loaded XER or governed weekly resource evidence"],
         "partial",
@@ -3259,11 +3245,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     const netMovement = windows?.projectCompletionMovementDays ?? null;
     const resourceData = modules.get("resource-utilization")?.data as Record<string, any> | null;
     pmo.claims = { ...pmo.claims,
-      contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+      // F01: the reporting contract-time basis every consumer and the project facts read.
+      contractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
       effectiveDeterminationDays: time.effectiveDeterminationDays,
-      incorporatedEotDays: time.contractTimeBasis?.incorporatedEotDays ?? null,
+      incorporatedEotDays: reportingContractTime(state)?.incorporatedEotDays ?? null,
       registerDeterminationDays: time.registerDeterminationDays,
-      officialApprovedEotDays: time.contractTimeBasis?.officialApprovedEotDays ?? null,
+      officialApprovedEotDays: contractTimeDates(state).awardedEotDays,
       officialAdjustedCompletionIso: eotAssessment?.officialAdjustedCompletionIso ?? null,
       scenarioAdjustedCompletionIso: eotAssessment?.scenarioAdjustedCompletionIso ?? null,
       netSubmittedFinishMovementDays: netMovement,
@@ -5406,7 +5393,7 @@ function eotCompletionAuthorityContext(
     ...(completion.original.sourceAnalyticalNote ? {originalContractualCompletionSourceNote: completion.original.sourceAnalyticalNote} : {}),
     amendedContractualCompletionIso,
     amendedContractualCompletionState,
-    currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+    currentContractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
     sourceForecastCompletionIso: sourceOnlyForecast(state,model, generatedAt).sourceForecastCompletionIso,
   };
 }
@@ -6074,86 +6061,17 @@ function buildSpecialistModuleFast(
               model.dataDateIso,
           },
         );
-      const capacityKnown =
-        projection
-          .capacityBasedResourceCount;
-      const allCapacityKnown =
-        projection
-          .assignedResourceCount >
-          0 &&
-        capacityKnown ===
-          projection
-            .assignedResourceCount;
-      const weeklyComparable =
-        weeklyCapacity
-          .comparableRowCount > 0;
-      const governedWeeklyCapacity =
-        weeklyCapacity.state ===
-          "available" ||
-        weeklyCapacity.state ===
-          "partial";
-      const effectiveCoverage =
-        governedWeeklyCapacity &&
-        weeklyCapacity
-          .capacityCoveragePercent !==
-          null
-          ? weeklyCapacity
-              .capacityCoveragePercent
-          : projection
-              .capacityCoveragePercent;
-      const enriched = {
-        ...projection,
-        scheduleCapacityCoveragePercent:
-          projection
-            .capacityCoveragePercent,
-        capacityCoveragePercent:
-          effectiveCoverage,
-        plannedUtilizationPercent:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .plannedUtilizationPercent
-            : null,
-        actualUtilizationPercent:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .actualUtilizationPercent
-            : null,
-        utilizationByUnit:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .utilizationByUnit
-            : [],
-        assessedOverloadResourceCount:
-          capacityKnown,
-        overloadAssessmentState:
-          capacityKnown === 0 &&
-          !weeklyComparable
-            ? "not_assessable_per_hour"
-            : allCapacityKnown ||
-                weeklyCapacity.state ===
-                  "available"
-              ? "complete"
-              : "partial",
-        weeklyCapacityEvidence:
-          weeklyCapacity,
-      };
+      // F07: one shared capacity rule for every build path of this page.
+      const sharedCapacity=resourceUtilizationCapacity(projection,weeklyCapacity);
       result = available(
         key,
-        enriched,
+        {...projection,...sharedCapacity.fields},
         [
           "resource assignments",
           "resource capacity",
         ],
-        allCapacityKnown ||
-        weeklyCapacity.state ===
-          "available"
-          ? "ready"
-          : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
+        sharedCapacity.status,
+        sharedCapacity.reason,
       );
     } else {
       const projection =
@@ -7556,7 +7474,7 @@ function resolveProjectModuleCandidate(
     const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:calculationSnapshotTime(state),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
     const enriched={...result,data:{...data,challenge}};
     if(enriched.data&&typeof enriched.data==='object'){
-      (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data);
+      (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data,{calendar:calendarInputStatus(null)});
     }
     return attachReportingContract(state,discloseReadIssues(enriched));
   }
@@ -7596,7 +7514,8 @@ function resolveProjectModuleCandidate(
             basis:'Conditional arithmetic only: if all effective register determinations are already inside the amendment, no further days apply; if none are incorporated and all can be applied on a calendar-day basis, the alternative subtracts those days. Award-letter evidence, overlap and entitlement still require confirmation.'};})()}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays,contractNoticeReview:commercialFoundationForState(state).commercialTerms.noticeReview}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
-        contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+        // F01: the same contract completion as the project facts (reporting basis).
+        contractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
         effectiveDeterminationDays: time.effectiveDeterminationDays,
         registerDeterminationDays: time.registerDeterminationDays,
         futureDeterminationCount: time.futureDeterminationCount,
@@ -7705,7 +7624,7 @@ function resolveProjectModuleCandidate(
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
   if(result.data&&typeof result.data==='object'){
-    (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
+    (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data,{calendar:calendarInputStatus(model)});
   }
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
     const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,calculationSnapshotTime(state)),controlBasis.analysisConfig,state.version);
@@ -7724,24 +7643,28 @@ function resolveProjectModuleCandidate(
     const value=result.data as any,output=value?.result?.projectionKey==='lookahead_schedule'?value.result:value;
     const ids=new Set<string>(((output.forwardWindowRows??output.rows??[]) as Array<{activityId:string}>).map(x=>x.activityId));
     const master=new Map((resource?.resources??[]).map(x=>[x.resourceId,x]));
-    const groups=new Map<string,{resourceId:string;trade:string;unit:string|null;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    const groups=new Map<string,{resourceId:string;trade:string;unit:string|null;laborHours:boolean;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    // F16: each look-ahead activity's own remaining labour hours per resource (null when not stated).
+    const activityRemaining=new Map<string,Map<string,number|null>>();
     for(const row of resource?.assignments??[]){
       if(!ids.has(row.activityId)||row.resourceType!=='labor'||!row.resourceId)continue;
-      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{resourceId:row.resourceId,trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,activityIds:new Set<string>(),count:0,known:0,remaining:0};
+      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{resourceId:row.resourceId,trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,laborHours:r?resourceLaborHourEligible(r):false,activityIds:new Set<string>(),count:0,known:0,remaining:0};
       g.activityIds.add(row.activityId);g.count++;
-      if(typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)){g.remaining+=row.remainingUnits;g.known++;}
+      const units=typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)?row.remainingUnits:null;
+      if(units!==null){g.remaining+=units;g.known++;}
       groups.set(row.resourceId,g);
+      const own=activityRemaining.get(row.activityId)??new Map<string,number|null>();
+      const prior=own.get(row.resourceId);
+      own.set(row.resourceId,prior===undefined?units:prior===null||units===null?null:prior+units);
+      activityRemaining.set(row.activityId,own);
     }
     // S-20: exact resource-ID linkage only. A shared trade name alone is
     // insufficient evidence of the same crew, resource or approved capacity.
     // T04: shared source-analytical rule; a unique fully read candidate is
     // used and labelled (registerEvidenceState 'candidate'), never adopted.
-    const resourceDocs=analyticalOperationalDocuments(state.evidenceDocuments).filter(doc=>
-      /resource|manpower|labou?r|crew|capacity|time.?phas/i.test(
-        [doc.sourceFilename,doc.documentType].join(' ')));
-    const dated=groups.size&&resourceDocs.length
-      ?weeklyResourceCapacityEvidence(resourceDocs,{dataDateIso:model.dataDateIso})
-      :null;
+    // F16: the register is read by the shared canonical resource reader, the same
+    // register points as the Resources page and the Man-hour S-curve.
+    const dated=groups.size?canonicalResources(state):null;
     const weeksById=new Map<string,NonNullable<typeof dated>['points']>();
     const normalizeTrade=(name:string)=>String(name??'').normalize('NFKC').toLowerCase()
       .replace(/\b(labour|labor)\b/g,'labour').replace(/\b(electricians)\b/g,'electrician')
@@ -7759,9 +7682,10 @@ function resolveProjectModuleCandidate(
       }
     }
     const dataDate=model.dataDateIso?.slice(0,10)??null;
-    const endDate=dataDate&&Number.isFinite(Date.parse(dataDate))?
-      new Date(Date.parse(dataDate)+42*86400000).toISOString().slice(0,10):null;
-    const sumKnown=(rows:NonNullable<typeof dated>['points'],key:'availableCapacity'|'plannedDemand'|'actualApprovedUsage')=>
+    const windowEnd=typeof output.windowEndIso==='string'&&Number.isFinite(Date.parse(output.windowEndIso))?output.windowEndIso.slice(0,10):null;
+    const endDate=windowEnd??(dataDate&&Number.isFinite(Date.parse(dataDate))?
+      new Date(Date.parse(dataDate)+42*86400000).toISOString().slice(0,10):null);
+    const sumKnown=(rows:NonNullable<typeof dated>['points'],key:'availableCapacity'|'sourceAvailableCapacity'|'plannedDemand'|'actualApprovedUsage')=>
       rows.length&&rows.every(row=>typeof row[key]==='number'&&Number.isFinite(row[key]))
         ?rows.reduce((total,row)=>total+(row[key]??0),0):null;
     output.sourceResourceTrades=[...groups.values()].map(g=>{
@@ -7777,7 +7701,8 @@ function resolveProjectModuleCandidate(
         return !a||!b||normalize(a)===normalize(b);
       };
       const identityMatches=matchingId?weeksById.get(matchingId)??[]:[];
-      const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit));
+      // Both sides stated in hours (a programme labour-hour resource and a register labour-hour row) are comparable.
+      const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit)||(g.laborHours&&p.resourceClass==='labor'&&registerHourUnit(p.unit)));
       // Label only a trade whose figures actually came from an unadopted source.
       const fromUnadopted=identityMatches.some(p=>((p as any).receipts??[]).some((r:any)=>r.basisState==='candidate'));
       const matchBasis=sourceMatch.length?'Exact source resource ID':
@@ -7787,6 +7712,12 @@ function resolveProjectModuleCandidate(
       const forward=matching.filter(p=>p.weekStartIso&&dataDate&&endDate
         &&p.weekStartIso.slice(0,10)>=dataDate&&p.weekStartIso.slice(0,10)<=endDate);
       const history=matching.filter(p=>p.weekStartIso&&dataDate&&p.weekStartIso.slice(0,10)<=dataDate);
+      const latest=[...history].filter(p=>p.actualApprovedUsage!==null).sort((a,b)=>String(a.weekStartIso).localeCompare(String(b.weekStartIso))).at(-1);
+      const unmatchedReason=!dated||dated.state==='not_found'?'No weekly resource register is read.':
+        possibleNames.size>1&&!sourceMatch.length?'The trade name matches more than one register resource; hours are not taken until the register IDs are reconciled.':
+        !identityMatches.length?'No weekly resource register record matches this trade by resource ID or a unique trade name.':
+        !matching.length?'The register states this trade in '+[...new Set(identityMatches.map(p=>p.unit??'no unit'))].join(', ')+', not in the programme unit ('+(g.unit??'not stated')+'); hours are not compared.':null;
+      const plannedInWindow=sumKnown(forward,'plannedDemand');
       return {resourceId:g.resourceId,trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
         remainingUnits:g.known===g.count?g.remaining:null,
         registerLinkedByExactId:sourceMatch.length>0,
@@ -7796,8 +7727,11 @@ function resolveProjectModuleCandidate(
         matchedRegisterResourceId:identityMatches.length?matchingId:null,
         registerPeriodCount:forward.length,
         registerPlannedDemand:sumKnown(forward,'plannedDemand'),
-        registerAvailableCapacity:sumKnown(forward,'availableCapacity'),
+        registerAvailableCapacity:sumKnown(forward,'sourceAvailableCapacity'),
         registerActualToDate:sumKnown(history,'actualApprovedUsage'),
+        registerLatestRecorded:latest?{weekStartIso:latest.weekStartIso!,hours:latest.actualApprovedUsage!,sourceRef:latest.sourceRef}:null,
+        registerActualReason:latest?null:unmatchedReason??(!dataDate?'The Data Date is not established.':'The register states no recorded hours for this trade on or before the Data Date ('+dataDate+').'),
+        registerPlannedReason:plannedInWindow!==null?null:unmatchedReason??(!forward.length?'The register has no week for this trade starting in the look-ahead window.':'Planned demand is missing for '+forward.filter(p=>p.plannedDemand===null).length+' of '+forward.length+' window weeks.'),
         registerEvidenceState:dated?.state??'not_found',
         ...(fromUnadopted?{registerSourceUse:SOURCE_ANALYTICAL_USE,registerSourceNote:'Capacity read from source; not formally adopted'}:{}),
         registerSourceRefs:[...new Set(identityMatches.map(row=>row.sourceRef))].slice(0,12),
@@ -7807,6 +7741,21 @@ function resolveProjectModuleCandidate(
             :'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.'):
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
+    // F16: the Look-Ahead resources column. Each look-ahead activity with labour assignments
+    // names its trades and its own remaining programme hours; the trade's planned register
+    // hours in the window and its latest recorded week (or "not recorded" with the reason)
+    // are stated once per trade in sourceResourceTrades, so rows stay light at any scale.
+    const tradeNames=new Map<string,string>([...groups.values()].map(g=>[g.resourceId,g.trade]));
+    for(const list of ['rows','forwardWindowRows','overdueBacklogRows','backlogRows','missedStartRows']){
+      if(!Array.isArray(output[list]))continue;
+      output[list]=output[list].map((row:any)=>{
+        const own=ids.has(row.activityId)?activityRemaining.get(row.activityId):undefined;
+        if(!own)return row;
+        return {...row,resourceHours:[...own].map(([resourceId,remaining])=>({resourceId,trade:tradeNames.get(resourceId)??resourceId,activityRemainingHours:remaining}))};
+      });
+    }
+    output.resourceHoursBasis='Per trade (sourceResourceTrades): planned hours are the register planned demand for weeks starting in the look-ahead window; latest recorded hours are the latest register week on or before the Data Date with recorded hours, both from the shared weekly resource reader. Per activity (resourceHours): its own remaining hours from its programme labour assignments.';
+    output.resourceHoursNoAssignmentReason='The programme assigns no labour resource to this activity.';
   }
   if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {

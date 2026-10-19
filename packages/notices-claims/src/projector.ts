@@ -125,6 +125,12 @@ export function buildNoticesClaimsProjection(
         elapsedNoticeDays:
           assessment?.elapsedDays ??
           null,
+        elapsedFromIso:
+          assessment?.elapsedFromIso ??
+          null,
+        elapsedFromBasis:
+          assessment?.elapsedFromBasis ??
+          null,
         noticeTimeliness:
           assessment?.timeliness ??
           "requirement_missing",

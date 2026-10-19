@@ -4,7 +4,8 @@ import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
 import {deliveryPosition} from './delivery-projections';
-import {costHeadlineComparison} from './commercial-sum-basis';
+import {costHeadlineComparison,registerAboveContractQueries} from './commercial-sum-basis';
+import {packageRegisterContractChecks} from './project-decision-facts';
 import {bestAvailableFact,managementFactView,type ManagementFactView,type PopulationAuthority} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
@@ -228,6 +229,9 @@ export function managementVisualControl(
     };
   });
 
+  // F37: package register value above the contract sum, from the shared register rule.
+  const registerQueries=registerAboveContractQueries(commercial.currencies.length?packageRegisterContractChecks(state,commercial):[]);
+
   const claimsReporting=delay.claimsReporting??notices.claimsReporting??null;
   const claimPopulationIntegrity=delay.claimPopulationIntegrity??notices.claimPopulationIntegrity??null;
   const claimPopulationQuarantined=claimPopulationIntegrity?.state==='quarantined';
@@ -400,7 +404,7 @@ export function managementVisualControl(
     },
     progress:progressSummary,
     changes:changeSummary,
-    commercial:{positions:commercialPositions,cost:costPositions},
+    commercial:{positions:commercialPositions,cost:costPositions,registerQueries},
     claims,
     resources:{
       sourceResourceCount:resource.resourceCount??resource.p6ResourceMasterCount??null,

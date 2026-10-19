@@ -6,6 +6,9 @@ import {
 import type {
   StoredEvidenceDocument,
 } from "./project-state-types";
+import {
+  weeklyResourceLayout,
+} from "./resource-weekly-layout";
 
 export interface WeeklyResourceCapacityPoint {
   resourceId: string;
@@ -279,8 +282,38 @@ export function weeklyResourceCapacityEvidence(
       continue;
     }
 
-    const rows =
+    const parsedRows =
       parseCsv(text);
+    // F16: a week-column register (one column per week) is read as week
+    // rows by the same shared layout rule as the canonical reader.
+    const layout =
+      parsedRows.length >= 2
+        ? weeklyResourceLayout(
+            parsedRows[0] ?? [],
+            parsedRows.slice(1),
+          )
+        : null;
+    if (layout) {
+      diagnostics.push(
+        ...layout.diagnostics.map(
+          (code) =>
+            code + ":" + document.documentId,
+        ),
+      );
+    }
+    const weekRows =
+      layout && layout.rows.length > 0
+        ? layout
+        : null;
+    const rows =
+      weekRows
+        ? [
+            weekRows.headers,
+            ...weekRows.rows.map(
+              (row) => row.cells,
+            ),
+          ]
+        : parsedRows;
     if (rows.length < 2) {
       continue;
     }
@@ -453,8 +486,19 @@ export function weeklyResourceCapacityEvidence(
         sourceRef:
           "evidence-document:" +
           document.documentId +
-          ":row:" +
-          (rowIndex + 1),
+          ":" +
+          (weekRows
+            ? weekRows.rows[rowIndex - 1]!.sources
+                .map(
+                  (source) =>
+                    "row:" +
+                    (source.row + 2) +
+                    ":column:" +
+                    source.column,
+                )
+                .join(";")
+            : "row:" +
+              (rowIndex + 1)),
       };
       points.push(point);
       if (

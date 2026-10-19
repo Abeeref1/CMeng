@@ -28,6 +28,8 @@ function commercialSourceState(metric){
 }
 function renderCommercialExceptions(position,key,data){
   let html='';const money=(n,c)=>n==null?'Not in the data':fmt(n)+' '+(c||'currency unknown');
+  // F10: a shared commercial block is shown on its owner page; other pages link to it.
+  const owned=(topic,block,figure)=>typeof ownedBlock==='function'?ownedBlock(topic,block,figure,key):block;
   const groups=position.variationBasisReview?.groups||[];
   if(['commercial-overview','variations-change'].includes(key))for(const g of groups){
     const a=g.aggregates||[],exceptions=g.exceptions||[];
@@ -42,7 +44,7 @@ function renderCommercialExceptions(position,key,data){
   if(['commercial-overview','cost-forecast'].includes(key))for(const r of position.costBasisReview||[]){
     if(position.sourceLedger?.dataDateIso&&r.asOf>position.sourceLedger.dataDateIso)continue;
     const m=data.sourceInterpretation?.progressMeasures,s=m?.scopeComparison;
-    html+=basisPanel('Current cost and progress comparison',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
+    html+=owned('cost-progress-comparison',basisPanel('Current cost and progress comparison',r.currency+' · '+planningShortDate(r.asOf)+' · '+r.taxBasis,
       basisTable(['Measure','Value','Comparison basis'],[
         ['PV / BAC',fmt(r.plannedPercentOfBudget)+'%',money(r.pv,r.currency)+' / '+money(r.bac,r.currency)],
         ['EV / BAC',fmt(r.earnedPercentOfBudget)+'%',money(r.ev,r.currency)+' / '+money(r.bac,r.currency)],
@@ -54,7 +56,7 @@ function renderCommercialExceptions(position,key,data){
         ['EAC less current contract',money(r.eacVsCurrentContract,r.currency),'Negative is below current contract value; compare the cost and sales scope'],
         ['BAC less current contract',money(r.budgetVsContractDifference,r.currency),'Budget and sales value can differ; reconcile the scope and basis'],
         ['EV / current contract',r.earnedPercentOfCurrentContract==null?'Missing':fmt(r.earnedPercentOfCurrentContract)+'%','Contract-value comparator; BAC remains the EVM denominator'],
-        ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Compare the activities included')+managementModuleLink('payments','Review certificate components'));
+        ['SPI / CPI',fmt(r.spi)+' / '+fmt(r.cpi),'Arithmetic within cost source; cross-source amounts unreconciled']])+ '<p>'+escapeHtml(r.interpretation)+'</p>'+managementModuleLink('progress-report','Compare the activities included')+managementModuleLink('payments','Review certificate components')),r.currency+' · EV / BAC '+fmt(r.earnedPercentOfBudget)+'%');
   }
   if(key==='commercial-overview')for(const g of position.certificateProfile?.groups||[]){
     const t=g.totals||{};
@@ -63,15 +65,17 @@ function renderCommercialExceptions(position,key,data){
   }
   if(['contract-particulars-bonds','commercial-claims-notices'].includes(key)){
     const review=position.foundation?.commercialTerms?.noticeReview;
-    if(review?.sourceTerms?.length)html+=basisPanel('Retained initial notice provisions','Original source values and intervals stay visible after a reporting selection.',
+    let noticeHtml='';
+    if(review?.sourceTerms?.length)noticeHtml+=basisPanel('Retained initial notice provisions','Original source values and intervals stay visible after a reporting selection.',
       basisTable(['Days','Unit','From','Replaced from','Source references'],review.sourceTerms.map(t=>[t.value,t.unit,t.effectiveFromIso||'Original provision',t.effectiveToIso||'No later source date',t.sourceRefs.join('; ')]))+
       (review.reference?'<p>Saved notice review: '+escapeHtml(review.reference)+'</p>':'')+
       (review.treatment||new Set(review.sourceTerms.map(t=>t.value+'|'+t.unit)).size>1||review.sourceTerms.some(t=>t.applicability==='unresolved')?'<button class="btn" onclick="openProjectActions()">Review notice provisions</button>':''));
     const rules=position.contractNoticeRules||[];
-    if(rules.length)html+=basisPanel('Contract notice periods by version','The original and amended rules are separate. Notice dates alone cannot establish the applicable trigger date.',
+    if(rules.length)noticeHtml+=basisPanel('Contract notice periods by version','The original and amended rules are separate. Notice dates alone cannot establish the applicable trigger date.',
       basisTable(['Requirement','Days','Effective from','Replaced from','Trigger','Source'],rules.map(r=>[r.noticeKind==='detailed_claim'?'Fully detailed claim':'Initial claim notice',r.noticePeriodDays,r.effectiveFromIso?planningShortDate(r.effectiveFromIso):'Original / date not stated',r.effectiveToIso?planningShortDate(r.effectiveToIso):'No later version supplied',humanizeKey(r.triggerBasis||'not_stated'),(r.sourceFilename||'Contract source')+' · '+(r.evidenceRefs||[]).map(e=>e.locator).slice(0,2).join('; ')+(r.sourceAnalyticalUse==='qualified_source_read'?' · Read from source; not formally adopted':'')]))+
       (rules.some(r=>(r.sourceConflicts||[]).length)?'<p><b>Notice period source conflict:</b> '+escapeHtml([...new Set(rules.flatMap(r=>r.sourceConflicts||[]))].map(c=>{const m=/^UNADOPTED_SOURCE_NOTICE_PERIOD_DIFFERS:[^:]+:([^:]+):(.+)$/.exec(String(c));return m?m[1]+' stated in '+m[2]+' (not formally adopted)':String(c);}).join('; '))+'. The adopted periods are used until you decide.</p>':'')+
       '<p>The notice assessment uses each recorded event or awareness date and the rule applicable on that date. Missing inputs are identified against the affected claim. A detailed-claim deadline has its own trigger; it is not substituted for an initial notice.</p>'+(rules.some(r=>r.applicabilityState==='unresolved'||r.sourceDayBasis==='working')?'<p>Unresolved applicability or a working-day period without a notice calendar cannot establish a calendar-day compliance conclusion.</p>':''));
+    if(noticeHtml)html+=owned('contract-notice-provisions',noticeHtml,fmt(rules.length)+' notice rule versions · '+(Array.isArray(review?.sourceTerms)?fmt(review.sourceTerms.length)+' retained provisions':'retained provisions not established'));
   }
   return html;
 }

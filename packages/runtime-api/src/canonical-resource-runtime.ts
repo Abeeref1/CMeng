@@ -1,4 +1,5 @@
 import { weeklyResourceCapacityEvidence, type WeeklyResourceCapacitySummary } from './canonical-resource-evidence';
+import {capacityInputStatus,tradeCapacityRows} from './project-input-status';
 import { projectDataDate, projectControlSchedule } from './canonical-time-claims';
 import { buildResourceUtilizationProjection } from '../../resource-utilization/src';
 import { sumKnown, round } from '../../truth-kernel/src';
@@ -7,6 +8,7 @@ import {resourceBasisReview} from './resource-basis-review';
 import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {refreshResourceSourceFields} from './resource-source-refresh';
 import {isExecutionActivity} from '../../schedule-analysis-core/src';
+import {recordedHoursByTradeWeek} from './resource-trade-week-hours';
 
 export function criticalResourceHours(model:import('../../schedule-analysis-core/src').CanonicalScheduleModel,resources:import('../../schedule-resource-core/src').CanonicalResourceModel){
  const activities=new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed'&&a.totalFloatHours!==null&&a.totalFloatHours<=0).map(a=>[a.activityId,a]));
@@ -70,6 +72,10 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    weeklyOverloadedResourceCount:new Set(summary.points.filter(p=>p.availableCapacity!==null&&p.plannedDemand!==null&&p.plannedDemand>p.availableCapacity).map(p=>p.resourceId)).size,
    plannedUtilizationPercent:summary.plannedAverageToDataDate,actualUtilizationPercent:summary.actualAverageToDataDate,
    weeklyCapacityEvidence:summary,weeklyResourceRows:summary.resourceSummaries,diagnostics:summary.diagnostics,
+   // F07: every trade in the register with its stated weekly capacity (shared rule).
+   tradeCapacity:tradeCapacityRows(summary.points,summary.masterResources),
+   // F16: recorded hours by trade and week from the same register points (blank weeks stay not recorded).
+   actualHoursByTradeWeek:recordedHoursByTradeWeek(summary),
    criticalResourceHours:current&&resourceModel?criticalResourceHours(current.revision.model,resourceModel):[],
   };
  }else{
@@ -113,6 +119,7 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    receipts:summary.points.filter(p=>p.resourceClass==='labor').flatMap(p=>p.receipts),
   };
  }
- data={...(data as object),basisComparison:resourceBasisReview(state,summary)};
+ // F07: the page states capacity with the one shared rule the project facts use.
+ data={...(data as object),basisComparison:resourceBasisReview(state,summary),...(key==='resource-utilization'?{capacityStatus:capacityInputStatus(summary)}:{})};
  return {key,status:summary.state==='available'&&key==='resource-utilization'?'ready':'partial',reason:key==='manhour-scurve'?'Measured weekly labor history; remaining-hours forecast not established.':summary.state==='available'?null:'Source candidate or reconciliation gaps require review.',dependencies:['resource master','weekly capacity','approved usage','programme Data Date'],data};
 }

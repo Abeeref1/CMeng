@@ -6,8 +6,10 @@
 
 export interface SumBasisInput{
   records:string|null|undefined;
-  currency:string|null|undefined;
-  taxBasis:string|null|undefined;
+  // Money sums pass currency and taxBasis (even when unknown); date, day and
+  // hour sums omit them, so no meaningless "currency" part is shown.
+  currency?:string|null|undefined;
+  taxBasis?:string|null|undefined;
   asOf?:string|null|undefined;
 }
 
@@ -17,8 +19,8 @@ const known=(value:unknown):string|null=>value===null||value===undefined||String
 export function sumBasisLabel(input:SumBasisInput):string{
   const known=(value:unknown):string|null=>value===null||value===undefined||String(value).trim()===''?null:String(value).trim();
   return 'Basis: '+(known(input.records)??'records not established')+
-    ' · currency '+(known(input.currency)??'not established')+
-    ' · tax basis '+(known(input.taxBasis)??'not established')+
+    ('currency' in input?' · currency '+(known(input.currency)??'not established'):'')+
+    ('taxBasis' in input?' · tax basis '+(known(input.taxBasis)??'not established'):'')+
     ' · as of '+(known(input.asOf)??'not established');
 }
 
@@ -92,6 +94,100 @@ export function paymentDueBasisLabel(due:DueDateFindingLike|null|undefined,certi
       (due.state&&due.state!=='established'?' · period '+due.state+', not approved':'');
   }
   return 'Due-date basis not established';
+}
+
+// F36: one like-for-like rule for "certified work as a share of the contract".
+// Certified gross work excludes variations and advance applications, so it is
+// compared with the original contract value (same scope), in the same currency.
+// Tax basis (owner decision):
+// 1. contract basis stated and equal to the certificates' basis: established;
+// 2. contract basis stated but different, or sources conflict: not established;
+// 3. contract basis not stated anywhere: the ratio is calculated and shown as a
+//    query, assuming the certificates' basis, with that assumption stated.
+export type StatedTaxBasis='exclusive'|'inclusive';
+export interface ContractTaxEvidence{currency:string|null;amount:number|null;taxBasis:string|null|undefined;sourceRefs:readonly string[]}
+export interface ContractTaxBasisFinding{value:StatedTaxBasis|null;state:'source'|'conflicted'|'not_stated'|'not_established';sourceRefs:string[];reason:string|null}
+
+const stated=(v:unknown):StatedTaxBasis|null=>v==='exclusive'||v==='inclusive'?v:null;
+
+export const CONTRACT_TAX_NOT_STATED_QUERY='The contract value does not state whether it includes tax; the ratio assumes the same basis as the certificates.';
+
+export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currency:string|null,amount:number|null):ContractTaxBasisFinding{
+  if(currency===null)return {value:null,state:'not_established',sourceRefs:[],reason:'Currency is not established.'};
+  if(amount===null||!Number.isFinite(amount))return {value:null,state:'not_established',sourceRefs:[],reason:'Original contract value is not established.'};
+  const matches=evidence.filter(e=>e.currency===currency&&typeof e.amount==='number'&&Math.abs(e.amount-amount)<=0.01&&stated(e.taxBasis)!==null);
+  const bases=[...new Set(matches.map(e=>stated(e.taxBasis)!))];
+  const sourceRefs=[...new Set(matches.flatMap(e=>[...e.sourceRefs]))];
+  if(bases.length===1)return {value:bases[0]!,state:'source',sourceRefs,reason:null};
+  if(bases.length>1)return {value:null,state:'conflicted',sourceRefs,reason:'Sources state different tax bases for the original contract value.'};
+  return {value:null,state:'not_stated',sourceRefs:[],reason:'No source states the tax basis of the original contract value.'};
+}
+
+export interface CertifiedRatioInput{
+  currency:string|null;
+  certifiedGrossWork:number|null;
+  certificateTaxBasis:string|null|undefined;
+  originalContract:number|null;
+  contractTax:ContractTaxBasisFinding;
+  asOf?:string|null;
+  certificateCount?:number|null;
+}
+export interface CertifiedRatio{
+  valuePercent:number|null;
+  state:'established'|'queried'|'not_established';
+  certifiedWork:number|null;
+  contractValue:number|null;
+  taxBasis:StatedTaxBasis|null;
+  // Why the value is withheld (not_established) or what it assumes (queried).
+  reason:string|null;
+  basis:string;
+}
+
+export function likeForLikeCertifiedRatio(input:CertifiedRatioInput):CertifiedRatio{
+  const work=typeof input.certifiedGrossWork==='number'&&Number.isFinite(input.certifiedGrossWork)?input.certifiedGrossWork:null;
+  const contract=typeof input.originalContract==='number'&&Number.isFinite(input.originalContract)&&input.originalContract>0?input.originalContract:null;
+  const certificateTax=stated(input.certificateTaxBasis);
+  const contractTax=input.contractTax;
+  const withheld=work===null?'Dated certified gross work is not established.':
+    contract===null?'Original contract value is not established.':
+    certificateTax===null?'Certificate tax basis is not stated.':
+    contractTax.state==='conflicted'?(contractTax.reason??'Sources state different tax bases for the original contract value.'):
+    contractTax.value!==null&&contractTax.value!==certificateTax?'Certificates are '+certificateTax+' of tax but the original contract value is '+contractTax.value+'.':
+    contractTax.value===null&&contractTax.state!=='not_stated'?(contractTax.reason??'Original contract tax basis is not established.'):null;
+  const state:CertifiedRatio['state']=withheld!==null?'not_established':contractTax.value===null?'queried':'established';
+  const taxBasis=withheld===null?certificateTax:null;
+  const records=input.certificateCount===null||input.certificateCount===undefined?'dated issued certificates':input.certificateCount+' dated issued certificate'+(input.certificateCount===1?'':'s');
+  const taxLabel=taxBasis===null?null:taxBasis+' of tax'+(state==='queried'?' (certificates; contract value basis not stated)':'');
+  return {
+    valuePercent:withheld===null?work!/contract!*100:null,
+    state,
+    certifiedWork:work,contractValue:contract,taxBasis,
+    reason:withheld??(state==='queried'?CONTRACT_TAX_NOT_STATED_QUERY:null),
+    basis:'Certified gross work (excludes variations and advance applications) divided by the same-currency original contract value on the same tax basis; financial certification, not measured physical completion. '+
+      sumBasisLabel({records,currency:input.currency,taxBasis:taxLabel,asOf:input.asOf}),
+  };
+}
+
+// F37: a retained register total above the same-currency current contract sum is
+// a query to reconcile, never a figure to rely on.
+export interface RegisterContractCheckLike{register:string;currency:string;registerTotal:number;currentContractValue:number;comparisonDifference?:number|null;state:string;sourceRecordCount?:number|null}
+export function registerAboveContractQueries(rows:readonly RegisterContractCheckLike[]):Array<{currency:string;register:string;excess:number;text:string}>{
+  return rows.filter(r=>r.state==='query_required'&&Number.isFinite(r.registerTotal)&&Number.isFinite(r.currentContractValue)&&r.registerTotal>r.currentContractValue).map(r=>{
+    const excess=r.registerTotal-r.currentContractValue;
+    const money=(v:number)=>v.toLocaleString('en-US',{maximumFractionDigits:2})+' '+r.currency;
+    return {currency:r.currency,register:r.register,excess,
+      text:r.register+(r.sourceRecordCount!==null&&r.sourceRecordCount!==undefined?' ('+r.sourceRecordCount+' records)':'')+' totals '+money(r.registerTotal)+', above the current contract sum '+money(r.currentContractValue)+' by '+money(excess)+'; reconcile scope, duplicates, tax and currency before relying on it.'};
+  });
+}
+
+// F27: a date addition (for example contract completion plus awarded EOT) states
+// the start date and the exact number of calendar days added, as the difference
+// between the two dates actually used. Unknown parts stay not established.
+export function dateAdditionBasisLabel(input:{label:string;startIso:string|null|undefined;resultIso:string|null|undefined;asOf?:string|null|undefined}):string{
+  const day=(v:string|null|undefined)=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v??''));return m?Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])):null;};
+  const a=day(input.startIso),b=day(input.resultIso);
+  const added=a===null||b===null?null:Math.round((b-a)/86_400_000);
+  return sumBasisLabel({records:input.label+' '+(a===null?'not established':String(input.startIso).slice(0,10))+' + '+(added===null?'awarded EOT days not established':added+' calendar days of awarded EOT'),asOf:input.asOf});
 }
 
 // F45: one like-for-like rule for comparing two money figures (for example

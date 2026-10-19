@@ -1,4 +1,6 @@
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus} from './project-input-status';
+import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
@@ -11,7 +13,9 @@ import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {bindProjectFacts} from './project-fact-consumers';
 import {pmcScheduleRules} from './pmc-schedule-rules';
-import {projectActionRegisterForState,peekCachedScheduleAnalytics} from './project-projections';
+import {projectActionRegisterForState,peekCachedScheduleAnalytics,analyticalHistory} from './project-projections';
+import {cachedIndependentForecast} from './forecast-cache';
+import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {contractCompletionPosition} from './contract-completion';
@@ -21,7 +25,9 @@ import {securityValidityReview} from './security-validity';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
+import {dateAdditionBasisLabel} from './commercial-sum-basis';
 import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
+import {earnedHoursForState} from './earned-hours';
 import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
 import {contractTimeDatesFrom} from './contract-time-reader';
 import {extractContractLdTerms} from '../../contract-commercial/src';
@@ -53,6 +59,9 @@ export interface ProjectFactsSnapshot {
   resources?:{tradeChains:ReturnType<typeof tradeChainFacts>};
   contractSections?:ReturnType<typeof projectContractSections>;
   actions:{openCount:ProjectFact<number>;recordCount:ProjectFact<number>;reviewCount:ProjectFact<number>};
+  /** F07: the one shared status of the inputs pages depend on (calendars,
+   * resource capacity, risk owners). Every page reads these same rules. */
+  inputs?:ProjectInputStatus;
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
@@ -335,12 +344,17 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ...completionCandidates.map(item=>item.sourceRef),
     ...(contractTime?.sourceRefs??[]),
   ])]:[];
+  // F27: the date addition states its records through the shared basis label.
+  // The days shown are the exact difference between the two dates used, so the
+  // label always matches the addition actually made.
+  const extensionBasis=(start:string|null|undefined,result:string|null|undefined,label:string)=>' '+dateAdditionBasisLabel({label,startIso:start,resultIso:result,asOf:dataDateIso});
   const presentedExtension=provisionalExtendedDate!==null
-    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.','from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
+    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.'+extensionBasis(originalDate,provisionalExtendedDate,'original contract completion'),'from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
     :commercialFact(commercial.timeExposure.officialAdjustedCompletion,
-        commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
+        (commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
           ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
-          :'Contract completion plus reconciled official awarded EOT.',true);
+          :'Contract completion plus reconciled official awarded EOT.')+
+        (commercial.timeExposure.officialAdjustedCompletion.value!==null?extensionBasis(commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,'contract completion'):''),true);
   // Never call a project late against the original date when an award exists
   // but the extended date cannot yet be calculated.
   const currentContractCompletion=contractTimeDatesFrom(commercial.timeExposure).governingCompletionIso;
@@ -350,6 +364,18 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   }):null;
   const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
     ?independentForecast?.independentForecastCompletionIso??null:null;
+  // F38: the previous dated, adopted revision (latest earlier Data Date in the
+  // shared revision history) and its CMeng CPM, under the same publication gate
+  // as the current CPM. Only read when the current CPM is publishable.
+  const history=current&&independentFinish!==null?analyticalHistory(scoped):[];
+  const currentAt=current?history.findIndex(row=>row.revision.revisionId===current.revision.revisionId):-1;
+  const currentDataMs=parseScheduleInstant(model?.dataDateIso??null);
+  const previousStored=currentAt>0&&currentDataMs!==null?history.slice(0,currentAt).filter(row=>{const at=parseScheduleInstant(row.revision.model.dataDateIso??null);return at!==null&&at<currentDataMs;}).at(-1)??null:null;
+  const previousForecast=previousStored?cachedIndependentForecast(previousStored.revision.model,'project-version:'+state.version):null;
+  const previousPublishable=!!previousStored&&!!previousForecast&&buildForecastReconciliationGate({model:previousStored.revision.model,forecast:previousForecast,requiredFinishIso:currentContractCompletion}).publishable===true&&!hasUnreconciledScheduleCalendar(previousForecast);
+  const previousRevision=previousStored?{revisionId:previousStored.revision.revisionId,label:previousStored.revision.label??previousStored.sourceFilename??null,model:previousStored.revision.model,
+    forecast:previousPublishable?previousForecast:null,reason:previousPublishable?null:'The CMeng CPM of the previous revision did not pass the same publication gate as the current one, so its total floats are not established.'}:null;
+  const controlBasis=projectScheduleControlBasis(scoped);
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
   // F33: one shared governing date (contract + awarded EOT; never the original
   // date while an award exists but the extended date is unknown).
@@ -400,7 +426,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
     resources:{tradeChains:tradeChainFacts(tradeChainResourcesForState(scoped))},
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
-      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null}),
+      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
+        criticality:{config,thresholdMethod:controlBasis.nearCriticalThresholdMethod,headlineFloatBasis:floatBasis},previousRevision}),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
@@ -636,8 +663,28 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
   };
 
+  value.inputs=projectInputStatus(state);
   cache.set(state,{version:state.version,value});
   return value;
+}
+
+export interface ProjectInputStatus {
+  calendar:CalendarInputStatus;
+  capacity:CapacityInputStatus;
+  riskOwners:RiskOwnerInputStatus;
+  /** F07: the one risk register row count every risk page states. */
+  riskRows:RiskRowInputStatus;
+}
+/** F07: shared input status for a project, from the same rules the pages use. */
+export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
+  state=reportingState(state);
+  return {
+    calendar:calendarInputStatus(projectControlSchedule(state)?.revision.model),
+    capacity:capacityInputStatus(canonicalResources(state)),
+    // No supplied risk rows: owner coverage is unknown, never 0 of 0.
+    riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
+    riskRows:riskRowInputStatus(operationalReporting(state).risk),
+  };
 }
 
 export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{
@@ -655,6 +702,8 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
   // F46: the Resources page shows the same trade-chain calculation as the project facts.
   const tradeChains=key==='resource-utilization'?tradeChainResourcesForState(scoped):undefined;
+  // F45: earned hours (budgeted hours x % complete) against hours spent, one shared calculation for both pages.
+  const earnedHours=key==='manhour-scurve'||key==='resource-utilization'?earnedHoursForState(scoped):undefined;
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
@@ -664,5 +713,5 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

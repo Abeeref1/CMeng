@@ -38,7 +38,14 @@ function experienceManagementReading(key,brief){
  const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. This is not a zero result.</p>':'';
  const attention=brief.review?'<p><b>What needs attention:</b> '+escapeHtml(brief.review)+'</p>':'';
  const context=brief.note?'<details><summary>How to interpret these figures</summary><p>'+escapeHtml(brief.note)+'</p></details>':'';
- return '<section class="experience-management-reading"><h4>What this page shows</h4>'+established+gaps+attention+context+'</section>';
+ const reading='<section class="experience-management-reading"><h4>What this page shows</h4>'+established+gaps+attention+context+'</section>';
+ // F10: Revision History and Variance Trend read the same revision history; it is
+ // summarised on Revision History and the Variance Trend tab links to it.
+ if(['revision-trend','variance-trends'].includes(key)&&typeof ownedBlock==='function'){
+  const revisions=(brief.facts||[]).find(item=>item.label==='Source revisions');
+  return ownedBlock('revision-reading',reading,'Source revisions: '+(revisions?revisions.display:'Not established'),key);
+ }
+ return reading;
 }
 
 function experienceDisclosure(title,body,note='',className=''){

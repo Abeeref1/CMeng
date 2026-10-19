@@ -53,3 +53,10 @@ ui-management-experience
 t05-same-measure-every-page
 f61-management-page-weight
 f61-adversarial-list-paging
+f16-f45-resource-hours-earned
+f29-best-available-recovery
+f29-f36-payment-rules
+f38-stage-erosion-bei
+v1-f07-shared-input-status
+v1b-f07-risk-rows-trade-capacity
+w3-commercial-round10

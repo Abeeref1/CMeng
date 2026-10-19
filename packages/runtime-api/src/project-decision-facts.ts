@@ -265,7 +265,7 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    remainingQuantity:remaining,targetFinishIso:target,
    contractCompletionIso:governing,daysToContractCompletion,requiredRateToContractCompletionPerCalendarDay:requiredToContract,requiredRateToContractCompletionBasis:requiredToContractBasis,
    periodInstalledValue:period!==null&&rate!==null?period*rate:null,remainingValue:remaining!==null&&rate!==null?remaining*rate:null,
-   taxBasis,certifiedQuantity,lumpSumQueryReasons:lumpSum.reasons,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
+   taxBasis,certifiedQuantity,lumpSumQueryReasons:lumpSum.reasons,budgetHoursPerUnit:hpu,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
    periodEarnedHours:period!==null&&hpu!==null?period*hpu:null,actualHours,
    productivityPerActualHour:period!==null&&actualHours!==null&&actualHours>0?period/actualHours:null,
    installedValue,certifiedValue,installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
@@ -412,8 +412,13 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
   const applied=/applied|application|draft|submitted|pending certification/i.test(r.sourceStatus??'')||!start;
   const rawDue=lifecycle.paymentDueDate, due=typeof rawDue?.value==='string'?date(rawDue.value):null;
   const method=rawDue?.basis?.method??null;
+  // F36: a register due date is shown beside the date the contract payment
+  // period gives from the certificate date (same producer rule), and compared.
+  const periodDue=method==='explicit_source_due_date'?lifecycle.contractPeriodDueDate:rawDue;
+  const contractPeriodDue=typeof periodDue?.value==='string'?date(periodDue.value):null;
+  const dueDateCheck=!due?'not_established':method!=='explicit_source_due_date'?'contract_period_only':!contractPeriodDue?'contract_period_not_established':contractPeriodDue===due?'register_matches_contract_period':'register_differs_from_contract_period';
   return {certificateReference:r.paymentId,sourceStatus:r.sourceStatus,certificationDateIso:start,actualPaymentDateIso:paid,
-   paymentPeriodDays:period,contractDueDateIso:due,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
+   paymentPeriodDays:period,contractDueDateIso:due,contractPeriodDueDateIso:contractPeriodDue,dueDateCheck,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
    state:applied?'application_not_certified':!due?'due_basis_missing':!paid?'payment_not_recorded':paid>due?'paid_late':'paid_within_period',
    includedInCertifiedTotals:!applied,paymentDueDate:rawDue??null,
    basis:method?String(method).replaceAll('_',' '):'The contract payment trigger, period or date basis is not established.',
@@ -422,6 +427,7 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
    sourceRefs:r.sourceRefs??[]};
  });
  return {rows,total:rows.length,appliedExcludedCount:rows.filter((r:any)=>!r.includedInCertifiedTotals).length,lateCount:rows.filter((r:any)=>r.state==='paid_late').length,
+  registerDueDateDifferenceCount:rows.filter((r:any)=>r.dueDateCheck==='register_differs_from_contract_period').length,
   basis:'Applications are not certifications. Due dates are the same contract-version-aware dates used in the issued payment register; no trigger or working-day calendar is inferred.'};
 }
 
@@ -443,6 +449,12 @@ function procurementSourceTotals(state:ProjectRuntimeState):ProcurementCompariso
   return {currency,amount,recordId:r.recordId,
    sourceRefs:r.receipts.map(receipt=>'evidence-document:'+receipt.documentId+':'+receipt.locator)};
  });
+}
+
+/** F37: the same register-to-contract rule, limited to the procurement package
+ * register so a dashboard can show its query without BOQ measurement work. */
+export function packageRegisterContractChecks(state:ProjectRuntimeState,commercial:any){
+ return buildRegisterChecks(commercial,{},null,procurementSourceTotals(state)).checkedRows.filter((r:any)=>String(r.register).startsWith('Procurement package register'));
 }
 
 /** Source-qualified commercial comparison, whether or not an exception exists.

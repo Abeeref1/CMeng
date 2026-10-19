@@ -21,7 +21,16 @@ const typed:Record<string,DeliveryKind>={procurement_register:'package',interfac
 // once, rather than repeating the same alias/Unicode work for every source row.
 const identityKeys=Object.fromEntries(deliveryKinds.map(k=>[k,kindIdentities[k].map(id=>canonicalHeader(id))])) as Record<DeliveryKind,string[]>;
 const signatureKeys=Object.fromEntries(deliveryKinds.map(k=>[k,deliveryFields[k].map(field=>canonicalHeader(field))])) as Record<DeliveryKind,string[]>;
-export const deliveryCurrentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&deliveryNumericIssues(r.kind,r.fields).length===0;
+// T11: a record's numeric validity depends only on its kind and its fields
+// object. Fields objects are replaced, never edited in place (a new project
+// version builds new records), and many pages ask the same record again, so
+// each fields object is checked once.
+const numericValidity=new WeakMap<object,{kind:DeliveryKind;valid:boolean}>();
+const numericFieldsValid=(r:DeliveryRecord)=>{
+ const known=numericValidity.get(r.fields);if(known&&known.kind===r.kind)return known.valid;
+ const valid=deliveryNumericIssues(r.kind,r.fields).length===0;numericValidity.set(r.fields,{kind:r.kind,valid});return valid;
+};
+export const deliveryCurrentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&numericFieldsValid(r);
 export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
  // Explicit source identity is strongest. A reviewed mapping is an intentional
  // user decision and therefore outranks inferred document classification.

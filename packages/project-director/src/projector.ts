@@ -984,7 +984,9 @@ export function buildProjectDirectorPosition(
     );
   }
   if (unlinkedClaimIds.length > 0) {
-    const unlinked = input.noticesClaims.claims.filter(claim => unlinkedClaimIds.includes(claim.claimId));
+    // T11: set membership, not a scan of every unlinked id for every claim.
+    const unlinkedIds = new Set(unlinkedClaimIds);
+    const unlinked = input.noticesClaims.claims.filter(claim => unlinkedIds.has(claim.claimId));
     const missingEvents = unlinked.filter(claim => !claim.eventIds.some(id => eventById.has(id))).length;
     const missingActivities = unlinked.filter(claim => claim.eventIds.some(id => eventById.has(id)) &&
       !claim.eventIds.some(id => (eventById.get(id)?.relatedActivityIds.length ?? 0) > 0)).length;

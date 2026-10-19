@@ -83,9 +83,71 @@ export function totalChecksRun(values: ReadonlyArray<number | null | undefined>)
   const known=values.filter((v):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=0);
   return known.length?known.reduce((n,v)=>n+v,0):null;
 }
+/** One combined request while its findings are folded in (see summarizeControlIssues). */
+interface OwnedMember { member: ControlIssueMember; sets?: {moduleKeys:Set<string>;evidencePaths:Set<string>;sourceRefs:Set<string>} }
+interface IssueGroup {
+  first: ControlIssue;
+  merged: boolean;
+  moduleKeys: Set<string>; sourceRefs: Set<string>; evidencePaths: Set<string>; checkIds: Set<string>;
+  memberIssueIds: string[];
+  members: ControlIssueMember[] | undefined;
+  owned: {list: OwnedMember[]; index: Map<string, OwnedMember>} | null;
+}
+function ownMembers(members: ControlIssueMember[]) {
+  const list=members.map(member=>({member})),index=new Map<string,OwnedMember>();
+  for(const row of list)if(!index.has(row.member.id))index.set(row.member.id,row);
+  return {list,index};
+}
+/** The combined request exactly as the one-at-a-time fold would hold it now. */
+function groupIssue(group: IssueGroup): ControlIssue {
+  if(!group.merged)return group.first;
+  const members=group.owned
+    ? group.owned.list.map(({member,sets})=>sets?{...member,moduleKeys:[...sets.moduleKeys],evidencePaths:[...sets.evidencePaths],sourceRefs:[...sets.sourceRefs]}:member)
+    : group.members;
+  return {...group.first,moduleKeys:[...group.moduleKeys],sourceRefs:[...group.sourceRefs],evidencePaths:[...group.evidencePaths],checkIds:[...group.checkIds],
+    memberIssueIds:group.owned?group.owned.list.map(row=>row.member.id):group.memberIssueIds,...(members!==undefined?{members}:{})};
+}
+/** Folds one more finding into its request. Same result as
+ * {...old, unions, memberIssueIds, members: mergeMembers(controlIssueMembers(old), controlIssueMembers(issue))}
+ * applied one finding at a time, without copying every earlier member and
+ * reference again for each finding (that copy grew with the square of the
+ * number of identical findings on large registers). */
+function foldIssue(group: IssueGroup, issue: ControlIssue): void {
+  const right=controlIssueMembers(issue);
+  if(group.owned){
+    // Owned list: the fold's own copies, so they can be extended in place.
+    for(const member of right){
+      const same=group.owned.index.get(member.id);
+      if(!same){const row={member:{...member}};group.owned.list.push(row);group.owned.index.set(member.id,row);continue;}
+      const sets=same.sets??(same.sets={moduleKeys:new Set([...same.member.moduleKeys]),evidencePaths:new Set([...same.member.evidencePaths]),sourceRefs:new Set([...same.member.sourceRefs])});
+      for(const value of member.moduleKeys)sets.moduleKeys.add(value);
+      for(const value of member.evidencePaths)sets.evidencePaths.add(value);
+      for(const value of member.sourceRefs)sets.sourceRefs.add(value);
+    }
+  }else if(group.members!==undefined){
+    const members=mergeMembers(group.members,right);
+    if(members.length>1){group.members=members;group.owned=ownMembers(members);}
+    else group.memberIssueIds=members.map(m=>m.id);
+  }else{
+    // No members yet: the request stands for one original identity. It stays
+    // one member while every new finding carries that same identity.
+    const leftId=group.memberIssueIds[0]??controlIssueMemberId(groupIssue(group));
+    if(right.every(member=>member.id===leftId))group.memberIssueIds=[leftId];
+    else{const members=mergeMembers(controlIssueMembers(groupIssue(group)),right);group.members=members;group.owned=ownMembers(members);}
+  }
+  if(!group.merged){
+    group.merged=true;
+    group.moduleKeys=new Set([...group.first.moduleKeys]);group.sourceRefs=new Set([...group.first.sourceRefs]);
+    group.evidencePaths=new Set([...group.first.evidencePaths]);group.checkIds=new Set([...group.first.checkIds]);
+  }
+  for(const value of issue.moduleKeys)group.moduleKeys.add(value);
+  for(const value of issue.sourceRefs)group.sourceRefs.add(value);
+  for(const value of issue.evidencePaths)group.evidencePaths.add(value);
+  for(const value of issue.checkIds)group.checkIds.add(value);
+}
 export function summarizeControlIssues(issues: readonly ControlIssue[], checksRunCount: number | null = null): ControlIssueAssessment {
   const checksRun=typeof checksRunCount==='number'&&Number.isFinite(checksRunCount)&&checksRunCount>=0?checksRunCount:null;
-  const grouped=new Map<string,ControlIssue>();
+  const grouped=new Map<string,IssueGroup>();
   for(const issue of issues){
     // One identical correction request may affect many records and pages.
     // Preserve every reference while counting the request once.
@@ -101,14 +163,17 @@ export function summarizeControlIssues(issues: readonly ControlIssue[], checksRu
       ? [issue.kind,issue.code,issue.sourceFactKey,issue.owner,sourceIdentity]
       : [issue.kind,issue.code,controlIssueField(issue),issue.owner]);
     const old=grouped.get(key);
-    if(!old){grouped.set(key,{...issue,memberIssueIds:issue.memberIssueIds??[controlIssueMemberId(issue)]});continue;}
+    if(!old){
+      const first={...issue,memberIssueIds:issue.memberIssueIds??[controlIssueMemberId(issue)]};
+      grouped.set(key,{first,merged:false,moduleKeys:new Set(),sourceRefs:new Set(),evidencePaths:new Set(),checkIds:new Set(),
+        memberIssueIds:first.memberIssueIds,members:first.members,owned:null});
+      continue;
+    }
     // One request, the union of everything both originals carried, and both
     // original identities retained as members.
-    const members=mergeMembers(controlIssueMembers(old),controlIssueMembers(issue));
-    grouped.set(key,{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])],
-      memberIssueIds:members.map(m=>m.id),...(members.length>1?{members}:{})});
+    foldIssue(old,issue);
   }
-  const unique=[...grouped.values()];
+  const unique=[...grouped.values()].map(groupIssue);
   const counts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,unique.filter(i=>i.kind===kind).length])) as Record<ControlIssueKind,number>;
   const affectedModuleCounts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,new Set(unique.filter(i=>i.kind===kind).flatMap(i=>i.moduleKeys)).size])) as Record<ControlIssueKind,number>;
   return {schemaVersion:'1.0',primaryKind:CONTROL_ISSUE_KINDS.find(k=>counts[k]>0)??'checked',

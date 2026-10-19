@@ -1,4 +1,5 @@
 import {handoverSourceComparison} from './handover-source-review';
+import {riskOwner,riskRowInputStatus} from './project-input-status';
 import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from './programme-task-review';
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
@@ -682,14 +683,26 @@ function buildDelivery(state:ProjectRuntimeState){
   const reviewBasis=!lastReviewedIso&&!risk.nextReviewIso?'Last reviewed date not stated':!reviewDueIso?'Review interval not stated; staleness not established':!dataDateIso?'Data Date missing; staleness not established':(reviewStale?'Review overdue: next review '+reviewDueIso+' is before the Data Date':'Review current: next review '+reviewDueIso)+(risk.nextReviewIso?' (stated next review)':' (last reviewed '+lastReviewedIso+' plus the stated '+interval+' days)');
   return {lastReviewedIso,reviewIntervalDays:interval,reviewDueIso,reviewStale,reviewBasis};
  };
- const riskSourceRows=operations.risk.sourceRows.map(sourceRisk=>{const risk=currentRisks.get(sourceRisk.riskId)??sourceRisk;const linked=recordsByRisk.get(risk.riskId)??[];const linkedActivities=[...new Set([...(risk.linkedActivityId?[risk.linkedActivityId]:[]),...linked.flatMap(r=>r.links.activityIds)])].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);return {...risk,reportingScope:currentRisks.has(risk.riskId)?'At reporting date':futureRiskIds.has(risk.riskId)?'After reporting date':'Reporting date missing',
+ // T11: one lookup per risk instead of scanning every score row (three times)
+ // and every package row for each risk. find() returned the first score row
+ // of a risk id; a risk with no linked record has no linked long-lead package;
+ // a score's rank is the first sorted position holding the same score.
+ const scoreRowByRisk=new Map<unknown,(typeof operations.risk.validation.scoreRows)[number]>();
+ if(operations.risk.sourceRows.length)for(const row of operations.risk.validation.scoreRows)if(!scoreRowByRisk.has(row.riskId))scoreRowByRisk.set(row.riskId,row);
+ const firstScorePositions=new WeakMap<object,Map<unknown,number>>();
+ const firstScorePosition=(all:ReadonlyArray<{row:{score:unknown}}>,score:unknown)=>{
+  let positions=firstScorePositions.get(all);
+  if(!positions){positions=new Map();for(const [i,entry] of all.entries()){const value=entry.row.score;if(value===value&&!positions.has(value))positions.set(value,i);}firstScorePositions.set(all,positions);}
+  return positions.get(score)??-1;
+ };
+ const riskSourceRows=operations.risk.sourceRows.map(sourceRisk=>{const risk=currentRisks.get(sourceRisk.riskId)??sourceRisk;const linked=recordsByRisk.get(risk.riskId)??[];const linkedActivities=[...new Set([...(risk.linkedActivityId?[risk.linkedActivityId]:[]),...linked.flatMap(r=>r.links.activityIds)])].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);return {...risk,owner:riskOwner(risk.owner),sourceOwner:risk.owner??null,reportingScope:currentRisks.has(risk.riskId)?'At reporting date':futureRiskIds.has(risk.riskId)?'After reporting date':'Reporting date missing',
   description:risk.subject??null,categories:[...new Set([risk.category,...linked.map(r=>r.kind==='package'?'procurement':r.kind==='workfront'?'construction':r.kind)].filter(Boolean))],
-  deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId),
+  deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:linked.length?packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId):[],
   programmeExposure:linkedActivities.map(a=>({activityId:a.activityId,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,criticality:model?sourceFloatCriticality(model,a,config):'unknown',totalFloatHours:a.totalFloatHours})),
-  probability:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.probability??null,impact:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.impact??null,score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis,...riskReview(risk)};})
+  probability:scoreRowByRisk.get(risk.riskId)?.probability??null,impact:scoreRowByRisk.get(risk.riskId)?.impact??null,score:scoreRowByRisk.get(risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis,...riskReview(risk)};})
   // F15: ranked by the register score, highest first; risks without a score follow in source order.
   .map((row,index)=>({row,index})).sort((a,b)=>(a.row.score===null)!==(b.row.score===null)?Number(a.row.score===null)-Number(b.row.score===null):a.row.score!==null&&b.row.score!==null&&a.row.score!==b.row.score?b.row.score-a.row.score:a.index-b.index)
-  .map(({row},index,all)=>({...row,scoreRank:row.score===null?null:all.findIndex(entry=>entry.row.score===row.score)+1}));
+  .map(({row},index,all)=>({...row,scoreRank:row.score===null?null:firstScorePosition(all,row.score)+1}));
  const riskRows=riskSourceRows.filter(r=>r.reportingScope==='At reporting date');
  const evidenceMetrics=Object.fromEntries(['quality','commissioning','snag','handover','design','submittal'].map(kind=>[kind,deliveryEvidenceMetrics(byKind(kind as DeliveryKind),dataDateIso)]));
  const commissioningRows=registerRows.filter(r=>r.kind==='commissioning').map(r=>({...r,system:field(byId.get(r.recordId)!,'system')||null,subsystem:field(byId.get(r.recordId)!,'subsystem')||null,plannedDate:date(byId.get(r.recordId)!,'planned date'),forecastDate:date(byId.get(r.recordId)!,'forecast date'),readiness:gatesFor(byId.get(r.recordId)!)}));
@@ -784,7 +797,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   :key==='material-tracking'?boqScope.rows.map(r=>({recordId:r.itemId,reference:r.itemNumber||r.itemId,description:r.description,discipline:r.discipline,location:[r.building,r.tower,r.zone,r.floor,r.level,r.area].filter(Boolean).join(' / ')||null,package:r.packageCandidate,unit:r.unit,required:r.quantity,ordered:null,manufactured:null,delivered:null,accepted:null,installed:itemMaterialByReference?.get(r.itemNumber||r.itemId)?.installed??null,remainingToOrder:null,remainingToDeliver:null,remainingToInstall:itemMaterialByReference?.get(r.itemNumber||r.itemId)?.remainingToInstall??null,currentStatus:'scope from BOQ',state:'extracted_candidate',basis:'BOQ quantity and scope only. Procurement, delivery and installation status are not established.'}))
   :key==='construction-discipline'?boqScope.dimensions.discipline.map((r,index)=>({recordId:'boq-discipline-'+index,dimension:'discipline',label:r.value,discipline:r.value,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
   :key==='construction-locations'?[...boqScope.dimensions.building,...boqScope.dimensions.tower,...boqScope.dimensions.zone,...boqScope.dimensions.floor,...boqScope.dimensions.level,...boqScope.dimensions.area].map((r,index)=>({recordId:'boq-location-'+index,dimension:'location',label:r.value,location:r.value,locationType:r.dimension,itemCount:r.itemCount,currency:r.currency,readableValue:r.readableValue,currentStatus:'scope from BOQ'}))
-  :key==='delivery-risks'?boqScope.risks.map(r=>({recordId:r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact,probability:r.probability,severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:r.responsibleParty,status:'Candidate',currentStatus:'Candidate from BOQ wording, not a risk',candidateGroup:'Candidates from BOQ wording, not risks',state:'extracted_candidate',basis:r.basis,relatedPackages:r.relatedPackages}))
+  :key==='delivery-risks'?boqScope.risks.map(r=>({recordId:r.riskId,riskId:r.riskId,reference:r.riskId,description:r.risk,category:r.category,categories:[r.category],impact:r.impact,probability:r.probability,severity:r.severity,rating:r.severity,score:null,mitigation:r.mitigation,responsibleParty:r.responsibleParty,owner:riskOwner(r.responsibleParty),status:'Candidate',currentStatus:'Candidate from BOQ wording, not a risk',candidateGroup:'Candidates from BOQ wording, not risks',state:'extracted_candidate',basis:r.basis,relatedPackages:r.relatedPackages}))
   :[];
  const relevantSourceRecords=key==='delivery-risks'
   ?p.existingAuthorities.risk.sourceRecordCount
@@ -895,6 +908,9 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.registerCleanup&&(r.overdueUndelivered||r.forecastLate)).length:null),
    metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
   ];
+ // F10: in the governed procurement branch these figures come only from the shared
+ // package register position (p), so every procurement page shows the same figures.
+ const procurementRegisterMetrics=['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key)&&!(!hasRows&&sourceEvidenceAvailable)&&!useBoqCandidates?metrics:null;
  if(key==='material-tracking'&&rows.some(r=>r.authority==='From BOQ and dated measurement register')){
   metrics=[metric('BOQ items',rows.length,'items','Each item retains its own quantity and unit.'),metric('Items with dated measurements',rows.filter(r=>r.installed!==null).length,'items','Latest measurement through the Data Date.'),metric('Procurement packages without item allocations',p.materialRows.filter(r=>r.required===null).length,'packages','Package allocation is separate from the known item quantities.')];
   managementPosition=rows.length+' BOQ items with dated installed quantities where supplied. Procurement quantities need explicit item allocations.';
@@ -964,9 +980,13 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(key==='delivery-risks')extras.riskBasis=p.existingAuthorities.risk;
  if(key==='delivery-commissioning')extras.systems=p.commissioningSystems;
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
+ if(procurementRegisterMetrics&&metrics===procurementRegisterMetrics)extras.metricsScope='procurement_register';
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
-  data:{projectionKey:'delivery',empty:!usable,deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
+  data:{projectionKey:'delivery',empty:!usable,
+   // F07: the same risk register row counts as the risk register page and the project facts.
+   ...(riskPage?(counts=>({riskRowCounts:counts,rowScopeLabel:counts.deliveryLabel}))(riskRowInputStatus(risk)):{}),
+  deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
    reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}});
 }
 export function deliveryDashboard(state:ProjectRuntimeState){

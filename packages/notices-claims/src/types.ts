@@ -17,6 +17,9 @@ export interface NoticeClaimEventRow {
   requirementId: string | null;
   requiredNoticeDays: number | null;
   elapsedNoticeDays: number | null;
+  /** F27: the dated trigger the elapsed notice days count from (additive). */
+  elapsedFromIso?: string | null;
+  elapsedFromBasis?: 'awareness' | 'event_start' | null;
   noticeTimeliness: NoticeTimeliness;
   requirementState: GovernanceState | null;
   linkedClaimIds: string[];
