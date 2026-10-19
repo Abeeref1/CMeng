@@ -8,6 +8,7 @@ import {resourceBasisReview} from './resource-basis-review';
 import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {refreshResourceSourceFields} from './resource-source-refresh';
 import {isExecutionActivity} from '../../schedule-analysis-core/src';
+import {recordedHoursByTradeWeek} from './resource-trade-week-hours';
 
 export function criticalResourceHours(model:import('../../schedule-analysis-core/src').CanonicalScheduleModel,resources:import('../../schedule-resource-core/src').CanonicalResourceModel){
  const activities=new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed'&&a.totalFloatHours!==null&&a.totalFloatHours<=0).map(a=>[a.activityId,a]));
@@ -73,6 +74,8 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    weeklyCapacityEvidence:summary,weeklyResourceRows:summary.resourceSummaries,diagnostics:summary.diagnostics,
    // F07: every trade in the register with its stated weekly capacity (shared rule).
    tradeCapacity:tradeCapacityRows(summary.points,summary.masterResources),
+   // F16: recorded hours by trade and week from the same register points (blank weeks stay not recorded).
+   actualHoursByTradeWeek:recordedHoursByTradeWeek(summary),
    criticalResourceHours:current&&resourceModel?criticalResourceHours(current.revision.model,resourceModel):[],
   };
  }else{

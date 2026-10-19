@@ -7,6 +7,7 @@ import {refreshResourceSourceFields} from './resource-source-refresh';
 import {commercialCanonical} from './commercial-canonical';
 import type {ProjectRuntimeState} from './project-state-types';
 import type {WeeklyResourceCapacitySummary} from './canonical-resource-evidence';
+import {recordedHoursByTradeWeek} from './resource-trade-week-hours';
 
 const reviews=new WeakMap<ProjectRuntimeState,{version:number;weekly:WeeklyResourceCapacitySummary;value:ReturnType<typeof calculateResourceBasisReview>}>();
 export function resourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyResourceCapacitySummary){
@@ -21,6 +22,7 @@ function calculateResourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyRes
   const sum=(values:Array<number|null|undefined>)=>sumKnown(values.map(v=>v??null));
   const periods=weekly.weeklyTotals.filter(r=>r.resourceClass==='labor'&&r.unit==='labor_hour'&&r.weekStartIso).sort((a,b)=>a.weekStartIso!.localeCompare(b.weekStartIso!));
   const through=periods.filter(r=>date&&r.weekStartIso!<=date);
+  const tradeWeeks=recordedHoursByTradeWeek(weekly);
   const fullPlan=sum(periods.map(r=>r.plannedDemand)),planToDate=sum(through.map(r=>r.plannedDemand)),actualToDate=sum(through.map(r=>r.actualApprovedUsage));
   const execution=current?.revision.model.activities.filter(isExecutionActivity)??[];
   const starts=execution.map(a=>a.currentStartIso??a.forecastStartIso??a.actualStartIso).filter((d):d is string=>Boolean(d)).sort();
@@ -38,7 +40,10 @@ function calculateResourceBasisReview(state:ProjectRuntimeState,weekly:WeeklyRes
   return {dataDateIso:date,weekly:{plannedHours:fullPlan,plannedHoursToDate:planToDate,actualHoursToDate:actualToDate,
     futurePlannedHours:fullPlan!==null&&planToDate!==null?fullPlan-planToDate:null,
     periodCount:periods.length,periodsThroughDataDate:through.length,firstWeekStartIso:periods[0]?.weekStartIso??null,lastWeekStartIso:last,
-    averageApprovedHoursPerWeek:actualToDate!==null&&through.length?actualToDate/through.length:null},
+    averageApprovedHoursPerWeek:actualToDate!==null&&through.length?actualToDate/through.length:null,
+    // F16: the recorded weeks are summed and counted even when some weeks have no value (those stay not recorded).
+    recordedHoursInRecordedWeeks:tradeWeeks.recordedHours,recordedResourceWeekCount:tradeWeeks.recordedResourceWeekCount,
+    resourceWeekCountThroughDataDate:tradeWeeks.resourceWeekCountToDataDate,latestRecordedWeekIso:tradeWeeks.latestRecordedWeekIso},
     programme:{startIso:start,finishIso:finish,calendarWeekSpan:start&&finish?(parseScheduleTime(finish)-parseScheduleTime(start))/604800000:null,
       registerEndsBeforeProgramme:Boolean(last&&finish&&last<finish.slice(0,10))},
     xer:{laborAssignmentCount:labor.length,plannedLaborHours:sum(labor.map(a=>a.plannedUnits)),actualRegularLaborHours:regularActual,
