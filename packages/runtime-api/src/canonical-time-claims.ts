@@ -859,9 +859,15 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     : null;
   let contractTimeBasis:ContractTimeBasis|null=confirmedManualBasis?{...confirmedManualBasis,sourceRefs:[...confirmedManualBasis.sourceRefs]}:null;
   if(amendment&&!amendmentConflict){
+    // C2: a user-entered award stays held while the sources establish none,
+    // as the reporting time basis keeps it, so every page shows one value.
+    const userAward=effectiveDeterminationDays===null&&confirmedManualBasis?.officialApprovedEotDays!=null&&
+      confirmedManualBasis.sourceRefs.some(ref=>ref.startsWith('user-confirmation:approved-eot-days:'))?confirmedManualBasis:null;
     contractTimeBasis={contractualCompletionIso:amendment.completionIso,contractualCompletionState:amendment.state,
-      officialApprovedEotDays:effectiveDeterminationDays,officialApprovedEotState:effectiveDeterminationDays===null?'missing':'official',eotDayBasis:'calendar_days',eotDayBasisState:amendment.state,
-      sourceRefs:[...new Set([amendment.receipt,...eligible.map(d=>d.receipt)].map(r=>'evidence-document:'+r.documentId+':'+r.locator))],
+      officialApprovedEotDays:userAward?userAward.officialApprovedEotDays:effectiveDeterminationDays,
+      officialApprovedEotState:userAward?userAward.officialApprovedEotState:effectiveDeterminationDays===null?'missing':'official',eotDayBasis:'calendar_days',eotDayBasisState:amendment.state,
+      sourceRefs:[...new Set([...[amendment.receipt,...eligible.map(d=>d.receipt)].map(r=>'evidence-document:'+r.documentId+':'+r.locator),
+        ...(userAward?userAward.sourceRefs.filter(ref=>ref.startsWith('user-confirmation:approved-eot-days:')):[])])],
       incorporatedEotDays:amendment.incorporatedEotDays,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays,
       registerDeterminationCount:eligible.length,effectiveDeterminationCount:effective.length,
       futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,dataDateIso,

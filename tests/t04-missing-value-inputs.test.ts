@@ -93,3 +93,59 @@ test('an adopted source contract value or approved EOT is never overwritten by t
   assert.equal(patch.contractTimeBasis!.contractualCompletionState,'official');
   assert.deepEqual(patch.contractTimeBasis!.sourceRefs,['evidence-document:det-1:row:2','user-confirmation:approved-eot-days:12']);
 });
+
+// Shared fixture: a project with a dated programme and an applicable amendment.
+const amendedProject=(id:string)=>{
+  const {RuntimeProjectStore}=require('../packages/runtime-api/src/project-state') as typeof import('../packages/runtime-api/src/project-state');
+  const state=new RuntimeProjectStore({durable:false}).getOrCreate(id);
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'schedule-hash',uploadedAt:'2026-09-01T00:00:00.000Z',
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2026-08-31',model:{projectId:id,source:'xer',sourceRevisionId:'U1',dataDateIso:'2026-08-31T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as any);
+  state.evidenceDocuments.push({documentId:'AMD',category:'contract',documentType:'contract_amendment',sourceFilename:'amendment.pdf',sourceHashSha256:'amd-hash',uploadedAt:'2026-09-01T00:00:00.000Z',basisState:'additive',linkedArtifactId:null,diagnostics:[]} as any);
+  state.contractDocuments.push({documentId:'AMD',role:'amendment',result:{sections:[{text:'Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030',startPage:1,sectionKey:'preamble',sourceMode:'deterministic',sourceSpans:[],kind:'preamble',status:'verified',diagnostics:[]}],pdf:{pages:[]}}} as any);
+  state.version++;
+  return state;
+};
+
+test('the shared time position keeps a user-entered award when an amendment applies with no determinations, the same value as the reporting basis',async()=>{
+  const {missingValueInputPatch,heldMissingValue}=await import('../packages/runtime-api/src/missing-value-inputs');
+  const {canonicalTimeClaims}=await import('../packages/runtime-api/src/canonical-time-claims');
+  const {reportingTimeBasis}=await import('../packages/runtime-api/src/source-review-decisions');
+  const state=amendedProject('INPUT-AMEND-'+process.pid);
+  const before=canonicalTimeClaims(state,true).contractTimeBasis!;
+  assert.equal(before.overlapResolution,'unresolved','the amendment branch applies');assert.match(before.contractualCompletionIso??'',/^2030-03-31/);
+  assert.equal(before.officialApprovedEotDays,null,'no determinations: the award is unknown');
+  assert.equal(heldMissingValue(state,'approved-eot-days'),null);
+  state.controls.contractTimeBasis=missingValueInputPatch(state,'approved-eot-days',{days:'12'}).contractTimeBasis!;state.version++;
+  const shared=canonicalTimeClaims(state,true).contractTimeBasis!;
+  assert.equal(shared.overlapResolution,'unresolved','still the amendment branch');assert.match(shared.contractualCompletionIso??'',/^2030-03-31/,'the amended completion still governs');
+  assert.equal(shared.officialApprovedEotDays,12,'the shared time position keeps the user-entered award');
+  assert.equal(shared.officialApprovedEotState,'official');
+  assert.ok(shared.sourceRefs.includes('user-confirmation:approved-eot-days:12'),'and its user-confirmation reference');
+  assert.equal(reportingTimeBasis(state,shared)?.officialApprovedEotDays,12,'one value on every page');
+  assert.equal(heldMissingValue(state,'approved-eot-days'),12);
+});
+
+test('rebuilding from a claims register keeps a user-entered award unless the register establishes an award, which replaces it and drops its reference',async()=>{
+  const {rebuildDerivedControls}=await import('../packages/runtime-api/src/evidence-control-adapters');
+  // The rebuild reads each active document's derived controls. The claims
+  // adapter yields a time basis only when the register establishes an award.
+  const run=(id:string,derived:Record<string,unknown>)=>{
+    const state=amendedProject(id);
+    state.controls.contractTimeBasis={contractualCompletionIso:null,contractualCompletionState:'missing',officialApprovedEotDays:12,officialApprovedEotState:'official',
+      eotDayBasis:'unknown',eotDayBasisState:'missing',sourceRefs:['user-confirmation:approved-eot-days:12']} as any;
+    state.evidenceDocuments.push({documentId:id+'-REG',category:'risk_claims_procurement',documentType:'delay_eot_claims_register',sourceFilename:'claims.csv',sourceHashSha256:'reg-hash',
+      uploadedAt:'2026-09-02T00:00:00.000Z',basisState:'active',linkedArtifactId:null,diagnostics:[]} as any);
+    (state.derivedControlsByDocument as any)[id+'-REG']=derived;
+    state.version++;rebuildDerivedControls(state);
+    return state.controls.contractTimeBasis!;
+  };
+  const kept=run('INPUT-REBUILD-NONE-'+process.pid,{});
+  assert.equal(kept.officialApprovedEotDays,12,'a register with no determinations does not wipe the entered award');
+  assert.equal(kept.officialApprovedEotState,'official');
+  assert.ok(kept.sourceRefs.includes('user-confirmation:approved-eot-days:12'));
+  const replaced=run('INPUT-REBUILD-AWARD-'+process.pid,{contractTimeBasis:{contractualCompletionIso:null,contractualCompletionState:'missing',officialApprovedEotDays:26,officialApprovedEotState:'official',
+    eotDayBasis:'calendar_days',eotDayBasisState:'official',sourceRefs:['evidence-document:REG:row:2']}});
+  assert.equal(replaced.officialApprovedEotDays,26,'a source award governs');
+  assert.ok(replaced.sourceRefs.includes('evidence-document:REG:row:2'));
+  assert.ok(!replaced.sourceRefs.some(ref=>ref.startsWith('user-confirmation:approved-eot-days:')),'the replaced user value no longer claims to be the source');
+});
