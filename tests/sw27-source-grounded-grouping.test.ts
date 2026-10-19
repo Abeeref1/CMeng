@@ -71,7 +71,7 @@ test('SW-27 without activity codes, location groups come from the WBS level',()=
 // groups by the same labelled source groups.
 function workfront(t:any,model:CanonicalScheduleModel){
  const root=mkdtempSync(join(tmpdir(),'cmeng-sw27-source-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
- const store=new RuntimeProjectStore({dataDir:root,durable:false}),state=store.getOrCreate(model.projectId);
+ const store=new RuntimeProjectStore({dataDir:root,durable:false}),state=store.getOrCreate(model.projectId??"SW27");
  state.schedules.push({role:'update',format:'xer',sourceFilename:'Current.xer',sourceHashSha256:'sw27-'+model.sourceRevisionId+'-'+model.activities.length+'-'+String(model.wbs.length),uploadedAt:'2031-01-05',
   revision:{revisionId:model.sourceRevisionId,label:'Current',sequence:1,effectiveAt:'2031-01-05',model}} as any);
  store.touch(state);
