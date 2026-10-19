@@ -13,6 +13,7 @@ import {bindProjectFacts} from './project-fact-consumers';
 import {pmcScheduleRules} from './pmc-schedule-rules';
 import {projectActionRegisterForState,peekCachedScheduleAnalytics,analyticalHistory} from './project-projections';
 import {cachedIndependentForecast} from './forecast-cache';
+import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {contractCompletionPosition} from './contract-completion';
@@ -356,8 +357,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // as the current CPM. Only read when the current CPM is publishable.
   const history=current&&independentFinish!==null?analyticalHistory(scoped):[];
   const currentAt=current?history.findIndex(row=>row.revision.revisionId===current.revision.revisionId):-1;
-  const currentDataMs=model?.dataDateIso?Date.parse(model.dataDateIso):NaN;
-  const previousStored=currentAt>0&&Number.isFinite(currentDataMs)?history.slice(0,currentAt).filter(row=>!!row.revision.model.dataDateIso&&Date.parse(row.revision.model.dataDateIso)<currentDataMs).at(-1)??null:null;
+  const currentDataMs=parseScheduleInstant(model?.dataDateIso??null);
+  const previousStored=currentAt>0&&currentDataMs!==null?history.slice(0,currentAt).filter(row=>{const at=parseScheduleInstant(row.revision.model.dataDateIso??null);return at!==null&&at<currentDataMs;}).at(-1)??null:null;
   const previousForecast=previousStored?cachedIndependentForecast(previousStored.revision.model,'project-version:'+state.version):null;
   const previousPublishable=!!previousStored&&!!previousForecast&&buildForecastReconciliationGate({model:previousStored.revision.model,forecast:previousForecast,requiredFinishIso:currentContractCompletion}).publishable===true&&!hasUnreconciledScheduleCalendar(previousForecast);
   const previousRevision=previousStored?{revisionId:previousStored.revision.revisionId,label:previousStored.revision.label??previousStored.sourceFilename??null,model:previousStored.revision.model,

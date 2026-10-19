@@ -1,6 +1,6 @@
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import {activityNearCriticalThresholdHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
-import {addWorkingHours,resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src/calendar';
+import {addWorkingHours,parseScheduleInstant,resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src/calendar';
 import {programmeControlStageClassifier,programmeControlStageLabel} from './management-context';
 import {codeGroup,DISCIPLINE_CODE_TYPES,LOCATION_CODE_TYPES} from './schedule-scope-classification';
 
@@ -239,8 +239,9 @@ function programmeFloatErosion(model:CanonicalScheduleModel|null,remaining:Canon
  if(!current?.floats)return none('The CMeng CPM of the current revision is not complete and publishable, so its total floats are not established.');
  if(!previous)return none('No earlier dated, adopted programme revision is available to compare.');
  if(!previous.model.dataDateIso)return none('The previous revision has no Data Date.');
- const fromMs=Date.parse(previous.model.dataDateIso),toMs=Date.parse(model.dataDateIso),completionMs=Date.parse(current.completionIso);
- if(!Number.isFinite(fromMs)||!Number.isFinite(toMs)||fromMs>=toMs)return none('The previous revision Data Date is not earlier than the current Data Date.');
+ // Source instants are read as the CPM engine reads them (no offset = UTC).
+ const fromMs=parseScheduleInstant(previous.model.dataDateIso),toMs=parseScheduleInstant(model.dataDateIso),completionMs=parseScheduleInstant(current.completionIso)??NaN;
+ if(fromMs===null||toMs===null||fromMs>=toMs)return none('The previous revision Data Date is not earlier than the current Data Date.');
  if(!previous.forecast)return none(previous.reason??'The CMeng CPM of the previous revision is not complete and publishable, so its total floats are not established.');
  const now=new Map(current.floats.map(r=>[r.activityId,r.independentTotalFloatHours])),then=new Map(previous.forecast.activities.map(r=>[r.activityId,r.independentTotalFloatHours]));
  const priorById=new Map(previous.model.activities.map(a=>[a.activityId,a]));

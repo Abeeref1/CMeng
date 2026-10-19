@@ -119,6 +119,24 @@ function render(names: string[], call: string, q: unknown): string {
   }) as string;
 }
 
+// The real Near-Critical page function (batch-c harness), with the uploaded project's shared facts.
+function renderNearCriticalPage(projectFacts: unknown): string {
+  const script = pageScript();
+  const start = script.indexOf('function renderNearCriticalVisual(data){'), end = script.indexOf('function renderManhourVisual(data){', start);
+  assert.ok(start >= 0 && end > start);
+  const parsed = createSourceFile('cmeng-screen.js', script, ScriptTarget.Latest, true);
+  const helpers = 'let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n' + parsed.statements.filter(isFunctionDeclaration)
+    .filter(n => ['indexResponsePopulations', 'listTotal', 'knownScreenCount', 'screenCountText', 'floatThresholdText', 'floatBucketDaysNote', 'floatDistributionSummary'].includes(n.name?.text ?? '')).map(n => n.getText(parsed)).join('\n');
+  const p = {rows: [], watchlistRows: [], criticalRows: [], negativeFloatRows: [], managementGroups: [], nearCriticalCount: 0, floatRiskWatchlistCount: 0, zeroFloatCount: 0, negativeFloatCount: 0,
+    floatCoveragePercent: 100, classificationCoveragePercent: 100, unresolvedActivityCount: 0, criticalThresholdHours: 0, nearCriticalThresholdHours: 40, floatRiskWatchlistIncludesCriticalThreshold: true,
+    nearCriticalThresholdAuthority: 'cmeng_screening_policy', ...(projectFacts ? {projectFacts} : {})};
+  const text = (value: unknown) => String(value ?? '');
+  return vm.runInNewContext(helpers + '\n' + script.slice(start, end) + ';renderNearCriticalVisual(p);', {
+    shortRevision: (value: unknown) => value ? 'Previous programme' : 'No comparison programme', p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, planningShortDate: text,
+    planningStateLabel: text, planningDaysBetween: () => null, planningKpis: () => '', planningFloatHistogram: () => '', planningFinishPeriodBars: () => '', distributionSummary: () => '',
+  }) as string;
+}
+
 let projectId = '';
 async function uploadedProject() {
   if (projectId) return runtimeProjects.get(projectId)!;
@@ -215,13 +233,14 @@ test('F38 uploaded programme: driving chain stages from codes and WBS, float ero
   assert.match(review, /Driving chain by stage<\/b> \(from the programme activity codes and WBS\): .*Structure · Plot B43 \(1\) > MEP \(1\) > Painting \(1\) > Snagging \(1\) > Not classified \(1\) > Handover & closeout \(1\)\./);
   assert.match(review, /Stage source: \d from activity codes, 1 from WBS, 1 by the Programme stage name rule \(name match\), 1 not classified\./);
   assert.match(review, /Criticality definition:<\/b> critical = total float <= 0 h on the CMeng CPM; near-critical = total float > 0 h and <= 5 working days of each activity calendar \(C5: 40 h\) \(CMeng policy default\)\./);
-  assert.match(review, /Float erosion<\/b> \(CMeng CPM total float, previous to current revision\): 2027-01-04T08:00:00\.000Z to 2027-01-11T08:00:00\.000Z: 8 of 8 near-critical and driving activities compared; 1 losing float; average change -0\.0375 working days of total float per working day elapsed, on the activity calendar\. Turns critical by: 2027-01-15T16:00:00\.000Z \(X1\)\./);
+  assert.match(review, /Float erosion<\/b> \(CMeng CPM total float, previous to current revision\): 2027-01-04T08:00[^ ]* to 2027-01-11T08:00[^ ]*: 8 of 8 near-critical and driving activities compared; 1 losing float; average change -0\.0375 working days of total float per working day elapsed, on the activity calendar\. Turns critical by: 2027-01-15T16:00:00\.000Z \(X1\)\./);
   assert.match(review, /BEI \(Baseline Execution Index\) = detail tasks completed by the Data Date/);
-  const nearCritical = render(['renderNearCriticalCpmFloat'], 'renderNearCriticalCpmFloat(q);', q);
+  const nearCritical = renderNearCriticalPage((moduleForProject(projectId, 'near-critical').data as any).projectFacts);
   assert.match(nearCritical, /<h4>CMeng CPM criticality and float erosion<\/h4>/);
   assert.match(nearCritical, /<b>Turns critical by:<\/b> 2027-01-15T16:00:00\.000Z \(X1\)/);
   assert.match(nearCritical, /<tr><td><b>X1<\/b><br><span class="muted">External works<\/span><\/td><td>32 h<\/td><td>16 h<\/td><td>-0\.4<\/td><td>2027-01-15T16:00:00\.000Z<\/td><td>Losing float<\/td><\/tr>/);
-  assert.match(pageScript(), /renderNearCriticalCpmFloat\(data&&data\.projectFacts\?data\.projectFacts\.programmeQuality:null\)/, 'the Near-Critical page renders the shared panel');
+  assert.ok(nearCritical.indexOf('Float screening basis:') < nearCritical.indexOf('CMeng CPM criticality and float erosion'), 'shown after the float screening basis');
+  assert.doesNotMatch(renderNearCriticalPage(undefined), /CMeng CPM criticality and float erosion/, 'no project facts: no panel');
 });
 
 test('F38 float erosion is not established without two dated revisions with matching ids; never invented', async () => {
