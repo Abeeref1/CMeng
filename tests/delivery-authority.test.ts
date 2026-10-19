@@ -88,6 +88,23 @@ test('programme scope and look-ahead remain usable without a workfront register'
  assert.ok(readiness.rows.every((row:any)=>row.state==='unknown'),'missing external prerequisites cannot become a ready workfront');
 });
 
+test('SW-17 package programme need date is the linked start less the stated lead/review time, the same date the timing uses',async t=>{
+ const f=await fixture(t);
+ // A1 starts 2031-09-30 in the current programme; 14 stated calendar days -> 2031-09-16 (hand count: Sep 16 + 14 = Sep 30).
+ f.create('package','LEAD-REVIEW',{'review time':'14','forecast delivery date':'2031-09-25',status:'Ordered'},{activityIds:['A1']});
+ f.create('package','NO-LEAD',{'forecast delivery date':'2031-09-25',status:'Ordered'},{activityIds:['A1']});
+ f.create('package','BAD-LEAD',{'review time':'10 working days','forecast delivery date':'2031-09-25',status:'Ordered'},{activityIds:['A1']});
+ const rows=deliveryPosition(f.state).packageRows;
+ const lead=rows.find(r=>r.reference==='LEAD-REVIEW')!,none=rows.find(r=>r.reference==='NO-LEAD')!,bad=rows.find(r=>r.reference==='BAD-LEAD')!;
+ assert.equal(lead.programmeNeedDate,'2031-09-16');assert.equal(lead.needDate,'2031-09-16');
+ assert.equal(lead.headroomCalendarDays,-9);assert.equal(lead.forecastLate,true);
+ assert.match(lead.needDateBasis,/linked activity start 2031-09-30 less the stated 14 calendar-day lead\/review time/);
+ // no stated time: no default, the start itself; forecast 09-25 is 5 days early
+ assert.equal(none.programmeNeedDate,'2031-09-30');assert.equal(none.needDate,'2031-09-30');assert.equal(none.headroomCalendarDays,5);assert.equal(none.forecastLate,false);
+ // stated but unreadable: not established, never the raw start
+ assert.equal(bad.programmeNeedDate,null);assert.equal(bad.needDate,null);assert.equal(bad.forecastLate,false);
+});
+
 test('procurement protects the earlier recorded need and identifies overdue undelivered packages',async t=>{
  const f=await fixture(t);
  f.create('package','EARLY-NEED',{'required on site':'2031-08-29','forecast delivery date':'2031-09-19',status:'Ordered'},{activityIds:['A1']});
