@@ -1,4 +1,5 @@
-import {apiOwnerText} from './action-priority';
+import {apiOwnerText,apiDueIso} from './action-priority';
+import {applyActionAssignments} from './action-assignments';
 import {phaseProgrammePosition} from './phase-programmes';
 import {projectFactsForState,type ProjectFact} from './project-facts';
 import {askScheduleActivities,askCriticalPath} from './ask-schedule';
@@ -212,7 +213,8 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   const shared=projectFactsForState(context.state);
   const sharedMetric=(id:string,name:string,fact:ProjectFact<any>,unit:string|null)=>b.metric(id,name,fact.value,unit,fact.basis,{fact:true,refs:fact.sourceRefs,state:fact.value===null?'missing':fact.complete?'established':'partial'});
   if(registration.id==='command-center'){
-    const rows=Array.isArray(d?.actions)?d.actions:[];
+    // T09: user-assigned owners and due dates join the same rows (same identity) as on screen.
+    const rows=Array.isArray(d?.actions)?applyActionAssignments(d.actions as any[],context.state.controls.actionAssignments,projectControlSchedule(context.state)?.revision.model.dataDateIso??null):[];
     const requested=plan?.limit&&plan.limit>0?plan.limit:null;
     const selected=requested?rows.slice(0,requested):rows;
     b.result.explanation=rows.length
@@ -229,7 +231,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
       owner:apiOwnerText(row)??null,
       organisation:row.organisation??null,
       requiredAction:row.requiredAction??null,
-      dueDate:row.dueIso??null,
+      dueDate:apiDueIso(row),
       escalation:row.escalation??null,
       authority:row.authority??null,
       owningModule:row.owningModule??null

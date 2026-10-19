@@ -93,3 +93,19 @@ test('SW-24 crew and shift options on the driving path get a CPM completion gain
  assert.equal(missing.pathRole,'recovery_option');assert.equal(missing.completionGainWorkingDays,null);assert.match(missing.completionGainBasis!,/^Not established/);
  assert.equal(JSON.stringify(model),before);
 });
+
+test('SW-24 with no completion milestone the gain is counted on the CPM finish activity\'s stated source calendar',()=>{
+ // The programme has no Programme PC milestone, as in an ordinary task-only XER.
+ const model=chainModel(),forecast=cachedIndependentForecast(model,'2034-01-01T00:00:00.000Z');
+ assert.deepEqual(forecast.drivingNetwork?.finishActivityIds,['A7']);
+ const crew=plotCrewScenarios(model);
+ classifyRecoveryAgainstCompletion(crew,model,forecast,null);
+ assert.equal(crew[0]!.pathRole,'recovery_option');
+ assert.equal(crew[0]!.completionGainWorkingDays,4,'counted in working days of calendar C (8 stated hours per day)');
+ assert.match(crew[0]!.completionGainBasis!,/calendar C of the CPM finish activity/);
+ // The source calendar does not state its day hours: still not established, never assumed.
+ const unstated=chainModel();(unstated.calendars[0] as any).standardDayHours=null;
+ const again=plotCrewScenarios(unstated);
+ classifyRecoveryAgainstCompletion(again,unstated,cachedIndependentForecast(unstated,'2034-01-01T00:00:00.000Z'),null);
+ assert.equal(again[0]!.completionGainWorkingDays,null);assert.doesNotMatch(again[0]!.completionGainBasis!,/CMeng CPM run with/);
+});
