@@ -86,11 +86,19 @@ const disciplineRules:[string,RegExp[]][]=[
 const disciplineRuleMatchers:[string,RegExp][]=disciplineRules.map(([name,patterns])=>
   [name,new RegExp(patterns.map(pattern=>'(?:'+pattern.source+')').join('|'),'i')]);
 function derivedDiscipline(text:string){
-  const hits=disciplineRuleMatchers.filter(([,matcher])=>matcher.test(text)).map(([name])=>name);
-  const specific=hits.filter(name=>name!=='MEP');
-  if(specific.length===1)return specific[0]!;
-  if(specific.length>1)return null;
-  return hits.includes('MEP')?'MEP':null;
+  // Same rule order and outcome as collecting every hit, without three arrays
+  // per activity. `test` on these non-global expressions has no side effect,
+  // so stopping once a second specific discipline matches (always ambiguous,
+  // null) cannot change the result.
+  let specific:string|null=null,specificCount=0,mep=false;
+  for(const [name,matcher] of disciplineRuleMatchers){
+    if(!matcher.test(text))continue;
+    if(name==='MEP'){mep=true;continue;}
+    if(++specificCount>1)return null;
+    specific=name;
+  }
+  if(specificCount===1)return specific!;
+  return mep?'MEP':null;
 }
 /** Immutable regex definitions: they contain no global/sticky expressions.
  * Reusing these source rules avoids allocating the same ~20 spatial readers for
