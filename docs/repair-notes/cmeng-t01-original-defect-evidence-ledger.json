@@ -1236,16 +1236,18 @@
           "01858c50",
           "eb9bfce8",
           "99bd23c1",
-          "e0b7b9c2"
+          "e0b7b9c2",
+          "b5d59fea"
         ],
         "regressionFiles": [
           "tests/t02-eastern-digit-source-reader.test.ts",
           "tests/t02-xer-column-audit-activity-codes.test.ts",
           "tests/t02-programme-column-audit-formats.test.ts",
-          "tests/t02-r1-stored-size-load.test.ts"
+          "tests/t02-r1-stored-size-load.test.ts",
+          "tests/t02-p6-xml-calendar-working-time.test.ts"
         ],
-        "repairNotes": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Rounds 9 and 10 (R1, programme files): every XER table column, and P6 XML, CSV and xlsx programme fields, are listed as read or unused with a sample; activity codes, WBS path, resources and cost accounts reach the activity; the audit is stored with the schedule revision.",
-        "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered. Rounds 9 and 10: P6 XML calendar working time is not read (agent x2 report). Register files other than programmes keep the earlier R1 coverage."
+        "repairNotes": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Rounds 9 and 10 (R1, programme files): every XER table column, and P6 XML, CSV and xlsx programme fields, are listed as read or unused with a sample; activity codes, WBS path, resources and cost accounts reach the activity; the audit is stored with the schedule revision. Round 12 (r12-xmlcal): P6 XML calendar working time is read into the same calendar model as the XER calendar; the same programme as XER and as P6 XML gives identical CMeng CPM dates, floats and working-day delays, equal to the independent solver; calendar faults stay unknown.",
+        "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered. Rounds 9 and 10: Register files other than programmes keep the earlier R1 coverage. Round 12: P6 XML duration units (hours) are pending branch r13-xmldur (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1357,6 +1359,13 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "b5d59fea",
+            "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -1378,7 +1387,8 @@
           "tests/t02-eastern-digit-source-reader.test.ts",
           "tests/t02-xer-column-audit-activity-codes.test.ts",
           "tests/t02-programme-column-audit-formats.test.ts",
-          "tests/t02-r1-stored-size-load.test.ts"
+          "tests/t02-r1-stored-size-load.test.ts",
+          "tests/t02-p6-xml-calendar-working-time.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -1473,16 +1483,21 @@
           "adfbb6e6",
           "b884f569",
           "7856c873",
-          "32e9a290"
+          "32e9a290",
+          "846b1f89",
+          "e43d199f",
+          "d510d58e",
+          "5180de02"
         ],
         "regressionFiles": [
           "tests/sw15-delay-events-not-from-claims.test.ts",
           "tests/universal-reporting-contract.test.ts",
           "tests/sales-blockers-closure.test.ts",
-          "tests/f06-event-register-content-both-readers.test.ts"
+          "tests/f06-event-register-content-both-readers.test.ts",
+          "tests/f06-claims-files-merge-notice-register.test.ts"
         ],
-        "repairNotes": "Round 6: Claims register rows no longer make delay events; event counts are null with a reason until an event source exists. Claims are unchanged. Rounds 9 and 10: claim rows never give event dates, notice timing or reported events; an event register found by its headers or its column content is read the same by both claims readers (z6).",
-        "notCovered": "Event start and end dates on the notices page rows still come from claim rows; the events-by-data-date partition still lists them."
+        "repairNotes": "Round 6: Claims register rows no longer make delay events; event counts are null with a reason until an event source exists. Claims are unchanged. Rounds 9 and 10: claim rows never give event dates, notice timing or reported events; an event register found by its headers or its column content is read the same by both claims readers (z6). Round 12 (r12-claims): every claims / EOT register file is merged by claim id, with one conflict query and the later report date inside the files deciding, not the upload order; notice register rows become notice records linked to their events; a notice register alone never establishes a claims population; the notice count is the dated position and an undated notice is kept and listed.",
+        "notCovered": "The round 6 gap (event dates and notice timing from claim rows) is closed by dbe1bd3f (sw15 case \"claims register only gives no event dates, no notice timing and no reported events\") and the round 12 notice linking above. REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1533,6 +1548,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "846b1f89",
+            "subject": "test(F06): two claims files and a notice register through the real upload path (probe on the unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e43d199f",
+            "subject": "fix(F06): every claims/EOT register file is merged by claim id, and notice register rows become notice records linked to their events",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d510d58e",
+            "subject": "fix(F06): file order per record, notice letters, notice-only sources never establish a population",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "5180de02",
+            "subject": "test(F06): the notice count is the dated position (the undated notice is retained and listed)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -1554,7 +1597,8 @@
           "tests/sw15-delay-events-not-from-claims.test.ts",
           "tests/universal-reporting-contract.test.ts",
           "tests/sales-blockers-closure.test.ts",
-          "tests/f06-event-register-content-both-readers.test.ts"
+          "tests/f06-event-register-content-both-readers.test.ts",
+          "tests/f06-claims-files-merge-notice-register.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -2049,14 +2093,17 @@
         "sourceCommits": [
           "0c94e0d3",
           "4c73da1e",
-          "2bc53675"
+          "2bc53675",
+          "01446dfd",
+          "e9aba9b9"
         ],
         "regressionFiles": [
           "tests/t07-contract-time-original-and-completion-movement.test.ts",
           "tests/f33-extended-completion-every-page.test.ts",
-          "tests/y11-sw46-conditional-notices.test.ts"
+          "tests/y11-sw46-conditional-notices.test.ts",
+          "tests/r12-f34-time-for-completion-from-commencement.test.ts"
         ],
-        "repairNotes": "Round 6: Original completion read from the contract and amendments that restate it, under the T04 source rule; extended date kept separate. Round 10: one shared contract time reader on every page and chart; without an awarded EOT the original date is never labelled as including EOT (F33).",
+        "repairNotes": "Round 6: Original completion read from the contract and amendments that restate it, under the T04 source rule; extended date kept separate. Round 10: one shared contract time reader on every page and chart; without an awarded EOT the original date is never labelled as including EOT (F33). Round 12 (r12-sections): a Time for Completion stated as a period gets the stated Commencement Date plus the period for the Works and each Section; Section EOT and sectional LD use it on every page; with no Commencement Date the dates stay unknown with the reason, and a user-confirmed Commencement Date is used and labelled.",
         "notCovered": "Not live until deployed."
       },
       "independentVerification": {
@@ -2087,6 +2134,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "01446dfd",
+            "subject": "probe(F34): Time for Completion stated as a period, on the unfixed base",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e9aba9b9",
+            "subject": "fix(F34): Time for Completion stated as a period gets Commencement Date + the period; sectional EOT and LD use it",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -2110,7 +2171,8 @@
         "namedTests": [
           "tests/t07-contract-time-original-and-completion-movement.test.ts",
           "tests/f33-extended-completion-every-page.test.ts",
-          "tests/y11-sw46-conditional-notices.test.ts"
+          "tests/y11-sw46-conditional-notices.test.ts",
+          "tests/r12-f34-time-for-completion-from-commencement.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -5133,7 +5195,16 @@
           "3f8f3f73",
           "12a9ed2c",
           "4b437941",
-          "de6a9028"
+          "de6a9028",
+          "e561e4de",
+          "307f2e99",
+          "096372a9",
+          "73bc6ef4",
+          "a7db445d",
+          "96d54dfe",
+          "6b43cd9f",
+          "d95ac0a0",
+          "c086c9a2"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
@@ -5151,9 +5222,10 @@
           "tests/t11-module-issues-walk-parity.test.ts",
           "tests/t11-worker-compile-cache.test.ts",
           "tests/t11-large-register-cold-dashboard.test.ts",
-          "tests/t11-issue-summary-fold-parity.test.ts"
+          "tests/t11-issue-summary-fold-parity.test.ts",
+          "tests/t11-request-path-parity.test.ts"
         ],
-        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs. Round 11 (r11-perf): cold Dashboard within the owner's 10 s at 8,900 activities and 38,300 register rows; delay notices grouped once per event and claim; identical findings folded in linear time with the same result as the one-at-a-time fold; per-row lookups indexed in Delivery risks, Director claims and commercial variations.",
+        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs. Round 11 (r11-perf): cold Dashboard within the owner's 10 s at 8,900 activities and 29,300 register rows (row count as corrected in the test title by e561e4de); delay notices grouped once per event and claim; identical findings folded in linear time with the same result as the one-at-a-time fold; per-row lookups indexed in Delivery risks, Director claims and commercial variations. Round 12 (r12-perf2): per-request source labels read each string once; one table analysis per sheet; a screen page serialised once; multi-sheet workbook readings kept by content key; ExcelJS, JSZip, fast-xml-parser and the application page loaded on first use; the parity test shows the same outputs. The lead reports j8-final 402 s to 293 s on the slow CI runner with identical outputs. The temporary probes (28fa742d, e453479e, 36c1f7bc and the zz-r12 files) were removed before merge (bd96b562) and are not linked.",
         "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests. Round 11: The temporary profiling probes (4abd2df3, a8373994) were removed before merge (2a760d05) and are not linked. The owner 10 s case (t11-large-register-cold-dashboard) fails on this 2-CPU board machine: cold Dashboard 18,133 ms and 18,487 ms (exclusive CPU) on ca04db07, and 18,611 ms on ff5fa80d, the r11-perf merge point that 2a760d05 states was verified on CI run 39304244064. The later merges did not slow it; the result depends on the machine, so the 10 s limit is not proven for production hardware. Final update: the lead reports CI measured 5.6 s on the merged state; not re-run on this machine by instruction. Production hardware is not measured."
       },
       "independentVerification": {
@@ -5401,6 +5473,69 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "e561e4de",
+            "subject": "test(T11): correct the register row count in the large-register test title (29,300, not 38,300)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "307f2e99",
+            "subject": "perf(T11): per-request source labels read each string once; one table analysis per sheet; ExcelJS and JSZip loaded on first use",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "096372a9",
+            "subject": "perf(T11): a screen page is serialised once (the measured text is the sent text)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "73bc6ef4",
+            "subject": "perf(T11): multi-sheet workbook readings kept by content key; one walk for response source labels",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "a7db445d",
+            "subject": "perf(T11): a saved page read lists the project's saved reads only when the byte cap could be reached",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "96d54dfe",
+            "subject": "perf(T11): the application page is built on its first request, not at every project-worker start",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "6b43cd9f",
+            "subject": "perf(T11): screen responses build pointer tokens and source-label identities without per-key regex and per-object arrays",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d95ac0a0",
+            "subject": "perf(T11): fast-xml-parser loaded on first XML read, not at every project-worker start",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "c086c9a2",
+            "subject": "perf(T11): keep the JSON boundary's owner presentation in one expression (t09 A4 source check)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -5434,7 +5569,8 @@
           "tests/t11-module-issues-walk-parity.test.ts",
           "tests/t11-worker-compile-cache.test.ts",
           "tests/t11-large-register-cold-dashboard.test.ts",
-          "tests/t11-issue-summary-fold-parity.test.ts"
+          "tests/t11-issue-summary-fold-parity.test.ts",
+          "tests/t11-request-path-parity.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -5710,14 +5846,20 @@
           "1e53b68e",
           "647a086f",
           "04abe158",
-          "88864efc"
+          "88864efc",
+          "ae44f64e",
+          "cdc33a6d",
+          "15810036",
+          "67d72fc1",
+          "92d3c03f"
         ],
         "regressionFiles": [
           "tests/v1-f01-page-figures-match-api.test.ts",
-          "tests/f01-real-browser-every-page.test.ts"
+          "tests/f01-real-browser-every-page.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ],
-        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515). Round 12 (r11-f01): a real headless Chrome test walks 63 surfaces against answers computed from the source (\"F01 real browser: every page shows the source answer key, one value per fact, no banned words, pages under 2 MB\"); fixes found by it: the Portfolio address opens Portfolio, and a stated gross certified column is the gross (04abe158).",
-        "notCovered": "\"Not established\" is the platform's shared unknown label and is not on the banned list; showing it where the source has the value fails the answer-key check instead. The test is in the focused CI workflow; running it on the exact release commit before a deploy is a release step the test does not show. The net-only certified label is pending branch r12-netgross (lead). REEM-specific numbers cannot be checked without the REEM file (lead)."
+        "repairNotes": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable). Round 11 (v1): the page/API check is widened to completion dates and money (\"F01: completion dates and money shown on every page equal the API answer key\") and the cost comparison panel's contract value and EAC; pages now show the reporting contract completion the API facts show (57ed6515). Round 12 (r11-f01): a real headless Chrome test walks 63 surfaces against answers computed from the source (\"F01 real browser: every page shows the source answer key, one value per fact, no banned words, pages under 2 MB\"); fixes found by it: the Portfolio address opens Portfolio, and a stated gross certified column is the gross (04abe158). Round 12 (r12-netgross, r12-netgross2): a certified figure is labelled by the register column it came from on every page, fact, Ask answer and download; gross-only and Net Payable certificate registers are read; the receipts scenario never subtracts net. Round 12 (lead, 92d3c03f): the browser launcher never leaves Chrome holding the test process open, so the browser tests never hang.",
+        "notCovered": "\"Not established\" is the platform's shared unknown label and is not on the banned list; showing it where the source has the value fails the answer-key check instead. The test is in the focused CI workflow; running it on the exact release commit before a deploy is a release step the test does not show. REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5776,6 +5918,41 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "ae44f64e",
+            "subject": "test(R12): certified figure labelled by its register column (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "cdc33a6d",
+            "subject": "fix(R12): a certified figure is labelled by the register column it came from",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "15810036",
+            "subject": "test(R12 follow-up): gross-only and net-payable registers read; receipts scenario never subtracts net (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "67d72fc1",
+            "subject": "fix(R12 follow-up): read gross-only and net-payable certificate registers; receipts scenario never subtracts net",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "92d3c03f",
+            "subject": "test(F01 R12): browser launcher never leaves Chrome holding the test process open",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -5794,7 +5971,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/v1-f01-page-figures-match-api.test.ts",
-          "tests/f01-real-browser-every-page.test.ts"
+          "tests/f01-real-browser-every-page.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -6119,15 +6297,20 @@
           "65ed08a4",
           "b08d17d9",
           "7856c873",
-          "32e9a290"
+          "32e9a290",
+          "846b1f89",
+          "e43d199f",
+          "d510d58e",
+          "5180de02"
         ],
         "regressionFiles": [
           "tests/t05-same-measure-every-page.test.ts",
           "tests/sw15-delay-events-not-from-claims.test.ts",
-          "tests/f06-event-register-content-both-readers.test.ts"
+          "tests/f06-event-register-content-both-readers.test.ts",
+          "tests/f06-claims-files-merge-notice-register.test.ts"
         ],
-        "repairNotes": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page. Round 10 (z6): an event register found by its headers or its column content is read the same by both claims readers.",
-        "notCovered": "Notice timing (14 timely / 2 late), determinations and claimed / assessed days on every page are not compared; EOT page \"Independent comparison not confirmed\" not tested. With only a claims register the event count is null with a reason, not 16."
+        "repairNotes": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page. Round 10 (z6): an event register found by its headers or its column content is read the same by both claims readers. Round 12 (r12-claims): every claims / EOT register file is merged by claim id, with one conflict query and the later report date inside the files deciding, not the upload order; notice register rows become notice records linked to their events; a notice register alone never establishes a claims population; the notice count is the dated position and an undated notice is kept and listed.",
+        "notCovered": "Determinations and claimed / assessed days are not compared page by page; notice timing (14 timely / 2 late) is not compared on every page; EOT page \"Independent comparison not confirmed\" not tested. REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6165,6 +6348,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "846b1f89",
+            "subject": "test(F06): two claims files and a notice register through the real upload path (probe on the unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e43d199f",
+            "subject": "fix(F06): every claims/EOT register file is merged by claim id, and notice register rows become notice records linked to their events",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d510d58e",
+            "subject": "fix(F06): file order per record, notice letters, notice-only sources never establish a population",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "5180de02",
+            "subject": "test(F06): the notice count is the dated position (the undated notice is retained and listed)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -6188,7 +6399,8 @@
         "namedTests": [
           "tests/t05-same-measure-every-page.test.ts",
           "tests/sw15-delay-events-not-from-claims.test.ts",
-          "tests/f06-event-register-content-both-readers.test.ts"
+          "tests/f06-event-register-content-both-readers.test.ts",
+          "tests/f06-claims-files-merge-notice-register.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -6220,14 +6432,18 @@
           "736defe3",
           "3c1336b6",
           "4e191f18",
-          "9594bd24"
+          "9594bd24",
+          "db5bff40",
+          "d8620ffe",
+          "29a08ce0"
         ],
         "regressionFiles": [
           "tests/v1-f07-shared-input-status.test.ts",
-          "tests/v1b-f07-risk-rows-trade-capacity.test.ts"
+          "tests/v1b-f07-risk-rows-trade-capacity.test.ts",
+          "tests/r12-f07-shared-prerequisites.test.ts"
         ],
-        "repairNotes": "Round 11 (v1, v1b): calendars, capacity and risk owners are one shared input status on every page and in the project facts; the risk register and Delivery risks state the same 110-row population; every trade in the resource register is on the Resources page with its capacity, never promoted from a candidate.",
-        "notCovered": "Quantities, CPM coverage, installed quantities and the discipline list as one shared status are not named in these tests. REEM-specific checks cannot run without the REEM file (lead, round 11)."
+        "repairNotes": "Round 11 (v1, v1b): calendars, capacity and risk owners are one shared input status on every page and in the project facts; the risk register and Delivery risks state the same 110-row population; every trade in the resource register is on the Resources page with its capacity, never promoted from a candidate. Round 12 (r12-f07c): quantities, installed quantities, CPM coverage and the discipline list are in the project facts inputs, counted from the uploaded files; every page that shows or gates on them carries that status, and a page cannot show an input confirmed while another shows it missing; the Completion Forecast states why a CPM with all checks passed is held.",
+        "notCovered": "REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6265,6 +6481,27 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "db5bff40",
+            "subject": "fix(F07): quantities, installed quantities, CPM coverage and disciplines are one shared input status",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d8620ffe",
+            "subject": "test(F07): compare pages with each other before comparing them with the facts",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "29a08ce0",
+            "subject": "fix(F07): Completion Forecast states why a CPM with all checks passed is held; test lists every page conflict",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -6287,7 +6524,8 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/v1-f07-shared-input-status.test.ts",
-          "tests/v1b-f07-risk-rows-trade-capacity.test.ts"
+          "tests/v1b-f07-risk-rows-trade-capacity.test.ts",
+          "tests/r12-f07-shared-prerequisites.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8485,13 +8723,16 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "33682af9",
-          "98e9c103"
+          "98e9c103",
+          "01446dfd",
+          "e9aba9b9"
         ],
         "regressionFiles": [
-          "tests/w2-securities-shared-state.test.ts"
+          "tests/w2-securities-shared-state.test.ts",
+          "tests/r12-f34-time-for-completion-from-commencement.test.ts"
         ],
-        "repairNotes": "Rounds 9 and 10 (w2): one sectional LD position (capped sections) on Dashboard, Director and Financial Claims; sections read their own stated date and cap; an unclear basis stays needs review with the reason.",
-        "notCovered": "The Section 1 to 2 interface is not tested."
+        "repairNotes": "Rounds 9 and 10 (w2): one sectional LD position (capped sections) on Dashboard, Director and Financial Claims; sections read their own stated date and cap; an unclear basis stays needs review with the reason. Round 12 (r12-sections): a Time for Completion stated as a period gets the stated Commencement Date plus the period for the Works and each Section; Section EOT and sectional LD use it on every page; with no Commencement Date the dates stay unknown with the reason, and a user-confirmed Commencement Date is used and labelled.",
+        "notCovered": "The Section 1 to 2 interface is not tested. REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8515,6 +8756,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "01446dfd",
+            "subject": "probe(F34): Time for Completion stated as a period, on the unfixed base",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e9aba9b9",
+            "subject": "fix(F34): Time for Completion stated as a period gets Commencement Date + the period; sectional EOT and LD use it",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -8533,7 +8788,8 @@
         "consultantExpectedCheck": "Section 1 35,000/day; Section 2 60,000/day, cap 21M; LD 0.90M (extended) / 1.68M (original) on Dashboard, Contract, Financial Claims; Section 1 to 2 interface.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
-          "tests/w2-securities-shared-state.test.ts"
+          "tests/w2-securities-shared-state.test.ts",
+          "tests/r12-f34-time-for-completion-from-commencement.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -8658,16 +8914,21 @@
           "15cbcf23",
           "b6db450e",
           "b5ab3da6",
-          "02bd50ee"
+          "02bd50ee",
+          "ae44f64e",
+          "cdc33a6d",
+          "15810036",
+          "67d72fc1"
         ],
         "regressionFiles": [
           "tests/w3-commercial-headline-basis.test.ts",
           "tests/w3-commercial-round10.test.ts",
           "tests/shared-decision-closure.test.ts",
-          "tests/f29-f36-payment-rules.test.ts"
+          "tests/f29-f36-payment-rules.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ],
-        "repairNotes": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established. Round 11 (w3, r11-f29): like-for-like certified ratio (certified gross work over the original contract), a query when the contract states no tax basis; gross and net separate; application IPC-024 excluded; advance outstanding is advance less recoveries; a 1-riyal rounding is not a failure; the due date is shown with its basis beside Sub-Clause 14.7 and a register due date is compared with it.",
-        "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11). The net-only certified label is pending branch r12-netgross (lead)."
+        "repairNotes": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established. Round 11 (w3, r11-f29): like-for-like certified ratio (certified gross work over the original contract), a query when the contract states no tax basis; gross and net separate; application IPC-024 excluded; advance outstanding is advance less recoveries; a 1-riyal rounding is not a failure; the due date is shown with its basis beside Sub-Clause 14.7 and a register due date is compared with it. Round 12 (r12-netgross, r12-netgross2): a certified figure is labelled by the register column it came from on every page, fact, Ask answer and download; gross-only and Net Payable certificate registers are read; the receipts scenario never subtracts net.",
+        "notCovered": "By owner decision an unstated contract tax basis gives the certified ratio as a query, not a value. REEM-specific checks cannot run without the REEM file (lead, round 11)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8726,6 +8987,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "ae44f64e",
+            "subject": "test(R12): certified figure labelled by its register column (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "cdc33a6d",
+            "subject": "fix(R12): a certified figure is labelled by the register column it came from",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "15810036",
+            "subject": "test(R12 follow-up): gross-only and net-payable registers read; receipts scenario never subtracts net (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "67d72fc1",
+            "subject": "fix(R12 follow-up): read gross-only and net-payable certificate registers; receipts scenario never subtracts net",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -8747,7 +9036,8 @@
           "tests/w3-commercial-headline-basis.test.ts",
           "tests/w3-commercial-round10.test.ts",
           "tests/shared-decision-closure.test.ts",
-          "tests/f29-f36-payment-rules.test.ts"
+          "tests/f29-f36-payment-rules.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -9461,15 +9751,20 @@
           "79e78940",
           "1b2ada3d",
           "b370bba9",
-          "d06b8bfa"
+          "d06b8bfa",
+          "ae44f64e",
+          "cdc33a6d",
+          "15810036",
+          "67d72fc1"
         ],
         "regressionFiles": [
           "tests/r11-f45-progress-quantity-rules.test.ts",
           "tests/f16-f45-resource-hours-earned.test.ts",
-          "tests/r11-f10-one-owner-page-per-block.test.ts"
+          "tests/r11-f10-one-owner-page-per-block.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ],
-        "repairNotes": "Round 12 (r11-f45, r11-f16): one shared measured-progress calculation gives progress by area (Villa Type B its own row, not-mapped part shown), period and required rate to the governing completion, fractional lump-sum quantities queried and never summed with other units, installed value against certified gross work on the same currency and tax basis, and repeated BOQ item numbers matched by section; earned hours from stated BOQ labour hours per unit first, else programme budgeted units x % complete, against programme-recorded hours spent; no stated budget stays not established. Per-item curves on management pages are covered under F61.",
-        "notCovered": "The net-only certified label is pending branch r12-netgross (lead). REEM-specific numbers cannot be checked without the REEM file (lead)."
+        "repairNotes": "Round 12 (r11-f45, r11-f16): one shared measured-progress calculation gives progress by area (Villa Type B its own row, not-mapped part shown), period and required rate to the governing completion, fractional lump-sum quantities queried and never summed with other units, installed value against certified gross work on the same currency and tax basis, and repeated BOQ item numbers matched by section; earned hours from stated BOQ labour hours per unit first, else programme budgeted units x % complete, against programme-recorded hours spent; no stated budget stays not established. Per-item curves on management pages are covered under F61. Round 12 (r12-netgross, r12-netgross2): a certified figure is labelled by the register column it came from on every page, fact, Ask answer and download; gross-only and Net Payable certificate registers are read; the receipts scenario never subtracts net.",
+        "notCovered": "REEM-specific numbers cannot be checked without the REEM file (lead)."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -9521,6 +9816,34 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "ae44f64e",
+            "subject": "test(R12): certified figure labelled by its register column (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "cdc33a6d",
+            "subject": "fix(R12): a certified figure is labelled by the register column it came from",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "15810036",
+            "subject": "test(R12 follow-up): gross-only and net-payable registers read; receipts scenario never subtracts net (probe on unfixed base)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "67d72fc1",
+            "subject": "fix(R12 follow-up): read gross-only and net-payable certificate registers; receipts scenario never subtracts net",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
@@ -9541,7 +9864,8 @@
         "namedTests": [
           "tests/r11-f45-progress-quantity-rules.test.ts",
           "tests/f16-f45-resource-hours-earned.test.ts",
-          "tests/r11-f10-one-owner-page-per-block.test.ts"
+          "tests/r11-f10-one-owner-page-per-block.test.ts",
+          "tests/r12-certified-column-label.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test"
@@ -11918,6 +12242,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -16085,6 +16416,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -16937,6 +17275,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -17859,6 +18204,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -18526,6 +18878,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -30114,6 +30473,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -33544,6 +33910,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -33888,6 +34261,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -34172,6 +34552,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -38368,6 +38755,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -39812,6 +40206,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -40877,6 +41278,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -42942,6 +43350,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -43735,6 +44150,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -43871,6 +44293,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -46688,6 +47117,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -47334,6 +47770,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -48418,6 +48861,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -48961,6 +49411,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -52342,6 +52799,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -52599,6 +53063,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -53645,6 +54116,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -55232,6 +55710,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -56428,6 +56913,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -56929,6 +57421,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -59676,6 +60175,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -59812,6 +60318,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -59997,6 +60510,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -61041,6 +61561,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -62976,6 +63503,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -64952,6 +65486,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -65588,6 +66129,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -68925,6 +69473,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -69568,6 +70123,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -70112,6 +70674,13 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -70248,6 +70817,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -71472,6 +72048,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -73488,6 +74071,13 @@
             {
               "sha": "e0b7b9c2",
               "subject": "fix(T02,R1): explicit WBS node type in the shared WBS path builder (TS7022 on CI)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "b5d59fea",
+              "subject": "fix(T02,R1,SW-13): P6 XML calendar working time read into the shared P6 calendar model",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
