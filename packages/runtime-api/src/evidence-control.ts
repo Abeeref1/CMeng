@@ -1,6 +1,6 @@
 import {scenarioName,explicitScheduleDecision,submittedScheduleDecision,isScenarioRevision} from './schedule-authority';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
-import {csv,prepareRegisterRows} from '../../truth-kernel/src';
+import {csv,prepareRegisterRows,registerDate} from '../../truth-kernel/src';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import type {
@@ -415,13 +415,20 @@ function revisionHint(
   };
 }
 
-const reportDateHeader=/^(?:report(?:ing)?(?: period)? (?:date|end)|data date|status date|status as of|as of(?: date)?|period end(?: date)?|cut ?off date|valuation date)$/;
-const reportDateLabel=/(?:^|[^a-z])(report(?:ing)? date|data date|status date|as of|period end(?:ing)?|cut ?off date|valuation date)\s*[:=-]\s*(\d{4}-\d{2}-\d{2})(?!\d)/i;
-const isoDay=(value:string)=>{const m=/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(value.trim());if(!m)return null;const d=new Date(Date.UTC(+m[1]!,+m[2]!-1,+m[3]!));return d.toISOString().slice(0,10)===m[1]+'-'+m[2]+'-'+m[3]?m[1]+'-'+m[2]+'-'+m[3]:null;};
+const reportDateHeader=/^(?:report(?:ing)?(?: period)? (?:date|end|ending)|data date|status date|status as (?:of|at)|as (?:of|at)(?: date)?|period end(?:ing| date)?|period ended|cut ?off date|valuation date)$/;
+// One shared label set for every cost-report format (CSV, xlsx, PDF text):
+// "Report date: 31/08/2026", "Period ending 31 August 2026", "As at 2026-08-31".
+const reportDateLabelText='(?:report(?:ing)?(?: period)? (?:date|end(?:ing)?)|data date|status date|status as (?:of|at)|as (?:of|at)|period end(?:ing| date)?|period ended|cut ?off date|valuation date)';
+const reportDateValueText='(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[/.\\-]\\d{1,2}[/.\\-]\\d{4}|\\d{1,2}[ \\-]+[A-Za-z]{3,9}[ ,\\-]+\\d{4})';
+const reportDateLabel=new RegExp('(?:^|[^a-z])'+reportDateLabelText+'\\s*[:=\\-\\u2013]?\\s*'+reportDateValueText+'(?![\\d])','i');
+const reportDateLabelOnly=new RegExp('^\\s*'+reportDateLabelText+'\\s*[:=\\-\\u2013]?\\s*$','i');
+/** Source date in any shared register format (ISO, day/month/year, 31 Aug 2026). */
+const isoDay=(value:string)=>registerDate(value.trim());
 /** The single report date stated inside a snapshot: a report/data/status
- * date column holding one value, or a labelled "Report Date: yyyy-mm-dd"
- * line. Any disagreement inside the document, or no stated date, is
- * unknown (null) and never guessed from the file name. */
+ * date column holding one value, a labelled "Report Date: yyyy-mm-dd"
+ * line or title, or a label cell followed by its date cell (xlsx). Any
+ * disagreement inside the document, or no stated date, is unknown (null)
+ * and never guessed from the file name. */
 export function contentReportDate(document:StoredEvidenceDocument):string|null{
   let sheets:string[][][]=[];
   if(document.tabularRead?.sourceHashSha256===document.sourceHashSha256)sheets=document.tabularRead.sheets.map(sheet=>sheet.rows);
@@ -429,12 +436,18 @@ export function contentReportDate(document:StoredEvidenceDocument):string|null{
     try{const bytes=readFileSync(document.storedPath);if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)return null;sheets=[csv(bytes.toString(bytes[0]===0xff&&bytes[1]===0xfe?'utf16le':'utf8'))];}catch{return null;}
   }
   const found=new Set<string>();
+  const labelled=(value:string)=>{const m=reportDateLabel.exec(value);if(m){const day=isoDay(m[1]!);if(day)found.add(day);}};
   for(const rows of sheets){
     const table=prepareRegisterRows(rows,document.documentType);
     table.headers.forEach((header,index)=>{if(!reportDateHeader.test(header))return;for(const row of table.rows){const raw=String(row[index]??'').trim();if(!raw)continue;const day=isoDay(raw);if(day)found.add(day);else found.add('unreadable:'+raw);}});
-    for(const row of rows.slice(0,Math.max(0,table.headerRow-1)))for(const value of row){const m=reportDateLabel.exec(value);if(m){const day=isoDay(m[2]!);if(day)found.add(day);}}
+    for(const row of rows.slice(0,Math.max(0,table.headerRow-1)))row.forEach((value,index)=>{
+      labelled(value);
+      if(!reportDateLabelOnly.test(value))return;
+      const next=row.slice(index+1).map(cell=>String(cell??'').trim()).find(Boolean);
+      if(next){const day=isoDay(next);found.add(day??'unreadable:'+next);}
+    });
   }
-  for(const segment of document.textSegments??[])for(const line of segment.text.split(/\r?\n/)){const m=reportDateLabel.exec(line);if(m){const day=isoDay(m[2]!);if(day)found.add(day);}}
+  for(const segment of document.textSegments??[])for(const line of segment.text.split(/\r?\n/))labelled(line);
   return found.size===1&&!/^unreadable:/.test([...found][0]!)?[...found][0]!:null;
 }
 
@@ -465,6 +478,13 @@ function snapshotComparison(
       ?'Incoming snapshot has a later report date inside the document ('+afterContent+' after '+beforeContent+').'
       :'Incoming snapshot has an earlier report date inside the document ('+afterContent+' before '+beforeContent+') and is retained as history. File names are not used to order it.',
   };
+  // No usable content date: say so, and never present a file-name guess as
+  // certain. The existing order (file-name revision/date, then hold the
+  // later upload as candidate) is kept so no basis changes silently.
+  const missingContent=[[current,beforeContent],[incoming,afterContent]].filter(([,day])=>!day).map(([document])=>(document as StoredEvidenceDocument).sourceFilename);
+  const contentNote=missingContent.length
+    ?' No single report date was found inside '+missingContent.join(' and ')+', so the order below comes from the file name, path, title or upload order and is not confirmed by the document content.'
+    :' Both documents state the same report date ('+afterContent+'), so the document content does not order them.';
 
   const before =
     revisionHint(current);
@@ -482,8 +502,8 @@ function snapshotComparison(
       reason:
         after.revision >
         before.revision
-          ? "Incoming snapshot has a higher explicit revision number."
-          : "Incoming snapshot does not have a higher explicit revision number and is retained as candidate/history.",
+          ? "Incoming snapshot has a higher revision number in its file name, path or title."+contentNote
+          : "Incoming snapshot does not have a higher revision number in its file name, path or title and is retained as candidate/history."+contentNote,
     };
   }
 
@@ -498,8 +518,8 @@ function snapshotComparison(
       reason:
         after.date >
         before.date
-          ? "Incoming snapshot has a later explicit document date."
-          : "Incoming snapshot does not have a later explicit document date and is retained as candidate/history.",
+          ? "Incoming snapshot has a later date in its file name, path or title."+contentNote
+          : "Incoming snapshot does not have a later date in its file name, path or title and is retained as candidate/history."+contentNote,
     };
   }
 
@@ -510,7 +530,7 @@ function snapshotComparison(
     return {
       promote: true,
       reason:
-        "Incoming snapshot carries an explicit revision number while the current basis did not.",
+        "Incoming snapshot carries a revision number in its file name, path or title while the current basis did not."+contentNote,
     };
   }
 
@@ -521,14 +541,14 @@ function snapshotComparison(
     return {
       promote: true,
       reason:
-        "Incoming snapshot carries an explicit document date while the current basis did not.",
+        "Incoming snapshot carries a date in its file name, path or title while the current basis did not."+contentNote,
     };
   }
 
   return {
     promote: false,
     reason:
-      "Relative snapshot chronology cannot be proven from document content/metadata. Add/Update retains the file as candidate; use Replace to promote it explicitly.",
+      "Relative snapshot chronology cannot be proven from document content/metadata. Add/Update retains the later upload as candidate; use Replace to promote it explicitly."+contentNote,
   };
 }
 
