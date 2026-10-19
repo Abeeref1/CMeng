@@ -1939,8 +1939,11 @@ function renderDelayClaimsVisual(data){
   const claimsPaged=claimPopulation.total>pipelineRows.length;
   const claimValues=(event,key)=>{
     const ids=event.linkedClaimIds||[];
-    const values=ids.map(id=>claimRows.get(id)?.[key]).filter(value=>value!==undefined&&value!==null).map(value=>typeof value==='number'?fmt(value):humanizeKey(value));
-    if(claimsPaged&&ids.some(id=>!claimRows.has(id)))values.push('see claim register');
+    // The server attaches each linked claim's canonical figures to the event.
+    const own=new Map((Array.isArray(event.linkedClaimFigures)?event.linkedClaimFigures:[]).map(row=>[row.claimId,row]));
+    const claimFor=id=>own.get(id)??claimRows.get(id);
+    const values=ids.map(id=>claimFor(id)?.[key]).filter(value=>value!==undefined&&value!==null).map(value=>typeof value==='number'?fmt(value):humanizeKey(value));
+    if(claimsPaged&&ids.some(id=>!claimFor(id)))values.push('see claim register');
     return values.join('; ')||'Not recorded';
   };
   const awardFor=event=>{const link=chain?.rows?.find(row=>row.eventId===event.eventId)?.links?.find(link=>link.key==='eot');return !link?'Not established':link.value==null?'No dated award established':fmt(link.value);};

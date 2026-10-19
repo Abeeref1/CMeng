@@ -17,3 +17,7 @@ w9-actions-named-ranked
 t09-action-assignment
 t11-platform-paging-version-restart
 management-surfaces
+batch-f-completion
+system-root-causes
+project-fact-consumers
+schedule-22-final.acceptance

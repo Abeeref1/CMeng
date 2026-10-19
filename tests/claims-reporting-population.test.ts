@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {delayClaimsAsOf} from '../packages/delay-analysis-core/src/reporting';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
+import {withLinkedClaimFigures} from '../packages/runtime-api/src/project-fact-consumers';
 import {runInNewContext} from './browser-context';
 
 function fixture(){
@@ -67,13 +68,20 @@ test('window lists expose full activity populations and preserve existing comple
 
 test('compacted event rows retain all eight evidence links and complete canonical claim facts',()=>{
  const keys=['event','notice','activity','window','impact','responsibility','eot','determination'];
- const full={key:'delay-claims',data:{projectionKey:'delay_claims',eventCount:240,claimCount:300,contractorClaimEvidenceSubmitted:true,
-  events:Array.from({length:240},(_,i)=>({eventId:'E'+i,title:'Event '+i,linkedClaimIds:['C'+(299-i)]})),
-  projectFacts:{claims:{pipeline:{rows:Array.from({length:300},(_,i)=>({claimId:'C'+i,state:'submitted',claimedDays:i===299?88.125:1,assessedDays:i===299?0:null}))}}},
+ const facts:any={claims:{pipeline:{rows:Array.from({length:300},(_,i)=>({claimId:'C'+i,state:'submitted',claimedDays:i===299?88.125:1,assessedDays:i===299?0:null}))}}};
+ // The server attaches each event's linked claim figures from the same canonical facts (F61).
+ const full={key:'delay-claims',data:{...withLinkedClaimFigures({projectionKey:'delay_claims',eventCount:240,claimCount:300,contractorClaimEvidenceSubmitted:true,
+  events:Array.from({length:240},(_,i)=>({eventId:'E'+i,title:'Event '+i,linkedClaimIds:['C'+(299-i)]}))},facts),
+  projectFacts:facts,
   delayEotEvidenceChain:{populationState:'established',linkOrder:keys,rows:Array.from({length:240},(_,i)=>({eventId:'E'+i,links:keys.map(key=>({key,state:key==='eot'?'established':'missing',value:key==='eot'?0:null}))}))}}};
  const before=JSON.stringify(full),page:any=pageProjectResponse(full,'/api/projects/P/schedule/modules/delay-claims',1);
  assert.equal(page.data.events.length,1,'the tightest screen budget is exercised');
- assert.equal(page.data.projectFacts.claims.pipeline.rows.length,300,'canonical claim facts already have full transport protection');
+ // F61: the claim list grows with the register, so it is paged like every other
+ // fact list (first 25 rows, true total, pointer). The figures the page shows
+ // for each event travel on the event itself; the rendered values below are unchanged.
+ assert.equal(page.data.projectFacts.claims.pipeline.rows.length,25);
+ assert.equal(page.responsePaging.tables.find((t:any)=>t.pointer==='/data/projectFacts/claims/pipeline/rows').total,300,'canonical claim facts keep their true total');
+ assert.equal((recordDetailPage(full,'/data/projectFacts/claims/pipeline/rows',299) as any).rows[0].claimedDays,88.125,'every claim stays reachable');
  assert.equal(page.data.delayEotEvidenceChain.rows.length,1);assert.equal(page.data.delayEotEvidenceChain.rows[0].links.length,8,'one chain is not a paged record population');
  assert.equal(page.data.delayEotEvidenceChain.rows[0].links.find((l:any)=>l.key==='eot').value,0);
  const html=runInNewContext('renderDelayClaimsVisual(data)',context(page,[]));assert.match(html,/<td>submitted<\/td><td>88.125<\/td><td>0<\/td><td>0<\/td>/);
