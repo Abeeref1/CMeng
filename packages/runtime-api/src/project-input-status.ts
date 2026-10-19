@@ -9,6 +9,62 @@ export interface WeeklyCapacityLike {
   plannedUtilizationPercent?:number|null;
   actualUtilizationPercent?:number|null;
   utilizationByUnit?:unknown[];
+  /** Source resource-week rows. Each resource is one trade. */
+  points?:ReadonlyArray<CapacityPointLike>;
+  /** Resource master rows (a trade may be listed with no weekly rows). */
+  masterResources?:ReadonlyArray<MasterResourceLike>;
+}
+export interface MasterResourceLike {resourceId:string;name?:string|null;unit?:string|null;resourceClass?:string;utilizationApplicable?:boolean|null}
+/** The fields both weekly readers give for one resource-week. */
+export interface CapacityPointLike {
+  resourceId:string;
+  resourceName?:string|null;
+  unit?:string|null;
+  availableCapacity?:number|null;
+  /** Capacity as stated in the source, before any approval rule. */
+  sourceAvailableCapacity?:number|null;
+  capacityAuthority?:string;
+}
+
+export type TradeCapacityState='approved'|'stated_not_approved'|'stated_approval_not_given'|'stated'|'mixed'|'not_stated';
+export interface TradeCapacityRow {
+  resourceId:string;
+  resourceName:string|null;
+  unit:string|null;
+  capacityState:TradeCapacityState;
+  periodCount:number;
+  statedPeriodCount:number;
+  minStatedCapacity:number|null;
+  maxStatedCapacity:number|null;
+  capacityText:string;
+}
+
+/** F07: one rule for the capacity of every trade (resource) in the weekly
+ * register. Every trade in the source is listed; a trade whose rows state no
+ * capacity is 'not_stated', never dropped and never 0. */
+export function tradeCapacityRows(points:ReadonlyArray<CapacityPointLike>|null|undefined,masters:ReadonlyArray<MasterResourceLike>|null|undefined=null):TradeCapacityRow[]{
+  const groups=new Map<string,CapacityPointLike[]>();
+  for(const point of points??[]){if(!point.resourceId)continue;const list=groups.get(point.resourceId)??[];list.push(point);groups.set(point.resourceId,list);}
+  // A trade in the resource master with no weekly rows is still a trade: listed as not stated.
+  const masterOnly=(masters??[]).filter(m=>m.resourceId&&!groups.has(m.resourceId)&&m.utilizationApplicable!==false&&m.resourceClass!=='material')
+    .filter((m,i,all)=>all.findIndex(o=>o.resourceId===m.resourceId)===i)
+    .map(m=>({resourceId:m.resourceId,resourceName:m.name||null,unit:m.unit||null,capacityState:'not_stated' as const,periodCount:0,statedPeriodCount:0,
+      minStatedCapacity:null,maxStatedCapacity:null,capacityText:'Not stated'}));
+  return [...[...groups.values()].map(rows=>{
+    const first=rows[0]!;
+    const statedOf=(p:CapacityPointLike)=>{const v='sourceAvailableCapacity' in p?p.sourceAvailableCapacity:p.availableCapacity;return typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null;};
+    const stated=rows.filter(p=>statedOf(p)!==null),values=stated.map(p=>statedOf(p)!);
+    const authorities=new Set(stated.map(p=>p.capacityAuthority??'not_recorded'));
+    const capacityState:TradeCapacityState=!stated.length?'not_stated':authorities.size>1?'mixed':
+      authorities.has('approved_source')?'approved':authorities.has('stated_not_approved')?'stated_not_approved':
+      authorities.has('source_unconfirmed')?'stated_approval_not_given':'stated';
+    const unit=first.unit??null,min=values.length?Math.min(...values):null,max=values.length?Math.max(...values):null;
+    const label={approved:'approved',stated_not_approved:'stated, not approved',stated_approval_not_given:'stated, approval not given',stated:'stated',mixed:'partly approved',not_stated:''}[capacityState];
+    const capacityText=capacityState==='not_stated'?'Not stated':
+      (min===max?String(min):String(min)+' to '+String(max))+(unit?' '+unit:'')+' per week · '+stated.length+' of '+rows.length+' weeks stated · '+label;
+    return {resourceId:first.resourceId,resourceName:first.resourceName??null,unit,capacityState,periodCount:rows.length,statedPeriodCount:stated.length,
+      minStatedCapacity:min,maxStatedCapacity:max,capacityText};
+  }),...masterOnly];
 }
 import {pmcRoleOwner,ownerDisplayState} from './action-priority';
 
@@ -53,6 +109,10 @@ export interface CapacityInputStatus {
   resourceCount:number|null;
   comparableRowCount:number;
   capacityCoveragePercent:number|null;
+  /** Trades (resources) in the weekly register, and how many state a capacity. */
+  tradeCount:number|null;
+  statedCapacityTradeCount:number|null;
+  notStatedCapacityTradeCount:number|null;
   basis:string;
 }
 
@@ -64,6 +124,8 @@ export function capacityInputStatus(weekly:WeeklyCapacityLike|null|undefined):Ca
   return {state:weeklyState==='available'?'established':weeklyState==='partial'?'partial':weeklyState==='candidate'?'candidate':'missing',
     weeklyState,governed,resourceCount:governed?weekly!.resourceCount:null,comparableRowCount:weekly?.comparableRowCount??0,
     capacityCoveragePercent:governed?weekly!.capacityCoveragePercent:null,
+    ...((trades)=>({tradeCount:trades?trades.length:null,statedCapacityTradeCount:trades?trades.filter(t=>t.capacityState!=='not_stated').length:null,
+      notStatedCapacityTradeCount:trades?trades.filter(t=>t.capacityState==='not_stated').length:null}))(weekly?.points?.length||weekly?.masterResources?.length?tradeCapacityRows(weekly.points,weekly.masterResources):null),
     basis:governed?'Governed weekly resource capacity evidence.':weeklyState==='candidate'
       ?'Resource support evidence exists only as candidate and is not promoted to confirmed utilization.'
       :'No governed weekly resource capacity evidence is established.'};
@@ -120,4 +182,42 @@ export function riskOwnerInputStatus(rows:ReadonlyArray<{riskId:string;owner?:st
   const state:ProjectInputState=!rows.length?'missing':named===rows.length?'established':named?'partial':'missing';
   return {state,recordCount:rows.length,namedOwnerCount:named,missingOwnerCount:rows.length-named,
     basis:'Source risk owners; a blank or placeholder owner is the PMC Risk Manager role with no named individual.'};
+}
+
+export interface RiskRowInputStatus {
+  state:ProjectInputState;
+  /** Every row the risk register supplies. */
+  sourceRowCount:number|null;
+  /** Rows dated on or before the Data Date (the reporting position). */
+  currentRowCount:number|null;
+  openCount:number|null;
+  closedCount:number|null;
+  unclearStatusCount:number|null;
+  afterDataDateCount:number|null;
+  undatedCount:number|null;
+  /** Risk register page: the current subset of the whole register. */
+  registerLabel:string;
+  /** Delivery risks page: every register row with its subsets. */
+  deliveryLabel:string;
+  basis:string;
+}
+
+/** F07: one count rule for the risk register population. The risk register page
+ * (current at the Data Date) and Delivery risks (every source row) both state
+ * this same total and label their own subset. No row is dropped. */
+export function riskRowInputStatus(risk:{sourceRecordCount:number;currentRecordCount:number;futureRecordCount:number;undatedRecordCount:number;current:ReadonlyArray<{status:string}>}|null|undefined):RiskRowInputStatus{
+  if(!risk||!risk.sourceRecordCount)return {state:'missing',sourceRowCount:null,currentRowCount:null,openCount:null,closedCount:null,unclearStatusCount:null,
+    afterDataDateCount:null,undatedCount:null,registerLabel:'No risk register rows read.',deliveryLabel:'No risk register rows read.',basis:'No risk register rows are read; the population is unknown.'};
+  const open=risk.current.filter(r=>r.status==='open').length,closed=risk.current.filter(r=>r.status==='closed').length;
+  const unclear=risk.current.length-open-closed,current=risk.currentRecordCount,total=risk.sourceRecordCount;
+  const after=risk.futureRecordCount,undated=risk.undatedRecordCount;
+  const split=open+' open, '+closed+' closed'+(unclear?', '+unclear+' with an unclear status':'');
+  const plural=(n:number,word:string)=>n+' '+word+(n===1?'':'s');
+  const notListed=after+undated;
+  return {state:undated||unclear?'partial':'established',sourceRowCount:total,currentRowCount:current,openCount:open,closedCount:closed,unclearStatusCount:unclear,
+    afterDataDateCount:after,undatedCount:undated,
+    registerLabel:'Showing '+current+' current at the reporting date of '+plural(total,'risk register row')+' ('+split+').'+
+      (notListed?' Not listed here: '+after+' dated after the Data Date and '+undated+' without a date; Delivery risks lists all '+total+'.':''),
+    deliveryLabel:plural(total,'risk register row')+': '+current+' current at the reporting date ('+split+'), '+after+' dated after the Data Date, '+undated+' without a date.',
+    basis:'Every supplied risk register row. Current = dated on or before the Data Date; status as of the Data Date.'};
 }

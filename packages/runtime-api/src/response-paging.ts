@@ -149,7 +149,7 @@ export function pageProjectResponse(
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
    // These eight links are columns of one event's evidence chain, not separate records.
    (/\/delayEotEvidenceChain\/rows\/\d+\/links$/.test(pointer)&&value.length<=8)
-   ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
+   ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|tradeCapacity|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    // A source record-page has already been bounded, sorted and filtered.
    // Do not turn the requested 50 original rows into a 25-row preview.
