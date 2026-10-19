@@ -104,7 +104,9 @@ export interface ProjectFactsSnapshot {
     expiredPermitCount?:ProjectFact<number>;
   };
   claims:{
-    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string};
+    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string;
+      /** Additive (F06): records stated with different values in two current files (later file used). */
+      sourceRecordQueries?:Array<{queryId:string;kind:string;recordId:string;field:string;usedValue:string;question:string}>};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -308,7 +310,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const bondRefs=securities?.bonds.flatMap(row=>row.sourceRefs)??[];
   const insuranceRefs=securities?.insurances.flatMap(row=>row.sourceRefs)??[];
   const noticeGaps=commercial.claimsNotices.dimensionalEvidenceGaps;
-  const reportedClaims=claimsReporting(scoped)?.reported;
+  const claimsReport=claimsReporting(scoped),reportedClaims=claimsReport?.reported;
   const pendingClaims=reportedClaims?.rows.filter(row=>['under_review','submitted'].includes(row.state))??[];
   const pendingAssessedDays=pendingClaims.length&&pendingClaims.every(row=>row.assessedDays!==null)?pendingClaims.reduce((sum,row)=>sum+row.assessedDays!,0):null;
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
@@ -547,6 +549,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         pendingCount:pendingClaims.length,pendingAssessedDays,
         // F44: the CMeng CPM scenario; date arithmetic only as its labelled fallback.
         pendingScenarioCompletionIso:pendingScenario?.scenarioContractCompletionIso??null,pendingEotScenario:pendingScenario,
+        sourceRecordQueries:(claimsReport?.sourceRecordQueries??[]).map(query=>({queryId:query.queryId,kind:query.kind,recordId:query.recordId,field:query.field,usedValue:query.usedValue,question:query.question})),
         basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
       eventDateMissingCount:sourceCount(
         noticeGaps.eventDateMissing,
