@@ -9,6 +9,7 @@ import {exportAskAnalysis,type AskExportView} from './ask-export';
 import type {AnalysisResult,AuthorityResult,AnalysisChart,Column,Cell,EvidenceState} from '../../project-ask/src/types';
 import {pageApiKey,publicModuleResult,resolveModuleKey} from './registry';
 import {milestonePopulation} from './milestone-population';
+import {activityFilterCountsRemainingWork,isRemainingWork,LIVE_ACTIVITY_MEASURES} from '../../activity-analytics/src/live-population';
 import type ExcelJS from "exceljs";
 import type {
   ModuleRuntimeResult,
@@ -590,16 +591,20 @@ function matchesModuleFilters(row:Record<string,unknown>,filters:Record<string,s
   for(const [rawKey,wantedRaw] of Object.entries(filters)){
     const wanted=String(wantedRaw??'').trim();if(!wanted||['search','displayState','scheduleCondition'].includes(rawKey))continue;
     const actual=rowFilterValue(row,rawKey);if(actual===null)continue;
-    if(!actual.toLowerCase().includes(wanted.toLowerCase()))return false;
+    // Criticality is a class, not text: "critical" must not also select near_critical or noncritical.
+    if(normalizedKey(rawKey)==='criticality'?actual.toLowerCase()!==wanted.toLowerCase():!actual.toLowerCase().includes(wanted.toLowerCase()))return false;
   }
   const condition=filters.scheduleCondition;
+  // T05/N12: the report counts the same population as the screen filter and the KPI with that label.
+  if(activityFilterCountsRemainingWork({criticality:filters.criticality,condition})&&!isRemainingWork(row))return false;
   if(condition){
     const floatValue=rowFilterValue(row,'totalFloatHours');
     const float=floatValue!==null&&floatValue.trim()!==''?Number(floatValue):NaN;
     const status=String(row.status??''),delayed=row.scheduleDelayed===true,missed=row.missedPlannedStart===true,overdue=row.finishOverdue===true;
     if(condition==='negative_float'&&!(Number.isFinite(float)&&float<0))return false;
     if(condition==='zero_float'&&float!==0)return false;
-    if(condition==='delayed'&&!delayed)return false;
+    if(condition==='delayed'&&LIVE_ACTIVITY_MEASURES.late(row as any)!==true)return false;
+    if(condition==='schedule_pressure'&&!delayed)return false;
     if(condition==='missed_start'&&!missed)return false;
     if(condition==='overdue_finish'&&!overdue)return false;
     if(condition==='float_risk'&&row.floatRiskWatchlist!==true)return false;

@@ -1,13 +1,15 @@
+import {activityFilterCountsRemainingWork,isExecutionActivity,isRemainingWork,LIVE_ACTIVITY_MEASURES} from '../../activity-analytics/src/live-population';
 const fields=['wbsId','zone','floor','tower','building','area','plot','location','workFront','phase','section','chainage','discipline','trade','system','package','cbs','contractor','subcontractor','status','criticality'];
 export function activityRegisterPage(source:readonly any[],query:URLSearchParams){
- const all=source.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType));
+ const all=source.filter(isExecutionActivity);
  const text=(query.get('q')??'').trim().toLowerCase(),condition=query.get('condition');
- const liveFloatFilter=!!query.get('criticality')||['negative_float','zero_float','float_risk'].includes(condition??'');
+ // T05/N12: a filter with a KPI's label counts the KPI's population (shared rule).
+ const liveFilter=activityFilterCountsRemainingWork({criticality:query.get('criticality'),condition});
  const rows=all.filter(row=>{
-  if(liveFloatFilter&&row.status==='completed')return false;
+  if(liveFilter&&!isRemainingWork(row))return false;
   if(text&&![row.activityId,row.name,row.wbsId,row.wbsPath,row.location,...fields.map(key=>row[key])].filter(Boolean).join(' ').toLowerCase().includes(text))return false;
   if(fields.some(key=>query.get(key)&&String(key==='floor'?row.floor??row.level??'':row[key]??'')!==query.get(key)))return false;
-  return condition==='delayed'?row.scheduleDelayed===true:condition==='missed_start'?row.missedPlannedStart===true:condition==='overdue_finish'?row.finishOverdue===true:condition==='negative_float'?typeof row.totalFloatHours==='number'&&row.totalFloatHours<0:condition==='zero_float'?row.totalFloatHours===0:condition==='float_risk'?row.floatRiskWatchlist===true:condition==='open_logic'?row.openStart||row.openFinish||row.isolated:true;
+  return condition==='delayed'?LIVE_ACTIVITY_MEASURES.late(row)===true:condition==='schedule_pressure'?row.scheduleDelayed===true:condition==='missed_start'?row.missedPlannedStart===true:condition==='overdue_finish'?row.finishOverdue===true:condition==='negative_float'?typeof row.totalFloatHours==='number'&&row.totalFloatHours<0:condition==='zero_float'?row.totalFloatHours===0:condition==='float_risk'?row.floatRiskWatchlist===true:condition==='open_logic'?row.openStart||row.openFinish||row.isolated:true;
  });
  const score=(r:any)=>(r.scheduleDelayed?1500:0)+(r.criticality==='critical'?1000:r.criticality==='near_critical'?500:0)+(r.totalFloatHours<0?200:0)+(r.finishVarianceDays>0?r.finishVarianceDays:0);
  rows.sort((a,b)=>score(b)-score(a)||String(a.activityId).localeCompare(String(b.activityId)));
@@ -21,7 +23,7 @@ export function activityRegisterPage(source:readonly any[],query:URLSearchParams
  * Full rows remain available from the paged register and report endpoints. */
 export function activityRegisterView(data:any){
  const classified=new Map<string,any>((data?.scopeClassification?.rows??[]).map((r:any)=>[r.activityId,r]));
- const all=(Array.isArray(data?.rows)?data.rows:[]).map((row:any)=>({...classified.get(row.activityId),...Object.fromEntries(Object.entries(row).filter(([key,value])=>value!==null&&value!==undefined||!classified.get(row.activityId)?.[key]))})),execution=all.filter((r:any)=>!['level_of_effort','wbs_summary'].includes(r.activityType));
+ const all=(Array.isArray(data?.rows)?data.rows:[]).map((row:any)=>({...classified.get(row.activityId),...Object.fromEntries(Object.entries(row).filter(([key,value])=>value!==null&&value!==undefined||!classified.get(row.activityId)?.[key]))})),execution=all.filter(isExecutionActivity);
  const keys=['activityId','name','activityType','status','criticality','totalFloatHours','nearCriticalThresholdHours','floatRiskWatchlist','finishVarianceDays','openStart','openFinish','isolated'];
  const filterOptions=Object.fromEntries(fields.map(key=>[key,[...new Set(execution.map((r:any)=>key==='floor'?r.floor??r.level:r[key]).filter((v:any)=>v!==null&&v!==undefined&&String(v).trim()))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))]));
  // Preserve the exact source WBS key for filtering while presenting the
@@ -40,7 +42,7 @@ export function activityRegisterView(data:any){
  const statusCounts:Record<string,number>={completed:0,in_progress:0,not_started:0,unknown:0};
  const criticalityCounts:Record<string,number>={critical:0,near_critical:0,noncritical:0,unknown:0};
  let openLogicCount=0;
- for(const row of execution){const status=Object.hasOwn(statusCounts,row.status)?row.status:'unknown';statusCounts[status]=(statusCounts[status]??0)+1;if(row.status!=='completed'){const kind=Object.hasOwn(criticalityCounts,row.criticality)?row.criticality:'unknown';criticalityCounts[kind]=(criticalityCounts[kind]??0)+1;}if(row.openStart||row.openFinish||row.isolated)openLogicCount++;}
+ for(const row of execution){const status=Object.hasOwn(statusCounts,row.status)?row.status:'unknown';statusCounts[status]=(statusCounts[status]??0)+1;if(isRemainingWork(row)){const kind=Object.hasOwn(criticalityCounts,row.criticality)?row.criticality:'unknown';criticalityCounts[kind]=(criticalityCounts[kind]??0)+1;}if(row.openStart||row.openFinish||row.isolated)openLogicCount++;}
  const pressureCounts=Array.from({length:4},()=>Array<number>(6).fill(0));
  for(const row of execution.filter((r:any)=>r.status!=='completed')){
   const band=['critical','near_critical','noncritical'].indexOf(row.criticality),v=row.finishVarianceDays;
