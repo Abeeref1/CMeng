@@ -1,3 +1,4 @@
+import {scheduleAuthorityReview,programmeDocumentAuthority} from './schedule-authority';
 import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
 import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
@@ -162,6 +163,7 @@ export function projectDocumentRegister(projectId:string){
       .map(d=>d.documentId));
     // SW-14: one reading state per document plus the unread count and deferred list.
     const reading=projectDocumentReading(state,readingSetup(process.env,configuredProviderState().providerConfigured),parsedTables);
+    const programmeReview=scheduleAuthorityReview(state);
     return {
       projectId,
       projectVersion:state.version,
@@ -184,6 +186,7 @@ export function projectDocumentRegister(projectId:string){
               ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
             ]:undefined),
             readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
+            programmeAuthority:programmeDocumentAuthority(programmeReview,document),
             readingStatus:reading.byDocument.get(document.documentId)??null,
             semanticAiSteps:(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256),
             schemaHeaders:

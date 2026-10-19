@@ -3,6 +3,7 @@ import {mkdir,readFile,writeFile,rename,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {statSync,writeFileSync,renameSync,rmSync,readFileSync} from 'node:fs';
 import {isProgrammeScheduleRevision} from './project-identity';
+import {isAdoptedProgrammeRevision,scheduleAuthorityReview} from './schedule-authority';
 import type {ProjectRuntimeState} from './project-state-types';
 import {readSnapshotJson,writeSnapshotJson} from './snapshot-json';
 
@@ -28,14 +29,18 @@ export async function atomicJson(path:string,value:unknown){
 export function projectMetadata(state:ProjectRuntimeState){
   const schedules=state.schedules.filter(isProgrammeScheduleRevision);
   const activeId=state.activeEvidenceBasis['schedule:control']?.activeArtifactId??state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId??null;
-  const active=activeId?schedules.find(s=>s.revision.revisionId===activeId&&s.role!=='scenario')??null:null;
-  const dated=schedules.filter(s=>s.role!=='scenario'&&typeof s.revision.model.dataDateIso==='string'&&/^\d{4}-\d{2}-\d{2}/.test(s.revision.model.dataDateIso));
+  // F08: the catalog reads the same programme-authority rule as every page.
+  // An uploaded or evidence-selected programme without a source-bound adoption
+  // decision is a candidate, never the current programme or its Data Date.
+  const adopted=schedules.filter(s=>isAdoptedProgrammeRevision(state,s));
+  const active=activeId?adopted.find(s=>s.revision.revisionId===activeId&&s.role!=='scenario')??null:null;
+  const dated=(activeId?[]:adopted).filter(s=>s.role!=='scenario'&&typeof s.revision.model.dataDateIso==='string'&&/^\d{4}-\d{2}-\d{2}/.test(s.revision.model.dataDateIso));
   const latestDate=dated.map(s=>s.revision.model.dataDateIso!.slice(0,10)).sort().at(-1)??null;
   const latestMatches=latestDate?dated.filter(s=>s.revision.model.dataDateIso!.slice(0,10)===latestDate):[];
   const latestDataDateIso=(active?.revision.model.dataDateIso??(latestMatches.length===1?latestMatches[0]!.revision.model.dataDateIso:null))?.slice(0,10)??null;
   return {projectId:state.projectId,demo:state.demo===true,testProject:state.testProject===true,version:state.version,
     evidenceDocumentCount:state.evidenceDocuments.length,revisionCount:schedules.length,
-    latestDataDateIso};
+    latestDataDateIso,programmeAuthorityState:scheduleAuthorityReview(state).programmeState};
 }
 export function snapshotStamp(directory:string){const s=statSync(join(directory,'cmeng-project-state.json'));return String(s.mtimeMs)+':'+s.size;}
 export function persistProjectMetadata(directory:string,state:ProjectRuntimeState){
