@@ -310,7 +310,18 @@ export interface VariationsProjection {
   /** Identified pending subset; an approved-only list cannot establish zero exposure. */
   pendingCount: number | null;
   knownPendingCount: number;
-  rejectedCount: number;
+  /** Null when only an approved list is supplied: rejections are not established. */
+  rejectedCount: number | null;
+  /** SW-21: every variation in the change register counted by its state. */
+  changeRegister: {
+    state: 'established' | 'partial' | 'not_established' | 'missing';
+    approvedOnly: boolean;
+    recordCount: number;
+    stateCounts: {submitted: number | null; underReview: number | null; approved: number; rejected: number | null; withdrawn: number | null; unknown: number | null};
+    basis: string;
+    consequence: string | null;
+    action: string | null;
+  };
   /** Coverage that a current/final lifecycle stage can be identified. */
   finalStageCoveragePercent:
     number | null;

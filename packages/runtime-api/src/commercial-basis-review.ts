@@ -3,6 +3,7 @@ import type {CanonicalCommercialModel, CommercialVariation} from './commercial-c
 import type {ProjectRuntimeState} from './project-state-types';
 import type {ReturnCertificateProfile} from './certificate-profile';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
+import {sourceEacPlausibility} from '../../commercial-performance/src';
 
 export interface AmendmentAmount {documentId:string;sourceFilename?:string;effectiveDate:string|null;currency:string;taxBasis:string;amount:number;sourceRefs:string[];sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string}
 
@@ -88,6 +89,8 @@ export function costBasisReview(ledger:CanonicalCommercialModel,certificates:Ret
       earnedPercentOfCurrentContract:ev!==null&&currentContract!==null&&currentContract>0?ev/currentContract*100:null,
       actualCostComparisonBasis:'Actual cost is compared with earned value through CPI. Net certification is a cash receivable after deductions and is not a cost-efficiency denominator.',
       spi:ev!==null&&pv!==null&&pv>0?ev/pv:null,cpi:ev!==null&&ac!==null&&ac>0?ev/ac:null,
+      // SW-31: the same stated plausibility rules as the cost-control position; the source EAC is never replaced.
+      sourceEacChallenge:row.taxBasis==='unknown'?sourceEacPlausibility(null,null,null,null,null):sourceEacPlausibility(bac,ev,ac,ev!==null&&ac!==null&&ac>0?ev/ac:null,v.eac??null),
       interpretation:'SPI and CPI check arithmetic within the cost source. Cost-weighted EV/PV, duration-weighted schedule progress, accrued cost and certificate-period values are different measures. Their amounts remain unreconciled until a dated CBS/WBS/certificate bridge explains scope, valuation and timing. Multiplying schedule progress by BAC is an illustration, not a calculated PV or EV.'};
   });
 }

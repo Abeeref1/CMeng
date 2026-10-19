@@ -7232,7 +7232,10 @@ export function applyProfessionalModuleState(
         "established"
     ) {
       review(
-        "Variation lifecycle or authority is incomplete; review the unresolved current variation stages before relying on the control position.",
+        // SW-21: an approved-only list is not the full change register.
+        control.changeRegister?.state === "not_established"
+          ? control.changeRegister.consequence
+          : "Variation lifecycle or authority is incomplete; review the unresolved current variation stages before relying on the control position.",
       );
     }
   }
@@ -7290,10 +7293,18 @@ export function applyProfessionalModuleState(
     const position = data?.position;
     const cost = position?.performance?.costControl;
     const conflicts = (position?.sourceLedger?.costPosition ?? []).some((row: any) => (row.diagnostics ?? []).some((issue: string) => /CONFLICT|UNRESOLVED/.test(issue)));
-    if (conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100) {
+    const costReviewed = conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100;
+    if (costReviewed) {
       review((position?.sourceLedger?.costPosition ?? []).length
         ? "Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend."
         : "Cost snapshots are not established. Supply dated EVM inputs with a compatible currency, tax basis and measurement population before calculating cost performance.");
+    }
+    // SW-31: an implausible source EAC is raised as a challenge beside the
+    // independent EVM values (stated rules R1/R2); the source figure is kept.
+    const eacChallenges = (cost?.positions ?? []).filter((row: any) => row?.sourceEacChallenge?.state === "challenge")
+      .map((row: any) => row.currency + " source EAC is challenged: " + row.sourceEacChallenge.findings.map((finding: any) => finding.statement).join(" "));
+    if (eacChallenges.length) {
+      review((costReviewed ? reason + " " : "") + eacChallenges.join(" ") + " The source figure is retained and shown beside the independent values.");
     }
   }
 

@@ -80,6 +80,24 @@ export interface CommercialPerformanceInput {
   payments: PerformancePaymentInput[];
 }
 
+/** SW-31: plausibility challenge of the source EAC against CMeng's independent
+ * EVM calculation. The source figure is never replaced; both values are shown. */
+export interface SourceEacChallenge {
+  state: "challenge" | "consistent" | "not_assessable";
+  sourceEac: number | null;
+  actualCost: number | null;
+  independentRange: {low: number; high: number; bacOverCpi: number; acPlusRemainingBudget: number} | null;
+  findings: Array<{
+    rule: "below_actual_cost" | "outside_independent_range";
+    sourceEac: number;
+    independentValue: number;
+    statement: string;
+  }>;
+  rules: string[];
+  consequence: string | null;
+  action: string | null;
+}
+
 export interface EacScenario {
   method:
     | "source_reported"
@@ -118,6 +136,7 @@ export interface CostControlPosition {
   tcpiForecast:
     CommercialFinding<number>;
   eacScenarios: EacScenario[];
+  sourceEacChallenge: SourceEacChallenge;
   forecastMethodState:
     | "source_reported"
     | "scenarios_only"

@@ -50,6 +50,7 @@ function renderCommercialExceptions(position,key,data){
         ['Actual cost',money(r.ac,r.currency),r.actualCostComparisonBasis],
         ['Current contract value',money(r.currentContractValue,r.currency),'Approved commercial position; compare scope with the EVM budget'],
         ['Source EAC',money(r.sourceEac,r.currency),'Reported estimate at completion'],
+        ...(r.sourceEacChallenge?.state==='challenge'?(r.sourceEacChallenge.findings||[]).map(f=>['Source EAC challenged',money(f.sourceEac,r.currency)+' vs '+(f.rule==='below_actual_cost'?'AC '+money(f.independentValue,r.currency):'AC + (BAC - EV) '+money(r.sourceEacChallenge.independentRange?.acPlusRemainingBudget,r.currency)+' / BAC / CPI '+money(r.sourceEacChallenge.independentRange?.bacOverCpi,r.currency)),f.statement+' Source figure retained.']):[]),
         ['EAC less current contract',money(r.eacVsCurrentContract,r.currency),'Negative is below current contract value; compare the cost and sales scope'],
         ['BAC less current contract',money(r.budgetVsContractDifference,r.currency),'Budget and sales value can differ; reconcile the scope and basis'],
         ['EV / current contract',r.earnedPercentOfCurrentContract==null?'Missing':fmt(r.earnedPercentOfCurrentContract)+'%','Contract-value comparator; BAC remains the EVM denominator'],
