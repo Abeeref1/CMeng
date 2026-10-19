@@ -52,7 +52,7 @@ export function askCriticalPath(scope:ProjectScope){
     const b=new AuthorityBuilder('critical-path','Driving path to completion','independent-forecast',scope,qualified?'scenario':'established',
       'The calendar calculation identifies '+network.rows.length+' '+(network.rows.length===1?'activity':'activities')+' and '+network.relationships.length+' binding relationships leading to completion.'+(qualified?' This is a calculated network with the stated programme assumptions.':'')+' Parallel branches are retained.');
     b.table('network','Ordered finish-driving network',network.rows,network.basis,{...columns,sequence:{label:'Order'},wbs:{label:'WBS'},calculatedStartIso:{label:'Calculated start'},calculatedFinishIso:{label:'Calculated finish'},remainingDurationHours:{label:'Remaining duration',unit:'hours'},drivingPredecessors:{label:'Driving predecessors / link / lag'},drivingSuccessors:{label:'Driving successors / link / lag'}});
-    b.table('relationships','Driving relationships',network.relationships,network.basis,{lagHours:{unit:'working hours'}});
+    b.table('relationships','Driving relationships',network.relationships,network.basis,{lagHours:{unit:'working hours'},lagWorkingDays:{label:'Lag (working days, successor calendar)',unit:'working days (successor calendar)'}});
     b.metric('driving-count','Finish-driving activities',network.rows.length,'activities',network.basis);
     for(const l of diagnosis.completion?.limitations??[])b.finding(l.key,'Calculation qualification',l.text,'The network above retains this stated assumption.');
     for(const t of b.result.traces)t.sourceRefs=source.traces.flatMap(t=>t.sourceRefs);
