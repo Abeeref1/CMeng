@@ -19,7 +19,7 @@ async function project(t:any){
  const dir=mkdtempSync(join(tmpdir(),'w10-banner-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:dir,durable:false}),state=store.getOrCreate('W10-BANNER');
  await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(programme),mediaType:'text/plain',sourceFilename:'Current.xer',uploadedAt:'2031-09-01',uploadIntent:'replace_current_basis'});
- await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from('RFI ID,Subject,Discipline,Status,Raised Date,Due Date\nR1,Drawing,ARCH,Open,2031-08-01,2031-09-10\nR2,Detail,MEP,Closed,2031-07-01,2031-07-20'),mediaType:'text/csv',sourceFilename:'RFI.csv',uploadedAt:'2031-09-01'});
+ await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from('RFI ID,Subject,Discipline,Status,Raised Date,Due Date,Closed Date\nR1,Drawing,ARCH,Open,2031-08-01,2031-09-10,\nR2,Detail,MEP,Closed,2031-07-01,2031-07-20,2031-07-18'),mediaType:'text/csv',sourceFilename:'RFI.csv',uploadedAt:'2031-09-01'});
  const change=(input:any)=>{const result=changeDelivery(state,{expectedVersion:state.version,...input});store.touch(state);return result;};
  return {state,change};
 }
@@ -42,6 +42,23 @@ test('W10: confirming the register removes the "awaiting confirmation" banner an
  assert.ok(data.reviewRecords.every((r:any)=>r.state==='extracted_candidate'),'the per-record flag is unchanged by the population decision');
  assert.doesNotMatch(data.managementPosition,WAITING,'banner must not say records await confirmation after the register is confirmed');
  assert.equal(awaiting(data),0,'nothing is awaiting confirmation');
+});
+
+test('W10: a confirmed register shows its row count and the page is ready when nothing else is missing',async t=>{
+ const {state,change}=await project(t);
+ const tile=(data:any)=>data.metrics.find((m:any)=>m.label==='Known source rows');
+ let {data,status}=page(state);
+ assert.equal(tile(data).value,2,'before confirmation the source rows are counted');
+ assert.notEqual(status,'ready');
+ change({action:'confirm_population',kind:'design',scopeId:null,note:'Complete RFI register reconciled.'});
+ ({data,status}=page(state));
+ assert.equal(data.population.state,'established');
+ assert.equal(data.population.denominator,2);
+ assert.equal(tile(data).value,2,'the confirmed register row count is known and must be shown, not null');
+ assert.doesNotMatch(tile(data).basis,/not yet confirmed/i,'the basis must not say the population is unconfirmed');
+ assert.deepEqual(data.metrics.filter((m:any)=>m.value===null).map((m:any)=>m.label),[],'nothing else is missing');
+ assert.equal(data.findings.length,0);
+ assert.equal(status,'ready','confirmed register with every figure known is ready');
 });
 
 test('W10: a record that really waits keeps the banner after an earlier confirmation',async t=>{
