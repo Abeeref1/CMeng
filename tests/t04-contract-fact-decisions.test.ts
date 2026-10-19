@@ -25,7 +25,9 @@ const evidence=(projectId:string,name:string,familyKey:string,basisState:string)
   identification:{needsReview:false},lineage:{needsReview:false},sourceRefs:[],
 }) as any;
 const contract=(documentId:string,role:string,text:string)=>({documentId,role,
-  result:{sections:[{heading:'Contract Data',text,startPage:3,sectionKey:'s1',sourceMode:'deterministic',sourceSpans:[]}]}}) as any;
+  // A complete reader result shape (the action register reads clauses and diagnostics too).
+  result:{sourceType:'pdf',physicalComplete:true,semanticComplete:true,clauses:[],diagnostics:[],
+    sections:[{heading:'Contract Data',text,startPage:3,sectionKey:'s1',sourceMode:'deterministic',sourceSpans:[]}]}}) as any;
 // A real parsed programme (the action register reads the full schedule model).
 const xer=(project:string,date:string)=>new TextEncoder().encode(['ERMHDR\t23.12',
   '%T\tPROJECT','%F\tproj_id\tproj_short_name\tdata_date','%R\t1\t'+project+'\t'+date,
