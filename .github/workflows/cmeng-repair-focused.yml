@@ -200,7 +200,9 @@ jobs:
             dist/tests/f61-management-page-weight.test.js \
             dist/tests/f38-programme-quality-driving-chain.test.js \
             dist/tests/f42-lookahead-driving-blockers.test.js \
-            dist/tests/f61-adversarial-list-paging.test.js
+            dist/tests/f61-adversarial-list-paging.test.js \
+            dist/tests/t11-issue-summary-fold-parity.test.js \
+            dist/tests/t11-large-register-cold-dashboard.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

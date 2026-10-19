@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {performance} from 'node:perf_hooks';
 import assert from 'node:assert/strict';
 import {summarizeControlIssues,controlIssueMemberId,controlIssueField,CONTROL_ISSUE_KINDS,type ControlIssue,type ControlIssueMember} from '../packages/truth-kernel/src/issues';
 
@@ -98,4 +99,17 @@ test('T11 thousands of identical findings combine into the same request as the r
   assert.equal(actual.issues.length,2);
   assert.equal(actual.issues[0]!.sourceRefs.length,3000,'every source row is kept on the one request');
   assert.equal(actual.issues[1]!.members!.length,280,'every distinct original identity (7 module keys x 40 paths) is kept as a member');
+});
+
+test('T11 20,000 identical register findings fold in linear time',()=>{
+  // Before the repair each further finding re-copied every earlier member and
+  // source reference of its request: about 10^9 copies for 20,000 rows.
+  const issues=Array.from({length:20_000},(_,i)=>({kind:'missing_information' as const,code:'MISSING_SOURCE_VALUE',summary:'Claims · information missing',detail:'Row '+i,
+    action:'Supply the value.',owner:'Project evidence owner' as const,moduleKeys:['delay-claims'],evidencePaths:['data.claims[*]'],sourceRefs:['evidence-document:D:row:'+(i+2)],checkIds:[],field:'data.claims'}));
+  const started=performance.now(),summary=summarizeControlIssues(issues),ms=performance.now()-started;
+  console.log('T11 summary of 20,000 identical findings: '+ms.toFixed(0)+' ms');
+  assert.equal(summary.issues.length,1);
+  assert.equal(summary.issues[0]!.sourceRefs.length,20_000);
+  assert.deepEqual(summary.issues[0]!.memberIssueIds,[controlIssueMemberId(issues[0]!)]);
+  assert.ok(ms<3_000,'folding 20,000 identical findings took '+ms.toFixed(0)+' ms');
 });
