@@ -111,6 +111,7 @@ jobs:
             dist/tests/t08-sw18-readiness-rules.test.js \
             dist/tests/t08-sw35-hse-rates.test.js \
             dist/tests/hse-report-document-text.test.js \
+            dist/tests/resource-actual-hours-headings.test.js \
             dist/tests/t06-activity-float-working-days-truth.test.js \
             dist/tests/t06-float-days-every-remaining-place.test.js \
             dist/tests/t06-durations-and-buckets-days.test.js \
