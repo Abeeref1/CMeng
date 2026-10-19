@@ -1,4 +1,5 @@
 import {featureAvailability,type FeatureAvailability} from '../../truth-kernel/src';
+import {conditionalNotice} from './conditional-notice';
 
 export interface RuntimeFeatureAvailability {
   state: FeatureAvailability;
@@ -48,8 +49,9 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
       {key:'remaining_quantities',label:'Remaining quantities',established:rows.some((row:any)=>number(row?.remainingQuantity)!==null),evidence:'Dated installed quantity and contract quantity on the same BOQ item.'},
       {key:'activity_links',label:'Activity links',established:rows.some((row:any)=>typeof row?.activityId==='string'&&row.activityId.length>0),evidence:'Current-revision BOQ-to-activity link.'},
       {key:'productivity',label:'Productivity',established:rows.some((row:any)=>number(row?.laborHoursPerUnit)!==null),evidence:'Supported labour-hours-per-unit or same-scope measured productivity.'},
-      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null)||(f.programmeChecks?.calendarActivityCount??0)>0,evidence:'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.'},
-      {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null)||number(f.programmeChecks?.remainingLaborHours)!==null,evidence:'Submitted activity-linked labour hours are available; independent required headcount also needs quantity/productivity evidence.'},
+      // SW-46: the calendar and labour-hour evidence sentences state availability only when the data shows it.
+      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null)||(f.programmeChecks?.calendarActivityCount??0)>0,evidence:conditionalNotice((f.programmeChecks?.calendarActivityCount??0)>0,'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.',rows.some((row:any)=>number(row?.availableWorkingHours)!==null)?'Working time is available on linked BOQ items; readable programme calendars are not established.':'Readable programme calendars are not established; item-level working-time checks require them and BOQ activity links.')},
+      {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null)||number(f.programmeChecks?.remainingLaborHours)!==null,evidence:conditionalNotice(number(f.programmeChecks?.remainingLaborHours)!==null,'Submitted activity-linked labour hours are available; independent required headcount also needs quantity/productivity evidence.',rows.some((row:any)=>number(row?.submittedPeople)!==null)?'Submitted headcount is available on BOQ items; submitted activity-linked labour hours are not established.':'Submitted activity-linked labour hours and submitted headcount are not established.')},
     ];
     const prerequisiteComplete=prerequisites.every(row=>row.established);
     const useful=boqCount>0||checks.length>0||rows.length>0||Boolean(d.sourceLaborEvidence);

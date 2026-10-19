@@ -4,6 +4,7 @@ import {boqSectionReviewScript} from './ui-boq-section-review';
 import {decisionFactsScript} from './ui-decision-facts';
 import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
+import {conditionalNotice} from './conditional-notice';
 import {pmcRoleOwner,apiOwnerText} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
@@ -535,6 +536,7 @@ let selectedEvidenceDocuments=new Set();
 const el=id=>document.getElementById(id);
 const project=()=>el("projectId").value.trim();
 ${managementValueState.toString()}
+${conditionalNotice.toString()}
 ${managementNumber.toString()}
 ${managementDate.toString()}
 ${managementValue.toString()}
@@ -2764,6 +2766,15 @@ function renderResourceBasisReview(b){
   const row=(basis,plan,actual,remaining,scope)=>'<tr><td>'+escapeHtml(basis)+'</td><td>'+escapeHtml(fmt(plan))+'</td><td>'+escapeHtml(fmt(actual))+'</td><td>'+escapeHtml(fmt(remaining))+'</td><td>'+escapeHtml(scope)+'</td></tr>';
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Hour totals disagree across the supplied bases</h4><p>'+escapeHtml(b.interpretation)+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Source basis</th><th>Planned hours</th><th>Recorded hours</th><th>Remaining / future plan</th><th>Boundary</th></tr></thead><tbody>'+row('Weekly labor register',w.plannedHours,w.actualHoursToDate,w.futurePlannedHours,fmt(w.periodCount)+' weeks; actual usage through DD, future hours are planned')+row('XER labor assignments',x.plannedLaborHours,x.actualRegularLaborHours,x.remainingLaborHours,fmt(x.laborAssignmentCount)+' assignments; actual regular hours; overtime '+(x.actualOvertimeLaborHours==null?'not supplied':fmt(x.actualOvertimeLaborHours)))+row('HSE exposure report',null,h.metrics?.manHours,null,'Reported period ends '+planningShortDate(h.periodEndIso)+'; monthly/cumulative exposure basis needs confirmation')+'</tbody></table></div><p>Register: '+escapeHtml(planningShortDate(w.firstWeekStartIso))+' to week starting '+escapeHtml(planningShortDate(w.lastWeekStartIso))+'. Programme: '+escapeHtml(planningShortDate(pr.startIso))+' to '+escapeHtml(planningShortDate(pr.finishIso))+' (about '+fmt(pr.calendarWeekSpan)+' calendar weeks).</p>'+(pr.registerEndsBeforeProgramme?'<div class="notice warn">The register ends before the programme. Its total planned hours are not a full-project total; 100% row coverage does not mean 100% programme coverage.</div>':'')+'</div></section>';
 }
+// SW-46: the per-hour notice states that resource assignments exist only when the projection counts them.
+function resourcePerHourNotAssessableNote(p){
+  const assignments=knownScreenCount(p.assignmentRecordCount)??knownScreenCount(p.assignedResourceCount);
+  return '<div class="notice warn"><b>Per-hour overload is not 0; it is not assessable.</b> '+conditionalNotice(assignments===null?null:assignments>0,
+    'The XER contains resource assignments but no usable max-units-per-hour capacity for the assigned resources.',
+    'The current programme has no resource assignments, so there is no per-hour demand to compare with capacity.',
+    'Resource assignments for the current programme are not established, and no usable max-units-per-hour capacity is established.')+
+    ' CMeng therefore leaves utilization blank instead of assuming zero or unlimited capacity.</div>';
+}
 function renderResourceVisual(data){
   const p=projectionFor(data,"resource_utilization");
   if(!Array.isArray(p.rows)){
@@ -2821,7 +2832,7 @@ function renderResourceVisual(data){
   const excludedClassSummary=excludedCapacityRows.length?'<div class="notice info"><b>'+escapeHtml(fmt(excludedCapacityRows.length))+' non-capacity resource definitions excluded from crew/equipment utilization math.</b><p>'+escapeHtml(Object.entries(p.businessClassCounts||{}).filter(([key])=>!["labor","equipment"].includes(key)).map(([key,value])=>humanizeKey(key)+": "+fmt(value)).join(" · "))+'</p><p>Cost, quantity, material and physical-weight/progress resources remain visible in the detailed register but are not treated as labour or equipment capacity.</p></div>':"";
 
   const perHourNote=capacityKnown===0
-    ? '<div class="notice warn"><b>Per-hour overload is not 0; it is not assessable.</b> The XER contains resource assignments but no usable max-units-per-hour capacity for the assigned resources. CMeng therefore leaves utilization blank instead of assuming zero or unlimited capacity.</div>'
+    ? resourcePerHourNotAssessableNote(p)
     : p.capacityCoveragePercent<100
       ? '<div class="notice info">Per-hour utilization is calculated only for resources with established capacity. The remaining resources stay unassessed.</div>'
       : '';
@@ -3599,6 +3610,21 @@ function renderNearCriticalVisual(data){
     '<details class="source-scope"><summary>Float analytics & classification detail</summary><div class="planning-panel-body">'+kpis+exceptionsPanel+reconciliation+floatConcentrationWarning+floatDistributionSummary(p,'Unfinished execution activity float values')+'</div></details>'+
     '<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Submitted float distribution</h4><p>All unfinished execution activities. Bands show working days when every activity shares one source calendar day length; otherwise original hours with the reason. Working-day screening and the float-risk watchlist require the disclosed calendar basis separately.</p></div></div><div class="planning-panel-body">'+histogram+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Where float-risk work finishes</h4><p>Current finish-month concentration for the full float-risk watchlist.</p></div></div><div class="planning-panel-body">'+finishPeriods+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float-Risk Watchlist</h4><p>This band runs from the disclosed critical boundary to the near-critical limit. Critical and negative-float exceptions are listed above. Open activities appear before completed history. '+(p.floatRiskWatchlistCount===null?'The full screening count is unresolved for '+escapeHtml(fmt(unresolved))+' activities because float values or working-calendar inputs are missing. Any listed rows are the confirmed subset.':'Showing '+escapeHtml(fmt(watch.length))+' of '+escapeHtml(fmt(p.floatRiskWatchlistCount??responseListPopulation(p.watchlistRows||p.rows||[]).total))+' watchlist activities; the complete population is available through Download Excel / Download data.')+'</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Risk class</th><th>Status</th><th>Current float</th><th>Previous float</th><th>Float erosion</th><th>Near-critical limit</th><th>Calendar</th><th>Controlled baseline finish</th><th>Current finish</th><th>Vs controlled baseline d</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
+// SW-46: "unit gate passed" is printed only when hour-unit labour resources and labour assignments were actually checked.
+function manhourUnitNote(p){
+  if((p.excludedNonHourLaborResourceIds||[]).length||p.unresolvedUnitLaborAssignmentCount)
+    return '<div class="notice warn"><b>Non-hour labour evidence excluded.</b> '+escapeHtml(fmt((p.excludedNonHourLaborResourceIds||[]).length))+' labour resource definition(s) and '+escapeHtml(screenCountText(p.unresolvedUnitLaborAssignmentCount))+' labour assignment(s) do not establish an hour unit and are excluded from the man-hour curve.</div>';
+  const hourResources=knownScreenCount(p.laborHourResourceCount),laborAssignments=knownScreenCount(p.laborAssignmentCount);
+  return conditionalNotice(hourResources===null||laborAssignments===null?null:hourResources>0&&laborAssignments>0,
+    '<div class="notice info"><b>Labour-hour unit gate passed.</b> Man-hour totals use only labour resources whose unit metadata explicitly establishes hours.</div>',
+    '<div class="notice warn"><b>No labour hours are counted from programme assignments.</b> The current programme has '+escapeHtml(screenCountText(laborAssignments))+' labour assignment(s) and '+escapeHtml(screenCountText(hourResources))+' labour resource(s) with an hour unit.</div>',
+    '');
+}
+// SW-46: states which labour-hour totals exist instead of "may exist".
+function manhourActualMissingNote(p){
+  const known=value=>typeof value==="number"&&Number.isFinite(value);
+  return '<div class="notice warn"><b>Actual man-hours are not confirmed.</b> Planned labor hours are '+conditionalNotice(known(p.plannedHoursKnown),'established','not established')+'; remaining labor hours are '+conditionalNotice(known(p.remainingHoursKnown),'established','not established')+'. No current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>';
+}
 function renderManhourVisual(data){
   const p=projectionFor(data,"manhour_scurve");
   if(!Array.isArray(p.points)){
@@ -3624,11 +3650,9 @@ function renderManhourVisual(data){
     ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"],
     ["Period actual coverage",periodCoverage==null?"Not established":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
   ]);
-  const unitNote=(p.excludedNonHourLaborResourceIds||[]).length||p.unresolvedUnitLaborAssignmentCount
-    ? '<div class="notice warn"><b>Non-hour labour evidence excluded.</b> '+escapeHtml(fmt((p.excludedNonHourLaborResourceIds||[]).length))+' labour resource definition(s) and '+escapeHtml(screenCountText(p.unresolvedUnitLaborAssignmentCount))+' labour assignment(s) do not establish an hour unit and are excluded from the man-hour curve.</div>'
-    : '<div class="notice info"><b>Labour-hour unit gate passed.</b> Man-hour totals use only labour resources whose unit metadata explicitly establishes hours.</div>';
+  const unitNote=manhourUnitNote(p);
   const note=!actualEstablished
-    ? '<div class="notice warn"><b>Actual man-hours are not confirmed.</b> Planned and remaining labor hours may exist, but no current actual-hours total is evidenced. CMeng therefore withholds the actual curve.</div>'
+    ? manhourActualMissingNote(p)
     : !actualHistoryEstablished
       ? '<div class="notice warn"><b>Actual total is established but periodized actual history is not.</b> CMeng keeps the known total and withholds a historical actual curve instead of fabricating time phasing.</div>'
       : '';
