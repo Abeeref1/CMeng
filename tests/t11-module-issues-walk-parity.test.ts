@@ -58,5 +58,8 @@ export function walkParityDigest(assess:typeof assessModuleIssues):{digest:strin
 test('readiness findings walk gives byte-identical issues, paths and order to v/int2',()=>{
  const {digest,issues}=walkParityDigest(assessModuleIssues);
  assert.ok(issues>0,'the trees produce findings');
- assert.equal(digest,'c6e11727b8de1cf0c529b0b95c30728c1ee40fcb47f5a98d7b7498179e0a5f7b');
+ // The issue shape gained the identity fields of the lossless de-duplication fix (d1824129).
+  // a40dfc12... is the digest of the PREVIOUS walk implementation on those same trees (built on
+  // branch v/d1-identity, without the walk change), so this still proves the new walk is identical.
+  assert.equal(digest,'a40dfc1263b3e513193920eeb679af1421aa9a770cdef14bd632bf267dcfa45e');
 });
