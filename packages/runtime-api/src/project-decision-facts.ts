@@ -323,8 +323,13 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
   const applied=/applied|application|draft|submitted|pending certification/i.test(r.sourceStatus??'')||!start;
   const rawDue=lifecycle.paymentDueDate, due=typeof rawDue?.value==='string'?date(rawDue.value):null;
   const method=rawDue?.basis?.method??null;
+  // F36: a register due date is shown beside the date the contract payment
+  // period gives from the certificate date (same producer rule), and compared.
+  const periodDue=method==='explicit_source_due_date'?lifecycle.contractPeriodDueDate:rawDue;
+  const contractPeriodDue=typeof periodDue?.value==='string'?date(periodDue.value):null;
+  const dueDateCheck=!due?'not_established':method!=='explicit_source_due_date'?'contract_period_only':!contractPeriodDue?'contract_period_not_established':contractPeriodDue===due?'register_matches_contract_period':'register_differs_from_contract_period';
   return {certificateReference:r.paymentId,sourceStatus:r.sourceStatus,certificationDateIso:start,actualPaymentDateIso:paid,
-   paymentPeriodDays:period,contractDueDateIso:due,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
+   paymentPeriodDays:period,contractDueDateIso:due,contractPeriodDueDateIso:contractPeriodDue,dueDateCheck,daysLate:due&&paid?Math.max(0,days(due,paid)??0):due&&cutoff&&!paid?Math.max(0,days(due,cutoff)??0):null,
    state:applied?'application_not_certified':!due?'due_basis_missing':!paid?'payment_not_recorded':paid>due?'paid_late':'paid_within_period',
    includedInCertifiedTotals:!applied,paymentDueDate:rawDue??null,
    basis:method?String(method).replaceAll('_',' '):'The contract payment trigger, period or date basis is not established.',
@@ -333,6 +338,7 @@ function buildPaymentChecks(commercial:any,cutoff:string|null){
    sourceRefs:r.sourceRefs??[]};
  });
  return {rows,total:rows.length,appliedExcludedCount:rows.filter((r:any)=>!r.includedInCertifiedTotals).length,lateCount:rows.filter((r:any)=>r.state==='paid_late').length,
+  registerDueDateDifferenceCount:rows.filter((r:any)=>r.dueDateCheck==='register_differs_from_contract_period').length,
   basis:'Applications are not certifications. Due dates are the same contract-version-aware dates used in the issued payment register; no trigger or working-day calendar is inferred.'};
 }
 
