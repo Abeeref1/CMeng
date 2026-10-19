@@ -118,7 +118,9 @@ function renderRegisterContractQueries(data){
   for(const [name,key] of metrics){
     const fact=row[key],value=fact?.value;
     if(typeof value!=='number'||!Number.isFinite(value)||value<=sum+0.01)continue;
-    exceptions.push({currency:row.currency,name,total:value,current:sum,difference:value-sum,
+    // R12: a certified figure from a net or unlabelled column carries its shared label.
+    const shown=key==='grossCertifiedAmount'&&row.grossCertifiedAmountColumn&&row.grossCertifiedAmountColumn!=='gross'&&row.grossCertifiedAmountLabel?row.grossCertifiedAmountLabel:name;
+    exceptions.push({currency:row.currency,name:shown,total:value,current:sum,difference:value-sum,
       basis:fact?.basis||'Source population/period basis must be checked'});
   }
  }

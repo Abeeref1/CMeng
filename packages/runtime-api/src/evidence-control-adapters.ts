@@ -14,6 +14,7 @@ import type {
 } from "../../eot-assessment/src";
 import type {
   BondRecord,
+  CertifiedAmountColumn,
   ClaimCommercialRecord,
   InvoiceRecord,
   NcrRecord,
@@ -128,6 +129,14 @@ function value(
 }
 
 function numeric(raw: string): number | null { return numberValue(raw); }
+
+/** R12: which column a certified amount is read from, from the column's own
+ * words: gross only, net only (Net Certified, Net Payable), or neither/both. */
+export function certifiedAmountColumn(header: string): CertifiedAmountColumn {
+  const words = new Set(norm(header).split(" "));
+  const gross = words.has("gross"), net = words.has("net");
+  return gross && !net ? "gross" : net && !gross ? "net" : "unstated";
+}
 
 function iso(raw:string):string|null {return registerDate(raw);}
 
@@ -632,6 +641,7 @@ export function deriveControlsFromCsv(
               certifiedIndex,
             ),
           ),
+        ...(certifiedIndex >= 0 ? { certifiedAmountColumn: certifiedAmountColumn(headers[certifiedIndex] ?? "") } : {}),
         paidAmount:
           numeric(
             value(
@@ -1892,10 +1902,12 @@ export interface CommercialSourceReadConflict {
 export const commercialDecisionKey = (kind: string, recordId: string) => "commercial-record:" + kind + ":" + recordId;
 /** The adopted record behind a decision-applied record. */
 const adoptedBasis = <T>(row: T): T => ((row as any)?.decisionBasis?.adopted ?? row) as T;
+// R12: the certified column is a label of the amount, not a value: records stored
+// before it existed compare (and keep their saved-decision fingerprints) as before.
 const comparableRecord = (row: object) =>
   JSON.stringify(
     Object.entries(row)
-      .filter(([key]) => !["sourceRefs", "sourceAnalyticalUse", "sourceAnalyticalNote", "decisionBasis"].includes(key))
+      .filter(([key]) => !["sourceRefs", "sourceAnalyticalUse", "sourceAnalyticalNote", "decisionBasis", "certifiedAmountColumn"].includes(key))
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 /** Documents named by source references; a document id may itself contain ':'. */
