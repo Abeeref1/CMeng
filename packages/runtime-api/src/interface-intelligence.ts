@@ -57,7 +57,7 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
   const explicitPairs=new Set(rows.flatMap(r=>r.sourceRecordIds));
   const byActivity=new Map<string,DeliveryRecord[]>();
   for(const p of packages)for(const id of p.links.activityIds){const list=byActivity.get(id)??[];list.push(p);byActivity.set(id,list);}
-  const seen=new Set<string>();
+  const seen=new Set<string>(),generatedPairs=new Set<InterfaceIntelligenceRow>();
   for(const [activityId,linked] of byActivity){
     if(linked.length<2)continue;
     for(let i=0;i<linked.length;i++)for(let j=i+1;j<linked.length;j++){
@@ -73,18 +73,23 @@ export function interfaceIntelligence(state:ProjectRuntimeState){
         consequence:'Two confirmed packages converge on the same programme activity. This identifies an interface to review; it does not establish a blocker or responsibility.',
         escalation:'Confirm the giving/receiving deliverable, owner and required date before treating this interface as a management blocker.',
         packageIds:[a.recordId,b.recordId],workfrontIds:workfront?[workfront.recordId]:[],sourceRecordIds:[a.recordId,b.recordId],sourceRefs:[...a.receipts,...b.receipts].map(x=>x.documentId+':'+x.locator)});
+      generatedPairs.add(rows.at(-1)!);
     }
   }
   const confirmed=rows.filter(r=>r.authority!=='candidate'),candidates=rows.filter(r=>r.authority==='candidate'),open=confirmed.filter(r=>['open','blocked','overdue'].includes(r.state));
   const blockers=confirmed.filter(r=>['blocked','overdue'].includes(r.state));
   const overdue=confirmed.filter(r=>r.state==='overdue');
   const links=(row:InterfaceIntelligenceRow)=>row.linkedActivity?row.linkedActivity.split(';').map(x=>x.trim()).filter(Boolean):[];
-  const knownLinkedActivityCount=new Set(rows.flatMap(links).filter(id=>activities.has(id))).size;
+  // SW-34: generated package pairs stay listed as labelled candidates for review;
+  // they never count as interfaces, so linkage figures use register rows and
+  // explicit (contract-stated) links only.
+  const counted=rows.filter(r=>!generatedPairs.has(r));
+  const knownLinkedActivityCount=new Set(counted.flatMap(links).filter(id=>activities.has(id))).size;
   const populationComplete=population.state==='established';
   const openComplete=populationComplete&&confirmed.every(r=>r.state!=='unknown');
   const overdueComplete=populationComplete&&confirmed.every(r=>r.state==='closed'||r.state!=='unknown'&&!!r.requiredDate&&!!dataDateIso);
   const blockerComplete=populationComplete&&confirmed.every(r=>['closed','blocked','overdue'].includes(r.state)||r.state==='open'&&!!r.requiredDate&&!!dataDateIso);
-  const linkageComplete=populationComplete&&rows.every(r=>links(r).length>0&&links(r).every(id=>activities.has(id)));
+  const linkageComplete=populationComplete&&counted.every(r=>links(r).length>0&&links(r).every(id=>activities.has(id)));
   return {schemaVersion:'1.0',projectionKey:'interface_intelligence',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,
     managementPosition:blockers.length?blockers.length+' known interface'+(blockers.length===1?'':'s')+' from source or reviewed records require management action. '+(!blockerComplete?'The complete blocked/overdue count is not established. ':'')+candidates.length+' additional candidate(s) remain for review.':
       confirmed.length?open.length+' known open interface(s) are retained from source or reviewed records. '+(blockerComplete?'The checked interface population has no blocked/overdue records.':'The complete blocked/overdue count needs population, status and date evidence.'):
