@@ -40,6 +40,12 @@ export interface EvidenceDocument {
   tabularRead?: {producerVersion:string;sourceHashSha256:string;sheets:Array<{name:string;rows:string[][];intelligence?:EvidenceTableIntelligence;semantic?:EvidenceTableSemantic}>} | undefined;
   csvSemantic?:EvidenceTableSemantic;
   tableConfirmations?: EvidenceColumnConfirmation[] | undefined;
+  // Stored reading and review state (always recorded on stored documents).
+  // Read only by the shared candidate admission rule below.
+  parserState?: string;
+  identification?: {needsReview?: boolean} | null;
+  lineage?: {needsReview?: boolean} | null;
+  supersededByDocumentId?: string | null;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
 export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument; intelligence: EvidenceTableIntelligence; recognition?: {headerRow:number;readRowCount:number;recognized:boolean;unknown:string[]}; }
@@ -546,19 +552,34 @@ export function sourceTables(documents: readonly EvidenceDocument[], diagnostics
 }
 export const has = (table: SourceTable, ...headers: string[]): boolean => headers.every(h => table.headers.includes(headerKey(h)));
 
-/** A pending revision cannot displace an established source of the same role. */
-export function governedTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
-  const tables = sourceTables(documents, diagnostics);
-  // Authority and revision conflicts belong to DOCUMENT evidence, not just
-  // successfully decoded tables. A damaged/missing current source still owns
-  // its family: a pending candidate cannot silently replace it. Likewise, a
-  // second candidate that failed reading must still block a false singleton.
+/** Why a candidate (not formally adopted) document is held out of analysis. */
+export type SourceCandidateHold =
+  | 'family_unknown'
+  | 'revision_not_applied'
+  | 'family_conflict'
+  | 'not_fully_read'
+  | 'review_required'
+  | 'superseded';
+export const sourceCandidateHoldDiagnostic=(d:EvidenceDocument,hold:SourceCandidateHold):string=>
+  hold==='revision_not_applied'?'CANDIDATE_REVISION_NOT_APPLIED:'+d.documentId
+  :hold==='family_conflict'?'CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:'+d.familyKey+':'+d.documentId
+  :hold==='not_fully_read'?'CANDIDATE_NOT_FULLY_READ:'+d.documentId+':'+(d.parserState||'unrecorded')
+  :hold==='review_required'?'CANDIDATE_REVIEW_REQUIRED:'+d.documentId
+  :hold==='superseded'?'CANDIDATE_SUPERSEDED:'+d.documentId
+  :'CANDIDATE_FAMILY_UNKNOWN:'+d.documentId;
+/**
+ * T04 ONE RULE for every analysis family. A candidate document (read from
+ * source, not formally adopted) takes part in source-qualified analysis only
+ * when it is fully parsed, needs no identification or lineage review, is not
+ * superseded, belongs to a known source family that has no adopted document,
+ * and is the only candidate document of that family. Count owning documents,
+ * not sheets or table repetitions. A damaged/missing adopted source still owns
+ * its family, and an unread second candidate still blocks a false singleton.
+ * Returns the hold reason, or null when the document is not held (adopted,
+ * other basis states, or an admitted candidate). Never changes basisState.
+ */
+export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d: EvidenceDocument) => SourceCandidateHold | null {
   const established = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.familyKey).filter(Boolean));
-  // A source-only, clean, uniquely identified candidate may be used for
-  // qualified analysis without formal adoption. Two DISTINCT candidate
-  // document revisions of the SAME source family are a real conflict. Never
-  // concatenate them into a "current" count, EAC, claim or register balance.
-  // Count owning documents, not spreadsheet sheets or table repetitions.
   const candidateFamilies=new Map<string,Set<string>>();
   for(const document of documents){
     if(document.basisState!=='candidate'||!document.familyKey)continue;
@@ -566,17 +587,28 @@ export function governedTables(documents: readonly EvidenceDocument[], diagnosti
     ids.add(document.documentId);
     candidateFamilies.set(document.familyKey,ids);
   }
+  return d => {
+    if(d.basisState!=='candidate')return null;
+    if(!d.familyKey)return 'family_unknown';
+    if(established.has(d.familyKey))return 'revision_not_applied';
+    if((candidateFamilies.get(d.familyKey)?.size??0)>1)return 'family_conflict';
+    if(d.parserState!=='parsed')return 'not_fully_read';
+    if(d.identification?.needsReview||d.lineage?.needsReview)return 'review_required';
+    if(d.supersededByDocumentId)return 'superseded';
+    return null;
+  };
+}
+
+/** A pending revision cannot displace an established source of the same role.
+ * Candidate tables follow the one shared rule (sourceCandidateHold). */
+export function governedTables(documents: readonly EvidenceDocument[], diagnostics: string[]): SourceTable[] {
+  const tables = sourceTables(documents, diagnostics);
+  const hold = sourceCandidateHold(documents);
   return tables.filter(t => {
-    const d=t.document;
-    if(d.basisState!=='candidate'||!d.familyKey)return true;
-    if(established.has(d.familyKey)){
-      diagnostics.push('CANDIDATE_REVISION_NOT_APPLIED:' + d.documentId); return false;
-    }
-    if((candidateFamilies.get(d.familyKey)?.size??0)>1){
-      diagnostics.push('CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:' + d.familyKey + ':' + d.documentId);
-      return false;
-    }
-    return true;
+    const reason=hold(t.document);
+    if(!reason)return true;
+    diagnostics.push(sourceCandidateHoldDiagnostic(t.document,reason));
+    return false;
   });
 }
 
