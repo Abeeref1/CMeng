@@ -85,17 +85,21 @@ function summarise(label:string,profile:any){
  const byId=new Map<number,any>();for(const node of profile.nodes)byId.set(node.id,node);
  const parent=new Map<number,number>();for(const node of profile.nodes)for(const child of node.children??[])parent.set(child,node.id);
  const key=(node:any)=>{const f=node.callFrame;return (f.functionName||'(anon)')+' '+String(f.url).replace(/^.*\/dist\//,'').replace(/^file:\/\//,'')+':'+(f.lineNumber+1);};
- const self=new Map<string,number>(),incl=new Map<string,number>();let total=0;
+ const self=new Map<string,number>(),incl=new Map<string,number>(),edges=new Map<string,Map<string,number>>();let total=0;
  for(let i=0;i<profile.samples.length;i++){
   const ms=(profile.timeDeltas[i]??0)/1000;total+=ms;
   let node=byId.get(profile.samples[i]);if(!node)continue;
   const k=key(node);self.set(k,(self.get(k)??0)+ms);
-  const seen=new Set<string>();
-  for(let id:number|undefined=node.id;id!==undefined;id=parent.get(id)){const n=byId.get(id);const kk=key(n);if(seen.has(kk))continue;seen.add(kk);incl.set(kk,(incl.get(kk)??0)+ms);}
+  const seen=new Set<string>(),seenEdge=new Set<string>();let child:string|null=null;
+  for(let id:number|undefined=node.id;id!==undefined;id=parent.get(id)){const n=byId.get(id);const kk=key(n);
+   if(child!==null&&child!==kk&&!seenEdge.has(child+'<'+kk)){seenEdge.add(child+'<'+kk);const m=edges.get(child)??new Map<string,number>();m.set(kk,(m.get(kk)??0)+ms);edges.set(child,m);}
+   child=kk;if(seen.has(kk))continue;seen.add(kk);incl.set(kk,(incl.get(kk)??0)+ms);}
  }
  console.log('R11PROF '+label+' total sampled '+total.toFixed(0)+' ms');
  for(const [k,ms] of [...self].sort((a,b)=>b[1]-a[1]).slice(0,70))console.log('R11PROF '+label+' self '+ms.toFixed(0).padStart(7)+' '+k);
  for(const [k,ms] of [...incl].sort((a,b)=>b[1]-a[1]).filter(([k])=>!/^\(root\)|^\(program\)|^\(garbage/.test(k)).slice(0,160))console.log('R11PROF '+label+' incl '+ms.toFixed(0).padStart(7)+' '+k);
+ for(const [k,ms] of [...incl].sort((a,b)=>b[1]-a[1]).filter(([k])=>!/^\(root\)|^\(program\)|^\(garbage|node:|server\.js|runMicrotasks/.test(k)).slice(0,90))
+  for(const [caller,cms] of [...(edges.get(k)??new Map<string,number>())].sort((a,b)=>b[1]-a[1]).slice(0,4))console.log('R11PROF '+label+' caller '+ms.toFixed(0).padStart(7)+' '+k+' <= '+cms.toFixed(0)+' '+caller);
 }
 
 test('r11-perf probe: profile cold Dashboard and dump management pages',{timeout:1_800_000},async t=>{
@@ -122,7 +126,8 @@ test('r11-perf probe: profile cold Dashboard and dump management pages',{timeout
   for(const path of pages){
    const page=path==='/management/master-dashboard'?cold:await timed(path);
    console.log('R11TIME '+label+' '+path+' '+page.ms.toFixed(0)+' ms status '+page.status+' bytes '+Buffer.byteLength(page.text));
-   console.log('R11DUMP '+label+' '+path+' '+gzipSync(Buffer.from(page.text)).toString('base64'));
+   const data=gzipSync(Buffer.from(page.text)).toString('base64');
+   for(let i=0,n=Math.ceil(data.length/60000);i<n;i++)console.log('R11CHUNK '+label+' '+path+' '+i+' '+n+' '+data.slice(i*60000,(i+1)*60000));
   }
  }
  session.disconnect();
