@@ -29,12 +29,19 @@ function pagePath(projectId:string,page:(typeof moduleRegistry)[number]){
 
 (async()=>{
   const t0=performance.now();
-  const [general,mixed,lifecycle,semantic]=await Promise.all([
+  // Generated workbooks carry their creation time; freeze the clock while the
+  // fixed-seed sources are generated so every run uploads identical bytes.
+  const RealDate=Date,FIXED=Date.UTC(2031,0,1);
+  const Frozen:any=function(...args:any[]){if(!new.target)return new RealDate(FIXED).toString();return args.length?new (RealDate as any)(...args):new RealDate(FIXED);};
+  Frozen.prototype=RealDate.prototype;Frozen.now=()=>FIXED;Frozen.UTC=RealDate.UTC;Frozen.parse=RealDate.parse;
+  (globalThis as any).Date=Frozen;
+  const generated=await Promise.all([
     generateBlindRound(seed+'::general',counts[0]!),
     generateMixedWorkbookBlindRound(seed+'::mixed',counts[1]!),
     generateLifecycleMixedWorkbookBlindRound(seed+'::lifecycle',counts[2]!),
     generateSemanticAiBlindRound(seed+'::semantic',counts[3]!),
-  ]);
+  ]).finally(()=>{(globalThis as any).Date=RealDate;});
+  const [general,mixed,lifecycle,semantic]=generated;
   const projects:Project[]=[
     ...general.projects.map(p=>({...p,family:'general'})),...mixed.projects.map(p=>({...p,family:'mixed'})),
     ...lifecycle.projects.map(p=>({...p,family:'lifecycle'})),...semantic.projects.map(p=>({...p,family:'semantic'})),

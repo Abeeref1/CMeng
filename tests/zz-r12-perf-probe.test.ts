@@ -45,6 +45,21 @@ test('r12-perf2 probe: profile the j8-final workload subset',{timeout:1_800_000}
   console.log('R12CPU '+cpuModel);
   const work=mkdtempSync(join(tmpdir(),'r12-probe-')),prof=join(work,'prof'),out=join(work,'out');
   const counts=process.env.R12_COUNTS??'10,6,5,4';
+  // Unprofiled run first: true phase timings (the profiler slows compilation).
+  {
+   const plainOut=join(work,'plain'),s0=Date.now();
+   const plain=spawn(process.execPath,[join(__dirname,'zz-r12-workload.js'),plainOut,counts,'r12-perf2-fixed-seed::J8-FINAL-REAL-ACCEPTANCE','0'],{env:{...process.env},stdio:['ignore','ignore','pipe']});
+   let plainErrors='';plain.stderr.on('data',chunk=>{plainErrors+=chunk;if(plainErrors.length>20000)plainErrors=plainErrors.slice(-20000);});
+   const plainCode=await new Promise<number|null>(resolve=>plain.on('close',resolve));
+   console.log('R12PLAIN child wall '+(Date.now()-s0)+' ms, exit '+plainCode);
+   if(plainCode!==0)console.log('R12ERR '+plainErrors.slice(-4000).replace(/\n/g,' | '));
+   assert.equal(plainCode,0);
+   const r=JSON.parse(readFileSync(join(plainOut,'result.json'),'utf8'));
+   console.log('R12PLAIN timings '+JSON.stringify(Object.fromEntries(Object.entries(r.timings).map(([k,v])=>[k,Math.round(v as number)]))));
+   console.log('R12PLAIN pages '+JSON.stringify(Object.entries(r.pageMs).sort((a:any,b:any)=>b[1]-a[1]).slice(0,12).map(([k,v]:any)=>[k,Math.round(v)])));
+   console.log('R12PLAIN perProject '+JSON.stringify(r.perProject.map((p:any)=>[p.family,Math.round(p.ms),Math.round(p.firstPageMs)])));
+   for(const [projectId,h] of Object.entries(r.hashes))console.log('R12PLAINHASH '+projectId+' '+JSON.stringify(h));
+  }
   const started=Date.now();
   const child=spawn(process.execPath,['--cpu-prof','--cpu-prof-dir='+prof,'--cpu-prof-interval=1000',join(__dirname,'zz-r12-workload.js'),out,counts,'r12-perf2-fixed-seed::J8-FINAL-REAL-ACCEPTANCE','1'],
     {env:{...process.env},stdio:['ignore','pipe','pipe']});

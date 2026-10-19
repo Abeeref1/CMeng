@@ -118,6 +118,16 @@ const priorityMilestoneOrder=(a:any,b:any)=>{
     Number(a?.daysFromDataDate??Number.MAX_SAFE_INTEGER)-Number(b?.daysFromDataDate??Number.MAX_SAFE_INTEGER);
 };
 
+const MEASURED_BYTES_FIELD='"responseBytes":0';
+const serializedProjections=new WeakMap<object,string>();
+/** The exact JSON text of a projection returned by pageProjectResponse, when it
+ * was already serialised to measure it and has not been sent yet. */
+export function takeSerializedPage(projection:unknown):string|undefined{
+ if(!projection||typeof projection!=='object')return undefined;
+ const text=serializedProjections.get(projection);
+ if(text!==undefined)serializedProjections.delete(projection);
+ return text;
+}
 /** No stringify of the 65-MB original data, no six full-payload
  * serialization passes, and no page-specific truncation of canonical facts.
  * Counts are always taken BEFORE paging from each exact source population. */
@@ -254,10 +264,18 @@ export function pageProjectResponse(
    source,pageSize:25,projectVersion,tables,additionalTables,responseBytes:0,sourcePreserved:true,
   };
   (projection as Record<string,unknown>).responsePaging=paging;
-  const size=bytes(projection);
+  const measured=JSON.stringify(projection),size=Buffer.byteLength(measured,'utf8');
   paging.responseBytes=size;
   smallestProjection=projection;
-  if(size<=maxBytes)return projection;
+  if(size<=maxBytes){
+   // T11: the page is serialised once. The text measured is the text sent,
+   // with this size in place of the 0 it was measured with (only when
+   // responsePaging is the last top-level key, so its field is located exactly).
+   const keys=Object.keys(projection),at=measured.lastIndexOf(MEASURED_BYTES_FIELD);
+   if(keys[keys.length-1]==='responsePaging'&&at>measured.lastIndexOf('"responsePaging":'))
+    serializedProjections.set(projection,measured.slice(0,at)+'"responseBytes":'+size+measured.slice(at+MEASURED_BYTES_FIELD.length));
+   return projection;
+  }
  }
  // Preserve the screen shape and the exact table pointers even when the
  // irreducible facts exceed the target. Dropping the entire module here made

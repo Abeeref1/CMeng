@@ -15,7 +15,7 @@ import {deliveryRequest} from './delivery-api';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {parentPort} from 'node:worker_threads';
 import {sendHttpBody} from './http-response';
-import {isProjectScreenRequest,pageProjectResponse,recordDetailPage} from './response-paging';
+import {isProjectScreenRequest,pageProjectResponse,recordDetailPage,takeSerializedPage} from './response-paging';
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
@@ -695,7 +695,8 @@ function json(
   // T09 A4: an owner known only as an accountable PMC role is sent as a missing
   // owner (owner null, ownerState 'missing', accountableRole); keys are unchanged.
   const present=projectMatch?(value:unknown)=>presentMissingOwners(floatDays!(value)):undefined;
-  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,present):projectMatch&&statusCode===200?presentMissingOwners(withActionAssignments(decodeURIComponent(projectMatch[1]!),body)):body);
+  const screenPage=screen?pageProjectResponse(body,requestUrl,undefined,present):undefined;
+  const payload = screen?takeSerializedPage(screenPage)??JSON.stringify(screenPage):JSON.stringify(projectMatch&&statusCode===200?presentMissingOwners(withActionAssignments(decodeURIComponent(projectMatch[1]!),body)):body);
   // The public gateway can only keep a version-safe result after this header
   // proves which project snapshot was used. Previously it was never sent, so
   // every visit after worker eviction repeated the complete analysis.
