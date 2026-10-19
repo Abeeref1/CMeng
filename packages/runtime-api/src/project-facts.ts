@@ -1,5 +1,5 @@
 import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
-import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus} from './project-input-status';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus} from './project-input-status';
 import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -650,6 +650,8 @@ export interface ProjectInputStatus {
   calendar:CalendarInputStatus;
   capacity:CapacityInputStatus;
   riskOwners:RiskOwnerInputStatus;
+  /** F07: the one risk register row count every risk page states. */
+  riskRows:RiskRowInputStatus;
 }
 /** F07: shared input status for a project, from the same rules the pages use. */
 export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
@@ -659,6 +661,7 @@ export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus
     capacity:capacityInputStatus(canonicalResources(state)),
     // No supplied risk rows: owner coverage is unknown, never 0 of 0.
     riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
+    riskRows:riskRowInputStatus(operationalReporting(state).risk),
   };
 }
 

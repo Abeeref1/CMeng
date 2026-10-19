@@ -1,5 +1,5 @@
 import {handoverSourceComparison} from './handover-source-review';
-import {riskOwner} from './project-input-status';
+import {riskOwner,riskRowInputStatus} from './project-input-status';
 import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from './programme-task-review';
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
@@ -967,7 +967,10 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
-  data:{projectionKey:'delivery',empty:!usable,deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
+  data:{projectionKey:'delivery',empty:!usable,
+   // F07: the same risk register row counts as the risk register page and the project facts.
+   ...(riskPage?(counts=>({riskRowCounts:counts,rowScopeLabel:counts.deliveryLabel}))(riskRowInputStatus(risk)):{}),
+  deliveryPage:key,projectId:state.projectId,projectVersion:state.version,dataDateIso:p.dataDateIso,programmeLabel:p.programmeLabel,programmeRevisionId:p.programmeRevisionId,title,kind,managementPosition,boqDerivedCandidate:useBoqCandidates,candidateBasis:useBoqCandidates?boqScope.basis:null,rows:rows.map(r=>({...r,projectId:state.projectId})),metrics,findings,
    reviewRecords:records.map(r=>({recordId:r.recordId,reference:r.reference,description:r.description,kind:r.kind,state:r.state,revision:r.revision,diagnostics:r.diagnostics})),population,populationAuthority,summary,documents:sourceDocs,sourceAvailability,sourceReadingDiagnostics:p.diagnostics.filter(d=>sourceDocs.some(doc=>d.includes(doc.documentId))),authorityScope:p.authorityScope,authorityLinks:{programme:'/schedule/modules/schedule-analytics',progress:'/schedule/modules/progress-report',installed:'/schedule/modules/quantity-scurve',commercial:'/commercial/modules/commercial-overview',claims:'/schedule/modules/delay-claims'},...extras}});
 }
 export function deliveryDashboard(state:ProjectRuntimeState){

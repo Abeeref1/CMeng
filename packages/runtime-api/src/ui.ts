@@ -2879,6 +2879,13 @@ function renderTradeChainPanel(tc){
   }).join("");
   return managementPanel(title,intro+" "+(tc.periodBasis||""),body,true);
 }
+// F07: weekly capacity for every trade in the register, from the shared rule.
+// A trade whose rows state no capacity reads "Not stated"; no trade is dropped.
+function tradeCapacityPanel(rows){
+  if(!Array.isArray(rows)||!rows.length)return "";
+  const stated=rows.filter(r=>r.capacityState!=="not_stated").length;
+  return '<section class="planning-panel trade-capacity"><div class="planning-panel-head"><div><h4>Weekly capacity by trade · '+escapeHtml(String(stated))+' of '+escapeHtml(String(rows.length))+' trades state a capacity</h4><p>Capacity as written in the resource register for each trade. Not stated means the register gives no capacity for that trade; it is not zero.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Trade</th><th>Unit</th><th>Stated weekly capacity</th></tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b>'+(r.resourceName?'<br>'+escapeHtml(r.resourceName):'')+'</td><td>'+escapeHtml(r.unit||"Not stated")+'</td><td>'+escapeHtml(r.capacityText||"Not stated")+'</td></tr>').join("")+'</tbody></table></div></div></section>';
+}
 function renderResourceVisual(data){
   const p=projectionFor(data,"resource_utilization");
   if(!Array.isArray(p.rows)){
@@ -2969,7 +2976,7 @@ function renderResourceVisual(data){
   const tradeChains=data?.tradeChains||p.tradeChains;
   return '<section class="planning-view resource-view">'+kpis+excludedClassSummary+
     (tradeChains?renderTradeChainPanel(tradeChains):'')+criticalHoursPanel+weeklyPeakControl+(capacityKnown>0||!weeklyComparable?hourlyControl:experienceDisclosure('Per-hour schedule capacity',hourlyControl,'Schedule capacity is not supplied; weekly register capacity is shown above'))+
-    renderResourceBasisReview(p.basisComparison)+perHourNote+weeklyNote+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
+    renderResourceBasisReview(p.basisComparison)+perHourNote+weeklyNote+tradeCapacityPanel(p.tradeCapacity)+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
     {label:"Weekly capacity register",value:weeklyComparable?fmt(weeklyComparable)+" comparable rows":"Not established",state:weeklyComparable?"ready":"missing"},
@@ -3243,13 +3250,17 @@ function renderRiskRegisterVisual(data){
   const p=projectionFor(data,"risk_register_control");
   if(!Array.isArray(p.rows))return"";
   const validation=p.validation||{},conflicts=(validation.diagnostics||[]).includes("RISK_RATING_SCORE_CONFLICT")?(validation.ratingInconsistencyGroups?.length??0):0;
-  const open=p.rows.filter(r=>r.status==="open").length,unknown=p.rows.filter(r=>r.status==="unknown").length;
+  // F07: counts come from the shared register row counts, never from the rows
+  // this response lists (a long register is sent as a preview page).
+  const counts=p.rowCounts||null;
+  const open=counts?counts.openCount:p.rows.filter(r=>r.status==="open").length,unknown=counts?counts.unclearStatusCount:p.rows.filter(r=>r.status==="unknown").length;
   const rows=p.rows.map(r=>'<tr><td><b>'+escapeHtml(r.riskId)+'</b><br><span class="muted">'+escapeHtml(r.subject||"")+'</span></td><td>'+escapeHtml(r.category||"—")+'</td><td>'+escapeHtml(humanizeKey(r.status))+'</td><td>'+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(r):r.owner)||pmcDisplayOwner("risk"))+'</td><td>'+escapeHtml(planningShortDate(r.dueIso))+'</td><td>'+escapeHtml(r.probability===null?"—":fmt(r.probability))+'</td><td>'+escapeHtml(r.impact===null?"—":fmt(r.impact))+'</td><td>'+escapeHtml(r.calculatedScore===null?"—":fmt(r.calculatedScore))+'</td><td>'+escapeHtml(r.suppliedRating||"—")+'</td><td>'+escapeHtml(r.reportingRating||"—")+'</td><td><span class="state-pill '+(r.ratingCheck==="conflict"?"blocked":"ready")+'">'+escapeHtml(r.ratingCheck)+'</span></td><td>'+escapeHtml(r.linkedActivityId||"—")+'</td></tr>').join("");
   return '<section class="planning-view risk-register-view">'+planningKpis([
-    ["Current risks",p.currentRecordCount,"as of Data Date"],["Open",open,"source status"],["Unknown status",unknown,"not forced open or closed"],
+    ...(counts?[["Risk register rows",counts.sourceRowCount,"every supplied row"]]:[]),
+    ["Current risks",p.currentRecordCount,"as of Data Date"],["Open",open,"source status"],...(counts?[["Closed",counts.closedCount,"closed on or before the Data Date"]]:[]),["Unknown status",unknown,"not forced open or closed"],
     ["Future records",p.futureRecordCount,"excluded from current"],["Undated records",p.undatedRecordCount,"historical status not assumed"],
     ["Rating conflicts",conflicts,"same probability × impact with inconsistent supplied rating",conflicts?"danger":""]
-  ])+'<div class="notice '+(conflicts?"warn":"info")+'"><b>Risk scoring check.</b> '+escapeHtml(validation.scoreBasis||"Probability × impact is checked only where both source values exist. Rating thresholds are not invented.")+'</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Risk register</h4><p>Current dated source risks, ownership and activity links.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Risk</th><th>Category</th><th>Status</th><th>Owner</th><th>Due</th><th>P</th><th>I</th><th>P×I</th><th>Source rating</th><th>Reporting rating</th><th>Rating check</th><th>Activity</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
+  ])+(p.rowScopeLabel?'<div class="notice info row-scope"><b>'+escapeHtml(p.rowScopeLabel)+'</b></div>':'')+'<div class="notice '+(conflicts?"warn":"info")+'"><b>Risk scoring check.</b> '+escapeHtml(validation.scoreBasis||"Probability × impact is checked only where both source values exist. Rating thresholds are not invented.")+'</div><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Risk register</h4><p>Current dated source risks, ownership and activity links.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Risk</th><th>Category</th><th>Status</th><th>Owner</th><th>Due</th><th>P</th><th>I</th><th>P×I</th><th>Source rating</th><th>Reporting rating</th><th>Rating check</th><th>Activity</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function renderContractRiskVisual(data){
   const p=projectionFor(data,"contract_risk");

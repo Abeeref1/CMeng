@@ -1,5 +1,5 @@
 import { weeklyResourceCapacityEvidence, type WeeklyResourceCapacitySummary } from './canonical-resource-evidence';
-import {capacityInputStatus} from './project-input-status';
+import {capacityInputStatus,tradeCapacityRows} from './project-input-status';
 import { projectDataDate, projectControlSchedule } from './canonical-time-claims';
 import { buildResourceUtilizationProjection } from '../../resource-utilization/src';
 import { sumKnown, round } from '../../truth-kernel/src';
@@ -71,6 +71,8 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
    weeklyOverloadedResourceCount:new Set(summary.points.filter(p=>p.availableCapacity!==null&&p.plannedDemand!==null&&p.plannedDemand>p.availableCapacity).map(p=>p.resourceId)).size,
    plannedUtilizationPercent:summary.plannedAverageToDataDate,actualUtilizationPercent:summary.actualAverageToDataDate,
    weeklyCapacityEvidence:summary,weeklyResourceRows:summary.resourceSummaries,diagnostics:summary.diagnostics,
+   // F07: every trade in the register with its stated weekly capacity (shared rule).
+   tradeCapacity:tradeCapacityRows(summary.points,summary.masterResources),
    criticalResourceHours:current&&resourceModel?criticalResourceHours(current.revision.model,resourceModel):[],
   };
  }else{
