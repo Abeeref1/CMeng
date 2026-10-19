@@ -64,7 +64,7 @@ test('Delay and EOT runtime fallbacks share submitted completion movement and fu
  for(const withEvents of [false,true]){
   if(withEvents)csv('Claim ID,Event,Notice Date,Days Claimed,Status\n'+Array.from({length:240},(_,i)=>'CASE-'+i+',Event '+i+',2031-04-15,8,Under Assessment').join('\n'),'delay_eot_claims_register');
   const windows=moduleForProject(state.projectId,'windows-analysis').data as any,eot=moduleForProject(state.projectId,'eot-assessment').data as any;
-  assert.equal(windows.windows[0].netCompletionMovementDays,4);assert.equal(windows.windows[0].strongestProgrammeMovementDays,16);
+  assert.equal(windows.windows[0].netCompletionMovementDays,4);assert.equal(windows.windows[0].strongestProgrammeMovementDays,4);assert.equal(windows.windows[0].strongestPositiveActivityMovementDays,16);
   assert.equal(eot.windowCandidates[0].positiveProgrammeMovementDays,4);assert.equal(eot.windowCandidates[0].programmeMovementBasis,windows.windows[0].netCompletionMovementBasis);
   assert.equal(eot.windowCandidates[0].analyticalTimeImpactCandidateDays,null);
   if(withEvents){const delay=moduleForProject(state.projectId,'delay-claims').data as any;

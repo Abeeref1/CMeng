@@ -65,7 +65,20 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
   const adoptedDocuments=documents.filter(d=>!sources.unadopted(d.documentId)||includeCandidates);
   // A date read only from an unadopted source is used and labelled; it is never 'official'.
   const state_=conflict?'conflicted' as const:values.length?(sourceAnalyticalOnly?'candidate' as const:'official' as const):'missing' as const;
-  return {value,state:state_,reason:sourceAnalyticalOnly&&!conflict&&values.length?CONTRACT_SOURCE_ANALYTICAL_NOTE:reason,candidates,
+  // SW-22: the original completion date is read from the main contract and from
+  // any amendment that restates it ("Original Completion ..."), and is kept apart
+  // from the current / extended date above. Same T04 rule: an adopted statement
+  // wins; a date read only from an unadopted source is a labelled candidate.
+  const originalRead=candidates.filter(c=>c.role==='main'||(c.role==='amendment'&&c.historical));
+  const originalAdopted=originalRead.filter(c=>!c.sourceAnalytical);
+  const originalUsed=originalAdopted.length?originalAdopted:originalRead;
+  const originalValues=[...new Set(originalUsed.map(c=>c.date))];
+  const originalSourceOnly=originalUsed.length>0&&originalUsed.every(c=>c.sourceAnalytical);
+  const original={value:originalValues.length===1?originalValues[0]!:null,
+    state:originalValues.length>1?'conflicted' as const:originalValues.length?(originalSourceOnly?'candidate' as const:'official' as const):'missing' as const,
+    sourceRefs:[...new Set(originalUsed.map(c=>c.sourceRef))],
+    ...(originalSourceOnly?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{})};
+  return {value,state:state_,reason:sourceAnalyticalOnly&&!conflict&&values.length?CONTRACT_SOURCE_ANALYTICAL_NOTE:reason,candidates,original,
     sourceRefs:[...new Set((sourceAnalyticalOnly?candidates:adoptedAssertions).map(c=>c.sourceRef))],
     hasContractDocuments:adoptedDocuments.length>0,hasSourceAnalyticalDocuments:documents.length>adoptedDocuments.length,
     ...(sourceAnalyticalOnly?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{}),

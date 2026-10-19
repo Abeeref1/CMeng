@@ -5382,9 +5382,9 @@ function eotCompletionAuthorityContext(
   generatedAt: string,
 ) {
   const completion = contractCompletionPosition(state, time.dataDateIso);
-  const originalDates = [...new Set(completion.candidates.filter(candidate => candidate.role === "main").map(candidate => candidate.date))];
-  const originalContractualCompletionIso = originalDates.length === 1 ? originalDates[0]! : null;
-  const originalContractualCompletionState = originalDates.length === 1 ? "official" : originalDates.length > 1 ? "conflicted" : "missing";
+  // SW-22: one shared original-date read (contract and amendment restatements, T04 label).
+  const originalContractualCompletionIso = completion.original.value;
+  const originalContractualCompletionState = completion.original.state;
   const applicableAmendments = time.amendments
     .filter(amendment => amendment.state === "official" && amendment.effectiveDate !== null && time.dataDateIso !== null && amendment.effectiveDate <= time.dataDateIso)
     .sort((a,b)=>a.effectiveDate!.localeCompare(b.effectiveDate!));
@@ -5397,6 +5397,7 @@ function eotCompletionAuthorityContext(
   return {
     originalContractualCompletionIso,
     originalContractualCompletionState,
+    ...(completion.original.sourceAnalyticalNote ? {originalContractualCompletionSourceNote: completion.original.sourceAnalyticalNote} : {}),
     amendedContractualCompletionIso,
     amendedContractualCompletionState,
     currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
