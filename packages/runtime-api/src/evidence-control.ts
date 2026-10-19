@@ -416,6 +416,8 @@ function revisionHint(
 }
 
 const reportDateHeader=/^(?:report(?:ing)?(?: period)? (?:date|end|ending)|data date|status date|status as (?:of|at)|as (?:of|at)(?: date)?|period end(?:ing| date)?|period ended|cut ?off date|valuation date)$/;
+/** F06: a column that states the file's own report date (read by contentReportDate). */
+export const isReportDateHeader=(header:string)=>reportDateHeader.test(header);
 // One shared label set for every cost-report format (CSV, xlsx, PDF text):
 // "Report date: 31/08/2026", "Period ending 31 August 2026", "As at 2026-08-31".
 const reportDateLabelText='(?:report(?:ing)?(?: period)? (?:date|end(?:ing)?)|data date|status date|status as (?:of|at)|as (?:of|at)|period end(?:ing| date)?|period ended|cut ?off date|valuation date)';
