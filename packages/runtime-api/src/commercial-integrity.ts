@@ -41,7 +41,8 @@ export function commercialIntegrityChecks(key:string, position:CommercialControl
     const p=position.claimsNotices;
     const quarantined=p.diagnostics.includes('CLAIM_POPULATION_QUARANTINED_SOURCE_RETAINED_COUNTS_WITHHELD');
     if(p.evidenceRevisionId){
-     compare('notice_outcome_population',quarantined?null:Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),quarantined?null:p.noticeAssessments.length);
+     const eventsWithheld=quarantined||p.eventPopulationState==='not_established';
+     compare('notice_outcome_population',eventsWithheld?null:Object.values(p.noticeTimelinessCounts).reduce<number>((n,v)=>n+(v??0),0),eventsWithheld?null:p.noticeAssessments.length);
      compare('notice_missing_rules_are_not_unselected_rules',p.dimensionalEvidenceGaps.requirementMissing,p.noticeTimelinessCounts.requirement_missing);
     }
     compare('notice_date_gap_population',p.dimensionalEvidenceGaps.noticeDateMissing,quarantined?null:p.noticeAssessments.filter(a=>!a.noticeIssuedAt||dateValue(a.noticeIssuedAt)===null).length);
