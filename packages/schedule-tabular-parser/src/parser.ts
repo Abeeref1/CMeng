@@ -454,6 +454,7 @@ function parseRows(
           rowDiagnostics,
         ),
         status: valueAt(row, roleColumn(header.roles, "status")),
+        activityType: valueAt(row, roleColumn(header.roles, "activity_type")),
         locators: makeLocators(
           source,
           sheet,
@@ -873,6 +874,9 @@ function parseMixedScheduleRows(
           rowDiagnostics,
         ),
         status: at(row, statusIndex),
+        // In the mixed record layout the shared "Type" column holds the
+        // activity type on ACTIVITY rows and the link type on RELATIONSHIP rows.
+        activityType: at(row, typeIndex),
         locators: {},
         statusState:
           rowDiagnostics.length === 0 ? "verified" : "unresolved",

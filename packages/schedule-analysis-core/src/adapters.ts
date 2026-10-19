@@ -163,7 +163,7 @@ export function canonicalScheduleFromTabular(
         activity.originalDurationHours ??
         zeroFromRaw(activity.originalDurationRaw);
       const type = normalizeActivityType(
-        null,
+        activity.activityType ?? null,
         durationHours,
       );
 

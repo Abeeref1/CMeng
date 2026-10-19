@@ -18,6 +18,7 @@ const ALIASES: Record<Exclude<ScheduleColumnRole,"unknown">, string[]> = {
   free_float:["free float","free_float","ff"],
   percent_complete:["percent complete","% complete","complete %","physical %","duration %"],
   status:["status","activity status"],
+  activity_type:["activity type","activity_type","task type","task_type"],
   predecessor_id:["predecessor","predecessor id","pred id","pred_task_id"],
   successor_id:["successor","successor id","succ id","task_id"],
   relationship_type:["relationship type","relation type","type","pred_type"],

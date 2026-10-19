@@ -16,6 +16,7 @@ export type ScheduleColumnRole =
   | "free_float"
   | "percent_complete"
   | "status"
+  | "activity_type"
   | "predecessor_id"
   | "successor_id"
   | "relationship_type"
@@ -70,6 +71,8 @@ export interface ScheduleActivityRow {
   freeFloatHours: number | null;
   percentComplete: number | null;
   status: string | null;
+  /** Source activity type text as written (Task, Milestone, TT_Mile ...); null when the file has no type column. */
+  activityType?: string | null;
   locators: Partial<Record<ScheduleColumnRole, ScheduleCellLocator>>;
   statusState: "verified" | "unresolved";
   diagnostics: string[];
