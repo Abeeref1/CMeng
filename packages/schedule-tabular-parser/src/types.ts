@@ -22,6 +22,7 @@ export type ScheduleColumnRole =
   | "relationship_type"
   | "lag"
   | "record_type"
+  | "activity_type"
   | "unknown";
 
 export interface ScheduleHeaderMapping {

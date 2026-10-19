@@ -201,6 +201,9 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       objectId: field(obj, ["ObjectId", "ProjectObjectId"]),
       id: field(obj, ["Id", "ProjectId", "ProjectCode"]),
       name: field(obj, ["Name", "ProjectName"]),
+      dataDate: field(obj, ["DataDate"]),
+      scheduledFinishDate: field(obj, ["ScheduledFinishDate"]),
+      mustFinishByDate: field(obj, ["MustFinishByDate"]),
     }),
   );
 
