@@ -6,6 +6,7 @@ import {createCmengServer} from '../packages/runtime-api/src/server';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 import {deriveControlsFromCsv,combineDelayModels} from '../packages/runtime-api/src/evidence-control-adapters';
+import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 
 // F06: a project with two claims/EOT register files and a notice register, all
 // uploaded through the real evidence upload path.
@@ -122,7 +123,10 @@ test('F06: two claims files and a notice register uploaded through the real path
   assert.deepEqual(facts.claims.pipeline.sourceRecordQueries.map((q:any)=>[q.recordId,q.field,q.usedValue]),[['CLM-04','days claimed','11']]);
 
   // Notices: the claims register gives CLM-01..04 notices; the notice register gives NTC-001..005; the letter gives LTR-NTC-006.
-  assert.equal(notices.noticeCount,10,'4 claims register notices, 5 notice register rows and 1 notice letter, none dropped');
+  // The page counts the notices dated by the Data Date: 4 + NTC-001..004 + the letter = 9. NTC-005 states no
+  // date, so it is retained outside the dated position (and listed as not linked), never dropped.
+  assert.equal(notices.noticeCount,9,'4 claims register notices, 4 dated notice register rows and 1 notice letter');
+  assert.deepEqual(notices.claimsReporting.notices.undated.map((n:any)=>n.noticeId),['NTC-005']);
   const eventRow=(id:string)=>delay.events.find((e:any)=>e.eventId===id);
   assert.deepEqual([...eventRow('EV-01').noticeIds].sort(),['CLM-01:notice','NTC-001'],'NTC-001 states EV-01 and its date');
   assert.deepEqual([...eventRow('EV-02').noticeIds].sort(),['CLM-02:notice','NTC-002'],'NTC-002 states the exact event title');
@@ -139,7 +143,7 @@ test('F06: two claims files and a notice register uploaded through the real path
    assert.match(r.unlinkedNotices.find((n:any)=>n.noticeId==='NTC-004').reason,/names no event/);
    assert.match(r.unlinkedNotices.find((n:any)=>n.noticeId==='NTC-005').reason,/does not state its date/);
   }
-  const model=state.controls.delayClaims;
+  const model:any=canonicalTimeClaims(state).delayClaims;
   const ntc2=model.notices.find((n:any)=>n.noticeId==='NTC-002');
   assert.equal(ntc2.eventId,'EV-02');
   assert.equal(ntc2.noticeSource.linkBasis,'exact_event_title');
