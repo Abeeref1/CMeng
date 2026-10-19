@@ -1,5 +1,5 @@
 import {parseScheduleInstant} from '../../schedule-cpm/src';
-import {readinessForActivity} from '../../lookahead-schedule/src';
+import {sharedReadinessForActivity,predecessorAssessmentMemo} from '../../lookahead-schedule/src';
 import type {ActivityAnalyticsRow} from '../../activity-analytics/src/types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
@@ -202,7 +202,7 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const productivity=forecast?.sourceProductivityForecastEvidence??forecast?.sourceProductivityForecast;
  const products=new Map<string,any[]>();for(const p of productivity?.rows??[]){if(!p.linkedActivityId)continue;const list=products.get(p.linkedActivityId)??[];list.push(p);products.set(p.linkedActivityId,list);}
  const events=new Map<string,any[]>();for(const e of state.controls.delayClaims?.events??[])for(const id of e.relatedActivityIds){const list=events.get(id)??[];list.push(e);events.set(id,list);}
- const checks:any[]=[];
+ const checks:any[]=[],readinessMemo=predecessorAssessmentMemo();
  // Assess all schedule pressure activities, including those outside the look-ahead window.
  for(const r of pressureRows){const activity=sourceById.get(r.activityId)!;
    const predecessorLinks=incoming.get(r.activityId)??[],readinessEvidence=state.controls.readinessEvidence[r.activityId];
@@ -211,7 +211,9 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    // nine empty dimension objects for each of tens of thousands of such activities.
    // Linked procurement, quality, event and productivity evidence below is still checked.
    if(predecessorLinks.length>0||(readinessEvidence&&Object.keys(readinessEvidence).length>0)){
-     const readiness=readinessForActivity(model,activity,predecessorLinks,sourceById,readinessEvidence);
+     // T11: the same activity of the same revision already assessed by
+     // Look-Ahead with identical inputs is reused, not recalculated.
+     const readiness=sharedReadinessForActivity(model,activity,predecessorLinks,sourceById,readinessEvidence,undefined,readinessMemo);
      for(const d of readiness.dimensions)if(d.state==='blocked'&&d.sourceRefs.length)checks.push({activityId:r.activityId,domain:d.key,state:'linked_pressure',recordId:(d.records??[]).map(x=>x.recordId).filter(Boolean).join('; ')||null,explanation:d.note??'A linked record reports a blocker.',sourceRefs:d.sourceRefs});
    }
    for(const p of packageIndex.get(r.activityId)??[])if(p.forecastLate||p.overdueUndelivered)checks.push({activityId:r.activityId,domain:'procurement_material',state:'linked_pressure',recordId:p.recordId,explanation:p.overdueUndelivered?p.reference+': undelivered after '+p.needDateBasis+' '+p.needDate+'.':p.reference+': forecast delivery '+p.forecastDelivery+' is '+(-p.headroomCalendarDays)+' calendar days after '+p.needDateBasis+' '+p.needDate+'.',sourceRefs:p.receipts});

@@ -122,30 +122,39 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
 const attachedTrees=new WeakMap<object,WeakMap<object,any>>();
 export function attachActivityFloatReconciliation<T>(data:T,review:ReturnType<typeof activityFloatReconciliation>):T&{activityFloatReconciliation:typeof review.summary}{
  const memo=attachedTrees.get(review)??new WeakMap<object,any>();attachedTrees.set(review,memo);
+ // T11: memo values are always objects, so one lookup replaces has+get. An
+ // object or array without object-valued members (a leaf) cannot be part of a
+ // cycle and is recomputed in O(own keys) with the same answer, so an
+ // unchanged leaf is not inserted into the weak memo. Anything with an object
+ // member, or any changed leaf, is memoised exactly as before.
  const visit=(value:any):any=>{
   if(!value||typeof value!=='object')return value;
-  if(memo.has(value))return memo.get(value);
-  // Set the unmodified source before descending, containing accidental cycles.
-  memo.set(value,value);
+  const known=memo.get(value);if(known!==undefined)return known;
+  let open=false;
   if(Array.isArray(value)){
    let result:any[]=value;
    for(let i=0;i<value.length;i++){
     const original=value[i];if(!original||typeof original!=='object')continue;
+    // Set the unmodified source before descending, containing accidental cycles.
+    if(!open){open=true;memo.set(value,value);}
     const child=visit(original);
     if(child!==original){if(result===value)result=value.slice();result[i]=child;}
    }
-   memo.set(value,result);return result;
+   if(open)memo.set(value,result);
+   return result;
   }
   let result=value;
   for(const key in value){
    if(!Object.hasOwn(value,key))continue;
    const original=value[key];if(!original||typeof original!=='object')continue;
+   if(!open){open=true;memo.set(value,value);}
    const child=visit(original);
    if(child!==original){if(result===value)result={...value};result[key]=child;}
   }
   const row=typeof value.activityId==='string'?review.byActivityId.get(value.activityId):undefined;
   if(row&&('criticality' in value||'totalFloatHours' in value)&&(!value.sourceRevisionId||value.sourceRevisionId===row.sourceRevisionId))result={...result,...row};
-  memo.set(value,result);return result;
+  if(open||result!==value)memo.set(value,result);
+  return result;
  };
  const result={...data} as any;
  for(const key of ['rows','watchlistRows','criticalRows','negativeFloatRows','priorityRows','managementRows','boundaryAudit'])if(result[key])result[key]=visit(result[key]);
