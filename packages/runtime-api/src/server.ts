@@ -99,9 +99,7 @@ import type {
 import type {
   CanonicalQuantityProgressModel,
 } from "../../quantity-progress-core/src";
-import {
-  cmengUatHtml,
-} from "./ui";
+import type {cmengUatHtml} from "./ui";
 import {
   answerProjectQuestion,
 } from "./project-intelligence";
@@ -456,7 +454,11 @@ const port = Number.parseInt(
 const host = process.env.HOST ?? "0.0.0.0";
 // The workspace HTML is static for a release. Building the large string on every
 // GET / costs tens of milliseconds on the cold path without changing content.
-const CMENG_UAT_HTML = cmengUatHtml();
+// T11: the 1.5 MB application page (and the ui module that builds it) is
+// built on the first request for it, not at every project-worker start:
+// workers do not serve it (the public gateway does). The same text results.
+let uatHtml:string|undefined;
+const CMENG_UAT_HTML=()=>uatHtml??=(require("./ui") as {cmengUatHtml:typeof cmengUatHtml}).cmengUatHtml();
 const boqIngestions =
   new Map<string, BoqIngestionResult>();
 const resultDirectory=process.env.CMENG_PROJECT_WORKER==='1'?runtimeProjects.persistenceStatus().dataDir:undefined;
@@ -3424,7 +3426,7 @@ async function route(
     html(
       res,
       200,
-      CMENG_UAT_HTML,
+      CMENG_UAT_HTML(),
     );
     return;
   }

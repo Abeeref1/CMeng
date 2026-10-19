@@ -108,10 +108,17 @@ test('T11 a screen page is serialised once: the kept text equals serialising the
  assert.ok(kept>=4,'pages that fit their budget keep their text');
 });
 
-test('T11 ExcelJS and JSZip load on first use and are the same modules',()=>{
+test('T11 ExcelJS, JSZip and the application page load on first use and are the same',async t=>{
  const loaded=()=>Object.keys(require.cache).filter(path=>/[\\/]node_modules[\\/](?:exceljs|jszip)[\\/]/.test(path));
+ const uiLoaded=()=>Object.keys(require.cache).some(path=>/[\\/]runtime-api[\\/]src[\\/]ui\.js$/.test(path));
  // The project server and state modules (what a project worker loads at start) do not load them.
- require('../packages/runtime-api/src/server');require('../packages/runtime-api/src/project-state');require('../packages/runtime-api/src/project-gateway');
+ const {createCmengServer}=require('../packages/runtime-api/src/server');require('../packages/runtime-api/src/project-state');
+ assert.equal(uiLoaded(),false,'a project worker does not build the application page at start');
+ const server=createCmengServer();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
+ const page=await (await fetch('http://127.0.0.1:'+server.address().port+'/')).text();
+ assert.equal(page,require('../packages/runtime-api/src/ui').cmengUatHtml(),'the page built on first request is the same page');
+ require('../packages/runtime-api/src/project-gateway');
  assert.deepEqual(loaded(),[],'no archive or workbook library is loaded at start');
  assert.equal(excelJs(),require('exceljs'));
  assert.equal(typeof excelJs().Workbook,'function');
