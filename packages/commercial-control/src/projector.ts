@@ -308,22 +308,21 @@ function commercialClaimsNotices(
       lifecycle
         ?.evidenceRevisionId ??
       null,
+    // No submitted claim lifecycle, or a quarantined one: the population is
+    // unknown (null), the same value Notices & Claims and Delay & Claims show.
     eventCount:
-      lifecycle?.events.length ??
-      0,
+      lifecycle && !lifecycleQuarantined ? lifecycle.events.length : null,
     noticeCount:
-      lifecycle?.notices.filter(notice=>notice.kind!=="determination").length ??
-      0,
+      lifecycle && !lifecycleQuarantined ? lifecycle.notices.filter(notice=>notice.kind!=="determination").length : null,
     lifecycleClaimCount:
-      lifecycle?.claims.length ??
-      0,
+      lifecycle && !lifecycleQuarantined ? lifecycle.claims.length : null,
     commercialClaimCount:
       input.claimCommercials
         .length,
     commercialLifecycleLinkCoveragePercent:
       linkCoverage,
     claimStateCounts,
-    sourceClaimCount: sourceLifecycle?.claims.length ?? 0,
+    sourceClaimCount: sourceLifecycle ? sourceLifecycle.claims.length : null,
     sourceClaimStateCounts,
     sourceClaimStatusCounts,
     noticeKindCounts,

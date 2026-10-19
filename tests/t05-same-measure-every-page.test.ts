@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
-import {moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {moduleForProject,projectActionRegisterForState} from '../packages/runtime-api/src/project-projections';
 import {ELAPSED_24H_CALENDAR} from '../packages/schedule-cpm/src/calendar';
 
 // T05 / N2, N4: one measure, one value on every page. Scaled-down copy of the
@@ -81,4 +81,85 @@ test('T05 schedule float measures are identical on Dashboard, PMO analysis and N
  assert.equal(typeof programme.criticalCount,'number');
  assert.equal(programme.criticalCount,pmo.schedule.criticalCount,'critical: Dashboard = PMO');
  assert.equal(dashboard.visualControl.schedule.criticalCount,pmo.schedule.criticalCount,'critical: Dashboard chart = PMO');
+});
+
+test('T05 concurrent work fronts: Delivery challenge equals Resource utilisation and is never negative',()=>{
+ // Every fixture activity is unfinished with a stored finish before the Data Date,
+ // so no remaining work window is established: unknown on both pages, never -N or 0.
+ const projectId=fixture();
+ const challenge=data(projectId,'challenge-contract'),resources=data(projectId,'resource-utilization');
+ const fronts=resources.averageConcurrentWorkFronts;
+ for(const basis of ['scheduleChallenge','manpowerChallenge']){
+  const row=challenge.deliveryChallenge?.[basis];
+  assert.ok(row,basis+' present');
+  assert.equal(row.averageConcurrentWorkFronts,fronts,basis+' average work fronts = Resource utilisation');
+  assert.equal(row.peakConcurrentWorkFronts,resources.peakConcurrentWorkFronts,basis+' peak work fronts = Resource utilisation');
+  assert.ok(row.averageConcurrentWorkFronts===null||row.averageConcurrentWorkFronts>=0,'a count of work fronts is never negative');
+ }
+});
+
+test('T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages',()=>{
+ const projectId=fixture();
+ const notices=data(projectId,'notices-claims'),delay=data(projectId,'delay-claims'),eot=data(projectId,'eot-assessment');
+ const commercial=data(projectId,'commercial-claims-notices'),dashboard=data(projectId,'master-dashboard'),pmo=data(projectId,'pmo-analysis');
+ for(const part of ['position','focus']){
+  const cn=commercial[part]?.claimsNotices;
+  assert.ok(cn,part+'.claimsNotices present');
+  assert.equal(cn.eventCount,notices.eventCount,part+': commercial event count = Notices & Claims');
+  assert.equal(cn.noticeCount,notices.noticeCount,part+': commercial notice count = Notices & Claims');
+  assert.equal(cn.lifecycleClaimCount,notices.claimCount,part+': commercial lifecycle claim count = Notices & Claims');
+  assert.equal(cn.sourceClaimCount,delay.delayEotEvidenceChain.sourceClaimCount,part+': commercial source claim count = evidence chain');
+ }
+ assert.equal(notices.eventCount,null,'no claim population: unknown, not 0');
+ assert.equal(dashboard.visualControl.claims.quarantinedClaimCount,delay.delayEotEvidenceChain.quarantinedClaimCount,'Dashboard quarantined claim rows = evidence chain');
+ assert.equal(dashboard.visualControl.claims.quarantinedClaimCount,null,'nothing submitted, so nothing quarantined is unknown, not 0');
+ assert.equal(pmo.claims.analyticalTimeImpactCandidateDays,eot.analyticalTimeImpactCandidateDays,'PMO time-impact candidate = EOT page');
+ assert.equal(dashboard.visualControl.claims.analyticalTimeImpactCandidateDays,eot.analyticalTimeImpactCandidateDays,'Dashboard time-impact candidate = EOT page');
+});
+
+test('T05 established empty claim register: commercial pages show a real 0, equal to the claims register',()=>{
+ const projectId=fixture({events:[],notices:[],claims:[],noticeRequirements:[],diagnostics:[]});
+ const notices=data(projectId,'notices-claims'),commercial=data(projectId,'commercial-claims-notices');
+ const cn=commercial.position.claimsNotices;
+ assert.equal(notices.eventCount,0);
+ assert.equal(cn.eventCount,0);
+ assert.equal(cn.lifecycleClaimCount,notices.claimCount);
+ assert.equal(cn.noticeCount,notices.noticeCount);
+});
+
+test('T05 Dashboard completion position never keeps a day difference without its recalculated finish',()=>{
+ const projectId=fixture();
+ const dashboard=data(projectId,'master-dashboard');
+ const position=dashboard.completionPosition;
+ assert.ok(position,'dashboard completion position present');
+ if(position.independentFinishIso===null){
+  assert.equal(position.differenceElapsedDays,null,'difference is withheld with the finish');
+  assert.deepEqual(position.differenceRows,[],'difference rows are withheld with the finish');
+  assert.doesNotMatch(String(position.interpretation),/days later|days earlier/,'interpretation does not restate the withheld difference');
+ }
+ const diagnosis=dashboard.projectDiagnosis?.completion;
+ if(diagnosis){
+  assert.equal(position.independentFinishIso,diagnosis.independentFinishIso,'Dashboard finish = project diagnosis');
+  assert.equal(position.differenceElapsedDays,diagnosis.differenceElapsedDays,'Dashboard difference = project diagnosis');
+ }
+});
+
+test('T05 forecastCompletionIso states its basis where the same key means different dates',()=>{
+ const projectId=fixture();
+ const dashboard=data(projectId,'master-dashboard'),trend=data(projectId,'revision-trend');
+ const latest=dashboard.visualControl.changes.latestRevision;
+ assert.ok(latest,'latest revision point present');
+ assert.equal(latest.forecastCompletionBasis,'submitted_programme');
+ assert.equal(latest.forecastCompletionIso,trend.points.at(-1).forecastCompletionIso,'latest revision forecast = revision trend point (submitted programme)');
+});
+
+test('T05 Accountability action count names its populations: team groups plus your decisions',()=>{
+ const projectId=fixture();
+ const accountability=data(projectId,'cross-domain-accountability');
+ const register=projectActionRegisterForState(runtimeProjects.getOrCreate(projectId));
+ assert.equal(accountability.teamActionCount,accountability.actions.length,'team action count = listed team actions');
+ assert.equal(accountability.userDecisionCount,register.workflow.userDecisionCount,'decision count = Project Review decisions');
+ assert.equal(accountability.actionCount,accountability.teamActionCount+accountability.userDecisionCount,'all actions = team groups + decisions');
+ assert.equal(accountability.actionCount,register.actions.length,'all actions = shared action register');
+ assert.match(accountability.actionCountBasis,/decisions/);
 });

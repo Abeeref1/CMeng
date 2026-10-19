@@ -3074,11 +3074,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
                 ? windows
                     .positiveProgrammeMovementDays
                 : null,
+            // Same value as the EOT page. Programme movement is not a
+            // time-impact candidate; it stays in observedProgrammeMovementDays.
             analyticalTimeImpactCandidateDays:
               eotAssessment
                 ?.analyticalTimeImpactCandidateDays ??
-              windows
-                ?.positiveProgrammeMovementDays ??
               null,
             attributableCandidateEotDays:
               eotAssessment
@@ -8013,6 +8013,10 @@ function moduleForProjectUncached(
       ...result,
       status:teamActions.length?'partial':result.status,
       data:{...(result.data as object),actions:teamActions,recordActions,actionCount:teamActions.length,
+        // actionCount is re-bound to the shared project fact actions.openCount (all owner/register groups
+        // plus source-review decisions). Name each population so 7 decisions + 2 team groups = 9 is visible.
+        teamActionCount:teamActions.length,userDecisionCount:decisionIds.size,
+        actionCountBasis:'All management actions: accountable team groups plus decisions requiring your authority (Project Review). The Actions page counts only the decisions.',
         ownerRegisterGroups:groupActionsByOwnerRegister(teamActions),
         managementPosition:teamActions.length+' accountable project-team groups. '+register.recordActionCount+' underlying source records remain available. Each action carries its retained source evidence and owning correction page; decisions requiring your authority remain in Project Review.'}
     })));
@@ -8777,7 +8781,10 @@ export function managementSurfacesForProject(
   const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
   const rawCompletion=currentForecast?.completionPosition??null;
   const completion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
-    ?{...rawCompletion,independentFinishIso:null,calculationState:'unresolved',
+    // Withhold everything derived from the withheld finish (same rule as the
+    // project diagnosis), so no day difference survives without its finish.
+    ?{...rawCompletion,independentFinishIso:null,differenceElapsedDays:null,differenceRows:[],calculationState:'unresolved',
+      interpretation:'Independent CPM/calendar calculation failed reconciliation. No recalculated finish or day difference is presented as a management position.',
       reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
     :rawCompletion;
   const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
@@ -9108,6 +9115,9 @@ export function overviewForProject(
         roleCompletion
           ?.independentFinishIso ??
         null,
+      // Same key is the submitted programme finish on a revision-trend point;
+      // here it is the CMeng recalculated finish. State the basis.
+      forecastCompletionBasis:"cmeng_independent_recalculation" as const,
       submittedCompletionIso:
         projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,
       scheduleVarianceDays:
@@ -9183,6 +9193,9 @@ export function overviewForProject(
         roleCompletion
           ?.independentFinishIso ??
         null,
+      // Same key is the submitted programme finish on a revision-trend point;
+      // here it is the CMeng recalculated finish. State the basis.
+      forecastCompletionBasis:"cmeng_independent_recalculation" as const,
       metrics:executiveMetrics.filter(metric=>metric.value!==null&&metric.value!==undefined).slice(0,10),
       commercialByCurrency:(projectFacts?.commercial.currencies??[]).slice(0,8).map((row:any)=>({currency:row.currency})),
       decisions:executiveDecisions,
