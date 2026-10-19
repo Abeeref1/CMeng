@@ -86,4 +86,5 @@ test('T02 R1 the column audit and activity codes are saved with the stored sched
  assert.equal(activity.calendarId,'1');
  assert.deepEqual(activity.sourceResourceAssignments,[{resourceId:'3',resourceName:'Concrete gang',costAccountId:'7',costAccountCode:'CA-310',costAccountName:'Concrete works'}]);
  assert.equal(audit.find(c=>c.table==='TASKRSRC'&&c.sourceHeader==='taskrsrc_id')?.mappingState,'schema_recognized','a column read by the resource reader is not listed as unused');
+ assert.equal(audit.find(c=>c.table==='CALENDAR'&&c.sourceHeader==='clndr_data')?.mappingState,'schema_recognized','calendar working time read by the calendar reader is not listed as unused');
 });

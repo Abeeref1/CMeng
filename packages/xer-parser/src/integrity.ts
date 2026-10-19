@@ -1,4 +1,5 @@
 import { verifyXerCalendars } from "./calendar-integrity";
+import { noteXerRead } from "./read-tracking";
 import type {
   XerDiagnostic,
   XerExternalRelationship,
@@ -14,6 +15,7 @@ function parsedRows(result: XerParseResult, table: string): XerRow[] {
 }
 
 function nonEmpty(row: XerRow, field: string): string | null {
+  noteXerRead(row.table, field);
   const value = row.data?.[field]?.trim();
   return value ? value : null;
 }
