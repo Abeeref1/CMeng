@@ -874,7 +874,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const heldByAdopted=completionHeldByAdoptedBasis(contractTimeBasis??state.controls.contractTimeBasis,completion);
   if(heldByAdopted){
     const previous=(contractTimeBasis??state.controls.contractTimeBasis)!;
-    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...previous.sourceRefs],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
+    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
   }
   else if(completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments){
     const previous=withoutCompletionSourceLabel(contractTimeBasis??state.controls.contractTimeBasis);

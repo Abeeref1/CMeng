@@ -10,7 +10,9 @@ function readBasis(state:ProjectRuntimeState){
   const document=state.evidenceDocuments.find(d=>d.documentId===term.documentId);
   return {...term,sourceKey:hash(term).slice(0,24),sourceFilename:document?.sourceFilename??term.documentId,sourceHash:document?.sourceHashSha256??null};
  });
- const sourceFingerprint=hash(['notice-review-v1',state.projectId,candidates]);
+ // Saved decisions are matched on formally adopted terms only: a term read from an unadopted
+ // source (T04) is offered as a candidate but never detaches a decision the user already made.
+ const sourceFingerprint=hash(['notice-review-v1',state.projectId,candidates.filter(c=>!c.sourceAnalyticalUse)]);
  const saved=state.controls?.reviewDecisions?.['notice-term-versions'];
  const decision=saved?.sourceFingerprint===sourceFingerprint&&saved.reference?.trim()?saved:null;
  return {allSourceTerms,candidates,sourceFingerprint,decision,sourceRefs:[...new Set(candidates.flatMap(c=>c.sourceRefs))]};
