@@ -46,7 +46,7 @@ function deliveryCell(row,key){
  if(key==='programmeContext.linkedFloatHours'&&row.programmeContext?.state==='completed_work')return 'Not applicable';
  if(key==='programmeContext.linkedFloatHours'&&row.programmeContext?.linkedFloatHours!=null)return sourceWorkingFloatField(row.programmeContext,'linkedFloatHours');
  if(key==='linkedFloatHours'&&row.linkedFloatHours!=null)return sourceWorkingFloatField(row,'linkedFloatHours');
- const result=key.split('.').reduce((v,k)=>v?.[k],row);
+ const result=(key==='owner'||key==='accountableOwner')&&typeof apiOwnerText==='function'?apiOwnerText(row,key):key.split('.').reduce((v,k)=>v?.[k],row);
  if(/(?:owner|responsibleParty|organisation)$/i.test(key)&&(!result||/^not assigned|unassigned|not recorded$/i.test(String(result))))
   return typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.kind||key):'PMC Project Controls Manager';
  return result;

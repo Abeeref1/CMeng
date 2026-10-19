@@ -11,7 +11,7 @@ function renderPositionVerdict(data,includeGeneral=false){
   const request=issue?readerIssue(issue):null;
   const next='<p><b>Next step:</b> '+escapeHtml(request?.action||readerText(v.nextAction))+'</p><p><b>Responsible role:</b> '+escapeHtml(request?.assignTo||v.assignTo||'Project Controls')+'</p>';
   if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(readerText(v.text))+'</p>'+next+'</details>':'';
-  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml(v.owner||'Not assigned')+'</p></details></section>';
+  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(v):v.owner)||'Not assigned')+'</p></details></section>';
 }
 function readerText(value){
  const raw=readerReference(value);
@@ -233,7 +233,8 @@ function readerIssue(i){
     /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
     /commercial|payment|contract|claim|bond|cash|cost|retention|advance|certificate|security/.test(moduleKeys)?'Commercial Manager':
     'Project Controls Manager';
-  const owner=String(i.owner&&i.owner!=='Project evidence owner'?i.owner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
+  const recordedOwner=(typeof apiOwnerText==='function'?apiOwnerText(i):i.owner);
+  const owner=String(recordedOwner&&recordedOwner!=='Project evidence owner'?recordedOwner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
   return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
 }
 // T05/N12: a group count is the true source count for that kind. When the
@@ -265,7 +266,7 @@ function renderDashboardDecisions(data){
 function renderDashboardExceptions(data){
   if(!Array.isArray(data?.actions))return managementPanel('Priority project actions','Not established','<p>Project action population is not established. Missing action data is not a cleared project position.</p>',true);
   const actions=data.actions;
-  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?sourceWorkingFloatField(row.priorityBasis,'linkedFloatHours')+' float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),row.owner||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),actionDeadlineText(row),readerText(row.requiredAction)]));
+  const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?sourceWorkingFloatField(row.priorityBasis,'linkedFloatHours')+' float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner)||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),actionDeadlineText(row),readerText(row.requiredAction)]));
   const actionTotal=listTotal(actions);
   return managementPanel('Priority project actions',screenCountText(actionTotal)+' actions in the shared register, ranked by programme and monetary effect.',actions.length?table(actions.slice(0,5))+managementModuleLink('command-center','Open all '+screenCountText(actionTotal)+' project actions'):'<p>No current project actions are identified.</p>',true);
 }

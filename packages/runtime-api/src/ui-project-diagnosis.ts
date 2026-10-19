@@ -40,7 +40,7 @@ function renderProjectPrioritySummary(register){
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const grouped=team.slice(0,3).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b>'+
    '<p>'+escapeHtml(text(row.consequence||row.requiredAction||''))+'</p>'+
-   '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Not assigned')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
+   '<small>Responsible: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(row):row.owner)||row.organisation||'Not assigned')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
  return '<p>Contract interpretations and other confirmations are managed in Project Review. Operational work is assigned through Accountability.</p>'+
   '<p><button class="btn small" onclick="openProjectActions()">Open Project Review</button> '+managementModuleLink('cross-domain-accountability','Open Accountability')+'</p>'+
   // T05/N1: register.actions can be a 25-row preview; a subset of it is counted only when the list is whole.

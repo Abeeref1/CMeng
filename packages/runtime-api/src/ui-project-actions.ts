@@ -156,7 +156,7 @@ function renderProjectActionList(){
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
    '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+ownerMissingHtml(a.owner,a.accountableRole)+'</p>'+records+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
-   (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
+   (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner))).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
    (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>'+(actionListTotal(a.correctionRecords)===a.correctionRecords.length?'Open all '+fmt(a.correctionRecords.length)+' recorded locations':'Open '+actionShownOf(a.correctionRecords,'recorded locations'))+'</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information||a.target?.kind?.startsWith('review-')?actionResolutionHtml(a):'')+

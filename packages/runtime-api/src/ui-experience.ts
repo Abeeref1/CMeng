@@ -230,7 +230,7 @@ function roleLensFacts(rows){
 function roleLensTable(title,columns,rows){
   if(!rows?.length)return '';
   const head='<tr>'+columns.map(column=>'<th>'+escapeHtml(column[1])+'</th>').join('')+'</tr>';
-  const body=rows.map(row=>'<tr>'+columns.map(column=>{const raw=row?.[column[0]];const value=Array.isArray(raw)?raw.join('; '):raw;return '<td>'+escapeHtml(value===null||value===undefined||value===''?'Not established':column[2]==='date'?planningShortDate(value):column[2]==='float'?sourceWorkingFloatField(row,column[0]):String(value))+'</td>';}).join('')+'</tr>').join('');
+  const body=rows.map(row=>'<tr>'+columns.map(column=>{const raw=(column[0]==='owner'||column[0]==='accountableOwner')&&typeof apiOwnerText==='function'?apiOwnerText(row,column[0]):row?.[column[0]];const value=Array.isArray(raw)?raw.join('; '):raw;return '<td>'+escapeHtml(value===null||value===undefined||value===''?'Not established':column[2]==='date'?planningShortDate(value):column[2]==='float'?sourceWorkingFloatField(row,column[0]):String(value))+'</td>';}).join('')+'</tr>').join('');
   return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div></div></section>';
 }
 function pageRoleLensContext(data){

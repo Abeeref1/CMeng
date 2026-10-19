@@ -1,3 +1,4 @@
+import {presentMissingOwners} from './action-priority';
 import {PassThrough} from 'node:stream';
 import {readableFieldLabel,readablePathLabel,uniqueHeadings,FIELD_KEYS_SHEET} from './field-labels';
 import {setImmediate as yieldExport} from 'node:timers/promises';
@@ -720,8 +721,10 @@ function withScreenPopulationCounts(moduleKey:string,result:ModuleRuntimeResult)
 }
 export async function exportModuleReport(projectId:string,moduleKey:string,result:ModuleRuntimeResult,format:string,view?:ModuleReportView){
   const prepared=withScreenPopulationCounts(moduleKey,preparedModuleResult(result,view));
-  if(!view&&format==='xlsx')return {bytes:await buildModuleWorkbook(projectId,moduleKey,prepared),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename:moduleReportFilename(projectId,moduleKey,'xlsx')};
-  if(!view&&format==='json')return {bytes:buildModuleJsonDownload(projectId,moduleKey,prepared),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
+  // T09 A4: the data downloads carry the same owner presentation as the screen
+  // (owner null, ownerState 'missing', accountableRole), so JSON and Excel match the page.
+  if(!view&&format==='xlsx')return {bytes:await buildModuleWorkbook(projectId,moduleKey,presentMissingOwners(prepared)),type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',filename:moduleReportFilename(projectId,moduleKey,'xlsx')};
+  if(!view&&format==='json')return {bytes:buildModuleJsonDownload(projectId,moduleKey,presentMissingOwners(prepared)),type:'application/json; charset=utf-8',filename:moduleReportFilename(projectId,moduleKey,'json')};
   const analysis=moduleAnalysis(projectId,moduleKey,prepared,view),exported=await exportAskAnalysis(analysis,format,view);
   return {...exported,filename:safeFilenamePart(projectId)+'_'+safeFilenamePart(titleForModule(moduleKey))+'_'+new Date().toISOString().slice(0,10)+'.'+exported.filename.split('.').at(-1)};
 }

@@ -116,3 +116,39 @@ test('A4 API: a role-only owner is sent as owner null with an explicit missing s
   const server=require('node:fs').readFileSync(require('node:path').join(__dirname,'../../packages/runtime-api/src/server.ts'),'utf8');
   assert.match(server,/pageProjectResponse\(body,requestUrl,undefined,present\):projectMatch&&statusCode===200\?presentMissingOwners\(body\):body/);
 });
+
+test('A4 screens: an owner the API sends as missing shows "Owner not set" with its role on every owner read; never blank, never another field', async ()=>{
+  const {presentMissingOwners}=await import('../packages/runtime-api/src/action-priority');
+  const ctx=createContext({escapeHtml});
+  runInContext(functions(['apiOwnerText','pmcRoleOwner','ownerDisplayState','ownerMissingHtml']),ctx);
+  const text=(row:unknown,field?:string)=>runInContext('apiOwnerText('+JSON.stringify(row)+(field?','+JSON.stringify(field):'')+')',ctx);
+  const risk=pmcRoleOwner('risk',null),schedule=pmcRoleOwner('schedule',null);
+  const sent=presentMissingOwners({actions:[{owner:risk,organisation:'Main Contractor'},{owner:schedule},{owner:'Jane Smith'},{owner:null}],
+    decisions:[{accountableOwner:risk}],rows:[{dimension:'owner',value:risk}]}) as any;
+  assert.equal(text(sent.actions[0]),'Owner not set · Accountable role: PMC Risk Manager','not blank and not the organisation');
+  assert.equal(text(sent.actions[1]),'Owner not set · Accountable role: PMC Planning Engineer');
+  assert.equal(text(sent.actions[2]),'Jane Smith','a named owner is unchanged');
+  assert.equal(text(sent.actions[3]),null,'a value the API did not mark as missing is left to the existing fallback');
+  assert.equal(text(sent.decisions[0],'accountableOwner'),'Owner not set · Accountable role: PMC Risk Manager');
+  assert.equal(text(sent.rows[0],'value'),'Owner not set · Accountable role: PMC Risk Manager');
+  // Command-centre owner groups are keyed by this text: different roles stay in different groups, as before.
+  assert.notEqual(text(sent.actions[0]),text(sent.actions[1]));
+  const card=runInContext('ownerMissingHtml(null,"PMC Risk Manager")',ctx) as string;
+  assert.match(card,/data-owner-missing>Owner not set<\/span> <small>Accountable role: PMC Risk Manager<\/small>/);
+  // Every owner read in the assembled browser script goes through the helper.
+  for(const raw of ['escapeHtml(group.owner)','escapeHtml(g.owner)','const recorded=action.owner||','escapeHtml(action.owner||action.organisation',
+    'owner:decision.accountableOwner||null',"escapeHtml(row.value||pmcDisplayOwner('project controls'))","row.file+' · '+row.owner",
+    "escapeHtml(row.owner||row.organisation||'Not assigned')","const raw=row?.[column[0]];","String(i.owner&&i.owner!=='Project evidence owner'?i.owner:"])
+    assert.ok(!script.includes(raw),'raw owner read left in the browser script: '+raw);
+  assert.ok(script.includes("r.dimension==='owner'?(typeof apiOwnerText==='function'?apiOwnerText(r,'value'):r.value):r.value"));
+  assert.ok(script.includes("(key==='owner'||key==='accountableOwner')&&typeof apiOwnerText==='function'?apiOwnerText(row,key)"),'delivery register owner cells');
+  assert.ok(script.includes("(column[0]==='owner'||column[0]==='accountableOwner')&&typeof apiOwnerText==='function'?apiOwnerText(row,column[0])"),'role lens owner cells');
+});
+
+test('A4 downloads: JSON and Excel module downloads carry the same owner presentation as the screen', ()=>{
+  // The screen boundary (server json()) and the data downloads use the same presentMissingOwners step,
+  // so a downloaded report never differs from the page it was taken from (proved end to end by J8).
+  const report=require('node:fs').readFileSync(require('node:path').join(__dirname,'../../packages/runtime-api/src/module-report.ts'),'utf8');
+  assert.match(report,/buildModuleWorkbook\(projectId,moduleKey,presentMissingOwners\(prepared\)\)/);
+  assert.match(report,/buildModuleJsonDownload\(projectId,moduleKey,presentMissingOwners\(prepared\)\)/);
+});
