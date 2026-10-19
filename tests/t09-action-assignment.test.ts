@@ -5,7 +5,13 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {applyActionAssignments,actionAssignmentInput,actionAssignmentPatch} from '../packages/runtime-api/src/action-assignments';
-import {apiOwnerText,pmcRoleOwner,presentMissingOwners} from '../packages/runtime-api/src/action-priority';
+import {apiOwnerText,apiDueIso,apiDueOverdue,pmcRoleOwner,presentMissingOwners} from '../packages/runtime-api/src/action-priority';
+import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project';
+import {moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
+import {AskStore} from '../packages/runtime-api/src/ask-store';
+import type {AskSession} from '../packages/project-ask/src/types';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 
 // T09: a user-assigned owner and due date is one validated, versioned decision keyed by
@@ -73,4 +79,40 @@ test('T09 assignment API: assign, survives restart, stale and invalid input refu
   view=await actions();const row=[...view.actions,...(view.information||[])].find((a:any)=>a.id===target.id);
   assert.equal(row.assignedOwner,undefined);assert.equal(row.assignmentState,undefined);
   assert.equal(apiOwnerText(row),apiOwnerText({...target,assignedOwner:undefined}),'clear restores the calculated owner wording');
+});
+
+test('T09 due rule: one shared helper prefers the assigned due date; overdue only before the Data Date while open',()=>{
+  const assigned={dueIso:'2031-09-30',assignmentState:'assigned',assignedDueIso:'2031-07-01',assignedOverdue:true};
+  assert.equal(apiDueIso(assigned),'2031-07-01');assert.equal(apiDueOverdue(assigned,'2031-08-01'),true);
+  assert.equal(apiDueOverdue({...assigned,assignedOverdue:false},'2031-08-01'),false,'closed or not yet due: the server rule decides');
+  assert.equal(apiDueOverdue({...assigned,assignedOverdue:null},'2031-08-01'),null,'unknown stays unknown');
+  assert.equal(apiDueIso({dueIso:'2031-09-30'}),'2031-09-30','no assignment: the action due date');
+  assert.equal(apiDueIso({dueIso:'2031-09-30',assignedDueIso:'2031-07-01'}),'2031-09-30','a stale assigned field without the assigned state is ignored');
+  assert.equal(apiDueOverdue({dueIso:'2031-07-01'},'2031-08-01'),true);assert.equal(apiDueOverdue({dueIso:'2031-09-01'},'2031-08-01'),false);
+  assert.equal(apiDueOverdue({dueIso:null},'2031-08-01'),null);assert.equal(apiDueOverdue({dueIso:'2031-07-01'},null),null);
+  const script=cmengUatHtml();
+  for(const fn of [apiDueIso,apiDueOverdue])assert.ok(script.includes(fn.toString()),'the browser uses the same due rule');
+  // Command Centre owner groups count overdue deadlines and the next due date with the shared rule.
+  assert.match(script,/const actionDue=typeof apiDueIso==='function'\?apiDueIso\(action\):action\.dueIso;/);
+  assert.match(script,/apiDueOverdue\(action,dd\)===true/);
+  // Command Centre table, Accountability follow-ups and Dashboard priority actions share actionDeadlineText.
+  assert.match(script,/function actionDeadlineText\(action\)\{\n const due=typeof apiDueIso==='function'\?apiDueIso\(action\):action\.dueIso/);
+  assert.match(script,/planningShortDate\(typeof apiDueIso==='function'\?apiDueIso\(row\):row\.dueIso\)/,'Accountability record rows');
+});
+
+test('T09 Ask: management action tables and narrative carry the assigned owner and due date',async t=>{
+  const id='ASSIGN-ASK-'+process.pid,state=loadCertifiedDemoProject(id);
+  const command:any=moduleForProject(id,'command-center').data;
+  assert.ok(command.actions.length>0,'fixture must have a real management action');
+  const target=command.actions[0];
+  runtimeProjects.updateControls(id,actionAssignmentPatch(state.controls,actionAssignmentInput({actionId:target.actionId,owner:'Jane Smith',dueIso:'2000-01-03'})));
+  const root=mkdtempSync(join(tmpdir(),'assign-ask-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const user:AskSession={userId:'assign-test',workspaceId:'cmeng-projects',name:'Review Engineer',title:'Project Controls',company:'Test Company',allowModel:false};
+  const answer=await new ProjectAskEngine(new AskStore(root),null).ask(id,user,{question:'Top 10 actions?'});
+  const table=answer.sections.find(s=>s.authorityId==='command-center')!.tables.find(t=>t.id==='command-center.actions')!;
+  const rows=table.rows as any[];
+  const row=rows.find(r=>r.issue===target.issue&&r.owner==='Jane Smith');
+  assert.ok(row,'the Ask table shows the assigned owner');assert.equal(row.dueDate,'2000-01-03','the Ask table shows the assigned due date');
+  assert.equal(rows.filter(r=>r.owner==='Jane Smith').length,1,'only the assigned action changes');
+  assert.match(JSON.stringify(answer.narrative),/owner Jane Smith; due 2000-01-03/,'the Ask narrative reads the same assignment');
 });
