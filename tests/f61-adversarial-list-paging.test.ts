@@ -15,7 +15,8 @@ import {jsonPointer} from '../packages/runtime-api/src/response-paging';
 // true total and stay reachable through record-page.
 const N=8900,DATA_DATE='2031-05-01';
 const day=(offset:number)=>new Date(Date.UTC(2031,4,1)+offset*86400000).toISOString().slice(0,10);
-const csv=(headers:string[],rows:string[][])=>Buffer.from([headers,...rows].map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n'));
+// Plain cells (no commas or quotes in any value), so no field needs quoting.
+const csv=(headers:string[],rows:string[][])=>Buffer.from([headers,...rows].map(row=>row.join(',')).join('\r\n'));
 const registers:Array<{file:string;headers:string[];rows:(i:number)=>string[];count:number}>=[
  {file:'rfi_register.csv',headers:['RFI ID','Subject','Status','Raised Date','Due Date','Response Date','Owner','Linked Activity'],count:3000,
   rows:i=>['RFI-'+i,'Design clarification '+i,i%3?'Open':'Answered',day(-60+i%50),day(-20+i%40),i%3?'':day(-5),'Design Engineer '+(i%400),'A'+(i*7%N)]},
