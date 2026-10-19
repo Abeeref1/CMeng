@@ -98,6 +98,13 @@ test('F38: missing logic, resources and missed tasks checks, with every formula 
   assert.deepEqual(q.logic.openEndActivityIds, ['C']);
   assert.deepEqual(check('missing_logic').activityIds, ['A', 'C', 'D']);
   assert.equal(check('missing_logic').population, 4);
+  // An external (other-project) predecessor is real logic; a link only to a level-of-effort row is not.
+  const ext = network();
+  ext.activities.push(act('LOE', 80, {activityType: 'level_of_effort'}));
+  ext.relationships.push({...rel('RX', 'EXT-1', 'D'), external: true} as never, rel('RL', 'C', 'LOE') as never);
+  const extQ = pmcScheduleRules(ext, []);
+  assert.deepEqual(extQ.logic.openStartActivityIds, ['A']);
+  assert.deepEqual(extQ.logic.openEndActivityIds, ['C'], 'a successor that is only level of effort leaves C an open end');
   assert.deepEqual(check('resources').activityIds, ['C', 'D']);
   assert.equal(check('resources').count, 2);
   const noResources = pmcScheduleRules(model, [], null);

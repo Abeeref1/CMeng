@@ -21,7 +21,7 @@ export const PROGRAMME_QUALITY_FORMULAS={
  float_missing:'count of remaining execution activities with no source total float / remaining execution activities',
  duration_day_basis_missing:'count of remaining execution activities whose calendar day hours are not stated / remaining execution activities',
  invalid_dates:'count of execution activities with start after finish, or an actual date after the Data Date / execution activities',
- missing_logic:'count of remaining execution activities with no predecessor or no successor inside the programme / remaining execution activities',
+ missing_logic:'count of remaining execution activities with no predecessor or no successor (linked to an execution activity or an external activity; level of effort and WBS summary excluded) / remaining execution activities',
  resources:'count of remaining execution task activities with no resource assignment in the source resource model / remaining execution task activities; unknown when no resource model is loaded',
  missed_tasks:'count of detail tasks due by the Data Date under the adopted baseline that are not finished or finished after their baseline finish / detail tasks due by the Data Date (DCMA check 11)',
  leads:'count of relationships with lag < 0 / relationships',
@@ -85,7 +85,10 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const cpli={value:length!==null&&length>0&&float!==null?(length+float)/length:null,remainingWorkingHours:length,totalFloatWorkingHours:float,finishActivityIds:terminals.map(t=>t.activity.activityId),requiredFinishIso,
   basis:'Submitted finish CPLI = (remaining working time to the terminal finish + working time from that finish to the required date) / remaining working time. Uses one explicit terminal calendar; this source-programme indicator does not certify the independent driving path.'};
  // F38 additions. One shared module; each formula is in PROGRAMME_QUALITY_FORMULAS.
- const hasPred=new Set(relations.map(r=>r.successorActivityId)),hasSucc=new Set(relations.map(r=>r.predecessorActivityId));
+ // Logic counts when the other end is an execution activity of this programme or an
+ // external (other-project) activity; a link only to level-of-effort or summary rows does not.
+ const logicLinks=model?.relationships.filter(r=>r.external||(ids.has(r.predecessorActivityId)&&ids.has(r.successorActivityId)))??[];
+ const hasPred=new Set(logicLinks.map(r=>r.successorActivityId)),hasSucc=new Set(logicLinks.map(r=>r.predecessorActivityId));
  const openStarts=remaining.filter(a=>!hasPred.has(a.activityId)),openEnds=remaining.filter(a=>!hasSucc.has(a.activityId));
  checks.push(report('missing_logic','Missing logic (open start or open end)',remaining.filter(a=>!hasPred.has(a.activityId)||!hasSucc.has(a.activityId)),remaining.length,'Remaining execution activities without a predecessor or without a successor; the project start and finish appear here by design and need review, not removal.'));
  const remainingTasks=remaining.filter(a=>a.activityType==='task');
