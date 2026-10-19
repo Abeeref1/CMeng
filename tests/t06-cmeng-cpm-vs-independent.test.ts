@@ -24,7 +24,7 @@ import {calculateCpm, workingHoursBetween} from '../packages/schedule-cpm/src';
 // one hour, only where calendars differ across a start-type link or a
 // zero-duration activity.
 //
-// Open CMeng defects (todo tests below, fail today, must pass once fixed):
+// CMeng defects found by this comparison and fixed in engine.ts (tests below):
 // D1 negative total float with no deadline at all (cross-calendar FS into a
 //    zero-duration activity whose late start is shown at the previous close);
 // D2 SS lag from an in-progress predecessor counted from the data date
@@ -138,6 +138,7 @@ const HAND: Array<[string, Net]> = [
   ['N9', {dataDate: MON, calendars: [C5H], activities: [act('A', 'C5H', 24), act('B', 'C5H', 8), act('C', 'C5H', 8)], relationships: [rel('A', 'B', 'FS')]}],
   ['N10', {dataDate: MON, calendars: [C5, C7], activities: [act('A', 'C5', 8), act('B', 'C7', 10)], relationships: [rel('A', 'B', 'FS', 8)]}],
   ['N11', {dataDate: MON, calendars: [C5, C7], activities: [act('A', 'C7', 20), act('B', 'C5', 8)], relationships: [rel('A', 'B', 'FS')]}],
+  ['N12', N12],
   ['N13', {dataDate: MON, calendars: [C5], activities: [act('A', 'C5', 8, {constraint: {type: 'start_on_or_after', date: '2027-01-06T08:00:00Z'}}), act('B', 'C5', 8)], relationships: []}],
   ['N14', {dataDate: MON, calendars: [C5], activities: [act('A', 'C5', 8), act('B', 'C5', 8, {constraint: {type: 'finish_on_or_before', date: '2027-01-05T12:00:00Z'}}), act('C', 'C5', 32)], relationships: [rel('A', 'B', 'FS')]}],
   ['N15', {dataDate: MON, calendars: [C5], activities: [act('A', 'C5', 16), act('B', 'C5', 8)], relationships: [rel('A', 'B', 'FF', 8)]}],
@@ -153,9 +154,10 @@ test('hand-worked networks: CMeng dates, floats and critical flags equal the ind
     assert.deepEqual(r.real, [], name);
     sameMoment += r.sameMoment;
   }
-  // N17: CMeng shows the zero-duration activity's late start at Tue 16:00,
-  // the solver at Wed 08:00. Same working moment (B1), zero float either way.
-  assert.equal(sameMoment, 1);
+  // Before the D1 fix CMeng showed N17's zero-duration late start at Tue
+  // 16:00 (one B1 same-moment difference). It now starts where it finishes,
+  // Wed 08:00, exactly as the solver: no difference remains.
+  assert.equal(sameMoment, 0);
 });
 
 test('30 random single-calendar networks (FS/SS/FF/SF, positive and negative lags, milestones) agree', () => {
@@ -194,13 +196,14 @@ test('mixed-calendar start-type links and milestones: differences stay inside th
   assert.ok(networksWithDifferences > 0, 'the basis differences are real and must stay visible');
 });
 
-test('D1 open defect: no negative total float without a deadline (cross-calendar FS into a milestone)', {todo: 'CMeng engine.ts late start of a zero-duration activity is taken at the previous closing instant; a predecessor on a calendar that works through that gap is forced to finish before its early finish'}, () => {
+test('D1 fixed: no negative total float without a deadline (cross-calendar FS into a milestone)', () => {
   // Generated network fs-mixed seed 29: A0 (6-day) -> A1 (6-day) -> A2 (5-day
   // milestone). A1 finishes Sat 2027-01-09 16:00; A2 is at Mon 08:00. A1 may
   // finish as late as Mon 2027-01-11 08:00 on its own calendar: float +12h.
-  // CMeng gives A2 late start Fri 2027-01-08 16:00 and A0/A1 float -9h.
+  // Before the fix CMeng gave A2 late start Fri 2027-01-08 16:00 and A0/A1 float -9h.
   const net = randomNet(familySeed('fs-mixed', 29), {types: ['FS'], mixed: true});
   const r = compare(net);
+  assert.deepEqual(r.real.filter(m => m.field === 'totalFloatHours' && (m.cmeng as number) < 0), []);
   for (const id of ['A0', 'A1']) {
     const c = r.cmeng.activities.find(a => a.activityId === id)!;
     const own = r.independent.activities.find((a: any) => a.id === id);
@@ -209,10 +212,11 @@ test('D1 open defect: no negative total float without a deadline (cross-calendar
   }
 });
 
-test('D2 open defect: SS lag from an in-progress predecessor counts from its actual start', {todo: 'CMeng engine.ts uses the remaining early start (data date) of an in-progress predecessor as its SS/SF start event'}, () => {
+test('D2 fixed: SS lag from an in-progress predecessor counts from its actual start', () => {
   // Hand network N12: B started Tue 08:00; D is SS +8h from B, so D may start
-  // Wed 08:00 (the data date) and has 16h float. CMeng starts D Thu 08:00 with 8h float.
+  // Wed 08:00 (the data date) and has 16h float. Before the fix CMeng started D Thu 08:00 with 8h float.
   const r = compare(N12);
+  assert.deepEqual(r.real, []);
   const d = r.cmeng.activities.find(a => a.activityId === 'D')!;
   assert.equal(d.earlyStartIso, '2027-01-06T08:00:00.000Z');
   assert.equal(d.totalFloatHours, 16);
