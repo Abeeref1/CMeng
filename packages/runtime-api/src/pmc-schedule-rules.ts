@@ -8,8 +8,8 @@ import {resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src
  * publishable) and the source resource model of the current revision. Null =
  * not available, so the dependent results stay unknown. */
 export interface ProgrammeQualityInputs{
- independentForecast?:{complete:boolean;independentForecastCompletionIso:string|null;drivingNetwork?:{activityIds:string[];finishActivityIds:string[];relationships:Array<{relationshipId:string}>}}|null;
- resources?:{assignments:Array<{activityId:string}>}|null;
+ independentForecast?:{complete:boolean;independentForecastCompletionIso:string|null;drivingNetwork?:{activityIds:string[];finishActivityIds:string[];relationships:Array<{relationshipId:string}>}|undefined}|null|undefined;
+ resources?:{assignments:Array<{activityId:string}>}|null|undefined;
 }
 export const PROGRAMME_QUALITY_FORMULAS={
  constraints:'count of remaining execution activities with any source constraint / remaining execution activities',
