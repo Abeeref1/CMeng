@@ -6677,6 +6677,9 @@ export class RuntimeProjectStore {
         update.risks ??
         state.controls.risks,
     };
+    // F34: a confirmed Commencement Date re-reads the contract time basis, so a
+    // Time for Completion stated as a period gets its date on every page.
+    if(Object.hasOwn(update,'commencementDate'))promoteContractTimeBasis(state);
 
     this.touch(state);
 

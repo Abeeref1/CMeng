@@ -488,6 +488,8 @@ const pageBlockOwners={
  'accountability-records':{owner:'cross-domain-accountability',heading:'Accountable action records'},
  'cross-module-consistency':{owner:'master-control-programme',heading:'Cross-module consistency'},
  'contract-time-position':{owner:'contract-particulars-bonds',heading:'Contract time and record counts'},
+ // F34: contract completion dates of the Works and each section (date, basis, awarded EOT, governing date).
+ 'contract-completion-dates':{owner:'milestones',heading:'Contract completion dates'},
  'commercial-cost-ledger':{owner:'cost-forecast',heading:'Cost source ledger'},
  'commercial-cost-records':{owner:'cost-forecast',heading:'Cost source records'},
  'cost-progress-comparison':{owner:'cost-forecast',heading:'Current cost and progress comparison'},
@@ -6396,7 +6398,7 @@ function renderModuleResultBody(result){
   const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd):'')+(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data,result.key):'')+(specialized||genericView);
+  const primaryView=(['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd):'')+(['milestones','master-dashboard','independent-forecast'].includes(result.key)?renderContractCompletionDates(data,result.key):'')+(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data,result.key):'')+(specialized||genericView);
   // F10: the submitted versus calculated float reconciliation is shown once, on
   // Programme Review (the programme pages carry it from one shared review); Activity
   // Review and Near-Critical link to it with the same difference count.
