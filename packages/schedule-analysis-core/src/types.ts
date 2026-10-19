@@ -81,8 +81,6 @@ export interface CanonicalCalendar {
 }
 
 export interface CanonicalScheduleActivity {
-  /** Source activity codes (XER TASKACTV/ACTVCODE/ACTVTYPE); additive. */
-  sourceActivityCodes?: {codeType:string|null;codeValue:string|null;codeDescription:string|null}[];
   /** Source WBS path, root to the activity's WBS node (XER PROJWBS codes); additive. */
   sourceWbsPath?: string[];
   /** Source resource and cost-account assignments (XER TASKRSRC, RSRC, ACCOUNT); additive. */

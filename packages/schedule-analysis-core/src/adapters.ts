@@ -333,21 +333,6 @@ export function canonicalScheduleFromXer(
   return {...model,sourceColumnAudit:xerSourceColumnAudit(result,read)};
 }
 
-function xerActivityCodes(result: XerParseResult): Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]> {
-  const types=new Map(xerRows(result,"ACTVTYPE").map(row=>[xerField(row,"actv_code_type_id"),xerField(row,"actv_code_type")] as const));
-  const codes=new Map(xerRows(result,"ACTVCODE").map(row=>[xerField(row,"actv_code_id"),row] as const));
-  const byTask=new Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]>();
-  for(const row of xerRows(result,"TASKACTV")){
-    const taskId=xerField(row,"task_id");if(!taskId)continue;
-    const code=codes.get(xerField(row,"actv_code_id"));
-    const typeId=xerField(row,"actv_code_type_id")??(code?xerField(code,"actv_code_type_id"):null);
-    const list=byTask.get(taskId)??[];
-    list.push({codeType:typeId?types.get(typeId)??null:null,codeValue:code?xerField(code,"short_name"):null,codeDescription:code?xerField(code,"actv_code_name"):null});
-    byTask.set(taskId,list);
-  }
-  return byTask;
-}
-
 /** WBS path (root to node, by WBS code, else name) for each PROJWBS id. A
  * missing parent or a loop ends the path; nothing is guessed. */
 function xerWbsPaths(result: XerParseResult): Map<string,string[]> {
@@ -391,7 +376,6 @@ function canonicalScheduleFromXerRead(
     projectId?: string | null;
   },
 ): CanonicalScheduleModel {
-  const activityCodes=xerActivityCodes(result);
   const wbsPaths=xerWbsPaths(result);
   const resourceAssignments=xerResourceAssignments(result);
   const projectRows = xerRows(result, "PROJECT");
@@ -500,7 +484,6 @@ function canonicalScheduleFromXerRead(
           activityId,
           nativeId,
           name: xerField(row, "task_name"),
-          ...(()=>{const codes=nativeId?activityCodes.get(nativeId):undefined;return codes?.length?{sourceActivityCodes:codes}:{};})(),
           ...(()=>{const wbsId=xerField(row,"wbs_id"),path=wbsId?wbsPaths.get(wbsId):undefined;return path?.length?{sourceWbsPath:path}:{};})(),
           ...(()=>{const list=nativeId?resourceAssignments.get(nativeId):undefined;return list?.length?{sourceResourceAssignments:list}:{};})(),
           sourceConstraints: [

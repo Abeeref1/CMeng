@@ -1132,7 +1132,7 @@ function programmeColumnAudit(
       if (!String(header ?? "").trim()) return [];
       const mappedRole = mapping.roles[Number(column)] ?? "unknown";
       const role = mappedRole === "unknown" && isDataDateHeader(header) ? "data_date" : mappedRole;
-      const sample = body.map((row) => String(row[Number(column)] ?? "").trim()).find(Boolean) ?? null;
+      const sample = body.map((row) => String(row[Number(column) - 1] ?? "").trim()).find(Boolean) ?? null;
       return [{table, ...sourceColumnAuditEntry(header, role, "other", role !== "unknown",
         "Read by the programme reader as " + role + ".", sample)}];
     });

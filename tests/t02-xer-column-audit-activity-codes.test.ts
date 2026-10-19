@@ -19,7 +19,7 @@ const xer=['ERMHDR\t23.12',
 test('T02 R1 XER activity codes reach the activity: code type and value per activity',()=>{
  const model=canonicalScheduleFromXer(parseXerBytes(new TextEncoder().encode(xer)),{sourceRevisionId:'r1',projectId:'CODES'});
  const activity=model.activities.find(a=>a.activityId==='A100')!;
- assert.deepEqual(activity.sourceActivityCodes,[{codeType:'Area',codeValue:'L2',codeDescription:'Level 2'}]);
+ assert.deepEqual(activity.activityCodes,[{typeName:'Area',value:'L2',description:'Level 2'}]);
 });
 
 test('T02 R1 every XER table column is listed as read or unused with its sample, not only TASK/TASKPRED/PROJWBS',()=>{

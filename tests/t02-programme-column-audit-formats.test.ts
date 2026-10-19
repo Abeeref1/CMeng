@@ -81,7 +81,7 @@ test('T02 R1 the column audit and activity codes are saved with the stored sched
  assert.equal(audit.find(c=>c.table==='TASK'&&c.sourceHeader==='location_tag')?.mappingState,'unused');
  assert.equal(audit.find(c=>c.table==='TASK'&&c.sourceHeader==='location_tag')?.sample,'Zone B');
  const activity=model.activities.find((a:any)=>a.activityId==='A');
- assert.deepEqual(activity.sourceActivityCodes,[{codeType:'Area',codeValue:'L2',codeDescription:'Level 2'}]);
+ assert.deepEqual(activity.activityCodes,[{typeName:'Area',value:'L2',description:'Level 2'}]);
  assert.deepEqual(activity.sourceWbsPath,['R1','SUB'],'WBS path from the project root to the activity WBS');
  assert.equal(activity.calendarId,'1');
  assert.deepEqual(activity.sourceResourceAssignments,[{resourceId:'3',resourceName:'Concrete gang',costAccountId:'7',costAccountCode:'CA-310',costAccountName:'Concrete works'}]);
