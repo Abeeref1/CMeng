@@ -15,8 +15,8 @@ import {PDFDocument,StandardFonts} from 'pdf-lib';
 // never used as an expected value. Checks: (a) each expected figure is shown on
 // the pages that show it, (b) one fact has one value on every page that shows it,
 // (c) no banned words, (d) every API response a page loads is under 2 MB.
-// No npm dependency: Chrome is driven over the DevTools Protocol with Node 22's
-// global WebSocket.
+// No new npm dependency: Chrome is driven over the DevTools Protocol with Node 22's
+// global WebSocket; the contract PDF uses the existing pdf-lib dev dependency.
 
 const SERVER=join(__dirname,'../packages/runtime-api/src/project-gateway.js');
 const MAX_PAGE_BYTES=2_000_000;
@@ -125,10 +125,21 @@ export function answerKey(files:SourceFile[]){
 async function freePort(){
   return new Promise<number>((resolve,reject)=>{const s=createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const port=(s.address() as any).port;s.close(()=>resolve(port));});});
 }
+/** Stops a process this test started, and the processes it started in turn: each child is spawned
+ * as the leader of its own process group, so the group signal reaches only that child's descendants. */
+function own(child:ChildProcess){
+  // If this test process ends abruptly, still end the process groups it started.
+  const pid=child.pid;if(pid!==undefined)process.once('exit',()=>{try{process.kill(-pid,'SIGKILL');}catch{}});
+  return child;
+}
 function stop(child:ChildProcess|null){
-  if(!child||child.exitCode!==null||child.signalCode!==null)return Promise.resolve();
-  return new Promise<void>(resolve=>{const timer=setTimeout(()=>{try{child.kill('SIGKILL');}catch{}resolve();},5000);
-    child.once('exit',()=>{clearTimeout(timer);resolve();});try{child.kill('SIGTERM');}catch{clearTimeout(timer);resolve();}});
+  if(!child||child.pid===undefined||child.exitCode!==null||child.signalCode!==null)return Promise.resolve();
+  const signal=(name:NodeJS.Signals)=>{try{process.kill(-child.pid!,name);}catch{try{child.kill(name);}catch{}}};
+  return new Promise<void>(resolve=>{
+    const timer=setTimeout(()=>{signal('SIGKILL');resolve();},8000);
+    child.once('exit',()=>{clearTimeout(timer);signal('SIGKILL');resolve();});
+    signal('SIGTERM');
+  });
 }
 function chromeBinary(){
   if(process.env.CHROME_PATH)return existsSync(process.env.CHROME_PATH)?process.env.CHROME_PATH:null;
@@ -169,9 +180,9 @@ class Cdp{
   close(){try{this.socket.close();}catch{}}
 }
 async function launchChrome(binary:string,profile:string){
-  const child=spawn(binary,['--headless=new','--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--no-sandbox','--disable-gpu',
+  const child=own(spawn(binary,['--headless=new','--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--no-sandbox','--disable-gpu',
     '--disable-dev-shm-usage','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking',
-    '--window-size=1440,1000','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe']});
+    '--window-size=1440,1000','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe'],detached:true}));
   const url=await new Promise<string>((resolve,reject)=>{
     let log='';const timer=setTimeout(()=>reject(new Error('Chrome did not start: '+log.slice(-2000))),30_000);
     child.stderr!.on('data',d=>{log+=d;const m=/DevTools listening on (ws:\/\/\S+)/.exec(log);if(m){clearTimeout(timer);resolve(m[1]!);}});
@@ -206,7 +217,7 @@ function sameAsShown(kind:Kind,raw:string,shown:string|number,expected:string|nu
   return Math.abs(Number(shown)-Number(expected))<=0.5*scale*10**-(m[2]?.length??0)+1e-6;
 }
 function readFacts(surface:string,text:string,rules:FactRule[]){
-  const lines=text.split('\n').map(l=>l.replace(/ /g,' ').trim()).filter(Boolean),out:Reading[]=[];
+  const lines=text.split('\n').map(l=>l.replace(/\u00a0/g,' ').trim()).filter(Boolean),out:Reading[]=[];
   for(const rule of rules)for(const reader of rule.readers){
     if(reader.onlyOn&&!reader.onlyOn.includes(surface))continue;
     const add=(raw:string,context:string)=>{
@@ -230,13 +241,14 @@ function factRules(key:ReturnType<typeof answerKey>):FactRule[]{
   const on=(...surfaces:string[])=>(s:string)=>surfaces.includes(s);
   const full=(...labels:string[])=>new RegExp('^(?:'+labels.join('|')+')$','i');
   return [
-    {name:'Data date',kind:'date',expected:key.dataDate,readers:[{next:full('data date'),inline:/\bData Date:?\s+([A-Z][a-z]{2} \d{1,2}, \d{4})/gi}],
+    {name:'Data date',kind:'date',expected:key.dataDate,readers:[{next:full('data date'),inline:/\bData Date:?\s+([A-Z][a-z]{2} \d{1,2}, \d{4})/gi},
+      {inline:/^([A-Z][a-z]{2} \d{1,2}, \d{4}) · \d+ programme revisions? · /g,onlyOn:['portfolio']}],
       requiredOn:s=>modulePage(s)||['director drawer','portfolio'].includes(s)},
     {name:'Activity count',kind:'count',expected:key.activityCount,readers:[{inline:/\b(\d[\d,]*) activities recognised/g},
       {inline:/\bExecution activities:\s*(\d[\d,]*)/g},{inline:/\b(\d[\d,]*) activities and \d[\d,]* relationships read/g},
       {next:full('execution activities','programme activities','programme records')}],requiredOn:s=>modulePage(s)||s==='documents'},
-    {name:'Project documents',kind:'count',expected:key.documentCount,readers:[{inline:/\b(\d+) project documents\b/g},{inline:/^(\d+) documents$/g}],
-      requiredOn:s=>modulePage(s)||s==='documents'},
+    {name:'Project documents',kind:'count',expected:key.documentCount,readers:[{inline:/\b(\d+) project documents\b/g},{inline:/^(\d+) documents$/g},
+      {inline:/ programme revisions? · (\d+) documents$/g,onlyOn:['portfolio']}],requiredOn:s=>modulePage(s)||['documents','portfolio'].includes(s)},
     {name:'Open RFIs',kind:'count',expected:key.openRfis,readers:[{next:full('open rfis?'),inline:/\b(\d+) open RFIs?\b/gi},
       {next:full('open records'),onlyOn:['delivery-design']}],requiredOn:on('master-dashboard','delivery-design')},
     {name:'Overdue RFIs',kind:'count',expected:key.overdueRfis,readers:[{next:full('overdue rfis?'),inline:/\b(\d+) overdue RFIs?\b/gi},
@@ -245,7 +257,8 @@ function factRules(key:ReturnType<typeof answerKey>):FactRule[]{
       {next:full('current records','known source rows'),onlyOn:['delivery-design']}],requiredOn:on('master-dashboard','delivery-design')},
     {name:'Contract completion',kind:'date',expected:key.contractCompletion,
       readers:[{next:full('contractual completion','recorded contractual completion','original contractual completion','contract completion date'),
-        cell:full('contractual completion','contract completion date','original contractual completion')}],requiredOn:on('master-dashboard','director drawer')},
+        cell:full('contractual completion','contract completion date','original contractual completion')},
+      {inline:/\b(?:Official contract|Contract source \/ review): ([A-Z][a-z]{2} \d{1,2}, \d{4})/g,onlyOn:['portfolio']}],requiredOn:on('master-dashboard','director drawer','portfolio')},
     {name:'Dated certificates',kind:'count',expected:key.certificates,readers:[{next:full('dated certificates'),inline:/\bCertificate periods:\s*(\d+)/g}],requiredOn:on('payments')},
     {name:'Gross certified',kind:'money',expected:key.certifiedGross,readers:[{next:full('gross certified','gross certified to date','dated gross certification')}],
       requiredOn:on('payments','commercial-overview','cash-flow')},
@@ -253,7 +266,7 @@ function factRules(key:ReturnType<typeof answerKey>):FactRule[]{
       inline:/\bCertificate-period net through Data Date:\s*([\d,.]+\s*[kMB]?)/g}],requiredOn:on('payments')},
     {name:'Paid',kind:'money',expected:key.paid,readers:[{next:full('paid','paid to date'),inline:/\bCash received:\s*([\d,.]+\s*[kMB]?)/g}],
       requiredOn:on('payments','commercial-overview','cash-flow')},
-    {name:'Certified unpaid',kind:'money',expected:key.certifiedNet-key.paid,readers:[{next:full('certified unpaid'),column:full('certified unpaid')}],
+    {name:'Certified unpaid',kind:'money',expected:key.certifiedNet-key.paid,readers:[{next:full('certified unpaid'),column:full('certified unpaid')},{inline:/\bUnpaid ([\d,.]+[kMB]?)/g,onlyOn:['portfolio']}],
       requiredOn:on('payments','commercial-overview','cash-flow','master-dashboard')},
   ];
 }
@@ -289,7 +302,7 @@ test('F01 real browser: every page shows the source answer key, one value per fa
     const port=await freePort(),base='http://127.0.0.1:'+port;
     const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:join(root,'data'),PORT:String(port),HOST:'127.0.0.1'};
     for(const name of ['RAILWAY_VOLUME_MOUNT_PATH','NODE_TEST_CONTEXT','CMENG_PROJECT_WORKER','NODE_OPTIONS'])delete env[name];
-    server=spawn(process.execPath,[SERVER],{env,stdio:['ignore','pipe','pipe']});
+    server=own(spawn(process.execPath,[SERVER],{env,stdio:['ignore','pipe','pipe'],detached:true}));
     let serverLog='';server.stdout!.on('data',d=>{serverLog=(serverLog+d).slice(-20000);});server.stderr!.on('data',d=>{serverLog=(serverLog+d).slice(-20000);});
     const deadline=Date.now()+60_000;
     for(;;){
@@ -327,6 +340,7 @@ test('F01 real browser: every page shows the source answer key, one value per fa
       else if(method==='Runtime.exceptionThrown')pageErrors.push(String(params.exceptionDetails?.exception?.description??params.exceptionDetails?.text).slice(0,300));
     });
     await send('Page.enable');await send('Runtime.enable');await send('Network.enable');
+    await send('Network.setCacheDisabled',{cacheDisabled:true}); // every page measures its own API responses
     await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     const evaluate=async(expression:string,timeoutMs=PAGE_TIMEOUT_MS)=>{
       const reply=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},timeoutMs);
@@ -419,13 +433,15 @@ test('F01 real browser: every page shows the source answer key, one value per fa
       if(registry.includes(s.surface)&&!s.error&&!s.apiBytes.some(r=>/\/(?:modules|management)\//.test(r.url)&&r.bytes>0))
         failures.push('(d) '+s.surface+' has no measured page API response');
     }
+    const unknownLabels=shown.map(s=>[...s.text.matchAll(/\bnot established\b/gi)].length);
+    console.log('F01 shared unknown-state label "Not established": '+unknownLabels.reduce((a,b)=>a+b,0)+' times on '+unknownLabels.filter(Boolean).length+' surfaces (allowed; see BANNED)');
     const pages=shown.length,largest=Math.max(...shown.flatMap(s=>s.apiBytes.map(r=>r.bytes)));
     console.log('F01 walked '+pages+' surfaces ('+menu.length+' menu pages, '+workspaceTabs.length+' workspace tabs: '+workspaceTabs.join(', ')+'); readings '+readings.length+'; largest API response '+largest+' bytes');
     assert.equal(new Set(shown.map(s=>s.surface)).size,registry.length+5,'every registry page plus director drawer, project review, documents, Ask CMeng and portfolio is walked');
     assert.ok(workspaceTabs.length>=7,'the workspace tabs are walked ('+workspaceTabs.length+')');
     assert.deepEqual(failures,[],'what the screen shows must equal the source answer key');
   }finally{
-    cdp?.close();
+    if(cdp){await cdp.send('Browser.close',{},undefined,5000).catch(()=>{});cdp.close();}
     await stop(chrome);await stop(server);
     await rm(root,{recursive:true,force:true}).catch(()=>{});
   }
