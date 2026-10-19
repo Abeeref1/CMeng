@@ -560,6 +560,8 @@ function governedDisplayCount(populationEstablished,value){
 }
 function isReaderCodeValue(value){return typeof value==="string"&&(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/.test(value)||/^[a-z]+(?:[A-Z][a-z0-9]*)+$/.test(value));}
 function readerScalarText(value){return isReaderCodeValue(value)?humanizeKey(value):fmt(value);}
+// T10 W1: a tax basis code ('exclusive', 'unknown') is said in words.
+function taxBasisLabel(value){const v=String(value??"unknown");return ({exclusive:"Excluding tax",inclusive:"Including tax",unknown:"Tax basis not stated",mixed:"Mixed tax basis"})[v]||humanizeKey(v);}
 function fmtForField(key,value){
   if(value===null||value===undefined)return"Not established";
   if(typeof value==="string"){
@@ -3085,7 +3087,7 @@ function renderCommercialCapabilityVisual(key,data){
   const rows=data.rows||data.bonds||data.insurances||data.scenarios||[];
   const count=data.recordCount??listTotal(rows);
   return '<section class="planning-view commercial-capability">'+planningKpis([["Current state",state,"source-backed capability"],["Records / scenarios",count,"current capability population"]])+head(readerModuleHeading(key),descriptions[key]||"Controlled commercial position.")+
-    (rows.length?'<div class="table-wrap"><table><thead><tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<th>'+escapeHtml(humanizeKey(k))+'</th>').join("")+'</tr></thead><tbody>'+rows.slice(0,300).map(row=>'<tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<td>'+escapeHtml(row[k]===null||row[k]===undefined?"Not established":/^\d{4}-\d{2}-\d{2}/.test(String(row[k]))?planningShortDate(row[k]):fmt(row[k]))+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No current rows are established for this capability.</div>')+
+    (rows.length?'<div class="table-wrap"><table><thead><tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<th>'+escapeHtml(humanizeKey(k))+'</th>').join("")+'</tr></thead><tbody>'+rows.slice(0,300).map(row=>'<tr>'+Object.keys(rows[0]).filter(k=>!["sourceRefs","diagnostics","source","cost","amount"].includes(k)&&["string","number","boolean"].includes(typeof rows[0][k])||rows[0][k]===null).slice(0,10).map(k=>'<td>'+escapeHtml(row[k]===null||row[k]===undefined?"Not established":/^\d{4}-\d{2}-\d{2}/.test(String(row[k]))?planningShortDate(row[k]):readerScalarText(row[k]))+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No current rows are established for this capability.</div>')+
     '</div></section></section>';
 }
 function renderScopeClassificationVisual(data){
@@ -3651,7 +3653,7 @@ function renderCommercialTemporalPosition(ledger){
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Reporting scope and source reconciliation</h4><p>Data Date '+escapeHtml(planningShortDate(ledger.dataDateIso))+'. Source sums retain their own currency and tax basis. They do not prove a held balance or a reconciled contract value.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Certificate periods by Data Date",p.payments.asOfCount,p.payments.futureCount+' future · '+p.payments.undatedCount+' undated'],
     ["Approvals by Data Date",p.variations.asOfApprovedCount,p.variations.futureApprovalCount+' future · '+p.variations.undatedApprovalCount+' undated'],
-  ])+'<div class="table-wrap"><table><thead><tr><th>Source measure</th><th>Currency / tax</th><th>By Data Date</th><th>Future dated</th><th>Full register</th><th>Undated records</th></tr></thead><tbody>'+p.money.map(row=>'<tr><td>'+escapeHtml(row.kind)+'</td><td>'+escapeHtml(row.currency+' / '+row.taxBasis)+'</td><td>'+escapeHtml(money(row.asOfValue))+'<br><small>'+escapeHtml(row.asOfCount)+' records</small></td><td>'+escapeHtml(money(row.futureValue))+'<br><small>'+escapeHtml(row.futureCount)+' records</small></td><td>'+escapeHtml(money(row.fullValue))+'</td><td>'+escapeHtml(row.undatedCount)+'</td></tr>').join('')+'</tbody></table></div></div></section>';
+  ])+'<div class="table-wrap"><table><thead><tr><th>Source measure</th><th>Currency / tax</th><th>By Data Date</th><th>Future dated</th><th>Full register</th><th>Undated records</th></tr></thead><tbody>'+p.money.map(row=>'<tr><td>'+escapeHtml(row.kind)+'</td><td>'+escapeHtml(row.currency+' / '+taxBasisLabel(row.taxBasis))+'</td><td>'+escapeHtml(money(row.asOfValue))+'<br><small>'+escapeHtml(row.asOfCount)+' records</small></td><td>'+escapeHtml(money(row.futureValue))+'<br><small>'+escapeHtml(row.futureCount)+' records</small></td><td>'+escapeHtml(money(row.fullValue))+'</td><td>'+escapeHtml(row.undatedCount)+'</td></tr>').join('')+'</tbody></table></div></div></section>';
 }
 function renderCommercialVisual(key,data){
   const p=projectionFor(data,data?.projectionKey||"");
@@ -3744,7 +3746,7 @@ function renderCommercialVisual(key,data){
       const costRows=(foundation.costRegister?.rows||[]).slice(0,100).map(row=>{
         const metricNames=Object.keys(row.metrics||{}).sort();
         const metrics=metricNames.slice(0,8).map(name=>humanizeKey(name)+": "+findingValue(row.metrics[name],row.currency)).join(" · ");
-        return '<tr><td><b>'+escapeHtml(row.costCode||"Unmapped")+'</b></td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.parentCostCode||"—")+'</td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(row.taxBasis)+'</td><td>'+escapeHtml(metrics||"No established metrics")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td></tr>';
+        return '<tr><td><b>'+escapeHtml(row.costCode||"Unmapped")+'</b></td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.parentCostCode||"—")+'</td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(taxBasisLabel(row.taxBasis))+'</td><td>'+escapeHtml(metrics||"No established metrics")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td></tr>';
       });
       const cbsRows=(foundation.cbsBreakdown?.nodes||[]).slice(0,100).map(node=>'<tr><td><b>'+escapeHtml(node.costCode)+'</b></td><td>'+escapeHtml(node.description||"")+'</td><td>'+escapeHtml(node.parentCostCode||"Root")+'</td><td>'+escapeHtml((node.childCostCodes||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.wbsIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.boqItemIds||[]).join(", ")||"—")+'</td><td>'+escapeHtml((node.paymentIds||[]).join(", ")||"—")+'</td></tr>');
       foundationDetail=
@@ -3904,7 +3906,7 @@ function renderCommercialVisual(key,data){
             {label:'Productivity',value:metricValue(row.varianceDecomposition?.productivity)}
           ],row.currency)
         );
-        return '<section class="planning-panel cost-control-position"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cost Control Management Position</h4><p>Tax basis: '+escapeHtml(row.taxBasis)+'. Source EAC stays separate from CMeng scenarios.</p></div></div><div class="planning-panel-body">'+
+        return '<section class="planning-panel cost-control-position"><div class="planning-panel-head"><div><h4>'+escapeHtml(row.currency)+' · Cost Control Management Position</h4><p>Tax basis: '+escapeHtml(taxBasisLabel(row.taxBasis))+'. Source EAC stays separate from CMeng scenarios.</p></div></div><div class="planning-panel-body">'+
           planningKpis([
             ["BAC",findingValue(row.bac,row.currency),findingMeta(row.bac)],
             ["PV",findingValue(row.pv,row.currency),findingMeta(row.pv)],

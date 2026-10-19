@@ -85,6 +85,7 @@ jobs:
             dist/tests/t10-diagnostic-heading-meaning.test.js \
             dist/tests/t10-primary-source-detail-collapsed.test.js \
             dist/tests/t10-no-code-names-on-screen.test.js \
+            dist/tests/t10-wording-rules.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
             dist/tests/t08-asset-asof-date-truth.test.js \
             dist/tests/t02-register-date-all-columns-truth.test.js \
