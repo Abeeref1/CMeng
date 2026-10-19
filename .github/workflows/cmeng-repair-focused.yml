@@ -55,6 +55,7 @@ jobs:
             dist/tests/t11-working-calendar-prefix-parity.test.js \
             dist/tests/t11-cpm-engine-differential.test.js \
             dist/tests/t12-independent-cpm-solver.test.js \
+            dist/tests/t06-cmeng-cpm-vs-independent.test.js \
             dist/tests/t11-float-reconciliation-calendar-parity.test.js \
             dist/tests/t11-near-critical-calendar-index.test.js \
             dist/tests/t11-near-critical-full-population-parity.test.js \
