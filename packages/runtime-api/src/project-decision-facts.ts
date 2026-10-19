@@ -50,6 +50,7 @@ function buildDecisionFacts(state:ProjectRuntimeState){
  return {schemaVersion:'1.0',projectId:state.projectId,projectVersion:state.version,dataDateIso:cutoff,
   get commercialSummary(){return once('summary',()=>buildCommercialSummary(commercial()));},
   get completionConstraints(){return once('completion',()=>buildCompletionConstraints(model));},
+  get negativeFloatConstraint(){return once('negativeFloatConstraint',()=>buildNegativeFloatConstraint(model));},
   get boqLinkage(){return linkage();},
   get quantities(){return quantities();},
   get trends(){return once('trends',()=>buildProgrammeTrends(state,model,cutoff));},
@@ -101,6 +102,25 @@ function buildCompletionConstraints(model:any){
  const candidates=[...new Map([...named,...latest].map((a:any)=>[a.activityId,a])).values()];
  const labels:Record<string,string>={CS_MSO:'Start on',CS_MEO:'Finish on',CS_MEOB:'Finish on or before',CS_MEOA:'Finish on or after',CS_MANDSTART:'Mandatory start',CS_MANDFIN:'Mandatory finish',CS_MSOA:'Start on or after',CS_MSOB:'Start on or before',CS_ALAP:'As late as possible'};
  return candidates.flatMap((a:any)=>(a.sourceConstraints??[]).map((c:any)=>({activityReference:a.activityId,activityName:a.name,type:c.type,typeLabel:labels[c.type]??String(c.type??'Constraint').replaceAll('_',' '),dateIso:date(c.dateIso),basis:'Explicit constraint on a named or terminal completion activity in the current submitted programme; not a contract amendment'})));
+}
+
+// F33: name the submitted constraint that sets the programme's most negative
+// float. A late-date constraint sets its own activity's late date, so the
+// constrained activity carries the lowest float of the chain it governs. Only an
+// explicit source constraint on an unfinished activity at that lowest float is
+// named; otherwise the source is stated as not identifying it (never invented).
+const LATE_DATE_CONSTRAINTS=new Set(['CS_MEO','CS_MEOB','CS_MANDFIN','CS_MSO','CS_MSOB','CS_MANDSTART']);
+export function buildNegativeFloatConstraint(model:any){
+ if(!model)return null;
+ const open=(model.activities??[]).filter((a:any)=>a.status!=='completed'&&!['level_of_effort','wbs_summary'].includes(a.activityType)&&finite(a.totalFloatHours)!==null);
+ if(!open.length)return null;
+ const lowest=Math.min(...open.map((a:any)=>a.totalFloatHours as number));
+ if(!(lowest<0))return null;
+ const labels:Record<string,string>={CS_MSO:'Start on',CS_MEO:'Finish on',CS_MEOB:'Finish on or before',CS_MANDSTART:'Mandatory start',CS_MANDFIN:'Mandatory finish',CS_MSOB:'Start on or before'};
+ const constraints=open.filter((a:any)=>a.totalFloatHours===lowest).flatMap((a:any)=>(a.sourceConstraints??[]).filter((c:any)=>LATE_DATE_CONSTRAINTS.has(c.type)).map((c:any)=>({activityReference:a.activityId,activityName:a.name??null,type:c.type,typeLabel:labels[c.type]!,dateIso:date(c.dateIso)})));
+ return {lowestFloatHours:lowest,activityCountAtLowestFloat:open.filter((a:any)=>a.totalFloatHours===lowest).length,constraints,
+  state:constraints.length?'named':'not_identified_in_source',
+  basis:'Lowest total float among unfinished activities in the current submitted programme, and the explicit late-date constraint on an activity at that float. Submitted float in hours; not a contract amendment.'};
 }
 
 function buildProgrammeTrends(state:ProjectRuntimeState,model:any,cutoff:string|null){
@@ -371,7 +391,7 @@ export function decisionAnalysisForModule(state:ProjectRuntimeState,key:string,p
  const d=projectDecisionFacts(state);
  const basis={dataDateIso:d.dataDateIso,sourceVersion:d.projectVersion};
  switch(key){
-  case 'pmo-analysis':return {...basis,kind:'management_commercial',commercialSummary:d.commercialSummary,completionConstraints:d.completionConstraints};
+  case 'pmo-analysis':return {...basis,kind:'management_commercial',commercialSummary:d.commercialSummary,completionConstraints:d.completionConstraints,negativeFloatConstraint:d.negativeFloatConstraint};
   case 'near-critical':return {...basis,kind:'float_erosion',trends:d.trends};
   case 'variance-trends':return {...basis,kind:'finish_slip',slipRate:d.trends.slipRate,comparisonDateIso:d.trends.comparisonDateIso,elapsedMonths:d.trends.elapsedMonths};
   case 'quantity-scurve':return {...basis,kind:'measured_productivity',quantities:{...d.quantities,areas:undefined}};

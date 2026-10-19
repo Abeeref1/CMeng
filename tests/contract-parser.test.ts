@@ -97,6 +97,24 @@ test('sectional completion particulars retain date and damages under one section
  assert.match(parsed.clauses[1]!.text,/2027-09-01/);assert.match(parsed.clauses[1]!.text,/2500 per day/);
 });
 
+test('F31 sectional completion rows with ":" or "-" separators, liquidated damages or taking-over are one section each, never "section numbers repeat"',()=>{
+ for(const text of [
+  'SECTIONAL COMPLETION\nSection 1: Infrastructure Works\nSection 1: Completion Date 2027-05-01\nSection 1: Delay Damages USD 1200 per day\nSection 2: Whole of the Works\nSection 2: Completion Date 2027-09-01\nSection 2: Delay Damages USD 2500 per day',
+  'SECTIONAL COMPLETION\nSection 1 Infrastructure Works\nSection 1 - Time for Completion: 2027-05-01\nSection 1 - Delay Damages: USD 1200 per day\nSection 2 Whole of the Works\nSection 2 - Time for Completion: 2027-09-01\nSection 2 - Delay Damages: USD 2500 per day',
+  'SECTIONAL COMPLETION\nSection 1 Infrastructure Works\nSection 1 Liquidated Damages USD 1200 per day\nSection 1 Taking-Over 2027-05-01\nSection 2 Whole of the Works\nSection 2 Liquidated Damages USD 2500 per day\nSection 2 Taking-Over 2027-09-01',
+ ]){
+  const parsed=segmentContractPages(pdfResult([page(1,text)]));
+  assert.equal(parsed.clauses.length,2,text);
+  assert.ok(!parsed.diagnostics.some(d=>d.startsWith('CONTRACT_DUPLICATE_SECTION_INSTANCE')),text);
+  assert.ok(parsed.clauses.every(c=>c.status==='verified'),text);
+  assert.match(parsed.clauses[0]!.text,/2027-05-01/);assert.match(parsed.clauses[0]!.text,/1200 per day/);
+  assert.match(parsed.clauses[1]!.text,/2027-09-01/);assert.match(parsed.clauses[1]!.text,/2500 per day/);
+ }
+ // A genuinely repeated clause number with different text is still raised.
+ const repeated=segmentContractPages(pdfResult([page(1,'GENERAL CONDITIONS\nSection 1 Definitions\nThe words have meanings.\nSection 1 Variations by the Engineer\nThe Engineer may vary the Works.')]));
+ assert.ok(repeated.diagnostics.some(d=>d.startsWith('CONTRACT_DUPLICATE_SECTION_INSTANCE')));
+});
+
 function xmlEscape(value: string): string {
   return value
     .replace(/&/g, "&amp;")

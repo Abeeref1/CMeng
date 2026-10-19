@@ -5991,7 +5991,7 @@ function renderModuleResult(result){
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
   const pageKey=result.legacyKey||result.key;
   if(pageKey==='source-quality'){const panel=el('projectActionPanel');if(panel)bindProjectActions(panel);}
-  else if(pageKey!=='progress-breakdown'&&review&&(!['established','submitted_current'].includes(review.state)||review.pendingSchedules?.length)){
+  else if(pageKey!=='progress-breakdown'&&review&&(!['established','submitted_current'].includes(review.state)||(review.awaitingReviewSchedules??review.pendingSchedules)?.length)){
     container.insertAdjacentHTML('beforeend','<p class="action-notification">'+(review.state==='missing'?'Select a schedule to enable programme reporting.':review.state==='pending_review'?'Confirm the schedule used for reporting.':'A newly uploaded schedule needs your review.')+' <button class="btn small" id="programmeActionLink">Open project review</button></p>');
     el('programmeActionLink').onclick=()=>openProjectActions();
   }

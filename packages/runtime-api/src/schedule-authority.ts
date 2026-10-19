@@ -34,7 +34,12 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
   const submittedCurrent=validDecision&&(decision?.method==='submitted_update'||decision?.method==='legacy_retained');
   const authority=!validDecision?'none':formalBaseline&&decision?.method==='explicit'?'official':'submitted';
   const reviewState=!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':submittedCurrent?'submitted_current':'pending_review';
-  return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,
+  // F32: one shared rule for "a schedule is really awaiting review". A re-upload
+  // of the adopted programme (same revision and source hash) and an upload older
+  // than the adopted Data Date are retained for review but are not new schedules.
+  const currentId=revision?.revision.revisionId??null,currentHash=revision?.sourceHashSha256??null;
+  const awaitingReviewSchedules=pendingSchedules.filter(p=>!(p.revisionId===currentId&&p.sourceHashSha256===currentHash)&&p.dateRelationship!=='earlier');
+  return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,awaitingReviewSchedules,
     // F08: one programme-authority state that every page reads.
     programmeState:programmeStateFor(reviewState),
     documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
