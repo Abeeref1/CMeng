@@ -2803,6 +2803,52 @@ function resourcePerHourNotAssessableNote(p){
     'Resource assignments for the current programme are not established, and no usable max-units-per-hour capacity is established.')+
     ' CMeng therefore leaves utilization blank instead of assuming zero or unlimited capacity.</div>';
 }
+function tradeChainReason(code){
+  const parts=String(code||"").split(":"),head=parts[0]||"",rest=parts.slice(1).filter(Boolean);
+  const words={
+    PROGRAMME_LABOUR_HOUR_ASSIGNMENTS_NOT_SUPPLIED:"the programme has no labour-hour resource assignments",
+    PROGRAMME_RESOURCE_ASSIGNMENTS_NOT_SUPPLIED:"the programme has no resource assignments",
+    CURRENT_PROGRAMME_NOT_ESTABLISHED:"no current programme",
+    NO_LABOUR_HOUR_ASSIGNMENTS_ON_CHAIN:"no labour-hour resource is assigned to the open chain work",
+    CAPACITY_NOT_STATED:"capacity is not stated in the resource register or the programme",
+    CAPACITY_CALENDAR_NOT_ESTABLISHED:"the capacity calendar is not established",
+    CAPACITY_RATE_NOT_STATED:"no programme max units apply from",
+    REGISTER_CAPACITY_NOT_STATED_FOR_WEEK:"the resource register states no capacity for the week",
+    REGISTER_CAPACITY_CONFLICT:"the resource register states two capacities for the week",
+    REMAINING_HOURS_NOT_STATED:"remaining hours are not stated on the assignment",
+    REMAINING_HOURS_NOT_STATED_ON_SOME_ASSIGNMENTS:"remaining hours are not stated on some assignments",
+    REMAINING_DATES_NOT_STATED:"remaining dates are not stated on the assignment",
+    RESOURCE_CURVE_NOT_READ:"the assignment uses a resource curve that is not read",
+    ACTIVITY_CALENDAR_NOT_ESTABLISHED:"the activity calendar is not established",
+    NO_WORKING_TIME_IN_REMAINING_DATES:"the remaining dates contain no working time",
+    RESOURCE_UNIT_NOT_HOURS:"the resource unit is not hours",
+    DRIVING_PATH_NOT_ESTABLISHED:"the driving path is not established",
+    CHAIN_NOT_ON_DRIVING_PATH:"the chain is not on the driving path",
+    BACKLOG_NOT_CLEARED_WITHIN_GUARD:"the shortfall does not clear within ten years at the stated capacity"
+  }[head];
+  return (words||head.toLowerCase().split("_").join(" "))+(rest.length?" ("+rest.join(", ")+")":"");
+}
+function renderTradeChainPanel(tc){
+  if(!tc||typeof tc!=="object")return "";
+  const title="Repeated trade chains: hours against capacity";
+  const intro="Same-trade work repeated across locations and joined by programme logic. Remaining assigned hours per week on the activity calendars, against the stated capacity. Unknown values stay not established.";
+  if(!Array.isArray(tc.chains)||!tc.chains.length)return managementPanel(title,intro,'<div class="notice info">'+escapeHtml(tc.state==="none_found"?"No repeated trade chain was found in the current programme.":"Trade-chain hours are not established: "+tradeChainReason(tc.reason||(tc.diagnostics||[])[0]||""))+'.</div>');
+  const hours=v=>v===null||v===undefined?"Not established":fmt(v)+" h";
+  const reasons=list=>(list||[]).slice(0,4).map(tradeChainReason).join("; ");
+  const effect=c=>{const e=c.completionEffect||{};
+    if(e.state==="established")return e.completionDelayCalendarDays>0?"Completion later by "+fmt(e.completionDelayCalendarDays)+" calendar days (chain finish "+planningShortDate(e.chainFinishIso)+" to "+planningShortDate(e.resourceLimitedFinishIso)+")":"No completion effect at the stated capacity";
+    if(e.state==="not_on_driving_path")return "Not on the driving path"+(e.resourceLimitedFinishIso&&e.chainFinishIso&&e.resourceLimitedFinishIso>e.chainFinishIso?"; chain finish moves to "+planningShortDate(e.resourceLimitedFinishIso):"");
+    return "Not established: "+(reasons(e.reasons)||"see the chain reasons");};
+  const body=tc.chains.map(c=>{
+    const resourceRows=(c.resources||[]).map(r=>'<tr><td>'+escapeHtml(r.resourceId+" · "+(r.resourceName||""))+'</td><td>'+escapeHtml(hours(r.remainingHours))+'</td><td>'+escapeHtml(r.capacityLabel||"Capacity not stated")+'</td><td>'+escapeHtml(hours(r.totalShortfallHours))+'</td><td>'+escapeHtml(r.peakShortfallHours===null||r.peakShortfallHours===undefined?"Not established":fmt(r.peakShortfallHours)+" h"+(r.firstShortfallPeriodIso?" (first short week "+planningShortDate(r.firstShortfallPeriodIso)+")":""))+'</td><td>'+escapeHtml(r.state==="established"?"Established":"Not established: "+reasons(r.reasons))+'</td></tr>').join("");
+    const periodRows=(c.resources||[]).flatMap(r=>(r.periods||[]).map(w=>'<tr><td>'+escapeHtml(r.resourceId)+'</td><td>'+escapeHtml(planningShortDate(w.periodStartIso))+'</td><td>'+escapeHtml(hours(w.demandHours))+'</td><td>'+escapeHtml(hours(w.capacityHours))+'</td><td>'+escapeHtml(hours(w.shortfallHours))+'</td><td>'+escapeHtml(hours(w.otherDemandHours))+'</td><td>'+escapeHtml(hours(w.backlogHours))+'</td></tr>')).join("");
+    return '<div class="trade-chain"><p><b>'+escapeHtml(c.trade)+'</b> · '+escapeHtml(c.tradeSource)+' · '+escapeHtml(fmt((c.activityIds||[]).length))+' activities ('+escapeHtml((c.activityIds||[])[0]||"")+' to '+escapeHtml((c.activityIds||[]).at(-1)||"")+') across '+escapeHtml(fmt((c.locations||[]).length))+' locations · Driving path: '+escapeHtml(c.onDrivingPath===true?"Yes":c.onDrivingPath===false?"No":"Not established")+'</p>'+
+      '<p>Remaining assigned hours: <b>'+escapeHtml(hours(c.remainingHours))+'</b> · Shortfall: <b>'+escapeHtml(hours(c.totalShortfallHours))+'</b> · '+escapeHtml(effect(c))+'</p>'+
+      (resourceRows?'<div class="table-wrap"><table><thead><tr><th>Resource</th><th>Remaining hours</th><th>Stated capacity</th><th>Shortfall</th><th>Worst week</th><th>Position</th></tr></thead><tbody>'+resourceRows+'</tbody></table></div>':'<div class="notice warn">Chain hours not established: '+escapeHtml(reasons(c.reasons))+'.</div>')+
+      (periodRows?'<details><summary>Hours per week</summary><div class="table-wrap"><table><thead><tr><th>Resource</th><th>Week from</th><th>Chain demand</th><th>Capacity</th><th>Shortfall</th><th>Other work on this resource</th><th>Carried forward</th></tr></thead><tbody>'+periodRows+'</tbody></table></div></details>':'')+'</div>';
+  }).join("");
+  return managementPanel(title,intro+" "+(tc.periodBasis||""),body,true);
+}
 function renderResourceVisual(data){
   const p=projectionFor(data,"resource_utilization");
   if(!Array.isArray(p.rows)){
@@ -2890,8 +2936,9 @@ function renderResourceVisual(data){
   const hourlyControl='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Labour & equipment capacity control</h4><p>Required remaining-work peak → available capacity → gap → peak date → affected scope → action. Non-capacity resource classes are excluded from this calculation.</p></div></div><div class="planning-panel-body">'+(managementRows?'<div class="table-wrap"><table><thead><tr><th>Resource</th><th>Class</th><th>Required peak</th><th>Available</th><th>Gap</th><th>Peak</th><th>Affected scope</th><th>Programme effect</th><th>Action</th></tr></thead><tbody>'+managementRows+'</tbody></table></div>':'<div class="notice info">No labour/equipment assignment population is available for capacity control.</div>')+'</div></section>';
   const weeklyPeakControl=weekly?.futureCapacityPeaks?.length?managementPanel('Future weekly capacity','Peak planned demand and available capacity in the supplied future resource-week register. These hours do not establish a crew headcount or an hourly P6 capacity.', '<div class="table-wrap"><table><thead><tr><th>Resource</th><th>Peak week</th><th>Required</th><th>Available</th><th>Shortfall</th><th>Action</th></tr></thead><tbody>'+weekly.futureCapacityPeaks.map(row=>'<tr><td>'+escapeHtml(row.resourceId+' · '+(row.resourceName||''))+'</td><td>'+escapeHtml(planningShortDate(row.weekStartIso))+'</td><td>'+fmt(row.required)+' '+escapeHtml(resourceUnitLabel(row.unit))+'</td><td>'+fmt(row.available)+'</td><td>'+fmt(row.gap)+'</td><td>'+escapeHtml(row.gap>0?'Confirm additional capacity or resequence the affected work.':'Protect the recorded capacity; check the remaining programme horizon.')+'</td></tr>').join('')+'</tbody></table></div>',true):'';
   const criticalHoursPanel=p.criticalResourceHours?.length?managementPanel('Resources on critical programme work','Remaining assignment budgets for critical or negative-float execution work. Compare these hours with the dated weekly capacity; they do not establish a crew headcount or a project recovery gain.', '<div class="table-wrap"><table><thead><tr><th>Resource</th><th>Remaining hours</th><th>Activities</th><th>Assignment coverage</th></tr></thead><tbody>'+p.criticalResourceHours.map(row=>'<tr><td>'+escapeHtml(row.resourceId+' · '+(row.resourceName||''))+'</td><td>'+escapeHtml(row.remainingHours==null?'Missing assignment hours':fmt(row.remainingHours))+'</td><td>'+escapeHtml(row.activityIds.join(', '))+'</td><td>'+fmt(row.knownAssignmentCount)+' / '+fmt(row.assignmentCount)+'</td></tr>').join('')+'</tbody></table></div>',true):'';
+  const tradeChains=data?.tradeChains||p.tradeChains;
   return '<section class="planning-view resource-view">'+kpis+excludedClassSummary+
-    criticalHoursPanel+weeklyPeakControl+(capacityKnown>0||!weeklyComparable?hourlyControl:experienceDisclosure('Per-hour schedule capacity',hourlyControl,'Schedule capacity is not supplied; weekly register capacity is shown above'))+
+    (tradeChains?renderTradeChainPanel(tradeChains):'')+criticalHoursPanel+weeklyPeakControl+(capacityKnown>0||!weeklyComparable?hourlyControl:experienceDisclosure('Per-hour schedule capacity',hourlyControl,'Schedule capacity is not supplied; weekly register capacity is shown above'))+
     renderResourceBasisReview(p.basisComparison)+perHourNote+weeklyNote+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Schedule assignments",value:p.assignedResourceCount+" resources",state:p.assignedResourceCount>0?"ready":"missing"},
     {label:"P6 max-units/hour capacity",value:capacityKnown>0?capacityKnown+" resources":"Not established",state:capacityKnown>0?"ready":"missing"},
