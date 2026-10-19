@@ -1,6 +1,7 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
 import {canonicalHeader,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
+import {ncrStatusFromSource} from './operational-reporting';
 import type {
   CanonicalClaimRecord,
   CanonicalDelayEvent,
@@ -292,21 +293,11 @@ function ncrSeverity(
   return "minor";
 }
 
+// SW-19: one shared NCR status mapping; unclear wording stays unknown, never open.
 function ncrStatus(
   raw: string,
 ): NcrRecord["status"] {
-  const value =
-    norm(raw);
-  return (
-    value.includes(
-      "closed",
-    ) ||
-    value.includes(
-      "complete",
-    )
-  )
-    ? "closed"
-    : "open";
+  return ncrStatusFromSource(raw).status;
 }
 
 function rfiStatus(
