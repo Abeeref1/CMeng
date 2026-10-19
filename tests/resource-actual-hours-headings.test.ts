@@ -53,7 +53,7 @@ import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 function renderResources(p:Record<string,unknown>):string{
  const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
  const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
- const names=['conditionalNotice','knownScreenCount','screenCountText','resourcePerHourNotAssessableNote','renderResourceVisual'];
+ const names=['conditionalNotice','knownScreenCount','screenCountText','resourcePerHourNotAssessableNote','percent2','renderResourceVisual'];
  const code=parsed.statements.filter(isFunctionDeclaration).filter(n=>names.includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
  const text=(v:unknown)=>String(v??''),joinText=(...a:unknown[])=>a.filter(x=>typeof x==='string').join(' ');
  return vm.runInNewContext(code+'\nrenderResourceVisual(p);',{p,projectionFor:(v:unknown)=>v,escapeHtml:text,fmt:text,humanizeKey:text,planningShortDate:text,resourceUnitLabel:text,
