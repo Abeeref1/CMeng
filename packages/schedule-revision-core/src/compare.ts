@@ -59,6 +59,8 @@ function dateDeltaDays(
   ) {
     return null;
   }
+  // Both instants are finite here; an equal pair is exactly zero movement.
+  if (beforeMs === afterMs) return 0;
   return Number(
     (
       (afterMs -
@@ -78,6 +80,8 @@ function numericDelta(
   ) {
     return null;
   }
+  // Equal finite values give exactly zero; skip the string round trip.
+  if (before === after && Number.isFinite(before)) return 0;
   return Number(
     (
       after -
@@ -294,20 +298,11 @@ function relationshipKey(
   relationship:
     RelationshipSignature,
 ): string {
-  return [
-    relationship
-      .predecessorActivityId,
-    relationship
-      .successorActivityId,
-    relationship.type,
-    relationship
-      .lagHours === null
-      ? ""
-      : String(
-          relationship
-            .lagHours,
-        ),
-  ].join("|");
+  // Same text as the former [..].join("|"): join writes null/undefined as "".
+  return (relationship.predecessorActivityId ?? "") + "|" +
+    (relationship.successorActivityId ?? "") + "|" +
+    (relationship.type ?? "") + "|" +
+    (relationship.lagHours === null ? "" : String(relationship.lagHours));
 }
 
 function norm(
@@ -692,8 +687,19 @@ export function compareScheduleRevisions(
     sourceInstants.set(iso,read);
     return read;
   };
+  // Matched activity IDs are always unique in their own revision (duplicated
+  // IDs never match). When the matches line up one-to-one with both source
+  // arrays, position i is exactly the record an ID lookup returns and no
+  // activity is unmatched, so the lookup maps and match sets are not needed.
+  const fromActivities=from.model.activities,toActivities=to.model.activities;
+  const aligned=identity.matches.length===fromActivities.length&&
+    identity.matches.length===toActivities.length&&
+    identity.matches.every((match,index)=>Boolean(match.fromActivityId)&&
+      match.fromActivityId===fromActivities[index]!.activityId&&
+      Boolean(match.toActivityId)&&
+      match.toActivityId===toActivities[index]!.activityId);
   const fromById =
-    new Map(
+    aligned ? null : new Map(
       from.model.activities.map(
         (activity) => [
           activity.activityId,
@@ -702,7 +708,7 @@ export function compareScheduleRevisions(
       ),
     );
   const toById =
-    new Map(
+    aligned ? null : new Map(
       to.model.activities.map(
         (activity) => [
           activity.activityId,
@@ -711,14 +717,14 @@ export function compareScheduleRevisions(
       ),
     );
   const matchedFrom =
-    new Set(
+    aligned ? null : new Set(
       identity.matches.map(
         (match) =>
           match.fromActivityId,
       ),
     );
   const matchedTo =
-    new Set(
+    aligned ? null : new Set(
       identity.matches.map(
         (match) =>
           match.toActivityId,
@@ -734,17 +740,19 @@ export function compareScheduleRevisions(
     string[] = [];
 
   for (
-    const match of
-      identity.matches
+    let matchIndex = 0;
+    matchIndex < identity.matches.length;
+    matchIndex += 1
   ) {
+    const match = identity.matches[matchIndex]!;
     const before =
-      fromById.get(
+      fromById ? fromById.get(
         match.fromActivityId,
-      );
+      ) : fromActivities[matchIndex];
     const after =
-      toById.get(
+      toById ? toById.get(
         match.toActivityId,
-      );
+      ) : toActivities[matchIndex];
     if (
       !before ||
       !after
@@ -774,7 +782,7 @@ export function compareScheduleRevisions(
   }
 
   const removed =
-    from.model.activities
+    !matchedFrom ? [] : from.model.activities
       .filter(
         (activity) =>
           !matchedFrom.has(
@@ -782,7 +790,7 @@ export function compareScheduleRevisions(
           ),
       );
   const added =
-    to.model.activities
+    !matchedTo ? [] : to.model.activities
       .filter(
         (activity) =>
           !matchedTo.has(
@@ -828,8 +836,12 @@ export function compareScheduleRevisions(
     });
   }
 
+  // When every match keeps its own activity ID, translating a predecessor or
+  // successor through the match map returns that same ID, exactly as the
+  // untranslated signature does.
+  const sameIds=identity.matches.every(match=>match.fromActivityId===match.toActivityId);
   const fromTo =
-    new Map(
+    sameIds ? null : new Map(
       identity.matches.map(
         (match) => [
           match.fromActivityId,
@@ -848,10 +860,10 @@ export function compareScheduleRevisions(
         .map(
           (relationship) => {
             const signature =
-              translateRelationship(
+              fromTo ? translateRelationship(
                 relationship,
                 fromTo,
-              );
+              ) : relationshipSignature(relationship);
             return [
               relationshipKey(
                 signature,
