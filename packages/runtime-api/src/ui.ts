@@ -478,6 +478,8 @@ const moduleWorkspaces=[
 // summaries with links and are never replaced.
 const SUMMARY_PAGE='master-dashboard';
 const pageBlockOwners={
+ // F45 earned hours: the Man-Hour S-Curve owns the block; Resources links to it.
+ 'earned-hours':{owner:'manhour-scurve',heading:'Earned hours against hours spent'},
  'programme-source-records':{owner:'schedule-analytics',heading:'Programme source records'},
  'float-reconciliation-records':{owner:'schedule-analytics',heading:'Submitted and calculated float records'},
  'review-item-records':{owner:'source-quality',heading:'Review item records'},
@@ -2921,6 +2923,9 @@ function readableWindow(value,labels){
 }
 
 // F45: earned hours (budgeted hours x % complete) against hours spent; budgets only where the source states them.
+function earnedHoursFigure(e){
+  return e?.state==='established'&&typeof e.earnedHours==='number'?fmt(e.earnedHours)+' h earned'+(typeof e.actualHoursSpent==='number'?' of '+fmt(e.actualHoursSpent)+' h spent':''):'Earned hours not established';
+}
 function renderEarnedHoursPanel(e){
   if(!e)return '';
   const h=v=>v===null||v===undefined?'Not established':fmt(v)+' h';
@@ -3127,7 +3132,7 @@ function renderResourceVisual(data){
     '<p>'+escapeHtml(tw.recordedHours===null||tw.recordedHours===undefined?'No recorded hours on or before the Data Date.':'Recorded hours to the Data Date: '+fmt(tw.recordedHours)+' h in '+fmt(tw.recordedResourceWeekCount)+' of '+fmt(tw.resourceWeekCountToDataDate)+' trade-weeks'+(tw.latestRecordedWeekIso?'; latest recorded week '+planningShortDate(tw.latestRecordedWeekIso):'')+'.')+(tw.reason?' '+escapeHtml(tw.reason):'')+'</p>'+
     '<div class="table-wrap"><table><thead><tr><th>Trade</th><th>Recorded to Data Date</th><th>Latest recorded week</th>'+twWeeks.map(w=>'<th>'+escapeHtml(planningShortDate(w))+'<br><small>planned / recorded</small></th>').join('')+'</tr></thead><tbody>'+
     tw.trades.map(t=>{const byWeek=new Map((t.weeks||[]).map(w=>[w.weekStartIso,w]));return '<tr><td><b>'+escapeHtml(t.resourceName||t.resourceId)+'</b><br><small>'+escapeHtml(t.resourceId)+'</small></td><td>'+escapeHtml(t.recordedHours===null||t.recordedHours===undefined?'Not recorded':fmt(t.recordedHours)+' h ('+fmt(t.recordedWeekCount)+' of '+fmt(t.weekCountToDataDate)+' weeks)')+'</td><td>'+escapeHtml(t.latestRecorded?fmt(t.latestRecorded.hours)+' h · '+planningShortDate(t.latestRecorded.weekStartIso):'Not recorded')+'</td>'+twWeeks.map(w=>{const x=byWeek.get(w);return '<td>'+escapeHtml(!x?'No register week':(x.plannedHours===null||x.plannedHours===undefined?'—':fmt(x.plannedHours))+' / '+(x.recordedHours===null||x.recordedHours===undefined?'not recorded':fmt(x.recordedHours)))+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>',true):'';
-  const earnedPanel=data?.earnedHours?renderEarnedHoursPanel(data.earnedHours):'';
+  const earnedPanel=data?.earnedHours?ownedBlock('earned-hours',renderEarnedHoursPanel(data.earnedHours),earnedHoursFigure(data.earnedHours)):'';
   return '<section class="planning-view resource-view">'+kpis+excludedClassSummary+
     (tradeChains?renderTradeChainPanel(tradeChains):'')+criticalHoursPanel+weeklyPeakControl+(capacityKnown>0||!weeklyComparable?hourlyControl:experienceDisclosure('Per-hour schedule capacity',hourlyControl,'Schedule capacity is not supplied; weekly register capacity is shown above'))+
     renderResourceBasisReview(p.basisComparison)+tradeWeekPanel+earnedPanel+perHourNote+weeklyNote+(typeof tradeCapacityPanel==='function'?tradeCapacityPanel(p.tradeCapacity):'')+weeklyChart+weeklyDetail+'<div class="planning-primary-grid">'+demandPanel+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Capacity evidence</h4><p>Per-hour schedule capacity and weekly register capacity are shown as separate evidence bases.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
@@ -3956,7 +3961,7 @@ function renderManhourVisual(data){
     ...(actualHistoryEstablished?[{key:"actualCumulativeHours",label:"Actual labor hours",color:"#2c7a57"}]:[]),
     ...(p.points.some(point=>typeof point.forecastCumulativeHours==="number")?[{key:"forecastCumulativeHours",label:"Forecast labor hours",color:"#4f7fb4"}]:[])
   ];
-  const earnedPanel=data?.earnedHours?renderEarnedHoursPanel(data.earnedHours):'';
+  const earnedPanel=data?.earnedHours?ownedBlock('earned-hours',renderEarnedHoursPanel(data.earnedHours),earnedHoursFigure(data.earnedHours)):'';
   return '<section class="planning-view manhour-view">'+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Man-Hour S-Curve</h4><p>Labor only. Missing actual history never becomes a zero line.</p></div></div><div class="planning-panel-body">'+renderLineChart(p.points,series,null,{unit:"h",yLabel:"Labor hours",xLabel:"Reporting date",dataDateIso:p.dataDateIso,ariaLabel:"Man-Hour S-Curve"})+'</div></section>'+top+earnedPanel+unitNote+note+(weekly?'<div class="notice info">Weekly staffing hours describe input usage, not physical productivity. Periods are included by source week start. The planned total spans the Full register period; actuals stop at the Data Date. Remaining-hours forecast is not confirmed.</div>':'')+renderResourceBasisReview(p.basisComparison)+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>The curve uses weekly planned-demand and approved actual-usage evidence. Related P6 assignments are a separate supporting population.</p></div></div><div class="planning-panel-body">'+moduleEvidenceGate([
     {label:"Labor resource definitions",value:fmt(p.laborResourceDefinitionCount??p.laborResourceCount),state:(p.laborResourceDefinitionCount??p.laborResourceCount)>0?"ready":"missing"},
     {label:"Hour-compatible labor resources",value:fmt(p.laborHourResourceCount??p.laborResourceCount),state:(p.laborHourResourceCount??p.laborResourceCount)>0?"ready":"missing"},
