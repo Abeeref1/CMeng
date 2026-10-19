@@ -81,15 +81,16 @@ export interface CommercialClaimsNoticesPosition {
   dimensionalEvidenceGaps: {requirementMissing:number | null;eventDateMissing:number | null;noticeDateMissing:number | null};
   state: CommercialEvidenceState;
   evidenceRevisionId: string | null;
-  eventCount: number;
-  noticeCount: number;
-  lifecycleClaimCount: number;
+  /** null when no claim lifecycle is submitted or it is quarantined; 0 only for an established empty register. */
+  eventCount: number | null;
+  noticeCount: number | null;
+  lifecycleClaimCount: number | null;
   commercialClaimCount: number;
   commercialLifecycleLinkCoveragePercent:
     number | null;
   claimStateCounts: Record<ClaimState, number>;
   /** Full retained source population, including future and undated identities. */
-  sourceClaimCount?: number;
+  sourceClaimCount?: number | null;
   sourceClaimStateCounts?: Record<ClaimState, number>;
   sourceClaimStatusCounts?: Record<string, number>;
   noticeKindCounts: Record<NoticeKind, number>;

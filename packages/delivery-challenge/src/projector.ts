@@ -111,11 +111,18 @@ function activityInterval(
     finish <= start
   ) return null;
 
+  // Remaining work starts no earlier than the Data Date. An unfinished
+  // activity whose stored finish is already before the Data Date has no
+  // valid remaining window: exclude it rather than count a reversed
+  // interval, which would drive concurrency negative.
+  const remainingStart =
+    dataDate === null
+      ? start
+      : Math.max(start, dataDate);
+  if (finish <= remainingStart) return null;
+
   return {
-    start:
-      dataDate === null
-        ? start
-        : Math.max(start, dataDate),
+    start: remainingStart,
     finish,
   };
 }

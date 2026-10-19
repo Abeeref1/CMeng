@@ -236,7 +236,7 @@ export function managementVisualControl(
     sourceEvidenceRowCount:claimsSource?.readableRowCount??null,
     sourceDocumentCount:claimsSource?.documentCount??0,
     integrityState:claimPopulationIntegrity?.state??null,
-    quarantinedClaimCount:claimPopulationIntegrity?.quarantinedClaimCount??0,
+    quarantinedClaimCount:claimPopulationIntegrity?.quarantinedClaimCount??null,
     integrityReasons:claimPopulationIntegrity?.reasons??[],
     currentNoticeCount:claimPopulationQuarantined?null:claimsReporting?.notices?.asOf?.length??null,
     timelyNoticeCount:claimPopulationQuarantined?null:notices.timelyNoticeCount??commercial.claimsNotices?.noticeTimelinessCounts?.timely??null,
@@ -260,7 +260,8 @@ export function managementVisualControl(
     baselineMutationActivityCount:change.baselineMutationActivityCount??null,
     sourceTargetDateChangeCount:change.sourceTargetDateChangeCount??null,
     revisionCount:revision.revisionCount??null,
-    latestRevision:revision.points?.at?.(-1)??null,
+    // A revision-trend point's forecastCompletionIso is the submitted programme finish of that revision, not the CMeng recalculation.
+    latestRevision:revision.points?.at?.(-1)?{...revision.points.at(-1),forecastCompletionBasis:'submitted_programme'}:null,
   };
 
   const progressSummary={
