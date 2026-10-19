@@ -471,6 +471,95 @@ const moduleWorkspaces=[
  {key:'revision-trend',title:'Programme changes',views:['revision-trend','variance-trends','schedule-change-report']},
  {key:'lookahead-schedule',title:'Look-ahead & readiness',views:['lookahead-schedule','construction-readiness']}
 ];
+// F10: one page per question. Each topic block has ONE owner page. Every other page
+// shows a short link panel instead of a copy ("<heading>: see <owner page>", with the
+// headline figure taken from the same shared fact). The owner page keeps the full
+// block; nothing is removed. The Master Dashboard is the summary page: its tiles are
+// summaries with links and are never replaced.
+const SUMMARY_PAGE='master-dashboard';
+const pageBlockOwners={
+ 'programme-source-records':{owner:'schedule-analytics',heading:'Programme source records'},
+ 'float-reconciliation-records':{owner:'schedule-analytics',heading:'Submitted and calculated float records'},
+ 'review-item-records':{owner:'source-quality',heading:'Review item records'},
+ 'review-items':{owner:'source-quality',heading:'Actions and data gaps'},
+ 'driving-activity-records':{owner:'master-control-programme',heading:'Driving activity records'},
+ 'accountability-records':{owner:'cross-domain-accountability',heading:'Accountable action records'},
+ 'cross-module-consistency':{owner:'master-control-programme',heading:'Cross-module consistency'},
+ 'contract-time-position':{owner:'contract-particulars-bonds',heading:'Contract time and record counts'},
+ 'commercial-cost-ledger':{owner:'cost-forecast',heading:'Cost source ledger'},
+ 'commercial-cost-records':{owner:'cost-forecast',heading:'Cost source records'},
+ 'cost-progress-comparison':{owner:'cost-forecast',heading:'Current cost and progress comparison'},
+ 'commercial-payment-ledger':{owner:'payments',heading:'Certificate source records'},
+ 'commercial-evidence-gates':{owner:'commercial-overview',heading:'Available commercial records'},
+ 'commercial-comparison':{owner:'commercial-overview',heading:'Comparison with the submitted commercial position'},
+ 'contract-notice-provisions':{owner:'contract-particulars-bonds',heading:'Contract notice provisions'},
+ 'claim-register':{owner:'delay-claims',heading:'Claim register and pending EOT'},
+ 'revision-reading':{owner:'revision-trend',heading:'Revision history reading'},
+ 'float-review':{owner:'schedule-analytics',heading:'Submitted and calculated float'},
+ 'delivery-boq-value':{owner:'procurement-packages',heading:'Controlled BOQ value and procurement mapping'},
+ 'delivery-procurement-position':{owner:'procurement-packages',heading:'Procurement package figures'},
+ 'delivery-package-rows':{owner:'procurement-packages',heading:'Procurement package register'},
+ 'delivery-package-linked-work':{owner:'procurement-packages',heading:'Packages by linked programme work'},
+ 'delivery-weighted-progress':{owner:'procurement-scurves',heading:'Weighted procurement progress'},
+ 'delivery-handover-comparison':{owner:'handover-readiness',heading:'Programme and asset source comparison'},
+ 'delivery-handover-task-scope':{owner:'handover-readiness',heading:'Handover programme task scope'},
+ 'delivery-asset-register':{owner:'delivery-assets',heading:'Asset register'}
+};
+// One delivery register, one owner page: the register review (population,
+// completeness and supplied records) is shown on the register's own page.
+const deliveryRegisterOwners={package:'procurement-packages',supplier:'delivery-suppliers',submittal:'delivery-submittals',design:'delivery-design',workfront:'construction-discipline',location:'construction-locations',interface:'delivery-interfaces',quality:'delivery-quality',permit:'delivery-permits',hse:'delivery-hse',commissioning:'delivery-commissioning',asset:'delivery-assets',snag:'delivery-closeout',spare:'delivery-spares',handover:'handover-readiness',weather:'delivery-weather',risk:'delivery-risks'};
+// Paged source-record groups that every page carries from one shared fact.
+function pagedRecordTopic(pageKey,pointer){
+  const p=String(pointer||'');
+  // The project facts and the shared programme populations of the reporting context
+  // (one per project version); a page's own extra populations stay on that page.
+  if(/^\/data\/(?:projectFacts\/programmeQuality|reportingContract\/populations\/(?:source_records|execution_control|milestones|duration_weighted_progress|relationships|schedule_actual_events|revisions))\//.test(p))return 'programme-source-records';
+  if(/^\/data\/activityFloatReconciliation\//.test(p))return 'float-reconciliation-records';
+  if(/^\/(?:data\/)?issueAssessment\/issues$/.test(p))return 'review-item-records';
+  if(p==='/data/visualControl/schedule/drivingActivities')return 'driving-activity-records';
+  if(/^\/data\/accountability\/(?:details|recordActions)$/.test(p)||pageKey==='cross-domain-accountability'&&/^\/data\/(?:details|recordActions)$/.test(p))return 'accountability-records';
+  if(/^\/data\/position\/sourceLedger\/registerScopes\/costMetrics\//.test(p))return 'commercial-cost-records';
+  return null;
+}
+function pagedRecordFigure(tables){
+  const total=tables.reduce((sum,table)=>sum+(Number(table.total)||0),0);
+  return fmt(total)+' original records in '+fmt(tables.length)+' group'+(tables.length===1?'':'s');
+}
+// A page notice that points to the shared Actions and Data gaps list (F30) is a
+// link to that list's owner page; its count is this page's own share.
+function reviewItemsLinkAttrs(pageKey){
+  return ownsBlock('review-items',pageKey)?'':' data-owner-link="review-items" data-owner-page="'+escapeHtml(blockOwnerEntry('review-items').owner)+'" data-owner-scope="page"';
+}
+function blockOwnerEntry(topic){
+  const register=/^delivery-register:(.+)$/.exec(String(topic||''));
+  if(register){const owner=deliveryRegisterOwners[register[1]];return owner?{owner,heading:(names[owner]||owner)+' register review'}:null;}
+  return pageBlockOwners[topic]||null;
+}
+function currentPageKey(){return currentModuleResult?(currentModuleResult.legacyKey||currentModuleResult.key):null;}
+function ownsBlock(topic,pageKey=currentPageKey()){
+  const entry=blockOwnerEntry(topic);
+  return !entry||!pageKey||pageKey===entry.owner||pageKey===SUMMARY_PAGE;
+}
+function ownerLinkPanel(topic,figure='',heading='',pageScoped=false){
+  const entry=blockOwnerEntry(topic);if(!entry)return '';
+  const title=names[entry.owner]||entry.owner;
+  return '<section class="owner-link-panel planning-panel" data-owner-link="'+escapeHtml(topic)+'" data-owner-page="'+escapeHtml(entry.owner)+'"'+(pageScoped?' data-owner-scope="page"':'')+'><h4>'+escapeHtml((heading||entry.heading)+': see '+title)+'</h4>'+(figure?'<p data-owner-figure="'+escapeHtml(figure)+'">'+escapeHtml(figure)+'</p>':'')+'<button type="button" class="btn small" data-owner-open="'+escapeHtml(entry.owner)+'" onclick="openOwnerPage(this.dataset.ownerOpen)">Open '+escapeHtml(title)+'</button></section>';
+}
+function markOwnedBlock(html,topic,figure=''){
+  return String(html).replace(/^(\s*<[a-zA-Z][a-zA-Z0-9-]*)/,(_m,open)=>open+' data-owner-topic="'+escapeHtml(topic)+'"'+(figure?' data-owner-figure="'+escapeHtml(figure)+'"':''));
+}
+// The full block on its owner page (and on the summary page); a link panel elsewhere.
+function ownedBlock(topic,html,figure='',pageKey=currentPageKey(),heading=''){
+  if(!html)return '';
+  return ownsBlock(topic,pageKey)?markOwnedBlock(html,topic,figure):ownerLinkPanel(topic,figure,heading);
+}
+function openOwnerPage(key){
+  if(!moduleRegistry.some(m=>m.key===key))return;
+  selected=key;localStorage.setItem('cmeng-module',selected);
+  if(typeof syncBrowserRoute==='function')syncBrowserRoute();
+  if(typeof renderNav==='function')renderNav();
+  loadModule(selected);
+}
 const groups=moduleRegistry.reduce((groups,m)=>{(groups[m.group]??=[]).push(m.key);return groups},{});
 const apiKeys=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.apiKey]));
 const names=Object.fromEntries(moduleRegistry.map(m=>[m.key,m.title]));
@@ -3947,7 +4036,8 @@ function renderCommercialLedgerVisual(data,scoped=false){
     content=panel("Commercial reconciliation","Source comparisons do not substitute for approval workflows, allocations or receipts.",table(["Record","Reporting period","State","Findings","Evidence"],rows.map(r=>[escapeHtml(r.paymentId||r.currency||"Source"),period(r.asOf),escapeHtml(humanizeKey(r.state)),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.receipts||[r.receipt].filter(Boolean))])))+'<div class="notice warn">'+escapeHtml((p.summary?.gaps||[]).join(" "))+'</div>';
   }
   if(!rows.length)content='<div class="notice warn">No source rows are displayed in this reporting group. Missing approvals, allocation records and receipts are not treated as zero.</div>'+content;
-  return '<section class="planning-view commercial-view"><div class="notice info"><b>Data Date: '+escapeHtml(planningShortDate(p.dataDateIso))+'</b><br>Currency, tax basis and reporting period are kept separate. Source forecasts and calculated scenarios remain distinct.</div><p>Showing '+fmt(rows.length)+' of '+fmt(fullRows)+' source records.</p>'+content+sourcePopulationControl(rows,'Browse all records in this source group')+'</section>';
+  const ledgerName={"commercial-cost-position":"Cost position","commercial-cost-register":"Cost register","commercial-payment-register":"Certificate register","commercial-variations":"Variation register","commercial-amendments":"Amendments and determinations"}[key]||"Commercial reconciliation";
+  return '<section class="planning-view commercial-view"><div class="notice info"><b>'+escapeHtml(ledgerName)+' · Data Date: '+escapeHtml(planningShortDate(p.dataDateIso))+'</b><br>Currency, tax basis and reporting period are kept separate. Source forecasts and calculated scenarios remain distinct.</div><p>Showing '+fmt(rows.length)+' of '+fmt(fullRows)+' source records.</p>'+content+sourcePopulationControl(rows,'Browse all records in this source group')+'</section>';
 }
 
 function renderCommercialTemporalPosition(ledger){
@@ -3969,7 +4059,7 @@ function renderCommercialVisual(key,data){
     return fmt(count)+" "+noun;
   };
   const t=position.timeExposure||{};
-  const time=planningKpis([
+  const timeTiles=planningKpis([
     ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
     ["Awarded EOT",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not established":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
     ["Contract completion including awarded EOT",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not established",commercialSourceState(t.officialAdjustedCompletion)],
@@ -3977,6 +4067,9 @@ function renderCommercialVisual(key,data){
     ["Payment / IPC rows",countPosition(foundation?.paymentRegister?.state,foundation?.paymentRegister?.recordCount,"rows"),"source register population"],
     ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"money-linked claim population"]
   ]);
+  // F10: contract time and the commercial record counts are one shared position,
+  // shown on Contract Particulars & Bonds; the other commercial pages link to it.
+  const time=ownedBlock('contract-time-position',timeTiles,'Contract completion '+(t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):'not established')+' · Awarded EOT '+(t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?'not established':fmt(t.approvedEotDays.value)+' d'),key);
   const colsByKey={
     "commercial-overview":[["Original contract","originalContractValue"],["Current contract","currentContractValue"],["Pending variations","pendingVariationAmount"],["Dated gross certification","grossCertifiedAmount"],["Paid","paidAmount"],["Certified unpaid","certifiedUnpaidAmount"],["Advance balance","advanceBalance"],["Retention deducted through DD","retentionDeductedAmount"],["Source held balance","retentionHeldAmount"],["Claims","claimedAmount"],["Active bonds","activeBondAmount"]],
     "cost-forecast":[["Original contract","originalContractValue"],["Approved variations","approvedVariationAmount"],["Pending variations","pendingVariationAmount"],["Current contract","currentContractValue"],["Claimed","claimedAmount"],["Assessed claims","assessedClaimAmount"]],
@@ -4902,14 +4995,19 @@ function renderCommercialVisual(key,data){
   const temporalWarning=renderCommercialExceptions(position,key,data);
   if(ledger){
     const section=(moduleKey,rows,summary={})=>renderCommercialLedgerVisual({projectionKey:"commercial_canonical",moduleKey,rows,summary,registerScope:ledger.registerScopes?.[{"commercial-payment-register":"payments","commercial-variations":"variations","commercial-cost-register":"costMetrics"}[moduleKey]],dataDateIso:ledger.dataDateIso,diagnostics:ledger.diagnostics});
-    if(key==="cost-forecast"||key==="commercial-overview") ledgerDetail=section("commercial-cost-position",ledger.costPosition)+section("commercial-cost-register",ledger.costMetrics);
-    if(key==="payments"||key==="cash-flow") ledgerDetail=section("commercial-payment-register",ledger.payments);
+    // F10: one cost ledger (Cost Outlook) and one certificate ledger (Payments); the
+    // other page of each pair links to it with the same record count.
+    if(key==="cost-forecast"||key==="commercial-overview") ledgerDetail=ownedBlock('commercial-cost-ledger',section("commercial-cost-position",ledger.costPosition)+section("commercial-cost-register",ledger.costMetrics),fmt(responseListPopulation(ledger.costMetrics||[]).total)+' cost source records',key);
+    if(key==="payments"||key==="cash-flow") ledgerDetail=ownedBlock('commercial-payment-ledger',section("commercial-payment-register",ledger.payments),fmt(responseListPopulation(ledger.payments||[]).total)+' certificate source records',key);
     if(key==="variations-change") ledgerDetail=experienceDisclosure("Variation source evidence",section("commercial-variations",ledger.variations),"Current, future and undated records");
   }
   if((key==='payments'||key==='cash-flow')&&ledger?.advancePayments?.length){
     ledgerDetail+='<section class="planning-panel"><h4>Advance payments</h4><p>These rows are retained separately and excluded from interim certificate totals.</p>'+table(['Reference','Period','Recorded advance','Currency','Recorded status'],ledger.advancePayments.map(r=>'<tr><td>'+escapeHtml(r.paymentId)+'</td><td>'+escapeHtml(planningShortDate(r.periodEnd))+'</td><td>'+escapeHtml(r.amounts.netCertifiedAmount.value===null?'Not established: amount not read':fmt(r.amounts.netCertifiedAmount.value))+'</td><td>'+escapeHtml(r.amounts.netCertifiedAmount.currency||'Not established: currency not stated')+'</td><td>'+escapeHtml(r.sourceStatus||'Not established: status not stated')+'</td></tr>'),'No advance rows were recognised.')+'</section>';
   }
-  const evidencePanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>Source availability is separate from current lifecycle, reconciliation and analytical readiness shown above.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>';
+  // F10: the commercial record availability is one shared fact, shown on Commercial
+  // Overview; the other commercial pages link to it.
+  const evidenceFigure=fmt(["commercial","variations","payments","bonds","claims"].filter(k=>evidence[k]==="established").length)+' of 5 commercial record types established';
+  const evidencePanel=ownedBlock('commercial-evidence-gates','<section class="planning-panel"><div class="planning-panel-head"><div><h4>Available records</h4><p>Source availability is separate from current lifecycle, reconciliation and analytical readiness shown above.</p></div></div><div class="planning-panel-body">'+gates+'</div></section>',evidenceFigure,key);
   if(key==="commercial-overview"){
     return '<section class="planning-view commercial-view commercial-overview-enterprise">'+
       commercialSummaryPanel('Executive Commercial Position','Contract, change, certification, cash and claim exposure are shown first, by currency, without cross-currency arithmetic.')+
@@ -4972,7 +5070,7 @@ function renderCommercialVisual(key,data){
   if(key==="cash-flow"){
     return '<section class="planning-view commercial-view cash-flow-enterprise">'+
       commercialSummaryPanel('Receipts and outstanding certificates','Net certification, actual receipts and advance balance share the dated payment position.')+performanceDetail+experienceDisclosure("Source payment register and reporting scope",temporalScope+ledgerDetail,"Current, future and undated records")+
-      '<details class="cash-flow-evidence-detail"><summary><div><b>Documents and approvals</b><span>References and approval status</span></div></summary><div class="cash-flow-evidence-body">'+gates+'</div></details>'+
+      ownedBlock('commercial-evidence-gates','<details class="cash-flow-evidence-detail"><summary><div><b>Documents and approvals</b><span>References and approval status</span></div></summary><div class="cash-flow-evidence-body">'+gates+'</div></details>',evidenceFigure,key)+
       '</section>';
   }
   if(key==="commercial-claims-notices"){
@@ -5103,9 +5201,11 @@ function renderManagementEvidenceGaps(gaps){
   if(!Array.isArray(gaps)||!gaps.length)return '<div class="notice info">No evidence gap is identified by the current management projection.</div>';
   return '<div class="table-wrap"><table><thead><tr><th>Evidence domain</th><th>State</th><th>Required correction</th><th>Owning source</th></tr></thead><tbody>'+gaps.map(g=>'<tr><td><b>'+escapeHtml(g.label)+'</b></td><td>'+managementAuthorityBadge(g.state)+'</td><td>'+escapeHtml(g.action)+'</td><td>'+managementModuleLink(g.owningModule,"Open")+'</td></tr>').join("")+'</tbody></table></div>';
 }
-function renderManagementConsistency(c){
+function renderManagementConsistency(c,pageKey){
   if(!c)return '<div class="notice warn">Cross-module consistency has not been checked.</div>';
-  return '<div class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Information & Actions for details"):"")+'</span></div>';
+  // F10: the consistency check is shown on Master Control Programme; Command Center links to it.
+  if(pageKey&&!ownsBlock('cross-module-consistency',pageKey))return ownerLinkPanel('cross-module-consistency',humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks');
+  return '<div data-owner-topic="cross-module-consistency" data-owner-figure="'+escapeHtml(humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks')+'" class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Information & Actions for details"):"")+'</span></div>';
 }
 function renderManagementVariationReconciliation(rows){
   if(!rows.length)return "";
@@ -5508,7 +5608,7 @@ function renderManagementControlVisual(key,data){
       renderPmcControlRoom(data)+
       (data.projectDiagnosis?renderProjectDashboardSummary(data.projectDiagnosis):renderCompletionPosition(data.completionPosition))+managementPanel("Executive Project Position","Established and qualified current programme/progress positions. Missing higher-authority measures are kept out of this primary block.",mainMetrics.length?renderManagementMetricGrid(mainMetrics):'<div class="notice info"><b>No additional executive metric is established from the current evidence.</b><p>The best available schedule and delivery positions remain visible above and below; missing higher-authority measures stay in Control Gaps.</p></div>',true)+renderDeliveryDashboard(data.delivery)+
       renderDashboardExceptions(data)+renderDashboardDecisions(data)+experienceDisclosure("Programme drivers, charts and activity detail",renderPmcControlCharts(data)+renderPmcDriverBoards(data)+renderDashboardScheduleExceptions(data)+renderDashboardTrend(data),"Complete supporting analysis")+
-      managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency))+
+      managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency,key))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
         ["Project documents",data.evidenceDocumentCount??null,"current evidence library"],
         ["Calculated specialist views",r.calculationAvailable??null,"a calculation is available"],
@@ -5522,7 +5622,7 @@ function renderManagementControlVisual(key,data){
       (otherMetrics.length?experienceDisclosure("Additional available project measures",renderManagementMetricGrid(otherMetrics),fmt(otherMetrics.length)+" available measures"):"")+
       ((priorityGaps.length+otherGaps.length)?experienceDisclosure("Measure-level information gaps",renderManagementMetricGrid([...priorityGaps,...otherGaps]),fmt(priorityGaps.length+otherGaps.length)+" gaps · supporting information only"):"")+
       experienceDisclosure("Further analysis",'<div class="management-two-column">'+
-        managementPanel("Analysis available","Open the specialist analysis that supports the executive position.",renderManagementConsistency(data.consistency))+
+        managementPanel("Analysis available","Open the specialist analysis that supports the executive position.",renderManagementConsistency(data.consistency,key))+
         managementPanel("Evidence review","Use Information & Actions for missing, conflicting or unread project evidence.",managementModuleLink("source-quality","Open Information & Actions"))+
       '</div>',"Available results and supporting documents")+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
@@ -5549,7 +5649,7 @@ function renderManagementControlVisual(key,data){
       experienceDisclosure("Supporting management alerts",renderManagementAlerts(data.alerts||[]),screenCountText(listTotal(data.alerts||[]))+" alert bases")+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting||ctrl?.reporting),"Quality, RFI and risk records")+
       managementPanel("Information still required","Missing or incomplete evidence is shown after current actions and available facts.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
-      experienceDisclosure("Approvals and publication",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency),"Governance follow-up")+
+      experienceDisclosure("Approvals and publication",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency,key),"Governance follow-up")+
       experienceDisclosure("Commercial & Payment Position",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[]),"Commercial supporting position")+
       '</div>';
   }
@@ -5584,7 +5684,7 @@ function renderManagementControlVisual(key,data){
       experienceDisclosure("Control authority & evidence",renderMcpGovernanceMatrix(data)+managementPanel("Specialist positions","Supporting control/evidence status by workstream.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>'),"Governance and authority supporting the integrated programme")+
       managementPanel("Suggested updates for review","Review each suggested update with its supporting document. Use the relevant page to approve, reject or defer it before it changes the project position.",candidateRows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Type</th><th>Status</th><th>Source evidence</th><th>Owning module</th></tr></thead><tbody>'+candidateRows+'</tbody></table></div>':'<div class="notice info">No current candidate is waiting for review.</div>')+
       managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
-      managementPanel("Approvals and publication","A report awaiting publication does not change the recorded project figures.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency))+
+      managementPanel("Approvals and publication","A report awaiting publication does not change the recorded project figures.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency,key))+
       managementPanel("Control History","Audit history records evidence updates, board publications and the latest certified recalculation. It does not invent actors that were not recorded.",historyRows?'<div class="table-wrap"><table><thead><tr><th>Date/time</th><th>Entity</th><th>Action</th><th>Actor</th><th>State</th><th>Source</th></tr></thead><tbody>'+historyRows+'</tbody></table></div>':'<div class="empty">No management-control history is available.</div>')+
       '</div>';
   }
@@ -6057,11 +6157,23 @@ function renderModuleResult(result){
         return !parts.length?'Additional source data':parent&&genericTail.test(last)?readablePathLabel(parent+'/'+last):humanizeKey(last);
       });
       const groupLabels=shortLabels.map((label,index)=>shortLabels.indexOf(label)!==shortLabels.lastIndexOf(label)&&tables[index].pointer?readablePathLabel(tables[index].pointer)||label:label);
-      const controls=tables.map((table,index)=>{
-        const label=groupLabels[index];
+      const control=index=>{
+        const table=tables[index],label=groupLabels[index];
         return '<article class="project-action" data-paged-group><h4>'+escapeHtml(label)+'</h4><p>'+fmt(table.total)+' original '+(table.kind==='text'?'characters':'records')+' retained · '+fmt(table.shown)+' initially shown</p><button type="button" class="btn small" data-paged-detail="'+index+'" data-detail-offset="0">View 25 source records</button><div class="paged-evidence-list" data-paged-target="'+index+'"></div></article>';
-      }).join('');
-      container.insertAdjacentHTML('beforeend','<details class="planning-panel"><summary>Additional source records · '+fmt(tables.length)+' groups</summary><div class="planning-panel-body"><p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>'+controls+'</div></details>');
+      };
+      const groupPanel=(summary,indexes)=>'<details class="planning-panel"><summary>'+summary+'</summary><div class="planning-panel-body"><p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>'+indexes.map(control).join('')+'</div></details>';
+      // F10: groups read from one shared fact are shown on that fact's owner page;
+      // other pages link to it. The page's own groups stay here.
+      const pageKey=result.legacyKey||result.key;
+      const topics=tables.map(table=>pageKey===SUMMARY_PAGE?null:pagedRecordTopic(pageKey,table.pointer));
+      const own=tables.map((_,index)=>index).filter(index=>!topics[index]);
+      let groupsHtml=own.length?groupPanel('Additional source records · '+fmt(own.length)+' groups',own):'';
+      for(const topic of [...new Set(topics.filter(Boolean))]){
+        const indexes=tables.map((_,index)=>index).filter(index=>topics[index]===topic);
+        const figure=pagedRecordFigure(indexes.map(index=>tables[index]));
+        groupsHtml+=ownsBlock(topic,pageKey)?markOwnedBlock(groupPanel(escapeHtml(blockOwnerEntry(topic).heading)+' · '+fmt(indexes.length)+' groups',indexes),topic,figure):ownerLinkPanel(topic,figure);
+      }
+      container.insertAdjacentHTML('beforeend',groupsHtml);
       container.querySelectorAll('[data-paged-detail]').forEach(button=>button.onclick=async()=>{
         const index=Number(button.dataset.pagedDetail),entry=tables[index],target=(button.closest('[data-paged-group]')||container).querySelector('[data-paged-target="'+index+'"]');
         if(!entry||!target)return;
@@ -6107,7 +6219,7 @@ function renderModuleResult(result){
     // imply CMeng can auto-approve a contract or unverified source value.
     const records=[...new Set(sourceConflicts.flatMap(issue=>issue.sourceRefs||[]))];
     container.insertAdjacentHTML('beforeend',
-      '<section class="planning-panel source-decision-panel"><h4>Source figures to reconcile · '+screenCountText(conflictTotal)+'</h4>'+
+      '<section class="planning-panel source-decision-panel"'+reviewItemsLinkAttrs(result.legacyKey||result.key)+'><h4>Source figures to reconcile · '+screenCountText(conflictTotal)+'</h4>'+
       '<p>Conflicting or unreadable records need source review. Clear source values remain available in analysis; official approval is separate.</p>'+
       '<p>'+fmt(records.length)+' original source reference'+(records.length===1?'':'s')+' retained for comparison'+(conflictTotal===sourceConflicts.length?'':' in the '+fmt(sourceConflicts.length)+' records listed here')+'.</p>'+
       '<button class="btn primary" type="button" data-review-conflict-inline>Review evidence and record a decision here</button></section>');
@@ -6116,7 +6228,7 @@ function renderModuleResult(result){
   }
   const missing=issues.filter(issue=>issue.kind==='missing_information');
   if(missing.length){
-    container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
+    container.insertAdjacentHTML('beforeend','<div class="notice info"'+reviewItemsLinkAttrs(result.legacyKey||result.key)+'><b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
     container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
   }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
@@ -6166,14 +6278,24 @@ function renderModuleResultBody(result){
   if(result.key==="challenge-contract"&&renderDeliveryChallenge(data,result.reason,result.status))return;
   const basisHtml=result.key==='source-quality'?'':renderPositionVerdict(data)+renderModuleBasis(data)+renderRegisterScope(data);
   const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
-  const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  const challengeFull=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
+  // F10: the commercial pages share one commercial position comparison; it is shown
+  // on Commercial Overview and the other commercial pages link to it.
+  const challengeHtml=commercialModuleKeysForApi.has(result.key)?ownedBlock('commercial-comparison',challengeFull,reconciliationSummary(data.challenge),result.key):challengeFull;
   const specialized=renderSpecializedModule(result.key,data);
   const genericView=specialized?"":renderGenericFieldView(data);
   const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
-  const primaryView=(['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd):'')+(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data):'')+(specialized||genericView);
-  const floatReview=result.key==='independent-forecast'?renderActivityFloatReconciliation(data.activityFloatReconciliation):['activity-analytics','near-critical'].includes(result.key)?'<p>'+managementModuleLink('independent-forecast','Review submitted and calculated float, classifications and exact source evidence')+'</p>':'';
+  const primaryView=(['master-dashboard','commercial-claims-notices'].includes(result.key)?renderSectionalLdPosition(data.projectFacts?.commercial?.sectionalLd):'')+(result.key==='commercial-claims-notices'?renderContractSections(data):'')+(['master-dashboard','command-center','pmo-analysis','commercial-overview','cost-forecast','contract-particulars-bonds','variations-change','payments'].includes(result.key)?renderRegisterContractQueries(data):'')+(['delay-claims','eot-assessment'].includes(result.key)?renderClaimPipeline(data,result.key):'')+(specialized||genericView);
+  // F10: the submitted versus calculated float reconciliation is shown once, on
+  // Programme Review (the programme pages carry it from one shared review); Activity
+  // Review and Near-Critical link to it with the same difference count.
+  const floatFigure=data.activityFloatReconciliation?screenCountText(data.activityFloatReconciliation.differenceActivityCount??data.activityFloatReconciliation.disputedActivityCount)+' activities with a class difference':'';
+  const floatPage=['schedule-analytics','independent-forecast','activity-analytics','near-critical'].includes(result.key);
+  const floatFull=floatPage?renderActivityFloatReconciliation(data.activityFloatReconciliation):'';
+  const floatReview=floatFull&&ownsBlock('float-review',result.key)?markOwnedBlock(floatFull,'float-review',floatFigure):'';
+  const floatLink=floatPage&&!ownsBlock('float-review',result.key)&&(floatFull||['activity-analytics','near-critical'].includes(result.key))?ownerLinkPanel('float-review',floatFigure,'Review submitted and calculated float, classifications and exact source evidence'):'';
 
   el("directorDrawer").open=false;
   el("directorDrawer").hidden=result.key!=="pmo-analysis";
@@ -6188,7 +6310,7 @@ function renderModuleResultBody(result){
   // Source review and Progress Breakdown keep their own answer-first layout.
   const answer=result.key==='source-quality'||progressBreakdown?'':renderPositionVerdict(data);
   el("moduleContent").innerHTML=context+answer+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
-    (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+
+    (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+floatLink+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     supporting+review;
   if(typeof bindAdvancedControls==="function")bindAdvancedControls(result.key);

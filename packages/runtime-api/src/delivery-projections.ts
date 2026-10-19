@@ -908,6 +908,9 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('Late delivery · known subset',p.packageRows.some(r=>r.overdueUndelivered||r.headroomCalendarDays!==null)?p.packageRows.filter(r=>!r.registerCleanup&&(r.overdueUndelivered||r.forecastLate)).length:null),
    metric('Latest order unresolved',p.packageRows.length?p.packageRows.filter(r=>!r.latestOrderDate).length:null)
   ];
+ // F10: in the governed procurement branch these figures come only from the shared
+ // package register position (p), so every procurement page shows the same figures.
+ const procurementRegisterMetrics=['delivery-control','procurement-packages','long-lead','material-tracking','procurement-scurves'].includes(key)&&!(!hasRows&&sourceEvidenceAvailable)&&!useBoqCandidates?metrics:null;
  if(key==='material-tracking'&&rows.some(r=>r.authority==='From BOQ and dated measurement register')){
   metrics=[metric('BOQ items',rows.length,'items','Each item retains its own quantity and unit.'),metric('Items with dated measurements',rows.filter(r=>r.installed!==null).length,'items','Latest measurement through the Data Date.'),metric('Procurement packages without item allocations',p.materialRows.filter(r=>r.required===null).length,'packages','Package allocation is separate from the known item quantities.')];
   managementPosition=rows.length+' BOQ items with dated installed quantities where supplied. Procurement quantities need explicit item allocations.';
@@ -977,6 +980,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(key==='delivery-risks')extras.riskBasis=p.existingAuthorities.risk;
  if(key==='delivery-commissioning')extras.systems=p.commissioningSystems;
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
+ if(procurementRegisterMetrics&&metrics===procurementRegisterMetrics)extras.metricsScope='procurement_register';
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
   data:{projectionKey:'delivery',empty:!usable,
