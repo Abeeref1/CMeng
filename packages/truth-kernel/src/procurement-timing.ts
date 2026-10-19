@@ -38,7 +38,9 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const needDateBasis=input.governingDate==='programme'?'the confirmed programme need date'+leadNote:input.governingDate==='register'?'the confirmed register required-on-site date':!needDate?'need date not established':needDate===sourceRequiredOnSite?'the required-on-site date from the register (screening)':'the linked programme need date (screening)'+leadNote;
  const deliveredAtDataDate=!!actualDelivery&&!!cutoff&&actualDelivery<=cutoff;
  const status=typeof input.status==='string'?input.status.trim():'';
- const terminal=/^(delivered|accepted|installed|closed|complete|completed)$/i.test(status);
+ // F14: a delivered / received / completed status is delivery, with or without a
+ // date. Only whole-status matches count; "partially delivered" stays open.
+ const terminal=/^(?:delivered|delivered (?:to|on|at) site|received|received (?:on|at) site|accepted|installed|closed|complete|completed)$/i.test(status);
  // Missing, disputed or unverified statuses are not proof of non-delivery.
  const indeterminateStatus=/^(?:unknown|not known|not established|not verified|unverified|tbd|tbc|unclear|disputed|undetermined)$/i.test(status);
  // SW-18: "Not applicable" is its own state. It is neither known delivered nor
@@ -50,7 +52,9 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const openStatusDeliveredConflict=!!cutoff&&openStatus&&!!actualDelivery&&actualDelivery<=cutoff;
  // The status is evidence of completion, not proof of an actual delivery date or on-time delivery.
  // A recorded future actual date takes precedence over a stale completed-status label.
- const deliveredStatusOnly=!!cutoff&&terminal&&!actualDelivery;
+ // F14: a delivered status with no actual date is delivered with the date not
+ // stated, whether or not the Data Date is known. It is never late or overdue.
+ const deliveredStatusOnly=terminal&&!actualDelivery;
  const deliveryDateConflict=!!cutoff&&terminal&&(!!actualDelivery&&actualDelivery>cutoff||!actualDelivery&&!!forecastDelivery&&forecastDelivery>cutoff);
  const knownUndelivered=!!cutoff&&!notApplicable&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!status&&!terminal&&!indeterminateStatus);
  const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;

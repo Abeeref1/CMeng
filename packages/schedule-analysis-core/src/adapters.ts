@@ -9,6 +9,7 @@ import type { PrimaveraXmlResult } from "../../primavera-xml-parser/src";
 import type { ScheduleTabularResult } from "../../schedule-tabular-parser/src";
 import { parseScheduleDate } from "../../schedule-values/src";
 import {reconcileCalendarWithP6Dates} from "../../xer-parser/src/calendar-date-reconciliation";
+import {sourceColumnAuditEntry} from "../../truth-kernel/src/register-schema";
 import {
   normalizeActivityStatus,
   normalizeActivityType,
@@ -32,10 +33,14 @@ function xerRows(
   );
 }
 
+// Columns the XER schedule adapter actually reads, per table, while one
+// adapter run is active (for the shared unused-column report).
+let xerReadFields: Map<string,Set<string>> | null = null;
 function xerField(
   row: XerRow,
   name: string,
 ): string | null {
+  if(xerReadFields){let set=xerReadFields.get(row.table);if(!set)xerReadFields.set(row.table,set=new Set());set.add(name);}
   const value = row.data?.[name]?.trim();
   return value ? value : null;
 }
@@ -323,10 +328,64 @@ export function canonicalScheduleFromXer(
     projectId?: string | null;
   },
 ): CanonicalScheduleModel {
+  const previous=xerReadFields,read=new Map<string,Set<string>>();
+  xerReadFields=read;
+  let model: CanonicalScheduleModel;
+  try{model=canonicalScheduleFromXerRead(result,input);}finally{xerReadFields=previous;}
+  // Every column of every table received, not only TASK/TASKPRED/PROJWBS.
+  const sourceColumnAudit=result.tableOrder.flatMap(table=>{
+    const rows=result.tables.get(table)?.rows??[];
+    const headers=[...new Set((result.tables.get(table)?.fieldSets??[]).flat())];
+    return headers.map(header=>({table,...sourceColumnAuditEntry(header,header,'other',read.get(table)?.has(header)??false,
+      'Read by the XER schedule adapter into the canonical schedule model.',
+      rows.map(row=>row.data?.[header]?.trim()).find(value=>!!value)??null)}));
+  });
+  return {...model,sourceColumnAudit};
+}
+
+function xerActivityCodes(result: XerParseResult): Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]> {
+  const types=new Map(xerRows(result,"ACTVTYPE").map(row=>[xerField(row,"actv_code_type_id"),xerField(row,"actv_code_type")] as const));
+  const codes=new Map(xerRows(result,"ACTVCODE").map(row=>[xerField(row,"actv_code_id"),row] as const));
+  const byTask=new Map<string,{codeType:string|null;codeValue:string|null;codeDescription:string|null}[]>();
+  for(const row of xerRows(result,"TASKACTV")){
+    const taskId=xerField(row,"task_id");if(!taskId)continue;
+    const code=codes.get(xerField(row,"actv_code_id"));
+    const typeId=xerField(row,"actv_code_type_id")??(code?xerField(code,"actv_code_type_id"):null);
+    const list=byTask.get(taskId)??[];
+    list.push({codeType:typeId?types.get(typeId)??null:null,codeValue:code?xerField(code,"short_name"):null,codeDescription:code?xerField(code,"actv_code_name"):null});
+    byTask.set(taskId,list);
+  }
+  return byTask;
+}
+
+function canonicalScheduleFromXerRead(
+  result: XerParseResult,
+  input: {
+    sourceRevisionId: string;
+    projectId?: string | null;
+  },
+): CanonicalScheduleModel {
+  const activityCodes=xerActivityCodes(result);
   const projectRows = xerRows(result, "PROJECT");
   const taskRows = xerRows(result, "TASK");
   const predRows = xerRows(result, "TASKPRED");
   const wbsRows = xerRows(result, "PROJWBS");
+  // Activity codes: TASKACTV assigns an ACTVCODE value of an ACTVTYPE code type.
+  // Read only exact ID joins; an unresolved assignment is not guessed.
+  const codeTypeNames = new Map<string, string>(), codeValues = new Map<string, XerRow>();
+  for (const row of xerRows(result, "ACTVTYPE")) { const id = xerField(row, "actv_code_type_id"), name = xerField(row, "actv_code_type"); if (id && name?.trim()) codeTypeNames.set(id, name); }
+  for (const row of xerRows(result, "ACTVCODE")) { const id = xerField(row, "actv_code_id"); if (id) codeValues.set(id, row); }
+  const activityCodesByTask = new Map<string, Array<{typeName:string;value:string;description:string|null}>>();
+  for (const row of xerRows(result, "TASKACTV")) {
+    const taskId = xerField(row, "task_id"), code = codeValues.get(xerField(row, "actv_code_id") ?? "");
+    if (!taskId || !code) continue;
+    const typeName = codeTypeNames.get(xerField(code, "actv_code_type_id") ?? "") ?? codeTypeNames.get(xerField(row, "actv_code_type_id") ?? "");
+    const value = (xerField(code, "short_name") ?? xerField(code, "actv_code_name"))?.trim();
+    if (!typeName || !value) continue;
+    const list = activityCodesByTask.get(taskId) ?? [];
+    list.push({typeName: typeName.trim(), value, description: xerField(code, "actv_code_name")?.trim() || null});
+    activityCodesByTask.set(taskId, list);
+  }
   const projectIds = new Set(
     projectRows
       .map((row) => xerField(row, "proj_id"))
@@ -413,11 +472,13 @@ export function canonicalScheduleFromXer(
           activityId,
           nativeId,
           name: xerField(row, "task_name"),
+          ...(()=>{const codes=nativeId?activityCodes.get(nativeId):undefined;return codes?.length?{sourceActivityCodes:codes}:{};})(),
           sourceConstraints: [
             {type:xerField(row,'cstr_type'),dateIso:xerDate(xerField(row,'cstr_date'))},
             {type:xerField(row,'cstr_type2'),dateIso:xerDate(xerField(row,'cstr_date2'))},
           ].filter((c):c is {type:string;dateIso:string|null}=>Boolean(c.type)),
           wbsId: xerField(row, "wbs_id"),
+          ...(nativeId && activityCodesByTask.has(nativeId) ? {activityCodes: activityCodesByTask.get(nativeId)!} : {}),
           calendarId: xerField(row, "clndr_id"),
           activityType: type.type,
           status: normalizeActivityStatus(

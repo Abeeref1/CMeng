@@ -1,6 +1,6 @@
 import { partitionAsOf } from "../../truth-kernel/src";
 import {performanceSecurityValidity} from './security-validity';
-import { reportingScope } from "../../truth-kernel/src";
+import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
   CommercialFindingAuthority,
@@ -248,6 +248,18 @@ function ageFinding(
       );
 }
 
+/** SW-21: the one source-status rule for a withdrawn change. */
+export const VARIATION_WITHDRAWN_STATUS=/withdr[ae]w|cancel+ed|\bvoid(?:ed)?\b/i;
+
+/** SW-21: the one change-register state rule, read from the lifecycle stage. */
+export function variationRegisterState(stage:VariationLifecycleRecord["lifecycleStage"]):'instructed'|'submitted'|'underReview'|'approved'|'rejected'|'withdrawn'|'unknown'{
+  return stage==='instruction'?'instructed'
+    :stage==='submitted'?'submitted'
+    :stage==='quoted'||stage==='assessed'||stage==='agreed'?'underReview'
+    :stage==='approved'||stage==='rejected'||stage==='withdrawn'?stage
+    :'unknown';
+}
+
 function variationStage(
   row:
     ContractControlsInput["variations"][number],
@@ -257,6 +269,9 @@ function variationStage(
       row.status,
     )
   ) return "rejected";
+  // SW-21: an explicit withdrawal, cancellation or voiding is a closed state of
+  // its own, never pending or submitted. Status is authoritative, as for rejection.
+  if (VARIATION_WITHDRAWN_STATUS.test(row.status)) return "withdrawn";
   if (
     row.approvalDate ||
     /approved/i.test(
@@ -301,7 +316,7 @@ function variations(
         const stageMoney = (money: ContractControlMoney, date: string | null, method: string, consequence: string, requiredStage?: 'agreed' | 'approved'): CommercialFinding<number> => {
           const scope=reportingScope(date,input.dataDateIso);
           const result=moneyFinding(money,method,consequence);
-          const sourceStage=variationStage(sourceRow),ranks={unknown:0,instruction:1,submitted:2,quoted:3,assessed:4,agreed:5,approved:6,rejected:6};
+          const sourceStage=variationStage(sourceRow),ranks={unknown:0,instruction:1,submitted:2,quoted:3,assessed:4,agreed:5,approved:6,rejected:6,withdrawn:6};
           if(requiredStage&&money.value===null&&!date&&ranks[sourceStage]<ranks[requiredStage])return {
             ...result,reportingScope:scope,applicability:'stage_not_reached',action:null,
             consequence:'The '+requiredStage+' stage has not been reached. No '+requiredStage+' amount is established or included in current totals.',
@@ -320,6 +335,7 @@ function variations(
         const sourceStage=variationStage(sourceRow);
         const stage: VariationLifecycleRecord["lifecycleStage"] =
           sourceStage==='rejected'&&scope==='as_of'?'rejected'
+          :sourceStage==='withdrawn'&&scope==='as_of'?'withdrawn'
           :row.approvalDate?'approved'
           :row.agreedDate?'agreed'
           :row.assessedDate?'assessed'
@@ -338,7 +354,8 @@ function variations(
             row.approvalDate,
           ) ||
           stage === 'approved' ||
-          stage === 'rejected';
+          stage === 'rejected' ||
+          stage === 'withdrawn';
         const linkageCount =
           [
             row.instructionId,
@@ -569,6 +586,12 @@ function variations(
           row.lifecycleStage ===
           "rejected",
       ).length,
+    withdrawn:
+      rows.filter(
+        (row) =>
+          row.lifecycleStage ===
+          "withdrawn",
+      ).length,
     unknown:
       rows.filter(
         (row) =>
@@ -582,6 +605,7 @@ function variations(
         ![
           "approved",
           "rejected",
+          "withdrawn",
         ].includes(
           row.lifecycleStage,
         ),
@@ -630,25 +654,22 @@ function variations(
             null,
       ).length,
   };
-  const knownPendingCount=rows.filter(row=>!['approved','rejected','unknown'].includes(row.lifecycleStage)).length;
+  const knownPendingCount=rows.filter(row=>!['approved','rejected','withdrawn','unknown'].includes(row.lifecycleStage)).length;
   // SW-21: the change register position counts every variation by its state.
   // A register in which every supplied record (current, future and undated) is
   // approved is an approved list: it cannot show what was submitted, is under
   // review, was rejected or withdrawn, so those states are not established.
-  const withdrawn=(row:VariationLifecycleRecord)=>/withdr[ae]w|cancel+ed|\bvoid(?:ed)?\b/i.test(row.status)&&!['approved','rejected'].includes(row.lifecycleStage);
-  const approvedOnly=sourceRows.length>0&&sourceRows.every(row=>row.sourceLifecycleStage==='approved'&&!/withdr[ae]w|cancel+ed|\bvoid(?:ed)?\b/i.test(row.status));
-  const registerState=(row:VariationLifecycleRecord)=>withdrawn(row)?'withdrawn'
-    :row.lifecycleStage==='approved'?'approved'
-    :row.lifecycleStage==='rejected'?'rejected'
-    :['quoted','assessed','agreed'].includes(row.lifecycleStage)?'underReview'
-    :['instruction','submitted'].includes(row.lifecycleStage)?'submitted'
-    :'unknown';
-  const registerCount=(state:string)=>rows.filter(row=>registerState(row)===state).length;
+  const approvedOnly=sourceRows.length>0&&sourceRows.every(row=>row.sourceLifecycleStage==='approved');
+  const registerCount=(state:string)=>rows.filter(row=>variationRegisterState(row.lifecycleStage)===state).length;
+  // An instruction is its own state only when the source distinguishes it (an
+  // instruction id or date is supplied); otherwise it cannot be told apart.
+  const instructionDistinguished=input.variations.some(row=>Boolean(row.instructionId||row.instructionDate));
   const changeRegister:VariationsProjection['changeRegister']={
     state:rows.length===0?'missing':approvedOnly?'not_established':registerCount('unknown')>0?'partial':'established',
     approvedOnly,
     recordCount:rows.length,
     stateCounts:{
+      instructed:approvedOnly||!instructionDistinguished?null:registerCount('instructed'),
       submitted:approvedOnly?null:registerCount('submitted'),
       underReview:approvedOnly?null:registerCount('underReview'),
       approved:registerCount('approved'),
@@ -656,7 +677,7 @@ function variations(
       withdrawn:approvedOnly?null:registerCount('withdrawn'),
       unknown:approvedOnly?null:registerCount('unknown'),
     },
-    basis:'Every current variation record counted once by state: submitted (instructed or submitted, not yet assessed), under review (quoted, assessed or agreed, not yet approved), approved, rejected, withdrawn (status states withdrawn, cancelled or void). Approved is one state of the change register.',
+    basis:'Every current variation record counted once by its lifecycle stage: instructed (instruction only, when the source carries instruction ids or dates; otherwise not distinguished and not counted separately), submitted, under review (quoted, assessed or agreed, not yet approved), approved, rejected, withdrawn (status states withdrawn, cancelled or void). Approved is one state of the change register. The same rule sets the lifecycle stage counts.',
     consequence:approvedOnly?'Only approved variations are supplied. Submitted, under review, rejected and withdrawn changes are not established; the approved list is not the full change register.':null,
     action:approvedOnly?'Supply the full variation (change) register with every submitted, under review, rejected and withdrawn change.':null,
   };
@@ -1887,6 +1908,7 @@ function bondsInsurance(
           );
         return {
           bondId: row.bondId,
+          securityState: securityStateAtDataDate(row,input.dataDateIso),
           contractValidity:performanceSecurityValidity(row,input.contractClauses,input.ldTime.programmeCompletionIso),
           kind: row.kind,
           status: row.status,
@@ -2040,26 +2062,19 @@ function bondsInsurance(
     activeBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.status ===
-            "active" &&
-          row.expiryState !==
-            "expired",
+          row.securityState?.inForce === true,
       ).length : null,
     expiredBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.expiryState ===
-          "expired" ||
-          row.status ===
-            "expired",
+          row.securityState?.state ===
+          "expired",
       ).length : null,
     expiringBondCount:
       bondDatesEstablished ? bonds.filter(
         (row) =>
-          row.expiryState ===
-            "expiring_30" ||
-          row.expiryState ===
-            "expiring_90",
+          row.securityState?.state ===
+            "expiring",
       ).length : null,
     activeInsuranceCount:
       insuranceDatesEstablished ? insurances.filter(

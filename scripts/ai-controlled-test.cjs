@@ -17,9 +17,13 @@ const args=process.argv.slice(2);
 const capIndex=args.indexOf('--cap-usd');
 const cap=capIndex>=0?Number(args[capIndex+1]):0.05;
 const HARD_MAX_USD=0.25;
-if(!args.includes('--confirm-paid')){console.error('Refused: pass --confirm-paid to allow one paid AI call.');process.exit(2);}
-if(!process.env.CMENG_ASK_AI_API_KEY||!process.env.CMENG_ASK_AI_MODEL){console.error('Refused: set CMENG_ASK_AI_API_KEY and CMENG_ASK_AI_MODEL.');process.exit(2);}
-if(!Number.isFinite(cap)||cap<=0||cap>HARD_MAX_USD){console.error('Refused: --cap-usd must be above 0 and at most '+HARD_MAX_USD+'.');process.exit(2);}
+// The status line states what happened; a refusal is never reported as a pass.
+const NOT_RUN_NO_KEY='Real-provider test: not run, no provider key configured in this environment.';
+const NOT_RUN_CONFIGURED='Real-provider test: configured but not run.';
+const refuse=(status,reason)=>{console.log(status);console.error('Refused: '+reason);process.exit(2);};
+if(!process.env.CMENG_ASK_AI_API_KEY||!process.env.CMENG_ASK_AI_MODEL)refuse(NOT_RUN_NO_KEY,'set CMENG_ASK_AI_API_KEY and CMENG_ASK_AI_MODEL.');
+if(!args.includes('--confirm-paid'))refuse(NOT_RUN_CONFIGURED,'pass --confirm-paid to allow one paid AI call.');
+if(!Number.isFinite(cap)||cap<=0||cap>HARD_MAX_USD)refuse(NOT_RUN_CONFIGURED,'--cap-usd must be above 0 and at most '+HARD_MAX_USD+'.');
 
 // Only the supplied key is used, against a fresh ledger that holds this test's cap alone.
 const ledger=mkdtempSync(join(tmpdir(),'cmeng-ai-controlled-'));
@@ -37,7 +41,7 @@ const {configuredTableSemanticAiResolver}=require(join(dist,'evidence-semantic-a
 (async()=>{
   let calls=0;
   const real=configuredTableSemanticAiResolver();
-  if(!real){console.error('FAIL: provider is not configured.');process.exit(1);}
+  if(!real){console.log(NOT_RUN_NO_KEY);console.error('FAIL: provider is not configured.');process.exit(1);}
   const resolver={name:real.name,async resolveTable(input){calls++;return real.resolveTable(input);}};
   // A small unfamiliar register the fixed rules cannot fully map. Second sheet proves the per-run limit.
   const rows=[['Ref No','Subject','Raised On','Owner','Current State'],
@@ -64,6 +68,7 @@ const {configuredTableSemanticAiResolver}=require(join(dist,'evidence-semantic-a
   if(!['validated','unresolved'].includes(first.status))failures.push('first step did not complete: '+first.status);
   if(first.status==='validated'&&report.semanticMethod!=='ai_grounded')failures.push('validated output is not labelled as AI-read');
   if(steps[1]?.attempted)failures.push('second sheet was sent although the per-run limit is one call');
-  if(failures.length){console.error('FAIL: '+failures.join('; '));process.exit(1);}
+  if(failures.length){console.log('Real-provider test: run, FAILED.');console.error('FAIL: '+failures.join('; '));process.exit(1);}
+  console.log('Real-provider test: run, passed.');
   console.log('PASS: one controlled AI call within USD '+cap+' (reserved or charged USD '+usd.toFixed(6)+').');
-})().catch(error=>{rmSync(ledger,{recursive:true,force:true});console.error('FAIL: '+(error&&error.message||error));process.exit(1);});
+})().catch(error=>{rmSync(ledger,{recursive:true,force:true});console.log('Real-provider test: run, FAILED.');console.error('FAIL: '+(error&&error.message||error));process.exit(1);});

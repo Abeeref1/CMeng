@@ -77,3 +77,48 @@ test('SW-43: buttons and notices added after the page is drawn go after the verd
  assert.ok(plain.find(c=>c.includes('Create BOQ links'))?.startsWith('page:afterbegin:'));
  assert.ok(plain.find(c=>c.includes('Extended completion comparison'))?.startsWith('page:afterbegin:'));
 });
+
+// Role-content harness: real experienceRoleContent, real summary box, real
+// figure cards; only the role lens text and source context are test inputs.
+const escapeHtml=(s:unknown)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!));
+const count=(html:string,text:string)=>html.split(text).length-1;
+function roleContent(role:string,key:string,data:any,primaryView:string){
+ const ctx:any={selectedRoleView:role,roleViews:{[role]:{label:role}},escapeHtml,experienceRoleLensContext:()=>'',experienceRoleReview:()=>'',experienceSourceContext:()=>'SOURCE-CONTEXT'};
+ return String(runInNewContext(functions(['experienceRoleContent'])+';experienceRoleContent(__key,__data,__view,"")',Object.assign(ctx,{__key:key,__data:data,__view:primaryView})));
+}
+
+test('SW-44: the summary box and the figure cards share one printed-figure list',()=>{
+ const data={projectionKey:'near_critical',nearCriticalCount:7732,zeroFloatCount:644,negativeFloatCount:524,floatRiskWatchlistCount:8376};
+ const cards=String(runInNewContext('planningKpis(__rows)',{__rows:[['Strict near-critical',7732,'TF > 0 working days and ≤ 5 working days','warning'],['Float-risk watchlist',8376,'critical boundary through 5 working days','accent']],escapeHtml}));
+ assert.equal(count(cards,'<strong>7,732</strong>'),1,'precondition: the card prints the figure');
+ const html=roleContent('overall','near-critical',data,'<section class="planning-panel">'+cards+'<table><tbody><tr><td>EVIDENCE-ROW</td></tr></tbody></table></section>');
+ assert.equal(count(html,'7,732'),1,'the figure is printed once on the page');
+ const summary=html.slice(html.indexOf('experience-management-reading'),html.indexOf('role-primary-analysis'));
+ assert.match(summary,/Strict near-critical: <strong>7,732<\/strong>/,'the summary box prints the figure');
+ assert.match(summary,/TF &gt; 0 working days and ≤ 5 working days/,'the summary carries the card explanation');
+ const card=html.slice(html.indexOf('<span>Strict near-critical</span>'));
+ assert.match(card,/^<span>Strict near-critical<\/span><strong class="figure-shown-above">Shown above<\/strong><small>TF &gt; 0 working days and ≤ 5 working days<\/small>/,'the card keeps its label and explanation');
+ assert.match(html,/<span>Float-risk watchlist<\/span><strong>8,376<\/strong>/,'a card the summary does not print is unchanged');
+ assert.equal(count(html,'EVIDENCE-ROW'),1,'evidence stays on the page');
+});
+
+test('SW-44: role views show each preview chart once; the full-detail panel holds the rest of the same page',()=>{
+ const view='<section class="planning-panel"><h4>Trend</h4><svg viewBox="0 0 1 1"><rect x="0" y="0"/><text>CHART-A</text></svg></section>'+
+  '<section class="planning-panel"><div class="chart-card"><svg><text>CHART-B</text></svg></div><p>PARENT-TEXT</p></section>'+
+  '<section class="planning-panel"><svg><text>CHART-C</text></svg><table><tbody><tr><td>REGISTER-ROW</td></tr></tbody></table></section>';
+ for(const role of ['controls','project-director','executive']){
+  const html=roleContent(role,'variance-trends',{projectionKey:'variance_trends'},view);
+  for(const part of ['CHART-A','CHART-B','CHART-C','REGISTER-ROW','PARENT-TEXT','<h4>Trend</h4>'])assert.equal(count(html,part),1,role+': '+part+' is printed once and kept');
+  const preview=html.indexOf('experience-preview'),disclosure=html.indexOf('<details class="experience-disclosure');
+  assert.ok(preview>=0&&preview<disclosure,role+': the preview leads');
+  assert.ok(html.indexOf('CHART-A')<disclosure,role+': the first chart is in the preview');
+  assert.ok(html.indexOf('REGISTER-ROW')>disclosure,role+': a panel with a register is never moved into the preview');
+  if(role==='executive')assert.ok(html.indexOf('CHART-B')>disclosure,'executive preview holds one chart');
+  else assert.ok(html.indexOf('CHART-B')<disclosure,role+': the second leaf chart is in the preview');
+ }
+ // The pure split on its own: the leaf chart card moves; its parent panel stays.
+ const split=runInNewContext('experiencePreview(__v,2)',{__v:view,escapeHtml}) as any;
+ assert.equal(count(split.preview+split.rest,'CHART-B'),1);
+ assert.match(split.rest,/<section class="planning-panel"><p>PARENT-TEXT<\/p><\/section>/);
+ assert.equal(runInNewContext('experiencePreview(__v,2).rest',{__v:'<table><tr><td>ONLY</td></tr></table>'}),'<table><tr><td>ONLY</td></tr></table>','a page without chart panels is unchanged');
+});

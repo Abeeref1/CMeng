@@ -1,4 +1,4 @@
-import {configuredAskModel,type StructuredModel} from '../../project-ask/src/provider';
+import {configuredAskModel,realProviderTestStatus,type StructuredModel} from '../../project-ask/src/provider';
 import {
   analyzeEvidenceTable,
   canonicalHeader,
@@ -149,5 +149,6 @@ export function aiReadingCoverage(documents:ReadonlyArray<{sourceHashSha256:stri
         (toFinish===null?'The cost cannot be estimated because no price is set for this model.':
           'Reading the remaining '+awaiting+' with AI would cost at most USD '+toFinish.toFixed(4)+' (upper bound at published rates).')+
         ' Owner permission is required before any paid call.'));
-  return {incompleteSteps:incomplete,stepsAwaitingAi:awaiting,aiSetUp:provider.providerConfigured,estimatedMaxUsdPerCall:perCall,estimatedMaxUsdToFinish:toFinish,statement};
+  return {incompleteSteps:incomplete,stepsAwaitingAi:awaiting,aiSetUp:provider.providerConfigured,estimatedMaxUsdPerCall:perCall,estimatedMaxUsdToFinish:toFinish,statement,
+    realProviderTest:realProviderTestStatus(provider.providerConfigured).statement};
 }

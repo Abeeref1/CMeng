@@ -1,5 +1,6 @@
 import {floatHoursToWorkingDays,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {contractNoticeRules} from './contract-notice-rules';
+import {detailedClaimDeadline} from './detailed-claim-time-bar';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import {cell,dateValue,numberValue,governedTables,type SourceRow} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
@@ -253,28 +254,15 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
   const identity=ref+'|'+notice+'|'+submitted+'|'+start+'|'+end;if(seen.has(identity))continue;seen.add(identity);
   const awareness=date(cell(r,'awareness date','date of awareness','became aware date'));
   const eventStart=date(cell(r,'event start','event start date','event date'));
-  const candidates=rules.filter(rule=>{
-   if(rule.applicabilityState==='unresolved'||rule.sourceDayBasis==='working')return false;
-   const trigger=rule.triggerBasis==='awareness'?awareness:rule.triggerBasis==='event_start'?eventStart:null;
-   return trigger&&(!rule.effectiveFromIso||trigger>=rule.effectiveFromIso)&&(!rule.effectiveToIso||trigger<rule.effectiveToIso);
-  });
-  const rule=candidates.length===1&&candidates[0]!.state==='official'?candidates[0]!:null;
-  const trigger=rule?.triggerBasis==='awareness'?awareness:rule?.triggerBasis==='event_start'?eventStart:null;
-  // An ill-formed period from an otherwise matched clause is not an
-  // established contractual deadline. Retain the rule and claim for review;
-  // never throw or substitute zero when the source value is invalid.
-  const declaredLimit=rule&&typeof rule.noticePeriodDays==='number'&&Number.isFinite(rule.noticePeriodDays)&&rule.noticePeriodDays>=0?rule.noticePeriodDays:null;
-  const due=trigger&&declaredLimit!==null?plusDays(trigger,declaredLimit):null;
-  // A valid rule period can remain known while its trigger is missing; an
-  // unrepresentable due date cannot establish even a usable period comparison.
-  const limit=declaredLimit!==null&&(!trigger||due!==null)?declaredLimit:null;
+  // F47: the same shared detailed-claim rule the claim records carry.
+  const {rule,trigger,due,limit,detailedClaimState,daysAfterDue,basis}=detailedClaimDeadline({awarenessIso:awareness,eventStartIso:eventStart,submittedIso:submitted,cutoffIso:cutoff},rules);
   checks.push({claimReference:ref,noticeDateIso:notice,detailedSubmissionDateIso:submitted,dueDateIso:due,allowedDays:limit,
    triggerDateIso:trigger,triggerBasis:rule?.triggerBasis??null,
-   daysAfterDue:due&&submitted?days(due,submitted):null,
-   detailedClaimState:!due?'due_basis_missing':submitted?(submitted<=due?'within_period':'late'):cutoff&&due<cutoff?'overdue_no_submission':'submission_not_recorded',
+   daysAfterDue,
+   detailedClaimState,
    windowStartIso:start,windowEndIso:end,windowCalendarDays:days(start,end),longWindow:start&&end?end>monthDate(start,3):null,
    sourceRefs:[...rowRefs(r),...(rule?.evidenceRefs??[]).map(ref=>ref.sourceType+':'+ref.sourceId+':'+ref.locator)],
-   basis:rule&&due&&limit!==null?'Documented detailed-claim period of '+limit+' calendar days from '+(rule.triggerBasis==='awareness'?'awareness':'event start')+'.':'The applicable detailed-claim period and starting event are not established; no deadline is assumed.',
+   basis,
    warning:start&&end&&end>monthDate(start,3)?'Delay window exceeds three calendar months; subdivide the analysis or justify the longer window.':null,
    missingInputs:[!due?'Applicable contract detailed-claim rule, valid calendar-day period and dated starting event':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
  }
