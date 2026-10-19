@@ -78,8 +78,18 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     const originalItems=new Map((source?.canonicalItems??[]).map(item=>[item.itemId,item]));
     const sectionReviews=reviewedBoqSections(state,schedule,quantities);
     const allocatedItemIds=new Set(quantities.scheduleRevisionId===schedule.sourceRevisionId?quantities.allocations.map(a=>a.quantityItemId):[]);
+    // F45: an item number can repeat per BOQ bill. A source row belongs to an
+    // item only when its stated section is the item's section, or, without a
+    // stated section, when that item number is carried by one BOQ item only.
+    // Rows of another bill never lend their section or WBS code to this item.
+    const numberCounts=new Map<string,number>();
+    for(const item of quantities.items){const key=normalized(item.itemNumber);if(key)numberCounts.set(key,(numberCounts.get(key)??0)+1);}
     result.sourceWbsLinks=quantities.items.map(item=>{
-      const sourceRows=byItem.get(normalized(item.itemNumber))??[];
+      const sameNumber=byItem.get(normalized(item.itemNumber))??[];
+      const sourceRows=(numberCounts.get(normalized(item.itemNumber))??0)<=1?sameNumber:sameNumber.filter(r=>{
+        const section=cell(r,'section','boq section','bill section');
+        return !!section&&normalized(section)===normalized(item.section);
+      });
       const original=originalItems.get(item.quantityItemId) as any;
       const codes=[...new Set([...sourceRows.map(r=>cell(r,'wbs code','wbs id','wbs','programme wbs','schedule wbs')),(item as any).wbsId,(item as any).wbsCode,original?.wbsId,original?.wbsCode].filter(Boolean).map(String))];
       // Repeated spellings of the same explicit code (VLC.01/VLC-01) do not

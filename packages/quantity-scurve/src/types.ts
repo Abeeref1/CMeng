@@ -29,11 +29,14 @@ export interface QuantityScurveSeries {
   actualSnapshotItemCoveragePercent: number | null;
   actualHistoryMode: QuantityActualHistoryMode;
   overInstalledItemIds: string[];
+  /** F45: latest measured quantity and % installed of this one item. */
+  latestInstalledQuantity?: number | null;
+  installedPercent?: number | null;
   points: QuantityScurvePoint[];
 }
 
 export interface QuantityScurveProjection {
-  quantityQueries?:Array<{quantityItemId:string;itemNumber:string|null;unit:string|null;quantity:number|null;reason:string}>;
+  quantityQueries?:Array<{quantityItemId:string;itemNumber:string|null;unit:string|null;quantity:number|null;installedQuantity?:number|null;reasons?:string[];reason:string}>;
   schemaVersion: "1.0";
   projectionKey: "quantity_scurve";
   generatedAt: string;

@@ -791,12 +791,13 @@ export function buildQuantityScheduleMapping(
       ).length,
     knownQuantityItemCount,
     mappedKnownQuantityItemCount,
+    // F45: a quantity total exists only within one unit.
     mappedQuantity:
-      Number(
+      mixedQuantityUnits ? null : Number(
         mappedQuantity.toFixed(6),
       ),
     totalKnownQuantity:
-      Number(
+      mixedQuantityUnits ? null : Number(
         totalKnownQuantity.toFixed(6),
       ),
     quantityCoveragePercent:

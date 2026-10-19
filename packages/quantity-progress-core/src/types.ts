@@ -51,8 +51,9 @@ export interface CanonicalQuantityProgressModel {
 }
 
 export interface QuantityMappingAssessment {
-  totalKnownContractQuantity: number;
-  mappedQuantity: number;
+  /** Null when the known quantities use more than one (or an unknown) unit. */
+  totalKnownContractQuantity: number | null;
+  mappedQuantity: number | null;
   mappedItemCount: number;
   knownQuantityItemCount: number;
   mappingCoveragePercent: number | null;

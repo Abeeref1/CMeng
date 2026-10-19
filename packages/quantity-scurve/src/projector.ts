@@ -5,6 +5,7 @@ import type {
 import {
   assessQuantityMapping,
   boqNumericsNeedConfirmation,
+  lumpSumQuantityQuery,
   type CanonicalQuantityItem,
   type CanonicalQuantityProgressModel,
   type InstalledQuantitySnapshot,
@@ -560,6 +561,12 @@ function seriesForUnit(
         itemIds,
       ),
     overInstalledItemIds,
+    // F45: % installed on the item's own curve (one item, one unit).
+    ...(onlyItemId!==null?(()=>{
+      const installed=latest.get(onlyItemId)?.installedQuantity??null,contract=items[0]!.contractQuantity;
+      return {latestInstalledQuantity:installed,
+        installedPercent:installed!==null&&contract!==null&&contract>0&&!withheldItemIds.has(onlyItemId)?Number((installed/contract*100).toFixed(6)):null};
+    })():{}),
     points,
   };
 }
@@ -664,10 +671,20 @@ export function buildQuantityScurveProjection(
           ? "complete"
           : "partial";
 
+  // F45: the shared lump-sum rule over the contract quantity and the latest
+  // measured quantity of each item (certified quantities are added by the
+  // shared measured-progress facts, which read the certificates).
+  const latestInstalled=new Map<string,number>();
+  for(const [itemId,list] of snapshotsByItem){
+    const last=latestSnapshotPerItem(list,new Set([itemId])).get(itemId);
+    if(last)latestInstalled.set(itemId,last.installedQuantity);
+  }
+  const lumpSumQueries=quantities.items.map(item=>({item,query:lumpSumQuantityQuery(item,{installedQuantity:latestInstalled.get(item.quantityItemId)??null})})).filter(row=>row.query.reasons.length>0);
   const diagnostics = [
     ...quantities.diagnostics,
     ...mapping.diagnostics,
-    ...quantities.items.filter(item=>/^(ls|l\.?s\.?|lump\s*sum)$/i.test(item.unit?.trim()??'')&&item.contractQuantity!==null&&item.contractQuantity!==1).map(item=>'LUMP_SUM_QUANTITY_REQUIRES_REVIEW:'+item.quantityItemId+':'+item.contractQuantity),
+    ...lumpSumQueries.filter(row=>row.query.reasons.includes('contract_quantity_not_1')).map(({item})=>'LUMP_SUM_QUANTITY_REQUIRES_REVIEW:'+item.quantityItemId+':'+item.contractQuantity),
+    ...lumpSumQueries.filter(row=>row.query.reasons.includes('installed_quantity_not_0_or_1')).map(({item})=>'LUMP_SUM_INSTALLED_QUANTITY_REQUIRES_REVIEW:'+item.quantityItemId+':'+latestInstalled.get(item.quantityItemId)),
   ];
   const withheldItemIds=new Set(quantities.items.filter(item=>boqNumericsNeedConfirmation(item.diagnostics)).map(item=>item.quantityItemId));
 
@@ -686,7 +703,8 @@ export function buildQuantityScurveProjection(
   return {
     schemaVersion: "1.0",
     projectionKey: "quantity_scurve",
-    quantityQueries:quantities.items.filter(item=>/^(ls|l\.?s\.?|lump\s*sum)$/i.test(item.unit?.trim()??'')&&item.contractQuantity!==null&&item.contractQuantity!==1).map(item=>({quantityItemId:item.quantityItemId,itemNumber:item.itemNumber,unit:item.unit,quantity:item.contractQuantity,reason:'Lump-sum quantity differs from 1. Confirm the unit or the contract quantity against the BOQ.'})),
+    quantityQueries:lumpSumQueries.map(({item,query})=>({quantityItemId:item.quantityItemId,itemNumber:item.itemNumber,unit:item.unit,quantity:item.contractQuantity,
+      installedQuantity:latestInstalled.get(item.quantityItemId)??null,reasons:query.reasons,reason:query.reason})),
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
     projectId:

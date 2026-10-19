@@ -93,3 +93,29 @@ export function paymentDueBasisLabel(due:DueDateFindingLike|null|undefined,certi
   }
   return 'Due-date basis not established';
 }
+
+// F45: one like-for-like rule for comparing two money figures (for example
+// installed value against certified gross work). Money is compared only in one
+// currency. A known, different tax basis makes the figures not comparable; an
+// unknown tax basis on either side gives the arithmetic difference with a query.
+export interface LikeForLikeSide{value:number|null;currency:string|null|undefined;taxBasis:string|null|undefined;records:string;asOf?:string|null|undefined}
+export interface LikeForLikeDifference{
+  // Left minus right; null when the two are not comparable or a value is unknown.
+  difference:number|null;
+  state:'established'|'queried'|'not_comparable'|'not_established';
+  basis:string;
+  queries:string[];
+}
+const taxKey=(value:string|null|undefined):string|null=>{const v=known(value)?.toLowerCase()??null;return v===null||v==='unknown'?null:v;};
+export function likeForLikeDifference(left:LikeForLikeSide,right:LikeForLikeSide):LikeForLikeDifference{
+  const basis='Left less right, in one currency and one tax basis. '+sumBasisLabel(left)+' | '+sumBasisLabel(right);
+  const value=(v:number|null)=>typeof v==='number'&&Number.isFinite(v)?v:null;
+  const a=value(left.value),b=value(right.value),ca=known(left.currency)?.toUpperCase()??null,cb=known(right.currency)?.toUpperCase()??null;
+  if(a===null||b===null)return {difference:null,state:'not_established',basis,queries:[]};
+  if(ca===null||cb===null||ca!==cb)return {difference:null,state:'not_comparable',basis,queries:[ca===null||cb===null?'Currency is not established on both figures; they are not compared.':'Different currencies ('+ca+' and '+cb+') are never compared.']};
+  const ta=taxKey(left.taxBasis),tb=taxKey(right.taxBasis);
+  if(ta!==null&&tb!==null&&ta!==tb)return {difference:null,state:'not_comparable',basis,queries:['Tax bases differ ('+ta+' and '+tb+'); adjust one figure to the other basis before comparing.']};
+  const queries=[ta===null?'Tax basis of '+left.records+' is not established; confirm it matches '+right.records+(tb?' ('+tb+')':'')+'.':null,
+    tb===null?'Tax basis of '+right.records+' is not established; confirm it matches '+left.records+(ta?' ('+ta+')':'')+'.':null].filter((q):q is string=>q!==null);
+  return {difference:a-b,state:queries.length?'queried':'established',basis,queries};
+}

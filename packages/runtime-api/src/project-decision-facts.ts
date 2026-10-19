@@ -13,6 +13,10 @@ import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {canonicalHeader} from '../../truth-kernel/src';
 import {assignScope,reconcileScope,type ScopeAssignment} from './boq-scope-mapping';
 import {projectScopeClassification} from './location-review';
+import {contractTimeDatesFrom} from './contract-time-reader';
+import {likeForLikeDifference} from './commercial-sum-basis';
+import {sourceTaxBasis} from './commercial-canonical';
+import {lumpSumQuantityQuery} from '../../quantity-progress-core/src';
 
 /** Management decisions derived once per source version. Screens and exports
  * consume these same results; no renderer reconstructs an engineering answer. */
@@ -151,11 +155,14 @@ function buildProgrammeTrends(state:ProjectRuntimeState,model:any,cutoff:string|
   population:riskRows.length,projectedCriticalCount:riskRows.filter((r:any)=>r.state==='erosion_scenario').length};
 }
 
-function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null,itemCurrency:string|null){
+const CERTIFIED_VALUE_FIELDS=['certified value','certified amount','gross certified','gross certified amount'];
+// F45: an item-level certified quantity, read with the same certificate rules as its value.
+const CERTIFIED_QUANTITY_FIELDS=['certified quantity','certified qty','cumulative certified qty','cumulative certified quantity','certified quantity to date'];
+function certifiedValueFromRows(rows:SourceRow[],cutoff:string|null,itemCurrency:string|null,fields:string[]=CERTIFIED_VALUE_FIELDS){
  const entries=new Map<string,{amount:number;date:string;basis:'incremental'|'cumulative'|'unknown';sourceRefs:string[]}>();let conflicted=false;
  for(const r of rows){
   const number=cell(r,'certificate no','certificate number','ipc'),d=date(cell(r,'certification date','certificate date'));
-  const amount=numberValue(cell(r,'certified value','certified amount','gross certified','gross certified amount'));
+  const amount=numberValue(cell(r,...fields));
   const status=norm(cell(r,'status','certificate status','source status')),sourceCurrency=cell(r,'currency');
   if(!number||!d||amount===null||(cutoff&&d>cutoff)||/applied|application|draft|submitted/.test(status))continue;
   if(sourceCurrency&&itemCurrency&&norm(sourceCurrency)!==norm(itemCurrency))continue;
@@ -191,6 +198,13 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
  const programmeNames=new Map<string,string[]>();
  for(const name of [...programmeArea.values(),...(model?.wbs??[]).map((w:any)=>w.name)])if(name){const k=norm(name);if(k&&!(programmeNames.get(k)??[]).includes(name))programmeNames.set(k,[...(programmeNames.get(k)??[]),name]);}
  const areaAssignments=new Map<string,ScopeAssignment>();
+ // F45: the required rate runs to the shared governing contract completion
+ // (time.governingContractCompletionIso: contract plus awarded EOT). Unknown stays unknown.
+ const governing=commercial?.timeExposure?date(contractTimeDatesFrom(commercial.timeExposure).governingCompletionIso):null;
+ const daysToContractCompletion=governing&&cutoff?days(cutoff,governing):null;
+ // The BOQ's own rows state the tax basis of its rates (if any).
+ const boqHash=source.boq?.sourceHashSha256??null;
+ const boqDocumentIds=new Set((state.evidenceDocuments??[]).filter(d=>boqHash&&d.sourceHashSha256===boqHash).map(d=>d.documentId));
  const items=(q?.items??[]).map(item=>{
   const xs=(snapshots.get(item.quantityItemId)??[]).sort((a,b)=>String(a.asOfIso).localeCompare(String(b.asOfIso)));
   const now=xs.at(-1),prior=xs.filter(s=>date(s.asOfIso)!<date(now?.asOfIso)!).at(-1);
@@ -231,6 +245,16 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const area=areaAssignment.group;
   const installedValue=installed!==null&&rate!==null?installed*rate:null;
   const itemCertification=certifiedValueFromRows(sourceRows,cutoff,currency),certifiedValue=itemCertification.value;
+  const certifiedQuantity=certifiedValueFromRows(sourceRows,cutoff,currency,CERTIFIED_QUANTITY_FIELDS).value;
+  const taxBases=[...new Set(sourceRows.filter(r=>boqDocumentIds.has(r.receipt.documentId)).map(r=>sourceTaxBasis(cell(r,'vat basis','tax basis'))))].filter(t=>t!=='unknown');
+  const taxBasis=taxBases.length===1?taxBases[0]!:null;
+  const lumpSum=lumpSumQuantityQuery(item,{installedQuantity:installed,certifiedQuantity});
+  // Remaining quantity over the calendar days to the governing contract completion.
+  const requiredToContract=remaining===null||daysToContractCompletion===null?null:remaining===0?0:daysToContractCompletion>0?remaining/daysToContractCompletion:null;
+  const requiredToContractBasis=governing===null?'Governing contract completion is not established; the required rate is not calculated.':
+   remaining===null?'Remaining quantity is not established (contract or measured installed quantity missing).':
+   remaining===0?'Nothing remains to install.':daysToContractCompletion!==null&&daysToContractCompletion<=0?'The governing contract completion is on or before the Data Date; quantity remains, so no rate can finish it in time.':
+   'Remaining quantity / calendar days from the Data Date to the governing contract completion.';
   return {itemId:item.quantityItemId,itemNumber:item.itemNumber,description:item.description,unit:item.unit,area,areaBasis:areaAssignment.state==='ambiguous'?'Area references disagree; not mapped ('+areaAssignment.basis+')':areaAssignment.state==='unmapped'?'No explicit area reference and no unique programme area match; not mapped':areaAssignment.basis,
    areaMappingState:areaAssignment.state,areaCandidates:areaAssignment.candidates,section:item.section??null,currency,
    contractQuantity:contract,installedQuantity:installed,installedPercent:contract!==null&&contract>0&&installed!==null?100*installed/contract:null,
@@ -238,13 +262,16 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    periodProgressPercent:period!==null&&contract!==null&&contract>0?100*period/contract:null,
    actualRatePerCalendarDay:period!==null&&periodDays!==null&&periodDays>0?period/periodDays:null,
    requiredRatePerCalendarDay:remaining!==null&&remainingDays!==null&&remainingDays>0?remaining/remainingDays:null,
-   remainingQuantity:remaining,targetFinishIso:target,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
+   remainingQuantity:remaining,targetFinishIso:target,
+   contractCompletionIso:governing,daysToContractCompletion,requiredRateToContractCompletionPerCalendarDay:requiredToContract,requiredRateToContractCompletionBasis:requiredToContractBasis,
+   periodInstalledValue:period!==null&&rate!==null?period*rate:null,remainingValue:remaining!==null&&rate!==null?remaining*rate:null,
+   taxBasis,certifiedQuantity,lumpSumQueryReasons:lumpSum.reasons,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
    periodEarnedHours:period!==null&&hpu!==null?period*hpu:null,actualHours,
    productivityPerActualHour:period!==null&&actualHours!==null&&actualHours>0?period/actualHours:null,
    installedValue,certifiedValue,installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
    contractValue,contractValueBasis,
    sourceRefs:[...new Set([...(price?.sourceRefs??[]),...(now?.sourceRefs??[]).map((r:any)=>r.locator),...sourceRows.flatMap(rowRefs),...itemCertification.sourceRefs])],
-   missingInputs:[installed===null?'Dated measured installation':null,prior?null:'Previous comparable installed measurement',hpu===null?'Unique budget labour hours per unit':null,actualHours===null?'Actual labour hours for the measurement interval':null,target?null:'Linked activity forecast finish',rate===null?'BOQ unit rate':null,certifiedValue===null?'Item-level certified value with certificate number, date and amount basis':null].filter(Boolean),
+   missingInputs:[installed===null?'Dated measured installation':null,prior?null:'Previous comparable installed measurement',governing?null:'Governing contract completion date',hpu===null?'Unique budget labour hours per unit':null,actualHours===null?'Actual labour hours for the measurement interval':null,target?null:'Linked activity forecast finish',rate===null?'BOQ unit rate':null,certifiedValue===null?'Item-level certified value with certificate number, date and amount basis':null].filter(Boolean),
    basis:'Priced scope uses the admissible source BOQ amount; quantity × rate is used only when no amount is supplied. Installed values use measured cumulative quantities × the unit rate, never schedule percentage or a rescaled source amount. An item-certified value requires a dated certificate that explicitly identifies this BOQ item. A whole-project certificate without item references cannot establish the certified value for an individual BOQ item. Rates use stated calendar days. Earned hours use a supplied budget labour-hours-per-unit rate; actual productivity requires measured output and actual hours for the same interval.'};
  });
  const areaMap=new Map<string,typeof items>();for(const r of items){const key=JSON.stringify([r.area,r.currency]);const group=areaMap.get(key)??[];group.push(r);areaMap.set(key,group);}
@@ -253,7 +280,9 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   const contractValue=pricedRows.length?pricedRows.reduce((s,r)=>s+r.contractValue!,0):null,installedValue=measuredRows.length?measuredRows.reduce((s,r)=>s+r.installedValue!,0):null;
   // The unmapped part never receives certificates: a row without an area
   // reference (such as a whole-project certificate) is not an area allocation.
-  const certRows=area===null?[]:rows.filter(r=>norm(cell(r,'plot','area','zone','location','workfront','section'))===norm(area)&&(!currency||cell(r,'currency')===currency));
+  // F45: a row that names a BOQ item is an item certificate, read once on its
+  // item (below), never collapsed with other items under one certificate number.
+  const certRows=area===null?[]:rows.filter(r=>norm(cell(r,'plot','area','zone','location','workfront','section'))===norm(area)&&(!currency||cell(r,'currency')===currency)&&!cell(r,'item no','item number','boq item','boq item number'));
   const certification=certRows.filter(r=>{const d=date(cell(r,'certification date','certificate date'));return !!d&&(!cutoff||d<=cutoff)&&!/applied|application|draft|submitted/i.test(cell(r,'status'));});
   const byCert=new Map<string,{amount:number;date:string;basis:string}>();let ambiguous=false;
   for(const r of certification){
@@ -267,9 +296,23 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
   }
   const certValues=[...byCert.values()].sort((a,b)=>a.date.localeCompare(b.date));
   const basisSet=new Set(certValues.map(v=>v.basis));
-  const certifiedValue=ambiguous||!certValues.length?null:certValues.length===1?certValues[0]!.amount:
+  const areaCertifiedValue=ambiguous||!certValues.length?null:certValues.length===1?certValues[0]!.amount:
    basisSet.size===1&&basisSet.has('incremental')?certValues.reduce((s,v)=>s+v.amount,0):
    basisSet.size===1&&basisSet.has('cumulative')?certValues.at(-1)!.amount:null;
+  // Without area-allocated certificates, the area's certified value is the sum
+  // of its items' own certified values (each from a certificate naming the item).
+  const certifiedItems=xs.filter(r=>r.certifiedValue!==null);
+  const certifiedFromItems=!ambiguous&&!certValues.length&&certifiedItems.length?certifiedItems.reduce((s,r)=>s+r.certifiedValue!,0):null;
+  const certifiedValue=areaCertifiedValue??certifiedFromItems;
+  // F45: value installed in the area's latest measurement interval, and the
+  // value per calendar day that finishes the measured remaining work by the
+  // governing contract completion. Money within one currency only.
+  const intervals=xs.filter(r=>r.periodInstalledValue!==null&&r.periodStartIso&&r.periodEndIso);
+  const periodEndIso=intervals.reduce<string|null>((m,r)=>!m||r.periodEndIso!>m?r.periodEndIso!:m,null);
+  const periodStartIso=intervals.filter(r=>r.periodEndIso===periodEndIso).reduce<string|null>((m,r)=>!m||r.periodStartIso!>m?r.periodStartIso!:m,null);
+  const periodRows=intervals.filter(r=>r.periodEndIso===periodEndIso&&r.periodStartIso===periodStartIso);
+  const remainingRows=xs.filter(r=>r.remainingValue!==null);
+  const remainingValue=remainingRows.length?remainingRows.reduce((s,r)=>s+r.remainingValue!,0):null;
 
   return {area:area??'Area not recorded',mapped:area!==null,currency,itemCount:xs.length,measuredItemCount:measuredRows.length,pricedItemCount:pricedRows.length,
    contractValue,installedValue,physicalProgressPercent:installedValue!==null&&contractValue!==null&&contractValue>0?100*installedValue/contractValue:null,
@@ -279,12 +322,58 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    physicalBasis:'Measured installed quantity × unit rate / priced BOQ scope value in this area and currency. Source BOQ amounts take precedence in priced scope; rounding can therefore differ from measured value at full quantity. Unmeasured and unpriced items remain coverage qualifications, not recorded zeros.',
    certifiedValue,certifiedProgressPercent:certifiedValue!==null&&contractValue!==null&&contractValue>0?100*certifiedValue/contractValue:null,
    installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
-   certificationBasis:'Explicit certificate number, dated certification and area allocation. Whole-project certificates are not apportioned to areas.',
-   missingInputs:[installedValue===null?'Measured installed quantities and rates for this area':null,contractValue===null?'Priced BOQ scope in this area':null,certifiedValue===null?'Dated certificate amounts explicitly allocated to this area, with a consistent incremental or cumulative basis':null].filter(Boolean)};
+   certifiedItemCount:areaCertifiedValue!==null?null:certifiedItems.length,
+   certificationBasis:areaCertifiedValue!==null||certifiedFromItems===null?'Explicit certificate number, dated certification and area allocation. Whole-project certificates are not apportioned to areas.':
+    'Sum of the certified values of this area\'s items, each from a dated certificate that names the item ('+certifiedItems.length+' of '+xs.length+' items). Whole-project certificates are not apportioned to areas.',
+   installedPercent:installedValue!==null&&contractValue!==null&&contractValue>0?100*installedValue/contractValue:null,
+   installedPercentBasis:'Installed value / priced scope value of this area (value basis; quantities in different units are never added).',
+   periodStartIso:periodRows.length?periodStartIso:null,periodEndIso:periodRows.length?periodEndIso:null,periodItemCount:periodRows.length,
+   periodInstalledValue:periodRows.length?periodRows.reduce((s,r)=>s+r.periodInstalledValue!,0):null,
+   remainingValue,requiredRateItemCount:remainingRows.length,contractCompletionIso:governing,daysToContractCompletion,
+   requiredValuePerCalendarDay:remainingValue===null||daysToContractCompletion===null?null:remainingValue===0?0:daysToContractCompletion>0?remainingValue/daysToContractCompletion:null,
+   requiredRateBasis:'Remaining quantity x rate of the measured items in this area ('+remainingRows.length+' of '+xs.length+' items) / calendar days from the Data Date to the governing contract completion.',
+   missingInputs:[installedValue===null?'Measured installed quantities and rates for this area':null,contractValue===null?'Priced BOQ scope in this area':null,certifiedValue===null?'Dated certificate amounts explicitly allocated to this area or its items, with a consistent incremental or cumulative basis':null,governing?null:'Governing contract completion date'].filter(Boolean)};
  });
  const areaReconciliation=reconcileScope(items.map(r=>({itemId:r.itemId,itemNumber:r.itemNumber,currency:r.currency,value:r.contractValue})),r=>areaAssignments.get(r.itemId)!,'Area not recorded');
+ // F45: every lump-sum item whose contract, installed or certified quantity is
+ // not a whole lump sum, with its count. Quantities stay on their own item.
+ const queried=items.filter(r=>r.lumpSumQueryReasons.length>0);
+ const lumpSumQueries={count:q?queried.length:null,rows:queried.map(r=>({itemId:r.itemId,itemNumber:r.itemNumber,section:r.section,description:r.description,unit:r.unit,
+   contractQuantity:r.contractQuantity,installedQuantity:r.installedQuantity,certifiedQuantity:r.certifiedQuantity,reasons:r.lumpSumQueryReasons,
+   reason:lumpSumQuantityQuery({unit:r.unit,contractQuantity:r.contractQuantity},{installedQuantity:r.installedQuantity,certifiedQuantity:r.certifiedQuantity}).reason})),
+  basis:'A lump sum is one whole item: contract quantity 1, installed or certified quantity 0 or 1. Any other value is queried (the unit or the quantity is wrong in the source); the source value is kept and never added to other items or units.'};
+ const installedVsCertified=buildInstalledVsCertified(items,commercial,cutoff);
  return {items,itemCount:q?items.length:null,measuredItemCount:items.filter(r=>r.installedQuantity!==null).length,areas,areaReconciliation,certificateCount:certificates.length,
+  lumpSumQueries,installedVsCertified,contractCompletionIso:governing,daysToContractCompletion,
   basis:'Full retained BOQ item population; area and currency totals use explicit source associations. Quantities with unlike units are never summed into a project physical percentage.'};
+}
+
+/** F45: installed value (measured quantity x BOQ rate, per currency) against the
+ * gross work certified by the interim certificates through the Data Date, in
+ * the same currency and tax basis (shared like-for-like rule), with the difference. */
+function buildInstalledVsCertified(items:Array<{currency:string|null;installedValue:number|null;taxBasis:string|null;lumpSumQueryReasons:string[]}>,commercial:any,cutoff:string|null){
+ const groups:any[]=commercial?.certificateProfile?.groups??[];
+ const currencies=[...new Set(items.map(r=>r.currency).filter((c):c is string=>!!c))].sort();
+ return currencies.map(currency=>{
+  const own=items.filter(r=>r.currency===currency),measured=own.filter(r=>r.installedValue!==null);
+  const installedValue=measured.length?measured.reduce((s,r)=>s+r.installedValue!,0):null;
+  const bases=new Set(own.map(r=>r.taxBasis)),installedTaxBasis=bases.size===1?[...bases][0]??null:null;
+  const candidates=groups.filter(g=>g.currency===currency);
+  const group=(installedTaxBasis?candidates.find(g=>g.taxBasis===installedTaxBasis):null)??(candidates.length===1?candidates[0]:null);
+  const certified=(group?.as_of??[]).filter((r:any)=>r.certificationConfirmedByDataDate&&!/application|applied|submitted|draft|pending certification/i.test(r.sourceStatus??''));
+  const certifiedGrossWork=valueOf(group?.certifiedTotals?.grossWork);
+  const latest=certified.at(-1)??null;
+  const comparison=likeForLikeDifference({value:installedValue,currency,taxBasis:installedTaxBasis,records:'installed BOQ value',asOf:cutoff},
+   {value:certifiedGrossWork,currency:group?.currency??currency,taxBasis:group?.taxBasis??null,records:'certified gross work',asOf:latest?.date??null});
+  return {currency,itemCount:own.length,measuredItemCount:measured.length,installedValue,installedTaxBasis,
+   certifiedGrossWork,certifiedTaxBasis:group?.taxBasis&&group.taxBasis!=='unknown'?group.taxBasis:null,certificateCount:group?certified.length:null,
+   latestCertificateId:latest?.id??null,latestCertificateDateIso:date(latest?.certificationDate)??null,
+   difference:comparison.difference,state:comparison.state,queries:comparison.queries,
+   lumpSumQueryItemCount:measured.filter(r=>r.lumpSumQueryReasons.length>0).length,
+   basis:'Installed value = measured cumulative quantity x BOQ unit rate, summed over the measured items in this currency (lump-sum items with queried quantities included and counted). Certified gross work = issued interim certificates through the Data Date, gross work before variations and deductions, as an incremental series. '+comparison.basis,
+   missingInputs:[installedValue===null?'Measured installed quantities with BOQ rates in '+currency:null,
+    !candidates.length?'Issued interim certificates in '+currency:!group?'One certificate tax basis matching the BOQ rates in '+currency:certifiedGrossWork===null?'Certified gross work as a confirmed incremental certificate series in '+currency:null].filter(Boolean)};
+ });
 }
 
 export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:NoticeRequirement[]=[]){
@@ -405,6 +494,21 @@ export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any,pr
  }
  return {rows:exceptions,count:exceptions.length,checkedRows,checkedCount:checkedRows.length,
   basis:'Full comparable source totals, including those without exceptions. Missing amounts and incomparable currencies are not reported as zero.'};
+}
+
+/** F45: the Progress page shows progress by area and installed value against
+ * certified gross work from the same shared rows as Progress Breakdown and
+ * Quantities (a summary; the item and area tables stay on their own pages). */
+export function measuredProgressByArea(state:ProjectRuntimeState){
+ const d=projectDecisionFacts(state),q=d.quantities;
+ if(!q.itemCount)return null;
+ return {dataDateIso:d.dataDateIso,contractCompletionIso:q.contractCompletionIso,daysToContractCompletion:q.daysToContractCompletion,
+  rows:q.areas.map(a=>({area:a.area,mapped:a.mapped,currency:a.currency,itemCount:a.itemCount,measuredItemCount:a.measuredItemCount,
+   installedPercent:a.installedPercent,installedValue:a.installedValue,certifiedValue:a.certifiedValue,installedAgainstCertified:a.installedAgainstCertified,
+   periodStartIso:a.periodStartIso,periodEndIso:a.periodEndIso,periodInstalledValue:a.periodInstalledValue,requiredValuePerCalendarDay:a.requiredValuePerCalendarDay})),
+  installedVsCertified:q.installedVsCertified,lumpSumQueryCount:q.lumpSumQueries.count,
+  detailModule:'progress-breakdown',quantityModule:'quantity-scurve',
+  basis:'Each area is a BOQ area from the shared area rule (explicit reference, programme area, or a BOQ section equal to one programme area); the not-mapped part is its own row. Values are money in one currency. % installed = installed value / priced scope value. Period = the area\'s latest measurement interval. Required value per calendar day runs to the governing contract completion.'};
 }
 
 /** A substantive decision table has one home. Other pages link to that home.

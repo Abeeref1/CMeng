@@ -1,4 +1,4 @@
-import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
+import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
@@ -659,8 +659,10 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
   const shown=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
+  // F45: the Progress page shows the same measured progress by area.
+  const measuredProgress=key==='progress-report'?measuredProgressByArea(scoped):null;
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }
