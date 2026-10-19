@@ -34,8 +34,8 @@ const registers:Array<{file:string;headers:string[];rows:(i:number)=>string[];co
   rows:i=>['IPC-'+i,day(-900+i*3),String(50000+i),i%4?String(50000+i):'','2500','SAR',i%4?'Paid':'Certified']},
 ];
 
-async function adversarialProject(){
- const state=runtimeProjects.getOrCreate('R11-PERF-ADV'),id=state.projectId;
+async function adversarialProject(scale=1,projectId='R11-PERF-ADV'){
+ const state=runtimeProjects.getOrCreate(projectId),id=state.projectId;
  const activities=Array.from({length:N},(_,i)=>({projectId:id,activityId:'A'+i,nativeId:String(i),name:'Installation Zone '+Math.floor(i/100)+' item '+i,wbsId:'W'+Math.floor(i/100),calendarId:'C',activityType:'task',
   status:i%7===0?'in_progress':'not_started',baselineStartIso:day(-120),baselineFinishIso:day(-10+i%60),currentStartIso:i%7===0?day(-30):day(5),currentFinishIso:day(30+i%200),
   actualStartIso:i%7===0?day(-30):null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:240,remainingDurationHours:240,
@@ -51,7 +51,7 @@ async function adversarialProject(){
  (state as any).testProject=true;runtimeProjects.touch(state);
  for(const register of registers){
   await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:register.file,sourceRelativePath:register.file,mediaType:'text/csv',
-   bytes:csv(register.headers,Array.from({length:register.count},(_,i)=>register.rows(i))),uploadedAt:DATA_DATE+'T00:00:00.000Z',uploadIntent:'add_update'});
+   bytes:csv(register.headers,Array.from({length:Math.round(register.count*scale)},(_,i)=>register.rows(i))),uploadedAt:DATA_DATE+'T00:00:00.000Z',uploadIntent:'add_update'});
  }
  await runtimeProjects.refreshSpreadsheetRegisters(id);
  return id;
@@ -108,7 +108,7 @@ test('r11-perf probe: profile cold Dashboard and dump management pages',{timeout
  const root='http://127.0.0.1:'+(server.address() as any).port;
  const session=new Session();session.connect();
  await post(session,'Profiler.enable');await post(session,'Profiler.setSamplingInterval',{interval:1000});
- for(const [label,build] of [['ADV',adversarialProject],['STD',async()=>standardProject()]] as const){
+ for(const [label,build] of [['ADV',()=>adversarialProject()],['HALF',()=>adversarialProject(0.5,'R11-PERF-HALF')],['STD',async()=>standardProject()]] as const){
   const b0=performance.now();const id=await build();
   console.log('R11TIME '+label+' built in '+(performance.now()-b0).toFixed(0)+' ms');
   const P='/api/projects/'+encodeURIComponent(id);
@@ -123,7 +123,7 @@ test('r11-perf probe: profile cold Dashboard and dump management pages',{timeout
   summarise(label,profile);
   const pages=['/management/master-dashboard','/management/command-center','/management/master-control-programme','/management/source-quality',
    '/management/cross-domain-accountability','/management-surfaces','/overview','/director-position','/actions'];
-  for(const path of pages){
+  for(const path of label==='HALF'?[]:pages){
    const page=path==='/management/master-dashboard'?cold:await timed(path);
    console.log('R11TIME '+label+' '+path+' '+page.ms.toFixed(0)+' ms status '+page.status+' bytes '+Buffer.byteLength(page.text));
    const data=gzipSync(Buffer.from(page.text)).toString('base64');
