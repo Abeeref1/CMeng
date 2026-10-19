@@ -536,16 +536,37 @@ function buildDelivery(state:ProjectRuntimeState){
    closedCount:closeCount,closurePercent:complete?pct(closeCount,currentRows.length):null,retestCount:count(r=>r.currentStatus==='retest required'),
    ...rates(currentRows,complete),reviewPeriodCalendarDays:reviewPeriods.length?round(reviewPeriods.reduce((a,b)=>a+b,0)/reviewPeriods.length):null,reviewPeriodKnownCount:reviewPeriods.length}];
  }));
+ // F48: a permit with no stated activity link is linked through the register only by
+ // an exact single match: exactly one other register record citing the same permit
+ // reference, else exactly one workfront stating the same area. Any other case stays
+ // "not linked"; no link is guessed.
+ const linkKey=(value:string|null|undefined)=>typeof value==='string'?value.trim().toLowerCase().replace(/\s+/g,' '):'';
+ const recordAreas=(r:DeliveryRecord)=>[...new Set([...r.links.locationIds,field(r,'location'),field(r,'area'),field(r,'zone'),field(r,'work area')].map(linkKey).filter(Boolean))];
+ const permitCitations=new Map<string,DeliveryRecord[]>(),areaWorkfronts=new Map<string,DeliveryRecord[]>();
+ for(const r of governed){
+  if(r.kind!=='permit')for(const ref of field(r,'permit id').split(/[;,]/).map(linkKey).filter(Boolean)){const rows=permitCitations.get(ref)??[];if(!rows.includes(r))rows.push(r);permitCitations.set(ref,rows);}
+  if(r.kind==='workfront')for(const area of recordAreas(r)){const rows=areaWorkfronts.get(area)??[];if(!rows.includes(r))rows.push(r);areaWorkfronts.set(area,rows);}
+ }
+ const permitWorkLink=(r:DeliveryRecord):{activityIds:string[];basis:'stated_activity'|'permit_reference'|'area'|'not_linked';viaRecordId:string|null;reason:string|null}=>{
+  if(r.links.activityIds.length)return {activityIds:r.links.activityIds,basis:'stated_activity',viaRecordId:null,reason:null};
+  const byRef=permitCitations.get(linkKey(r.reference))??[];
+  if(r.reference&&byRef.length===1&&byRef[0]!.links.activityIds.length)return {activityIds:byRef[0]!.links.activityIds,basis:'permit_reference',viaRecordId:byRef[0]!.recordId,reason:null};
+  if(byRef.length>1)return {activityIds:[],basis:'not_linked',viaRecordId:null,reason:byRef.length+' register records cite this permit reference; not linked'};
+  const areas=recordAreas(r),byArea=[...new Set(areas.flatMap(area=>areaWorkfronts.get(area)??[]))];
+  if(areas.length&&byArea.length===1&&byArea[0]!.links.activityIds.length)return {activityIds:byArea[0]!.links.activityIds,basis:'area',viaRecordId:byArea[0]!.recordId,reason:null};
+  return {activityIds:[],basis:'not_linked',viaRecordId:null,reason:byArea.length>1?byArea.length+' workfronts share this area; not linked':byRef.length===1||byArea.length===1?'The matching register record has no programme activity link':'No stated activity, permit reference or area match'};
+ };
  const permitRows=byKind('permit').map(r=>{
   const issued=date(r,'issue date','actual issue'),expiry=date(r,'expiry date','valid until','valid to'),start=date(r,'valid from')??issued,permanent=field(r,'expiry applicable')==='no';
   const pending=!start&&!issued&&/pending|applied|submitted|awaiting/i.test(field(r,'status'));
   const status=pending?'pending':!dataDateIso||!start?'not_established':issued&&issued>dataDateIso?'future_issue':start>dataDateIso?'not_yet_valid':!permanent&&!expiry?'validity_not_established':expiry&&expiry<dataDateIso?'expired':'valid';
-  const linked=r.links.activityIds.map(id=>activities.get(id)).filter((row):row is NonNullable<typeof row>=>!!row);
-  const hasUnresolvedLinks=r.links.activityIds.some(id=>!activities.has(id));
+  const workLink=permitWorkLink(r);
+  const linked=workLink.activityIds.map(id=>activities.get(id)).filter((row):row is NonNullable<typeof row>=>!!row);
+  const hasUnresolvedLinks=workLink.activityIds.some(id=>!activities.has(id));
   const openLinked=linked.some(row=>row.status!=='completed'&&row.activityType!=='wbs_summary');
   const affectsOpenWork=openLinked?true:!linked.length||hasUnresolvedLinks?null:false;
   const openWorkAnswer=affectsOpenWork===true?'Affects open work':affectsOpenWork===false?'Does not affect open work':'Not linked to verified programme work';
-  return {...registerById.get(r.recordId)!,affectsOpenWork,openWorkAnswer,owner:field(r,'owner','responsible party')||null,issuingAuthority:field(r,'issuing authority','authority')||null,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
+  return {...registerById.get(r.recordId)!,affectsOpenWork,openWorkAnswer,workLinkBasis:workLink.basis,workLinkLabel:workLink.basis==='stated_activity'?'Stated activity':workLink.basis==='permit_reference'?'Permit reference (one register match)':workLink.basis==='area'?'Area (one workfront match)':'Not linked'+(workLink.reason?': '+workLink.reason:''),workLinkRecordId:workLink.viaRecordId,workLinkActivityIds:workLink.activityIds,workLinkNote:workLink.reason,owner:field(r,'owner','responsible party')||null,issuingAuthority:field(r,'issuing authority','authority')||null,issueDate:issued,validFrom:start,expiryDate:expiry,permitStatus:status,headroomCalendarDays:days(date(r,'required by','due date'),issued),renewalRequired:field(r,'renewal required')||null};
  });
  const spareRows=byKind('spare').map(r=>{
   const value=(name:string)=>{const n=numeric(r,name+' quantity');return !invalidFields.get(r.recordId)?.has(name+' quantity')&&n!==null&&n>=0&&(name==='required'||isOnDate(date(r,name+' date','status as of'),dataDateIso))?n:null;};
@@ -599,11 +620,24 @@ function buildDelivery(state:ProjectRuntimeState){
  const recordsByRisk=new Map<string,DeliveryRecord[]>();for(const r of governed)for(const id of r.links.riskIds){const rows=recordsByRisk.get(id)??[];rows.push(r);recordsByRisk.set(id,rows);}
  const currentRisks=new Map(operations.risk.current.map(r=>[r.riskId,r]));
  const futureRiskIds=new Set(operations.risk.future.map(r=>r.riskId));
+ // F15: Last Reviewed is shown as its own field. The review is stale when the next review
+ // (stated, or Last Reviewed plus the stated interval) falls before the Data Date. With no
+ // stated interval or next review date, staleness is not established (never assumed).
+ const riskReview=(risk:{lastReviewedIso?:string|null;reviewIntervalDays?:number|null;nextReviewIso?:string|null})=>{
+  const lastReviewedIso=risk.lastReviewedIso??null,interval=risk.reviewIntervalDays??null;
+  const reviewDueIso=risk.nextReviewIso??(lastReviewedIso&&interval!==null?new Date(Date.parse(lastReviewedIso+'T00:00:00Z')+interval*86400000).toISOString().slice(0,10):null);
+  const reviewStale=!dataDateIso||!reviewDueIso?null:reviewDueIso<dataDateIso.slice(0,10);
+  const reviewBasis=!lastReviewedIso&&!risk.nextReviewIso?'Last reviewed date not stated':!reviewDueIso?'Review interval not stated; staleness not established':!dataDateIso?'Data Date missing; staleness not established':(reviewStale?'Review overdue: next review '+reviewDueIso+' is before the Data Date':'Review current: next review '+reviewDueIso)+(risk.nextReviewIso?' (stated next review)':' (last reviewed '+lastReviewedIso+' plus the stated '+interval+' days)');
+  return {lastReviewedIso,reviewIntervalDays:interval,reviewDueIso,reviewStale,reviewBasis};
+ };
  const riskSourceRows=operations.risk.sourceRows.map(sourceRisk=>{const risk=currentRisks.get(sourceRisk.riskId)??sourceRisk;const linked=recordsByRisk.get(risk.riskId)??[];const linkedActivities=[...new Set([...(risk.linkedActivityId?[risk.linkedActivityId]:[]),...linked.flatMap(r=>r.links.activityIds)])].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);return {...risk,reportingScope:currentRisks.has(risk.riskId)?'At reporting date':futureRiskIds.has(risk.riskId)?'After reporting date':'Reporting date missing',
   description:risk.subject??null,categories:[...new Set([risk.category,...linked.map(r=>r.kind==='package'?'procurement':r.kind==='workfront'?'construction':r.kind)].filter(Boolean))],
   deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId),
   programmeExposure:linkedActivities.map(a=>({activityId:a.activityId,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,criticality:model?sourceFloatCriticality(model,a,config):'unknown',totalFloatHours:a.totalFloatHours})),
-  probability:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.probability??null,impact:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.impact??null,score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis};});
+  probability:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.probability??null,impact:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.impact??null,score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis,...riskReview(risk)};})
+  // F15: ranked by the register score, highest first; risks without a score follow in source order.
+  .map((row,index)=>({row,index})).sort((a,b)=>(a.row.score===null)!==(b.row.score===null)?Number(a.row.score===null)-Number(b.row.score===null):a.row.score!==null&&b.row.score!==null&&a.row.score!==b.row.score?b.row.score-a.row.score:a.index-b.index)
+  .map(({row},index,all)=>({...row,scoreRank:row.score===null?null:all.findIndex(entry=>entry.row.score===row.score)+1}));
  const riskRows=riskSourceRows.filter(r=>r.reportingScope==='At reporting date');
  const evidenceMetrics=Object.fromEntries(['quality','commissioning','snag','handover','design','submittal'].map(kind=>[kind,deliveryEvidenceMetrics(byKind(kind as DeliveryKind),dataDateIso)]));
  const commissioningRows=registerRows.filter(r=>r.kind==='commissioning').map(r=>({...r,system:field(byId.get(r.recordId)!,'system')||null,subsystem:field(byId.get(r.recordId)!,'subsystem')||null,plannedDate:date(byId.get(r.recordId)!,'planned date'),forecastDate:date(byId.get(r.recordId)!,'forecast date'),readiness:gatesFor(byId.get(r.recordId)!)}));
