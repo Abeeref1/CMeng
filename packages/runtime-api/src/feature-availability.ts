@@ -17,7 +17,10 @@ export interface RuntimeFeatureAvailability {
 const array=(value:unknown):any[]=>Array.isArray(value)?value:[];
 const number=(value:unknown):number|null=>typeof value==='number'&&Number.isFinite(value)?value:null;
 
-export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatureAvailability {
+/** F07: shared project inputs. When supplied, a prerequisite is decided from the
+ * one project status every page reads, not from this page's own copy. */
+export interface FeatureAvailabilityInputs {calendar?:{calendarActivityCount:number|null}|null}
+export function moduleFeatureAvailability(key:string,data:unknown,inputs:FeatureAvailabilityInputs={}):RuntimeFeatureAvailability {
   const d=(data&&typeof data==='object'?data:{}) as any;
   if(key==='forecast-history'){
     const points=array(d.points);
@@ -44,13 +47,15 @@ export function moduleFeatureAvailability(key:string,data:unknown):RuntimeFeatur
     const f=d.boqFeasibility??{},checks=array(f.activityChecks),rows=array(f.rows);
     const calculated=checks.filter((row:any)=>['fits','exceeds'].includes(row?.scheduleState)||typeof row?.requiredAveragePeople==='number').length;
     const boqCount=number(d.suppliedBoq?.itemCount)??array(d.suppliedBoq?.rows).length;
+    // F07: readable programme calendars come from the shared project status.
+    const calendarActivities=(inputs.calendar?inputs.calendar.calendarActivityCount:f.programmeChecks?.calendarActivityCount)??0;
     const prerequisites=[
       {key:'boq',label:'BOQ',established:boqCount>0,evidence:boqCount>0?String(boqCount)+' BOQ item(s) available.':'BOQ quantity scope not established.'},
       {key:'remaining_quantities',label:'Remaining quantities',established:rows.some((row:any)=>number(row?.remainingQuantity)!==null),evidence:'Dated installed quantity and contract quantity on the same BOQ item.'},
       {key:'activity_links',label:'Activity links',established:rows.some((row:any)=>typeof row?.activityId==='string'&&row.activityId.length>0),evidence:'Current-revision BOQ-to-activity link.'},
       {key:'productivity',label:'Productivity',established:rows.some((row:any)=>number(row?.laborHoursPerUnit)!==null),evidence:'Supported labour-hours-per-unit or same-scope measured productivity.'},
       // SW-46: the calendar and labour-hour evidence sentences state availability only when the data shows it.
-      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null)||(f.programmeChecks?.calendarActivityCount??0)>0,evidence:conditionalNotice((f.programmeChecks?.calendarActivityCount??0)>0,'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.',rows.some((row:any)=>number(row?.availableWorkingHours)!==null)?'Working time is available on linked BOQ items; readable programme calendars are not established.':'Readable programme calendars are not established; item-level working-time checks require them and BOQ activity links.')},
+      {key:'calendar_working_time',label:'Calendar / working time',established:rows.some((row:any)=>number(row?.availableWorkingHours)!==null)||calendarActivities>0,evidence:conditionalNotice(calendarActivities>0,'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.',rows.some((row:any)=>number(row?.availableWorkingHours)!==null)?'Working time is available on linked BOQ items; readable programme calendars are not established.':'Readable programme calendars are not established; item-level working-time checks require them and BOQ activity links.')},
       {key:'resource_basis',label:'Resource basis',established:rows.some((row:any)=>number(row?.submittedPeople)!==null)||number(f.programmeChecks?.remainingLaborHours)!==null,evidence:conditionalNotice(number(f.programmeChecks?.remainingLaborHours)!==null,'Submitted activity-linked labour hours are available; independent required headcount also needs quantity/productivity evidence.',rows.some((row:any)=>number(row?.submittedPeople)!==null)?'Submitted headcount is available on BOQ items; submitted activity-linked labour hours are not established.':'Submitted activity-linked labour hours and submitted headcount are not established.')},
     ];
     const prerequisiteComplete=prerequisites.every(row=>row.established);

@@ -317,6 +317,9 @@ export interface EventNoticeAssessment {
   noticeId: string | null;
   noticeIssuedAt: string | null;
   elapsedDays: number | null;
+  /** F27: the dated trigger the elapsed days are counted from (additive). */
+  elapsedFromIso?: string | null;
+  elapsedFromBasis?: 'awareness' | 'event_start' | null;
   timeliness: NoticeTimeliness;
   requirementState: GovernanceState | null;
   applicabilityNote?: string;

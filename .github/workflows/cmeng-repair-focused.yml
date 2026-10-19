@@ -37,6 +37,7 @@ jobs:
             dist/tests/r11-f10-one-owner-page-per-block.test.js \
             dist/tests/v1-f05-one-action-per-problem.test.js \
             dist/tests/v1-f01-page-figures-match-api.test.js \
+            dist/tests/v1-f07-shared-input-status.test.js \
             dist/tests/t09-action-assignment.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-module-issues-walk-parity.test.js \
@@ -187,6 +188,7 @@ jobs:
             dist/tests/y11-sw46-conditional-notices.test.js \
             dist/tests/w2-securities-shared-state.test.js \
             dist/tests/w3-commercial-headline-basis.test.js \
+            dist/tests/w3-commercial-round10.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \
             dist/tests/w1-f14-delivered-status-without-date.test.js \
             dist/tests/w1-f48-expired-permits-linked-to-work.test.js \
