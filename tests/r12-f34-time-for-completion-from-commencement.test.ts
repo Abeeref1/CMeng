@@ -264,3 +264,28 @@ test('F34 the Commencement Date stated in an Engineer\'s notice of commencement 
   await rm(root,{recursive:true,force:true});
  }
 });
+
+import {addStatedPeriod,completionFromStatedPeriod,readStatedPeriod,sectionTimeForCompletion,worksTimeForCompletion,type CommencementDatePosition} from '../packages/runtime-api/src/contract-time-reader';
+test('F34 shared period reader: counted from the Commencement Date, another event, working days and month ends',()=>{
+ assert.equal(readStatedPeriod('540 days from the Commencement Date.')!.anchor,'commencement');
+ assert.equal(readStatedPeriod('18 months')!.anchor,'unstated','a bare Time for Completion is counted from the Commencement Date');
+ assert.equal(readStatedPeriod('90 days after the Taking-Over of Section 1')!.anchor,'other');
+ assert.equal(readStatedPeriod('90 days (ninety) after the Taking-Over of Section 1')!.anchor,'other');
+ assert.equal(readStatedPeriod('The Contractor shall complete the Works'),null);
+ assert.deepEqual(addStatedPeriod('2026-01-31',{amount:1,unit:'months'}),{dateIso:'2026-02-28',monthEnd:true});
+ assert.deepEqual(addStatedPeriod(COMMENCEMENT,{amount:540,unit:'days'}),{dateIso:WORKS_COMPLETION,monthEnd:false});
+ const contract={sections:[{text:'Time for Completion: 540 days\nSection 1 Time for Completion: 12 months\nTime for Completion of Section 2: 200 days from the Commencement Date',startPage:3,sectionKey:'s'}],pdf:{pages:[]}};
+ assert.deepEqual(worksTimeForCompletion(contract,'D').map(p=>p.text),['540 days'],'a Section line is never read as the Works');
+ assert.deepEqual(sectionTimeForCompletion(contract,'1','D').map(p=>p.text),['12 months']);
+ assert.deepEqual(sectionTimeForCompletion(contract,'2','D').map(p=>p.text),['200 days from the Commencement Date']);
+ const stated:CommencementDatePosition={dateIso:COMMENCEMENT,state:'stated',sourceAnalytical:false,label:'Commencement '+COMMENCEMENT,reason:null,sourceRefs:[],candidates:[]};
+ const works=worksTimeForCompletion(contract,'D');
+ assert.equal(completionFromStatedPeriod('The Works',works,stated,null).dateIso,WORKS_COMPLETION);
+ const working=completionFromStatedPeriod('The Works',works,stated,'working');
+ assert.equal(working.dateIso,null,'a day defined as a working day is never counted as a calendar day');
+ assert.match(working.reason!,/defines a day as a working day/);
+ const month=completionFromStatedPeriod('Section 1',sectionTimeForCompletion(contract,'1','D'),{...stated,dateIso:'2026-01-31',label:'Commencement 2026-01-31'},null);
+ assert.equal(month.dateIso,'2027-01-31');assert.match(month.basis!,/12 calendar months \(same day of the month\)/);
+ const none=completionFromStatedPeriod('The Works',works,{...stated,dateIso:null,state:'missing',label:null,reason:'no Commencement Date is stated in the contract, an Engineer\'s notice of commencement or a user-confirmed decision'},null);
+ assert.equal(none.dateIso,null);assert.match(none.reason!,/no Commencement Date is stated/);
+});

@@ -88,6 +88,9 @@ export interface ProjectFactsSnapshot {
     extendedContractCompletionIso:ProjectFact<string>;
     /** F33: the one date lateness and delay damages are measured against. */
     governingContractCompletionIso?:ProjectFact<string>;
+    /** F34: the Works Time for Completion is stated as a period: the basis of the
+     * date (Commencement Date + the period) or the reason it stays unknown. */
+    completionPeriod?:{label:string|null;reason:string|null;commencementIso:string|null};
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
@@ -314,6 +317,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
   const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
+  // F34: the period basis applies only to the date every page reads (or to its absence).
+  const statedPeriod=contractTime?.contractualCompletionPeriod??null;
+  const completionPeriod=statedPeriod&&(statedPeriod.label?contractTime!.contractualCompletionIso===commercial.timeExposure.contractualCompletion.value:commercial.timeExposure.contractualCompletion.value===null)?statedPeriod:null;
   // An adjustment identical to the original completion is not an extension.
   // Some source amendments echo the original date while a separate dated EOT
   // award exists. Retain both facts and present the calendared comparison
@@ -428,7 +434,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
       {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
         criticality:{config,thresholdMethod:controlBasis.nearCriticalThresholdMethod,headlineFloatBasis:floatBasis},previousRevision}),
-    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
+    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,currentContractCompletion),
     schedule:{
       floatBasis,
       criticalityLabel:governedCriticality.floatLabel,
@@ -492,10 +498,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,
         // T04: every page, report and Ask answer reading this fact shows the label.
-        contractTime?.contractualCompletionSourceUse==='qualified_source_read'
+        (contractTime?.contractualCompletionSourceUse==='qualified_source_read'
           ?'Canonical contract-time position used by every consumer. '+(contractTime.contractualCompletionSourceNote??'Read from source; not formally adopted.')
-          :'Canonical contract-time position used by every consumer.',
+          :'Canonical contract-time position used by every consumer.')+
+        // F34: a date computed from the Commencement Date and a stated period states that basis; an unknown date states why.
+        (completionPeriod?.label?' Basis: '+completionPeriod.label+'.':completionPeriod?.reason?' '+completionPeriod.reason:''),
       ),
+      ...(completionPeriod?{completionPeriod}:{}),
       awardedEotDays:commercialFact(
         commercial.timeExposure.approvedEotDays,
         'Official awarded EOT through the project Data Date.',

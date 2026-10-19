@@ -444,6 +444,9 @@ export interface SectionLdTermInput {
   currency:string|null;capAmount:number|null;capPercent:number|null;
   contractCompletionIso:string|null;extendedCompletionIso:string|null;
   programmeCompletionIso:string|null;milestoneId:string|null;sourceRefs:string[];
+  /** F34: the section's governing date (contract + awarded EOT for the section;
+   * unknown while an award exists but the extended date is not established). */
+  governingCompletionIso?:string|null;
 }
 export interface SectionLdScenario extends SectionLdTermInput {
   contractualDueDateIso:string|null;
