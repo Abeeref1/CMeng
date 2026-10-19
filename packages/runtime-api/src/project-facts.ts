@@ -23,6 +23,7 @@ import {securityValidityReview} from './security-validity';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
+import {dateAdditionBasisLabel} from './commercial-sum-basis';
 import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
 import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
 import {contractTimeDatesFrom} from './contract-time-reader';
@@ -340,12 +341,17 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     ...completionCandidates.map(item=>item.sourceRef),
     ...(contractTime?.sourceRefs??[]),
   ])]:[];
+  // F27: the date addition states its records through the shared basis label.
+  // The days shown are the exact difference between the two dates used, so the
+  // label always matches the addition actually made.
+  const extensionBasis=(start:string|null|undefined,result:string|null|undefined,label:string)=>' '+dateAdditionBasisLabel({label,startIso:start,resultIso:result,asOf:dataDateIso});
   const presentedExtension=provisionalExtendedDate!==null
-    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.','from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
+    ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.'+extensionBasis(originalDate,provisionalExtendedDate,'original contract completion'),'from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
     :commercialFact(commercial.timeExposure.officialAdjustedCompletion,
-        commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
+        (commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')
           ?'Contract completion plus awarded EOT, using assumed calendar days; confirm the applicable day definition.'
-          :'Contract completion plus reconciled official awarded EOT.',true);
+          :'Contract completion plus reconciled official awarded EOT.')+
+        (commercial.timeExposure.officialAdjustedCompletion.value!==null?extensionBasis(commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,'contract completion'):''),true);
   // Never call a project late against the original date when an award exists
   // but the extended date cannot yet be calculated.
   const currentContractCompletion=contractTimeDatesFrom(commercial.timeExposure).governingCompletionIso;
