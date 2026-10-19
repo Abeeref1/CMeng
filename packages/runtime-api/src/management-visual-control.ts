@@ -227,8 +227,8 @@ export function managementVisualControl(
     // Quarantined source evidence is retained for audit but is not a governed
     // claim/event population. Keep its source row count visible while withholding
     // governed counts so presentation can never turn "under review" into zero.
-    sourceEventCount:claimPopulationQuarantined?null:claimsReporting?.events?.population?.sourceCount??null,
-    currentEventCount:claimPopulationQuarantined?null:claimsReporting?.events?.asOf?.length??(delay.contractorClaimEvidenceSubmitted===true?delay.eventCount??null:null),
+    sourceEventCount:claimPopulationQuarantined||claimsReporting?.eventPopulationState==='not_established'?null:claimsReporting?.events?.population?.sourceCount??null,
+    currentEventCount:claimPopulationQuarantined||claimsReporting?.eventPopulationState==='not_established'?null:claimsReporting?.events?.asOf?.length??(delay.contractorClaimEvidenceSubmitted===true?delay.eventCount??null:null),
     sourceClaimCount:claimPopulationQuarantined
       ? claimPopulationIntegrity?.sourceClaimCount??claimsSource?.readableRowCount??null
       : claimsReporting?.claims?.population?.sourceCount??null,

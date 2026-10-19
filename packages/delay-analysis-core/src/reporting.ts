@@ -1,5 +1,6 @@
 import { partitionAsOf, reportingScope } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, ClaimRegisterSnapshot, DelayClaimsModel } from './types';
+import { delayEventPopulation } from './event-population';
 
 export function reportedClaim(claim: CanonicalClaimRecord): ClaimRegisterSnapshot {
   return claim.sourceRegister ?? {
@@ -32,14 +33,19 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
   const earliest = (dates: Array<string | null | undefined>) => dates.filter((v): v is string=>!!v).sort()[0]??null;
   const notices = partitionAsOf(source.notices,{name:'Notices issued by Data Date',entity:'notice',dataDateIso,
     dateBasis:'actualIssuedAt',sourceRevisionId:source.evidenceRevisionId,id:r=>r.noticeId,date:r=>r.actualIssuedAt});
-  const events = partitionAsOf(source.events,{name:'Delay events evidenced by Data Date',entity:'delay_event',dataDateIso,
+  const eventPartition = (rows: DelayClaimsModel['events']) => partitionAsOf(rows,{name:'Delay events evidenced by Data Date',entity:'delay_event',dataDateIso,
     dateBasis:'event start; otherwise earliest linked actual notice (existence only)',sourceRevisionId:source.evidenceRevisionId,id:r=>r.eventId,
     date:r=>r.startIso??earliest(source.notices.filter(n=>n.eventId===r.eventId).map(n=>n.actualIssuedAt))});
+  // SW-15: the reported event population lists only events from an event source.
+  // Claim-cited event references stay on the current model for claim links only.
+  const eventPopulation = delayEventPopulation(source);
+  const allEvents = eventPartition(source.events);
+  const events = eventPartition(source.events.filter((_, index) => eventPopulation.fromEventSource[index]));
   const claims = partitionAsOf(source.claims,{name:'Claim identities evidenced by Data Date',entity:'claim',dataDateIso,
     dateBasis:'earliest submission or linked actual notice; not a determination date',sourceRevisionId:source.evidenceRevisionId,id:r=>r.claimId,
     date:r=>earliest([r.submittedAt,...source.notices.filter(n=>n.claimId===r.claimId&&n.kind!=='determination').map(n=>n.actualIssuedAt)])});
   const current: DelayClaimsModel = {...source,dataDateIso,
-    events:events.asOf.map(r=>({...r,endIso:reportingScope(r.endIso,dataDateIso)==='as_of'?r.endIso:null})),
+    events:allEvents.asOf.map(r=>({...r,endIso:reportingScope(r.endIso,dataDateIso)==='as_of'?r.endIso:null})),
     claims:claims.asOf.map(r=>({...r,sourceRegister:reportedClaim(r),submittedAt:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.submittedAt:null,
       state:reportingScope(r.submittedAt,dataDateIso)==='as_of'?'submitted':'unknown',
       claimedDays:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.claimedDays:null,
@@ -57,7 +63,7 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
     const determinations=rows.filter(n=>n.kind==='determination').length;
     return {claimNotices:rows.length-determinations,determinations};
   };
-  return {current,source,events,claims,notices,
+  return {current,source,events,eventPopulationState:eventPopulation.state,eventPopulationReason:eventPopulation.reason,claims,notices,
     noticeTypeCounts:{asOf:noticeCounts(notices.asOf),future:noticeCounts(notices.future),undated:noticeCounts(notices.undated)},
     reported:reportedClaimSummary(claims.asOf)};
 }
