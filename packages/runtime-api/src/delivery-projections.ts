@@ -43,6 +43,22 @@ const pct=(n:number|null,d:number|null)=>n===null||d===null||d<=0?null:round(n/d
 const difference=(a:number|null,b:number|null)=>a===null||b===null?null:round(a-b);
 const days=(later:string|null,earlier:string|null)=>later&&earlier?round((Date.parse(later.slice(0,10))-Date.parse(earlier.slice(0,10)))/86400000):null;
 const isOnDate=(d:string|null,cutoff:string|null):boolean=>!!d&&!!cutoff&&d<=cutoff;
+/** SW-42: every procurement package sits in exactly one linked-work group, so the groups always add up to the
+ * packages on the page. "Linked work complete" is the procurement close-out group. */
+export const PACKAGE_LINKED_WORK_GROUPS=[
+ ['unfinished_work','Linked work not finished'],['completed_work','Linked work complete'],
+ ['links_incomplete','Programme links need review'],['unlinked','No programme link'],
+] as const;
+const packageLinkedWorkLabel=(state:string)=>PACKAGE_LINKED_WORK_GROUPS.find(([key])=>key===state)?.[1]??'Programme links need review';
+export function packageLinkedWorkGroups(rows:ReadonlyArray<{recordId:string}>,packageById:ReadonlyMap<string,{linkedWorkState:string}>){
+ const pageRows=rows.filter(row=>packageById.has(row.recordId));
+ const groups=PACKAGE_LINKED_WORK_GROUPS.map(([key,label])=>{const members=pageRows.filter(row=>packageById.get(row.recordId)!.linkedWorkState===key);
+  return {key,label,count:members.length,recordIds:members.map(row=>row.recordId)};});
+ const closeout=groups.find(g=>g.key==='completed_work')!;const closeoutIds=new Set(closeout.recordIds);
+ return {total:pageRows.length,groupedTotal:groups.reduce((n,g)=>n+g.count,0),closeoutCount:closeout.count,groups,
+  closeoutRows:pageRows.filter(row=>closeoutIds.has(row.recordId)),
+  basis:'Every package on this page is counted once, in one group by its linked programme activities. Packages whose linked work is all complete stay listed and counted here for procurement close-out (delivery receipt, acceptance and register closure); they are not live programme blockers.'};
+}
 export const deliveryPopulationAuthority=(population:any,sourceCount:number|null,currentCount:number|null):PopulationAuthority=>{
  const established=population?.state==='established';
  const known=typeof population?.knownRecordCount==='number'?population.knownRecordCount:null;
@@ -166,7 +182,10 @@ function buildDelivery(state:ProjectRuntimeState){
  const procurementDateChoice=procurementDateBasis(state).choice;
  const packageRows=byKind('package').map(r=>{
   const linkedActivities=r.links.activityIds.map(id=>activities.get(id));
-  const registerCleanup=linkedActivities.length>0&&linkedActivities.every(a=>a?.status==='completed');
+  // SW-42: one shared linked-work rule (the same one RFIs and NCRs use). Completed linked work moves a package
+  // into the close-out group; it never removes the package from the page lists or counts.
+  const linkedWork=registerProgrammeContext(r.links.activityIds,activities);
+  const registerCleanup=linkedWork.state==='completed_work';
   const unfinishedDrivingLink=drivingIds&&linkedActivities.length&&linkedActivities.every(Boolean)?r.links.activityIds.some(id=>drivingIds.has(id)&&activities.get(id)?.status!=='completed'):null;
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
@@ -206,6 +225,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible','responsible party')||null,supplier:field(r,'supplier','vendor','manufacturer')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
    supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,registerCleanup,
+   linkedWorkState:linkedWork.state,linkedWorkGroup:packageLinkedWorkLabel(linkedWork.state),
    programmeNeedDate:assessedProgrammeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,forecastLate,deliveryTimingBasis:deliveryDateConflict?'Source completion status and delivery date conflict; review required':deliveredAtDataDate?'Dated actual delivery':deliveredStatusOnly?'Source reports delivered; actual date not provided':forecastLate||overdueUndelivered?'Open package with date exposure':'Open package; timing does not establish lateness',drivingPath:unfinishedDrivingLink,drivingBlockerScenario:!registerCleanup&&(forecastLate||overdueUndelivered)&&unfinishedDrivingLink,linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,linkedFloatActivityId:(()=>{const open=linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null);if(!open.length)return null;const low=Math.min(...open.map(a=>a!.totalFloatHours!));return open.find(a=>a!.totalFloatHours===low)?.activityId??null;})(),linkedFloatCalendarIds:[...new Set(linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.calendarId??null))],programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
    packageValue:numeric(r,'package value','amount','value'),currency:field(r,'currency')||null,readiness:readinessByRecord.get(r.recordId),receipts:r.receipts};
@@ -808,6 +828,10 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(programmeFallback.length){extras.programmeFallback=true;metrics=[metric('Programme tasks',programmeFallback.length,'activities',taskScope?.basis??'Programme activities with snag or punch list names'),metric('Programme marked complete',programmeFallback.filter(r=>r.status==='completed').length,'activities','Reported programme progress; formal acceptance remains separate')];managementPosition=programmeFallback.length+' programme tasks and their current dates. '+(taskScope?.basis??'Selected by snag or punch list names.')+' Verification and formal acceptance are not established by programme progress.';}
  if(reportedHse?.periodEndIso){extras.reportedHse=reportedHse;managementPosition='Reported HSE position through '+reportedHse.periodEndIso+'. '+reportedHse.scope+(reportedHse.review.required?' Rate reconciliation or the exposure basis requires review below.':reportedHse.rates.basisEstablished&&reportedHse.rates.recordablePopulationComplete&&!reportedHse.diagnostics.length?' The reported rates reconcile with the incident and exposure table.':' The original rates and their calculation qualifications are retained below.');}
  if(['delivery-control','procurement-packages','material-tracking','long-lead','construction-discipline','construction-locations','delivery-risks'].includes(key))extras.boqIntelligence=useBoqCandidates?boqScope:p.boqIntelligence;
+ if(!useBoqCandidates&&['delivery-control','procurement-packages','long-lead','material-tracking','procurement-readiness'].includes(key)){
+  const packageById=new Map(p.packageRows.map(r=>[r.recordId,r] as const));
+  if(rows.some(r=>packageById.has(r.recordId)))extras.packageLinkedWork=packageLinkedWorkGroups(rows,packageById);
+ }
  if(key==='long-lead')extras.scheduleLongLeadCandidates=p.scheduleLongLeadCandidates;
  if(['delivery-control','handover-readiness'].includes(key))extras.handover={...p.handover,rows:undefined};
  if(taskKind){extras.handoverSourceComparison=handoverSourceComparison(state);extras.programmeTaskScope=taskScope;}
