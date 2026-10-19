@@ -226,27 +226,30 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     // and references only for objects that can actually produce a finding.
     if(diagnostics.length||issueStates.has(value.state)||value.population?.exclusions?.length){
     const rawRefs=value.sourceRefs??value.basis?.sourceRefs??value.evidenceRefs;
-    const refs=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
+    // T11: references, raw field and heading are built only when this object
+    // actually produces a finding (most register rows with diagnostics do not).
+    let refsValue:string[]|undefined,fieldValue:string|undefined;
+    const refs=()=>refsValue??=(Array.isArray(rawRefs)?rawRefs:[]).filter((s:unknown)=>typeof s==='string') as string[];
     // Identity is the raw field name; the reader heading below is display only.
-    const rawField=path.replace(/\[\*\]/g,'').split('.').slice(-2).join('.')+(typeof value.topic==='string'?'|'+value.topic:'');
+    const rawField=()=>path.replace(/\[\*\]/g,'').split('.').slice(-2).join('.')+(typeof value.topic==='string'?'|'+value.topic:'');
     const firstFinding=issues.length;
     // T10: issue headings use the shared reader label for each path segment.
-    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segmentReaderLabel).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
+    const field=()=>fieldValue??=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segmentReaderLabel).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>s!=='SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'&&/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
     if(value.state==='conflicted'||conflict.length) {
-      add('source_conflict','SOURCE_CONFLICT',field+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
-        'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs);
+      add('source_conflict','SOURCE_CONFLICT',field()+' · source conflict',conflict.join('; ')||'The source resolver found conflicting assertions.',
+        'Reconcile the retained source records; do not replace them with a silent default.',path,'Project evidence owner',refs());
       if(typeof value.sourceFactKey==='string')issues.at(-1)!.sourceFactKey=value.sourceFactKey;
     }
-    else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
-      'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs);
-    else if(value.state!=='submitted_unparsed'&&value.applicability!=='stage_not_reached'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field+' · information missing',
-      value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs);
-    else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field+' · submitted evidence not interpreted',
+    else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field()+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
+      'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs());
+    else if(value.state!=='submitted_unparsed'&&value.applicability!=='stage_not_reached'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field()+' · information missing',
+      value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs());
+    else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field()+' · submitted evidence not interpreted',
       'A source exists, but CMeng has not established its structured meaning. Its presence is not proof of absence or bad data.',
-      'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs);
+      'CMeng must inspect the supported source format and parsing result; identify a concrete source error only if validation proves one.',path,'CMeng',refs());
     else if(['candidate','provisional','pending_review'].includes(value.state)&&!diagnostics.includes('EXPLICIT_SOURCE_SNAPSHOT_NOT_RECALCULATED_FROM_VARIATIONS')) {
       // An identified contract/register candidate can be used as *reported source*
       // without inventing a new management approval task. This does not promote
@@ -259,21 +262,21 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       // or required determination can enter the decision queue.
       // Missing or conflicted source evidence remains separately classified.
       if(explicitDecision)
-        add('governance_review','AUTHORITY_REVIEW',field+' · authority review',
+        add('governance_review','AUTHORITY_REVIEW',field()+' · authority review',
           value.consequence??'A management decision, selection or approval remains outstanding; the candidate is not an official approval.',
-          value.action||'Review the source basis and record the decision through the governed workflow.',path,'Project controls reviewer',refs);
+          value.action||'Review the source basis and record the decision through the governed workflow.',path,'Project controls reviewer',refs());
     }
     if(value.population?.exclusions) {
       const missing=value.population.exclusions.filter((e:any)=>/date_missing/.test(e.reason));
       const invalidDates=value.population.exclusions.filter((e:any)=>/^(record_)?date_invalid$|^invalid_date$/.test(e.reason));
-      if(missing.length)add('missing_information','EVENT_DATES_NOT_ESTABLISHED',field+' · event dates not established',
+      if(missing.length)add('missing_information','EVENT_DATES_NOT_ESTABLISHED',field()+' · event dates not established',
         missing.length+' retained record(s) lack an established '+value.population.dateBasis+' date and are excluded from current actuals.',
-        'Identify the actual event dates; a planned period cannot replace an actual event. Validate any supplied date before calling it invalid.',path+'.population','Project evidence owner',refs);
-      if(invalidDates.length)add('data_quality','INVALID_EVENT_DATES',field+' · invalid event dates',
+        'Identify the actual event dates; a planned period cannot replace an actual event. Validate any supplied date before calling it invalid.',path+'.population','Project evidence owner',refs());
+      if(invalidDates.length)add('data_quality','INVALID_EVENT_DATES',field()+' · invalid event dates',
         invalidDates.length+' retained record(s) contain a date that failed date validation.',
-        'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs);
+        'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs());
     }
-    for(let i=firstFinding;i<issues.length;i++)issues[i]!.field=rawField;
+    if(issues.length>firstFinding){const raw=rawField();for(let i=firstFinding;i<issues.length;i++)issues[i]!.field=raw;}
     }
     for(const key of Object.keys(value)) {
       const child=value[key];

@@ -97,5 +97,5 @@ test('T11 thousands of identical findings combine into the same request as the r
   assert.equal(JSON.stringify(actual),JSON.stringify(expected));
   assert.equal(actual.issues.length,2);
   assert.equal(actual.issues[0]!.sourceRefs.length,3000,'every source row is kept on the one request');
-  assert.equal(actual.issues[1]!.members!.length,40,'every distinct original identity is kept as a member');
+  assert.equal(actual.issues[1]!.members!.length,280,'every distinct original identity (7 module keys x 40 paths) is kept as a member');
 });

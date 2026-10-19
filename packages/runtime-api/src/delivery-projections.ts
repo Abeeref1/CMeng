@@ -682,14 +682,26 @@ function buildDelivery(state:ProjectRuntimeState){
   const reviewBasis=!lastReviewedIso&&!risk.nextReviewIso?'Last reviewed date not stated':!reviewDueIso?'Review interval not stated; staleness not established':!dataDateIso?'Data Date missing; staleness not established':(reviewStale?'Review overdue: next review '+reviewDueIso+' is before the Data Date':'Review current: next review '+reviewDueIso)+(risk.nextReviewIso?' (stated next review)':' (last reviewed '+lastReviewedIso+' plus the stated '+interval+' days)');
   return {lastReviewedIso,reviewIntervalDays:interval,reviewDueIso,reviewStale,reviewBasis};
  };
+ // T11: one lookup per risk instead of scanning every score row (three times)
+ // and every package row for each risk. find() returned the first score row
+ // of a risk id; a risk with no linked record has no linked long-lead package;
+ // a score's rank is the first sorted position holding the same score.
+ const scoreRowByRisk=new Map<unknown,(typeof operations.risk.validation.scoreRows)[number]>();
+ if(operations.risk.sourceRows.length)for(const row of operations.risk.validation.scoreRows)if(!scoreRowByRisk.has(row.riskId))scoreRowByRisk.set(row.riskId,row);
+ const firstScorePositions=new WeakMap<object,Map<unknown,number>>();
+ const firstScorePosition=(all:ReadonlyArray<{row:{score:unknown}}>,score:unknown)=>{
+  let positions=firstScorePositions.get(all);
+  if(!positions){positions=new Map();for(const [i,entry] of all.entries()){const value=entry.row.score;if(value===value&&!positions.has(value))positions.set(value,i);}firstScorePositions.set(all,positions);}
+  return positions.get(score)??-1;
+ };
  const riskSourceRows=operations.risk.sourceRows.map(sourceRisk=>{const risk=currentRisks.get(sourceRisk.riskId)??sourceRisk;const linked=recordsByRisk.get(risk.riskId)??[];const linkedActivities=[...new Set([...(risk.linkedActivityId?[risk.linkedActivityId]:[]),...linked.flatMap(r=>r.links.activityIds)])].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);return {...risk,reportingScope:currentRisks.has(risk.riskId)?'At reporting date':futureRiskIds.has(risk.riskId)?'After reporting date':'Reporting date missing',
   description:risk.subject??null,categories:[...new Set([risk.category,...linked.map(r=>r.kind==='package'?'procurement':r.kind==='workfront'?'construction':r.kind)].filter(Boolean))],
-  deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId),
+  deliveryRecordIds:linked.map(r=>r.recordId),longLeadPackageIds:linked.length?packageRows.filter(p=>p.longLeadCandidate&&linked.some(r=>r.recordId===p.recordId)).map(p=>p.recordId):[],
   programmeExposure:linkedActivities.map(a=>({activityId:a.activityId,currentStartIso:a.currentStartIso,currentFinishIso:a.currentFinishIso,criticality:model?sourceFloatCriticality(model,a,config):'unknown',totalFloatHours:a.totalFloatHours})),
-  probability:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.probability??null,impact:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.impact??null,score:operations.risk.validation.scoreRows.find(s=>s.riskId===risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis,...riskReview(risk)};})
+  probability:scoreRowByRisk.get(risk.riskId)?.probability??null,impact:scoreRowByRisk.get(risk.riskId)?.impact??null,score:scoreRowByRisk.get(risk.riskId)?.score??null,scoreBasis:operations.risk.validation.scoreBasis,...riskReview(risk)};})
   // F15: ranked by the register score, highest first; risks without a score follow in source order.
   .map((row,index)=>({row,index})).sort((a,b)=>(a.row.score===null)!==(b.row.score===null)?Number(a.row.score===null)-Number(b.row.score===null):a.row.score!==null&&b.row.score!==null&&a.row.score!==b.row.score?b.row.score-a.row.score:a.index-b.index)
-  .map(({row},index,all)=>({...row,scoreRank:row.score===null?null:all.findIndex(entry=>entry.row.score===row.score)+1}));
+  .map(({row},index,all)=>({...row,scoreRank:row.score===null?null:firstScorePosition(all,row.score)+1}));
  const riskRows=riskSourceRows.filter(r=>r.reportingScope==='At reporting date');
  const evidenceMetrics=Object.fromEntries(['quality','commissioning','snag','handover','design','submittal'].map(kind=>[kind,deliveryEvidenceMetrics(byKind(kind as DeliveryKind),dataDateIso)]));
  const commissioningRows=registerRows.filter(r=>r.kind==='commissioning').map(r=>({...r,system:field(byId.get(r.recordId)!,'system')||null,subsystem:field(byId.get(r.recordId)!,'subsystem')||null,plannedDate:date(byId.get(r.recordId)!,'planned date'),forecastDate:date(byId.get(r.recordId)!,'forecast date'),readiness:gatesFor(byId.get(r.recordId)!)}));
