@@ -45,7 +45,6 @@ payment-component-reconciliation
 ui-management-experience
 universal-reporting-contract
 t05-same-measure-every-page
-f61-management-page-weight
 f61-adversarial-list-paging
 batch-g-commercial
 hour-one-shared
