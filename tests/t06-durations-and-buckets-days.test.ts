@@ -108,3 +108,76 @@ test('T06 an activity near-critical limit in hours carries working days of its o
   assert.equal(out.rows[0].nearCriticalThresholdHours,80,'hours kept');
   assert.equal(out.rows[1].nearCriticalThresholdWorkingDays,null,'unread calendar stays unknown');
 });
+
+// ---- Round 3: durations, float shift between revisions, variance-trend float points ----
+function revisionModel(revisionId:string,dayHours:number|null,floats:Record<string,number>,status:Record<string,string>={}){
+  const m=model(()=>'CAL',floats);
+  m.sourceRevisionId=revisionId;
+  for(const a of m.activities)a.status=status[a.activityId]??'in_progress';
+  m.calendars=dayHours===null?[{calendarId:'CAL',semanticComplete:false,standardDayHours:8,sourceRefs:[]}]
+    :[{calendarId:'CAL',semanticComplete:true,standardDayHours:dayHours,sourceRefs:[]},{calendarId:'CAL',semanticComplete:true,standardDayHours:24,sourceRefs:[]}];
+  return {revisionId,label:revisionId,sequence:revisionId==='R1'?1:2,effectiveAt:revisionId==='R1'?'2031-01-01':'2031-02-01',model:m};
+}
+
+test('T06 activity durations in hours carry working days of the activity calendar, completed included; unknown stays unknown',async()=>{
+  const {attachFloatWorkingDays}=await import('../packages/runtime-api/src/activity-float-reconciliation');
+  const m=model(id=>id==='B2'?'UNREAD':'C8');m.activities[1].status='completed';
+  const body={rows:[{activityId:'A1',originalDurationHours:80,remainingDurationHours:40},{activityId:'A2',originalDurationHours:24,remainingDurationHours:0},
+    {activityId:'B2',remainingDurationHours:16},{activityId:'ZZ',remainingDurationHours:16},{activityId:'A1',remainingDurationHours:8,remainingDurationWorkingDays:7}]};
+  const before=JSON.stringify(body);
+  const out=attachFloatWorkingDays(body,m) as any;
+  assert.equal(JSON.stringify(body),before,'input not mutated');
+  assert.equal(out.rows[0].originalDurationWorkingDays,10);assert.equal(out.rows[0].remainingDurationWorkingDays,5);
+  assert.equal(out.rows[0].originalDurationHours,80,'hours kept');
+  assert.equal(out.rows[0].durationDaysBasis,'source_activity_calendar');
+  assert.equal(out.rows[1].originalDurationWorkingDays,3,'a completed activity duration is still a source fact (24 h on its first 8 h calendar)');
+  assert.equal(out.rows[1].remainingDurationWorkingDays,0,'zero stays zero');
+  assert.equal(out.rows[2].remainingDurationWorkingDays,null,'unread calendar never becomes an 8-hour day');
+  assert.equal(out.rows[2].durationDaysBasis,'calendar_working_day_not_established');
+  assert.equal(out.rows[3].remainingDurationWorkingDays,undefined,'unknown activity gets no invented day');
+  assert.equal(out.rows[4].remainingDurationWorkingDays,7,'existing day value never overwritten');
+});
+
+test('T06 revision float shift converts each side with its own revision calendar',async()=>{
+  const {buildScheduleChangeReportProjection}=await import('../packages/schedule-change-report/src');
+  // R1 calendar 8 h/day, R2 calendar 12 h/day: A1 float 16 h (2 d) -> 36 h (3 d) = +1 working day although +20 h.
+  const from=revisionModel('R1',8,{A1:16,A2:24,B1:24,B2:48}),to=revisionModel('R2',12,{A1:36,A2:24,B1:0,B2:24},{B2:'completed'});
+  const out=buildScheduleChangeReportProjection(from as any,to as any,{generatedAt:'2031-02-01',producerVersion:'t'}) as any;
+  const row=(id:string)=>out.changedActivities.find((r:any)=>r.activityId===id);
+  assert.equal(row('A1').floatShiftHours,20,'hours unchanged');
+  assert.equal(row('A1').floatShiftWorkingDays,1,'3 working days (R2) minus 2 working days (R1), not 20/8 or 20/12');
+  assert.equal(row('A1').floatShiftDaysBasis,'each_revision_activity_calendar');
+  assert.equal(row('B1').floatShiftWorkingDays,-3);
+  assert.equal(row('B2').floatShiftWorkingDays,null,'completed work has no live float in days');
+  assert.equal(row('B2').floatShiftDaysBasis,'not_applicable_completed');
+  const moved=out.changeSummary.largestFloatMovements.find((r:any)=>r.activityId==='A1');
+  assert.equal(moved.floatShiftWorkingDays,1);
+  const unread=buildScheduleChangeReportProjection(revisionModel('R1',null,{A1:16,A2:24,B1:24,B2:48}) as any,to as any,{generatedAt:'2031-02-01',producerVersion:'t'}) as any;
+  const a1=unread.changedActivities.find((r:any)=>r.activityId==='A1');
+  assert.equal(a1.floatShiftHours,20);
+  assert.equal(a1.floatShiftWorkingDays,null,'unread previous calendar never becomes an 8-hour day');
+  assert.equal(a1.floatShiftDaysBasis,'calendar_working_day_not_established');
+});
+
+test('T06 variance-trend activity float points carry working days of each revision calendar',async()=>{
+  const {buildVarianceTrendsProjection}=await import('../packages/variance-trends/src');
+  const out=buildVarianceTrendsProjection([revisionModel('R1',8,{A1:16,A2:24,B1:24,B2:48}),revisionModel('R2',12,{A1:36,A2:24,B1:0,B2:24},{B2:'completed'})] as any,
+    {generatedAt:'2031-02-01',producerVersion:'t'}) as any;
+  const points=(id:string)=>out.activityTrends.find((t:any)=>t.activityId===id).points;
+  assert.deepEqual(points('A1').map((p:any)=>[p.revisionId,p.totalFloatHours,p.totalFloatWorkingDays]),[['R1',16,2],['R2',36,3]]);
+  const b2=points('B2').find((p:any)=>p.revisionId==='R2');
+  assert.equal(b2.totalFloatHours,24,'hours unchanged');assert.equal(b2.totalFloatWorkingDays,null);assert.equal(b2.floatDaysBasis,'not_applicable_completed');
+});
+
+test('T06 screens: remaining duration and revision float shift in working days; stale subtitle gone',()=>{
+  const html=cmengUatHtml();
+  assert.ok(!html.includes('fmt(row.remainingDurationHours)+" h"'),'remaining duration in hours only remains');
+  assert.ok(html.includes('sourceWorkingDuration(row,"remainingDurationHours")'));
+  assert.ok(!html.includes('planningSignedBars(floatMoves,"hours lost")'),'float movement bars in hours only remain');
+  assert.ok(html.includes('" working days (each revision\'s calendar) · "'),'float shift row shows each revision working days');
+  assert.ok(!html.includes('remain visible without calendar conversion'),'stale subtitle remains');
+  const start=html.indexOf('function sourceWorkingDuration('),end=html.indexOf('\nfunction ',start+10);
+  const sourceWorkingDuration=new Function('fmt','return '+html.slice(start,end))(String);
+  assert.equal(sourceWorkingDuration({remainingDurationHours:40,remainingDurationWorkingDays:5},'remainingDurationHours'),'5 working days · 40 original h');
+  assert.equal(sourceWorkingDuration({remainingDurationHours:40,remainingDurationWorkingDays:null},'remainingDurationHours'),'Working-day basis not established · 40 original h');
+});

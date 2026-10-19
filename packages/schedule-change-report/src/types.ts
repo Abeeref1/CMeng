@@ -10,6 +10,8 @@ export interface ScheduleChangeActivityRow {
   changeKind: "added" | "removed" | "modified";
   finishShiftDays: number | null;
   floatShiftHours: number | null;
+  floatShiftWorkingDays?: number | null;
+  floatShiftDaysBasis?: string | null;
   progressShiftPercent: number | null;
   fieldChanges: ActivityFieldChange[];
 }
@@ -36,7 +38,7 @@ export interface ScheduleChangeReportProjection {
   changeSummary?: {
     total:number;
     dominantFinishMovement:{days:number;count:number}|null;
-    largestFloatMovements:Array<{activityId:string;floatShiftHours:number}>;
+    largestFloatMovements:Array<{activityId:string;floatShiftHours:number;floatShiftWorkingDays?:number|null;floatShiftDaysBasis?:string|null}>;
   };
   executionModifiedActivityCount?: number; excludedModifiedActivityCount?: number;
   populationBasis?: "source_records";

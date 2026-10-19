@@ -1,5 +1,5 @@
 import {classifyScheduleChanges} from "../../schedule-revision-core/src";
-import { isExecutionActivity,parseScheduleTime,analyzeSchedule } from "../../schedule-analysis-core/src";
+import { isExecutionActivity,parseScheduleTime,analyzeSchedule,calendarWorkingDayHours,type CanonicalScheduleModel } from "../../schedule-analysis-core/src";
 import {scheduleActivityFinish} from '../../schedule-revision-core/src/compare';
 import {dateValue,populationContract} from '../../truth-kernel/src';
 import {
@@ -10,6 +10,18 @@ import {
 import type {
   ScheduleChangeReportProjection,
 } from "./types";
+
+/** T06: working-day length of one revision's source calendar (first source
+ * calendar ID wins, as in the shared float rule); unknown stays null. */
+function revisionDayHours(model:CanonicalScheduleModel){
+  const first=new Map<string,CanonicalScheduleModel['calendars'][number]>();
+  for(const calendar of model.calendars)if(!first.has(calendar.calendarId))first.set(calendar.calendarId,calendar);
+  const memo=new Map<string|null,number|null>();
+  return (id:string|null)=>{
+    if(!memo.has(id))memo.set(id,calendarWorkingDayHours(id===null?null:first.get(id)??null));
+    return memo.get(id)!;
+  };
+}
 
 export function buildScheduleChangeReportProjection(
   from: ScheduleRevision,
@@ -44,6 +56,19 @@ export function buildScheduleChangeReportProjection(
     maximumDays,maximumCount:maximumDays===null?null:maximumRows.length,maximumPercent:finishRows.length?maximumRows.length/finishRows.length*100:null,
     sourcePairVerifiedCount:maximumRows.filter(r=>Math.abs((parseScheduleTime(r.toFinishIso)-parseScheduleTime(r.fromFinishIso))/86_400_000-r.movementDays)<0.000001).length,maximumRows,causation:'not_established' as const};
 
+  // T06: float shift in working days converts each side with its own
+  // revision's calendar; days only when both sides are known and live.
+  const fromDayHours=revisionDayHours(from.model),toDayHours=revisionDayHours(to.model);
+  const floatShiftDays=(change:(typeof comparison.activityChanges)[number])=>{
+    if(change.floatShiftHours===null)return {floatShiftWorkingDays:null,floatShiftDaysBasis:null};
+    const a=before.get(change.fromActivityId??''),b=after.get(change.toActivityId??'');
+    if(!a||!b)return {floatShiftWorkingDays:null,floatShiftDaysBasis:'calendar_working_day_not_established'};
+    if(a.status==='completed'||b.status==='completed')return {floatShiftWorkingDays:null,floatShiftDaysBasis:'not_applicable_completed'};
+    const fromHours=fromDayHours(a.calendarId),toHours=toDayHours(b.calendarId);
+    if(fromHours===null||toHours===null||!(fromHours>0)||!(toHours>0)||typeof a.totalFloatHours!=='number'||typeof b.totalFloatHours!=='number')
+      return {floatShiftWorkingDays:null,floatShiftDaysBasis:'calendar_working_day_not_established'};
+    return {floatShiftWorkingDays:Number((b.totalFloatHours/toHours-a.totalFloatHours/fromHours).toFixed(6)),floatShiftDaysBasis:'each_revision_activity_calendar'};
+  };
   const changedActivities =
     comparison.activityChanges
       .filter(
@@ -62,6 +87,7 @@ export function buildScheduleChangeReportProjection(
           change.finishShiftDays,
         floatShiftHours:
           change.floatShiftHours,
+        ...floatShiftDays(change),
         progressShiftPercent:
           change.progressShiftPercent,
         fieldChanges: [
@@ -80,7 +106,7 @@ export function buildScheduleChangeReportProjection(
     dominantFinishMovement:dominant?{days:dominant[0],count:dominant[1]}:null,
     largestFloatMovements:changedActivities.filter(row=>row.floatShiftHours!==null&&row.floatShiftHours!==0)
       .sort((a,b)=>Math.abs(b.floatShiftHours!)-Math.abs(a.floatShiftHours!)).slice(0,15)
-      .map(row=>({activityId:row.activityId,floatShiftHours:row.floatShiftHours!}))};
+      .map(row=>({activityId:row.activityId,floatShiftHours:row.floatShiftHours!,floatShiftWorkingDays:row.floatShiftWorkingDays,floatShiftDaysBasis:row.floatShiftDaysBasis}))};
   changedActivities.sort((a,b)=>Math.abs(b.finishShiftDays??0)-Math.abs(a.finishShiftDays??0));
 
   // Keep returned module evidence independently owned: a later page must not

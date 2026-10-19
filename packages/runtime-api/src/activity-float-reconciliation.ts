@@ -171,6 +171,10 @@ const CURRENT_FLOAT_FIELDS=['totalFloatHours','submittedTotalFloatHours','indepe
  // An activity's own near-critical limit in hours converts with the same calendar.
  'nearCriticalThresholdHours'] as const;
 const GROUP_FLOAT_FIELDS=[['lowestFloatHours','lowestFloatCalendarIds'],['worstFloatHours','worstFloatCalendarIds'],['linkedFloatHours','linkedFloatCalendarIds']] as const;
+// T06/N7: activity durations in hours carry working days of the same activity
+// calendar. A duration is a source fact for completed work too, so it is
+// converted whatever the status; unknown calendar stays null with its basis.
+const DURATION_FIELDS=['originalDurationHours','remainingDurationHours'] as const;
 const daysKey=(field:string)=>field.replace(/Hours$/,'WorkingDays');
 /** Returns a copy with working-day float beside every current float in hours
  * that is tied to a source activity. Hours are kept; existing day values are
@@ -217,6 +221,16 @@ export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|nu
     set(daysKey(field),floatHoursToWorkingDays(hours,own.dayHours));converted=true;
    }
    if(converted&&!('floatDaysBasis' in value))set('floatDaysBasis',own.basis);
+   const durationActivity=activityById.get(value.activityId)!;
+   const durationDayHours=workingDayHours(durationActivity.calendarId);
+   let durationConverted=false;
+   for(const field of DURATION_FIELDS){
+    const hours=value[field];
+    if(typeof hours!=='number'||!Number.isFinite(hours)||daysKey(field) in value)continue;
+    set(daysKey(field),floatHoursToWorkingDays(hours,durationDayHours));durationConverted=true;
+   }
+   if(durationConverted&&!('durationDaysBasis' in value))
+    set('durationDaysBasis',durationDayHours===null?'calendar_working_day_not_established':'source_activity_calendar');
   }
   // A group value converts only when every float-bearing member activity uses
   // one working-day length; otherwise hours stay with an explicit basis.
