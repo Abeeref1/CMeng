@@ -48,7 +48,13 @@ export function activityRegisterView(data:any){
   pressureCounts[band<0?3:band]![column]!++;
  }
  const pressureMatrix={counts:pressureCounts,unfinishedCount:execution.filter((r:any)=>r.status!=='completed').length,completedCount:statusCounts.completed,excludedCount:all.length-execution.length};
+ // T05/N1: the Activity Review "largest finish movements" chart ranks the full
+ // population here; the browser only receives a 25-row preview of the rows.
+ // Same rule as the screen used: numeric finish variance, largest first, source order on ties.
+ const largestFinishMovements=all.filter((r:any)=>typeof r.finishVarianceDays==='number')
+   .sort((a:any,b:any)=>b.finishVarianceDays-a.finishVarianceDays).slice(0,5)
+   .map((r:any)=>({activityId:r.activityId,name:r.name??null,finishVarianceDays:r.finishVarianceDays}));
  return {...data,rows:activityRegisterPage(all,new URLSearchParams('pageSize=50')).rows,
-  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,statusCounts,criticalityCounts,openLogicCount,filterOptions,pressureMatrix},
+  analysisRows:all.map((r:any)=>Object.fromEntries(keys.map(k=>[k,r[k]]))),activitySummary:{sourceRecordCount:all.length,executionCount:execution.length,statusCounts,criticalityCounts,openLogicCount,filterOptions,pressureMatrix,largestFinishMovements},
   ...(data.scopeClassification?{scopeClassification:{...data.scopeClassification,rows:undefined}}:{})};
 }

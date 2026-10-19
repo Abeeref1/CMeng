@@ -116,6 +116,7 @@ jobs:
             dist/tests/t02-register-reading-truth.test.js \
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
+            dist/tests/t05-remaining-true-totals.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs

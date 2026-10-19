@@ -25,6 +25,15 @@ function updateActionIndicator(){
  }
  const navCount=el('projectActionNavCount');if(navCount)navCount.textContent=ready?String(projectActionState.data.userDecisionCount??projectActionState.data.actionCount):'…';
 }
+// T05/N1: lists inside each action (findings, evidence, recorded locations,
+// affected pages) are cut to 25 by the transport. Count the retained total.
+function actionListTotal(list){
+ if(!Array.isArray(list))return null;
+ const own=typeof responseListTotalIn==='function'?responseListTotalIn(typeof projectActionState==='undefined'?null:projectActionState?.data,list):list.length;
+ if(own===null||own!==list.length)return own;
+ const current=typeof listTotal==='function'?listTotal(list):own;return current===null?null:Math.max(current,own);
+}
+function actionShownOf(list,noun){const total=actionListTotal(list);return total===list.length?fmt(total)+' '+noun:fmt(list.length)+' of '+(total===null?'Not established':fmt(total))+' '+noun;}
 function resetProjectActions(){projectActionRequest++;projectActionState=null;projectActionSearch='';projectActionFilter='all';projectActionPage=0;projectDataGapsPage=0;updateActionIndicator();}
 async function loadProjectActions(){
  if(!overview)return;
@@ -59,7 +68,8 @@ function renderActionFindings(a,expanded=false){
  const unique=new Map();
  for(const i of a.findings||[]){const r=projectReviewFinding(i),key=r.title+'|'+r.detail;const group=unique.get(key)||{r,modules:new Set(),refs:new Set()};for(const mod of i.moduleKeys??[])group.modules.add(mod);for(const ref of i.sourceRefs??[])group.refs.add(ref);unique.set(key,group);}
  const rows=[...unique.values()].map(({r,modules,refs})=>'<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title)+'</summary><p>'+escapeHtml(r.detail)+'</p><p><b>Review owner:</b> '+escapeHtml(r.owner)+'</p><p>Relevant pages: '+escapeHtml([...modules].map(k=>(typeof names==='object'&&names[k])||k.replace(/-/g,' ')).join(', '))+'</p>'+(refs.size?'<p>'+fmt(refs.size)+' source references retained for audit and the full records.</p>':'')+'</details>').join('');
- return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+rows;
+ const cut=Array.isArray(a.findings)&&a.findings.length&&actionListTotal(a.findings)!==a.findings.length?'<p>'+actionShownOf(a.findings,'findings')+' are listed here. The full list is in the action export.</p>':'';
+ return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+cut+rows;
 }
 function reviewFindingPreview(a){
  if(!a.findings?.length||a.evidenceSummary?.length)return '';
@@ -67,12 +77,12 @@ function reviewFindingPreview(a){
  for(const i of a.findings){const r=projectReviewFinding(i);if(!groups.has(r.title))groups.set(r.title,r);}
  const rows=[...groups.values()];
  return '<section class="review-evidence"><b>What CMeng found in the documents already provided</b><ol>'+rows.slice(0,3).map(r=>'<li><strong>'+escapeHtml(r.title)+'</strong><p>'+escapeHtml(r.detail)+'</p></li>').join('')+'</ol>'+
-   (rows.length>3?'<small>'+fmt(rows.length-3)+' more distinct findings are in supporting information.</small>':'')+'</section>';
+   (actionListTotal(a.findings)!==a.findings.length?'<small>'+actionShownOf(a.findings,'findings')+' received here; the full list is in supporting information and the action export.</small>':rows.length>3?'<small>'+fmt(rows.length-3)+' more distinct findings are in supporting information.</small>':'')+'</section>';
 }
 function reviewEvidenceHtml(a){
  if(!a.evidenceSummary?.length)return '';
  const rows=a.evidenceSummary.slice(0,3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('');
- const rest=a.evidenceSummary.length>3?'<details><summary>See all '+fmt(a.evidenceSummary.length)+' findings</summary><ol>'+a.evidenceSummary.slice(3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('')+'</ol></details>':'';
+ const rest=a.evidenceSummary.length>3?'<details><summary>'+(actionListTotal(a.evidenceSummary)===a.evidenceSummary.length?'See all '+fmt(a.evidenceSummary.length)+' findings':'See '+actionShownOf(a.evidenceSummary,'findings'))+'</summary><ol>'+a.evidenceSummary.slice(3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('')+'</ol></details>':'';
  return '<section class="review-evidence"><b>What CMeng found in the documents already provided</b><ol>'+rows+'</ol>'+rest+'</section>';
 }
 function programmePurposeOptions(current='update'){
@@ -146,10 +156,10 @@ function renderProjectActionList(){
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
-   (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>Open all '+fmt(a.correctionRecords.length)+' recorded locations</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
+   (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>'+(actionListTotal(a.correctionRecords)===a.correctionRecords.length?'Open all '+fmt(a.correctionRecords.length)+' recorded locations':'Open '+actionShownOf(a.correctionRecords,'recorded locations'))+'</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information||a.target?.kind?.startsWith('review-')?actionResolutionHtml(a):'')+
    ((a.completionPosition||a.findings?.length)?'<details class="review-inline"'+(a.resolution?.kind==='upload'||information&&a.completionPosition?' open':'')+'><summary>'+(a.resolution?.kind==='upload'?'Findings, owners and affected pages':'Supporting information')+'</summary>'+renderActionFindings(a,a.resolution?.kind==='upload')+'</details>':'')+
-   (a.affectedPages?.length?'<small>Affects '+fmt(a.affectedPages.length)+' view'+(a.affectedPages.length===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';
+   (a.affectedPages?.length?'<small>Affects '+screenCountText(actionListTotal(a.affectedPages))+' view'+(actionListTotal(a.affectedPages)===1?'':'s')+' · supporting findings retained</small>':'')+'</article>';
  };
  return '<div class="action-summary"><b>'+fmt(decisionCount)+' decision'+(decisionCount===1?' needs':'s need')+' your review</b><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh</button><button class="btn small" data-action-close>Close</button></div><p>Confirm source decisions that require your authority. Other project-team work is under Accountability. <button class="btn small" data-action-module="cross-domain-accountability">Open Accountability</button></p><div class="action-filters"><input class="project-action-search" aria-label="Find an action" placeholder="Find an action or document" value="'+escapeHtml(projectActionSearch)+'"><select class="project-action-filter" aria-label="Action type">'+[['all','All decisions'],['confirmation','Confirm / choose'],['review','Source review']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><div class="project-action-list">'+pageRows.map(a=>article(a,false)).join('')+'</div>'+(total>perPage?'<p><button class="btn small" data-action-page="-1" '+(projectActionPage===0?'disabled':'')+'>Previous</button> '+fmt(projectActionPage*perPage+1)+'–'+fmt(Math.min((projectActionPage+1)*perPage,total))+' of '+fmt(total)+' <button class="btn small" data-action-page="1" '+((projectActionPage+1)*perPage>=total?'disabled':'')+'>Next</button></p>':'')+(!filtered.length?'<p>'+(items.length?'No actions match this filter.':'No decisions or source confirmations await your response.')+'</p>':'')+((data.dataGapsTotalCount??data.information?.length)>0?'<details class="review-inline"><summary>Data gaps and recorded decisions · '+screenCountText(data.dataGapsTotalCount??listTotal(data.information))+'</summary><p>Review missing source fields and saved reporting decisions here. Available source figures remain visible.</p>'+(data.information||[]).map(a=>article(a,true)).join('')+(data.dataGapsTotalCount>perPage?'<p><button class="btn small" data-gap-page="-1" '+(projectDataGapsPage===0?'disabled':'')+'>Previous gaps</button> '+fmt(projectDataGapsPage*perPage+1)+'–'+fmt(Math.min((projectDataGapsPage+1)*perPage,data.dataGapsTotalCount))+' of '+fmt(data.dataGapsTotalCount)+' <button class="btn small" data-gap-page="1" '+((projectDataGapsPage+1)*perPage>=data.dataGapsTotalCount?'disabled':'')+'>More gaps</button></p>':'')+'</details>':'')+(comparisonInformation.length?'<details class="review-inline"><summary>Additional information · programme calculation qualifications</summary>'+comparisonInformation.map(a=>article(a,true)).join('')+'</details>':'');
 }
