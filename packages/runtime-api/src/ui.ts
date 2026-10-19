@@ -1858,11 +1858,12 @@ function renderDelayClaimsVisual(data){
   const quarantined=chain?.populationState==="quarantined"||integrity?.state==="quarantined";
   const sourcePopulationEstablished=chain?chain.populationState==="established":(p.contractorClaimEvidenceSubmitted===true&&!quarantined);
   const reporting=data?.claimsReporting||null,withheld=quarantined?"Withheld — source population quarantined":"Not established";
-  const sourceEventCount=sourcePopulationEstablished?(reporting?.events?.population?.sourceCount??(Array.isArray(reporting?.events?.source)?reporting.events.source.length:null)??p.eventCount??null):null;
-  const currentEventCount=sourcePopulationEstablished?(reporting?.events?claimsReportingScopeCount(reporting.events,'asOf'):p.eventCount??null):null;
-  const futureEventCount=sourcePopulationEstablished?claimsReportingScopeCount(reporting?.events,'future'):null;
-  const undatedEventCount=sourcePopulationEstablished?claimsReportingScopeCount(reporting?.events,'undated'):null;
-  const eventDateMissingCount=sourcePopulationEstablished?(data?.projectFacts?.claims?.eventDateMissingCount?.value??null):null;
+  const eventPopulationEstablished=sourcePopulationEstablished&&p.eventPopulationState!=="not_established";
+  const sourceEventCount=eventPopulationEstablished?(reporting?.events?.population?.sourceCount??(Array.isArray(reporting?.events?.source)?reporting.events.source.length:null)??p.eventCount??null):null;
+  const currentEventCount=eventPopulationEstablished?(reporting?.events?claimsReportingScopeCount(reporting.events,'asOf'):p.eventCount??null):null;
+  const futureEventCount=eventPopulationEstablished?claimsReportingScopeCount(reporting?.events,'future'):null;
+  const undatedEventCount=eventPopulationEstablished?claimsReportingScopeCount(reporting?.events,'undated'):null;
+  const eventDateMissingCount=eventPopulationEstablished?(data?.projectFacts?.claims?.eventDateMissingCount?.value??null):null;
   const events=Array.isArray(p.events)?p.events:[],linkedClaimIds=new Set(events.flatMap(event=>event.linkedClaimIds||[]));
   const linked=!sourcePopulationEstablished?null:(p.linkedClaimCount??null),unlinked=!sourcePopulationEstablished?null:(p.unlinkedClaimCount??(knownScreenCount(p.claimCount)!==null&&knownScreenCount(linked)!==null&&linked<=p.claimCount?p.claimCount-linked:null));
   const activityGapCount=!sourcePopulationEstablished?null:(p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length);
@@ -3662,7 +3663,7 @@ function renderNoticesClaimsVisual(data){
   const evidenceChainHtml=typeof renderDelayEvidenceChain==="function"?renderDelayEvidenceChain(data):"";
   const chain=data?.delayEotEvidenceChain||p.delayEotEvidenceChain||null,integrity=p.claimPopulationIntegrity||p.integrity||null;
   const quarantined=chain?.populationState==="quarantined"||integrity?.state==="quarantined";
-  const populationEstablished=chain?chain.populationState==="established":(!quarantined&&p.claimCount!==null&&p.eventCount!==null);
+  const populationEstablished=chain?chain.populationState==="established":(!quarantined&&p.claimCount!==null);
   const withheld=quarantined?"Withheld — source population quarantined":"Not established",count=value=>populationEstablished?(value==null?"Not established":value):withheld;
   const summary=planningKpis([
     ["Claims known by Data Date",count(p.claimCount),"established claim identities only"],

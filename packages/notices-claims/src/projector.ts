@@ -1,5 +1,6 @@
 import {
   assessAllEventNotices,
+  delayEventPopulation,
   type DelayClaimsModel,
 } from "../../delay-analysis-core/src";
 import type {
@@ -211,6 +212,10 @@ export function buildNoticesClaimsProjection(
         state === "candidate",
     );
 
+  // Delay events come only from event sources; claim rows stay claims (SW-15).
+  const eventPopulation = delayEventPopulation(model);
+  const sourceEvents = events.filter((_, index) => eventPopulation.fromEventSource[index]);
+
   const projection:NoticesClaimsProjection = {
     schemaVersion: "1.0",
     projectionKey: "notices_claims",
@@ -221,25 +226,25 @@ export function buildNoticesClaimsProjection(
     evidenceRevisionId:
       model.evidenceRevisionId,
 
-    eventCount: events.length,
+    eventCount: sourceEvents.length,
     claimCount: claims.length,
     noticeCount:
       model.notices.filter(n=>n.kind!=='determination').length,
 
     timelyNoticeCount:
-      events.filter(
+      sourceEvents.filter(
         (event) =>
           event.noticeTimeliness ===
           "timely",
       ).length,
     lateNoticeCount:
-      events.filter(
+      sourceEvents.filter(
         (event) =>
           event.noticeTimeliness ===
           "late",
       ).length,
     missingNoticeCount:
-      events.filter(
+      sourceEvents.filter(
         (event) =>
           event.noticeTimeliness ===
           "not_issued" ||
@@ -247,25 +252,31 @@ export function buildNoticesClaimsProjection(
           "notice_date_missing",
       ).length,
     noticeRequirementMissingCount:
-      events.filter(
+      sourceEvents.filter(
         (event) =>
           event.noticeTimeliness ===
           "requirement_missing",
       ).length,
 
     officialAssessedDaysTotal,
-    noticeEventDateMissingCount:events.filter(e=>e.noticeTimeliness==='event_date_missing').length,
-    noticeRequirementConflictCount:events.filter(e=>e.noticeTimeliness==='requirement_conflicted').length,
+    noticeEventDateMissingCount:sourceEvents.filter(e=>e.noticeTimeliness==='event_date_missing').length,
+    noticeRequirementConflictCount:sourceEvents.filter(e=>e.noticeTimeliness==='requirement_conflicted').length,
     provisionalOrCandidateAssessedDaysTotal,
     officialAssessedAmountTotal,
     provisionalOrCandidateAssessedAmountTotal,
 
+    eventPopulationState: eventPopulation.state,
+    eventPopulationReason: eventPopulation.reason,
     events,
     claims,
     diagnostics: [
       ...model.diagnostics,
     ],
   };
+  if(eventPopulation.state==="not_established")for(const key of NOTICE_EVENT_COUNT_KEYS)projection[key]=null;
   if(input.populationEstablished===false)for(const key of ["eventCount", "claimCount", "noticeCount", "timelyNoticeCount", "lateNoticeCount", "missingNoticeCount", "noticeRequirementMissingCount", "noticeEventDateMissingCount", "noticeRequirementConflictCount"] as const)projection[key]=null;
   return projection;
 }
+
+/** Counts of delay events (by notice timeliness). Not established without an event source; claim and notice counts stay. */
+const NOTICE_EVENT_COUNT_KEYS = ["eventCount", "timelyNoticeCount", "lateNoticeCount", "missingNoticeCount", "noticeRequirementMissingCount", "noticeEventDateMissingCount", "noticeRequirementConflictCount"] as const;

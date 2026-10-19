@@ -1440,6 +1440,8 @@ export function deriveControlsFromCsv(
           );
         events.push({
           eventId,
+          identitySource:
+            "claims_register_row",
           title:
             eventTitle ||
             claimId ||
