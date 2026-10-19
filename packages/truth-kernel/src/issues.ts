@@ -15,6 +15,17 @@ export interface ControlIssue {
   checkIds: string[];
   /** Owning producer's semantic rule, independent of the display path. */
   sourceFactKey?: string;
+  /** Raw machine name of the field the finding concerns: the last two raw path
+   * segments joined by '.', plus '|'+topic when the record names one
+   * (e.g. 'position.dataDateIso'). Identity only; never a reader label. */
+  field?: string;
+}
+/** Stable machine identity of the field a finding concerns. Keys, groups,
+ * de-duplication and hashes use this, never the display summary: rewording a
+ * label must not merge, split or move a finding. Findings without a walked
+ * field are identified by their code and raw evidence path. */
+export function controlIssueField(issue: Pick<ControlIssue,'code'|'evidencePaths'|'field'>): string {
+  return issue.field ?? issue.code+':'+(issue.evidencePaths[0]??'');
 }
 export interface ControlIssueAssessment {
   schemaVersion: '1.0';
@@ -37,7 +48,7 @@ export function summarizeControlIssues(issues: readonly ControlIssue[]): Control
       ? [...new Set(issue.sourceRefs)].sort() : null;
     const key=JSON.stringify(sourceIdentity
       ? [issue.kind,issue.code,issue.sourceFactKey,issue.detail,issue.action,issue.owner,sourceIdentity]
-      : [issue.kind,issue.code,issue.summary,issue.detail,issue.action,issue.owner]);
+      : [issue.kind,issue.code,controlIssueField(issue),issue.detail,issue.action,issue.owner]);
     const old=grouped.get(key);grouped.set(key,old?{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])]}:{...issue});
   }
   const unique=[...grouped.values()];
