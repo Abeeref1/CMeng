@@ -40,15 +40,18 @@
           "3634d35b",
           "413524f5",
           "f47ed2f3",
-          "ffd57dc0"
+          "ffd57dc0",
+          "34758c74",
+          "3eeb9d6a"
         ],
         "regressionFiles": [
           "tests/consultant-response-paging.test.ts",
           "tests/t05-counts-true-total-every-screen.test.ts",
           "tests/project-actions.test.ts",
-          "tests/t05-remaining-true-totals.test.ts"
+          "tests/t05-remaining-true-totals.test.ts",
+          "tests/t05-reporting-contract-not-cut.test.ts"
         ],
-        "repairNotes": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1).",
+        "repairNotes": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1). Round 3: page counts and charts fed by cut lists use true totals; the reporting contract is never key-capped in screen responses (67 of 217 metric contracts were missing).",
         "notCovered": "N1 guard not re-run on all 23 projects; not live."
       },
       "independentVerification": {
@@ -166,6 +169,20 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "34758c74",
+            "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "3eeb9d6a",
+            "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -187,7 +204,8 @@
           "tests/consultant-response-paging.test.ts",
           "tests/t05-counts-true-total-every-screen.test.ts",
           "tests/project-actions.test.ts",
-          "tests/t05-remaining-true-totals.test.ts"
+          "tests/t05-remaining-true-totals.test.ts",
+          "tests/t05-reporting-contract-not-cut.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -632,14 +650,15 @@
           "071ea238",
           "413524f5",
           "d19a0d58",
-          "9e44e026"
+          "9e44e026",
+          "65ed08a4"
         ],
         "regressionFiles": [
           "tests/source-only-forecast-isolation.test.ts",
           "tests/t11-dashboard-on-demand-original-content.test.ts",
           "tests/t05-same-measure-every-page.test.ts"
         ],
-        "repairNotes": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4).",
+        "repairNotes": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4). Round 3: 7 cross-page differences fixed at their producers (same measure, same value).",
         "notCovered": "Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked."
       },
       "independentVerification": {
@@ -688,6 +707,13 @@
           {
             "sha": "9e44e026",
             "subject": "fix(T05): delay-claims shows unknown claim/event counts as null, same as notices-claims",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "65ed08a4",
+            "subject": "fix(T05): same measure, same value across pages for 7 cross-page differences",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -1410,9 +1436,15 @@
       "guardRules": "reader",
       "originalCheckState": "Independent reader",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "a18851b3"
+        ],
+        "regressionFiles": [
+          "tests/t08-ncr-unclear-and-need-date.test.ts"
+        ],
+        "repairNotes": "need date is the linked activity start less the stated lead/review time; not stated stays the start with no default (T08).",
+        "notCovered": "Independent reader not re-run on the 23 projects."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1420,12 +1452,20 @@
       },
       "ownerAcceptance": "not_accepted",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "a18851b3",
+            "subject": "fix(T08 SW-17, SW-19): need date less stated lead/review time; unclear NCRs counted and explained",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T08"
         ],
-        "liveState": "no_repair"
+        "liveState": "saved_not_live"
       },
       "verificationMethod": {
         "kinds": [
@@ -1437,9 +1477,11 @@
         ],
         "checkState": "Independent reader",
         "detail": "Plan check: reader (Independent reader)",
-        "namedTests": []
+        "namedTests": [
+          "tests/t08-ncr-unclear-and-need-date.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked",
+      "boardStatus": "repair_saved_not_live_named_test",
       "cause": {
         "whatUserSees": "\"Required on site\" shows a different date from the register's; \"date has passed\" when no register date has passed; three different late counts on three pages",
         "cause": "The earlier of the register and programme dates is used under the register's label; the overdue check reads an empty due-date field.",
@@ -1508,12 +1550,13 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "ce20efc2"
+          "ce20efc2",
+          "a18851b3"
         ],
         "regressionFiles": [
           "tests/t08-ncr-unclear-and-need-date.test.ts"
         ],
-        "repairNotes": "unclear NCR status is its own state with a reason, never open or closed (T08).",
+        "repairNotes": "unclear NCR status is its own state with a reason, never open or closed (T08). Round 3: unclear NCRs counted and explained.",
         "notCovered": "Independent reader not re-run."
       },
       "independentVerification": {
@@ -1527,6 +1570,13 @@
           {
             "sha": "ce20efc2",
             "subject": "fix(T08 SW-19): unclear NCR status is its own state, never open or closed",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "a18851b3",
+            "subject": "fix(T08 SW-17, SW-19): need date less stated lead/review time; unclear NCRs counted and explained",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -1572,13 +1622,16 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "2df7f3df"
+          "2df7f3df",
+          "a198df79",
+          "77baa5c2"
         ],
         "regressionFiles": [
-          "tests/t04-contract-terms-source-analysis.test.ts"
+          "tests/t04-contract-terms-source-analysis.test.ts",
+          "tests/t07-commercial-vs-independent.test.ts"
         ],
-        "repairNotes": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04).",
-        "notCovered": "Only the hold part of the cause (rule held but not used). The notice calculator has not checked the dates."
+        "repairNotes": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04). Round 3: notice periods count civil days, checked against the independent notice calculator; not-adopted label shown for notice rules.",
+        "notCovered": "Contract rule versus default (42 v 84 days) not proven on the real projects."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -1591,6 +1644,20 @@
           {
             "sha": "2df7f3df",
             "subject": "fix(T04): notice rules, amendments, EOT wording, section dependencies and contract currency use the shared rule",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "a198df79",
+            "subject": "fix(T07): notice periods count civil days; approved-variation sums carry no float noise",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "77baa5c2",
+            "subject": "fix(T04): show the not-adopted label for contract completion and notice rules; prove sections and the notice decision",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -1612,7 +1679,8 @@
         "checkState": "Independent calculator",
         "detail": "Plan check: notice calculator (Independent calculator)",
         "namedTests": [
-          "tests/t04-contract-terms-source-analysis.test.ts"
+          "tests/t04-contract-terms-source-analysis.test.ts",
+          "tests/t07-commercial-vs-independent.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -1679,9 +1747,16 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "a198df79",
+            "subject": "fix(T07): notice periods count civil days; approved-variation sums carry no float noise",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
-        "why": "Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed."
+        "why": "Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed. a198df79 removes float noise from approved-variation sums; the approved-only cause remains."
       }
     },
     {
@@ -2589,9 +2664,30 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "76d74606",
+            "subject": "fix(T04): one candidate admission rule for governedTables, resource capacity and delivery records",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b5ceeced",
+            "subject": "fix(T04): review findings on the one candidate rule (type review, lineage, combined resource value)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "5c6c0237",
+            "subject": "revert(T04): take the one-candidate-rule rework (76d74606, b5ceeced) out of this candidate",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
-        "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
+        "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code. Round 3 rework 76d74606 and b5ceeced was also reverted by 5c6c0237."
       }
     },
     {
@@ -2658,9 +2754,30 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "76d74606",
+            "subject": "fix(T04): one candidate admission rule for governedTables, resource capacity and delivery records",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b5ceeced",
+            "subject": "fix(T04): review findings on the one candidate rule (type review, lineage, combined resource value)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "5c6c0237",
+            "subject": "revert(T04): take the one-candidate-rule rework (76d74606, b5ceeced) out of this candidate",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
-        "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
+        "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code. Round 3 rework 76d74606 and b5ceeced was also reverted by 5c6c0237."
       }
     },
     {
@@ -3664,13 +3781,15 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "428cf1dd"
+          "428cf1dd",
+          "e2c9efea"
         ],
         "regressionFiles": [
-          "tests/t10-look-sort-empty-access.test.ts"
+          "tests/t10-look-sort-empty-access.test.ts",
+          "tests/t10-delivery-downloads-charts.test.ts"
         ],
-        "repairNotes": "a chart whose values are all zero shows the reason and the values (S3).",
-        "notCovered": "Missing plan curves, heatmap, timeline and X3 are not covered."
+        "repairNotes": "a chart whose values are all zero shows the reason and the values (S3). Round 3: X3 chart numbers checked against the table beside them on delivery pages.",
+        "notCovered": "Missing plan curves, heatmap and timeline still not covered."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -3683,6 +3802,13 @@
           {
             "sha": "428cf1dd",
             "subject": "fix(T10): shared look rules for tables, filters and charts (L5, L6, S2, S3)",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e2c9efea",
+            "subject": "fix(T10): delivery downloads in reader words with data date and scope; X3 chart check",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -3705,7 +3831,8 @@
         "checkState": "Automatic, running",
         "detail": "Plan check: S3, X3 (Automatic, running)",
         "namedTests": [
-          "tests/t10-look-sort-empty-access.test.ts"
+          "tests/t10-look-sort-empty-access.test.ts",
+          "tests/t10-delivery-downloads-charts.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -3795,12 +3922,14 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "f8161902"
+          "f8161902",
+          "e2c9efea"
         ],
         "regressionFiles": [
-          "tests/t10-downloads-match-screen.test.ts"
+          "tests/t10-downloads-match-screen.test.ts",
+          "tests/t10-delivery-downloads-charts.test.ts"
         ],
-        "repairNotes": "module downloads carry reader words, units, data date and scope (X1).",
+        "repairNotes": "module downloads carry reader words, units, data date and scope (X1). Round 3: delivery downloads in reader words with data date and scope.",
         "notCovered": "Generate report and PDF outputs not covered; X1 still to add."
       },
       "independentVerification": {
@@ -3814,6 +3943,13 @@
           {
             "sha": "f8161902",
             "subject": "fix(T10): module downloads carry the page's figures, data date and scope in reader words",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e2c9efea",
+            "subject": "fix(T10): delivery downloads in reader words with data date and scope; X3 chart check",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -3835,7 +3971,8 @@
         "checkState": "Automatic, to add",
         "detail": "Plan check: X1 (Automatic, to add)",
         "namedTests": [
-          "tests/t10-downloads-match-screen.test.ts"
+          "tests/t10-downloads-match-screen.test.ts",
+          "tests/t10-delivery-downloads-charts.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -4106,7 +4243,12 @@
           "e833b9c7",
           "697d0833",
           "88a6e429",
-          "1762b984"
+          "1762b984",
+          "f300ba67",
+          "6a7ceff6",
+          "e49b88ac",
+          "9a533b60",
+          "7147bbd2"
         ],
         "regressionFiles": [
           "tests/t11-workfront-identical-source-reuse.test.ts",
@@ -4118,9 +4260,13 @@
           "tests/t11-dashboard-on-demand-original-content.test.ts",
           "tests/t11-owner-page-publication.test.ts",
           "tests/t11-cpm-engine-differential.test.ts",
-          "tests/t11-revision-compare-aligned-parity.test.ts"
+          "tests/t11-revision-compare-aligned-parity.test.ts",
+          "tests/t11-scope-literal-prefilter.test.ts",
+          "tests/t11-change-category-single-pass-parity.test.ts",
+          "tests/t11-module-issues-walk-parity.test.ts",
+          "tests/t11-worker-compile-cache.test.ts"
         ],
-        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness.",
+        "repairNotes": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs.",
         "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
       },
       "independentVerification": {
@@ -4298,6 +4444,41 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "f300ba67",
+            "subject": "perf(T11): skip scope regexes whose required literal is absent",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "6a7ceff6",
+            "subject": "perf(T11): field changes allocate only differing fields; change categories in one pass",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e49b88ac",
+            "subject": "perf(T11): cheaper readiness findings walk with identical issues, paths and order",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9a533b60",
+            "subject": "perf(T11): delivery milestone reads canonicalise fixed header keys once and read each stage once",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "7147bbd2",
+            "subject": "perf(T11): project workers reuse a program-only V8 compile cache at startup",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
@@ -4325,7 +4506,11 @@
           "tests/t11-dashboard-on-demand-original-content.test.ts",
           "tests/t11-owner-page-publication.test.ts",
           "tests/t11-cpm-engine-differential.test.ts",
-          "tests/t11-revision-compare-aligned-parity.test.ts"
+          "tests/t11-revision-compare-aligned-parity.test.ts",
+          "tests/t11-scope-literal-prefilter.test.ts",
+          "tests/t11-change-category-single-pass-parity.test.ts",
+          "tests/t11-module-issues-walk-parity.test.ts",
+          "tests/t11-worker-compile-cache.test.ts"
         ]
       },
       "boardStatus": "repair_saved_not_live_named_test",
@@ -5946,12 +6131,13 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "e6a1c480"
+          "e6a1c480",
+          "8dfc6cd3"
         ],
         "regressionFiles": [
           "tests/t04-commercial-registers-source-analysis.test.ts"
         ],
-        "repairNotes": "clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04).",
+        "repairNotes": "clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04). Round 3: commercial register rows carry the not-adopted label.",
         "notCovered": "Only commercial registers; other register families not checked here."
       },
       "independentVerification": {
@@ -5966,6 +6152,13 @@
           {
             "sha": "e6a1c480",
             "subject": "fix(T04): commercial registers and tender readiness use clear unadopted sources through the shared rule",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "8dfc6cd3",
+            "subject": "fix(T04): no approval request for clear unique candidates used in analysis; label commercial register rows",
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
@@ -6131,14 +6324,16 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "cb7443bf"
+          "cb7443bf",
+          "8dfc6cd3"
         ],
         "regressionFiles": [
           "tests/system-root-causes.test.ts",
-          "tests/ui-management-experience.test.ts"
+          "tests/ui-management-experience.test.ts",
+          "tests/t04-commercial-registers-source-analysis.test.ts"
         ],
-        "repairNotes": "Explicit-approval decision gates (live). Commit subject names F28.",
-        "notCovered": "Plan T04 (13 Oct) still requires ending the hold: no approval request for clear facts. Not certified."
+        "repairNotes": "Explicit-approval decision gates (live). Commit subject names F28. Round 3: a clear unique candidate already used in analysis no longer raises a document confirmation request.",
+        "notCovered": "Competing, review-needed and disagreeing candidates keep the decision, as intended."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6155,10 +6350,17 @@
             "liveState": "live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "8dfc6cd3",
+            "subject": "fix(T04): no approval request for clear unique candidates used in analysis; label commercial register rows",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [],
-        "liveState": "live",
+        "liveState": "partly_live",
         "plannedConsultantRoot": "R2",
         "plannedConsultantStep": 3
       },
@@ -6178,10 +6380,11 @@
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
         "namedTests": [
           "tests/system-root-causes.test.ts",
-          "tests/ui-management-experience.test.ts"
+          "tests/ui-management-experience.test.ts",
+          "tests/t04-commercial-registers-source-analysis.test.ts"
         ]
       },
-      "boardStatus": "repair_live_named_test_not_certified"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F29",
@@ -9799,6 +10002,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -10320,6 +10537,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -12042,6 +12273,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -12139,6 +12384,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -12305,6 +12564,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -12557,6 +12830,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -14104,6 +14391,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -14531,6 +14832,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -15345,6 +15660,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -15764,6 +16093,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -16831,6 +17174,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -17387,6 +17744,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -17484,6 +17855,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -18326,6 +18711,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -18755,6 +19154,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -18852,6 +19265,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -19021,6 +19448,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -19118,6 +19559,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -19350,6 +19805,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -20057,6 +20526,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -21161,6 +21644,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -22540,6 +23037,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -23627,6 +24138,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -23724,6 +24249,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -24025,6 +24564,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -24171,6 +24724,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -26216,6 +26783,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -28386,6 +28967,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -28996,6 +29591,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -29795,6 +30404,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -30662,6 +31285,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -31055,6 +31692,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -31152,6 +31803,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -31400,6 +32065,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -32158,6 +32837,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -32568,6 +33261,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -33639,6 +34346,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -33795,6 +34516,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -34479,6 +35214,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -34873,6 +35622,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -35230,6 +35993,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -36083,6 +36860,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -36180,6 +36971,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -37702,6 +38507,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -37799,6 +38618,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -39449,6 +40282,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -39592,6 +40439,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -39845,6 +40706,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -41240,6 +42115,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -41337,6 +42226,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -42645,6 +43548,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -43283,6 +44200,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -43900,6 +44831,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -45375,6 +46320,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -46690,6 +47649,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -48514,6 +49487,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -48744,6 +49731,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -50069,6 +51070,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -50836,6 +51851,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -51560,6 +52589,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -52413,6 +53456,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -53505,6 +54562,20 @@
             {
               "sha": "ffd57dc0",
               "subject": "fix(T05): action list totals work when the shared helpers are not loaded",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
@@ -55711,6 +56782,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -57652,6 +58737,20 @@
               "liveState": "saved_not_live",
               "onBranch": true,
               "history": "on this branch"
+            },
+            {
+              "sha": "34758c74",
+              "subject": "fix(T05): page counts and charts fed by cut lists use true totals (round 3)",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
+            },
+            {
+              "sha": "3eeb9d6a",
+              "subject": "fix(T05/T10): never key-cap the reporting contract in screen responses",
+              "liveState": "saved_not_live",
+              "onBranch": true,
+              "history": "on this branch"
             }
           ],
           "plannedTasks": [
@@ -58381,16 +59480,16 @@
     },
     "statusCounts": {
       "SW": {
-        "repair_saved_not_live_named_test": 26,
-        "open_no_repair_linked": 30,
+        "repair_saved_not_live_named_test": 27,
+        "open_no_repair_linked": 29,
         "repair_live_named_test_not_certified": 1
       },
       "F": {
         "open_no_repair_linked": 46,
         "open_root_repair_saved_not_live": 3,
-        "repair_saved_not_live_named_test": 5,
-        "repair_live_named_test_not_certified": 3,
-        "open_root_not_repaired": 4
+        "repair_saved_not_live_named_test": 6,
+        "open_root_not_repaired": 4,
+        "repair_live_named_test_not_certified": 2
       },
       "S": {
         "repair_live_no_named_test": 3,
