@@ -117,16 +117,19 @@ test('T04 one rule: a type review answered for this exact file, or a lineage que
   const revised=stored(dir,'revised',payment('revised',120),{familyKey:'family-revised',
    lineage:{needsReview:true,predecessorDocumentIds:['older']}});
   // A variation register with no earlier BOQ (delta with no prior basis).
-  const vo=stored(dir,'vo',payment('vo',300),{lineage:{needsReview:true,predecessorDocumentIds:[]}});
+  const vo=stored(dir,'vo',payment('vo',300),{lineage:{needsReview:true,predecessorDocumentIds:[],appliesAsDelta:true}});
+  // A lineage review with no known cause stays held.
+  const unexplained=stored(dir,'unexplained',payment('unexplained',350),{lineage:{needsReview:true}});
   // The open lineage question is against an ADOPTED document: still held.
   const base=stored(dir,'base',payment('base',1000),{basisState:'active',familyKey:'family-base'});
   const amend=stored(dir,'amend',payment('amend',50),{lineage:{needsReview:true,predecessorDocumentIds:['base']}});
-  const docs=[typed,oldDecision,older,revised,vo,base,amend];
+  const docs=[typed,oldDecision,older,revised,vo,unexplained,base,amend];
   const diagnostics:string[]=[];
   const used=governedTables(docs,diagnostics).map(t=>t.document.documentId).sort();
   assert.deepEqual(used,['base','revised','typed','vo'],'answered type review and basis-free lineage questions do not hold');
   assert.ok(diagnostics.includes('CANDIDATE_REVIEW_REQUIRED:olddecision'),'a decision for an earlier file does not answer this file');
   assert.ok(diagnostics.includes('CANDIDATE_REVIEW_REQUIRED:amend'),'relationship to an adopted document still needs review');
+  assert.ok(diagnostics.includes('CANDIDATE_REVIEW_REQUIRED:unexplained'),'a lineage review with no known cause stays held');
   assert.deepEqual(analyticalOperationalDocuments(docs).filter(d=>d.basisState==='candidate').map(d=>d.documentId).sort(),['revised','typed','vo']);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

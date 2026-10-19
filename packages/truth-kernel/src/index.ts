@@ -44,7 +44,7 @@ export interface EvidenceDocument {
   // Read only by the shared candidate admission rule below.
   parserState?: string;
   identification?: {needsReview?: boolean} | null;
-  lineage?: {needsReview?: boolean; predecessorDocumentIds?: readonly string[]} | null;
+  lineage?: {needsReview?: boolean; predecessorDocumentIds?: readonly string[]; appliesAsDelta?: boolean} | null;
   supersededByDocumentId?: string | null;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
@@ -576,15 +576,19 @@ export const sourceCandidateHoldDiagnostic=(d:EvidenceDocument,hold:SourceCandid
  * not sheets or table repetitions. A damaged/missing adopted source still owns
  * its family, and an unread second candidate still blocks a false singleton.
  * An identification (type) review is answered by a classification decision
- * recorded for the current file hash. A lineage review only holds when the
- * open question is how the candidate relates to an ADOPTED document; with no
- * adopted basis there is nothing for a sole candidate to replace or amend.
+ * recorded for the current file hash; an undecided type review keeps the
+ * source held. A lineage review is released only when its cause is known and
+ * no live basis is involved: every named predecessor is retired (historical
+ * or superseded), or the document applies as a delta with no prior basis
+ * document at all (e.g. a VO register with no earlier BOQ). Any other lineage
+ * review, including one naming a live or unknown predecessor, stays held.
  * Returns the hold reason, or null when the document is not held (adopted,
  * other basis states, or an admitted candidate). Never changes basisState.
  */
 export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d: EvidenceDocument) => SourceCandidateHold | null {
   const established = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.familyKey).filter(Boolean));
-  const adoptedIds = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.documentId));
+  const byId = new Map(documents.map(d => [d.documentId, d] as const));
+  const live = (d: EvidenceDocument) => ['active','additive','candidate'].includes(d.basisState) && !d.supersededByDocumentId;
   const candidateFamilies=new Map<string,Set<string>>();
   for(const document of documents){
     if(document.basisState!=='candidate'||!document.familyKey)continue;
@@ -600,7 +604,12 @@ export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d:
     if(d.parserState!=='parsed')return 'not_fully_read';
     const typeReviewed=!!d.classificationDecision&&d.classificationDecision.sourceHash===d.sourceHashSha256;
     if(d.identification?.needsReview&&!typeReviewed)return 'review_required';
-    if(d.lineage?.needsReview&&(d.lineage.predecessorDocumentIds??[]).some(id=>adoptedIds.has(id)))return 'review_required';
+    if(d.lineage?.needsReview){
+      const predecessors=d.lineage.predecessorDocumentIds??[];
+      const deltaWithoutBasis=d.lineage.appliesAsDelta===true&&predecessors.length===0;
+      const onlyRetiredPredecessors=predecessors.length>0&&predecessors.every(id=>{const p=byId.get(id);return !!p&&!live(p);});
+      if(!deltaWithoutBasis&&!onlyRetiredPredecessors)return 'review_required';
+    }
     if(d.supersededByDocumentId)return 'superseded';
     return null;
   };
