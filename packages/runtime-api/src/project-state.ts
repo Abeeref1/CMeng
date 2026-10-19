@@ -2438,7 +2438,10 @@ export class RuntimeProjectStore {
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(!isCsv&&!isWorkbook)continue;
         if(document.category==='schedule'&&state.schedules.some(s=>s.revision.revisionId===document.linkedArtifactId))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
+        // T04: a CSV held as 'partial' only for its type review is re-read once
+        // the type is reviewed for this exact file, so it can be marked read.
+        const typeReviewedCsv=isCsv&&!!document.classificationDecision&&document.classificationDecision.sourceHash===document.sourceHashSha256;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3')&&!(typeReviewedCsv&&document.parserState==='partial'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2474,7 +2477,7 @@ export class RuntimeProjectStore {
           // review decisions under the corrected family behaviour on refresh.
           if(['retention_register','site_instruction_register','contract_obligation_register'].includes(next.documentType))families.add(next.familyKey);
           next.derivedRegisterRead={producerVersion:'register-derived-v9',sourceHashSha256:next.sourceHashSha256};
-          if(isWorkbook)next.parserState='parsed';
+          if(isWorkbook||typeReviewedCsv&&next.mapping)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
           changed=true;refreshedDocumentCount++;

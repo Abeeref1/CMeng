@@ -537,93 +537,14 @@ export function weeklyResourceCapacityEvidence(
     WeeklyResourceBasisDisagreement[] =
     [];
 
-  for (
-    const rawBucket of
-      rawByResourceWeek.values()
-  ) {
-    // Adopted wins: when an adopted source covers this resource and week,
-    // candidate values are never merged into it. A differing candidate
-    // value is shown as a disagreement instead.
-    const adoptedBucket =
-      rawBucket.filter((point) =>
-        adoptedPoints.has(point),
-      );
-    const candidateBucket =
-      rawBucket.filter(
-        (point) =>
-          !adoptedPoints.has(point),
-      );
-    const bucket =
-      adoptedBucket.length > 0
-        ? adoptedBucket
-        : candidateBucket;
-    if (
-      adoptedBucket.length > 0 &&
-      candidateBucket.length > 0
-    ) {
-      const fields = [
-        "availableCapacity",
-        "plannedDemand",
-        "actualApprovedUsage",
-        "unit",
-      ] as const;
-      for (const field of fields) {
-        const adopted =
-          adoptedBucket.find(
-            (point) =>
-              point[field] !== null &&
-              point[field] !== "",
-          );
-        if (!adopted) {
-          continue;
-        }
-        const adoptedValue =
-          adopted[field]!;
-        for (const candidate of candidateBucket) {
-          const candidateValue =
-            candidate[field];
-          if (
-            candidateValue === null ||
-            candidateValue === "" ||
-            (
-              field === "unit"
-                ? String(candidateValue)
-                    .trim()
-                    .toUpperCase() ===
-                  String(adoptedValue)
-                    .trim()
-                    .toUpperCase()
-                : candidateValue ===
-                  adoptedValue
-            )
-          ) {
-            continue;
-          }
-          basisDisagreements.push({
-            resourceId:
-              adopted.resourceId,
-            weekStartIso:
-              adopted.weekStartIso,
-            field,
-            adoptedValue,
-            candidateValue,
-            adoptedSourceRef:
-              adopted.sourceRef,
-            candidateSourceRef:
-              candidate.sourceRef,
-          });
-          diagnostics.push(
-            "RESOURCE_CANDIDATE_DISAGREES_WITH_ADOPTED:" +
-              adopted.resourceId +
-              ":" +
-              (adopted.weekStartIso ??
-                "undated") +
-              ":" +
-              field,
-          );
-        }
-      }
-    }
+  // Merge one set of points for a resource and week exactly as reported:
+  // one point per explicit unit, never across units.
+  const mergeBucket = (
+    bucket: WeeklyResourceCapacityPoint[],
+  ): {
+    points: WeeklyResourceCapacityPoint[];
+    unitConflict: boolean;
+  } => {
     const explicitUnits = [
       ...new Set(
         bucket
@@ -654,17 +575,12 @@ export function weeklyResourceCapacityEvidence(
           resolvedUnit,
         );
       }
-      if (merged) {
-        evidencePoints.push(
-          merged,
-        );
-      }
-      continue;
+      return {
+        points: merged ? [merged] : [],
+        unitConflict: false,
+      };
     }
 
-    diagnostics.push(
-      "RESOURCE_UNIT_CONFLICT_PRESERVED_WITHOUT_CROSS_UNIT_MERGE",
-    );
     const byExplicitUnit =
       new Map<
         string,
@@ -700,9 +616,125 @@ export function weeklyResourceCapacityEvidence(
       );
     }
 
+    return {
+      points: [
+        ...byExplicitUnit.values(),
+        ...unspecified,
+      ],
+      unitConflict: true,
+    };
+  };
+
+  for (
+    const rawBucket of
+      rawByResourceWeek.values()
+  ) {
+    // Adopted wins: when an adopted source covers this resource and week,
+    // candidate values are never merged into it. The combined candidate
+    // value is compared with the combined adopted value actually used, and
+    // a difference is shown as a disagreement.
+    const adopted =
+      mergeBucket(
+        rawBucket.filter((point) =>
+          adoptedPoints.has(point),
+        ),
+      );
+    const candidate =
+      mergeBucket(
+        rawBucket.filter(
+          (point) =>
+            !adoptedPoints.has(point),
+        ),
+      );
+    const used =
+      adopted.points.length > 0
+        ? adopted
+        : candidate;
+    if (
+      adopted.points.length > 0 &&
+      candidate.points.length > 0
+    ) {
+      const unitKey = (
+        point: WeeklyResourceCapacityPoint,
+      ) =>
+        point.unit
+          ?.trim()
+          .toUpperCase() ?? "";
+      for (const candidatePoint of candidate.points) {
+        const adoptedPoint =
+          adopted.points.length === 1 &&
+          candidate.points.length === 1
+            ? adopted.points[0]!
+            : adopted.points.find(
+                (point) =>
+                  unitKey(point) ===
+                  unitKey(candidatePoint),
+              );
+        if (!adoptedPoint) {
+          continue;
+        }
+        const fields = [
+          "availableCapacity",
+          "plannedDemand",
+          "actualApprovedUsage",
+          "unit",
+        ] as const;
+        for (const field of fields) {
+          const adoptedValue =
+            adoptedPoint[field];
+          const candidateValue =
+            candidatePoint[field];
+          if (
+            adoptedValue === null ||
+            adoptedValue === "" ||
+            candidateValue === null ||
+            candidateValue === "" ||
+            (
+              field === "unit"
+                ? String(candidateValue)
+                    .trim()
+                    .toUpperCase() ===
+                  String(adoptedValue)
+                    .trim()
+                    .toUpperCase()
+                : candidateValue ===
+                  adoptedValue
+            )
+          ) {
+            continue;
+          }
+          basisDisagreements.push({
+            resourceId:
+              adoptedPoint.resourceId,
+            weekStartIso:
+              adoptedPoint.weekStartIso,
+            field,
+            adoptedValue,
+            candidateValue,
+            adoptedSourceRef:
+              adoptedPoint.sourceRef,
+            candidateSourceRef:
+              candidatePoint.sourceRef,
+          });
+          diagnostics.push(
+            "RESOURCE_CANDIDATE_DISAGREES_WITH_ADOPTED:" +
+              adoptedPoint.resourceId +
+              ":" +
+              (adoptedPoint.weekStartIso ??
+                "undated") +
+              ":" +
+              field,
+          );
+        }
+      }
+    }
+    if (used.unitConflict) {
+      diagnostics.push(
+        "RESOURCE_UNIT_CONFLICT_PRESERVED_WITHOUT_CROSS_UNIT_MERGE",
+      );
+    }
     evidencePoints.push(
-      ...byExplicitUnit.values(),
-      ...unspecified,
+      ...used.points,
     );
   }
 

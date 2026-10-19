@@ -44,7 +44,7 @@ export interface EvidenceDocument {
   // Read only by the shared candidate admission rule below.
   parserState?: string;
   identification?: {needsReview?: boolean} | null;
-  lineage?: {needsReview?: boolean} | null;
+  lineage?: {needsReview?: boolean; predecessorDocumentIds?: readonly string[]} | null;
   supersededByDocumentId?: string | null;
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
@@ -575,11 +575,16 @@ export const sourceCandidateHoldDiagnostic=(d:EvidenceDocument,hold:SourceCandid
  * and is the only candidate document of that family. Count owning documents,
  * not sheets or table repetitions. A damaged/missing adopted source still owns
  * its family, and an unread second candidate still blocks a false singleton.
+ * An identification (type) review is answered by a classification decision
+ * recorded for the current file hash. A lineage review only holds when the
+ * open question is how the candidate relates to an ADOPTED document; with no
+ * adopted basis there is nothing for a sole candidate to replace or amend.
  * Returns the hold reason, or null when the document is not held (adopted,
  * other basis states, or an admitted candidate). Never changes basisState.
  */
 export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d: EvidenceDocument) => SourceCandidateHold | null {
   const established = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.familyKey).filter(Boolean));
+  const adoptedIds = new Set(documents.filter(d => ['active','additive'].includes(d.basisState)).map(d => d.documentId));
   const candidateFamilies=new Map<string,Set<string>>();
   for(const document of documents){
     if(document.basisState!=='candidate'||!document.familyKey)continue;
@@ -593,7 +598,9 @@ export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d:
     if(established.has(d.familyKey))return 'revision_not_applied';
     if((candidateFamilies.get(d.familyKey)?.size??0)>1)return 'family_conflict';
     if(d.parserState!=='parsed')return 'not_fully_read';
-    if(d.identification?.needsReview||d.lineage?.needsReview)return 'review_required';
+    const typeReviewed=!!d.classificationDecision&&d.classificationDecision.sourceHash===d.sourceHashSha256;
+    if(d.identification?.needsReview&&!typeReviewed)return 'review_required';
+    if(d.lineage?.needsReview&&(d.lineage.predecessorDocumentIds??[]).some(id=>adoptedIds.has(id)))return 'review_required';
     if(d.supersededByDocumentId)return 'superseded';
     return null;
   };
