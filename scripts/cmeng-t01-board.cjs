@@ -218,6 +218,7 @@ for(const [name,rows] of all){
   L.push('| '+name+' | '+rows.length+' | '+used.map(k=>c[k]??0).join(' | ')+' |');
 }
 L.push('| All | '+all.reduce((n,[,r])=>n+r.length,0)+' | '+used.map(k=>Object.values(counts).reduce((n,c)=>n+(c[k]??0),0)).join(' | ')+' |');
+if(links.countsBeforeRound2){const b=links.countsBeforeRound2;L.push('','Before round-2 linking (commit '+b.commit+'), all groups: '+used.map(k=>k+' '+(b[k]??0)).join(', ')+'.');}
 L.push('','Status meaning: `open_no_repair_linked` no repair commit linked; `open_root_*` the finding links to a proposed SW root, with or without saved repair on that root, and the finding itself is not reconciled; `repair_saved_not_live_*` a repair commit exists after the live release, with or without a named regression test, not independently checked (partial, not fixed); `repair_live_*` the repair commit is inside the live release, but the item was still open in the 13 Oct plan or guard and is not certified; `originally_correct_watch` correct in the original review, watched for regression.','');
 L.push('## System defects SW-01 to SW-57','','| ID | Defect | Cause | Tasks | Repair reference | Verification method | Named tests | Status |','| --- | --- | --- | --- | --- | --- | --- | --- |');
 for(const s of ledger.sw)L.push('| '+[s.id,esc(s.description),esc(s.cause.cause),s.tasks.join(', '),commitsCell(s.repairReference),s.verificationMethod.kinds.join(', ')+': '+esc(s.guardRules),s.verificationMethod.namedTests.map(x=>x.replace('tests/','')).join(', ')||'none',s.boardStatus].join(' | ')+' |');
@@ -241,6 +242,11 @@ L.push('| originally correct | '+ledger.abb.historicalPasses+' | not needed | or
 L.push('## Projects (rule V2)','','| Project | Test marking | Basis |','| --- | --- | --- |');
 for(const p of ledger.projects)L.push('| '+[p.id,p.testMarking,p.basis].join(' | ')+' |');
 L.push('','The product has a saved test-project flag and a separate test list (commits 2f5fc187 and 445e678d, live). SW-55 and check V2 stay open: the verifier still saw test data in the live portfolio at b3c76d6, the owner has not marked the projects, and V2 is still to add. This board does not mark live projects; marking is the owner action on the live system.','');
+L.push('## Still open with no repair linked','');
+const stillOpen=[...ledger.sw,...ledger.f,...ledger.s].filter(x=>x.boardStatus==='open_no_repair_linked').map(x=>x.id);
+L.push('Rows: '+stillOpen.join(', ')+'. Plus '+ledger.abb.individualObservations.filter(a=>a.boardStatus==='open_no_repair_linked').length+' page findings.','');
+for(const [id,n] of Object.entries(links.stillOpenNotes??{}))L.push('- '+id+': '+n);
+L.push('');
 L.push('## Sources not in the repository','');
 for(const x of ledger.board.sourcesNotInRepository)L.push('- '+x);
 L.push('');

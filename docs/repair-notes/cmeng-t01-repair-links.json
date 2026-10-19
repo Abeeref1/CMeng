@@ -640,5 +640,23 @@
     }
   },
   "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence.",
-  "round2Search": "Round 2 (v/int2): every commit in 413524f5..v/int2 was read with its body and the test files it changed. Links are made only where the commit names the SW item or its guard rule and a test file names the same case."
+  "round2Search": "Round 2 (v/int2): every commit in 413524f5..v/int2 was read with its body and the test files it changed. Links are made only where the commit names the SW item or its guard rule and a test file names the same case.",
+  "countsBeforeRound2": {
+    "commit": "b4ce3bf9",
+    "open_no_repair_linked": 160,
+    "open_root_not_repaired": 182,
+    "open_root_repair_saved_not_live": 347,
+    "repair_saved_not_live_named_test": 9,
+    "repair_live_no_named_test": 3,
+    "repair_live_named_test_not_certified": 4,
+    "originally_correct_watch": 62
+  },
+  "stillOpenNotes": {
+    "SW-17": "The test file t08-ncr-unclear-and-need-date has only SW-19 cases; no test or commit covers the procurement need date.",
+    "SW-37": "Reverted with 616ec8b8; see related.",
+    "SW-38": "Reverted with 616ec8b8; see related.",
+    "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
+    "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
+    "F": "No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles."
+  }
 }
