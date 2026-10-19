@@ -28,7 +28,7 @@ export function securityStatusAtDataDate(row:{status?:string|null;expiryIso?:str
  * period). Without it the coverage is not established, never assumed met. */
 export type SecurityCoverageState='gap'|'covered'|'not_established';
 export interface SecurityCoverageResult{coverageState:SecurityCoverageState;requiredEndIso:string|null;daysShort:number|null;reason:string}
-export function securityCoverage(input:{expiryIso:string|null|undefined;requiredEndIso:string|null|undefined;requirementEstablished:boolean;requiredEndBasis?:string}):SecurityCoverageResult{
+export function securityCoverage(input:{expiryIso:string|null|undefined;requiredEndIso:string|null|undefined;requirementEstablished:boolean;requiredEndBasis?:string|undefined}):SecurityCoverageResult{
  const expiry=day(input.expiryIso),end=day(input.requiredEndIso);
  if(!input.requirementEstablished)return {coverageState:'not_established',requiredEndIso:null,daysShort:null,reason:'The contract does not establish the period this security must cover.'};
  if(!end)return {coverageState:'not_established',requiredEndIso:null,daysShort:null,reason:'The required cover end date is not established (taking-over date or defects period not supplied).'};
