@@ -6,6 +6,7 @@ import {
 } from "../../schedule-analysis-core/src";
 import {
   calculateCpm,
+  relationshipLagCalendarSummary,
   type CpmConfig,
 } from "../../schedule-cpm/src";
 import type {
@@ -347,6 +348,8 @@ export function buildIndependentForecastProjection(
       cpm.durationBasis,
     calculationMode:
       cpm.calculationMode,
+    relationshipLagCalendar:
+      relationshipLagCalendarSummary(model),
     sourceForecastCompletionIso,
     independentForecastCompletionIso:
       resolvedFinish,

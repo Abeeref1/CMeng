@@ -294,6 +294,8 @@ export const MANAGEMENT_DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = Ob
     'A schedule relationship type cannot be established.',
   CPM_RELATIONSHIP_LAG_UNRESOLVED:
     'A schedule relationship lag cannot be established.',
+  CPM_RELATIONSHIP_LAG_CALENDAR_UNRESOLVED:
+    'The programme states the project default calendar for relationship lag, but that calendar cannot be read; lags cannot be counted.',
   CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:
     'An external schedule relationship cannot be resolved inside the current programme.',
   CPM_RELATIONSHIP_UNRESOLVED:

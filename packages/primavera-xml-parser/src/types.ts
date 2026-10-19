@@ -8,6 +8,10 @@ export interface PrimaveraXmlProject {
   scheduledFinishDate?: string | null;
   /** Raw P6 XML Project.MustFinishByDate text (declared finish, XER plan_end_date). */
   mustFinishByDate?: string | null;
+  /** Raw P6 XML Project.RelationshipLagCalendar text ("Calendar for scheduling Relationship Lag"), when present. */
+  relationshipLagCalendar?: string | null;
+  /** Raw P6 XML Project.ActivityDefaultCalendarObjectId, read only when the lag calendar option is stated. */
+  activityDefaultCalendarObjectId?: string | null;
 }
 
 export interface PrimaveraXmlActivity {

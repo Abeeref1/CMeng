@@ -1,5 +1,6 @@
 import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,finishVarianceBetween,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
+import {relationshipLagCalendarBasis} from '../../schedule-cpm/src/lag-calendar';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -45,25 +46,37 @@ export function floatHoursText(hours:number,dayHours:number|null|undefined):stri
  return days===null?hours+' h (working days unknown: calendar hours per day not read)':Number(days.toFixed(2))+' working days ('+hours+' h)';
 }
 
-/** T06/N7: relationship lag is worked on the successor activity calendar (the
- * P6 relationship-lag convention, and the method the CMeng CPM uses:
- * successor_calendar_forward_and_backward). The source project lag-calendar
- * setting is not read by any parser, so the basis always states the successor
- * calendar. Unknown successor or unread calendar stays null, never 8 hours. */
+/** T06/N7: relationship lag is shown in working days of the calendar the
+ * CMeng CPM counts it on (schedule-cpm relationshipLagCalendarBasis): the
+ * calendar the programme states (P6 "Calendar for scheduling Relationship
+ * Lag": predecessor, successor, 24-hour or project default), else the
+ * successor activity calendar. Unknown activity or unread calendar stays
+ * null, never 8 hours. */
 export const LAG_DAYS_BASIS='successor_activity_calendar';
-export function lagWorkingDays(model:CanonicalScheduleModel,successorActivityId:unknown,hours:number|null|undefined){
+export function lagWorkingDays(model:CanonicalScheduleModel,successorActivityId:unknown,hours:number|null|undefined,predecessorActivityId?:unknown){
  const {workingDayHours,activityById}=sourceCalendarWorkingDays(model);
- const successor=typeof successorActivityId==='string'?activityById.get(successorActivityId):undefined;
- const dayHours=successor?workingDayHours(successor.calendarId):null;
- return {dayHours,days:floatHoursToWorkingDays(hours,dayHours),
-  basis:dayHours===null?'successor_calendar_working_day_not_established':LAG_DAYS_BASIS};
+ const rule=relationshipLagCalendarBasis(model);
+ const activityDayHours=(id:unknown)=>{const activity=typeof id==='string'?activityById.get(id):undefined;return activity?workingDayHours(activity.calendarId):null;};
+ const [dayHours,basis,label]=rule.rule==='predecessor'?[activityDayHours(predecessorActivityId),'predecessor_activity_calendar','predecessor calendar'] as const
+  :rule.rule==='24_hour'?[24,'24_hour_calendar','24-hour calendar'] as const
+  :rule.rule==='project_default'?[rule.projectDefaultCalendarId===null?null:workingDayHours(rule.projectDefaultCalendarId),'project_default_calendar','project default calendar'] as const
+  :[activityDayHours(successorActivityId),LAG_DAYS_BASIS,'successor calendar'] as const;
+ return {dayHours,days:floatHoursToWorkingDays(hours,dayHours),label,
+  basis:dayHours===null?basis.replace(/_activity_calendar$|_calendar$/,'')+'_calendar_working_day_not_established':basis};
 }
-/** Narrative lag text: working days of the successor calendar first, hours second. */
-export function lagHoursText(hours:number|null|undefined,dayHours:number|null|undefined):string{
+/** Plain name of the lag calendar from a lagDaysBasis (or lag rule) value;
+ * rows without a basis keep the successor calendar, as before. */
+export function lagCalendarName(basisOrRule:unknown):string{
+ const value=typeof basisOrRule==='string'?basisOrRule:'';
+ return value.startsWith('predecessor')?'predecessor calendar':value.startsWith('24_hour')?'24-hour calendar'
+  :value.startsWith('project_default')?'project default calendar':'successor calendar';
+}
+/** Narrative lag text: working days of the lag calendar first, hours second. */
+export function lagHoursText(hours:number|null|undefined,dayHours:number|null|undefined,calendarLabel='successor calendar'):string{
  if(typeof hours!=='number'||!Number.isFinite(hours))return 'lag not established';
  const days=floatHoursToWorkingDays(hours,dayHours);
- return days===null?'lag working days not established (successor calendar hours per day not read) · '+hours+' h'
-  :'lag '+Number(days.toFixed(2))+' working days (successor calendar) · '+hours+' h';
+ return days===null?'lag working days not established ('+calendarLabel+' hours per day not read) · '+hours+' h'
+  :'lag '+Number(days.toFixed(2))+' working days ('+calendarLabel+') · '+hours+' h';
 }
 
 /** T06/N7: a delay between two source dates of one activity, in working days
@@ -360,7 +373,7 @@ export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|nu
   // name a successor are converted; existing day values are kept.
   const successorId=typeof value.successorActivityId==='string'?value.successorActivityId:typeof value.successor==='string'?value.successor:null;
   if(successorId!==null&&typeof value.lagHours==='number'&&Number.isFinite(value.lagHours)&&!('lagWorkingDays' in value)){
-   const lag=lagWorkingDays(model,successorId,value.lagHours);
+   const lag=lagWorkingDays(model,successorId,value.lagHours,value.predecessorActivityId??value.predecessor);
    set('lagWorkingDays',lag.days);
    if(!('lagDaysBasis' in value))set('lagDaysBasis',lag.basis);
   }

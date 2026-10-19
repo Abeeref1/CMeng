@@ -4,7 +4,10 @@ import {canonicalScheduleFromXer} from '../../schedule-analysis-core/src';
 import {parseXerBytes} from '../../xer-parser/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
-export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-v4';
+// v5: also the project option "Calendar for scheduling Relationship Lag"
+// (PROJECT.sched_calendar_on_relationship_lag) and the project default
+// calendar it may name, so stored programmes use the stated lag calendar.
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-v5';
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 
 /** Refresh calendar interpretations and unresolved single-project links from the unchanged retained
@@ -42,6 +45,7 @@ export function refreshStoredXerCalendars(state:ProjectRuntimeState):boolean {
       const diagnostics=fresh.diagnostics.filter(isCalendarDiagnostic);
       old.calendars=fresh.calendars;
       old.declaredProjectFinishIso=fresh.declaredProjectFinishIso??null;
+      if(fresh.relationshipLagCalendar)old.relationshipLagCalendar=fresh.relationshipLagCalendar;else delete old.relationshipLagCalendar;
       old.diagnostics=[...old.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       document.diagnostics=[...document.diagnostics.filter(d=>!isCalendarDiagnostic(d)),...diagnostics];
       stored.calendarReaderVersion=XER_CALENDAR_READER_VERSION;

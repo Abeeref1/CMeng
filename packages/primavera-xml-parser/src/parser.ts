@@ -53,6 +53,12 @@ function elementColumnAudit(found: Map<string, AnyObject[]>, reads: Map<string, 
       "Read by the P6 XML reader.", sample)}));
   });
 }
+/** P6 project option "Calendar for scheduling Relationship Lag" and, only
+ * when it is stated, the project default calendar it may name. */
+function lagCalendarFields(obj: AnyObject): Pick<PrimaveraXmlProject, "relationshipLagCalendar" | "activityDefaultCalendarObjectId"> {
+  const relationshipLagCalendar = field(obj, ["RelationshipLagCalendar"]);
+  return relationshipLagCalendar === null ? {} : {relationshipLagCalendar, activityDefaultCalendarObjectId: field(obj, ["ActivityDefaultCalendarObjectId"])};
+}
 function field(obj: AnyObject, names: string[]): string | null {
   if (fieldNamesRead) for (const name of names) fieldNamesRead.add(keyNorm(name));
   const wanted = new Set(names.map(keyNorm));
@@ -236,6 +242,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       dataDate: field(obj, ["DataDate"]),
       scheduledFinishDate: field(obj, ["ScheduledFinishDate"]),
       mustFinishByDate: field(obj, ["MustFinishByDate"]),
+      ...lagCalendarFields(obj),
     }),
   );
 

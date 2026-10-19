@@ -67,8 +67,11 @@ export interface CpmResult {
   dataDateIso: string | null;
   durationBasis: CpmDurationBasis;
   calculationMode: CpmCalculationMode;
+  /** The calendar relationship lag is counted on; its plain-language basis
+   * (stated by the programme, or not stated: successor calendar used) is
+   * relationshipLagCalendarBasis(model). */
   relationshipLagCalendarMethod:
-    "successor_calendar_forward_and_backward";
+    import("./lag-calendar").RelationshipLagCalendarMethod;
   projectStartIso: string | null;
   projectFinishIso: string | null;
   requiredFinishIso: string | null;

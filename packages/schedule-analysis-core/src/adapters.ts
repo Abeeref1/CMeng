@@ -26,9 +26,36 @@ import type {
   CanonicalWbsNode,
   ScheduleSourceRef,
   SourceResourceAssignment,
+  SourceRelationshipLagCalendar,
   SourceResourceRef,
   SourceWbsPath,
 } from "./types";
+
+/** The four P6 "Calendar for scheduling Relationship Lag" options, as XER
+ * writes them (rcal_Predecessor, rcal_Successor, rcal_24Hour,
+ * rcal_ProjDefault) and as P6 XML / the P6 screen name them (Predecessor
+ * Activity Calendar, Successor Activity Calendar, 24 Hour Calendar, Project
+ * Default Calendar). Any other text is not guessed: null. */
+export function sourceRelationshipLagCalendarRule(value: string | null | undefined): SourceRelationshipLagCalendar["rule"] {
+  const key = (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "").replace(/^rcal/, "").replace(/(activity)?calendar$/, "");
+  return key === "predecessor" ? "predecessor"
+    : key === "successor" ? "successor"
+    : key === "24hour" || key === "24hours" ? "24_hour"
+    : key === "projdefault" || key === "projectdefault" ? "project_default"
+    : null;
+}
+function statedLagCalendar(values: ReadonlyArray<string | null>, defaultCalendarIds: ReadonlyArray<string | null>, sourceRef: string): {value?: SourceRelationshipLagCalendar; diagnostics: string[]} {
+  const stated = [...new Set(values)];
+  if (!values.some(value => value !== null)) return {diagnostics: []};
+  const defaults = [...new Set(defaultCalendarIds)];
+  // Several projects stating different options (or one not stating it): the
+  // option of this programme is not established; keep the stated text only.
+  const conflict = stated.length > 1;
+  const sourceValue = stated.map(value => value ?? "(not stated)").join(",");
+  return {value: {rule: conflict ? null : sourceRelationshipLagCalendarRule(stated[0]), sourceValue,
+    projectDefaultCalendarId: defaults.length === 1 ? defaults[0]! : null, sourceRef},
+    diagnostics: conflict ? ["SOURCE_RELATIONSHIP_LAG_CALENDAR_CONFLICT:" + sourceValue] : []};
+}
 
 /** Model-level source lookups, present only when the source has them. */
 function sourceLookups(wbsPaths:SourceWbsPath[],resources:SourceResourceRef[],costAccounts:SourceResourceRef[]){
@@ -1087,10 +1114,17 @@ function canonicalScheduleFromXerRead(
       },
     );
 
+  // P6 project option "Calendar for scheduling Relationship Lag" and the
+  // project default calendar it may name (PROJECT.clndr_id).
+  // The default calendar is read only when the option is stated.
+  const lagCalendarValues=projectRows.map(row=>xerField(row,"sched_calendar_on_relationship_lag"));
+  const lagCalendar=statedLagCalendar(lagCalendarValues,
+    lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],"XER PROJECT.sched_calendar_on_relationship_lag");
   return {
     projectId,
     source: "xer",
     sourceRevisionId: input.sourceRevisionId,
+    ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
     declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
     // PROJECT.scd_end_date is the finish P6 computed at the last schedule
     // run. It is held apart from the declared (plan_end_date) finish and
@@ -1112,6 +1146,7 @@ function canonicalScheduleFromXerRead(
       ...calendarDiagnostics,
       ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
       ...xerDataDate.diagnostics,
+      ...lagCalendar.diagnostics,
       ...duplicateActivityIdDiagnostics,
       ...baselines.diagnostics,
       ...baselineTasks.diagnostics,
@@ -1425,10 +1460,13 @@ function canonicalScheduleFromPrimaveraXmlRead(
       },
     );
 
+  const lagCalendar=statedLagCalendar(result.projects.map(project=>project.relationshipLagCalendar??null),
+    result.projects.map(project=>project.activityDefaultCalendarObjectId??null),"P6 XML Project.RelationshipLagCalendar");
   return {
     projectId,
     source: "primavera_xml",
     sourceRevisionId: input.sourceRevisionId,
+    ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
     // Project header dates are read only from a single-project file; a
     // multi-project file never has one project's dates chosen arbitrarily.
     dataDateIso: result.projects.length===1?tabularDate(result.projects[0]!.dataDate??null):null,
@@ -1438,6 +1476,6 @@ function canonicalScheduleFromPrimaveraXmlRead(
     relationships,
     wbs: [],
     calendars: [],
-    diagnostics: [...result.diagnostics],
+    diagnostics: [...result.diagnostics,...lagCalendar.diagnostics],
   };
 }
