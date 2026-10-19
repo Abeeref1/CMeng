@@ -64,6 +64,27 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     data=write(data,['metrics'],[...metrics,{label:'Open critical / major NCRs',value:facts.controls.openCriticalMajorNcrCount.value,unit:'records',state:facts.controls.openCriticalMajorNcrCount.state,basis:facts.controls.openCriticalMajorNcrCount.basis}]);
     bind('controls.openCriticalMajorNcrCount',['metrics.'+index+'.value']);
   }
+  // F04: one RFI / NCR count on every page. The register pages read the same
+  // shared counts as the Dashboard. When the page population is exactly that
+  // register, its own open / overdue tiles are the shared counts; otherwise
+  // (design deliverables, inspections or manual records are mixed in) the
+  // shared register counts are shown beside the page's own population.
+  const registerCounts:Record<string,{identity:string;facts:[string,string,string][]}>={
+    'delivery-design':{identity:'rfi id',facts:[['Open records','Open RFIs','controls.openRfiCount'],['Overdue records','Overdue RFIs','controls.overdueRfiCount']]},
+    'delivery-quality':{identity:'ncr id',facts:[['Open records','Open NCRs','controls.openNcrCount'],['Overdue records','Overdue NCRs','controls.overdueNcrCount']]},
+  };
+  const register=registerCounts[key];
+  if(register&&Array.isArray(at(data,'metrics'))){
+    for(const [pageLabel,registerLabel,factPath] of register.facts){
+      const metrics=at(data,'metrics') as any[],fact=at(facts,factPath);
+      const own=at(data,'registerIdentity')===register.identity?metrics.findIndex(m=>m?.label===pageLabel):-1;
+      const index=own>=0?own:metrics.length;
+      data=write(data,['metrics'],own>=0
+        ?metrics.map((m,i)=>i===index?{...m,value:fact.value,state:fact.state,basis:fact.basis}:m)
+        :[...metrics,{label:registerLabel,value:fact.value,unit:'records',state:fact.state,basis:fact.basis}]);
+      bind(factPath,['metrics.'+index+'.value']);
+    }
+  }
   bind('schedule.delayedExecutionActivityCount',['delayEotEvidenceChain.programmeContext.delayedActivityCount','contextualProgrammeIntelligence.delayedActivityCount']);
   bind('schedule.negativeFloatActivityCount',['delayEotEvidenceChain.programmeContext.negativeFloatActivityCount','contextualProgrammeIntelligence.negativeFloatActivityCount']);
   bind('actions.openCount',['actionCount','managementActionCount']);

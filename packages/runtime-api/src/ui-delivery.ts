@@ -51,6 +51,11 @@ function deliveryCell(row,key){
   return typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.kind||key):'PMC Project Controls Manager';
  return result;
 }
+// F04: each RFI / NCR cell names the source register field it reads.
+function deliveryCellSource(row,key){
+ const sources=row&&row.cellSources;if(!sources||!Object.prototype.hasOwnProperty.call(sources,key))return '';
+ return ' title="'+escapeHtml(sources[key]?'Source field: '+sources[key]:'Not in the source register')+'"';
+}
 function deliveryFiltered(table){let rows=table.rows.filter(r=>(!table.query||JSON.stringify(r).toLowerCase().includes(table.query.toLowerCase()))&&(!table.filter||deliveryRowState(r)===table.filter));if(table.sort)rows=[...rows].sort((a,b)=>{const x=deliveryCell(a,table.sort),y=deliveryCell(b,table.sort);if((x===null||x===undefined)&&(y===null||y===undefined))return 0;if(x===null||x===undefined)return 1;if(y===null||y===undefined)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*table.direction;});return rows;}
 function refreshDeliveryTable(id){
  const t=deliveryTables[id],target=el(id+'Body');if(!t||!target)return;
@@ -60,7 +65,7 @@ function refreshDeliveryTable(id){
  t.page=Math.max(0,Math.min(t.page,pages-1));
  const displayed=t.server?rows:rows.slice(t.page*25,t.page*25+25);
  target.innerHTML='<div class="table-wrap"><table><thead><tr>'+t.columns.map(([key,label])=>'<th><button class="delivery-sort" data-delivery-sort="'+id+'" data-key="'+escapeHtml(key)+'">'+escapeHtml(label)+(t.sort===key?(t.direction===1?' ↑':' ↓'):'')+'</button></th>').join('')+'<th>Detail</th></tr></thead><tbody>'+
-  displayed.map((r,index)=>'<tr>'+t.columns.map(([key])=>'<td>'+deliveryText(/(?:state|status)$/i.test(key)&&typeof deliveryCell(r,key)==='string'?deliveryLabel(deliveryCell(r,key)):key==='latestOrderDate'&&deliveryCell(r,key)?String(deliveryCell(r,key)).slice(0,10):deliveryCell(r,key))+'</td>').join('')+'<td><button class="btn small" data-delivery-detail="'+id+'" data-index="'+(t.server?index:t.page*25+index)+'">Open</button></td></tr>').join('')+'</tbody></table></div>'+
+  displayed.map((r,index)=>'<tr>'+t.columns.map(([key])=>'<td'+deliveryCellSource(r,key)+'>'+deliveryText(/(?:state|status)$/i.test(key)&&typeof deliveryCell(r,key)==='string'?deliveryLabel(deliveryCell(r,key)):key==='latestOrderDate'&&deliveryCell(r,key)?String(deliveryCell(r,key)).slice(0,10):deliveryCell(r,key))+'</td>').join('')+'<td><button class="btn small" data-delivery-detail="'+id+'" data-index="'+(t.server?index:t.page*25+index)+'">Open</button></td></tr>').join('')+'</tbody></table></div>'+
   (displayed.length?'':'<p class="empty">'+(total?'Records exist, but none match these filters. Clear filters to browse the source register.':'No reviewed rows in this view.')+'</p>');
  el(id+'Count').textContent=total?'Showing '+(t.page*25+1)+'–'+Math.min(t.page*25+displayed.length,total)+' of '+total+' matching rows · '+(t.server?t.server.total:t.rows.length)+' source records':t.server?.total?'No matching rows':'No rows in this view';
  document.querySelectorAll('[data-delivery-page="'+id+'"]').forEach(button=>button.disabled=Number(button.dataset.step)<0?t.page===0:t.page===pages-1);

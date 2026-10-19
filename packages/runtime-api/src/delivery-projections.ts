@@ -15,7 +15,7 @@ import {resolveWorkingCalendar,subtractWorkingHours} from '../../schedule-cpm/sr
 import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/projector';
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
-import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
+import {deliveryKinds,deliveryLabels,lifecycleExamples,kindIdentities,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
 import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
@@ -47,6 +47,22 @@ export {deliveryPages,isDeliveryPage} from '../../delivery-core/src/registry';
 export const field=(r:DeliveryRecord,...names:string[])=>{for(const n of names){const v=r.fields[canonicalHeader(n)];if(v!==null&&v!==undefined&&String(v).trim())return String(v).trim();}return '';};
 const numeric=(r:DeliveryRecord,...names:string[])=>numberValue(field(r,...names));
 const date=(r:DeliveryRecord,...names:string[])=>registerDate(field(r,...names));
+/** F04: the source register field each RFI / NCR table cell reads, or null
+ * when the register has no value for it. "Not established" in a cell is then
+ * traceable to a field the register truly lacks. Same aliases as the readers. */
+const presentField=(r:DeliveryRecord,names:readonly string[])=>{for(const n of names){const k=canonicalHeader(n),v=r.fields[k];if(v!==null&&v!==undefined&&String(v).trim())return k;}return null;};
+export function registerCellSources(r:DeliveryRecord){
+ return {
+  reference:presentField(r,['record reference',...kindIdentities[r.kind]]),
+  description:presentField(r,['description','package name','name','subject','test']),
+  discipline:presentField(r,['discipline']),
+  'fields.severity':presentField(r,['severity']),
+  sourceStatus:presentField(r,['status','outcome']),
+  dueDate:presentField(r,['due date','required by','required response']),
+  owner:presentField(r,['owner','responsible','responsible party','assigned to']),
+  'programmeContext.activityIds':presentField(r,['linked activity']),
+ };
+}
 const ids=(v:string)=>v.split(/[;|]/).map(s=>s.trim()).filter(Boolean);
 const sourceCandidateUsable=(r:DeliveryRecord)=>r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&deliveryNumericIssues(r.kind,r.fields).length===0;
 const currentRecord=deliveryCurrentRecord;
@@ -396,7 +412,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
   const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
   const programmeContext=registerProgrammeContext(r.links.activityIds,activities);
-  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,linkedPackages:r.links.packageIds.map(id=>({recordId:byId.get(id)?.kind==='package'?id:null,reference:byId.get(id)?.reference??id})),links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed'};
+  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,linkedPackages:r.links.packageIds.map(id=>({recordId:byId.get(id)?.kind==='package'?id:null,reference:byId.get(id)?.reference??id})),links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed',cellSources:['design','quality'].includes(r.kind)?registerCellSources(r):null};
  });
  const registerById=new Map(registerRows.map(r=>[r.recordId,r] as const));
  const registerOrder=new Map(registerRows.map((r,i)=>[r.recordId,i] as const));
@@ -881,6 +897,10 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    linksNeedReview:open.filter(row=>['unlinked','links_incomplete'].includes(row.programmeContext.state)).length,closeoutRows:closeout,
    basis:'Open records on completed programme work require register close-out and any outstanding acceptance checks. They are not blockers to starting that completed work.'};
   const order=(row:any)=>row.scope==='current'&&row.currentStatus==='open'?(row.programmeContext?.state==='unfinished_work'?0:row.programmeContext?.state==='completed_work'?2:1):3;
+  // F04: when every record on this page comes from the RFI / NCR register
+  // itself, the page's open / overdue counts are that register's shared counts.
+  const identity=canonicalHeader(kindIdentities[kind as DeliveryKind]![0]!),kindRows=p.registerRows.filter(row=>row.kind===kind);
+  extras.registerIdentity=kindRows.length&&kindRows.every(row=>row.cellSources?.reference===identity)?identity:null;
   rows=[...rows].sort((a,b)=>order(a)-order(b)||(a.programmeContext?.linkedFloatHours??Infinity)-(b.programmeContext?.linkedFloatHours??Infinity)||String(a.dueDate??'9999').localeCompare(String(b.dueDate??'9999'))||String(a.reference??'').localeCompare(String(b.reference??'')));
  }
  if(riskPage)extras.derivedRiskCandidates=[...boqCandidateRows,...interfaceRiskRows];

@@ -6450,7 +6450,7 @@ function projectCard(p){
   const comparisonDays=calculatedComparison?p.independentDaysAfterCurrentContract:p.submittedDaysAfterCurrentContract;
   const comparisonPrefix=!calculatedComparison&&p.submittedProgrammeCompletionIso&&p.forecastCompletionIso!==p.submittedProgrammeCompletionIso?'Submitted programme '+planningShortDate(p.submittedProgrammeCompletionIso)+': ':'';
   const lateness=comparisonPrefix+(typeof comparisonDays==='number'?(comparisonDays>0?fmtManagementDayCount(comparisonDays)+' after current contract':comparisonDays===0?'On the current contract date':fmtManagementDayCount(comparisonDays)+' before current contract'):'Contract comparison unavailable');
-  const money=(p.commercialSummary||[]).map(row=>row.currency+' · Current contract '+(row.currentContractValue==null?'Not supplied':fmtExecutive(row.currentContractValue))+' · EAC '+(row.forecastEac==null?'Not supplied':fmtExecutive(row.forecastEac))+' · Unpaid '+(row.certifiedUnpaidAmount==null?'Not supplied':fmtExecutive(row.certifiedUnpaidAmount))).join(' | ');
+  const money=(p.commercialSummary||[]).map(row=>row.currency+' · Current contract '+(row.currentContractValue==null?'Not supplied':fmtExecutive(row.currentContractValue))+' · EAC '+(row.forecastEac==null?'Not supplied':fmtExecutive(row.forecastEac))+' · Unpaid '+(row.certifiedUnpaidAmount==null?'Not supplied':fmtExecutive(row.certifiedUnpaidAmount))+' · CPI '+(row.cpi==null?'Not established':fmt(row.cpi))).join(' | ');
   const managementCount=p.managementActionCount===null||p.managementActionCount===undefined?null:p.managementActionCount;
   const attention=portfolioAttentionText(p);
   const attentionClass=portfolioNeedsAttention(p)?"project-attention":"project-attention no-action";
@@ -6466,7 +6466,7 @@ function projectCard(p){
       '<div class="portfolio-project-open"><button class="btn small open-project" data-project="'+escapeHtml(p.projectId)+'">Open project</button></div>'+
     '</div>'+
     (money?'<div class="project-attention"><b>Commercial</b><span>'+escapeHtml(money)+'</span></div>':'')+
-    '<div class="'+attentionClass+'"><b>Attention</b><span>'+escapeHtml(attention)+'</span></div>'+
+    '<div class="'+attentionClass+'"><b>'+(!p.analysisError&&(p.managementActions||[])[0]?'Top threat':'Attention')+'</b><span>'+escapeHtml(attention)+'</span></div>'+
   '</article>';
 }
 function bindProjectOpeners(){
