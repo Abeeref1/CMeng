@@ -408,6 +408,9 @@ export interface DerivedControlEvidence {
 }
 
 export interface ProjectControlState {
+  /** T09: user-assigned action owners and due dates, keyed by action identity (additive). */
+  actionAssignments?: Record<string, import('./action-assignments').ActionAssignment>;
+  actionAssignmentHistory?: import('./action-assignments').ActionAssignment[];
   boqSectionReview?: import('./boq-section-review').BoqSectionReview;
   boqSectionReviewHistory?: import('./boq-section-review').BoqSectionReview[];
   recoveryScenario?: import('./recovery-scenario').RecoveryScenarioDecision;

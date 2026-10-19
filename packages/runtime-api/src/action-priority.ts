@@ -34,6 +34,7 @@ export function ownerDisplayState(owner:string|null|undefined):{named:boolean;ro
  * role-only placeholder reads "Owner not set · Accountable role: <role>". Any other
  * value is returned unchanged. The browser script embeds this same function. */
 export function apiOwnerText(row:any,field:string='owner'):unknown{
+ if(field==='owner'&&row&&typeof row.assignedOwner==='string'&&row.assignedOwner.trim())return row.assignedOwner.trim();
  const value=row?row[field]:null;
  const state=row?row[field==='accountableOwner'?'accountableOwnerState':'ownerState']:null;
  let role:string|null=null,missing=false;

@@ -1,4 +1,4 @@
-import {pmcRoleOwner} from '../packages/runtime-api/src/action-priority';
+import {apiOwnerText} from '../packages/runtime-api/src/action-priority';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -604,7 +604,10 @@ for(const batch of pageBatches){
             for(const expected of truth.actions){
               const action=actions.find((row:any)=>row.actionId==='accountability:RFI|'+expected.recordId);
               assert.ok(action,'Dated open RFI missing from management: '+expected.recordId);
-              assert.equal(action.owner,expected.owner??pmcRoleOwner('rfi'),'Absent RFI source owner must resolve to the responsible PMC design role');assert.equal(action.dueIso,expected.dueIso);
+              if(expected.owner)assert.equal(action.owner,expected.owner,'A named RFI source owner is kept');
+              else{assert.equal(action.owner,null,'Absent RFI source owner is sent as missing, not as placeholder text');assert.equal(action.ownerState,'missing');
+                assert.equal(action.accountableRole,'PMC Design Manager','Absent RFI source owner must resolve to the responsible PMC design role');
+                assert.equal(apiOwnerText(action),'Owner not set · Accountable role: PMC Design Manager');}assert.equal(action.dueIso,expected.dueIso);
               assert.ok(action.sourceRefs.length>0,'Management action lost source evidence');
             }
             for(const id of truth.excluded)assert.ok(!actions.some((row:any)=>row.actionId==='accountability:RFI|'+id),

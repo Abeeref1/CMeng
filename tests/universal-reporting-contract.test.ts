@@ -68,7 +68,8 @@ test('Delay and EOT runtime fallbacks share submitted completion movement and fu
   assert.equal(eot.windowCandidates[0].positiveProgrammeMovementDays,4);assert.equal(eot.windowCandidates[0].programmeMovementBasis,windows.windows[0].netCompletionMovementBasis);
   assert.equal(eot.windowCandidates[0].analyticalTimeImpactCandidateDays,null);
   if(withEvents){const delay=moduleForProject(state.projectId,'delay-claims').data as any;
-    assert.equal(delay.projectFacts.claims.eventDateMissingCount.value,240);assert.equal(delay.claimsReporting.events.undated.length,0);
+    // SW-15: the 240 rows are claims, not events; with no event source the missing-event-date count is not established (null), never a claim-row count.
+    assert.equal(delay.projectFacts.claims.eventDateMissingCount.value,null);assert.equal(delay.claimsReporting.events.undated.length,0);
     assert.equal(delay.unattributedProgrammeMovementDays,4);
     assert.ok(delay.events.every((e:any)=>e.observedPositiveProgrammeMovementDays===null||e.observedPositiveProgrammeMovementDays===4));
   }

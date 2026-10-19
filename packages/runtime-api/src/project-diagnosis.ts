@@ -4,7 +4,7 @@ import type {ActivityAnalyticsRow} from '../../activity-analytics/src/types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
-import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
+import {floatHoursText,lagHoursText,lagWorkingDays,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
@@ -159,8 +159,9 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  // yields the same keys, order and values as spreading it into a new object.
  const networkRows=(network?.activityIds??[]).flatMap((id:string,index:number)=>{const r=byId.get(id);if(!r)return [];const calculated=calculatedById.get(id);return [Object.assign(describe(r),{sequence:index+1,
    calculatedStartIso:calculated?.independentEarlyStartIso??null,calculatedFinishIso:calculated?.independentEarlyFinishIso??null,independentTotalFloatHours:calculated?.independentTotalFloatHours??null,
-   drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; '),
-   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+rel.lagHours+' h)').join('; ')})];});
+   // T06/N7: lag in working days of the successor calendar, hours second.
+   drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+lagHoursText(rel.lagHours,lagWorkingDays(model,rel.successorActivityId,rel.lagHours).dayHours)+')').join('; '),
+   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+lagHoursText(rel.lagHours,lagWorkingDays(model,rel.successorActivityId,rel.lagHours).dayHours)+')').join('; ')})];});
  // Reuse the exact Schedule Analytics source-float population from this
  // resolved module set. The independent reconciliation still runs in the
  // shared criticality producer, and missing/unresolved values remain unknown.

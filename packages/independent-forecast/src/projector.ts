@@ -9,6 +9,7 @@ import {
   type CpmConfig,
 } from "../../schedule-cpm/src";
 import type {
+  ConstraintComparison,
   IndependentForecastActivityRow,
   IndependentForecastProjection,
   ProbabilisticForecastComparator,
@@ -317,6 +318,11 @@ export function buildIndependentForecastProjection(
         activity.status === "calculated",
     ).length;
 
+  const constraintComparison: ConstraintComparison | undefined =
+    input.cpmConfig?.applySourceConstraints === true
+      ? compareConstraintRuns(model, input.cpmConfig, resolvedFinish)
+      : undefined;
+
   const origin =
     !cpm.complete || unresolvedCalendarCount>0
       ? "unresolved"
@@ -376,5 +382,53 @@ export function buildIndependentForecastProjection(
     ),
     activities,
     complete: cpm.complete && unresolvedCalendarCount===0,
+    ...(constraintComparison ? {constraintComparison} : {}),
+  };
+}
+
+function cpmResolvedFinish(cpm: ReturnType<typeof calculateCpm>): string | null {
+  const elapsed = cpm.activities.some((activity) => activity.calendarMode === "elapsed_fallback");
+  return cpm.complete && !elapsed ? cpm.projectFinishIso : null;
+}
+
+/**
+ * F26: run the same CPM engine without the source constraints and publish
+ * both completions. Same rule as the constrained run's completion: null when
+ * the run is incomplete or any activity fell back to elapsed time. When the
+ * source has no constraints the two networks are identical, so the second run
+ * is not repeated.
+ */
+function compareConstraintRuns(
+  model: CanonicalScheduleModel,
+  cpmConfig: Partial<CpmConfig>,
+  withConstraintsCompletionIso: string | null,
+): ConstraintComparison {
+  // Same population the engine applies (engine.ts: activities with sourceConstraints).
+  const constrainedActivityCount = model.activities.filter((a) => a.sourceConstraints?.length).length;
+  const applied = constrainedActivityCount > 0;
+  const formula = "difference (calendar days) = completion with source constraints - completion without source constraints; same CPM engine, same durations, logic and calendars";
+  if (!applied) {
+    return {
+      basis: "no_source_constraints_identical_network",
+      formula,
+      constrainedActivityCount: 0,
+      withConstraintsCompletionIso,
+      withoutConstraintsCompletionIso: withConstraintsCompletionIso,
+      differenceCalendarDays: withConstraintsCompletionIso === null ? null : 0,
+    };
+  }
+  const unconstrained = calculateCpm(model, {
+    durationBasis: "remaining",
+    ...cpmConfig,
+    applySourceConstraints: false,
+  });
+  const withoutConstraintsCompletionIso = cpmResolvedFinish(unconstrained);
+  return {
+    basis: "source_constraints_applied_vs_not_applied",
+    formula,
+    constrainedActivityCount,
+    withConstraintsCompletionIso,
+    withoutConstraintsCompletionIso,
+    differenceCalendarDays: dayVariance(withoutConstraintsCompletionIso, withConstraintsCompletionIso),
   };
 }

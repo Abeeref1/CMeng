@@ -1190,7 +1190,9 @@ test('weekly actuals stop at Data Date in both resource and manhour views, with 
   csvDoc('Resource ID,Week Start,Actual Approved Usage,Source Status,Unit\nL,2026-08-24,80,Approved,labor_hour\nL,2026-09-07,50,Approved,labor_hour');
   const resources=canonicalResourceModule(state,'resource-utilization')!.data as any;
   const hours=canonicalResourceModule(state,'manhour-scurve')!.data as any;
-  assert.equal(resources.assignedResourceCount,0,'weekly resources do not manufacture P6 assignments');
+  // SW-46: this programme has no stored resource model, so its assignment count is not established (null), not 0.
+  assert.equal(resources.assignedResourceCount,null,'weekly resources do not manufacture P6 assignments');
+  assert.equal(resources.assignmentRecordCount,null);
   assert.equal(resources.weeklyObservedResourceCount,1);assert.equal(resources.capacityBasedResourceCount,0);
   assert.equal(resources.weeklyCapacityEvidence.points[1].actualApprovedUsage,null);
   assert.equal(hours.points[1].actualCumulativeHours,null);assert.equal(hours.plannedHoursToDataDate,120);assert.equal(hours.actualHoursToDataDate,80);

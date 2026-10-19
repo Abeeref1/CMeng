@@ -232,6 +232,17 @@ const fRef=f=>commitsCell(f.repairReference)+'; consultant root '+f.root+' step 
 L.push('','## Consultant items F01 to F61 (274 findings D-001 to D-266 and N-1 to N-8)','','| ID | Item | Findings | Root | Overlap | Repair reference | Verification method | Status |','| --- | --- | --- | --- | --- | --- | --- | --- |');
 for(const f of ledger.f)L.push('| '+[f.id,esc(f.title),f.originalDefectIds.length,f.root,f.proposedSwOverlapIds.join(', ')||'none',fRef(f),f.verificationMethod.kinds.join(', ')+(f.verificationMethod.guardRules.length?' ('+f.verificationMethod.guardRules.join(', ')+')':''),f.boardStatus].join(' | ')+' |');
 L.push('','Each F row keeps the consultant\'s expected check word for word in the ledger (`expectedSourceCheck`). Overlaps are proposed from titles and are unverified.','');
+if(links.fNotCoveredRound8){
+  const n=links.fNotCoveredRound8;
+  L.push('### F rows not covered by any tested shared fix','',n.note,'');
+  for(const [id,why] of Object.entries(n.rows)){
+    const f=ledger.f.find(x=>x.id===id);
+    if(!f)throw new Error('not-covered note for unknown F row '+id);
+    if(f.repairReference.state==='commits')throw new Error('F row '+id+' is linked to a repair and listed as not covered');
+    L.push('- **'+id+'** ('+f.boardStatus+'): '+why);
+  }
+  L.push('',links.round8Search??'','');
+}
 L.push('## S-items','','| ID | Repair reference | Verification method | Status |','| --- | --- | --- | --- |');
 for(const s of ledger.s)L.push('| '+[s.id,commitsCell(s.repairReference)+'. '+s.repairReference.note,'expert review once defined',s.boardStatus].join(' | ')+' |');
 L.push('','## Page findings (641, owner workbook sheet 04 ABB 641)','','Per-row repair reference and method are in the ledger. Summary by proposed SW root:','','| SW root | Findings | Root repair | Status of these findings |','| --- | --- | --- | --- |');

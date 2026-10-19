@@ -147,6 +147,13 @@ function configuredModelSettings(env:NodeJS.ProcessEnv=process.env){
  if(protocol==='none'||!model||(!key&&!baseUrl)||!['responses','chat-completions'].includes(protocol))return null;
  return {key,model,baseUrl,protocol:protocol as 'responses'|'chat-completions'};
 }
+/** T03: the controlled real-provider test (scripts/ai-controlled-test.cjs --confirm-paid) is run by
+ * the owner only. This build records no such run, so the status is never reported as passed. */
+export function realProviderTestStatus(providerConfigured:boolean){
+ return providerConfigured
+  ?{state:'configured_not_run' as const,run:false,passed:false,statement:'Real-provider test: configured but not run. The owner has not run the controlled paid test.'}
+  :{state:'not_run_no_key' as const,run:false,passed:false,statement:'Real-provider test: not run, no provider key configured in this environment.'};
+}
 /** Configuration is not permission and does not prove a successful provider call. */
 export function configuredProviderState(env:NodeJS.ProcessEnv=process.env){
  const config=configuredModelSettings(env);
@@ -154,7 +161,7 @@ export function configuredProviderState(env:NodeJS.ProcessEnv=process.env){
   monthlyBudgetUsd:env.CMENG_AI_USAGE_DIR?Number(env.CMENG_AI_MONTHLY_USD??20):null,
   // Shown before AI is switched on: the most one call can reserve against the cap.
   estimatedMaxUsdPerCall:config?callUpperBoundUsd(config.model,configuredModelLimits(env).contextTokens,configuredModelLimits(env).outputTokens,env):null,
-  configuredIsNotConnectivityProof:true};
+  configuredIsNotConnectivityProof:true,realProviderTest:realProviderTestStatus(config!==null)};
 }
 export function configuredAskModel(env:NodeJS.ProcessEnv=process.env){
  const config=configuredModelSettings(env);if(!config)return null;

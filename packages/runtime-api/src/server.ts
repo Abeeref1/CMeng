@@ -2,6 +2,7 @@ import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
 import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
 import {presentMissingOwners} from './action-priority';
+import {applyActionAssignments,actionAssignmentInput,actionAssignmentPatch} from './action-assignments';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
@@ -375,7 +376,15 @@ function itemNameForProgress(
 /** T06: one shared step for screens and downloads. Float hours tied to a
  * source activity also receive working days of that activity's calendar. */
 function withFloatWorkingDays<T>(projectId:string,body:T):T{
-  return attachProjectFloatWorkingDays(runtimeProjects.get(projectId),body);
+  return withActionAssignments(projectId,attachProjectFloatWorkingDays(runtimeProjects.get(projectId),body));
+}
+
+/** T09: user-assigned owners and due dates are added to every response and download
+ * that carries the action (same identity), next to the calculated fields. */
+function withActionAssignments<T>(projectId:string,body:T):T{
+  const state=runtimeProjects.get(projectId);
+  if(!state?.controls.actionAssignments)return body;
+  return applyActionAssignments(body,state.controls.actionAssignments,projectControlSchedule(state)?.revision.model.dataDateIso??null);
 }
 
 function json(
@@ -394,7 +403,7 @@ function json(
   // T09 A4: an owner known only as an accountable PMC role is sent as a missing
   // owner (owner null, ownerState 'missing', accountableRole); keys are unchanged.
   const present=projectMatch?(value:unknown)=>presentMissingOwners(floatDays!(value)):undefined;
-  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,present):projectMatch&&statusCode===200?presentMissingOwners(body):body);
+  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,present):projectMatch&&statusCode===200?presentMissingOwners(withActionAssignments(decodeURIComponent(projectMatch[1]!),body)):body);
   // The public gateway can only keep a version-safe result after this header
   // proves which project snapshot was used. Previously it was never sent, so
   // every visit after worker eviction repeated the complete analysis.
@@ -2076,7 +2085,7 @@ async function route(
     }catch(err){json(res,409,{error:'recovery_scenario_not_saved',message:err instanceof Error?err.message:'The scenario was not saved.'});}return;}
     json(res,405,{error:'method_not_allowed'});return;
   }
-  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review|confirm-missing-value))?$/.exec(url.pathname);
+  const actionsMatch=/^\/api\/projects\/([^/]+)\/actions(?:\/(confirm-schedule|confirm-contract-completion|confirm-review|confirm-missing-value|assign))?$/.exec(url.pathname);
   if(actionsMatch){
     const projectId=decodeURIComponent(actionsMatch[1]!),state=runtimeProjects.get(projectId);if(!state){json(res,404,{error:'project_not_found'});return;}
     const {projectActions,programmeActions}=await import('./project-actions');
@@ -2218,6 +2227,18 @@ async function route(
       json(res,200,{projectId,projectVersion:updated.version,completedActionId:action.id,kind,value:heldMissingValue(updated,kind),
         sourceRefs:kind==='contract-value'?updated.controls.contractValue?.sourceRefs??[]:updated.controls.contractTimeBasis?.sourceRefs??[]});
     }catch(e){json(res,409,{error:'missing_value_not_saved',message:e instanceof Error?e.message:'The value could not be saved.'});}return;}
+    // T09: one validated route for a user-assigned owner and due date (or clear).
+    if(req.method==='POST'&&actionsMatch[2]==='assign'){try{
+      const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
+      if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before saving.');
+      const decision=actionAssignmentInput(input);
+      const workflow=projectActionRegisterForState(state).workflow;
+      if(decision.state==='assigned'&&!workflow.actions.some(a=>a.id===decision.actionId))throw new Error('This action is no longer open. Refresh Actions required.');
+      runtimeProjects.updateControls(projectId,actionAssignmentPatch(state.controls,decision));
+      invalidateProject(projectId);
+      const updated=runtimeProjects.get(projectId)!;
+      json(res,200,{projectId,projectVersion:updated.version,actionId:decision.actionId,assignment:updated.controls.actionAssignments?.[decision.actionId]??null});
+    }catch(e){json(res,409,{error:'action_assignment_not_saved',message:e instanceof Error?e.message:'The owner and due date could not be saved.'});}return;}
     json(res,405,{error:'action_not_supported'});return;
   }
 
@@ -2859,6 +2880,7 @@ async function route(
       await readJsonBody<
         Partial<ProjectControlState>
       >(req);
+    if(Object.hasOwn(update,'actionAssignments')||Object.hasOwn(update,'actionAssignmentHistory')){json(res,409,{error:'use_action_assign',message:'Assign action owners and due dates through Actions required.'});return;}
     if(Object.hasOwn(update,'recoveryScenario')||Object.hasOwn(update,'recoveryScenarioHistory')){json(res,409,{error:'use_recovery_scenario_review',message:'Save recovery assumptions through the version-checked scenario editor.'});return;}
     if(Object.hasOwn(update,'boqSectionReview')||Object.hasOwn(update,'boqSectionReviewHistory')){json(res,409,{error:'use_boq_section_review',message:'Save section relationships through the version-checked scope editor.'});return;}
     const controls =

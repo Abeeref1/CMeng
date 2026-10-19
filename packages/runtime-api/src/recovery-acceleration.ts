@@ -63,7 +63,9 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       additionalResources:additional+' additional average people on the affected activity during the remaining working period.',estimatedCost:cost?.amount??null,currency:cost?.currency??null,
       costBasis:cost?.basis??'Additional cost is not calculated because complete activity-linked remaining labour cost, labour-hour units and one explicit Project cost currency are not all established.',
       implementationDate:dataDateIso,constraints:['The BOQ-to-activity allocation, installed quantity, productivity basis and activity calendar must remain valid.','Project-wide labour sharing and access constraints are not automatically resolved by increasing this activity crew.'],
-      risks:['Additional labour may have diminishing productivity where workspace, supervision, plant or access is constrained.'],diminishingReturn:'Do not assume linear recovery beyond the calculated average requirement; productivity should be rechecked after each resource step.',authority:'scenario'});
+      risks:['Additional labour may have diminishing productivity where workspace, supervision, plant or access is constrained.'],diminishingReturn:'Do not assume linear recovery beyond the calculated average requirement; productivity should be rechecked after each resource step.',authority:'scenario',
+      // Stated crew ratio: submitted people over the scenario crew (submitted plus additional).
+      cpmChange:check.submittedPeople>0?{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:check.activityId,factor:check.submittedPeople/(check.submittedPeople+additional)}]}:null});
   }
   for(const p of latePackages){
     const staleForecast=Boolean(p.overdueUndelivered&&(!p.forecastDelivery||dataDateIso&&p.forecastDelivery.slice(0,10)<=dataDateIso.slice(0,10)));
@@ -97,7 +99,9 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
         estimatedCost:null,currency:null,costBasis:'Shift cost is withheld unless an explicit shift/overtime premium is supplied; base remaining labour cost is not treated as an acceleration premium.',
         implementationDate:dataDateIso,constraints:['The second shift must have equivalent access, productivity, supervision, plant and material availability.','Working-time rules, HSE limits and local approvals must permit the extended operation.'],
         risks:['Night/second-shift productivity may differ from the daytime basis.','Handover between shifts, supervision and congestion can reduce the theoretical recovery.'],
-        diminishingReturn:'The equal-shift result is an upper local sensitivity at unchanged productivity; do not extrapolate further shifts linearly.',authority:'scenario'});
+        diminishingReturn:'The equal-shift result is an upper local sensitivity at unchanged productivity; do not extrapolate further shifts linearly.',authority:'scenario',
+        // Stated working-hours ratio of the new shift pattern: required hours on two equal shifts over one.
+        cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:check.activityId,factor:(check.requiredLaborHours!/(check.submittedPeople!*2))/(check.requiredLaborHours!/check.submittedPeople!)}]}});
     }catch{}
   }
 

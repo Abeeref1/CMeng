@@ -258,6 +258,7 @@ export interface VariationLifecycleRecord {
     | "agreed"
     | "approved"
     | "rejected"
+    | "withdrawn"
     | "unknown";
   status: string;
   authority: string | null;
@@ -317,7 +318,7 @@ export interface VariationsProjection {
     state: 'established' | 'partial' | 'not_established' | 'missing';
     approvedOnly: boolean;
     recordCount: number;
-    stateCounts: {submitted: number | null; underReview: number | null; approved: number; rejected: number | null; withdrawn: number | null; unknown: number | null};
+    stateCounts: {instructed: number | null; submitted: number | null; underReview: number | null; approved: number; rejected: number | null; withdrawn: number | null; unknown: number | null};
     basis: string;
     consequence: string | null;
     action: string | null;
@@ -336,6 +337,7 @@ export interface VariationsProjection {
     agreed: number;
     approved: number;
     rejected: number;
+    withdrawn: number;
     unknown: number;
   };
   pendingAgeBands: {
@@ -495,6 +497,8 @@ export interface LiquidatedDamagesProjection {
 }
 
 export interface BondPosition {
+  /** F02: shared Data Date rule (additive field). */
+  securityState?: import('../../truth-kernel/src').SecurityStateResult;
   contractValidity?:ReturnType<typeof import('./security-validity').performanceSecurityValidity>;
   bondId: string;
   kind: BondControlInput["kind"];

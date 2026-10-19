@@ -44,6 +44,27 @@ export function floatHoursText(hours:number,dayHours:number|null|undefined):stri
  return days===null?hours+' h (working days unknown: calendar hours per day not read)':Number(days.toFixed(2))+' working days ('+hours+' h)';
 }
 
+/** T06/N7: relationship lag is worked on the successor activity calendar (the
+ * P6 relationship-lag convention, and the method the CMeng CPM uses:
+ * successor_calendar_forward_and_backward). The source project lag-calendar
+ * setting is not read by any parser, so the basis always states the successor
+ * calendar. Unknown successor or unread calendar stays null, never 8 hours. */
+export const LAG_DAYS_BASIS='successor_activity_calendar';
+export function lagWorkingDays(model:CanonicalScheduleModel,successorActivityId:unknown,hours:number|null|undefined){
+ const {workingDayHours,activityById}=sourceCalendarWorkingDays(model);
+ const successor=typeof successorActivityId==='string'?activityById.get(successorActivityId):undefined;
+ const dayHours=successor?workingDayHours(successor.calendarId):null;
+ return {dayHours,days:floatHoursToWorkingDays(hours,dayHours),
+  basis:dayHours===null?'successor_calendar_working_day_not_established':LAG_DAYS_BASIS};
+}
+/** Narrative lag text: working days of the successor calendar first, hours second. */
+export function lagHoursText(hours:number|null|undefined,dayHours:number|null|undefined):string{
+ if(typeof hours!=='number'||!Number.isFinite(hours))return 'lag not established';
+ const days=floatHoursToWorkingDays(hours,dayHours);
+ return days===null?'lag working days not established (successor calendar hours per day not read) · '+hours+' h'
+  :'lag '+Number(days.toFixed(2))+' working days (successor calendar) · '+hours+' h';
+}
+
 /** Submitted classifications remain source assertions. Every comparison retains
  * the activity identity and both answers; an aggregate count cannot clear a row. */
 const reviewsByVersion=new WeakMap<CanonicalScheduleModel,{version:number;forecast:IndependentForecastProjection;configKey:string;value:any}>();
@@ -231,6 +252,15 @@ export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|nu
    }
    if(durationConverted&&!('durationDaysBasis' in value))
     set('durationDaysBasis',durationDayHours===null?'calendar_working_day_not_established':'source_activity_calendar');
+  }
+  // T06/N7: a relationship row's lag carries working days of its successor
+  // calendar beside the hours (lagWorkingDays + lagDaysBasis). Only rows that
+  // name a successor are converted; existing day values are kept.
+  const successorId=typeof value.successorActivityId==='string'?value.successorActivityId:typeof value.successor==='string'?value.successor:null;
+  if(successorId!==null&&typeof value.lagHours==='number'&&Number.isFinite(value.lagHours)&&!('lagWorkingDays' in value)){
+   const lag=lagWorkingDays(model,successorId,value.lagHours);
+   set('lagWorkingDays',lag.days);
+   if(!('lagDaysBasis' in value))set('lagDaysBasis',lag.basis);
   }
   // A group value converts only when every float-bearing member activity uses
   // one working-day length; otherwise hours stay with an explicit basis.

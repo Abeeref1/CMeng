@@ -74,3 +74,22 @@ test('SW-24 the recovery projection counts only CPM-calculated options on the pa
  assert.equal(result.assumptionRequiredCount,options.length-result.calculatedScenarioCount);
  assert.equal(result.recoveryOptionCount+result.lateWorkCount+result.pathNotEstablishedCount,result.scenarios.length);
 });
+
+test('SW-24 crew and shift options on the driving path get a CPM completion gain from their stated duration ratio',()=>{
+ const model=chainModel(),before=JSON.stringify(model),forecast=cachedIndependentForecast(model,'2034-01-01T00:00:00.000Z');
+ // Crew 2 -> 4 people on the last driving activity: its 8 remaining hours become 4.
+ const crew={...lateItem('crew:A7',['A7']),type:'additional_crew' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'A7',factor:2/4}]}};
+ // Equal second shift on an off-path activity: still late work, no gain claimed.
+ const offShift={...lateItem('shift:B',['B']),type:'additional_shift_or_calendar' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'B',factor:0.5}]}};
+ classifyRecoveryAgainstCompletion([crew,offShift],model,forecast,model.calendars[0]!);
+ assert.equal(crew.pathRole,'recovery_option');
+ assert.equal(crew.completionGainWorkingDays,0.5,'4 working hours earlier on an 8-hour calendar day');
+ assert.match(crew.completionGainBasis!,/A7 × 0\.5/);
+ assert.equal(offShift.pathRole,'late_work');assert.equal(offShift.completionGainWorkingDays,null);
+ // A remaining duration the source does not state cannot be scaled: not established, never 0.
+ const unstated=chainModel();unstated.activities.find(a=>a.activityId==='A6')!.remainingDurationHours=null as any;
+ const missing={...lateItem('crew:A6',['A6']),type:'additional_crew' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'A6',factor:0.5}]}};
+ classifyRecoveryAgainstCompletion([missing],unstated,{complete:true,drivingNetwork:{activityIds:['A6']},activities:[]},unstated.calendars[0]!);
+ assert.equal(missing.pathRole,'recovery_option');assert.equal(missing.completionGainWorkingDays,null);assert.match(missing.completionGainBasis!,/^Not established/);
+ assert.equal(JSON.stringify(model),before);
+});
