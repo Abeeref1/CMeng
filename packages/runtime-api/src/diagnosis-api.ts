@@ -4,6 +4,7 @@ import {moduleForProject} from './project-projections';
 import {projectDiagnosisDetails} from './project-diagnosis';
 import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
 import {once} from 'node:events';
+import {readablePathLabel} from './field-labels';
 
 export async function diagnosisRequest(req:IncomingMessage,res:ServerResponse,url:URL){
  const match=/^\/api\/projects\/([^/]+)\/diagnosis$/.exec(url.pathname);if(!match)return false;
@@ -31,8 +32,11 @@ export async function diagnosisRequest(req:IncomingMessage,res:ServerResponse,ur
      res.writeHead(200,{'content-type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','content-disposition':'attachment; filename="'+filename+'.xlsx"'});
      const workbook=new ExcelJS.stream.xlsx.WorkbookWriter({stream:res,useStyles:false,useSharedStrings:false}),sheet=workbook.addWorksheet('Project diagnosis');
      sheet.addRow(['Project',projectId,'Data Date',d.dataDateIso,'Source revision',d.sourceRevisionId,'Project version',state.version]).commit();
-     sheet.addRow([section==='network'?d.network.basis:d.rankingBasis]).commit();sheet.addRow(keys).commit();
-     for(const r of rows)sheet.addRow(keys.map(k=>value(r[k]))).commit();sheet.commit();await workbook.commit();
+     // T10 X1 (W1): headings in reader words; 'Column keys' maps each column to its field key.
+     sheet.addRow([section==='network'?d.network.basis:d.rankingBasis]).commit();sheet.addRow(keys.map(k=>readablePathLabel(k)||k)).commit();
+     for(const r of rows)sheet.addRow(keys.map(k=>value(r[k]))).commit();sheet.commit();
+     const mapping=workbook.addWorksheet('Column keys');mapping.addRow(['Column','Heading','Field key']).commit();
+     keys.forEach((k,i)=>mapping.addRow([i+1,readablePathLabel(k)||k,k]).commit());mapping.commit();await workbook.commit();
    }else{
      res.writeHead(200,{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="'+filename+'.csv"'});
      const cell=(v:unknown)=>{let s=String(value(v));if(typeof v==='string'&&/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};

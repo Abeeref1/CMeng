@@ -252,6 +252,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const fileOf=(id:string)=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id;
   // Clear, unique candidates the shared rule already uses in analysis.
   const usedInAnalysis=sourceAnalyticalCandidateIds(state.evidenceDocuments);
+  // One choosable decision per commercial record whose adopted value differs
+  // from an unadopted source: keep adopted, use the source value, type your
+  // own; change or undo later. Saved in reviewDecisions (kept after restart).
+  for(const key of [...new Set(commercialConflicts.filter(c=>c.against==='adopted'&&c.decisionKey).map(c=>c.decisionKey!))]){
+    const group=commercialConflicts.filter(c=>c.decisionKey===key),first=group[0]!,saved=first.decision??null;
+    const label=first.kind.replace(/([A-Z])/g,' $1').toLowerCase();
+    actions.push({id:'matter:'+key,category:saved?'information':'confirmation',title:'Choose the '+label+' value for '+first.recordId,owner:'Commercial Manager',recordCount:group.length,
+      reason:'The adopted record ('+first.againstDocumentIds.map(fileOf).join('; ')+') differs from '+group.map(c=>fileOf(c.documentId)).join('; ')+', a source that is not formally adopted. The adopted value is used until you decide.',
+      evidenceSummary:[...group.map(c=>'Unadopted source: '+fileOf(c.documentId)),...(saved?['Saved decision: '+saved+(first.enteredValue!=null?' ('+first.enteredValue+')':'')]:[])],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Keep the adopted value, use the value read from the unadopted source, or enter your own'+(first.numericField?' '+first.numericField:'')+'. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
+      target:{type:'inline',kind:'review-commercial-record',label:'Choose value',reviewChoice:saved,reviewOptions:[{value:'keep_adopted',label:'Keep the adopted value'},
+        ...group.map(c=>({value:'use_source:'+c.documentId,label:'Use the value read from '+fileOf(c.documentId)})),
+        ...(first.numericField?[{value:'enter_value',label:'Enter my own '+first.numericField}]:[]),...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
+      ...(first.fingerprint?{reviewFingerprint:first.fingerprint}:{}),reviewSourceRefs:[...new Set(group.flatMap(c=>[...c.sourceRefs,...c.againstSourceRefs]))]});
+  }
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     const saved=d.relationshipDecision;
@@ -300,16 +315,12 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
-    // A combined request stays in every matter that any of its original
-    // findings belongs to, so combining duplicates never removes a finding,
-    // reference or page from a matter. The request itself is counted once.
-    const views=[issue,...(issue.members??[]).map(member=>memberView(issue,member))];
-    const placed=new Set<string>();
-    for(const view of views){
-      const group=projectReviewGroup(view,state);if(placed.has(group.key))continue;placed.add(group.key);
-      const existing=groups.get(group.key);
-      if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
-    }
+    // One distinct problem is one request in one matter, so request counts
+    // count distinct problems. A combined request keeps every original as a
+    // member (pages, source references, fields and actions), so nothing of
+    // either original is lost by counting it once.
+    const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
+    if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
   const heldCommercial=commercialCanonical(state);
   const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String(b.kind??(b as any).type??(b as any).bondType??'')+' '+b.bondId));

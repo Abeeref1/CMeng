@@ -280,7 +280,7 @@ export interface StoredEvidenceDocument {
    * display these receipts; reused steps are SHA-scoped. */
   semanticAiSteps?: Array<{
     sheetName:string; sourceHashSha256:string;
-    status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'stopped_at_cap'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
+    status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'stopped_at_cap'|'provider_error'|'invalid_response'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
     attempted:boolean; note:string;
   }>;
 
@@ -440,7 +440,7 @@ export interface ProjectControlState {
   rfis: RfiRecord[];
   permits: PermitRecord[];
   risks: RiskControlRecord[];
-  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;noticeSourceKeys?:string[];locationAssignments?:Array<{wbsId:string;location:string}>;activityIds?:string[];matrix?:Record<string,string>;asOfIso?:string;additionalDays?:number;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reference?:string;confirmedAt:string;sourceRefs:string[]}>;
+  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;enteredValue?:number;noticeSourceKeys?:string[];locationAssignments?:Array<{wbsId:string;location:string}>;activityIds?:string[];matrix?:Record<string,string>;asOfIso?:string;additionalDays?:number;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reference?:string;confirmedAt:string;sourceRefs:string[]}>;
   boardPublication:
     | BoardReportPublicationInput
     | null;

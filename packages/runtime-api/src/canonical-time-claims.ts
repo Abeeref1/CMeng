@@ -1,6 +1,6 @@
 import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
-import {completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
+import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
@@ -874,9 +874,10 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const heldByAdopted=completionHeldByAdoptedBasis(contractTimeBasis??state.controls.contractTimeBasis,completion);
   if(heldByAdopted){
     const previous=(contractTimeBasis??state.controls.contractTimeBasis)!;
-    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...previous.sourceRefs],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
+    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
   }
-  else if(completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments){
+  // An adopted contract without a completion line must not erase a user-confirmed date.
+  else if((completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments)&&!(!amendment&&keepsUserConfirmedCompletion(confirmedManualBasis,completion))){
     const previous=withoutCompletionSourceLabel(contractTimeBasis??state.controls.contractTimeBasis);
     const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>
       candidate.role==='amendment'&&candidate.date===completion.value&&candidate.effectiveFrom!==null&&dataDateIso!==null&&candidate.effectiveFrom<=dataDateIso

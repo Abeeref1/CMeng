@@ -15,7 +15,7 @@ import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identi
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {readRegisterWorkbook,registerCsv} from './register-workbook';
-import {completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
+import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
@@ -54,6 +54,7 @@ import type {
   ContractDocumentResult,
   ContractAiResolver,
 } from "../../contract-parser/src";
+import {classifyAiCallError} from "../../contract-parser/src/ai";
 import {
   canonicalScheduleFromPrimaveraXml,
   canonicalScheduleFromTabular,
@@ -148,6 +149,8 @@ function promoteContractTimeBasis(state: ProjectRuntimeState): void {
   // T04: a date read only from a unique, fully read unadopted contract is used
   // with state 'candidate' and its label; it never replaces an adopted date.
   if(!resolved.hasContractDocuments&&!resolved.hasSourceAnalyticalDocuments)return;
+  // A contract without a completion line never erases a user-confirmed date in stored controls.
+  if(keepsUserConfirmedCompletion(current,resolved))return;
   const held=completionHeldByAdoptedBasis(current,resolved);
   if(held){if(held.length)state.controls.contractTimeBasis={...current!,contractualCompletionSourceConflicts:[...new Set([...(current!.contractualCompletionSourceConflicts??[]),...held])]};return;}
   state.controls.contractTimeBasis={...withoutCompletionSourceLabel(current),...completionSourceLabel(resolved),
@@ -167,6 +170,13 @@ function hashBytes(
     .digest("hex");
 }
 
+/** Plain status note for an AI step that did not read anything. Nothing is marked as read. */
+function aiErrorNote(status:'stopped_at_cap'|'provider_error'|'invalid_response'|'failed',retained:string){
+  return (status==='stopped_at_cap'?'AI spending cap reached; no paid call was made':
+    status==='provider_error'?'AI provider was unavailable or timed out; nothing was read by AI':
+    status==='invalid_response'?'AI provider returned an incomplete or unreadable answer; it was not used':
+    'AI reading failed; nothing was read by AI')+'. '+retained.charAt(0).toUpperCase()+retained.slice(1);
+}
 const sheetSemanticExcludedTypes=new Set([
   'supporting_document','schedule_file','schedule_baseline','schedule_update','schedule_recovery','schedule_revised_baseline',
   'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
@@ -224,7 +234,8 @@ export async function enrichRegisterSheetSemantics(
         else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
         options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:accepted?'validated':'unresolved',attempted:true,note:accepted?'AI reading passed independent structural and source-column validation.':'AI reading could not validate the remaining original columns.'});
       }catch(error){
-        if(error instanceof Error&&error.message==='MODEL_MONTHLY_BUDGET_EXHAUSTED'){
+        const errorStatus=classifyAiCallError(error);
+        if(errorStatus==='stopped_at_cap'){
           // The ledger refused the reservation before any provider request: no paid call was made.
           stoppedAtCap=true;aiCalls--;
           options.diagnostics?.push('Worksheet '+sheet.name+': AI reading stopped at the spending cap. Unresolved source columns remain available for review.');
@@ -232,7 +243,7 @@ export async function enrichRegisterSheetSemantics(
           continue;
         }
         options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');
-        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'failed',attempted:true,note:'AI reading failed; original columns are preserved for review.'});
+        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:errorStatus,attempted:true,note:aiErrorNote(errorStatus,'original columns are preserved for review.')});
       }
     }else{
       const status=options.resolver?'call_limit':options.requested?'provider_unavailable':'disabled';
@@ -2438,7 +2449,10 @@ export class RuntimeProjectStore {
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(!isCsv&&!isWorkbook)continue;
         if(document.category==='schedule'&&state.schedules.some(s=>s.revision.revisionId===document.linkedArtifactId))continue;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3'))continue;
+        // T04: a CSV held as 'partial' only for its type review is re-read once
+        // the type is reviewed for this exact file, so it can be marked read.
+        const typeReviewedCsv=isCsv&&!!document.classificationDecision&&document.classificationDecision.sourceHash===document.sourceHashSha256;
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3')&&!(typeReviewedCsv&&document.parserState==='partial'))continue;
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2474,7 +2488,7 @@ export class RuntimeProjectStore {
           // review decisions under the corrected family behaviour on refresh.
           if(['retention_register','site_instruction_register','contract_obligation_register'].includes(next.documentType))families.add(next.familyKey);
           next.derivedRegisterRead={producerVersion:'register-derived-v9',sourceHashSha256:next.sourceHashSha256};
-          if(isWorkbook)next.parserState='parsed';
+          if(isWorkbook||typeReviewedCsv&&next.mapping)next.parserState='parsed';
           Object.assign(document,next);
           state.derivedControlsByDocument[document.documentId]=controls;state.derivedReadinessByDocument[document.documentId]=readiness;
           changed=true;refreshedDocumentCount++;
@@ -4580,17 +4594,21 @@ export class RuntimeProjectStore {
         const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,documentType);
         const needsSemanticReading=!route||tableNeedsSemanticReading(rows,route.documentType);
-        let csvAiAttempted=false,csvAiFailed=false;
+        let csvAiAttempted=false,csvAiFailed=false,csvAiError:ReturnType<typeof classifyAiCallError>|null=null;
         if(!csvSemantic&&semanticResolver&&needsSemanticReading){
           csvAiAttempted=true;
           try{
             const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
             if(proposed)csvSemantic=proposed;
             else identification.diagnostics.push('AI reading could not establish the remaining column meanings. Source values are retained.');
-          }catch{csvAiFailed=true;identification.diagnostics.push('AI reading failed. Unresolved source columns remain available for review.');}
+          }catch(error){
+            csvAiError=classifyAiCallError(error);
+            if(csvAiError==='stopped_at_cap'){csvAiAttempted=false;identification.diagnostics.push('AI reading stopped at the spending cap. Unresolved source columns remain available for review.');}
+            else{csvAiFailed=true;identification.diagnostics.push('AI reading failed. Unresolved source columns remain available for review.');}
+          }
         }
         const status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']=
-          csvAiFailed?'failed':csvAiAttempted?(csvSemantic?'validated':'unresolved'):
+          csvAiError==='stopped_at_cap'?'stopped_at_cap':csvAiFailed?csvAiError??'failed':csvAiAttempted?(csvSemantic?'validated':'unresolved'):
           csvSemantic?.method==='ai_grounded'?'reused':
           !needsSemanticReading?'not_required':
           !input.allowSemanticAi?'disabled':'provider_unavailable';
@@ -4598,7 +4616,7 @@ export class RuntimeProjectStore {
           note:status==='validated'?'Validated against original CSV headers and content.':
             status==='reused'?'Previously grounded source reading reused without another call.':
             status==='not_required'?'Deterministic CSV column reading is sufficient.':
-            status==='failed'?'AI call failed; original CSV retained.':
+            status==='stopped_at_cap'||status==='failed'||status==='provider_error'||status==='invalid_response'?aiErrorNote(status,'original CSV retained.'):
             status==='unresolved'?'AI call did not validate the unmatched source columns.':
             status==='disabled'?'AI was not requested for this upload.':
             'AI was requested but no configured provider was available.'});
@@ -6279,8 +6297,8 @@ export class RuntimeProjectStore {
           ?'AI heading reading was validated against the exact retained source span.'
           :step.status==='call_limit'
             ?'Per-file contract AI call limit reached; the original heading remains unresolved for review.'
-            :step.status==='failed'
-              ?'AI heading reading failed; the original contract text remains retained.'
+            :step.status==='failed'||step.status==='stopped_at_cap'||step.status==='provider_error'||step.status==='invalid_response'
+              ?aiErrorNote(step.status,'the original contract text remains retained.')
               :'AI heading proposal did not pass source-span and confidence validation; original text remains retained.',
       });
     };

@@ -140,6 +140,18 @@ function looksAmbiguousHeading(value: string): boolean {
   );
 }
 
+/** One shared reading of an AI call error, used by every AI reading step.
+ * stopped_at_cap: the spending ledger refused the call before any provider request.
+ * provider_error: the provider was down, refused or timed out.
+ * invalid_response: the provider answered with an incomplete or unreadable result. */
+export function classifyAiCallError(error:unknown):"stopped_at_cap"|"provider_error"|"invalid_response"|"failed"{
+  const message=error instanceof Error?error.message:String(error);
+  if(message==="MODEL_MONTHLY_BUDGET_EXHAUSTED")return "stopped_at_cap";
+  if(message==="MODEL_PROVIDER_UNAVAILABLE")return "provider_error";
+  if(error instanceof SyntaxError||/^MODEL_RESPONSE_(INVALID|INCOMPLETE|TOO_LARGE)$/.test(message))return "invalid_response";
+  return "failed";
+}
+
 export async function collectAiHeadingOverrides(
   blocks: readonly ContractTextBlock[],
   resolver: ContractAiResolver,
@@ -158,6 +170,7 @@ export async function collectAiHeadingOverrides(
     ? Math.max(0, Math.floor(requestedMax))
     : Number.MAX_SAFE_INTEGER;
   let aiCalls = 0;
+  let stoppedAtCap = false;
   let previousSection: ContractAiHeadingInput["previousSection"] =
     null;
 
@@ -173,6 +186,12 @@ export async function collectAiHeadingOverrides(
         .find((candidate) => candidate.text.trim())
         ?.text ?? null;
 
+    if (stoppedAtCap) {
+      const code = "CONTRACT_AI_SPENDING_CAP_REACHED:" + span.sourceKind + ":" + span.sourceIndex + ":" + span.start;
+      diagnostics.push(code);
+      options.onStep?.({sourceSpan: span, status: "stopped_at_cap", attempted: false, diagnostics: [code]});
+      continue;
+    }
     if (aiCalls >= maxCalls) {
       const code = "CONTRACT_AI_CALL_LIMIT_REACHED";
       diagnostics.push(
@@ -208,10 +227,16 @@ export async function collectAiHeadingOverrides(
           ? error.message
           : String(error));
       diagnostics.push(code);
+      const status = classifyAiCallError(error);
+      if (status === "stopped_at_cap") {
+        // The ledger refused before any provider request: no paid call, and no later call either.
+        stoppedAtCap = true;
+        aiCalls -= 1;
+      }
       options.onStep?.({
         sourceSpan: span,
-        status: "failed",
-        attempted: true,
+        status,
+        attempted: status !== "stopped_at_cap",
         diagnostics: [code],
       });
       continue;

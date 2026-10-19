@@ -49,6 +49,8 @@ export function readableFieldLabel(key: unknown): string {
     desc: 'description', pkg: 'package', calc: 'calculation', cmeng: 'CMeng', pct: '%', percent: '%',
     ncrs: 'NCRs', rfis: 'RFIs', eots: 'EOTs', ipcs: 'IPCs', boqs: 'BOQs', kpis: 'KPIs',
     sha256: 'SHA-256', sha1: 'SHA-1', md5: 'MD5',
+    // W2: a data pointer is a location in the source record.
+    pointer: 'location', pointers: 'locations',
   };
   const acronyms = /^(?:eot|cpi|spi|ncr|rfi|cpm|wbs|eac|etc|ld|lds|boq|pmo|ai|pdf|ipc|kpi|hse|evm|tcpi|bac|vac|xer|csv|qa|qc|pv|ev|ac|sla|fx|cbs|mcp|rag|po|sv|cv|ptw|mep|vat|hvac|ocr|fidic|ltifr|trir|api|url|ifc|mir|wir|bei|sar|usd|aed|eur|gbp|qar|kwd|omr|bhd|jod|egp|p[0-9]{2})$/;
   // UPPER_SNAKE codes are read as lower-case words.
@@ -106,4 +108,21 @@ export function readablePathLabel(path: unknown): string {
     const label = base + (selectors.length ? ' (' + selectors.map(v => lowerFirst(readableFieldLabel(v))).join(', ') + ')' : '');
     return index === 0 ? label : lowerFirst(label);
   }).join(' · ');
+}
+
+/** Name of the download worksheet that keeps every column's field key for machine reading. */
+export const FIELD_KEYS_SHEET = 'Field keys';
+
+/**
+ * T10 X1/W1: download headings must be unique. Two keys that read alike
+ * ('dataDate', 'dataDateIso' -> 'Data date') get a number, never the same
+ * heading; the field key of each column is kept on FIELD_KEYS_SHEET.
+ */
+export function uniqueHeadings(labels: readonly string[]): string[] {
+  const seen = new Map<string, number>();
+  return labels.map(label => {
+    const count = (seen.get(label) ?? 0) + 1;
+    seen.set(label, count);
+    return count === 1 ? label : label + ' (' + count + ')';
+  });
 }

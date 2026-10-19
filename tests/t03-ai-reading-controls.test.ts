@@ -58,7 +58,8 @@ test('T03 the spending cap is checked before each call and the run stops cleanly
   const steps:any[]=[],diagnostics:string[]=[];
   await enrichRegisterSheetSemantics(workbook(['S1','S2','S3']),{resolver:new GroundedTableSemanticAiResolver(model),requested:true,steps,diagnostics});
   assert.equal(fetches,1,'no provider request after the cap is reached');
-  assert.deepEqual(steps.map(step=>step.status),['failed','stopped_at_cap','stopped_at_cap']);
+  // The fake provider answers HTTP 500, which the provider reads as MODEL_PROVIDER_UNAVAILABLE: a provider error.
+  assert.deepEqual(steps.map(step=>step.status),['provider_error','stopped_at_cap','stopped_at_cap']);
   assert.deepEqual(steps.map(step=>step.attempted),[true,false,false]);
   assert.ok(steps.slice(1).every(step=>/spending cap/.test(step.note)));
   assert.equal(diagnostics.filter(line=>/stopped at the spending cap/.test(line)).length,2);

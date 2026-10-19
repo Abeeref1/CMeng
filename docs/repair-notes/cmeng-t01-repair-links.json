@@ -14,14 +14,17 @@
         "3634d35b",
         "413524f5",
         "f47ed2f3",
-        "ffd57dc0"
+        "ffd57dc0",
+        "34758c74",
+        "3eeb9d6a"
       ],
       "tests": [
         "tests/t05-counts-true-total-every-screen.test.ts",
         "tests/project-actions.test.ts",
-        "tests/t05-remaining-true-totals.test.ts"
+        "tests/t05-remaining-true-totals.test.ts",
+        "tests/t05-reporting-contract-not-cut.test.ts"
       ],
-      "what": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1).",
+      "what": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1). Round 3: page counts and charts fed by cut lists use true totals; the reporting contract is never key-capped in screen responses (67 of 217 metric contracts were missing).",
       "notCovered": "N1 guard not re-run on all 23 projects; not live."
     },
     "SW-07": {
@@ -30,13 +33,14 @@
         "85c8324b",
         "071ea238",
         "413524f5",
-        "9e44e026"
+        "9e44e026",
+        "65ed08a4"
       ],
       "tests": [
         "tests/t11-dashboard-on-demand-original-content.test.ts",
         "tests/t05-same-measure-every-page.test.ts"
       ],
-      "what": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4).",
+      "what": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4). Round 3: 7 cross-page differences fixed at their producers (same measure, same value).",
       "notCovered": "Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked."
     },
     "SW-36": {
@@ -84,7 +88,12 @@
         "e833b9c7",
         "697d0833",
         "88a6e429",
-        "1762b984"
+        "1762b984",
+        "f300ba67",
+        "6a7ceff6",
+        "e49b88ac",
+        "9a533b60",
+        "7147bbd2"
       ],
       "tests": [
         "tests/t11-retained-calculation-only.test.ts",
@@ -92,9 +101,13 @@
         "tests/t11-dashboard-on-demand-original-content.test.ts",
         "tests/t11-owner-page-publication.test.ts",
         "tests/t11-cpm-engine-differential.test.ts",
-        "tests/t11-revision-compare-aligned-parity.test.ts"
+        "tests/t11-revision-compare-aligned-parity.test.ts",
+        "tests/t11-scope-literal-prefilter.test.ts",
+        "tests/t11-change-category-single-pass-parity.test.ts",
+        "tests/t11-module-issues-walk-parity.test.ts",
+        "tests/t11-worker-compile-cache.test.ts"
       ],
-      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness.",
+      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness. Round 3: more speed work with identical outputs.",
       "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
     },
     "SW-13": {
@@ -194,23 +207,27 @@
     },
     "SW-19": {
       "commits": [
-        "ce20efc2"
+        "ce20efc2",
+        "a18851b3"
       ],
       "tests": [
         "tests/t08-ncr-unclear-and-need-date.test.ts"
       ],
-      "what": "unclear NCR status is its own state with a reason, never open or closed (T08).",
+      "what": "unclear NCR status is its own state with a reason, never open or closed (T08). Round 3: unclear NCRs counted and explained.",
       "notCovered": "Independent reader not re-run."
     },
     "SW-20": {
       "commits": [
-        "2df7f3df"
+        "2df7f3df",
+        "a198df79",
+        "77baa5c2"
       ],
       "tests": [
-        "tests/t04-contract-terms-source-analysis.test.ts"
+        "tests/t04-contract-terms-source-analysis.test.ts",
+        "tests/t07-commercial-vs-independent.test.ts"
       ],
-      "what": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04).",
-      "notCovered": "Only the hold part of the cause (rule held but not used). The notice calculator has not checked the dates."
+      "what": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04). Round 3: notice periods count civil days, checked against the independent notice calculator; not-adopted label shown for notice rules.",
+      "notCovered": "Contract rule versus default (42 v 84 days) not proven on the real projects."
     },
     "SW-39": {
       "commits": [
@@ -245,13 +262,15 @@
     },
     "SW-47": {
       "commits": [
-        "428cf1dd"
+        "428cf1dd",
+        "e2c9efea"
       ],
       "tests": [
-        "tests/t10-look-sort-empty-access.test.ts"
+        "tests/t10-look-sort-empty-access.test.ts",
+        "tests/t10-delivery-downloads-charts.test.ts"
       ],
-      "what": "a chart whose values are all zero shows the reason and the values (S3).",
-      "notCovered": "Missing plan curves, heatmap, timeline and X3 are not covered."
+      "what": "a chart whose values are all zero shows the reason and the values (S3). Round 3: X3 chart numbers checked against the table beside them on delivery pages.",
+      "notCovered": "Missing plan curves, heatmap and timeline still not covered."
     },
     "SW-48": {
       "commits": [
@@ -265,12 +284,14 @@
     },
     "SW-49": {
       "commits": [
-        "f8161902"
+        "f8161902",
+        "e2c9efea"
       ],
       "tests": [
-        "tests/t10-downloads-match-screen.test.ts"
+        "tests/t10-downloads-match-screen.test.ts",
+        "tests/t10-delivery-downloads-charts.test.ts"
       ],
-      "what": "module downloads carry reader words, units, data date and scope (X1).",
+      "what": "module downloads carry reader words, units, data date and scope (X1). Round 3: delivery downloads in reader words with data date and scope.",
       "notCovered": "Generate report and PDF outputs not covered; X1 still to add."
     },
     "SW-50": {
@@ -314,6 +335,16 @@
       ],
       "what": "PROJECT.scd_end_date read as the scheduled project finish, kept apart from plan_end_date; a multi-project data date conflict stays unknown.",
       "notCovered": "Not shown or reconciled on the pages yet as far as the commit says; independent reader not re-run."
+    },
+    "SW-17": {
+      "commits": [
+        "a18851b3"
+      ],
+      "tests": [
+        "tests/t08-ncr-unclear-and-need-date.test.ts"
+      ],
+      "what": "need date is the linked activity start less the stated lead/review time; not stated stays the start with no default (T08).",
+      "notCovered": "Independent reader not re-run on the 23 projects."
     }
   },
   "withoutSwRow": [
@@ -329,14 +360,16 @@
         "313fe7d8",
         "bb348873",
         "bb027e2d",
-        "24c1554f"
+        "24c1554f",
+        "6c5e5729"
       ],
       "tests": [
         "tests/t06-float-days-every-remaining-place.test.ts",
         "tests/management-brief-acceptance.test.ts",
         "tests/t06-durations-and-buckets-days.test.ts",
         "tests/batch-c-near-critical-visibility.test.ts",
-        "tests/xer-calendar-recovery.test.ts"
+        "tests/xer-calendar-recovery.test.ts",
+        "tests/t06-programme-hand-checked.test.ts"
       ],
       "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06).",
       "why": "No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect."
@@ -355,10 +388,12 @@
     {
       "rule": "identity (brief rule)",
       "commits": [
-        "85cf0aa6"
+        "85cf0aa6",
+        "d1824129"
       ],
       "tests": [
-        "tests/t10-identity-independent-of-wording.test.ts"
+        "tests/t10-identity-independent-of-wording.test.ts",
+        "tests/t10-combined-request-keeps-every-original.test.ts"
       ],
       "what": "Issue keys, groups, de-duplication and finding ids use raw machine data, never display labels.",
       "why": "Guards the T10 label work (SW-45) against changing record identity; no SW row of its own."
@@ -498,9 +533,10 @@
     },
     "SW-21": {
       "commits": [
-        "e6a1c480"
+        "e6a1c480",
+        "a198df79"
       ],
-      "why": "Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed."
+      "why": "Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed. a198df79 removes float noise from approved-variation sums; the approved-only cause remains."
     },
     "SW-22": {
       "commits": [
@@ -511,16 +547,22 @@
     "SW-38": {
       "commits": [
         "616ec8b8",
-        "85f740b9"
+        "85f740b9",
+        "76d74606",
+        "b5ceeced",
+        "5c6c0237"
       ],
-      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
+      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code. Round 3 rework 76d74606 and b5ceeced was also reverted by 5c6c0237."
     },
     "SW-37": {
       "commits": [
         "616ec8b8",
-        "85f740b9"
+        "85f740b9",
+        "76d74606",
+        "b5ceeced",
+        "5c6c0237"
       ],
-      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
+      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code. Round 3 rework 76d74606 and b5ceeced was also reverted by 5c6c0237."
     }
   },
   "f": {
@@ -538,14 +580,16 @@
     },
     "F28": {
       "commits": [
-        "cb7443bf"
+        "cb7443bf",
+        "8dfc6cd3"
       ],
       "tests": [
         "tests/system-root-causes.test.ts",
-        "tests/ui-management-experience.test.ts"
+        "tests/ui-management-experience.test.ts",
+        "tests/t04-commercial-registers-source-analysis.test.ts"
       ],
-      "what": "Explicit-approval decision gates (live). Commit subject names F28.",
-      "notCovered": "Plan T04 (13 Oct) still requires ending the hold: no approval request for clear facts. Not certified."
+      "what": "Explicit-approval decision gates (live). Commit subject names F28. Round 3: a clear unique candidate already used in analysis no longer raises a document confirmation request.",
+      "notCovered": "Competing, review-needed and disagreeing candidates keep the decision, as intended."
     },
     "F56": {
       "commits": [
@@ -571,12 +615,13 @@
     },
     "F25": {
       "commits": [
-        "e6a1c480"
+        "e6a1c480",
+        "8dfc6cd3"
       ],
       "tests": [
         "tests/t04-commercial-registers-source-analysis.test.ts"
       ],
-      "what": "clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04).",
+      "what": "clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04). Round 3: commercial register rows carry the not-adopted label.",
       "notCovered": "Only commercial registers; other register families not checked here."
     },
     "F39": {
@@ -652,7 +697,7 @@
     "originally_correct_watch": 62
   },
   "stillOpenNotes": {
-    "SW-17": "The test file t08-ncr-unclear-and-need-date has only SW-19 cases; no test or commit covers the procurement need date.",
+    "SW-17": "Linked in round 3 (a18851b3).",
     "SW-37": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
@@ -682,5 +727,127 @@
     ],
     "result": "79 tests, 79 pass, 0 fail",
     "notRun": "t11-cpm-engine-differential and the round-1 test files were not re-run in this pass."
+  },
+  "independentTools": {
+    "commits": [
+      "aba6b6fa",
+      "595854cc",
+      "6975b694",
+      "4d894cd6",
+      "0d971961"
+    ],
+    "tests": [
+      "tests/t12-independent-cpm-solver.test.ts",
+      "tests/t12-independent-commercial-calculators.test.ts",
+      "tests/t07-commercial-vs-independent.test.ts",
+      "tests/t06-cmeng-cpm-vs-independent.test.ts"
+    ],
+    "what": "T12 independent CPM solver (18 hand-worked networks), EVM, notice/date and commercial ledger calculators now exist in tools/independent; CMeng CPM judged against the solver. These are verification tools, not repairs of a row."
+  },
+  "round3Search": "Round 3 (v/int3 at 1153164d): every commit in v/int2..v/int3 read the same way.",
+  "countsBeforeRound3": {
+    "commit": "b1dd984c",
+    "open_no_repair_linked": 138,
+    "open_root_not_repaired": 124,
+    "open_root_repair_saved_not_live": 405,
+    "repair_saved_not_live_named_test": 31,
+    "repair_live_no_named_test": 3,
+    "repair_live_named_test_not_certified": 4,
+    "originally_correct_watch": 62
+  },
+  "agentBranches": {
+    "scannedAt": "2026-10-19T07:50:09.833Z",
+    "note": "Commits on agent branches that are not in v/int3 (this build) when scanned at 2026-10-19T07:50:09.833Z. They are not linked to rows and change no status until they are merged and their tests pass on the merged build. v/int4 was at 1153164d, the same as v/int3, so no round-4 commit had landed in a build.",
+    "branches": [
+      {
+        "branch": "v/a2-commercial",
+        "commits": [
+          {
+            "sha": "258438f5",
+            "subject": "fix(T04): commercial adopted-vs-unadopted conflicts are choosable in the decision place"
+          }
+        ]
+      },
+      {
+        "branch": "v/a3c",
+        "commits": [
+          {
+            "sha": "06c7d870",
+            "subject": "fix(T04): lineage review releases a sole candidate only when its cause is known and no live basis is involved"
+          },
+          {
+            "sha": "d4bfcb32",
+            "subject": "fix(T04): review findings on the one candidate rule (type review, lineage, combined resource value)"
+          },
+          {
+            "sha": "30561bc4",
+            "subject": "fix(T04): one candidate admission rule for governedTables, resource capacity and delivery records"
+          }
+        ]
+      },
+      {
+        "branch": "v/c1-float",
+        "commits": [
+          {
+            "sha": "3edbd51e",
+            "subject": "wip(T06): durations, revision float shift and variance-trend float in working days (NOT BUILT, NOT TESTED - do not merge yet)"
+          }
+        ]
+      },
+      {
+        "branch": "v/d2-wording-r3-pending",
+        "commits": [
+          {
+            "sha": "a08d76cb",
+            "subject": "fix(T10) PENDING TESTS: unique module xlsx headings + Field keys sheet; basis sentences via shared label; diagnosis plural agreement"
+          }
+        ]
+      },
+      {
+        "branch": "v/d2-wording-xlsx-unverified",
+        "commits": [
+          {
+            "sha": "1ae11272",
+            "subject": "wip(T10) UNVERIFIED: readable xlsx headings with a Field keys sheet; tests look up columns by key"
+          }
+        ]
+      },
+      {
+        "branch": "v/d4-downloads",
+        "commits": [
+          {
+            "sha": "3e432e0d",
+            "subject": "fix(T10): Generate report carries every page figure; diagnosis download headings in reader words"
+          }
+        ]
+      },
+      {
+        "branch": "v/final2",
+        "commits": [
+          {
+            "sha": "e80e2163",
+            "subject": "fix(T01-T11): verifier repair round 2, combined on bd851ecc"
+          }
+        ]
+      },
+      {
+        "branch": "v/i1-commercial",
+        "commits": [
+          {
+            "sha": "76bc3f4a",
+            "subject": "fix(T07): paid above certified is no longer an established zero unpaid balance"
+          }
+        ]
+      },
+      {
+        "branch": "v/l1-cpm-solver",
+        "commits": [
+          {
+            "sha": "ae63aca4",
+            "subject": "fix(T06 D1, D2): CPM late start of milestones and SS/SF lag from started work"
+          }
+        ]
+      }
+    ]
   }
 }

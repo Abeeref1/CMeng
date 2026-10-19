@@ -40,26 +40,28 @@ test('one combined request holds every reference, module, path, field, action an
   assert.deepEqual(single.memberIssueIds,[controlIssueMemberId(resource)]);assert.equal(single.members,undefined);
 });
 
-test('the combined request stays in every matter its originals belonged to, with every page, reference and field',async()=>{
+test('a combined request is counted once, in one matter, and that matter holds every page, reference and field of both originals',async()=>{
   const {projectActions}=await import('../packages/runtime-api/src/project-actions');
   const {projectReviewGroup}=await import('../packages/runtime-api/src/project-review-groups');
   const {runtimeProjects}=await import('../packages/runtime-api/src/project-state');
   const state=runtimeProjects.getOrCreate('T10-COMBINED-REQUEST');
-  const separate=projectActions(state,{...summarizeControlIssues([resource]),issues:[...summarizeControlIssues([resource]).issues,...summarizeControlIssues([contract]).issues]});
-  const combined=projectActions(state,summarizeControlIssues([resource,contract]));
-  const matters=(result:typeof combined)=>[...result.actions,...result.information];
-  const resourceGroup='matter:'+projectReviewGroup(resource,state).key,contractGroup='matter:'+projectReviewGroup(contract,state).key;
-  assert.notEqual(resourceGroup,contractGroup,'the two originals belong to different matters');
-  for(const id of [resourceGroup,contractGroup]){
-    const before=matters(separate).find(a=>a.id===id)!,after=matters(combined).find(a=>a.id===id);
-    assert.ok(after,id+' is not lost');
-    assert.equal(after.requestCount,before.requestCount,id+' still lists the request');
-    assert.ok(after.recordCount>=before.recordCount,id+' loses no source record');
-    for(const page of before.affectedPages??[])assert.ok(after.affectedPages?.includes(page),id+' keeps page '+page);
-    for(const ref of before.findings!.flatMap(f=>f.sourceRefs))assert.ok(after.findings!.some(f=>f.sourceRefs.includes(ref)),id+' keeps '+ref);
-    for(const field of before.missingFields??[])assert.ok(after.missingFields?.some(m=>m.field===field.field),id+' keeps field '+field.field);
-    assert.ok(after.findings!.every(f=>f.memberIssueIds?.length===2),'the same single request, with both identities');
+  const assessed=summarizeControlIssues([resource,contract]);
+  const combined=projectActions(state,assessed);
+  const matters=[...combined.actions,...combined.information].filter(a=>(a.findings??[]).length>0);
+  const holding=matters.filter(a=>a.findings!.some(f=>f.code==='INDEPENDENT_COMPARISON_INPUT'));
+  // requestCount counts distinct problems: one problem, one request, one matter.
+  assert.equal(holding.length,1,'the distinct problem is listed in exactly one matter');
+  const home=holding[0]!;
+  assert.equal(home.id,'matter:'+projectReviewGroup(assessed.issues[0]!,state).key,'its matter is chosen from the combined request');
+  assert.equal(home.requestCount,1);
+  assert.equal(matters.reduce((n,a)=>n+(a.requestCount??0),0),assessed.counts.missing_information,'request totals equal distinct problems');
+  // Nothing of either original is lost.
+  for(const issue of [resource,contract]){
+    for(const page of issue.moduleKeys)assert.ok(home.affectedPages?.includes(page),'page '+page+' kept');
+    for(const ref of issue.sourceRefs)assert.ok(home.findings![0]!.sourceRefs.includes(ref),'source reference '+ref+' kept');
+    assert.ok(home.missingFields?.some(m=>m.field===issue.summary),'affected field '+issue.summary+' kept');
+    assert.ok(home.findings![0]!.members?.some(m=>m.id===controlIssueMemberId(issue)&&m.action===issue.action),'original and its action kept');
   }
-  const findingIds=new Set(matters(combined).filter(a=>[resourceGroup,contractGroup].includes(a.id)).flatMap(a=>a.findingIds??[]));
-  assert.equal(findingIds.size,1,'one request id across both matters');
+  assert.equal(home.recordCount,new Set([...resource.sourceRefs,...contract.sourceRefs]).size,'every source record of both originals is counted once');
+  assert.equal(home.findingIds?.length,1);
 });

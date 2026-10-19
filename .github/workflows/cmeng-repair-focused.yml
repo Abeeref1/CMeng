@@ -37,6 +37,7 @@ jobs:
             dist/tests/t11-module-issues-walk-parity.test.js \
             dist/tests/t10-downloads-match-screen.test.js \
             dist/tests/t10-delivery-downloads-charts.test.js \
+            dist/tests/t10-generate-report-all-figures.test.js \
             dist/tests/t11-activity-movement-source-date-reuse.test.js \
             dist/tests/t11-activity-analytics-date-population.test.js \
             dist/tests/t11-analytics-shared-source-dates.test.js \
@@ -93,6 +94,7 @@ jobs:
             dist/tests/t04-inline-conflict-decisions.test.js \
             dist/tests/t04-restart-decision-persistence.test.js \
             dist/tests/t04-candidate-family-conflict-truth.test.js \
+            dist/tests/t04-one-rule-inputs-banners.test.js \
             dist/tests/t07-certificate-calendar-date-truth.test.js \
             dist/tests/t07-commercial-gregorian-integrity.test.js \
             dist/tests/t04-payment-review-authority-truth.test.js \
@@ -119,6 +121,7 @@ jobs:
             dist/tests/t03-semantic-ai-step-audit.test.js \
             dist/tests/t03-contract-ai-call-cap.test.js \
             dist/tests/t03-ai-reading-controls.test.js \
+            dist/tests/t03-ai-error-states.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \

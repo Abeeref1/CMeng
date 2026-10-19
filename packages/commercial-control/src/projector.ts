@@ -20,6 +20,15 @@ function uniq(values: string[]): string[] {
   return [...new Set(values)].sort();
 }
 
+/** Certified minus paid. Paid above certified is not a zero balance: the records
+ * do not reconcile (overpayment or a missing certificate), so no balance is
+ * established instead of showing a false clear 0. */
+const PAID_EXCEEDS_CERTIFIED = "PAID_EXCEEDS_CERTIFIED_UNPAID_BALANCE_NOT_ESTABLISHED";
+function unpaidBalance(certified: number, paid: number): number | null {
+  const balance = Number((certified - paid).toFixed(8));
+  return balance < 0 ? null : balance;
+}
+
 function moneyMetric(
   value: number | null,
   state: CommercialEvidenceState,
@@ -884,20 +893,24 @@ export function buildCommercialControlPosition(
             grossCertified !== null &&
             paidTotal !== null &&
             completePaidCoverage
-              ? Math.max(
-                  0,
-                  grossCertified -
-                    paidTotal,
+              ? unpaidBalance(
+                  grossCertified,
+                  paidTotal,
                 )
               : null,
             grossCertified !== null &&
             paidTotal !== null &&
-            completePaidCoverage
+            completePaidCoverage &&
+            unpaidBalance(grossCertified, paidTotal) !== null
               ? "established"
-              : stateFor(false, sources.payments),
+              : grossCertified !== null && paidTotal !== null && completePaidCoverage
+                ? "missing_information"
+                : stateFor(false, sources.payments),
             invoiceRefs,
             completePaidCoverage
-              ? []
+              ? grossCertified !== null && paidTotal !== null && unpaidBalance(grossCertified, paidTotal) === null
+                ? [PAID_EXCEEDS_CERTIFIED]
+                : []
               : [
                   "CERTIFIED_UNPAID_REQUIRES_PAID_AMOUNT_FOR_EVERY_CERTIFICATE",
                 ],
@@ -1648,9 +1661,11 @@ export function buildCommercialControlPosition(
       position.paidAmount.value !== null &&
       position.paidAmount.state === "established"
     ) {
-      const netUnpaid=Math.max(0,Number((netCertified.value-position.paidAmount.value).toFixed(8)));
+      const netUnpaid=unpaidBalance(netCertified.value,position.paidAmount.value);
       position.certifiedUnpaidAmount =
-        moneyMetric(
+        netUnpaid===null
+          ? moneyMetric(null,"missing_information",uniq([...netCertified.sourceRefs,...position.paidAmount.sourceRefs]),[PAID_EXCEEDS_CERTIFIED])
+          : moneyMetric(
           netUnpaid,
           "established",
           uniq([

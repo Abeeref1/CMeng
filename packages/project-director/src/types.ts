@@ -31,6 +31,8 @@ export interface MoneyValue {
 export interface SourceAnalyticalLabel {
   sourceAnalyticalUse?: "qualified_source_read";
   sourceAnalyticalNote?: string;
+  /** Set when a saved commercial decision replaced the adopted record; keeps the original. */
+  decisionBasis?: { key: string; adopted: any };
 }
 
 export interface VariationRecord extends MoneyValue, SourceAnalyticalLabel {

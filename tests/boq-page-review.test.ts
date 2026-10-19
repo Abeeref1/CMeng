@@ -19,6 +19,7 @@ import {buildModuleJsonDownload,buildModuleWorkbook} from '../packages/runtime-a
 import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
 import {AskStore} from '../packages/runtime-api/src/ask-store';
 import {refreshDeferredPdfBoq} from '../packages/runtime-api/src/boq-pdf-refresh';
+import {fieldKeyColumn,worksheetWithFieldKeys} from './workbook-field-keys';
 
 function setup(t:any){const dir=mkdtempSync(join(tmpdir(),'cmeng-pages-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));return {dir,store:new RuntimeProjectStore({dataDir:dir,durable:true})};}
 async function fixture(projectId:string){
@@ -164,6 +165,6 @@ test('HTTP correction reaches deterministic Ask, JSON and Excel with unchanged o
  const answer=await engine.ask(id,{userId:'test',workspaceId:'test',name:null,title:null,company:null,allowModel:false},{question:'Show BOQ items and costs'});
  const rows=answer.sections.flatMap(s=>s.tables).flatMap(t=>t.rows).filter(r=>typeof r.description==='string'&&r.description.startsWith('Work '));assert.deepEqual(rows.slice(0,3).map(r=>r.quantity),f.truth);
  invalidateProject(id);const module=moduleForProject(id,'challenge-contract'),json=JSON.parse(buildModuleJsonDownload(id,'challenge-contract',module).toString());assert.deepEqual(json.result.data.suppliedBoq.rows.map((r:any)=>r.quantity),f.truth);
- const book=new ExcelJS.Workbook();await book.xlsx.load(await buildModuleWorkbook(id,'challenge-contract',module) as any);const sheet=book.worksheets.find(s=>(s.getRow(1).values as any[]).includes('numericConfirmation.decisionId'))!;assert.ok(sheet);const col=(sheet.getRow(1).values as any[]).indexOf('quantity');assert.deepEqual(f.truth.map((_,i)=>sheet.getRow(i+2).getCell(col).value),f.truth);
+ const book=new ExcelJS.Workbook();await book.xlsx.load(await buildModuleWorkbook(id,'challenge-contract',module) as any);const sheet=worksheetWithFieldKeys(book,['numericConfirmation.decisionId'])!;assert.ok(sheet);const col=fieldKeyColumn(book,sheet.name,'quantity');assert.ok(col>0);assert.deepEqual(f.truth.map((_,i)=>sheet.getRow(i+2).getCell(col).value),f.truth);
  const original=await fetch(base+'/boq/numeric-review/source/'+f.boq.ingestionId);assert.equal(createHash('sha256').update(Buffer.from(await original.arrayBuffer())).digest('hex'),f.boq.sourceHashSha256);
 });

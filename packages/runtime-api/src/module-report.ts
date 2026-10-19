@@ -1,5 +1,5 @@
 import {PassThrough} from 'node:stream';
-import {readableFieldLabel,readablePathLabel} from './field-labels';
+import {readableFieldLabel,readablePathLabel,uniqueHeadings,FIELD_KEYS_SHEET} from './field-labels';
 import {setImmediate as yieldExport} from 'node:timers/promises';
 import {collectReportArrays as collectArrays,reportArrayRows,type ReportArraySection as ArraySection} from './report-tables';
 import {buildDeliveryWorkbook} from './delivery-export';
@@ -249,10 +249,13 @@ const EXCEL_DATA_ROWS=1_048_575; // One header plus data must fit a worksheet.
 function flatArrayRow(row:unknown):Record<string,FlatValue> {
  return row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)};
 }
+/** One row of the field-key sheet: where a value sits and which field key it carries. */
+type FieldKeyRow=[worksheet:string,column:number,row:number,heading:string,fieldKey:string];
 async function addArraySheet(
   workbook: ExcelJS.Workbook,
   section: ArraySection,
   usedNames: Set<string>,
+  fieldKeys: FieldKeyRow[],
 ): Promise<void> {
   const headers:string[]=[],widths=new Map<string,number>();
   let inspected=0;
@@ -267,10 +270,16 @@ async function addArraySheet(
   }
   const base=section.path.split('.').at(-1)??section.path;
   if(!section.rowCount){const empty=workbook.addWorksheet(worksheetName(base,usedNames));empty.addRow(['No records']).commit();empty.commit();return;}
+  // T10 X1 (W1): one heading per column, never two alike ('dataDate' and
+  // 'dataDateIso' both read 'Data date'); each column's field key is kept on
+  // the field-key sheet so the data stays machine-readable.
+  const headings=uniqueHeadings(headers.map(key=>nestedColumnLabels[key]??(readablePathLabel(key)||key)));
   const open=()=>{
-    const sheet=workbook.addWorksheet(worksheetName(base,usedNames),{views:[{state:'frozen',ySplit:1}]});
+    const name=worksheetName(base,usedNames);
+    const sheet=workbook.addWorksheet(name,{views:[{state:'frozen',ySplit:1}]});
     // T10 X1 (W1): column headings in reader words; the column key is unchanged.
-    sheet.columns=headers.map(key=>({header:nestedColumnLabels[key]??(readablePathLabel(key)||key),key,width:widths.get(key)!}));
+    sheet.columns=headers.map((key,index)=>({header:headings[index]!,key,width:widths.get(key)!}));
+    headers.forEach((key,index)=>fieldKeys.push([name,index+1,1,headings[index]!,key]));
     styleHeader(sheet.getRow(1));sheet.getRow(1).commit();return sheet;
   };
   let sheet=open(),written=0,total=0;
@@ -294,6 +303,15 @@ function reportProgrammeRevision(result:ModuleRuntimeResult):string|null{
   const value=data?.programmeRevisionId??data?.reportingContract?.programmeRevisionId??null;
   return typeof value==='string'&&value?value:null;
 }
+/** The field key of every heading and figure, kept apart from the reader's words. */
+function addFieldKeySheet(workbook:ExcelJS.Workbook,fieldKeys:FieldKeyRow[],usedNames:Set<string>):void{
+  const sheet=workbook.addWorksheet(worksheetName(FIELD_KEYS_SHEET,usedNames),{views:[{state:'frozen',ySplit:1}]});
+  sheet.columns=[{header:'Worksheet',key:'worksheet',width:28},{header:'Column',key:'column',width:9},{header:'Row',key:'row',width:9},{header:'Heading',key:'heading',width:42},{header:'Field key',key:'fieldKey',width:46}];
+  styleHeader(sheet.getRow(1));sheet.getRow(1).commit();
+  for(const row of fieldKeys)sheet.addRow(row).commit();
+  sheet.commit();
+}
+
 export async function buildModuleWorkbook(
   projectId: string,
   moduleKey: string,
@@ -422,15 +440,18 @@ export async function buildModuleWorkbook(
   // T10 X1 (W1): each figure is labelled in reader words with its context
   // ('Summary · total float hours'), never by its data path, and carries the
   // unit declared by its reporting contract when one exists.
+  const fieldKeys:FieldKeyRow[]=[];
   for (
     const [key, value] of
       Object.entries(flat)
   ) {
+    const label=readablePathLabel(key)||key;
     summary.addRow([
-      readablePathLabel(key)||key,
+      label,
       value,
       reportMetricContract(data as Record<string,unknown>,key)?.unit??null,
     ]);
+    fieldKeys.push([summary.name,1,summary.lastRow!.number,label,key]);
   }
 
   summary.getColumn(1).width =
@@ -470,8 +491,10 @@ export async function buildModuleWorkbook(
       workbook,
       section,
       usedNames,
+      fieldKeys,
     );
   }
+  addFieldKeySheet(workbook,fieldKeys,usedNames);
 
   await workbook.commit();
   return Buffer.concat(chunks);
@@ -660,7 +683,9 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   const dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null;
   const authorityState=result.status==='ready'?'established':result.status==='partial'?'partial':'unavailable';
   const sections:AuthorityResult[]=[];
-  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v))).slice(0,1000);
+  // T10 X2: Generate report carries every figure the page shows. The former
+  // .slice(0,1000) silently dropped every figure after the first 1,000.
+  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v)));
   const metricTraces=metricRows.map(([key])=>{
     const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);
     return {id:'module:metric:'+key,authorityId:'summary',projectId,module:moduleKey,path:key,sourceRefs:[],dataDate:contract?.dataDateIso??dataDate,basis:reportMetricBasis(contract),exclusions:contract?.excludedCount?['Reporting population excludes '+String(contract.excludedCount)+' record(s); see '+String(contract.exclusionsRef??'the reporting contract')+'.']:[],state};

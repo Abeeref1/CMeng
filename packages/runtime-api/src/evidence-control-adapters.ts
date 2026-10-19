@@ -26,6 +26,7 @@ import type {
   RiskControlRecord,
   StoredEvidenceDocument,
 } from "./project-state-types";
+import { createHash } from "node:crypto";
 import {
   analyticalOperationalDocuments,
   SOURCE_ANALYTICAL_USE,
@@ -1833,11 +1834,20 @@ export interface CommercialSourceReadConflict {
   against: "adopted" | "source_read";
   againstDocumentIds: string[];
   againstSourceRefs: string[];
+  /** Adopted-vs-unadopted only: the one decision for this record. */
+  decisionKey?: string;
+  fingerprint?: string;
+  decision?: string | null;
+  enteredValue?: number | null;
+  numericField?: string | null;
 }
+export const commercialDecisionKey = (kind: string, recordId: string) => "commercial-record:" + kind + ":" + recordId;
+/** The adopted record behind a decision-applied record. */
+const adoptedBasis = <T>(row: T): T => ((row as any)?.decisionBasis?.adopted ?? row) as T;
 const comparableRecord = (row: object) =>
   JSON.stringify(
     Object.entries(row)
-      .filter(([key]) => !["sourceRefs", "sourceAnalyticalUse", "sourceAnalyticalNote"].includes(key))
+      .filter(([key]) => !["sourceRefs", "sourceAnalyticalUse", "sourceAnalyticalNote", "decisionBasis"].includes(key))
       .sort(([a], [b]) => a.localeCompare(b)),
   );
 /** Documents named by source references; a document id may itself contain ':'. */
@@ -1869,6 +1879,7 @@ export function sourceReadCommercialControls(
     variations: [], invoices: [], retentions: [], bonds: [], claimCommercials: [],
   };
   const conflicts: CommercialSourceReadConflict[] = [];
+  const replacements = Object.fromEntries(commercialRegisterIds.map(([kind]) => [kind, new Map<string, any>()])) as Record<string, Map<string, any>>;
   for (const [kind, id] of commercialRegisterIds) {
     const adoptedById = new Map((adopted[kind] ?? []).map((row: any) => [id(row), row]));
     const read = new Map<string, Array<{ documentId: string; row: any }>>();
@@ -1881,10 +1892,28 @@ export function sourceReadCommercialControls(
     for (const [recordId, list] of read) {
       const current = adoptedById.get(recordId);
       if (current) {
-        for (const entry of list)
-          if (comparableRecord(entry.row) !== comparableRecord(current))
-            conflicts.push({ kind, recordId, documentId: entry.documentId, sourceRefs: entry.row.sourceRefs,
-              against: "adopted", againstDocumentIds: referencedDocumentIds(state.evidenceDocuments, current.sourceRefs), againstSourceRefs: current.sourceRefs });
+        const differing = list.filter((entry) => comparableRecord(entry.row) !== comparableRecord(current));
+        if (!differing.length) continue;
+        // One saved decision per record: keep adopted, use a source reading,
+        // or a typed value. Bound to the exact values compared.
+        const decisionKey = commercialDecisionKey(kind, recordId);
+        const fingerprint = createHash("sha256").update(comparableRecord(current) + "|" + differing.map((entry) => entry.documentId + ":" + comparableRecord(entry.row)).join("|")).digest("hex").slice(0, 24);
+        const numericFields = [...new Set(differing.flatMap((entry) => Object.keys({ ...entry.row, ...current })
+          .filter((key) => (typeof entry.row[key] === "number" || typeof current[key] === "number") && entry.row[key] !== current[key])))];
+        const saved = state.controls.reviewDecisions?.[decisionKey];
+        const decision = saved && saved.sourceFingerprint === fingerprint ? saved : null;
+        const numericField = numericFields.length === 1 ? numericFields[0]! : null;
+        for (const entry of differing)
+          conflicts.push({ kind, recordId, documentId: entry.documentId, sourceRefs: entry.row.sourceRefs,
+            against: "adopted", againstDocumentIds: referencedDocumentIds(state.evidenceDocuments, current.sourceRefs), againstSourceRefs: current.sourceRefs,
+            decisionKey, fingerprint, decision: decision?.choice ?? null, enteredValue: decision?.enteredValue ?? null, numericField });
+        const chosen = decision?.choice.startsWith("use_source:") ? differing.find((entry) => "use_source:" + entry.documentId === decision.choice)?.row : null;
+        if (chosen)
+          replacements[kind]!.set(recordId, { ...sourceReadStates(chosen), sourceAnalyticalUse: SOURCE_ANALYTICAL_USE,
+            sourceAnalyticalNote: "Chosen in the decision place from a source that is not formally adopted", decisionBasis: { key: decisionKey, adopted: current } });
+        else if (decision?.choice === "enter_value" && numericField && typeof decision.enteredValue === "number" && Number.isFinite(decision.enteredValue))
+          replacements[kind]!.set(recordId, { ...current, [numericField]: decision.enteredValue, sourceAnalyticalUse: SOURCE_ANALYTICAL_USE,
+            sourceAnalyticalNote: "Value entered in the decision place; not formally adopted", decisionBasis: { key: decisionKey, adopted: current } });
         continue;
       }
       if (new Set(list.map((entry) => entry.documentId)).size > 1 && new Set(list.map((entry) => comparableRecord(entry.row))).size > 1) {
@@ -1920,18 +1949,18 @@ export function sourceReadCommercialControls(
       conflicts.push({ kind: "delayClaims", recordId: "delay-claims-population", documentId: document.documentId, sourceRefs: ["evidence-document:" + document.documentId],
         against: "source_read", againstDocumentIds: delayDocuments.filter((other) => other !== document).map((other) => other.documentId), againstSourceRefs: [] });
   }
-  return { rows, delayClaims, conflicts };
+  return { rows, delayClaims, conflicts, replacements };
 }
 
 /** Conflicts between the commercial registers in project state and the
  * unadopted sources. Read by the one decision place (document actions). */
 export function commercialSourceReadConflicts(state: ProjectRuntimeState): CommercialSourceReadConflict[] {
-  const adopted = (row: { sourceRefs: string[]; sourceAnalyticalUse?: string }) => !row.sourceAnalyticalUse;
+  const adopted = <T extends { sourceAnalyticalUse?: string }>(rows: T[]) => rows.map(adoptedBasis).filter((row) => !row.sourceAnalyticalUse);
   const delay = state.controls.delayClaims;
   return sourceReadCommercialControls(state, {
-    variations: state.controls.variations.filter(adopted), invoices: state.controls.invoices.filter(adopted),
-    retentions: state.controls.retentions.filter(adopted), bonds: state.controls.bonds.filter(adopted),
-    claimCommercials: state.controls.claimCommercials.filter(adopted),
+    variations: adopted(state.controls.variations), invoices: adopted(state.controls.invoices),
+    retentions: adopted(state.controls.retentions), bonds: adopted(state.controls.bonds),
+    claimCommercials: adopted(state.controls.claimCommercials),
     delayClaims: delay && !delay.diagnostics.some((d) => d.startsWith("SOURCE_ANALYTICAL_NOT_ADOPTED:")) ? delay : null,
   }).conflicts;
 }
@@ -1939,6 +1968,9 @@ export function commercialSourceReadConflicts(state: ProjectRuntimeState): Comme
 export function rebuildDerivedControls(
   state: ProjectRuntimeState,
 ): void {
+  // A record replaced by a saved decision is rebuilt from its adopted basis.
+  for (const [kind] of commercialRegisterIds)
+    (state.controls as any)[kind] = ((state.controls as any)[kind] as any[]).map(adoptedBasis);
   const manualVariations =
     state.controls.variations
       .filter(
@@ -2167,6 +2199,8 @@ export function rebuildDerivedControls(
     retentions: state.controls.retentions, bonds: state.controls.bonds,
     claimCommercials: state.controls.claimCommercials, delayClaims: derivedDelay,
   });
+  for (const [kind, id] of commercialRegisterIds)
+    (state.controls as any)[kind] = ((state.controls as any)[kind] as any[]).map((row) => sourceRead.replacements[kind]!.get(id(row)) ?? row);
   state.controls.variations.push(...sourceRead.rows.variations);
   state.controls.invoices.push(...sourceRead.rows.invoices);
   state.controls.retentions.push(...sourceRead.rows.retentions);

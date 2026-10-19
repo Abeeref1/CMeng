@@ -1,5 +1,6 @@
 import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
+import { addWorkingHours, resolveWorkingCalendar } from "../../schedule-cpm/src/calendar";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -82,10 +83,16 @@ function unitKey(
   return normalized || "UNSPECIFIED";
 }
 
+type WorkFrontInterval =
+  | { start: number; finish: number }
+  | "unresolved"
+  | null;
+
 function activityInterval(
   activity: CanonicalScheduleActivity,
   dataDateIso: string | null,
-): { start: number; finish: number } | null {
+  calendars: CanonicalScheduleModel["calendars"],
+): WorkFrontInterval {
   if (
     activity.activityType !== "task" ||
     activity.status === "completed"
@@ -107,24 +114,55 @@ function activityInterval(
 
   if (
     start === null ||
-    finish === null ||
-    finish <= start
+    finish === null
+  ) return null;
+  // Reversed dates that still lie after the Data Date are invalid source dates.
+  if (
+    finish <= start &&
+    (dataDate === null || finish > dataDate)
   ) return null;
 
-  // Remaining work starts no earlier than the Data Date. An unfinished
-  // activity whose stored finish is already before the Data Date has no
-  // valid remaining window: exclude it rather than count a reversed
-  // interval, which would drive concurrency negative.
+  // Remaining work starts no earlier than the Data Date.
   const remainingStart =
     dataDate === null
       ? start
       : Math.max(start, dataDate);
-  if (finish <= remainingStart) return null;
+  if (finish > remainingStart) {
+    return {
+      start: remainingStart,
+      finish,
+    };
+  }
 
-  return {
-    start: remainingStart,
-    finish,
-  };
+  // Unfinished work whose stored finish is already at or before the Data Date
+  // is still open work, but its stale dates cannot give its remaining window.
+  // Use the remaining duration from the Data Date on the activity's own
+  // calendar; with no known remaining duration or usable calendar the window
+  // is not established (never 0, never a reversed interval).
+  const remaining = activity.remainingDurationHours;
+  if (
+    remaining === null ||
+    remaining === undefined ||
+    !Number.isFinite(remaining) ||
+    remaining < 0
+  ) return "unresolved";
+  if (remaining === 0) return null;
+  const resolution =
+    resolveWorkingCalendar(
+      activity.calendarId ?? null,
+      calendars,
+      false,
+    );
+  if (!resolution) return "unresolved";
+  const remainingFinish =
+    addWorkingHours(
+      resolution.calendar,
+      remainingStart,
+      remaining,
+    );
+  return remainingFinish > remainingStart
+    ? { start: remainingStart, finish: remainingFinish }
+    : "unresolved";
 }
 
 function concurrency(
@@ -132,31 +170,42 @@ function concurrency(
 ): {
   average: number | null;
   peak: number | null;
-  activityCount: number;
+  activityCount: number | null;
+  unresolvedActivityCount: number;
+  notEstablishedReason: string | null;
 } {
-  const intervals =
-    schedule.activities
-      .map(
-        (activity) =>
-          activityInterval(
-            activity,
-            schedule.dataDateIso,
-          ),
-      )
-      .filter(
-        (
-          value,
-        ): value is {
-          start: number;
-          finish: number;
-        } => value !== null,
+  const intervals: Array<{ start: number; finish: number }> = [];
+  let unresolvedActivityCount = 0;
+  for (const activity of schedule.activities) {
+    const interval =
+      activityInterval(
+        activity,
+        schedule.dataDateIso,
+        schedule.calendars,
       );
+    if (interval === "unresolved") unresolvedActivityCount += 1;
+    else if (interval !== null) intervals.push(interval);
+  }
+
+  if (unresolvedActivityCount > 0) {
+    return {
+      average: null,
+      peak: null,
+      activityCount: null,
+      unresolvedActivityCount,
+      notEstablishedReason:
+        unresolvedActivityCount +
+        " open activities have a stored finish on or before the Data Date and no usable remaining duration or working calendar, so their remaining work window is not established.",
+    };
+  }
 
   if (intervals.length === 0) {
     return {
       average: null,
       peak: null,
       activityCount: 0,
+      unresolvedActivityCount: 0,
+      notEstablishedReason: null,
     };
   }
 
@@ -223,6 +272,8 @@ function concurrency(
     peak,
     activityCount:
       intervals.length,
+    unresolvedActivityCount: 0,
+    notEstablishedReason: null,
   };
 }
 
@@ -1753,7 +1804,7 @@ export function buildDeliveryChallengeProjection(
     finding({
       topic: "workfront",
       state:
-        fronts.activityCount > 0
+        (fronts.activityCount ?? 0) > 0
           ? (
               independentRequiresReview
                 ? "scenario"
@@ -1763,7 +1814,9 @@ export function buildDeliveryChallengeProjection(
       contractorAssumption:
         "The submitted programme logic and dated activities define the current execution sequence and concurrency pattern.",
       independentCalculation:
-        fronts.activityCount > 0
+        fronts.activityCount === null
+          ? fronts.notEstablishedReason
+          : fronts.activityCount > 0
           ? "Observed execution concurrency: average " +
             (
               fronts.average === null
@@ -1790,11 +1843,13 @@ export function buildDeliveryChallengeProjection(
         "Execution activity population",
       ],
       milestoneConsequence:
-        fronts.activityCount > 0
+        (fronts.activityCount ?? 0) > 0
           ? "Observed concurrency is a schedule pattern only; it does not prove that access, shared resources, interfaces or procurement support every parallel work front."
           : null,
       requiredResponse:
-        fronts.activityCount === 0
+        fronts.activityCount === null
+          ? "Re-date the open activities whose finish is already past the Data Date, or supply their remaining duration and working calendar, before assessing concurrency."
+          : fronts.activityCount === 0
           ? "Establish the execution activity/workfront population before assessing sequencing."
           : "Confirm that access, interfaces, procurement and shared resources support the concurrent work fronts before relying on the submitted sequence.",
     }),
@@ -1896,6 +1951,10 @@ export function buildDeliveryChallengeProjection(
         fronts.peak,
       workFrontActivityCount:
         fronts.activityCount,
+      workFrontUnresolvedActivityCount:
+        fronts.unresolvedActivityCount,
+      workFrontNotEstablishedReason:
+        fronts.notEstablishedReason,
     },
     quantityChallenge: {
       mappingPopulationEstablished: (input.quantities?.items.length ?? 0) > 0,

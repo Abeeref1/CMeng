@@ -84,11 +84,17 @@ export function completionSourceLabel(resolved:CompletionPosition,conflicts:stri
   return {...(resolved.sourceAnalyticalUse?{contractualCompletionSourceUse:resolved.sourceAnalyticalUse,contractualCompletionSourceNote:resolved.sourceAnalyticalNote}:{}),
     ...(conflicts.length?{contractualCompletionSourceConflicts:[...conflicts]}:{})};
 }
+/** A contract with no completion line (state 'missing') never erases a
+ * completion date the user explicitly confirmed. A stated contract date still
+ * governs as before. */
+export function keepsUserConfirmedCompletion(current:{sourceRefs:string[]}|null|undefined,resolved:{value:string|null;state:string}){
+  return Boolean(current?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:')))&&resolved.value===null&&resolved.state==='missing';
+}
 /** A date read only from an unadopted source never replaces an official or
  * user-confirmed completion date; a different date is kept as a named conflict. */
 export function completionHeldByAdoptedBasis(current:{contractualCompletionIso:string|null;contractualCompletionState:string;sourceRefs:string[]}|null|undefined,resolved:CompletionPosition){
   if(!current||!resolved.sourceAnalyticalUse)return null;
-  const adopted=current.contractualCompletionState==='official'||current.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:'));
+  const adopted=current.contractualCompletionState==='official'||(current.sourceRefs??[]).some(ref=>ref.startsWith('user-confirmation:contract-completion:'));
   if(!adopted)return null;
   return resolved.candidates.filter(c=>c.sourceAnalytical&&!c.historical&&c.date!==current.contractualCompletionIso).map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+c.date+':'+c.documentId);
 }

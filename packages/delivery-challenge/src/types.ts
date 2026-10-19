@@ -131,8 +131,13 @@ export interface DeliveryChallengeProjection {
       number | null;
     peakConcurrentWorkFronts:
       number | null;
+    /** null when open work has stale dates and no usable remaining duration or calendar. */
     workFrontActivityCount:
+      number | null;
+    workFrontUnresolvedActivityCount?:
       number;
+    workFrontNotEstablishedReason?:
+      string | null;
   };
 
   quantityChallenge: {

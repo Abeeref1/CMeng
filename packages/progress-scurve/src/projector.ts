@@ -19,7 +19,10 @@ function eligible(model: CanonicalScheduleModel, dates: (activity: CanonicalSche
   // all activities referencing the same original ID. Preserve ambiguous and
   // missing calendars as null rather than assuming a working-day pattern.
   const calendarBySourceId=new Map<string|null,CanonicalCalendar|null>();
-  for (const activity of model.activities.filter(isProgressActivity)) {
+  // Same activities in the same order as filtering first, without a second
+  // 8k+-row array per call.
+  for (const activity of model.activities) {
+    if (!isProgressActivity(activity)) continue;
     if (activity.originalDurationHours === null || !Number.isFinite(activity.originalDurationHours) || activity.originalDurationHours <= 0) continue;
     const [startDate, finishDate] = dates(activity), start = ms(startDate), finish = ms(finishDate);
     if (start === null || finish === null || finish <= start) continue;
@@ -62,6 +65,16 @@ function fractionAt(row:WeightedActivity,at:number):number|null {
   return row.clock&&row.work!==undefined&&row.work>0?(row.clock(at)-row.clockStart!)/row.work:null;
 }
 
+/** cumulative([row], at) without allocating a one-row array per activity:
+ * the identical statements for a single row, in the same order. */
+function rowPosition(row: WeightedActivity, at: number): number | null {
+  let earned = 0, weight = 0;
+  const fraction = fractionAt(row,at);
+  if(fraction===null)return null;
+  earned += row.weight * Math.max(0, Math.min(1, fraction)); weight += row.weight;
+  return weight > 0 ? Number((100 * earned / weight).toFixed(6)) : null;
+}
+
 function cumulative(rows: readonly WeightedActivity[], at: number): number | null {
   let earned = 0, weight = 0;
   for (const row of rows) {
@@ -100,10 +113,10 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
   const planPositions = input.onPlanPositions || input.baselineModel
     ? {
       baseline:new Map(baseline.map(row=>[row.activityId,{
-        value:cutoff===null?null:cumulative([row],cutoff),weight:row.weight,
+        value:cutoff===null?null:rowPosition(row,cutoff),weight:row.weight,
       }] as const)),
       current:new Map(current.map(row=>[row.activityId,{
-        value:cutoff===null?null:cumulative([row],cutoff),weight:row.weight,
+        value:cutoff===null?null:rowPosition(row,cutoff),weight:row.weight,
       }] as const)),
       // S-curve's own baseline diagnostic is not a plan source diagnostic.
       diagnostics:diagnostics.slice(input.baselineModel?1:0),
@@ -233,7 +246,7 @@ function calculateProgressScope(model:CanonicalScheduleModel,baseline:CanonicalS
 export function schedulePlanPositions(model: CanonicalScheduleModel, baselineModel: CanonicalScheduleModel | null = null) {
   const diagnostics: string[] = [], cutoff = ms(model.dataDateIso);
   const positions = (rows: WeightedActivity[]) => new Map(rows.map(row => [row.activityId, {
-    value: cutoff === null ? null : cumulative([row], cutoff), weight: row.weight,
+    value: cutoff === null ? null : rowPosition(row, cutoff), weight: row.weight,
   }]));
   return {
     baseline: positions(eligible(baselineModel ?? model, activity => [activity.baselineStartIso ?? (baselineModel ? activity.currentStartIso : null), activity.baselineFinishIso ?? (baselineModel ? activity.currentFinishIso : null)], diagnostics)),
