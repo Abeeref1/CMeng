@@ -20,7 +20,7 @@ import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule,canonicalTimeClaims,projectDataDate} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
-import type {ControlIssueAssessment,ControlIssue} from '../../truth-kernel/src';
+import type {ControlIssueAssessment,ControlIssue,ControlIssueMember} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {scheduleAuthorityReview} from './schedule-authority';
 import {phaseProgrammeState} from './phase-programmes';
@@ -48,6 +48,13 @@ const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value
 /** A finding's id is hashed from machine data only (kind, code, raw field,
  * raw evidence paths, modules and source references), never from its display
  * summary or wording, so a reworded label keeps the same id. */
+/** One original finding of a combined request, seen with its own heading,
+ * field, pages, paths and references. Used to place and list it; the request
+ * itself stays one finding. */
+const memberView=(issue:ControlIssue,member:ControlIssueMember):ControlIssue=>{
+  const rest:ControlIssue={...issue};delete rest.field;
+  return {...rest,summary:member.summary,moduleKeys:member.moduleKeys,evidencePaths:member.evidencePaths,sourceRefs:member.sourceRefs,...(member.field!==undefined?{field:member.field}:{})};
+};
 export const actionFindingId=(issue:ControlIssue)=>identity([issue.kind,issue.code,controlIssueField(issue),
   [...issue.evidencePaths].sort(),[...issue.moduleKeys].sort(),[...issue.sourceRefs].sort()]);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -286,8 +293,16 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
-    const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
-    if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
+    // A combined request stays in every matter that any of its original
+    // findings belongs to, so combining duplicates never removes a finding,
+    // reference or page from a matter. The request itself is counted once.
+    const views=[issue,...(issue.members??[]).map(member=>memberView(issue,member))];
+    const placed=new Set<string>();
+    for(const view of views){
+      const group=projectReviewGroup(view,state);if(placed.has(group.key))continue;placed.add(group.key);
+      const existing=groups.get(group.key);
+      if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
+    }
   }
   const heldCommercial=commercialCanonical(state);
   const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String(b.kind??(b as any).type??(b as any).bondType??'')+' '+b.bondId));
@@ -339,7 +354,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
       const sourceFiles=actionSourceFilenames(state,refs);
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
-      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>{
+      // Every distinct affected field of a combined request stays listed.
+      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').flatMap(issue=>(issue.members?.map(member=>memberView(issue,member))??[issue])
+        .filter((member,index,all)=>all.findIndex(other=>other.summary===member.summary)===index)).map(issue=>{
         const subject=[controlIssueField(issue),...(issue.evidencePaths??[])].join(' ');
         const advance=/advance.?payment.?bond|advance.?payment.?security/i.test(subject)&&heldAdvanceBonds.length>0;
         const certified=/certified.?progress/i.test(subject)&&heldCertificates.length>0;

@@ -96,6 +96,7 @@ jobs:
             dist/tests/t10-primary-source-detail-collapsed.test.js \
             dist/tests/t10-no-code-names-on-screen.test.js \
             dist/tests/t10-identity-independent-of-wording.test.js \
+            dist/tests/t10-combined-request-keeps-every-original.test.js \
             dist/tests/t10-wording-rules.test.js \
             dist/tests/t10-look-sort-empty-access.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
