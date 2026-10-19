@@ -165,6 +165,8 @@ const paymentHeaders:Record<typeof moneyNames[number],string[]>={
   applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],grossCertifiedAmount:['gross certified','gross certified amount'],variations:['variations'],variationCertifiedAmount:['variation certified','variation certified amount','variation certification','certified variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount'],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
 };
 const tax=(s:string):CommercialMoney['taxBasis']=>/excl/i.test(s)?'exclusive':/incl/i.test(s)?'inclusive':'unknown';
+/** The one reading of a source tax / VAT basis cell (also used for BOQ rates, F45). */
+export const sourceTaxBasis=tax;
 function paymentSeriesBasis(value:string):PaymentSeriesBasis{
  const v=norm(value);
  if(!v)return 'unknown';

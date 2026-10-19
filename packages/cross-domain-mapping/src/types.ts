@@ -52,8 +52,9 @@ export interface QuantityScheduleMappingResult {
   scenarioLinkCount: number;
   knownQuantityItemCount: number;
   mappedKnownQuantityItemCount: number;
-  mappedQuantity: number;
-  totalKnownQuantity: number;
+  /** Null when the known quantities use more than one unit (never summed across units). */
+  mappedQuantity: number | null;
+  totalKnownQuantity: number | null;
   quantityCoveragePercent: number | null;
   itemCoveragePercent: number | null;
   mixedQuantityUnits: boolean;

@@ -33,6 +33,7 @@ jobs:
           node --test --test-concurrency=1 \
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
+            dist/tests/r11-f45-progress-quantity-rules.test.js \
             dist/tests/v1-f10-no-duplicate-page-blocks.test.js \
             dist/tests/r11-f10-one-owner-page-per-block.test.js \
             dist/tests/v1-f05-one-action-per-problem.test.js \

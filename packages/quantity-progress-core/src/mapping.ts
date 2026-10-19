@@ -98,17 +98,26 @@ export function assessQuantityMapping(
     }
   }
 
+  // F45: quantities are summed only within one unit. Over different (or
+  // unknown) units the totals and their ratio are not established; the item
+  // counts and item lists remain.
+  const units = new Set(
+    model.items
+      .filter((item) => item.contractQuantity !== null && item.contractQuantity >= 0)
+      .map((item) => item.unit === null ? null : item.unit.toLowerCase().replace(/\s+/g, " ").trim()),
+  );
+  const singleUnit = units.size <= 1 && !units.has(null);
   return {
     totalKnownContractQuantity:
-      Number(totalKnown.toFixed(6)),
+      singleUnit ? Number(totalKnown.toFixed(6)) : null,
     mappedQuantity:
-      Number(mappedQuantity.toFixed(6)),
+      singleUnit ? Number(mappedQuantity.toFixed(6)) : null,
     mappedItemCount,
     knownQuantityItemCount,
-    mappingCoveragePercent: pct(
+    mappingCoveragePercent: singleUnit ? pct(
       mappedQuantity,
       totalKnown,
-    ),
+    ) : null,
     overAllocatedItemIds:
       overAllocatedItemIds.sort(),
     partiallyAllocatedItemIds:

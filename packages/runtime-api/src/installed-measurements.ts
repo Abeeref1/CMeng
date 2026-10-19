@@ -21,7 +21,12 @@ export function withInstalledMeasurements(state:ProjectRuntimeState,model:Canoni
   for(const table of tables)for(const row of table.rows){
     sourceRowCount++;
     const date=dateValue(cell(row,'measurement date')),quantity=numberValue(cell(row,'cumulative installed qty'));
-    const matches=items.get(norm(cell(row,'item no'))+'|'+norm(cell(row,'unit')))??[];
+    // F45: item numbers can repeat per BOQ bill. A row that states its BOQ
+    // section resolves a repeated number to the one item of that section;
+    // otherwise the row stays unresolved (nothing is chosen by order).
+    const sameNumber=items.get(norm(cell(row,'item no'))+'|'+norm(cell(row,'unit')))??[];
+    const section=norm(cell(row,'section','boq section','bill section'));
+    const matches=sameNumber.length>1&&section?sameNumber.filter(item=>norm(item.section??'')===section):sameNumber;
     if(date&&dataDateIso&&date>dataDateIso.slice(0,10))futureRowCount++;
     const reason=!date?'measurement_date_unresolved':quantity===null||quantity<0?'installed_quantity_unresolved':matches.length!==1?'boq_item_or_unit_unresolved':null;
     if(reason){unresolved.push({documentId:row.receipt.documentId,locator:row.receipt.locator,dateIso:date,reason});continue;}
@@ -38,7 +43,7 @@ export function withInstalledMeasurements(state:ProjectRuntimeState,model:Canoni
   const measurementReview={measuredItemCount:measuredItemIds.size,boqItemCount:model.items.length,sourceRowCount,matchedRowCount,futureRowCount,unresolvedRowCount:unresolved.length,
     currentUnresolvedRowCount:blockingRows.length,complete:diagnostics.length===0&&blockingRows.length===0&&tables.length>0,
     unresolvedRows:unresolved,diagnostics,
-    basis:'Cumulative measured quantities matched by unique BOQ item number and unit. Future measurements remain outside the reporting date. Displayed actuals are the recorded measured subtotal, not proof that unmeasured items have zero installation. Measurements do not establish contract quantities or programme links.'};
+    basis:'Cumulative measured quantities matched by unique BOQ item number and unit (and by the stated BOQ section when an item number repeats). Future measurements remain outside the reporting date. Displayed actuals are the recorded measured subtotal, not proof that unmeasured items have zero installation. Measurements do not establish contract quantities or programme links.'};
   return {...model,measurementReview,
     installedSnapshots:[...model.installedSnapshots.filter(s=>!s.snapshotId.startsWith('measurement:')),...[...snapshots].filter(([key])=>!conflicts.has(key)).map(([,value])=>value)],
     diagnostics:[...model.diagnostics,...diagnostics,...(blockingRows.length?['INSTALLED_MEASUREMENT_POPULATION_UNRESOLVED']:[])]};
