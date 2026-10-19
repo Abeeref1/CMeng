@@ -15,7 +15,7 @@ import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identi
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {readRegisterWorkbook,registerCsv} from './register-workbook';
-import {completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
+import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
@@ -148,6 +148,8 @@ function promoteContractTimeBasis(state: ProjectRuntimeState): void {
   // T04: a date read only from a unique, fully read unadopted contract is used
   // with state 'candidate' and its label; it never replaces an adopted date.
   if(!resolved.hasContractDocuments&&!resolved.hasSourceAnalyticalDocuments)return;
+  // A contract without a completion line never erases a user-confirmed date in stored controls.
+  if(keepsUserConfirmedCompletion(current,resolved))return;
   const held=completionHeldByAdoptedBasis(current,resolved);
   if(held){if(held.length)state.controls.contractTimeBasis={...current!,contractualCompletionSourceConflicts:[...new Set([...(current!.contractualCompletionSourceConflicts??[]),...held])]};return;}
   state.controls.contractTimeBasis={...withoutCompletionSourceLabel(current),...completionSourceLabel(resolved),

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
-import {contractCompletionPosition} from '../packages/runtime-api/src/contract-completion';
+import {contractCompletionPosition,keepsUserConfirmedCompletion} from '../packages/runtime-api/src/contract-completion';
 import {contractTermVersions,termAtEvent,contractTermSelectionFactState} from '../packages/runtime-api/src/contract-term-versions';
 import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
@@ -251,3 +251,25 @@ test('T04 a different unadopted notice period is offered in the existing notice 
   assert.equal(store.get(state.projectId)!.evidenceDocuments[1]!.basisState,'candidate','no auto-adoption');
 });
 
+
+test('T04 an adopted contract with no completion line does not erase a user-confirmed completion date; a stated contract date still governs',()=>{
+  const state=setup('T04-CT-R');
+  const adopted=evidence(state.projectId,'contract','contract:main','active');
+  state.evidenceDocuments.push(adopted);
+  (state.contractDocuments as any[]).push(contract(adopted.documentId,'main','Retention percentage: 5%'));
+  const confirmed={contractualCompletionIso:'2031-11-30',contractualCompletionState:'official',officialApprovedEotDays:null,officialApprovedEotState:'missing',
+    eotDayBasis:'unknown',eotDayBasisState:'missing',sourceRefs:['user-confirmation:contract-completion:1']} as any;
+  state.controls.contractTimeBasis=confirmed;
+  const position=contractCompletionPosition(state,'2031-06-30');
+  assert.equal(position.state,'missing','the adopted contract states no completion date');
+  const basis=canonicalTimeClaims(state,true).contractTimeBasis as any;
+  assert.equal(basis.contractualCompletionIso,'2031-11-30','confirmed date not erased');
+  assert.equal(basis.contractualCompletionState,'official');
+  assert.ok(basis.sourceRefs.includes('user-confirmation:contract-completion:1'));
+  assert.equal(keepsUserConfirmedCompletion(confirmed,position),true,'stored confirmation is kept by the promotion step');
+  (state.contractDocuments as any[])[0].result.sections[0].text='Date for Completion: 2031-12-31';
+  state.version++;
+  const stated=canonicalTimeClaims(state,true).contractTimeBasis as any;
+  assert.equal(stated.contractualCompletionIso,'2031-12-31','an adopted contract that states a date still governs');
+  assert.equal(keepsUserConfirmedCompletion(confirmed,contractCompletionPosition(state,'2031-06-30')),false);
+});
