@@ -89,7 +89,8 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const openStarts=remaining.filter(a=>!hasPred.has(a.activityId)),openEnds=remaining.filter(a=>!hasSucc.has(a.activityId));
  checks.push(report('missing_logic','Missing logic (open start or open end)',remaining.filter(a=>!hasPred.has(a.activityId)||!hasSucc.has(a.activityId)),remaining.length,'Remaining execution activities without a predecessor or without a successor; the project start and finish appear here by design and need review, not removal.'));
  const remainingTasks=remaining.filter(a=>a.activityType==='task');
- const assigned=inputs.resources?new Set(inputs.resources.assignments.map(x=>x.activityId)):null;
+ // A stored resource model without a readable assignment list is not established (unknown), never 0.
+ const assigned=Array.isArray(inputs.resources?.assignments)?new Set(inputs.resources!.assignments.map(x=>x.activityId)):null;
  const unresourced=assigned?remainingTasks.filter(a=>!assigned.has(a.activityId)):[];
  checks.push({...report('resources','Remaining tasks without resources',unresourced,remainingTasks.length,assigned?'Remaining execution tasks with no assignment in the source resource model.':'No source resource model is loaded for this revision; the check is not established.'),
   ...(assigned?{}:{count:null,percent:null,activityIds:[]})});
