@@ -89,3 +89,62 @@ test('F01: every page shows the same main figures as the API answer key for the 
   assert.ok(compared>=20,'the main figures are compared on many pages ('+compared+')');
   assert.deepEqual(mismatches,[],'page figures equal the API answer key');
 });
+
+// F01 widened: dates and money. The certified demo project carries a contract
+// value, certificates, payments and programme dates. Every page function that
+// shows a completion date, contract value, EAC or cash received must show the
+// API answer key's value for the same project (currencies never mixed).
+test('F01: completion dates and money shown on every page equal the API answer key',async()=>{
+  const {loadCertifiedDemoProject}=await import('../packages/runtime-api/src/demo-project');
+  const projectId='V1-F01-DATES-MONEY';
+  loadCertifiedDemoProject(projectId);
+  const facts=projectFactsForState(runtimeProjects.getOrCreate(projectId));
+  const raw=(x:any)=>x&&typeof x==='object'&&'value' in x?x.value:x;
+  const day=(x:unknown)=>typeof x==='string'?x.slice(0,10):x;
+  const dates:Record<string,unknown>={
+    'Submitted completion':day(facts.schedule.submittedProgrammeCompletionIso.value),
+    'Contract completion':day(facts.time.contractualCompletionIso.value),
+    'Recorded contractual completion':day(facts.time.contractualCompletionIso.value),
+  };
+  const byCurrency=new Map(facts.commercial.currencies.map(row=>[row.currency,row]));
+  assert.ok(byCurrency.size>0,'the answer key has a currency position');
+  const money=(label:string,currency:string):unknown=>{
+    const row=byCurrency.get(currency);if(!row)return undefined;
+    return label==='Original contract value'?row.originalContractValue.value:label==='Current contract value'?row.currentContractValue.value:
+      label==='Forecast at completion'?row.forecastEac?.value??null:label==='Cash received'?row.paidAmount.value:undefined;
+  };
+  const mismatches:string[]=[];let compared=0;
+  const check=(where:string,label:string,shown:unknown,expected:unknown)=>{
+    if(expected===undefined)return;
+    compared++;
+    if(shown!==expected)mismatches.push(where+' "'+label+'": page '+JSON.stringify(shown)+' API '+JSON.stringify(expected));
+  };
+  for(const {key} of moduleRegistry){
+    const data=moduleForProject(projectId,key).data as any;
+    if(!data)continue;
+    const brief=runInNewContext(briefScript+';experienceBrief(key,data)',{...common,key,data}) as any;
+    for(const fact of brief?.facts??[]){
+      if(fact.label in dates)check(key+' brief',fact.label,day(raw(fact.value)),dates[fact.label]);
+      else if(fact.unit&&byCurrency.has(fact.unit))check(key+' brief',fact.label+' · '+fact.unit,raw(fact.value),money(fact.label,fact.unit));
+    }
+    if(!(data.projectFacts||data.result?.projectFacts))continue;
+    const lens=runInNewContext(lensScript+';pageRoleLensContext(data)',{...common,data,overview:null}) as any;
+    for(const metric of lens.executive?.metrics??[]){
+      if(metric.label in dates){check(key+' executive',metric.label,day(metric.value),dates[metric.label]);continue;}
+      const [label,currency]=String(metric.label).split(' · ');
+      if(currency&&byCurrency.has(currency))check(key+' executive',metric.label,metric.value,money(label!,currency));
+    }
+    check(key+' role view','Submitted completion',day(lens.controls?.submittedCompletionIso),dates['Submitted completion']);
+    // Cost and contract comparison panel (commercial basis review): the same
+    // current contract value, and the source EAC where one position exists.
+    const reviews=(data.position?.costBasisReview??[]).filter((r:any)=>!data.position?.sourceLedger?.dataDateIso||r.asOf<=data.position.sourceLedger.dataDateIso);
+    for(const r of reviews){
+      if(!byCurrency.has(r.currency))continue;
+      check(key+' cost comparison','Current contract value · '+r.currency,r.currentContractValue,money('Current contract value',r.currency));
+      if(reviews.filter((x:any)=>x.currency===r.currency).length===1&&r.sourceEac!=null)
+        check(key+' cost comparison','Source EAC · '+r.currency,r.sourceEac,money('Forecast at completion',r.currency));
+    }
+  }
+  assert.ok(compared>=20,'dates and money are compared on many pages ('+compared+')');
+  assert.deepEqual(mismatches,[],'page dates and money equal the API answer key');
+});

@@ -43,6 +43,8 @@ import {tenderReadinessForState} from './tender-readiness';
 import {managementVisualControl} from './management-visual-control';
 import {projectManagementContext} from './management-context';
 import {moduleFeatureAvailability} from './feature-availability';
+import {resourceUtilizationCapacity,calendarInputStatus,capacityInputStatus} from './project-input-status';
+import {canonicalResources} from './canonical-resource-runtime';
 import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
@@ -660,6 +662,13 @@ function calculationSnapshotTime(state:ProjectRuntimeState):string {
   return sourceTimes.sort().at(-1)??new Date().toISOString();
 }
 
+/** F01: the contract-time basis object behind the shared reader (contractTimeDates):
+ * the reporting view's basis, which the project facts and every commercial
+ * consumer read. A stored governed basis is not dropped because it was not
+ * re-derived from documents. Used only for fields the shared reader does not carry. */
+function reportingContractTime(state:ProjectRuntimeState){
+  return reportingState(state).controls.contractTimeBasis??null;
+}
 // One full calculation per project version. The Dashboard, Accountability,
 // every specialist page, the shared facts and the action register all read
 // this same bundle; no caller receives a reduced or deferred variant.
@@ -1831,49 +1840,22 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     // The initial map contains blocked placeholders for every module. A real
     // assignment calculation must replace its placeholder; the canonical weekly
     // integration below then takes precedence over this assignment basis.
+    // F07: the same shared capacity rule as the single-page build below.
+    const sharedCapacity=resourceUtilizationCapacity(resourceUtilization,weeklyCapacity);
     modules.set(
       "resource-utilization",
       available(
         "resource-utilization",
         {
           ...resourceUtilization,
-          scheduleCapacityCoveragePercent:
-            resourceUtilization
-              .capacityCoveragePercent,
-          capacityCoveragePercent:
-            weeklyCapacity
-              .capacityCoveragePercent ??
-            resourceUtilization
-              .capacityCoveragePercent,
-          plannedUtilizationPercent:
-            weeklyCapacity
-              .plannedUtilizationPercent ??
-            null,
-          actualUtilizationPercent:
-            weeklyCapacity
-              .actualUtilizationPercent ??
-            null,
-          utilizationByUnit:
-            weeklyCapacity
-              .utilizationByUnit,
-          weeklyCapacityEvidence:
-            weeklyCapacity,
+          ...sharedCapacity.fields,
         },
         [
           "resource-loaded XER",
           "governed resource evidence",
         ],
-        weeklyCapacity.state ===
-            "available" ||
-          resourceUtilization
-            .capacityBasedResourceCount >
-            0
-          ? "ready"
-          : "partial",
-        weeklyCapacity.state ===
-            "candidate"
-          ? "Resource support evidence exists only as candidate and is not promoted to confirmed utilization."
-          : null,
+        sharedCapacity.status,
+        sharedCapacity.reason,
       ),
     );
     modules.set(
@@ -1915,6 +1897,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           diagnostics: [
             "RESOURCE_ASSIGNMENTS_AND_GOVERNED_WEEKLY_RESOURCE_EVIDENCE_NOT_ESTABLISHED",
           ],
+          // F07: the same shared capacity status as the project facts.
+          capacityStatus: capacityInputStatus(canonicalResources(state)),
         },
         ["resource-loaded XER or governed weekly resource evidence"],
         "partial",
@@ -3261,11 +3245,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     const netMovement = windows?.projectCompletionMovementDays ?? null;
     const resourceData = modules.get("resource-utilization")?.data as Record<string, any> | null;
     pmo.claims = { ...pmo.claims,
-      contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+      // F01: the reporting contract-time basis every consumer and the project facts read.
+      contractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
       effectiveDeterminationDays: time.effectiveDeterminationDays,
-      incorporatedEotDays: time.contractTimeBasis?.incorporatedEotDays ?? null,
+      incorporatedEotDays: reportingContractTime(state)?.incorporatedEotDays ?? null,
       registerDeterminationDays: time.registerDeterminationDays,
-      officialApprovedEotDays: time.contractTimeBasis?.officialApprovedEotDays ?? null,
+      officialApprovedEotDays: contractTimeDates(state).awardedEotDays,
       officialAdjustedCompletionIso: eotAssessment?.officialAdjustedCompletionIso ?? null,
       scenarioAdjustedCompletionIso: eotAssessment?.scenarioAdjustedCompletionIso ?? null,
       netSubmittedFinishMovementDays: netMovement,
@@ -5408,7 +5393,7 @@ function eotCompletionAuthorityContext(
     ...(completion.original.sourceAnalyticalNote ? {originalContractualCompletionSourceNote: completion.original.sourceAnalyticalNote} : {}),
     amendedContractualCompletionIso,
     amendedContractualCompletionState,
-    currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+    currentContractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
     sourceForecastCompletionIso: sourceOnlyForecast(state,model, generatedAt).sourceForecastCompletionIso,
   };
 }
@@ -6076,86 +6061,17 @@ function buildSpecialistModuleFast(
               model.dataDateIso,
           },
         );
-      const capacityKnown =
-        projection
-          .capacityBasedResourceCount;
-      const allCapacityKnown =
-        projection
-          .assignedResourceCount >
-          0 &&
-        capacityKnown ===
-          projection
-            .assignedResourceCount;
-      const weeklyComparable =
-        weeklyCapacity
-          .comparableRowCount > 0;
-      const governedWeeklyCapacity =
-        weeklyCapacity.state ===
-          "available" ||
-        weeklyCapacity.state ===
-          "partial";
-      const effectiveCoverage =
-        governedWeeklyCapacity &&
-        weeklyCapacity
-          .capacityCoveragePercent !==
-          null
-          ? weeklyCapacity
-              .capacityCoveragePercent
-          : projection
-              .capacityCoveragePercent;
-      const enriched = {
-        ...projection,
-        scheduleCapacityCoveragePercent:
-          projection
-            .capacityCoveragePercent,
-        capacityCoveragePercent:
-          effectiveCoverage,
-        plannedUtilizationPercent:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .plannedUtilizationPercent
-            : null,
-        actualUtilizationPercent:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .actualUtilizationPercent
-            : null,
-        utilizationByUnit:
-          governedWeeklyCapacity
-            ? weeklyCapacity
-                .utilizationByUnit
-            : [],
-        assessedOverloadResourceCount:
-          capacityKnown,
-        overloadAssessmentState:
-          capacityKnown === 0 &&
-          !weeklyComparable
-            ? "not_assessable_per_hour"
-            : allCapacityKnown ||
-                weeklyCapacity.state ===
-                  "available"
-              ? "complete"
-              : "partial",
-        weeklyCapacityEvidence:
-          weeklyCapacity,
-      };
+      // F07: one shared capacity rule for every build path of this page.
+      const sharedCapacity=resourceUtilizationCapacity(projection,weeklyCapacity);
       result = available(
         key,
-        enriched,
+        {...projection,...sharedCapacity.fields},
         [
           "resource assignments",
           "resource capacity",
         ],
-        allCapacityKnown ||
-        weeklyCapacity.state ===
-          "available"
-          ? "ready"
-          : "partial",
-        capacityKnown === 0
-          ? weeklyComparable
-            ? "Per-hour resource capacity is not established in the schedule resource model. Weekly capacity and demand evidence is shown separately without unsafe unit conversion."
-            : "Resource assignments are available, but no usable capacity rate is established. Overload cannot be assessed and zero must not be inferred."
-          : "Resource utilization is calculated only for resources with established capacity; the remaining resources stay demand-only.",
+        sharedCapacity.status,
+        sharedCapacity.reason,
       );
     } else {
       const projection =
@@ -7558,7 +7474,7 @@ function resolveProjectModuleCandidate(
     const challenge=data.challenge??buildModuleChallenge({moduleKey:key,generatedAt:calculationSnapshotTime(state),assertions:[],metrics:[],diagnostics:['Programme comparison unavailable until a programme is adopted.']});
     const enriched={...result,data:{...data,challenge}};
     if(enriched.data&&typeof enriched.data==='object'){
-      (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data);
+      (enriched.data as any).featureAvailability=moduleFeatureAvailability(key,enriched.data,{calendar:calendarInputStatus(null)});
     }
     return attachReportingContract(state,discloseReadIssues(enriched));
   }
@@ -7598,7 +7514,8 @@ function resolveProjectModuleCandidate(
             basis:'Conditional arithmetic only: if all effective register determinations are already inside the amendment, no further days apply; if none are incorporated and all can be applied on a calendar-day basis, the alternative subtracts those days. Award-letter evidence, overlap and entitlement still require confirmation.'};})()}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays,contractNoticeReview:commercialFoundationForState(state).commercialTerms.noticeReview}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
-        contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+        // F01: the same contract completion as the project facts (reporting basis).
+        contractualCompletionIso: contractTimeDates(state).contractualCompletionIso,
         effectiveDeterminationDays: time.effectiveDeterminationDays,
         registerDeterminationDays: time.registerDeterminationDays,
         futureDeterminationCount: time.futureDeterminationCount,
@@ -7707,7 +7624,7 @@ function resolveProjectModuleCandidate(
     result.reason='Milestones use submitted float and a '+controlBasis.nearCriticalThresholdMethod.replaceAll('_',' ')+' threshold. Contractual threshold authority and independent driving-path validation remain separate.';
   }
   if(result.data&&typeof result.data==='object'){
-    (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data);
+    (result.data as any).featureAvailability=moduleFeatureAvailability(key,result.data,{calendar:calendarInputStatus(model)});
   }
   if(result.data&&typeof result.data==='object'&&['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical'].includes(key)){
     const review=sharedFloatReview??activityFloatReconciliation(model,cachedIndependentForecast(model,calculationSnapshotTime(state)),controlBasis.analysisConfig,state.version);
