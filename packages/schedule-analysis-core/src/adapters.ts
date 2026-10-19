@@ -163,7 +163,7 @@ export function canonicalScheduleFromTabular(
         activity.originalDurationHours ??
         zeroFromRaw(activity.originalDurationRaw);
       const type = normalizeActivityType(
-        null,
+        activity.activityType ?? null,
         durationHours,
       );
 
@@ -349,16 +349,32 @@ export function canonicalScheduleFromXer(
     const nativeId = xerField(row, "task_id");
     const projId = xerField(row, "proj_id");
     const activityId = xerField(row, "task_code");
-    if (nativeId && projId && activityId) {
-      taskCodeByNative.set(
-        projId + "::" + nativeId,
-        activityId,
-      );
+    if (nativeId && activityId) {
+      if (projId) {
+        taskCodeByNative.set(
+          projId + "::" + nativeId,
+          activityId,
+        );
+      }
+      // TASK rows that carry no proj_id are still candidates; their scope is
+      // recorded as "" so they never satisfy an explicit foreign project.
       const candidates=nativeTaskCandidates.get(nativeId)??[];
-      candidates.push({projectId:projId,activityId});
+      candidates.push({projectId:projId??"",activityId});
       nativeTaskCandidates.set(nativeId,candidates);
     }
   }
+
+  // An activity ID (task_code) carried by more than one TASK row (another
+  // WBS or another project) is reported with its source lines, and no link
+  // is attached to it: a link to such an ID could only be matched by guess.
+  const taskLinesByCode=new Map<string,number[]>();
+  for(const row of taskRows){
+    const code=xerField(row,"task_code");
+    if(code)taskLinesByCode.set(code,[...(taskLinesByCode.get(code)??[]),row.line]);
+  }
+  const duplicateActivityIdDiagnostics=[...taskLinesByCode].filter(([,lines])=>lines.length>1)
+    .map(([code,lines])=>"XER_DUPLICATE_ACTIVITY_ID:"+code+":"+lines.map(line=>"TASK:line:"+line).join("|"));
+  const duplicateActivityIds=new Set([...taskLinesByCode].filter(([,lines])=>lines.length>1).map(([code])=>code));
 
   const activities: CanonicalScheduleActivity[] =
     taskRows.flatMap((row) => {
@@ -516,18 +532,34 @@ export function canonicalScheduleFromXer(
         "::" +
         predecessorNative;
 
-      // Some exports omit project IDs on link rows. Resolve a missing scope
-      // only from one uniquely identifiable task in a single-project export.
-      // Explicit external IDs and ambiguous multi-project IDs stay unresolved.
-      const resolveEndpoint=(scope:string|null,nativeId:string,key:string)=>{
+      // Some exports omit project IDs on link rows (or on TASK rows). P6
+      // task_id is unique within the exporting database, so a missing scope
+      // is inferred only from exactly one task carrying that task_id in the
+      // whole file. An explicit project scope is inferred only onto an
+      // unscoped task of a single-project export. Explicit external IDs and
+      // ambiguous task_ids stay unresolved, and an inferred end attaches only
+      // when the other end also resolves, so no half-guessed link is made.
+      const resolveEndpoint=(scope:string|null,nativeId:string,key:string):{id:string|null;inferred:boolean}=>{
         const exact=taskCodeByNative.get(key);
-        if(exact)return exact;
+        if(exact)return {id:exact,inferred:false};
         const candidates=nativeTaskCandidates.get(nativeId)??[];
-        return scope===null&&projectIds.size===1&&candidates.length===1
-          ?candidates[0]!.activityId:"native:"+key;
+        if(scope===null){
+          const unique=candidates.length===1?candidates[0]!:null;
+          // Single-project export, task carries proj_id: attached as before.
+          const established=unique!==null&&projectIds.size===1&&unique.projectId!=="";
+          return {id:unique?.activityId??null,inferred:!established};
+        }
+        const single=projectIds.size===0||(projectIds.size===1&&projectIds.has(scope));
+        return {id:single&&candidates.length===1&&candidates[0]!.projectId===""?candidates[0]!.activityId:null,inferred:true};
       };
-      const successorActivityId = resolveEndpoint(successorProject,successorNative,successorKey);
-      const predecessorActivityId = resolveEndpoint(predecessorProject,predecessorNative,predecessorKey);
+      const successorResolved = resolveEndpoint(successorProject,successorNative,successorKey);
+      const predecessorResolved = resolveEndpoint(predecessorProject,predecessorNative,predecessorKey);
+      const ambiguousEnds=[successorResolved.id,predecessorResolved.id].filter((id):id is string=>id!==null&&duplicateActivityIds.has(id));
+      const usable=(end:{id:string|null})=>end.id!==null&&!duplicateActivityIds.has(end.id);
+      const endpoint=(own:{id:string|null;inferred:boolean},other:{id:string|null},key:string)=>
+        usable(own)&&(!own.inferred||usable(other))?own.id!:"native:"+key;
+      const successorActivityId = endpoint(successorResolved,predecessorResolved,successorKey);
+      const predecessorActivityId = endpoint(predecessorResolved,successorResolved,predecessorKey);
 
       const external =
         predecessorProject !== null &&
@@ -553,7 +585,7 @@ export function canonicalScheduleFromXer(
               "TASKPRED:line:" + row.line,
             ),
           ],
-          diagnostics: [...row.diagnosticCodes],
+          diagnostics: [...row.diagnosticCodes,...[...new Set(ambiguousEnds)].map(id=>"XER_LINK_ENDPOINT_DUPLICATE_ACTIVITY_ID:"+id)],
         },
       ];
     });
@@ -583,6 +615,12 @@ export function canonicalScheduleFromXer(
       ];
     });
 
+  // Data date: PROJECT.last_recalc_date (P6). In a multi-project export the
+  // first row is never chosen arbitrarily: differing data dates stay unknown.
+  const projectDataDates=[...new Set(projectRows.map(row=>xerDate(firstXerField(row,["last_recalc_date","data_date"]))).filter((v):v is string=>v!==null))];
+  const xerDataDate=projectRows.length>1&&projectDataDates.length>1
+    ?{iso:null as string|null,diagnostics:["XER_PROJECT_DATA_DATE_CONFLICT:"+projectDataDates.sort().join(",")]}
+    :{iso:firstProject?xerDate(firstXerField(firstProject,["last_recalc_date","data_date"])):null,diagnostics:[] as string[]};
   const calendarIntegrity =
     verifyXerCalendars(result);
   // Source calendar intervals remain the first authority. Only where they
@@ -943,14 +981,11 @@ export function canonicalScheduleFromXer(
     source: "xer",
     sourceRevisionId: input.sourceRevisionId,
     declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
-    dataDateIso: firstProject
-      ? xerDate(
-          firstXerField(firstProject, [
-            "last_recalc_date",
-            "data_date",
-          ]),
-        )
-      : null,
+    // PROJECT.scd_end_date is the finish P6 computed at the last schedule
+    // run. It is held apart from the declared (plan_end_date) finish and
+    // from any activity-derived or independent CPM finish.
+    scheduledProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"scd_end_date")):null,
+    dataDateIso: xerDataDate.iso,
     activities,
     relationships,
     wbs,
@@ -964,6 +999,8 @@ export function canonicalScheduleFromXer(
       ),
       ...calendarDiagnostics,
       ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
+      ...xerDataDate.diagnostics,
+      ...duplicateActivityIdDiagnostics,
     ],
   };
 }
@@ -1213,7 +1250,11 @@ export function canonicalScheduleFromPrimaveraXml(
     projectId,
     source: "primavera_xml",
     sourceRevisionId: input.sourceRevisionId,
-    dataDateIso: null,
+    // Project header dates are read only from a single-project file; a
+    // multi-project file never has one project's dates chosen arbitrarily.
+    dataDateIso: result.projects.length===1?tabularDate(result.projects[0]!.dataDate??null):null,
+    declaredProjectFinishIso: result.projects.length===1?tabularDate(result.projects[0]!.mustFinishByDate??null):null,
+    scheduledProjectFinishIso: result.projects.length===1?tabularDate(result.projects[0]!.scheduledFinishDate??null):null,
     activities,
     relationships,
     wbs: [],

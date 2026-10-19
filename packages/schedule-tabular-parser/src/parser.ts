@@ -454,6 +454,7 @@ function parseRows(
           rowDiagnostics,
         ),
         status: valueAt(row, roleColumn(header.roles, "status")),
+        activityType: valueAt(row, roleColumn(header.roles, "activity_type")),
         locators: makeLocators(
           source,
           sheet,

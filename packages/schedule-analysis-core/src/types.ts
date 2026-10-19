@@ -147,6 +147,8 @@ export interface CanonicalScheduleModel {
   dataDateIso: string | null;
   /** Explicit project header finish; distinct from activity-derived forecast. */
   declaredProjectFinishIso?: string | null;
+  /** Finish computed by the source scheduler at its last run (P6 PROJECT.scd_end_date). Not a declared or CPM finish. */
+  scheduledProjectFinishIso?: string | null;
   activities: CanonicalScheduleActivity[];
   relationships: CanonicalScheduleRelationship[];
   wbs: CanonicalWbsNode[];

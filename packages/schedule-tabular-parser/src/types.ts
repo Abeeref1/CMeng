@@ -21,6 +21,7 @@ export type ScheduleColumnRole =
   | "relationship_type"
   | "lag"
   | "record_type"
+  | "activity_type"
   | "unknown";
 
 export interface ScheduleHeaderMapping {
@@ -70,6 +71,8 @@ export interface ScheduleActivityRow {
   freeFloatHours: number | null;
   percentComplete: number | null;
   status: string | null;
+  /** Source activity type text (e.g. "Task Dependent", "Finish Milestone"); null when no type column exists. */
+  activityType?: string | null;
   locators: Partial<Record<ScheduleColumnRole, ScheduleCellLocator>>;
   statusState: "verified" | "unresolved";
   diagnostics: string[];

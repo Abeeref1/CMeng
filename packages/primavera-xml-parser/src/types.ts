@@ -2,6 +2,12 @@ export interface PrimaveraXmlProject {
   objectId: string | null;
   id: string | null;
   name: string | null;
+  /** Raw P6 XML Project.DataDate text, when present. */
+  dataDate?: string | null;
+  /** Raw P6 XML Project.ScheduledFinishDate text (finish computed by P6). */
+  scheduledFinishDate?: string | null;
+  /** Raw P6 XML Project.MustFinishByDate text (declared finish, XER plan_end_date). */
+  mustFinishByDate?: string | null;
 }
 
 export interface PrimaveraXmlActivity {

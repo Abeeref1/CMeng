@@ -23,6 +23,7 @@ const ALIASES: Record<Exclude<ScheduleColumnRole,"unknown">, string[]> = {
   relationship_type:["relationship type","relation type","type","pred_type"],
   lag:["lag","lag hours","lag_hr_cnt"],
   record_type:["record type","record_type","row type","type record"],
+  activity_type:["activity type","activity_type","task type","task_type"],
 };
 
 function normalize(v:string):string {
