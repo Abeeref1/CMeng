@@ -4015,6 +4015,11 @@ function renderCommercialVisual(key,data){
             ["TCPI · BAC",findingValue(row.tcpiBudget),findingMeta(row.tcpiBudget)],
             ["TCPI · EAC",findingValue(row.tcpiForecast),findingMeta(row.tcpiForecast)]
           ])+
+          (row.sourceEacChallenge?.state==="challenge"
+            ?'<div class="notice warning"><b>Source EAC challenged.</b> '+escapeHtml(row.sourceEacChallenge.consequence||"")+'</div>'+
+              table(["Check","Source EAC","Independent value","Finding"],(row.sourceEacChallenge.findings||[]).map(f=>'<tr><td><b>'+escapeHtml(f.rule==="below_actual_cost"?"Below actual cost to date":"Outside independent EVM range")+'</b></td><td>'+escapeHtml(fmt(f.sourceEac)+" "+row.currency)+'</td><td>'+escapeHtml(f.rule==="below_actual_cost"?"AC "+fmt(f.independentValue)+" "+row.currency:"AC + (BAC - EV) "+fmt(row.sourceEacChallenge.independentRange?.acPlusRemainingBudget)+" / BAC / CPI "+fmt(row.sourceEacChallenge.independentRange?.bacOverCpi)+" "+row.currency)+'</td><td>'+escapeHtml(f.statement)+'</td></tr>'),"")+
+              '<div class="notice info">'+escapeHtml((row.sourceEacChallenge.rules||[]).join(" "))+' '+escapeHtml(row.sourceEacChallenge.action||"")+'</div>'
+            :"")+
           '<div class="commercial-visual-grid cost-control-secondary">'+scenarioVisual+varianceVisual+'</div>'+
           table(["Forecast method","Value","Authority","Methodology"],scenarioRows,"No EAC scenarios are calculable from the established basis.")+
           table(["Variance driver","Value","Evidence state"],varianceRows,"No source variance decomposition is established.")+
@@ -4266,7 +4271,7 @@ function renderCommercialVisual(key,data){
       const ageBands=vo.pendingAgeBands||{};
       const variationPopulationEstablished=knownCount(vo.recordCount);
       const variationLifecycleCounts=[stageCounts.instruction,stageCounts.submitted,stageCounts.quoted,stageCounts.assessed,stageCounts.agreed,stageCounts.approved,stageCounts.rejected,stageCounts.unknown];
-      const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts.every(knownCount);
+      const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts.every(knownCount)&&vo.changeRegister?.state!=="not_established";
       const lifecycleVisual=renderVisualPanel(
         "Variation lifecycle distribution",
         "Current controlled lifecycle stage for every variation. Instruction, submission, quotation, assessment, agreement, approval and rejection stay distinct.",
@@ -4279,7 +4284,9 @@ function renderCommercialVisual(key,data){
           {label:"Approved",value:stageCounts.approved,tone:"success"},
           {label:"Rejected",value:stageCounts.rejected,tone:"danger"},
           {label:"Unknown",value:stageCounts.unknown,tone:"neutral"}
-        ],"items"):variationPopulationEstablished&&vo.recordCount===0
+        ],"items"):vo.changeRegister?.state==="not_established"
+          ?'<div class="empty-visual">'+escapeHtml(vo.changeRegister.consequence||"Change register position not established.")+' Approved: '+escapeHtml(fmt(vo.changeRegister.stateCounts.approved))+'.</div>'
+          :variationPopulationEstablished&&vo.recordCount===0
           ?'<div class="empty-visual">The confirmed variation population is zero.</div>'
           :'<div class="empty-visual">Variation lifecycle counts are not fully established.</div>'
       );
@@ -4366,10 +4373,11 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Variations by Data Date",governedDisplayCount(variationPopulationEstablished,vo.recordCount),fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
+          ["Variations by Data Date",governedDisplayCount(variationPopulationEstablished,vo.recordCount),vo.changeRegister?.state==="not_established"?fmt(vo.recordCount)+" approved records supplied; the approved list is not the full change register":fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
           ["Approved by Data Date",governedDisplayCount(variationPopulationEstablished,vo.approvedCount),"dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??"Not established")+" / "+fmt(vo.undatedRecordCount??"Not established"),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
           ["Known pending",pendingTotalEstablished&&pendingCount===0?0:pendingCount>0?pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate"],
           ["Rejected",governedDisplayCount(variationPopulationEstablished,vo.rejectedCount),"closed without approval"],
+          ["Change register",vo.changeRegister?(vo.changeRegister.state==="not_established"||vo.changeRegister.state==="missing"?"Not established":["Submitted "+fmt(vo.changeRegister.stateCounts.submitted),"Under review "+fmt(vo.changeRegister.stateCounts.underReview),"Approved "+fmt(vo.changeRegister.stateCounts.approved),"Rejected "+fmt(vo.changeRegister.stateCounts.rejected),"Withdrawn "+fmt(vo.changeRegister.stateCounts.withdrawn)].concat(vo.changeRegister.stateCounts.unknown?["Unknown "+fmt(vo.changeRegister.stateCounts.unknown)]:[]).join(" · ")):"Not established",vo.changeRegister?.consequence||"every variation counted by state; approved is one state"],
           ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
           ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
           ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],

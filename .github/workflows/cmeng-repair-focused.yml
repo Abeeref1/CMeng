@@ -46,6 +46,7 @@ jobs:
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t12-independent-commercial-calculators.test.js \
             dist/tests/t07-commercial-vs-independent.test.js \
+            dist/tests/t07-commercial-position-checks.test.js \
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-dashboard-first-source-cover.test.js \
             dist/tests/t11-dashboard-on-demand-original-content.test.js \

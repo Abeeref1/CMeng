@@ -631,12 +631,44 @@ function variations(
       ).length,
   };
   const knownPendingCount=rows.filter(row=>!['approved','rejected','unknown'].includes(row.lifecycleStage)).length;
+  // SW-21: the change register position counts every variation by its state.
+  // A register in which every supplied record (current, future and undated) is
+  // approved is an approved list: it cannot show what was submitted, is under
+  // review, was rejected or withdrawn, so those states are not established.
+  const withdrawn=(row:VariationLifecycleRecord)=>/withdr[ae]w|cancel+ed|\bvoid(?:ed)?\b/i.test(row.status)&&!['approved','rejected'].includes(row.lifecycleStage);
+  const approvedOnly=sourceRows.length>0&&sourceRows.every(row=>row.sourceLifecycleStage==='approved'&&!/withdr[ae]w|cancel+ed|\bvoid(?:ed)?\b/i.test(row.status));
+  const registerState=(row:VariationLifecycleRecord)=>withdrawn(row)?'withdrawn'
+    :row.lifecycleStage==='approved'?'approved'
+    :row.lifecycleStage==='rejected'?'rejected'
+    :['quoted','assessed','agreed'].includes(row.lifecycleStage)?'underReview'
+    :['instruction','submitted'].includes(row.lifecycleStage)?'submitted'
+    :'unknown';
+  const registerCount=(state:string)=>rows.filter(row=>registerState(row)===state).length;
+  const changeRegister:VariationsProjection['changeRegister']={
+    state:rows.length===0?'missing':approvedOnly?'not_established':registerCount('unknown')>0?'partial':'established',
+    approvedOnly,
+    recordCount:rows.length,
+    stateCounts:{
+      submitted:approvedOnly?null:registerCount('submitted'),
+      underReview:approvedOnly?null:registerCount('underReview'),
+      approved:registerCount('approved'),
+      rejected:approvedOnly?null:registerCount('rejected'),
+      withdrawn:approvedOnly?null:registerCount('withdrawn'),
+      unknown:approvedOnly?null:registerCount('unknown'),
+    },
+    basis:'Every current variation record counted once by state: submitted (instructed or submitted, not yet assessed), under review (quoted, assessed or agreed, not yet approved), approved, rejected, withdrawn (status states withdrawn, cancelled or void). Approved is one state of the change register.',
+    consequence:approvedOnly?'Only approved variations are supplied. Submitted, under review, rejected and withdrawn changes are not established; the approved list is not the full change register.':null,
+    action:approvedOnly?'Supply the full variation (change) register with every submitted, under review, rejected and withdrawn change.':null,
+  };
   return {
+    changeRegister,
     capabilityKey:
       "variations",
     state:
       rows.length === 0
         ? "missing"
+        : approvedOnly
+          ? "partial"
         : rows.some(
               (row) =>
                 row.cost.approved
@@ -666,6 +698,7 @@ function variations(
     pendingCount: knownPendingCount>0&&sourceRows.every(r=>r.reportingScope!=='undated')&&rows.every(r=>r.lifecycleStage!=='unknown')?knownPendingCount:null,
     knownPendingCount,
     rejectedCount:
+      approvedOnly ? null :
       rows.filter(
         (row) =>
           row.lifecycleStage ===

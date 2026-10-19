@@ -13,6 +13,7 @@ import type {
   CostControlPosition,
   CostScurveSeries,
   EacScenario,
+  SourceEacChallenge,
   EvmPerformancePoint,
   EvmPerformanceSeries,
   PerformanceCostMetricInput,
@@ -582,6 +583,53 @@ function sourceFinding(
   );
 }
 
+export const SOURCE_EAC_PLAUSIBILITY_RULES = [
+  "R1 below actual cost: a source EAC below actual cost to date (AC) implies a negative estimate to complete.",
+  "R2 outside independent range: a source EAC below the lower or above the higher of the two independent EVM forecasts, AC + (BAC - EV) (remaining work at budget rate) and BAC / CPI (current cost efficiency continues), is challenged for its basis.",
+  "Values are compared in the same currency and tax basis at the minor unit (0.01). The source EAC is retained unchanged.",
+];
+
+/** SW-31: one stated rule set; no hidden tolerance. Inputs must share one
+ * currency and a known tax basis (callers pass null otherwise). */
+export function sourceEacPlausibility(
+  bac: number | null,
+  ev: number | null,
+  ac: number | null,
+  cpi: number | null,
+  sourceEac: number | null,
+): SourceEacChallenge {
+  const minor = (v: number) => Math.round(v * 100);
+  const bacOverCpi = bac !== null && cpi !== null && cpi !== 0 ? bac / cpi : null;
+  const acPlusRemainingBudget = ac !== null && bac !== null && ev !== null ? ac + (bac - ev) : null;
+  const independentRange = bacOverCpi !== null && acPlusRemainingBudget !== null
+    ? {low: Math.min(bacOverCpi, acPlusRemainingBudget), high: Math.max(bacOverCpi, acPlusRemainingBudget), bacOverCpi, acPlusRemainingBudget}
+    : null;
+  const findings: SourceEacChallenge["findings"] = [];
+  if (sourceEac !== null && ac !== null && minor(sourceEac) < minor(ac)) findings.push({
+    rule: "below_actual_cost", sourceEac, independentValue: ac,
+    statement: "Source EAC is below actual cost to date; the implied estimate to complete is negative.",
+  });
+  if (sourceEac !== null && independentRange !== null && (minor(sourceEac) < minor(independentRange.low) || minor(sourceEac) > minor(independentRange.high))) findings.push({
+    rule: "outside_independent_range", sourceEac,
+    independentValue: minor(sourceEac) < minor(independentRange.low) ? independentRange.low : independentRange.high,
+    statement: minor(sourceEac) < minor(independentRange.low)
+      ? "Source EAC is below the lower independent EVM forecast."
+      : "Source EAC is above the higher independent EVM forecast.",
+  });
+  const assessable = sourceEac !== null && (ac !== null || independentRange !== null);
+  return {
+    state: findings.length ? "challenge" : assessable ? "consistent" : "not_assessable",
+    sourceEac, actualCost: ac, independentRange, findings,
+    rules: [...SOURCE_EAC_PLAUSIBILITY_RULES],
+    consequence: findings.length
+      ? "The source EAC is challenged against the independent EVM calculation. It is shown unchanged beside the independent values and is not replaced."
+      : null,
+    action: findings.length
+      ? "Obtain the forecast basis for the source EAC (remaining scope, rates, risk and commitments) and confirm or correct it."
+      : null,
+  };
+}
+
 function eacScenarios(
   snapshot:
     PerformanceCostSnapshotInput,
@@ -1133,6 +1181,14 @@ function costControl(
       tcpiForecast,
       eacScenarios:
         scenarios,
+      sourceEacChallenge:
+        sourceEacPlausibility(
+          compatibleMoneyBasis ? bac.value : null,
+          compatibleMoneyBasis ? ev.value : null,
+          compatibleMoneyBasis ? ac.value : null,
+          compatibleMoneyBasis ? cpiValue : null,
+          compatibleMoneyBasis ? sourceEac.value : null,
+        ),
       forecastMethodState:
         sourceEac.value !==
         null
