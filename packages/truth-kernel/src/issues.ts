@@ -69,12 +69,20 @@ export interface ControlIssueAssessment {
   schemaVersion: '1.0';
   primaryKind: ControlIssueKind | 'checked';
   systemCheckState: 'failed' | 'unverified' | 'listed_checks_passed';
+  /** SW-46: number of listed calculation checks that ran; null when not established. */
+  checksRunCount?: number | null;
   counts: Record<ControlIssueKind, number>;
   affectedModuleCounts: Record<ControlIssueKind, number>;
   issues: ControlIssue[];
   scope: string;
 }
-export function summarizeControlIssues(issues: readonly ControlIssue[]): ControlIssueAssessment {
+/** SW-46: total of known check-run counts; null when none of them is established. */
+export function totalChecksRun(values: ReadonlyArray<number | null | undefined>): number | null {
+  const known=values.filter((v):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=0);
+  return known.length?known.reduce((n,v)=>n+v,0):null;
+}
+export function summarizeControlIssues(issues: readonly ControlIssue[], checksRunCount: number | null = null): ControlIssueAssessment {
+  const checksRun=typeof checksRunCount==='number'&&Number.isFinite(checksRunCount)&&checksRunCount>=0?checksRunCount:null;
   const grouped=new Map<string,ControlIssue>();
   for(const issue of issues){
     // One identical correction request may affect many records and pages.
@@ -99,7 +107,9 @@ export function summarizeControlIssues(issues: readonly ControlIssue[]): Control
   const counts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,unique.filter(i=>i.kind===kind).length])) as Record<ControlIssueKind,number>;
   const affectedModuleCounts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,new Set(unique.filter(i=>i.kind===kind).flatMap(i=>i.moduleKeys)).size])) as Record<ControlIssueKind,number>;
   return {schemaVersion:'1.0',primaryKind:CONTROL_ISSUE_KINDS.find(k=>counts[k]>0)??'checked',
-    systemCheckState:counts.system_defect>0?'failed':unique.some(i=>i.kind==='verification_pending'&&i.owner==='CMeng')?'unverified':'listed_checks_passed',
+    // SW-46: "listed checks passed" needs at least one check that ran; no check (or an unknown count) is not a pass.
+    systemCheckState:counts.system_defect>0?'failed':unique.some(i=>i.kind==='verification_pending'&&i.owner==='CMeng')||!(checksRun!==null&&checksRun>0)?'unverified':'listed_checks_passed',
+    checksRunCount:checksRun,
     counts,affectedModuleCounts,issues:unique,
     scope:'Categories are independent. A source conflict, missing input or difference between submitted and independent positions is not proof of a software defect. Passed checks certify only their stated scope; project performance remains separate.'};
 }

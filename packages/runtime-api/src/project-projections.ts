@@ -46,7 +46,7 @@ import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
-import { managementAction, reportingScope, summarizeControlIssues, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
+import { managementAction, reportingScope, summarizeControlIssues, totalChecksRun, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
 import {projectSourceLabels} from './project-presentation';
@@ -7934,7 +7934,7 @@ function buildProjectActionRegister(state:ProjectRuntimeState){
   // therefore show the same actions.
   resolveProjectModule(state,'pmo-analysis');
   const modules=resolvedProjectCache.get(state.projectId)!.modules;
-  const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]));
+  const assessment=summarizeControlIssues([...modules.values()].flatMap(r=>r.issueAssessment?.issues??[]),totalChecksRun([...modules.values()].map(r=>r.issueAssessment?.checksRunCount)));
   const forecast=modules.get('independent-forecast')?.data as any;
   const review=projectActions(state,assessment,{completionPosition:forecast?.completionPosition});
   const recordPosition=crossDomainAccountability(state);
@@ -8800,7 +8800,7 @@ export function managementSurfacesForProject(
     engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations,registerDateReview:registerDateReview(state),
       challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
-  const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues]);
+  const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues],totalChecksRun([...[...resolvedModules.values()].map(r=>r.issueAssessment?.checksRunCount),operationChecks.length]));
   const issueStage1=profiling?performance.now():0;
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
@@ -8882,7 +8882,7 @@ export function managementSurfacesForProject(
   if(pageFailures.length){
     const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared producer or consumer and rerun the cross-page release checks.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
     result.sourceQuality.systemFailures.push(...failures);
-    for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures]);
+    for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures],totalChecksRun([issueAssessment.checksRunCount,pageChecks.length]));
   }
   const mp7=profiling?performance.now():0;
   if(profiling)process.stdout.write(JSON.stringify({event:'management_surface_profile',projectId,

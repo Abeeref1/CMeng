@@ -303,5 +303,6 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   if(result.evidenceState==='partial'&&!issues.some(i=>['missing_information','data_quality','source_conflict','governance_review','comparison_difference'].includes(i.kind)))
     add('verification_pending','EVIDENCE_ASSESSMENT_INCOMPLETE','Evidence assessment incomplete',result.reason??'The evidence producer has not established a complete position.',
       'Identify and classify the specific evidence dependency before treating the result as complete.','evidenceState','CMeng');
-  return summarizeControlIssues(issues);
+  // SW-46: the module's listed calculation checks that ran (null when the check list is not established).
+  return summarizeControlIssues(issues,Array.isArray(integrity?.checks)?integrity.checks.length:null);
 }

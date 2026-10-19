@@ -7,6 +7,9 @@ import {commercialPositionForState} from './commercial-runtime';
 import {operationalReporting} from './reporting-state';
 import {projectDataDate} from './canonical-time-claims';
 import {deliveryModule} from './delivery-projections';
+import {conditionalNotice} from './conditional-notice';
+// SW-46: "checks passed" needs records that were checked; null when the record list is not established.
+const checkedRecordCount=(m:any):number|null=>Array.isArray(m?.data?.rows)?m.data.rows.length:null;
 
 const norm=(value:string)=>value.trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ');
 const day=(iso:string)=>Date.parse(iso.slice(0,10)+'T00:00:00Z');
@@ -155,8 +158,8 @@ export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeRes
   const retention=controls.retentionCalendar;
   check('retention','Retention',retention.state==='missing'?'unresolved':(retention.heldCount??0)>0||(retention.overdueCount??0)>0?'open':'clear',
     retention.state==='missing'?'Retention calendar not established.':String(retention.heldCount??0)+' held · '+String(retention.overdueCount??0)+' overdue release(s).','Retention Calendar');
-  check('closeout','Snag / closeout',closeout.status==='blocked'?'unresolved':closeout.status==='ready'?'clear':'open',closeout.reason??(closeout.status==='ready'?'Current closeout checks passed.':'Closeout requires review.'),'Snag & Closeout');
-  check('handover','Handover',handover.status==='blocked'?'unresolved':handover.status==='ready'?'clear':'open',handover.reason??(handover.status==='ready'?'Current handover checks passed.':'Handover requires review.'),'Handover Readiness');
+  check('closeout','Snag / closeout',closeout.status==='blocked'?'unresolved':closeout.status==='ready'?'clear':'open',closeout.reason??(closeout.status==='ready'?conditionalNotice(checkedRecordCount(closeout)===null?null:checkedRecordCount(closeout)!>0,'Current closeout checks passed.','No closeout records were checked.','Closeout check coverage is not established.'):'Closeout requires review.'),'Snag & Closeout');
+  check('handover','Handover',handover.status==='blocked'?'unresolved':handover.status==='ready'?'clear':'open',handover.reason??(handover.status==='ready'?conditionalNotice(checkedRecordCount(handover)===null?null:checkedRecordCount(handover)!>0,'Current handover checks passed.','No handover records were checked.','Handover check coverage is not established.'):'Handover requires review.'),'Handover Readiness');
   const currencies=(commercial.currencies??[]).map((r:any)=>({currency:r.currency,originalContractValue:value(r.originalContractValue),currentContractValue:value(r.currentContractValue),
     approvedVariationAmount:value(r.approvedVariationAmount),pendingVariationAmount:value(r.pendingVariationAmount),grossCertifiedAmount:value(r.grossCertifiedAmount),paidAmount:value(r.paidAmount),
     certifiedUnpaidAmount:value(r.certifiedUnpaidAmount),retentionHeldAmount:value(r.retentionHeldAmount),claimedAmount:value(r.claimedAmount),assessedClaimAmount:value(r.assessedClaimAmount)}));
