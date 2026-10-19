@@ -5543,8 +5543,20 @@ async function loadAccountabilityGroup(encodedKey,page=0){
 }
 function accountabilityOwnerGroups(data){
  const groups=data.ownerGroups||[];
- const rows=groups.map(group=>'<tr><td>'+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(group):group.owner))+'</td><td>'+escapeHtml(names[group.register]||humanizeKey(group.register))+'</td><td>'+escapeHtml(humanizeKey(group.state))+'</td><td>'+fmt(group.count)+'</td><td>'+escapeHtml(planningShortDate(group.earliestDueIso))+'</td><td>'+escapeHtml(group.worstOverdueDays==null?'Not established':fmt(group.worstOverdueDays))+'</td><td>'+escapeHtml(humanizeKey(group.topPriority))+'</td><td><button onclick="loadAccountabilityGroup(&quot;'+encodeURIComponent(group.key)+'&quot;,0)">Open all members</button></td></tr>').join('');
- return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>Accountable owner and register groups</h4><p>Each group retains a stable identity and every source action. Counts and earliest source due dates use all member records. These dates do not establish a follow-up deadline.</p></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Owner</th><th>Register</th><th>State</th><th>Records</th><th>Earliest source due</th><th>Source days overdue</th><th>Priority</th><th>Members</th></tr></thead><tbody>'+rows+'</tbody></table></div><div id="accountabilityGroupMembers"></div></div></section>';
+ // F55: one block per owner (assigned owner, else accountable role: the first
+ // part of the stable group key). Each owner's register groups and their
+ // member buttons stay unchanged inside the block; nothing is merged away.
+ const owners=new Map();
+ for(const group of groups){const id=String(group.key??group.owner??'').split('|')[0].trim().toLowerCase();const list=owners.get(id)??[];list.push(group);owners.set(id,list);}
+ const row=group=>'<tr><td>'+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(group):group.owner))+'</td><td>'+escapeHtml(names[group.register]||humanizeKey(group.register))+'</td><td>'+escapeHtml(humanizeKey(group.state))+'</td><td>'+fmt(group.count)+'</td><td>'+escapeHtml(planningShortDate(group.earliestDueIso))+'</td><td>'+escapeHtml(group.worstOverdueDays==null?'Not established':fmt(group.worstOverdueDays))+'</td><td>'+escapeHtml(humanizeKey(group.topPriority))+'</td><td><button onclick="loadAccountabilityGroup(&quot;'+encodeURIComponent(group.key)+'&quot;,0)">Open all members</button></td></tr>';
+ const blocks=[...owners.values()].map(list=>{
+  const records=list.reduce((n,g)=>n+(typeof g.count==='number'?g.count:0),0);
+  const known=list.reduce((n,g)=>n+(typeof g.knownOverdueRecordCount==='number'?g.knownOverdueRecordCount:0),0);
+  const overdue=list.some(g=>g.overdueRecordCount==null)?null:list.reduce((n,g)=>n+g.overdueRecordCount,0);
+  const name=(typeof apiOwnerText==='function'?apiOwnerText(list[0]):list[0].owner)||list[0].owner;
+  return '<tbody class="accountability-owner-block"><tr class="owner-block-head"><th colspan="8">'+escapeHtml(name)+' · '+fmt(records)+' records · overdue '+accountabilityCount(overdue,known,'confirmed overdue')+'</th></tr>'+list.map(row).join('')+'</tbody>';
+ }).join('');
+ return '<section class="planning-panel primary"><div class="planning-panel-head"><h4>Accountable owner and register groups · one block per owner · '+fmt(owners.size)+' owners</h4><p>One block per owner: the assigned owner, else the accountable role. Each register group keeps its stable identity and every source action. Counts and earliest source due dates use all member records. These dates do not establish a follow-up deadline.</p></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Owner</th><th>Register</th><th>State</th><th>Records</th><th>Earliest source due</th><th>Source days overdue</th><th>Priority</th><th>Members</th></tr></thead>'+blocks+'</table></div><div id="accountabilityGroupMembers"></div></div></section>';
 }
 function accountabilityCount(value,known,label){
   return value==null?'Not established'+(typeof known==='number'?'<br><small>'+fmt(known)+' '+escapeHtml(label||'confirmed in retained records')+'</small>':''):fmt(value);

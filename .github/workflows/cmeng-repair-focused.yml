@@ -153,7 +153,8 @@ jobs:
             dist/tests/sw27-group-totals-known-members.test.js \
             dist/tests/t06-recovery-completion-path.test.js \
             dist/tests/sw14-document-reading-state.test.js \
-            dist/tests/y11-sw46-conditional-notices.test.js
+            dist/tests/y11-sw46-conditional-notices.test.js \
+            dist/tests/w9-management-brief-answer-first.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements
