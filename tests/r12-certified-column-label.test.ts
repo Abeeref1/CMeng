@@ -7,6 +7,7 @@ import {createServer} from 'node:net';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import ExcelJS from 'exceljs';
+import {PDFDocument,StandardFonts} from 'pdf-lib';
 
 // R12 (F01 follow-up, found by the F01 real-browser walk): a payment certificate
 // register whose only certified column is Net Certified showed that net amount
@@ -19,6 +20,11 @@ import ExcelJS from 'exceljs';
 // plain Certified Amount column. Expected values come from the source text only.
 // The rendered pages are read in a real headless Chrome; the facts, Ask and the
 // downloads are read from their own API responses.
+// R12 follow-up: a register whose only certified column is Gross Certified Amount
+// is read (gross established; net and the unpaid balance stay not established);
+// a Net Payable / Net Amount Payable column is read as the net certified amount;
+// and the receipts planning scenario never subtracts a net figure from the
+// contract value: with net-only certificates it is not established, with that reason.
 
 const SERVER=join(__dirname,'../packages/runtime-api/src/project-gateway.js');
 const DATA_DATE='2033-03-15';
@@ -28,7 +34,19 @@ const CASES:Array<{projectId:string;column:Column;header:string}>=[
   {projectId:'R12-GROSS-ONLY',column:'gross',header:'Gross Certified Amount'},
   {projectId:'R12-NET-ONLY',column:'net',header:'Net Certified'},
   {projectId:'R12-PLAIN-CERTIFIED',column:'unstated',header:'Certified Amount'},
+  {projectId:'R12-NET-PAYABLE',column:'net',header:'Net Payable'},
+  {projectId:'R12-NET-AMOUNT-PAYABLE',column:'net',header:'Net Amount Payable'},
 ];
+const CONTRACT_LINES=['MAIN WORKS CONTRACT AGREEMENT','Contract Data','Contract currency is SAR.','Accepted Contract Amount: SAR 48,250,000.',
+  'Date for Completion: '+shiftDateText(412),'The Engineer shall determine extensions of time in calendar days.'];
+function shiftDateText(days:number){const d=new Date(DATA_DATE+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
+async function contractPdf(){
+  const doc=await PDFDocument.create(),font=await doc.embedFont(StandardFonts.Helvetica);
+  doc.addPage([595,842]).drawText(CONTRACT_LINES.join('\n'),{x:45,y:790,size:10,font,lineHeight:22,maxWidth:505});
+  return Buffer.from(await doc.save());
+}
+/** Contract amount from the contract text only. */
+const CONTRACT_AMOUNT=Number(/Accepted Contract Amount: SAR ([\d,]+)/.exec(CONTRACT_LINES.join('\n'))![1]!.replaceAll(',',''));
 const GROSS_PAGE_LABELS=/^(?:gross certified|gross certified to date|dated gross certification)$/i;
 
 function shiftDate(iso:string,days:number){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
@@ -177,13 +195,14 @@ test('R12: a certified figure is labelled by the register column it came from on
       const csv=paymentRegister(c.header),xer=programmeXer(c.projectId);
       expected.set(c.projectId,sourceCertifiedTotal(csv,c.header));
       const files=[
-        {filename:'Programme_Update.xer',mediaType:'text/plain',text:xer,route:'/schedule/uploads',headers:{'x-upload-intent':'add_update','x-evidence-category':'schedule','x-schedule-role':'update','x-schedule-role-confirmed':'1'}},
-        {filename:'Payment_Certificates.csv',mediaType:'text/csv',text:csv,route:'/evidence/uploads',headers:{'x-upload-intent':'add_update'}},
+        {filename:'Programme_Update.xer',mediaType:'text/plain',bytes:Buffer.from(xer,'utf8'),route:'/schedule/uploads',headers:{'x-upload-intent':'add_update','x-evidence-category':'schedule','x-schedule-role':'update','x-schedule-role-confirmed':'1'}},
+        {filename:'Main_Contract.pdf',mediaType:'application/pdf',bytes:await contractPdf(),route:'/contract/uploads',headers:{'x-contract-role':'main'}},
+        {filename:'Payment_Certificates.csv',mediaType:'text/csv',bytes:Buffer.from(csv,'utf8'),route:'/evidence/uploads',headers:{'x-upload-intent':'add_update'}},
       ];
       for(const [index,file] of files.entries()){
         const uploaded=await fetch(base+'/api/projects/'+encodeURIComponent(c.projectId)+file.route,{method:'POST',
           headers:{'content-type':file.mediaType,'x-source-filename-encoded':encodeURIComponent(file.filename),'x-source-relative-path-encoded':encodeURIComponent(file.filename),
-            'x-upload-id':c.projectId+'-'+index,...file.headers},body:Buffer.from(file.text,'utf8'),signal:AbortSignal.timeout(180_000)});
+            'x-upload-id':c.projectId+'-'+index,...file.headers},body:file.bytes,signal:AbortSignal.timeout(180_000)});
         assert.equal(uploaded.status,201,c.projectId+' '+file.filename+' upload failed: '+(await uploaded.text()).slice(0,800));
       }
     }
@@ -198,7 +217,7 @@ test('R12: a certified figure is labelled by the register column it came from on
         const data=body.data??body,row=(data.position?.currencies??[]).find((r:any)=>r.currency==='SAR');
         const fact=(data.projectFacts?.commercial?.currencies??[]).find((r:any)=>r.currency==='SAR');
         console.log('R12 '+c.projectId+' '+page+' position: '+JSON.stringify(row?{value:row.grossCertifiedAmount?.value,state:row.grossCertifiedAmount?.state,
-          column:row.grossCertifiedAmountColumn,label:row.grossCertifiedAmountLabel,net:row.netCertifiedAmount?.value}:null)+
+          column:row.grossCertifiedAmountColumn,label:row.grossCertifiedAmountLabel,net:row.netCertifiedAmount?.value,unpaid:row.certifiedUnpaidAmount?.value,contract:row.currentContractValue?.value}:null)+
           ' fact: '+JSON.stringify(fact?{value:fact.grossCertifiedAmount?.value,basis:fact.grossCertifiedAmount?.basis,column:fact.grossCertifiedAmountColumn,label:fact.grossCertifiedAmountLabel}:null));
         if(!row){failures.push(c.projectId+' '+page+': no SAR commercial position');continue;}
         const value=row.grossCertifiedAmount?.value??null;
@@ -214,8 +233,25 @@ test('R12: a certified figure is labelled by the register column it came from on
           if(/\bgross certification\b|^dated gross/i.test(String(fact?.grossCertifiedAmount?.basis??'')))
             failures.push(c.projectId+' '+page+': project fact basis calls the figure gross: '+fact?.grossCertifiedAmount?.basis);
         }else{
-          if(row.grossCertifiedAmountLabel!==LABEL.gross)failures.push(c.projectId+' '+page+': gross label "'+row.grossCertifiedAmountLabel+'"');
-          if(value!==null&&value!==expected.get(c.projectId))failures.push(c.projectId+' '+page+': gross figure '+value+'; the source Gross Certified Amount column sums to '+expected.get(c.projectId));
+          // A Gross Certified column alone is read: gross established, net and the unpaid balance not established.
+          if(row.grossCertifiedAmountLabel!==LABEL.gross||row.grossCertifiedAmountColumn!=='gross')failures.push(c.projectId+' '+page+': gross label/column '+JSON.stringify([row.grossCertifiedAmountLabel,row.grossCertifiedAmountColumn]));
+          if(value!==expected.get(c.projectId))failures.push(c.projectId+' '+page+': gross figure '+value+'; the source Gross Certified Amount column sums to '+expected.get(c.projectId));
+          if(row.netCertifiedAmount?.value!=null)failures.push(c.projectId+' '+page+': net certified '+row.netCertifiedAmount.value+' although the register states gross only');
+          if(row.certifiedUnpaidAmount?.value!=null)failures.push(c.projectId+' '+page+': certified unpaid '+row.certifiedUnpaidAmount.value+' from gross less cash; the register states no net');
+        }
+        if(page==='cash-flow'){
+          // The receipts planning scenario never subtracts a net figure from the contract value.
+          const scenario=data.position?.programmeCashScenario,group=(scenario?.groups??[]).find((g:any)=>g.currency==='SAR');
+          console.log('R12 '+c.projectId+' receipts scenario: '+JSON.stringify(group?{remainingGross:group.remainingGross,rows:group.rows?.length,reason:group.notEstablishedReason,missing:group.missingInputs}:null)+' basis: '+String(scenario?.basis??'').slice(0,160));
+          if(row.currentContractValue?.value!==CONTRACT_AMOUNT)failures.push(c.projectId+': current contract value '+row.currentContractValue?.value+'; the contract states '+CONTRACT_AMOUNT);
+          else if(!group)failures.push(c.projectId+': no SAR receipts scenario');
+          else if(c.column==='net'){
+            if(group.remainingGross!==null||group.rows?.length)failures.push(c.projectId+': receipts scenario subtracts the net figure ('+group.remainingGross+')');
+            if(!/net certified amounts only/.test(String(group.notEstablishedReason??''))||!(group.missingInputs??[]).some((m:string)=>/net certified amounts only/.test(m)))
+              failures.push(c.projectId+': receipts scenario does not say it is not established because the certificates state net only: '+JSON.stringify([group.notEstablishedReason,group.missingInputs]));
+          }else if(c.column==='gross'){
+            if(group.remainingGross!==CONTRACT_AMOUNT-expected.get(c.projectId)!)failures.push(c.projectId+': remaining gross '+group.remainingGross+'; contract less gross certified is '+(CONTRACT_AMOUNT-expected.get(c.projectId)!));
+          }else if(/less dated gross certification/.test(String(scenario?.basis??'')))failures.push(c.projectId+': receipts scenario basis calls an unstated figure gross: '+scenario.basis);
         }
       }
     }
@@ -297,12 +333,14 @@ test('R12: a certified figure is labelled by the register column it came from on
         const text=await pageText(c.projectId,page),readings=certifiedReadings(text);
         console.log('R12 '+c.projectId+' '+page+' screen: '+JSON.stringify(readings));
         if(/Unable to load|Try this view again/i.test(text))failures.push(c.projectId+' '+page+': page failed to load');
+        if(page==='cash-flow'&&c.column==='net'&&!/Future receipts not established:\s*The payment certificates state net certified amounts only/.test(text))
+          failures.push(c.projectId+' cash-flow: the screen does not say the receipts scenario is not established because the certificates state net only');
         if(c.column==='gross'){
           const gross=readings.filter(r=>GROSS_PAGE_LABELS.test(r.label));
           if(!gross.length)failures.push(c.projectId+' '+page+': the gross-only register lost its gross label');
           if(readings.some(r=>r.label===LABEL.net||r.label===LABEL.unstated))failures.push(c.projectId+' '+page+': the gross-only register shows a net/unstated label');
           for(const r of gross){const m=shownMoney(r.raw);
-            if(figure===null?!/^Not established\b/i.test(r.raw):!m||Math.abs(m.value-figure)>m.tolerance)failures.push(c.projectId+' '+page+': "'+r.label+'" shows "'+r.raw+'"; the position gives '+figure);}
+            if(!m||Math.abs(m.value-expected.get(c.projectId)!)>m.tolerance)failures.push(c.projectId+' '+page+': "'+r.label+'" shows "'+r.raw+'"; the source Gross Certified Amount column sums to '+expected.get(c.projectId));}
         }else{
           for(const r of readings.filter(r=>GROSS_PAGE_LABELS.test(r.label))){const m=shownMoney(r.raw);
             if(m&&figure!==null&&Math.abs(m.value-figure)<=m.tolerance)failures.push(c.projectId+' '+page+': the '+c.column+' figure is shown as "'+r.label+'" '+r.raw);}
