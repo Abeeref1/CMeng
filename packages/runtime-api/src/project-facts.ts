@@ -1,5 +1,7 @@
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
-import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus} from './project-input-status';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,quantityInputStatus,installedQuantityInputStatus,cpmCoverageInputStatus,disciplineInputStatus,bindSharedInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus,type QuantityInputStatus,type InstalledQuantityInputStatus,type CpmCoverageInputStatus,type DisciplineInputStatus} from './project-input-status';
+import {boqSourceReporting} from './reporting-state';
+import {projectScopeClassification} from './location-review';
 import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -22,6 +24,7 @@ import {contractCompletionPosition} from './contract-completion';
 import {canonicalTimeClaims} from './canonical-time-claims';
 import {deliveryPosition} from './delivery-projections';
 import {securityValidityReview} from './security-validity';
+import {moduleFeatureAvailability} from './feature-availability';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
@@ -674,16 +677,48 @@ export interface ProjectInputStatus {
   riskOwners:RiskOwnerInputStatus;
   /** F07: the one risk register row count every risk page states. */
   riskRows:RiskRowInputStatus;
+  /** F07: BOQ quantities and units readable. */
+  quantities:QuantityInputStatus;
+  /** F07: installed measurement records matched to BOQ items at the Data Date. */
+  installedQuantities:InstalledQuantityInputStatus;
+  /** F07: share of activities the CMeng CPM calculates and whether it is publishable. */
+  cpmCoverage:CpmCoverageInputStatus;
+  /** F07: the programme's discipline list (activity codes, else the shared name rule). */
+  disciplines:DisciplineInputStatus;
+}
+const quantityInputCache=new WeakMap<ProjectRuntimeState,{version:number;value:{quantities:QuantityInputStatus;installedQuantities:InstalledQuantityInputStatus}}>();
+/** F07: the one BOQ quantity and installed quantity status of a project, read
+ * by the project facts and by the Quantities page producer alike. */
+export function quantityInputStatusForState(state:ProjectRuntimeState){
+  state=reportingState(state);
+  const cached=quantityInputCache.get(state);if(cached?.version===state.version)return cached.value;
+  const model=state.quantities??null;
+  const quantities=quantityInputStatus(boqSourceReporting(state),model?.items??null);
+  const installedQuantities=installedQuantityInputStatus(quantities,model,projectControlSchedule(state)?.revision.model.dataDateIso??null);
+  const value={quantities,installedQuantities};quantityInputCache.set(state,{version:state.version,value});return value;
+}
+/** F07: CMeng CPM coverage and publication, under the same gate and calendar
+ * rule the project facts use for the CMeng finish. */
+export function cpmCoverageInputStatusForState(state:ProjectRuntimeState):CpmCoverageInputStatus{
+  state=reportingState(state);
+  const model=projectControlSchedule(state)?.revision.model??null;
+  const forecast=model?scheduleCriticalityFacts(state).independentForecast:null;
+  const gate=model&&forecast?buildForecastReconciliationGate({model,forecast,requiredFinishIso:contractTimeDatesFrom(commercialPositionForState(state).timeExposure).governingCompletionIso}):null;
+  return cpmCoverageInputStatus(forecast,gate,!!forecast&&hasUnreconciledScheduleCalendar(forecast));
 }
 /** F07: shared input status for a project, from the same rules the pages use. */
 export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
   state=reportingState(state);
+  const model=projectControlSchedule(state)?.revision.model??null;
   return {
-    calendar:calendarInputStatus(projectControlSchedule(state)?.revision.model),
+    calendar:calendarInputStatus(model),
     capacity:capacityInputStatus(canonicalResources(state)),
     // No supplied risk rows: owner coverage is unknown, never 0 of 0.
     riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
     riskRows:riskRowInputStatus(operationalReporting(state).risk),
+    ...quantityInputStatusForState(state),
+    cpmCoverage:cpmCoverageInputStatusForState(state),
+    disciplines:disciplineInputStatus(model?projectScopeClassification(state,model).rows:null),
   };
 }
 
@@ -707,11 +742,18 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
-  const shown=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
+  const measured=key==='progress-breakdown'?bindMeasuredAreasToWbs(bound,decisionAnalysis):bound;
+  // F07: pages that show or gate on a shared input read it from the project facts.
+  const inputs=bound.projectFacts.inputs;
+  const shown:Record<string,any>=bindSharedInputStatus(key,measured,inputs);
+  // F07: prerequisites shown on a page are decided from the shared inputs.
+  if(inputs&&shown.featureAvailability&&(key==='challenge-contract'||key==='quantity-scurve'))
+    shown.featureAvailability=moduleFeatureAvailability(key,shown,{calendar:inputs.calendar,quantities:inputs.quantities,installedQuantities:inputs.installedQuantities});
+  const cpmHeld=key==='independent-forecast'&&shown.forecastReconciliationGate?.heldBySharedRule===true;
   // F45: the Progress page shows the same measured progress by area.
   const measuredProgress=key==='progress-report'?measuredProgressByArea(scoped):null;
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
-  const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:cpmHeld?shown.managementReviewReason:result.reason;
+  return {...result,...(cpmHeld?{status:'partial' as const}:{}),reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(measuredProgress?{measuredProgressByArea:measuredProgress}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }
