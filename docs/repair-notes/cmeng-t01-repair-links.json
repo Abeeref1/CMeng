@@ -47,13 +47,22 @@
       "commits": [
         "be3851ee",
         "1066c47c",
-        "413524f5"
+        "413524f5",
+        "8bcb3613",
+        "3df2bd53",
+        "46d18609",
+        "e9749a02",
+        "4c907b93",
+        "5ac2b671"
       ],
       "tests": [
-        "tests/t04-clear-source-analysis-all-families.test.ts"
+        "tests/t04-clear-source-analysis-all-families.test.ts",
+        "tests/t04-contract-fact-decisions.test.ts",
+        "tests/t04-contract-decisions-e2e.test.ts",
+        "tests/t04-commercial-registers-source-analysis.test.ts"
       ],
-      "what": "Clearly read unique candidate values used in more analysis families, labelled 'read from source; not formally adopted'; an adopted value is never erased by a candidate; disagreements shown (T04, part of the hold).",
-      "notCovered": "The pick / type your own / undo control required by C1 is not part of these commits."
+      "what": "Clearly read unique candidate values used in more analysis families, labelled 'read from source; not formally adopted'; an adopted value is never erased by a candidate; disagreements shown (T04, part of the hold). Rounds 9 and 10 (x4): contract term, completion date and contract value conflicts are decided in the one decision place (pick, type own, change, undo); every reader reads the decision, it survives a restart, a stale decision is refused; saved commercial decisions stay reachable for change and undo.",
+      "notCovered": "The pick / type your own / undo control required by C1 is not part of these commits. Rounds 9 and 10: 7013401f (an unadopted amendment never hides the adopted completion date) and 06a21506 (Data Date needed only when a decision is saved) changed no test, so they are not linked."
     },
     "SW-45": {
       "commits": [
@@ -112,13 +121,24 @@
     },
     "SW-13": {
       "commits": [
-        "e7a4f6db"
+        "e7a4f6db",
+        "c10a8cd7",
+        "054e1910",
+        "851a2203",
+        "976972a0",
+        "01858c50",
+        "eb9bfce8",
+        "99bd23c1",
+        "e0b7b9c2"
       ],
       "tests": [
-        "tests/t02-eastern-digit-source-reader.test.ts"
+        "tests/t02-eastern-digit-source-reader.test.ts",
+        "tests/t02-xer-column-audit-activity-codes.test.ts",
+        "tests/t02-programme-column-audit-formats.test.ts",
+        "tests/t02-r1-stored-size-load.test.ts"
       ],
-      "what": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13.",
-      "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered."
+      "what": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13. Rounds 9 and 10 (R1, programme files): every XER table column, and P6 XML, CSV and xlsx programme fields, are listed as read or unused with a sample; activity codes, WBS path, resources and cost accounts reach the activity; the audit is stored with the schedule revision.",
+      "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered. Rounds 9 and 10: P6 XML calendar working time is not read (agent x2 report). Register files other than programmes keep the earlier R1 coverage."
     },
     "SW-55": {
       "commits": [
@@ -133,12 +153,14 @@
     },
     "SW-04": {
       "commits": [
-        "9e44e026"
+        "9e44e026",
+        "851c9051"
       ],
       "tests": [
-        "tests/t05-same-measure-every-page.test.ts"
+        "tests/t05-same-measure-every-page.test.ts",
+        "tests/director-unknown-claim-count.test.ts"
       ],
-      "what": "delay-claims shows unknown claim and event counts as unknown, never 0 (N2).",
+      "what": "delay-claims shows unknown claim and event counts as unknown, never 0 (N2). Round 10: Director claim and event counts stay unknown, never 0 (851c9051, \"Director claim and event counts never fall back to zero when unknown\").",
       "notCovered": null
     },
     "SW-06": {
@@ -185,12 +207,14 @@
     },
     "SW-12": {
       "commits": [
-        "ffc6bc30"
+        "ffc6bc30",
+        "ef160078"
       ],
       "tests": [
-        "tests/t02-register-reading-truth.test.ts"
+        "tests/t02-register-reading-truth.test.ts",
+        "tests/t02-cost-report-content-date-formats.test.ts"
       ],
-      "what": "cost and register snapshots ordered by the report date inside the document, not the file name.",
+      "what": "cost and register snapshots ordered by the report date inside the document, not the file name. Round 9: the report date is read inside xlsx and PDF cost reports; with no single date inside, the reason says so and the file name is never stated as certain.",
       "notCovered": "A report with no internal date keeps the old rule."
     },
     "SW-16": {
@@ -220,13 +244,17 @@
       "commits": [
         "2df7f3df",
         "a198df79",
-        "77baa5c2"
+        "77baa5c2",
+        "5ca6bab0",
+        "e9749a02"
       ],
       "tests": [
         "tests/t04-contract-terms-source-analysis.test.ts",
-        "tests/t07-commercial-vs-independent.test.ts"
+        "tests/t07-commercial-vs-independent.test.ts",
+        "tests/f13-f47-claim-register-time-bar.test.ts",
+        "tests/t04-contract-fact-decisions.test.ts"
       ],
-      "what": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04). Round 3: notice periods count civil days, checked against the independent notice calculator; not-adopted label shown for notice rules.",
+      "what": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04). Round 3: notice periods count civil days, checked against the independent notice calculator; not-adopted label shown for notice rules. Rounds 9 and 10: the detailed-claim time bar is judged per claim against the contract period from awareness (F47); the claim notice deadline uses the decided notice period.",
       "notCovered": "Contract rule versus default (42 v 84 days) not proven on the real projects."
     },
     "SW-39": {
@@ -318,12 +346,16 @@
       "commits": [
         "2de09398",
         "756b7178",
-        "01d76392"
+        "01d76392",
+        "5e061318",
+        "adfbb6e6"
       ],
       "tests": [
-        "tests/t03-ai-reading-controls.test.ts"
+        "tests/t03-ai-reading-controls.test.ts",
+        "tests/t03-r5-workbook-ai-steps.test.ts",
+        "tests/t03-ai-completion.test.ts"
       ],
-      "what": "explicit references before AI, cost shown before AI is on, resumable AI reading with a spending cap, R5 reading statement, AI-read roles left for review (T03).",
+      "what": "explicit references before AI, cost shown before AI is on, resumable AI reading with a spending cap, R5 reading statement, AI-read roles left for review (T03). Round 9: a workbook refresh records its AI reading steps when none exist for the current source; the real-provider test status is explicit and never reads as passed.",
       "notCovered": "No controlled real AI test has been run; AI still needs owner permission."
     },
     "SW-57": {
@@ -388,12 +420,20 @@
     },
     "SW-15": {
       "commits": [
-        "b08d17d9"
+        "b08d17d9",
+        "dbe1bd3f",
+        "adfbb6e6",
+        "b884f569",
+        "7856c873",
+        "32e9a290"
       ],
       "tests": [
-        "tests/sw15-delay-events-not-from-claims.test.ts"
+        "tests/sw15-delay-events-not-from-claims.test.ts",
+        "tests/universal-reporting-contract.test.ts",
+        "tests/sales-blockers-closure.test.ts",
+        "tests/f06-event-register-content-both-readers.test.ts"
       ],
-      "what": "Round 6: Claims register rows no longer make delay events; event counts are null with a reason until an event source exists. Claims are unchanged.",
+      "what": "Round 6: Claims register rows no longer make delay events; event counts are null with a reason until an event source exists. Claims are unchanged. Rounds 9 and 10: claim rows never give event dates, notice timing or reported events; an event register found by its headers or its column content is read the same by both claims readers (z6).",
       "notCovered": "Event start and end dates on the notices page rows still come from claim rows; the events-by-data-date partition still lists them."
     },
     "SW-18": {
@@ -408,22 +448,27 @@
     },
     "SW-21": {
       "commits": [
-        "b58020ed"
+        "b58020ed",
+        "4b320a62"
       ],
       "tests": [
         "tests/t07-commercial-position-checks.test.ts"
       ],
-      "what": "Round 6: Change register counted by state; an approved-only list is not established as the full register.",
+      "what": "Round 6: Change register counted by state; an approved-only list is not established as the full register. Round 9: withdrawn is one lifecycle state with the same counts in lifecycle fields, change register, page, Ask facts and export data.",
       "notCovered": "Not live until deployed."
     },
     "SW-22": {
       "commits": [
-        "0c94e0d3"
+        "0c94e0d3",
+        "4c73da1e",
+        "2bc53675"
       ],
       "tests": [
-        "tests/t07-contract-time-original-and-completion-movement.test.ts"
+        "tests/t07-contract-time-original-and-completion-movement.test.ts",
+        "tests/f33-extended-completion-every-page.test.ts",
+        "tests/y11-sw46-conditional-notices.test.ts"
       ],
-      "what": "Round 6: Original completion read from the contract and amendments that restate it, under the T04 source rule; extended date kept separate.",
+      "what": "Round 6: Original completion read from the contract and amendments that restate it, under the T04 source rule; extended date kept separate. Round 10: one shared contract time reader on every page and chart; without an awarded EOT the original date is never labelled as including EOT (F33).",
       "notCovered": "Not live until deployed."
     },
     "SW-23": {
@@ -438,13 +483,16 @@
     },
     "SW-24": {
       "commits": [
-        "658d32a5"
+        "658d32a5",
+        "d7a0835e",
+        "ba5a8245",
+        "0011cc61"
       ],
       "tests": [
         "tests/t06-recovery-completion-path.test.ts"
       ],
-      "what": "Round 6: Recovery options are only actions on the path to completion, each with a CMeng CPM completion gain in working days or Not established; other late items are late work.",
-      "notCovered": "Crew and shift options have no CPM change model, so their completion gain is Not established."
+      "what": "Round 6: Recovery options are only actions on the path to completion, each with a CMeng CPM completion gain in working days or Not established; other late items are late work. Round 9: crew and two-shift options on the driving path get a CMeng CPM completion gain from their stated duration ratio; with no completion milestone the gain is counted on the CPM finish activity's calendar.",
+      "notCovered": "Crew and shift options have no CPM change model, so their completion gain is Not established. Rounds 9 and 10: A sixth-working-day option and the recovery target in working days are not tested."
     },
     "SW-25": {
       "commits": [
@@ -468,13 +516,19 @@
     },
     "SW-27": {
       "commits": [
-        "e054695d"
+        "e054695d",
+        "54de38d8",
+        "f9f1074a",
+        "d6926ad6",
+        "b8ca7d11"
       ],
       "tests": [
-        "tests/sw27-group-totals-known-members.test.ts"
+        "tests/sw27-group-totals-known-members.test.ts",
+        "tests/sw27-source-grounded-grouping.test.ts",
+        "tests/t11-workfront-identical-source-reuse.test.ts"
       ],
-      "what": "Round 6: Group totals use known members with the unknown count beside them; unmatched activities are a counted Not grouped bucket.",
-      "notCovered": "Keyword list not extended (needs an agreed list); WBS areas are offered through location review after confirmation."
+      "what": "Round 6: Group totals use known members with the unknown count beside them; unmatched activities are a counted Not grouped bucket. Round 9: discipline and location groups come from the programme's activity codes, then the WBS level, with the source label; name keywords only as a counted, labelled fallback.",
+      "notCovered": "Keyword list not extended (needs an agreed list); WBS areas are offered through location review after confirmation. Rounds 9 and 10: 00dc3391 (the Not grouped count is never shown as 0 when missing) changed no test, so it is not linked."
     },
     "SW-28": {
       "commits": [
@@ -509,12 +563,13 @@
     },
     "SW-31": {
       "commits": [
-        "b58020ed"
+        "b58020ed",
+        "4b320a62"
       ],
       "tests": [
         "tests/t07-commercial-position-checks.test.ts"
       ],
-      "what": "Round 6: Implausible source EAC (below actual cost, or outside the independent EVM range) is challenged beside the source value.",
+      "what": "Round 6: Implausible source EAC (below actual cost, or outside the independent EVM range) is challenged beside the source value. Round 9: an EAC above the independent range is a query and never downgrades readiness.",
       "notCovered": "Not live until deployed."
     },
     "SW-33": {
@@ -582,32 +637,45 @@
     "SW-43": {
       "commits": [
         "75f0a422",
-        "a2031606"
+        "a2031606",
+        "b7047756"
       ],
       "tests": [
-        "tests/t10-answer-first-generic-layout.test.ts"
+        "tests/t10-answer-first-generic-layout.test.ts",
+        "tests/w9-management-brief-answer-first.test.ts",
+        "tests/management-brief-acceptance.test.ts"
       ],
-      "what": "Round 6: Every module page opens with its verdict; action buttons and the extended completion notice follow it.",
+      "what": "Round 6: Every module page opens with its verdict; action buttons and the extended completion notice follow it. Round 9: the Management Brief opens with the brief; the 220-row driving-activity table follows it collapsed and complete (F52).",
       "notCovered": "Not live until deployed."
     },
     "SW-44": {
       "commits": [
-        "75f0a422"
+        "75f0a422",
+        "7aee684f"
       ],
       "tests": [
-        "tests/t10-answer-first-generic-layout.test.ts"
+        "tests/t10-answer-first-generic-layout.test.ts",
+        "tests/ui-management-experience.test.ts"
       ],
-      "what": "Round 6: The generic field view keeps every field, prints each figure once and collapses the rest behind Details.",
+      "what": "Round 6: The generic field view keeps every field, prints each figure once and collapses the rest behind Details. Round 9: the summary box and figure cards share one printed-figure list; role views show each preview chart once.",
       "notCovered": "The summary box and the figure cards on purpose-built pages still repeat some figures; role-view preview charts repeat in the detail panel."
     },
     "SW-46": {
       "commits": [
-        "7de4845d"
+        "7de4845d",
+        "659a81ca",
+        "b18de259",
+        "bab50982",
+        "c0e691be",
+        "74fd2d6e",
+        "17aa40c5"
       ],
       "tests": [
-        "tests/y11-sw46-conditional-notices.test.ts"
+        "tests/y11-sw46-conditional-notices.test.ts",
+        "tests/canonical-source-integration.test.ts",
+        "tests/t11-module-issues-walk-parity.test.ts"
       ],
-      "what": "Round 6: Five fixed sentences print only when their data supports them, through one shared conditional-notice helper.",
+      "what": "Round 6: Five fixed sentences print only when their data supports them, through one shared conditional-notice helper. Rounds 9 and 10 (y11): more fixed sentences print only when the data supports them (missing resource model, Revision History, \"listed checks passed\", source forecast history, document reading note); producer sweep: missing source cost values are not \"retained\" and final-account closeout and handover clear only with checked records.",
       "notCovered": "Not a full sweep of every fixed sentence; canonical-resource-runtime still turns a missing assignment count into 0."
     },
     "SW-52": {
@@ -629,6 +697,18 @@
       ],
       "what": "Round 6: Page reads retry through a restart with a plain retrying message; saves are not resent.",
       "notCovered": "Zero-downtime switch is not possible on Railway with an attached volume."
+    },
+    "SW-32": {
+      "commits": [
+        "44abafc1"
+      ],
+      "tests": [
+        "tests/t08-sw32-risk-register-only.test.ts",
+        "tests/delivery-api.test.ts",
+        "tests/delivery-authority.test.ts"
+      ],
+      "what": "Round 9: Delivery Risks never builds its risk list, counts or position from BOQ wording; with no risk register the position is unknown and BOQ wording is a labelled candidate list that is never counted; a register uploaded but not read is flagged.",
+      "notCovered": "The 600-row register case and undated rows are not hand-checked on the live project."
     }
   },
   "withoutSwRow": [
@@ -645,7 +725,10 @@
         "bb348873",
         "bb027e2d",
         "24c1554f",
-        "6c5e5729"
+        "6c5e5729",
+        "4d3c3408",
+        "c0cdc68b",
+        "cff75d07"
       ],
       "tests": [
         "tests/t06-float-days-every-remaining-place.test.ts",
@@ -653,20 +736,26 @@
         "tests/t06-durations-and-buckets-days.test.ts",
         "tests/batch-c-near-critical-visibility.test.ts",
         "tests/xer-calendar-recovery.test.ts",
-        "tests/t06-programme-hand-checked.test.ts"
+        "tests/t06-programme-hand-checked.test.ts",
+        "tests/t06-lag-working-days.test.ts",
+        "tests/t06-delay-working-days.test.ts",
+        "tests/t06-start-and-completion-delay-days.test.ts"
       ],
-      "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06).",
+      "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06). Rounds 9 and 10 (x6): relationship lag, finish slippage, start slippage and completion delay in working days of the relevant calendar, hours or elapsed days second; unknown calendar stays not established. Not covered: no lag calendar (the P6 lag-calendar setting is not read; lag uses the successor calendar). bdc8c35a (Ask lag in working days) changed no test, so it is not linked.",
       "why": "No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect."
     },
     {
       "rule": "A4",
       "commits": [
-        "ddedd70b"
+        "ddedd70b",
+        "adfbb6e6",
+        "2efe0c1f"
       ],
       "tests": [
-        "tests/t09-actions-navigation.test.ts"
+        "tests/t09-actions-navigation.test.ts",
+        "tests/t09-action-assignment.test.ts"
       ],
-      "what": "Missing owners shown as missing with a way to set them; stored owner and keys unchanged.",
+      "what": "Missing owners shown as missing with a way to set them; stored owner and keys unchanged. Round 9: owner and due-date assignment with one identity for every consumer; one shared due-date rule (assigned due date first) on Command Centre, Accountability, Dashboard and Ask.",
       "why": "A4 is not assigned to any SW row in the plan; linked to consultant item F12."
     },
     {
@@ -952,23 +1041,28 @@
     "F06": {
       "commits": [
         "65ed08a4",
-        "b08d17d9"
+        "b08d17d9",
+        "7856c873",
+        "32e9a290"
       ],
       "tests": [
         "tests/t05-same-measure-every-page.test.ts",
-        "tests/sw15-delay-events-not-from-claims.test.ts"
+        "tests/sw15-delay-events-not-from-claims.test.ts",
+        "tests/f06-event-register-content-both-readers.test.ts"
       ],
-      "what": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page.",
-      "notCovered": "Notice timing (14 timely / 2 late), determinations, awarded and claimed / assessed days per page are not tested; EOT page \"Independent comparison not confirmed\" not tested. With only a claims register the event count is now null with a reason, not 16."
+      "what": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page. Round 10 (z6): an event register found by its headers or its column content is read the same by both claims readers.",
+      "notCovered": "Notice timing (14 timely / 2 late), determinations and claimed / assessed days on every page are not compared; EOT page \"Independent comparison not confirmed\" not tested. With only a claims register the event count is null with a reason, not 16."
     },
     "F11": {
       "commits": [
-        "8ee92f64"
+        "8ee92f64",
+        "851c9051"
       ],
       "tests": [
-        "tests/t05-role-views-page-facts-shown.test.ts"
+        "tests/t05-role-views-page-facts-shown.test.ts",
+        "tests/director-unknown-claim-count.test.ts"
       ],
-      "what": "Round 8: named tests \"SW-05 executive role view uses the page action register and facts, not the empty overview summary\" and \"SW-08 ... places held contract values, awarded EOT and the forecast\" prove the director view reads the page facts.",
+      "what": "Round 8: named tests \"SW-05 executive role view uses the page action register and facts, not the empty overview summary\" and \"SW-08 ... places held contract values, awarded EOT and the forecast\" prove the director view reads the page facts. Round 10: Director claim and event counts never fall back to 0 when unknown.",
       "notCovered": "Ask CMeng answers are not checked against the answer key."
     },
     "F17": {
@@ -984,12 +1078,13 @@
     },
     "F19": {
       "commits": [
-        "b58020ed"
+        "b58020ed",
+        "4b320a62"
       ],
       "tests": [
         "tests/t07-commercial-position-checks.test.ts"
       ],
-      "what": "Round 8: named test \"SW-21 variation position: every change counted by state; an approved-only list is not the full change register\" proves VO status is read from the register (rejected is not pending).",
+      "what": "Round 8: named test \"SW-21 variation position: every change counted by state; an approved-only list is not the full change register\" proves VO status is read from the register (rejected is not pending). Round 9: withdrawn changes are one lifecycle state on every reader.",
       "notCovered": "The IPC variations column linking VOs to payment (100% linkage, 11,776,000 by IPC-023) is not tested."
     },
     "F23": {
@@ -1024,12 +1119,15 @@
     },
     "F43": {
       "commits": [
-        "658d32a5"
+        "658d32a5",
+        "d7a0835e",
+        "ba5a8245",
+        "0011cc61"
       ],
       "tests": [
         "tests/t06-recovery-completion-path.test.ts"
       ],
-      "what": "Round 8: named test \"SW-24 a driving-path crew option states its completion gain from a CMeng CPM run; late work off the path is not recovery\" proves the second-crew option on the driving path.",
+      "what": "Round 8: named test \"SW-24 a driving-path crew option states its completion gain from a CMeng CPM run; late work off the path is not recovery\" proves the second-crew option on the driving path. Round 9: crew and two-shift options on the driving path get a CMeng CPM completion gain from their stated duration ratio.",
       "notCovered": "The sixth-working-day option and the recovery target (11 working days extended / 20 original) are not tested."
     },
     "F53": {
@@ -1042,6 +1140,455 @@
       ],
       "what": "Round 8: named tests \"T10: cells, scalar lists, record groups and population tables never print raw codes\" and \"T10: paths keep their context and one code has one label everywhere\" prove codes do not reach page text.",
       "notCovered": "Internal record IDs (614 hits on 7 pages at the last check) and readable names for revisions, documents and clauses are not tested; the test keeps IDs unchanged by design."
+    },
+    "F01": {
+      "commits": [
+        "d1efdca8"
+      ],
+      "tests": [
+        "tests/v1-f01-page-figures-match-api.test.ts"
+      ],
+      "what": "Round 9: named test \"F01: every page shows the same main figures as the API answer key for the project\" (test-only commit; the test is the F01 deliverable).",
+      "notCovered": "Partial. The test runs the assembled browser script against the project facts, not a browser opening all 50 REEM pages, 7 tabs, project review, documents, director drawer and portfolio; it is not wired to run on the exact release commit before a deploy."
+    },
+    "F02": {
+      "commits": [
+        "3c61f1d8",
+        "98e9c103"
+      ],
+      "tests": [
+        "tests/w2-securities-shared-state.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w2): one shared Data Date rule decides active, expiring, expired and released securities; insurance uses the same rule and 30-day window.",
+      "notCovered": "REEM figures (PB 21M active, APG and CAR expired) are not hand-checked on the 9 pages."
+    },
+    "F04": {
+      "commits": [
+        "58451c30"
+      ],
+      "tests": [
+        "tests/w7-shared-register-and-portfolio.test.ts"
+      ],
+      "what": "Round 10 (w7): RFI & Design and NCR page counts are the shared register counts the Dashboard reads; each RFI cell names its source field.",
+      "notCovered": "REEM cells are unchecked (agent w7 report): the 83 \"Not established\" cells on RFI & Design were not re-counted."
+    },
+    "F05": {
+      "commits": [
+        "0b1287a7"
+      ],
+      "tests": [
+        "tests/v1-f05-one-action-per-problem.test.ts"
+      ],
+      "what": "Round 9: one raw field problem is one request in exactly one matter, whatever each page's wording.",
+      "notCovered": "The same total on Command Center, Accountability, Project review and Portfolio is not compared on a project; RFI / NCR duplicated as activity actions is not tested."
+    },
+    "F08": {
+      "commits": [
+        "fa8826d6"
+      ],
+      "tests": [
+        "tests/w7-programme-authority-crosspage.test.ts"
+      ],
+      "what": "Round 9: one shared programme-authority state (candidate, current, adopted) on every page, including the project catalog and Documents.",
+      "notCovered": "The cross-module consistency check is not proven to compare the values actually displayed."
+    },
+    "F09": {
+      "commits": [
+        "58451c30",
+        "851c9051"
+      ],
+      "tests": [
+        "tests/w7-shared-register-and-portfolio.test.ts",
+        "tests/director-unknown-claim-count.test.ts"
+      ],
+      "what": "Round 10 (w7): Portfolio card forecast and claim count equal the Dashboard; Director claim and event counts stay unknown, never 0 (851c9051).",
+      "notCovered": "The REEM card (extended date 21 Sep 2027) is not hand-checked."
+    },
+    "F10": {
+      "commits": [
+        "db04de76"
+      ],
+      "tests": [
+        "tests/v1-f10-no-duplicate-page-blocks.test.ts"
+      ],
+      "what": "Round 9: a repeated identical block on one module page is removed by one shared rule after all blocks are added.",
+      "notCovered": "Partial. Blocks copied across pages (one owner page per topic, others link to it) are not covered."
+    },
+    "F13": {
+      "commits": [
+        "5ca6bab0"
+      ],
+      "tests": [
+        "tests/f13-f47-claim-register-time-bar.test.ts"
+      ],
+      "what": "Round 9: responsibility, awareness date and determination columns are carried on each claim and shown on the claims page.",
+      "notCovered": "REEM figures (75 claimed / 34 assessed, status 8 / 6 / 2) are not hand-checked."
+    },
+    "F14": {
+      "commits": [
+        "a16d5347",
+        "32d62a04"
+      ],
+      "tests": [
+        "tests/w1-f14-delivered-status-without-date.test.ts"
+      ],
+      "what": "Round 9 (w1): a received or delivered status with no actual date is delivered, never late, and is listed as \"Delivered, date not stated\".",
+      "notCovered": "The REEM count (17 late, 68 delivered) is not hand-checked."
+    },
+    "F15": {
+      "commits": [
+        "af47b88b"
+      ],
+      "tests": [
+        "tests/w1-f15-risk-register-fully-read.test.ts"
+      ],
+      "what": "Round 9 (w1): risk register score ranking, Closed column, Last Reviewed and stale review against the stated interval.",
+      "notCovered": "Action Due Date is not named in the test."
+    },
+    "F16": {
+      "commits": [
+        "b09cac42",
+        "27b460f1",
+        "83b3d39b",
+        "e4c196f9",
+        "8b599dd6",
+        "3600a201"
+      ],
+      "tests": [
+        "tests/resource-actual-hours-headings.test.ts",
+        "tests/resource-stated-capacity-programme-hours.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w5): recorded hours read from Actual Hours / Actual Man-hours headings and timesheet registers; stated register capacity for utilization; programme-recorded actual hours when no register gives them; absent utilization stated once with the reason.",
+      "notCovered": "No BOQ earned-hours split (agent w5 report). The Look-Ahead resources column link is not tested."
+    },
+    "F18": {
+      "commits": [
+        "1ccd2fea"
+      ],
+      "tests": [
+        "tests/f18-security-instrument-type.test.ts"
+      ],
+      "what": "Round 9: one shared instrument-type rule; Instrument column first, exact reference abbreviation second (APG advance payment, PB performance, CAR insurance).",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F20": {
+      "commits": [
+        "7401975d"
+      ],
+      "tests": [
+        "tests/f20-f29-dated-cash-series.test.ts"
+      ],
+      "what": "Round 10 (v2): one dated cash series by month (certified and paid points with date, currency and source row); the Management Brief cost line reads it.",
+      "notCovered": "Advance from Sub-Clause 14.2 less recoveries and the three progress measures side by side are not in this test."
+    },
+    "F22": {
+      "commits": [
+        "c10a8cd7",
+        "054e1910",
+        "54de38d8"
+      ],
+      "tests": [
+        "tests/t02-xer-column-audit-activity-codes.test.ts",
+        "tests/sw27-source-grounded-grouping.test.ts"
+      ],
+      "what": "Round 9: XER activity codes reach the activity and discipline / location groups come from the programme's own codes, labelled with their source.",
+      "notCovered": "Partial. Baseline dates from the baseline file, plot and zone parsed from names and clean filter values are not tested."
+    },
+    "F24": {
+      "commits": [
+        "fce90da2",
+        "dfa38bb1"
+      ],
+      "tests": [
+        "tests/hse-report-document-text.test.ts"
+      ],
+      "what": "Round 9 (w5): HSE exposure and LTI / MTC / RWC are read from the report document text when the stored summary left them unread; read values are never overwritten.",
+      "notCovered": "The REEM figures (831,000 man-hours, LTI 1) are not hand-checked."
+    },
+    "F26": {
+      "commits": [
+        "adfbb6e6"
+      ],
+      "tests": [
+        "tests/f26-constraint-comparison.test.ts"
+      ],
+      "what": "Round 9: the forecast publishes the CPM with and without the source constraints and the difference.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F27": {
+      "commits": [
+        "1f58dd34",
+        "3a6defd0"
+      ],
+      "tests": [
+        "tests/w3-commercial-headline-basis.test.ts"
+      ],
+      "what": "Round 9 (w3): commercial money sums state their basis (records, currency, tax basis, date) through one shared label.",
+      "notCovered": "Partial. The basis of the extended date, notice proxy and actual-hours point is not tested."
+    },
+    "F29": {
+      "commits": [
+        "7401975d"
+      ],
+      "tests": [
+        "tests/f20-f29-dated-cash-series.test.ts"
+      ],
+      "what": "Round 10 (v2): the cash forecast reads a supplied forecast, else cost-loaded programme assignments with the basis stated, else says exactly why not.",
+      "notCovered": "Partial. Plaster-chain feasibility (see F46), recovery scenarios and the late-payment test (11 of 21 IPCs) are not in this test."
+    },
+    "F30": {
+      "commits": [
+        "0903dbfc",
+        "63853f3d"
+      ],
+      "tests": [
+        "tests/w9-management-brief-answer-first.test.ts",
+        "tests/w9-actions-named-ranked.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w9): a page links its missing-information items to the one shared list; each missing field is listed once with the control that supplies it.",
+      "notCovered": "The REEM count (\"Information needed\" 342 times on 29 pages) is not re-counted; an owner per gap is not named in the tests."
+    },
+    "F31": {
+      "commits": [
+        "0b4a620c"
+      ],
+      "tests": [
+        "tests/contract-parser.test.ts"
+      ],
+      "what": "Round 9: sectional completion rows are one section each, never \"section numbers repeat\".",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F32": {
+      "commits": [
+        "38c9704f"
+      ],
+      "tests": [
+        "tests/f32-schedule-footer-awaiting-review.test.ts"
+      ],
+      "what": "Round 9: the footer reads the shared awaiting-review rule; after adoption a re-upload or older upload is not a new schedule awaiting review.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F33": {
+      "commits": [
+        "85e55c75",
+        "dc14e31f",
+        "4c73da1e",
+        "2bc53675"
+      ],
+      "tests": [
+        "tests/f33-negative-float-constraint.test.ts",
+        "tests/f33-extended-completion-every-page.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (v3): one shared contract time reader gives the extended completion and days late on every page and finish chart; the constraint that sets the most negative float is named.",
+      "notCovered": "The REEM pages (21 Sep 2027, 15 days late) are not hand-checked."
+    },
+    "F34": {
+      "commits": [
+        "33682af9",
+        "98e9c103"
+      ],
+      "tests": [
+        "tests/w2-securities-shared-state.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w2): one sectional LD position (capped sections) on Dashboard, Director and Financial Claims; sections read their own stated date and cap; an unclear basis stays needs review with the reason.",
+      "notCovered": "The Section 1 to 2 interface is not tested."
+    },
+    "F35": {
+      "commits": [
+        "3c61f1d8",
+        "33682af9",
+        "98e9c103",
+        "5c468c37"
+      ],
+      "tests": [
+        "tests/w2-securities-shared-state.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w2): a coverage gap is raised when a security ends before the required period; contract-controls validity uses the shared coverage rule; unknown period stays not established.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F36": {
+      "commits": [
+        "1f58dd34"
+      ],
+      "tests": [
+        "tests/w3-commercial-headline-basis.test.ts"
+      ],
+      "what": "Round 9 (w3): the payment due date shows the rule that produced it; unknown period stays not established.",
+      "notCovered": "Partial. Gross vs net, applications not certified, 1-riyal rounding and like-for-like ratios are not tested."
+    },
+    "F37": {
+      "commits": [
+        "1f58dd34",
+        "ac8bc66c"
+      ],
+      "tests": [
+        "tests/w3-commercial-headline-basis.test.ts"
+      ],
+      "what": "Round 9 (w3): the cost headline compares EAC with the current approved contract; omission-labelled variations are queried; the Dashboard cost tile uses the shared comparison.",
+      "notCovered": "The query of a register value above the contract sum (292.5M package value) is not tested."
+    },
+    "F38": {
+      "commits": [
+        "3c97d370",
+        "4c183709",
+        "fc5d7798",
+        "11538178"
+      ],
+      "tests": [
+        "tests/f38-programme-quality-driving-chain.test.ts"
+      ],
+      "what": "Round 10 (w8): driving chain to completion and independent CPLI come from the independent CPM and match the solver; missing-logic, resources and missed-task checks state their formula.",
+      "notCovered": "Partial. Stage classification and float erosion rate are not done (agent w8 report); BEI and the criticality definition are not named in the test."
+    },
+    "F42": {
+      "commits": [
+        "3c97d370",
+        "dffd882e",
+        "11538178",
+        "283a10ce"
+      ],
+      "tests": [
+        "tests/f42-lookahead-driving-blockers.test.ts"
+      ],
+      "what": "Round 10 (w8): each driving activity in the look-ahead names its incomplete predecessors, missing readiness items and open linked records with due dates.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F44": {
+      "commits": [
+        "4c73da1e"
+      ],
+      "tests": [
+        "tests/f44-pending-eot-cpm-scenario.test.ts"
+      ],
+      "what": "Round 10 (v3): the pending EOT scenario is run by the CMeng CPM, equals the independent solver, and is carried on every page and the EOT page.",
+      "notCovered": "The delay-event path is not done (agent v3 report): the scenario is not built from delay events."
+    },
+    "F46": {
+      "commits": [
+        "73fbd0ef",
+        "e697109f",
+        "d4d28352"
+      ],
+      "tests": [
+        "tests/f46-trade-chain-resources.test.ts"
+      ],
+      "what": "Round 10 (u2): shared repeated-trade-chain resource calculator gives the weekly shortfall and completion effect of the plaster chain from stated capacity; unknown capacity stays not established, never an 8-hour day.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F47": {
+      "commits": [
+        "5ca6bab0"
+      ],
+      "tests": [
+        "tests/f13-f47-claim-register-time-bar.test.ts"
+      ],
+      "what": "Round 9: each claim shows its detailed claim on time, late or not established against the contract period from awareness.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F48": {
+      "commits": [
+        "af47b88b"
+      ],
+      "tests": [
+        "tests/w1-f48-expired-permits-linked-to-work.test.ts"
+      ],
+      "what": "Round 9 (w1): expired permits link to open or finished work by a single register match; open work is raised, finished work is not.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F49": {
+      "commits": [
+        "adfbb6e6"
+      ],
+      "tests": [
+        "tests/f49-completed-late-milestones.test.ts"
+      ],
+      "what": "Round 9: completed-late milestones are listed with working days late on the milestone calendar, checked against the independent solver.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F50": {
+      "commits": [
+        "17786812",
+        "58451c30"
+      ],
+      "tests": [
+        "tests/w7-portfolio-attention-follows-data.test.ts",
+        "tests/w7-shared-register-and-portfolio.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w7): the Portfolio card attention text follows the shared action count; card forecast and claim count equal the Dashboard.",
+      "notCovered": "CPI, cost position and top threat on the card are not tested."
+    },
+    "F51": {
+      "commits": [
+        "725b5a3e",
+        "63853f3d"
+      ],
+      "tests": [
+        "tests/w9-actions-named-ranked.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w9): ranking by consequence (completion, money, safety, severity); one action per owner/register chain and per causal programme chain, every member reachable.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F52": {
+      "commits": [
+        "b7047756"
+      ],
+      "tests": [
+        "tests/w9-management-brief-answer-first.test.ts",
+        "tests/management-brief-acceptance.test.ts"
+      ],
+      "what": "Round 9 (w9): the Management Brief opens with the brief; the 220-row table follows collapsed and complete.",
+      "notCovered": "Activity Review, Milestones, Near-Critical and the director view are not tested to open with the position."
+    },
+    "F54": {
+      "commits": [
+        "725b5a3e"
+      ],
+      "tests": [
+        "tests/w9-actions-named-ranked.test.ts"
+      ],
+      "what": "Round 9 (w9): activity actions name their linked NCR and RFIs from the source records; owner group actions name their records.",
+      "notCovered": "The issue column stating the defect (NCR-0042 \"Waterproofing defect\") is not named in the test."
+    },
+    "F55": {
+      "commits": [
+        "b7047756"
+      ],
+      "tests": [
+        "tests/w9-management-brief-answer-first.test.ts"
+      ],
+      "what": "Round 9 (w9): Accountability shows one block per owner (assigned owner, else accountable role) with every register group kept.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F60": {
+      "commits": [
+        "347c3598"
+      ],
+      "tests": [
+        "tests/f60-empty-project-every-page.test.ts"
+      ],
+      "what": "Round 9: named test \"F60 empty project: every page route answers 200 with an explained empty state\". Test-only commit: no code change was needed (the consultant already saw no errors); the test now guards it.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
+    },
+    "F61": {
+      "commits": [
+        "347c3598",
+        "413f1ac2",
+        "a91c156e",
+        "32faa2bb",
+        "a679e66b",
+        "61c5be85",
+        "80c518eb",
+        "b3387749",
+        "5d79ef66",
+        "d7352d7b"
+      ],
+      "tests": [
+        "tests/f61-management-page-weight.test.ts",
+        "tests/f61-adversarial-list-paging.test.ts",
+        "tests/claims-reporting-population.test.ts"
+      ],
+      "what": "Rounds 9 and 10 (w6): the management bundle sends shared facts once; every list that grows with source records is paged on management pages; a page still over budget is flagged; pages stay under 2 MB at 8,900 activities and 896 item curves and on an adversarial project.",
+      "notCovered": "Not hand-checked on the REEM project; the agent named nothing else as left out."
     }
   },
   "s": {
@@ -1090,8 +1637,8 @@
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
     "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
-    "F": "Round 8 (v/int5): 43 F rows have no tested shared fix; each reason is under \"F rows not covered by any tested shared fix\". Earlier note (v/int2): no commit or test named these consultant items.",
-    "SW-32": "Round 8: still open_no_repair_linked. No commit on v/int5 names SW-32 or changes the Delivery risk source; the live Delivery risk commits (47aa0c14, adf46522, eaa92bb0, all inside b3c76d6) predate the 13 Oct review that still saw 1 candidate risk from BOQ wording while a 600-row register is loaded."
+    "F": "Round 10 (v/int5 at 851c9051): 3 F rows have no tested shared fix; each reason is under \"F rows not covered by any tested shared fix\".",
+    "SW-32": "Linked in round 9 (44abafc1, t08-sw32-risk-register-only)."
   },
   "namedTestRun": {
     "when": "2026-10-19 09:20 +04",
@@ -1239,53 +1786,15 @@
       }
     ]
   },
-  "fNotCoveredRound8": {
-    "note": "Round 8 (v/int5 at fbf01a6a): every F row with no tested shared fix. Each reason states what is wrong in the product at the last consultant check (ledger consultantObservation) and why no commit on v/int5 covers it. Nothing here is certified.",
+  "round8Search": "Round 8 (v/int5 at fbf01a6a): every F row read with its evidence; each round-4 to round-6 commit in 1153164d..v/int5 and the named tests of the SW rows read case by case. An F row is linked only where a named test case proves the F case; the rest of the F case is stated under Not covered. Named test run 2026-10-19 16:22 +04 on the v/int5 build at fbf01a6a (this branch differs only in docs and scripts): node --test --test-concurrency=1 on the 10 newly linked files (t05-same-measure-every-page, sw15-delay-events-not-from-claims, t05-role-views-page-facts-shown, t02-register-reading-truth, t07-commercial-position-checks, t08-delivery-supplied-register-first, t07-contract-time-original-and-completion-movement, t06-float-trend-share-of-unfinished, t06-recovery-completion-path, t10-no-code-names-on-screen): 43 tests, 43 pass, 0 fail. A passing test proves only the case it names.",
+  "fNotCovered": {
+    "note": "Round 10 (v/int5 at 851c9051): F rows with no tested shared fix. Each reason states what is wrong in the product at the last consultant check and why no commit up to 851c9051 covers it. Nothing here is certified.",
     "rows": {
-      "F01": "No browser test opens every REEM page and compares displayed text with the answer key; the 251-check answer key reads API data only.",
-      "F02": "No shared rule decides active / expired / expiring securities from expiry date vs data date; 21M shows as active on all 9 pages and insurance is not tested apart from bonds.",
-      "F04": "RFI and NCR open / overdue / severity counts are not proven equal on Dashboard, RFI & Design and Quality; \"Not established\" still in 83 row cells on RFI & Design. SW-19 (unclear NCR state) is a different case.",
-      "F05": "The same action total is not proven on Command Center, Accountability, Project review and Portfolio (276 shown), and RFI / NCR duplicated as activity actions is not tested. The proposed overlap SW-39 (module links) does not match; 5e9b9111 is marked not tested.",
-      "F07": "Calendars, quantities, CPM coverage, capacity, discipline list, risk owners and row counts are still decided per page; no shared prerequisite status and no test.",
-      "F08": "No test that Update02 has one state on every page (including Documents), and the cross-module consistency check still does not compare displayed values.",
-      "F09": "Portfolio cards are not proven to read each project's shared facts; REEM extended date 21 Sep 2027 on the card not tested.",
-      "F10": "Duplicate blocks across pages not checked or tested; no one-owner-page rule.",
-      "F13": "Delay Event Register fields (awareness date, responsibility per claim, determinations) are not proven carried through; responsibility column not checked.",
-      "F14": "A terminal package status (Delivered, Installed, Closed) without an actual date is not treated as delivered: \"44 known late\" counts 27 delivered packages (N-1). SW-42 and SW-18 commits cover other cases.",
-      "F15": "Risk Impact, Score, Last Reviewed, Action Due Date and Closed status are not proven used for all 110 rows; no test.",
-      "F16": "Actual Approved Usage by week is not read; recorded-hours fields show \"Unresolved\" 41 times on Resources and the Look-Ahead resources column is not linked.",
-      "F18": "Instrument column setting the instrument type has no named test (consultant saw APG and CAR correct, but nothing guards it).",
-      "F20": "Dated cash series from payment dates, the brief cost line (CPI 0.96, EAC 218.4M, unpaid 9.9M) and the three progress measures side by side are not proven; no test.",
+      "F07": "Calendars, quantities, CPM coverage, capacity, discipline list, risk owners and row counts are still decided per page; no shared prerequisite status and no test. Round 10: the x4 decision place shares contract decisions, not these prerequisites.",
       "F21": "BOQ WBS-to-programme mapping to the 14 areas and BOQ-to-package links have no named test.",
-      "F22": "Baseline dates from the baseline file, discipline from the programme and plot / zone parsed from names have no named test.",
-      "F24": "Values from a native-text HSE report (man-hours 831,000, LTI 1) are not proven extracted. SW-35 test covers rates from register period totals, not report text extraction.",
-      "F26": "CPM is not run both with source constraints (as P6) and without them with both published; no test.",
-      "F27": "The basis of each sum and date addition (extended date, unpaid, pending VOs, notice proxy, actual hours) is not shown and tested; actual-hours point not checked.",
-      "F29": "Cash forecast still says \"No source rows\"; plaster-chain feasibility and recovery scenarios from the data held are not generated; no test.",
-      "F30": "\"Information needed\" still 342 times on 29 pages; gaps do not each name the field, file, column, owner and one button. ca24362b gives a route for 2 gaps only (contract value, approved EOT days).",
-      "F31": "No test that two sections with their own dates and damages raise no \"section numbers repeat\" item. 77baa5c2 / 2df7f3df test section reading, not the absence of the issue.",
-      "F32": "No test that the \"newly uploaded schedule needs your review\" footer shows only while a schedule awaits review (consultant saw 0 of 50 pages, unguarded).",
-      "F33": "Extended date (contract + awarded EOT) and days late are not proven on every page and finish chart; the completion constraint giving -88 h is not named. SW-22 test covers reading original vs extended from the contract only.",
-      "F34": "Contract page marks the sectional LD (1,680,000 / 900,000) as \"Needs review\", and LD exposure is not on Dashboard or Financial Claims. 6975b694 checks the LD arithmetic against the independent ledger, not the display.",
-      "F35": "Security cover to completion plus defects period and expired insurance flag have no named test.",
-      "F36": "Gross vs net, applications not certified, 1-riyal rounding not a failure and the due date vs Sub-Clause 14.7 have no named test.",
-      "F37": "Headline still \"ADVERSE FORECAST 8.4M above original budget\" instead of EAC vs current contract; positive \"omissions\" and register value above contract sum are not queried. SW-31 test covers an implausible source EAC only.",
-      "F38": "Driving chain, stage classification, DCMA-type checks, BEI, CPLI and float erosion rate are not proven; no test.",
-      "F42": "A late long-lead package or open RFI / NCR on a driving activity is not named as the blocker in the look-ahead, and float per activity in the window is not tested.",
-      "F44": "Pending EOT claims scenario (8 pending, 21 assessed days) has no named test.",
-      "F45": "Per-item curves load on every management page (N-5); progress by area, LS query, installed vs certified and earned hours have no test.",
-      "F46": "Hours, shortfall and trade for the plaster chain are not calculated; no test.",
-      "F47": "No per-claim check of days from notice to detailed claim against the 42-day Sub-Clause 20.2.4 bar.",
-      "F48": "Expired permits are not linked to open or finished work; no test.",
-      "F49": "Milestones that finished late are not listed; no test.",
-      "F50": "Portfolio card text (forecast vs extended, days late, cost position, top threat) not checked or tested.",
-      "F51": "Actions are not ranked by driving path, float, milestone and money with one action per chain under a test.",
-      "F52": "Management Brief still opens with a 220-row float comparison table. SW-43 test covers generic module pages only, not the Management Brief, Activity Review, Milestones, Near-Critical or director view.",
-      "F54": "Issue column does not state the defect and actions name only the activity, not the RFI / NCR / package; no test.",
-      "F55": "Accountability actions are not grouped by owner with counts and overdue under a test.",
-      "F60": "No test that an empty module returns a normal response (no HTTP 409) with one empty-state line; the consultant saw no errors, but nothing guards it. 428cf1dd tests the empty-table line, not the response.",
-      "F61": "Management pages carry 16.5 to 17.8 MB of data (N-5) against the 2 MB limit. SW-03 test pages deep registers, not management page payloads."
+      "F45": "Per-item curves on management pages are covered under F61 (page weight). Progress by area, period and required rate, fractional LS query, installed value vs certified, earned hours and % installed have no fix; no BOQ earned-hours split (agent w5 report). 413f1ac2 names F45 only for the page-weight part."
     }
   },
-  "round8Search": "Round 8 (v/int5 at fbf01a6a): every F row read with its evidence; each round-4 to round-6 commit in 1153164d..v/int5 and the named tests of the SW rows read case by case. An F row is linked only where a named test case proves the F case; the rest of the F case is stated under Not covered. Named test run 2026-10-19 16:22 +04 on the v/int5 build at fbf01a6a (this branch differs only in docs and scripts): node --test --test-concurrency=1 on the 10 newly linked files (t05-same-measure-every-page, sw15-delay-events-not-from-claims, t05-role-views-page-facts-shown, t02-register-reading-truth, t07-commercial-position-checks, t08-delivery-supplied-register-first, t07-contract-time-original-and-completion-movement, t06-float-trend-share-of-unfinished, t06-recovery-completion-path, t10-no-code-names-on-screen): 43 tests, 43 pass, 0 fail. A passing test proves only the case it names."
+  "fNotCoveredHistory": "Round 8 (fbf01a6a) listed 43 F rows not covered; rounds 9 and 10 linked 40 of them, many in part (see each row's Not covered).",
+  "round10Search": "Rounds 9 and 10 (4c9b4bd4..851c9051, 144 commits, read on branch v/x1c-board): every fix commit read with the test files it changed and the case names in those tests; linked to the SW and F rows its subject names, or whose case its test names. CI-list chores, wip and debug commits, and fix commits that changed no test and are not covered by a test of the same change, are not linked (named per row). Every linked commit is saved, not live: the live release is still b3c76d6. The named tests were not run in this round by the board agent; the linking agents and CI runs named in the commit subjects ran them."
 }
