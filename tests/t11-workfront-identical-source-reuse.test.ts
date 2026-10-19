@@ -146,7 +146,9 @@ test('T11 source-only 900-activity fallback retains every source-classified disc
  assert.equal(source.length,activities.length);
  const expected=new Map<string,string[]>();
  for(const dimension of ['discipline','location'] as const)for(const row of source){
-  const key=dimension+'|'+(row[dimension]??'Unclassified');
+  // SW-27: workfront groups follow the shared source groups (activity code,
+  // then WBS level for location, then labelled name match), not keywords only.
+  const key=dimension+'|'+((dimension==='discipline'?row.disciplineGroup:row.locationGroup)??'Unclassified');
   const list=expected.get(key)??[];list.push(row.activityId);expected.set(key,list);
  }
  const result=deliveryPosition(state);

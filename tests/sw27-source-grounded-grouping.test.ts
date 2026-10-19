@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import {parseXerBytes} from '../packages/xer-parser/src';
 import {canonicalScheduleFromXer} from '../packages/schedule-analysis-core/src';
 import {scheduleScopeClassification,scopeClassificationGroups} from '../packages/runtime-api/src/schedule-scope-classification';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
+import {deliveryPosition} from '../packages/runtime-api/src/delivery-projections';
+import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 
 // SW-27: discipline and location groups come first from the programme's own
 // structure (XER activity codes, then WBS levels), labelled with their source.
@@ -59,4 +65,28 @@ test('SW-27 without activity codes, location groups come from the WBS level',()=
  assert.deepEqual(location.rows.map((r:any)=>[r.value,r.source,r.activityCount]),[['South Wing','From WBS level 2',3],['North Wing','From WBS level 2',1]]);
  assert.equal(location.sourceGroupedActivityCount,4);
  assert.equal(location.notGrouped.activityCount,0);
+});
+
+// Without a workfront register, the Construction discipline / location page
+// groups by the same labelled source groups.
+function workfront(t:any,model:CanonicalScheduleModel){
+ const root=mkdtempSync(join(tmpdir(),'cmeng-sw27-source-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const store=new RuntimeProjectStore({dataDir:root,durable:false}),state=store.getOrCreate(model.projectId??"SW27");
+ state.schedules.push({role:'update',format:'xer',sourceFilename:'Current.xer',sourceHashSha256:'sw27-'+model.sourceRevisionId+'-'+model.activities.length+'-'+String(model.wbs.length),uploadedAt:'2031-01-05',
+  revision:{revisionId:model.sourceRevisionId,label:'Current',sequence:1,effectiveAt:'2031-01-05',model}} as any);
+ store.touch(state);
+ return (deliveryPosition(state).workfrontMatrix as any[]).map(row=>[row.dimension,row.label,row.groupSource,row.activityCount]);
+}
+test('SW-27 the workfront page groups by activity code, then WBS level, then labelled name match',t=>{
+ const coded=workfront(t,xer(true));
+ assert.ok(coded.some(r=>r[0]==='location'&&r[1]==='A-01'&&r[2]==='From activity code: Area'&&r[3]===1));
+ assert.ok(coded.some(r=>r[0]==='location'&&r[1]==='South Wing'&&r[2]==='From WBS level 2'&&r[3]===2));
+ assert.ok(coded.some(r=>r[0]==='discipline'&&r[1]==='CIV'&&r[2]==='From activity code: Discipline'));
+ assert.ok(coded.some(r=>r[0]==='discipline'&&r[2]==='Grouped by name match'));
+ assert.ok(coded.some(r=>r[0]==='discipline'&&r[1]==='Unclassified'&&r[2]==='Not grouped'));
+ for(const dimension of ['discipline','location'])assert.equal(coded.filter(r=>r[0]===dimension).reduce((n,r)=>n+r[3],0),4,'every activity in exactly one '+dimension+' group');
+ const plain=xer(false);
+ const named={...plain,wbs:[],activities:plain.activities.map((a,i)=>({...a,wbsId:null,name:'Electrical installation - Plot C '+(81+i)}))};
+ const byName=workfront(t,named).filter(r=>r[0]==='location');
+ assert.deepEqual(byName.map(r=>[r[1],r[2]]).sort(),[0,1,2,3].map(i=>['Plot C '+(81+i),'Grouped by name match']),'no source structure: keyword fallback, labelled');
 });
