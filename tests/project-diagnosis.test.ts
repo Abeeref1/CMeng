@@ -147,7 +147,7 @@ test('G1-16/69 missing calendar keeps driving counts unknown in diagnosis, Ask a
  const body:any=await page.json();assert.equal(body.total,3);assert.equal(body.rows.length,1);assert.equal(body.rows[0].drivingCount,null);
  const file=await fetch(url+'&format=xlsx');assert.equal(file.status,200);
  const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(Buffer.from(await file.arrayBuffer()) as any);
- const sheet=workbook.worksheets[0]!,headers=sheet.getRow(3).values as any[],column=headers.indexOf('drivingCount');assert.ok(column>0);
+ const sheet=workbook.worksheets[0]!,keyRows:any[]=[];workbook.getWorksheet('Column keys')!.eachRow((r,n)=>{if(n>1)keyRows.push([Number(r.getCell(1).value),r.getCell(3).value,r.getCell(2).value]);});const keyed=keyRows.find(r=>r[1]==='drivingCount')!,column=keyed[0];assert.ok(column>0);assert.equal((sheet.getRow(3).values as any[])[column],'Driving count');assert.equal(keyed[2],'Driving count');
  for(let row=4;row<=sheet.rowCount;row++)assert.ok(sheet.getRow(row).getCell(column).value==null||sheet.getRow(row).getCell(column).value==='');
  assert.deepEqual(f.state.schedules.map(s=>s.revision.model),source);assert.equal(f.calls(),0);
 });
