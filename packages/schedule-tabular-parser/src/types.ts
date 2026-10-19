@@ -23,6 +23,8 @@ export type ScheduleColumnRole =
   | "lag"
   | "record_type"
   | "activity_type"
+  | "resource"
+  | "cost_account"
   | "unknown";
 
 export interface ScheduleHeaderMapping {
@@ -46,6 +48,9 @@ export interface ScheduleActivityRow {
   wbs: string | null;
   wbsId: string | null;
   calendar: string | null;
+  /** Source resource and cost-account cell text, when the programme has those columns. */
+  resource?: string | null;
+  costAccount?: string | null;
   start: string | null;
   startIso: string | null;
   finish: string | null;

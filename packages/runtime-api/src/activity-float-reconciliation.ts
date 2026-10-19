@@ -1,4 +1,5 @@
 import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,finishVarianceBetween,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
+import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -74,15 +75,18 @@ export function lagHoursText(hours:number|null|undefined,dayHours:number|null|un
  * missing, incomplete or unread calendar stays null with its basis. */
 export const DELAY_DAYS_BASIS='source_activity_calendar';
 const delayCache=new WeakMap<CanonicalScheduleModel,Map<string,{calendarDays:number|null;workingDays:number|null;basis:string}>>();
-export function delayWorkingDays(model:CanonicalScheduleModel,activityId:unknown,fromIso:string|null|undefined,toIso:string|null|undefined){
+export function delayWorkingDays(model:CanonicalScheduleModel,activityId:unknown,fromIso:string|null|undefined,toIso:string|null|undefined,
+ /** The date reader of the producer whose elapsed days are being matched. */
+ reader:'date_parse'|'schedule_instant'='date_parse'){
  const {calendarById,activityById}=sourceCalendarWorkingDays(model);
  const activity=typeof activityId==='string'?activityById.get(activityId):undefined;
  if(!activity)return {calendarDays:null,workingDays:null,basis:'activity_not_in_programme'};
  if(!fromIso||!toIso)return {calendarDays:null,workingDays:null,basis:'dates_not_established'};
  let cache=delayCache.get(model);if(!cache){cache=new Map();delayCache.set(model,cache);}
- const key=String(activity.calendarId)+'|'+fromIso+'|'+toIso;
+ const key=reader+'|'+String(activity.calendarId)+'|'+fromIso+'|'+toIso;
  const known=cache.get(key);if(known)return known;
- const fromMs=Date.parse(fromIso),toMs=Date.parse(toIso);
+ const read=(iso:string)=>reader==='schedule_instant'?parseScheduleInstant(iso)??Number.NaN:Date.parse(iso);
+ const fromMs=read(fromIso),toMs=read(toIso);
  let result:{calendarDays:number|null;workingDays:number|null;basis:string};
  if(!Number.isFinite(fromMs)||!Number.isFinite(toMs))result={calendarDays:null,workingDays:null,basis:'dates_not_established'};
  else{
@@ -102,6 +106,22 @@ function sourceFinishPair(activity:CanonicalScheduleModel['activities'][number])
 }
 // Finish slippage fields in elapsed calendar days, keyed to one activity.
 const DELAY_FIELDS=['finishVarianceDays','varianceDays'] as const;
+/** T06/N7 start slippage. Not started: planned start (current, else forecast
+ * start, as the activity analytics read it) to the Data Date. Started: the
+ * source planned start (baseline / P6 target start) to the actual start.
+ * Working days on the activity's own calendar; the pair is stated. */
+function sourceStartSlippagePair(activity:CanonicalScheduleModel['activities'][number],dataDateIso:string|null){
+ if(activity.actualStartIso)return {fromIso:activity.baselineStartIso,toIso:activity.actualStartIso,
+  pair:activity.baselineStartIso?'planned_start_to_actual_start':'planned_start_not_established',
+  plannedStartBasis:activity.baselineDateBasis??(activity.baselineStartIso?'source_baseline_start':null)};
+ const planned=activity.currentStartIso??activity.forecastStartIso;
+ return {fromIso:planned,toIso:dataDateIso,pair:!planned?'planned_start_not_established':!dataDateIso?'data_date_not_established':'planned_start_to_data_date',
+  plannedStartBasis:planned?'current_programme_planned_start':null};
+}
+/** Overdue at the Data Date, elapsed days from the activity analytics:
+ * start (current, else forecast start) and finish (forecast, else current). */
+const OVERDUE_FIELDS=[['startOverdueCalendarDays',(a:CanonicalScheduleModel['activities'][number])=>a.currentStartIso??a.forecastStartIso],
+ ['finishOverdueCalendarDays',(a:CanonicalScheduleModel['activities'][number])=>a.forecastFinishIso??a.currentFinishIso]] as const;
 
 /** Submitted classifications remain source assertions. Every comparison retains
  * the activity identity and both answers; an aggregate count cannot clear a row. */
@@ -305,6 +325,34 @@ export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|nu
     const matched=delay.calendarDays!==null&&Math.abs(delay.calendarDays-days)<1e-5;
     set(workingKey,matched?delay.workingDays:null);
     if(!(basisKey in value))set(basisKey,matched?delay.basis:'source_date_pair_not_matched');
+   }
+   // Overdue at the Data Date: working days twin of each elapsed value. A
+   // zero means "not overdue" in the analytics and stays zero.
+   for(const [field,dateOf] of OVERDUE_FIELDS){
+    const days=value[field],workingKey=field.replace(/CalendarDays$/,'WorkingDays'),basisKey=field.replace(/CalendarDays$/,'DaysBasis');
+    if(typeof days!=='number'||!Number.isFinite(days)||workingKey in value)continue;
+    if(days===0){set(workingKey,0);if(!(basisKey in value))set(basisKey,'not_overdue_at_data_date');continue;}
+    const delay=delayWorkingDays(model,activity.activityId,dateOf(activity),model.dataDateIso,'schedule_instant');
+    const matched=delay.calendarDays!==null&&Math.abs(delay.calendarDays-days)<1e-5;
+    set(workingKey,matched?delay.workingDays:null);
+    if(!(basisKey in value))set(basisKey,matched?delay.basis:'source_date_pair_not_matched');
+   }
+   // Start slippage beside the overdue figure, on rows that carry it.
+   if(typeof value.startOverdueCalendarDays==='number'&&!('startSlippageWorkingDays' in value)){
+    const pair=sourceStartSlippagePair(activity,model.dataDateIso);
+    const started=!!activity.actualStartIso||activity.status==='in_progress'||activity.status==='completed';
+    let calendarDays:number|null=null,workingDays:number|null=null,basis:string,datePair:string=pair.pair;
+    if(started&&!activity.actualStartIso){datePair='actual_start_not_established';basis=datePair;}
+    else if(!started&&value.startOverdueCalendarDays===0){calendarDays=0;workingDays=0;basis='not_due_at_data_date';}
+    else if(pair.pair==='planned_start_to_actual_start'||pair.pair==='planned_start_to_data_date'){
+     const delay=delayWorkingDays(model,activity.activityId,pair.fromIso,pair.toIso,'schedule_instant');
+     ({calendarDays,workingDays,basis}=delay);
+    }else basis=pair.pair;
+    set('startSlippageCalendarDays',calendarDays);
+    set('startSlippageWorkingDays',workingDays);
+    set('startSlippageDaysBasis',basis);
+    set('startSlippageDatePair',datePair);
+    set('startSlippagePlannedStartBasis',pair.plannedStartBasis);
    }
   }
   // T06/N7: a relationship row's lag carries working days of its successor

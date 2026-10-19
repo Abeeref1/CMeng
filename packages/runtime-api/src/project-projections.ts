@@ -88,6 +88,7 @@ import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
 import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
+import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
 import { createHash } from "node:crypto";
@@ -3395,6 +3396,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     director =
       buildProjectDirectorPosition({
         operationalReporting: operationalReporting(state),
+        // T06/N7: completion delay working days on the completion calendar.
+        completionCalendar: completionDelayCalendar(model, independentForecast),
         generatedAt,
         projectId:
           state.projectId,
