@@ -53,7 +53,7 @@ function xer(dataDate: string, tasks: Task[], codes: Array<[number, string, stri
   const task = (t: Task) => ['%R', t.id, 1, t.wbs, 'C5', t.code, t.name, t.type ?? 'TT_Task', t.status, t.target[0], t.target[1], t.early[0], t.early[1],
     t.status === 'TK_Complete' ? '' : t.restart ?? t.early[0], t.status === 'TK_Complete' ? '' : t.early[1], t.actual?.[0] ?? '', t.actual?.[1] ?? '',
     t.original, t.remaining, t.float ?? '', t.status === 'TK_Complete' ? 100 : t.status === 'TK_Active' ? 30 : 0].join('\t');
-  const links = [['MOB', 'S42'], ['MOB', 'X1'], ['MOB', 'Y1'], ['S42', 'S43'], ['S43', 'MEP'], ['MEP', 'PNT'], ['PNT', 'SNG'], ['SNG', 'AUTH'], ['AUTH', 'PC'], ['X1', 'PC'], ['Y1', 'PC']];
+  const links: Array<[string, string]> = [['MOB', 'S42'], ['MOB', 'X1'], ['MOB', 'Y1'], ['S42', 'S43'], ['S43', 'MEP'], ['MEP', 'PNT'], ['PNT', 'SNG'], ['SNG', 'AUTH'], ['AUTH', 'PC'], ['X1', 'PC'], ['Y1', 'PC']];
   const idOf = new Map(tasks.map(t => [t.code, t.id]));
   return Buffer.from(['ERMHDR\t23.12',
     '%T\tPROJECT', '%F\tproj_id\tproj_short_name\tlast_recalc_date', '%R\t1\tANC\t' + dataDate,
