@@ -938,6 +938,110 @@
       ],
       "what": "delivery document receipts list the columns no calculation uses (R1).",
       "notCovered": "Per-file view of mapped columns on the Documents page not checked here."
+    },
+    "F03": {
+      "commits": [
+        "9e44e026"
+      ],
+      "tests": [
+        "tests/t05-same-measure-every-page.test.ts"
+      ],
+      "what": "Round 8: named test \"T05 schedule float measures are identical on Dashboard, PMO analysis and Near-critical pages\" proves one float calculation feeds those three pages.",
+      "notCovered": "Delayed-open count, area tables (Villa Type B), delay pages and charts are not in the test. a29151bc (Dashboard activity counts use the Activity Review binding) has no named test, so it is not linked."
+    },
+    "F06": {
+      "commits": [
+        "65ed08a4",
+        "b08d17d9"
+      ],
+      "tests": [
+        "tests/t05-same-measure-every-page.test.ts",
+        "tests/sw15-delay-events-not-from-claims.test.ts"
+      ],
+      "what": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page.",
+      "notCovered": "Notice timing (14 timely / 2 late), determinations, awarded and claimed / assessed days per page are not tested; EOT page \"Independent comparison not confirmed\" not tested. With only a claims register the event count is now null with a reason, not 16."
+    },
+    "F11": {
+      "commits": [
+        "8ee92f64"
+      ],
+      "tests": [
+        "tests/t05-role-views-page-facts-shown.test.ts"
+      ],
+      "what": "Round 8: named tests \"SW-05 executive role view uses the page action register and facts, not the empty overview summary\" and \"SW-08 ... places held contract values, awarded EOT and the forecast\" prove the director view reads the page facts.",
+      "notCovered": "Ask CMeng answers are not checked against the answer key."
+    },
+    "F17": {
+      "commits": [
+        "5c81f67c",
+        "ffc6bc30"
+      ],
+      "tests": [
+        "tests/t02-register-reading-truth.test.ts"
+      ],
+      "what": "Round 8: named test \"T02 SW-11 R2 a file named as one type but holding another is identified by content and queued for review\" proves content, not file name, decides the type.",
+      "notCovered": "The permit register driving the Permits page and the monthly EVM history driving the cost trend and progress curve are not tested."
+    },
+    "F19": {
+      "commits": [
+        "b58020ed"
+      ],
+      "tests": [
+        "tests/t07-commercial-position-checks.test.ts"
+      ],
+      "what": "Round 8: named test \"SW-21 variation position: every change counted by state; an approved-only list is not the full change register\" proves VO status is read from the register (rejected is not pending).",
+      "notCovered": "The IPC variations column linking VOs to payment (100% linkage, 11,776,000 by IPC-023) is not tested."
+    },
+    "F23": {
+      "commits": [
+        "55298d86"
+      ],
+      "tests": [
+        "tests/t08-delivery-supplied-register-first.test.ts"
+      ],
+      "what": "Round 8: named test \"SW-33: Handover Readiness uses the supplied asset register; programme names are only the labelled fallback without one\" proves the labelled programme fallback for handover.",
+      "notCovered": "Testing, Snag and Weather pages with no register are not tested; disruption claims as a fallback are not tested."
+    },
+    "F40": {
+      "commits": [
+        "0c94e0d3"
+      ],
+      "tests": [
+        "tests/t07-contract-time-original-and-completion-movement.test.ts"
+      ],
+      "what": "Round 8: named test \"SW-23 window programme movement is the completion movement, not the largest single-activity shift\" proves the stated movement per window.",
+      "notCovered": "Logic / lag / duration / constraint cause split, the 427-day update gap flag, slip rate and driving activities per window are not tested."
+    },
+    "F41": {
+      "commits": [
+        "264cb8e8"
+      ],
+      "tests": [
+        "tests/t06-float-trend-share-of-unfinished.test.ts"
+      ],
+      "what": "Round 8: named tests \"SW-25: unknown float stays unknown in share and direction, never 0\" and \"SW-25: the float trend chart plots the share\" prove unknown points are gaps, not zero.",
+      "notCovered": "The REEM chart values (0 critical at baseline, 41 now) are not hand-checked; the chart now plots the share of unfinished work beside the count."
+    },
+    "F43": {
+      "commits": [
+        "658d32a5"
+      ],
+      "tests": [
+        "tests/t06-recovery-completion-path.test.ts"
+      ],
+      "what": "Round 8: named test \"SW-24 a driving-path crew option states its completion gain from a CMeng CPM run; late work off the path is not recovery\" proves the second-crew option on the driving path.",
+      "notCovered": "The sixth-working-day option and the recovery target (11 working days extended / 20 original) are not tested."
+    },
+    "F53": {
+      "commits": [
+        "6ffa8bea",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t10-no-code-names-on-screen.test.ts"
+      ],
+      "what": "Round 8: named tests \"T10: cells, scalar lists, record groups and population tables never print raw codes\" and \"T10: paths keep their context and one code has one label everywhere\" prove codes do not reach page text.",
+      "notCovered": "Internal record IDs (614 hits on 7 pages at the last check) and readable names for revisions, documents and clauses are not tested; the test keeps IDs unchanged by design."
     }
   },
   "s": {
@@ -986,7 +1090,8 @@
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
     "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
-    "F": "No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles."
+    "F": "Round 8 (v/int5): 43 F rows have no tested shared fix; each reason is under \"F rows not covered by any tested shared fix\". Earlier note (v/int2): no commit or test named these consultant items.",
+    "SW-32": "Round 8: still open_no_repair_linked. No commit on v/int5 names SW-32 or changes the Delivery risk source; the live Delivery risk commits (47aa0c14, adf46522, eaa92bb0, all inside b3c76d6) predate the 13 Oct review that still saw 1 candidate risk from BOQ wording while a 600-row register is loaded."
   },
   "namedTestRun": {
     "when": "2026-10-19 09:20 +04",
@@ -1133,5 +1238,54 @@
         ]
       }
     ]
-  }
+  },
+  "fNotCoveredRound8": {
+    "note": "Round 8 (v/int5 at fbf01a6a): every F row with no tested shared fix. Each reason states what is wrong in the product at the last consultant check (ledger consultantObservation) and why no commit on v/int5 covers it. Nothing here is certified.",
+    "rows": {
+      "F01": "No browser test opens every REEM page and compares displayed text with the answer key; the 251-check answer key reads API data only.",
+      "F02": "No shared rule decides active / expired / expiring securities from expiry date vs data date; 21M shows as active on all 9 pages and insurance is not tested apart from bonds.",
+      "F04": "RFI and NCR open / overdue / severity counts are not proven equal on Dashboard, RFI & Design and Quality; \"Not established\" still in 83 row cells on RFI & Design. SW-19 (unclear NCR state) is a different case.",
+      "F05": "The same action total is not proven on Command Center, Accountability, Project review and Portfolio (276 shown), and RFI / NCR duplicated as activity actions is not tested. The proposed overlap SW-39 (module links) does not match; 5e9b9111 is marked not tested.",
+      "F07": "Calendars, quantities, CPM coverage, capacity, discipline list, risk owners and row counts are still decided per page; no shared prerequisite status and no test.",
+      "F08": "No test that Update02 has one state on every page (including Documents), and the cross-module consistency check still does not compare displayed values.",
+      "F09": "Portfolio cards are not proven to read each project's shared facts; REEM extended date 21 Sep 2027 on the card not tested.",
+      "F10": "Duplicate blocks across pages not checked or tested; no one-owner-page rule.",
+      "F13": "Delay Event Register fields (awareness date, responsibility per claim, determinations) are not proven carried through; responsibility column not checked.",
+      "F14": "A terminal package status (Delivered, Installed, Closed) without an actual date is not treated as delivered: \"44 known late\" counts 27 delivered packages (N-1). SW-42 and SW-18 commits cover other cases.",
+      "F15": "Risk Impact, Score, Last Reviewed, Action Due Date and Closed status are not proven used for all 110 rows; no test.",
+      "F16": "Actual Approved Usage by week is not read; recorded-hours fields show \"Unresolved\" 41 times on Resources and the Look-Ahead resources column is not linked.",
+      "F18": "Instrument column setting the instrument type has no named test (consultant saw APG and CAR correct, but nothing guards it).",
+      "F20": "Dated cash series from payment dates, the brief cost line (CPI 0.96, EAC 218.4M, unpaid 9.9M) and the three progress measures side by side are not proven; no test.",
+      "F21": "BOQ WBS-to-programme mapping to the 14 areas and BOQ-to-package links have no named test.",
+      "F22": "Baseline dates from the baseline file, discipline from the programme and plot / zone parsed from names have no named test.",
+      "F24": "Values from a native-text HSE report (man-hours 831,000, LTI 1) are not proven extracted. SW-35 test covers rates from register period totals, not report text extraction.",
+      "F26": "CPM is not run both with source constraints (as P6) and without them with both published; no test.",
+      "F27": "The basis of each sum and date addition (extended date, unpaid, pending VOs, notice proxy, actual hours) is not shown and tested; actual-hours point not checked.",
+      "F29": "Cash forecast still says \"No source rows\"; plaster-chain feasibility and recovery scenarios from the data held are not generated; no test.",
+      "F30": "\"Information needed\" still 342 times on 29 pages; gaps do not each name the field, file, column, owner and one button. ca24362b gives a route for 2 gaps only (contract value, approved EOT days).",
+      "F31": "No test that two sections with their own dates and damages raise no \"section numbers repeat\" item. 77baa5c2 / 2df7f3df test section reading, not the absence of the issue.",
+      "F32": "No test that the \"newly uploaded schedule needs your review\" footer shows only while a schedule awaits review (consultant saw 0 of 50 pages, unguarded).",
+      "F33": "Extended date (contract + awarded EOT) and days late are not proven on every page and finish chart; the completion constraint giving -88 h is not named. SW-22 test covers reading original vs extended from the contract only.",
+      "F34": "Contract page marks the sectional LD (1,680,000 / 900,000) as \"Needs review\", and LD exposure is not on Dashboard or Financial Claims. 6975b694 checks the LD arithmetic against the independent ledger, not the display.",
+      "F35": "Security cover to completion plus defects period and expired insurance flag have no named test.",
+      "F36": "Gross vs net, applications not certified, 1-riyal rounding not a failure and the due date vs Sub-Clause 14.7 have no named test.",
+      "F37": "Headline still \"ADVERSE FORECAST 8.4M above original budget\" instead of EAC vs current contract; positive \"omissions\" and register value above contract sum are not queried. SW-31 test covers an implausible source EAC only.",
+      "F38": "Driving chain, stage classification, DCMA-type checks, BEI, CPLI and float erosion rate are not proven; no test.",
+      "F42": "A late long-lead package or open RFI / NCR on a driving activity is not named as the blocker in the look-ahead, and float per activity in the window is not tested.",
+      "F44": "Pending EOT claims scenario (8 pending, 21 assessed days) has no named test.",
+      "F45": "Per-item curves load on every management page (N-5); progress by area, LS query, installed vs certified and earned hours have no test.",
+      "F46": "Hours, shortfall and trade for the plaster chain are not calculated; no test.",
+      "F47": "No per-claim check of days from notice to detailed claim against the 42-day Sub-Clause 20.2.4 bar.",
+      "F48": "Expired permits are not linked to open or finished work; no test.",
+      "F49": "Milestones that finished late are not listed; no test.",
+      "F50": "Portfolio card text (forecast vs extended, days late, cost position, top threat) not checked or tested.",
+      "F51": "Actions are not ranked by driving path, float, milestone and money with one action per chain under a test.",
+      "F52": "Management Brief still opens with a 220-row float comparison table. SW-43 test covers generic module pages only, not the Management Brief, Activity Review, Milestones, Near-Critical or director view.",
+      "F54": "Issue column does not state the defect and actions name only the activity, not the RFI / NCR / package; no test.",
+      "F55": "Accountability actions are not grouped by owner with counts and overdue under a test.",
+      "F60": "No test that an empty module returns a normal response (no HTTP 409) with one empty-state line; the consultant saw no errors, but nothing guards it. 428cf1dd tests the empty-table line, not the response.",
+      "F61": "Management pages carry 16.5 to 17.8 MB of data (N-5) against the 2 MB limit. SW-03 test pages deep registers, not management page payloads."
+    }
+  },
+  "round8Search": "Round 8 (v/int5 at fbf01a6a): every F row read with its evidence; each round-4 to round-6 commit in 1153164d..v/int5 and the named tests of the SW rows read case by case. An F row is linked only where a named test case proves the F case; the rest of the F case is stated under Not covered. Named test run 2026-10-19 16:22 +04 on the v/int5 build at fbf01a6a (this branch differs only in docs and scripts): node --test --test-concurrency=1 on the 10 newly linked files (t05-same-measure-every-page, sw15-delay-events-not-from-claims, t05-role-views-page-facts-shown, t02-register-reading-truth, t07-commercial-position-checks, t08-delivery-supplied-register-first, t07-contract-time-original-and-completion-movement, t06-float-trend-share-of-unfinished, t06-recovery-completion-path, t10-no-code-names-on-screen): 43 tests, 43 pass, 0 fail. A passing test proves only the case it names."
 }

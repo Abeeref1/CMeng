@@ -1,3 +1,4 @@
+import { securityStateAtDataDate } from "../../truth-kernel/src";
 import type {
   ContractLdTerms,
   LdCapCandidate,
@@ -1057,7 +1058,7 @@ export function buildProjectDirectorPosition(
     overdueRfiCount: rfiEvidenceState === "established" ? openRfis.filter(item=>overdue(item.dueIso)).length : null,
     openPermitCount: permitEvidenceState === "established" ? openPermits.length : null,
     overduePermitCount: permitEvidenceState === "established" ? openPermits.filter(item=>item.status==="expired"||overdue(item.dueIso)).length : null,
-    expiredBondCount: input.bondMonitoring ? input.bondMonitoring.expiredCount : bondEvidenceState === "established" ? input.bonds.filter(bond=>bond.status==="expired").length : null,
+    expiredBondCount: input.bondMonitoring ? input.bondMonitoring.expiredCount : bondEvidenceState === "established" ? input.bonds.filter(bond=>securityStateAtDataDate(bond,input.progressReport.dataDateIso).state==="expired").length : null,
     expiringBondCount30Days: input.bondMonitoring ? input.bondMonitoring.expiring30Count : bondEvidenceState === "established" ? expiring30 : null,
     ...(input.operationalReporting?.counts??{}),
   };

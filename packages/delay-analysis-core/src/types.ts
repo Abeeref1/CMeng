@@ -223,6 +223,30 @@ export interface ClaimRegisterSnapshot {
   contractorDelayDays: number | null;
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];
+  /** Additive (F13): the register's own responsibility, awareness and determination columns. */
+  responsibility?: "employer" | "contractor" | "concurrent" | "neutral" | "unknown";
+  responsibilitySourceText?: string | null;
+  awarenessIso?: string | null;
+  eventStartIso?: string | null;
+  detailedClaimSubmittedIso?: string | null;
+  registerDetermination?: { text: string | null; dateIso: string | null; days: number | null; reference: string | null } | null;
+  /** Additive (F47): detailed-claim submission against the contract period. */
+  detailedClaimTimeBar?: DetailedClaimTimeBar;
+}
+
+export interface DetailedClaimTimeBar {
+  status: "on_time" | "late" | "not_established";
+  sourceState: string;
+  triggerBasis: "awareness" | "event_start" | null;
+  triggerDateIso: string | null;
+  submittedIso: string | null;
+  dueDateIso: string | null;
+  allowedDays: number | null;
+  daysToSubmission: number | null;
+  daysAfterDue: number | null;
+  ruleReference: string | null;
+  basis: string;
+  sourceRefs: string[];
 }
 
 export interface NoticeRequirement {

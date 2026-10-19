@@ -1,4 +1,5 @@
 import { reportingScope } from "../../truth-kernel/src";
+import { eventFromEventSource } from "./event-population";
 import type {
   CanonicalDelayEvent,
   CanonicalNoticeRecord,
@@ -225,9 +226,11 @@ export function assessEventNotice(
 export function assessAllEventNotices(
   model: DelayClaimsModel,
 ): EventNoticeAssessment[] {
+  // SW-15: an event date (and awareness date) comes only from an event source.
+  // A claim row that cites an event gives no event date, so its timing is not assessed.
   return model.events.map((event) =>
     assessEventNotice(
-      event,
+      eventFromEventSource(event, model) ? event : { ...event, startIso: null, awarenessIso: null, endIso: null },
       model.dataDateIso ? model.notices.filter(n=>reportingScope(n.actualIssuedAt,model.dataDateIso)==='as_of') : model.notices,
       model.noticeRequirements,
     ),

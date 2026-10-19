@@ -78,6 +78,15 @@ export function predecessorAssessmentMemo(): PredecessorAssessmentMemo {
   return { iso: new Map(), calendars: new Map(), lagged: new Map() };
 }
 
+/** T06/N7: lag in working days of the successor calendar (P6 lag convention,
+ * as worked above), hours second. The first source calendar ID wins. An
+ * unread calendar never becomes an 8-hour day. */
+function lagNoteText(model: CanonicalScheduleModel, successor: CanonicalScheduleActivity, lagHours: number): string {
+  const dayHours = calendarWorkingDayHours(model.calendars.find((c) => c.calendarId === successor.calendarId));
+  return dayHours === null
+    ? "lag working days not established (successor calendar hours per day not read) · " + lagHours + " working hours"
+    : "lag " + Number((lagHours / dayHours).toFixed(2)) + " working days (successor calendar) · " + lagHours + " working hours";
+}
 export function assessPredecessorRequirement(model: CanonicalScheduleModel, relation: CanonicalScheduleRelationship,
   predecessor: CanonicalScheduleActivity | undefined, successor: CanonicalScheduleActivity,
   instant:(value:string|null)=>number|null=parseScheduleInstant, memo?: PredecessorAssessmentMemo) {
@@ -114,7 +123,7 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
   }
   return { state: required > target ? "blocked" as const : "ready" as const,
     requiredIso,
-    note: relation.relationshipId + ": " + relation.type + ", lag " + relation.lagHours + " working hours (successor calendar); " +
+    note: relation.relationshipId + ": " + relation.type + ", " + lagNoteText(model, successor, relation.lagHours) + "; " +
       (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
 }
 

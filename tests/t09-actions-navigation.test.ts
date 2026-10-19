@@ -114,7 +114,7 @@ test('A4 API: a role-only owner is sent as owner null with an explicit missing s
   assert.equal(out.data.records[1],body.data.records[1],'only owner values are changed');
   // The JSON boundary applies it to every project response.
   const server=require('node:fs').readFileSync(require('node:path').join(__dirname,'../../packages/runtime-api/src/server.ts'),'utf8');
-  assert.match(server,/pageProjectResponse\(body,requestUrl,undefined,present\):projectMatch&&statusCode===200\?presentMissingOwners\(body\):body/);
+  assert.match(server,/pageProjectResponse\(body,requestUrl,undefined,present\):projectMatch&&statusCode===200\?presentMissingOwners\(withActionAssignments\(decodeURIComponent\(projectMatch\[1\]!\),body\)\):body/);
 });
 
 test('A4 screens: an owner the API sends as missing shows "Owner not set" with its role on every owner read; never blank, never another field', async ()=>{

@@ -1454,10 +1454,11 @@ export function deriveControlsFromCsv(
               ) ||
               eventTitle,
             ),
+          // SW-15: a claim row gives no event date.
           startIso:
-            eventStart,
+            null,
           endIso:
-            eventEnd,
+            null,
           responsibility:
             delayResponsibility(
               responsibilityRaw,

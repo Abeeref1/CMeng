@@ -5344,9 +5344,15 @@
         "evidence": "Revision History 41 / 7 / 41; Progress Breakdown Villa Type B 40 / 40. Delay pages not re-checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "9e44e026"
+        ],
+        "regressionFiles": [
+          "tests/t05-same-measure-every-page.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"T05 schedule float measures are identical on Dashboard, PMO analysis and Near-critical pages\" proves one float calculation feeds those three pages.",
+        "notCovered": "Delayed-open count, area tables (Villa Type B), delay pages and charts are not in the test. a29151bc (Dashboard activity counts use the Activity Review binding) has no named test, so it is not linked."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5355,10 +5361,18 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "9e44e026",
+            "subject": "fix(T05): delay-claims shows unknown claim/event counts as null, same as notices-claims",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R1",
         "plannedConsultantStep": 1
       },
@@ -5375,9 +5389,11 @@
         "detail": "Shared facts: same measure, same value on every page and role view; then stage challenge.",
         "consultantExpectedCheck": "41 critical, 7 near-critical, 41 negative float, 192 delayed open; Villa Type B 40 critical; same on every page.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t05-same-measure-every-page.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F04",
@@ -5524,9 +5540,17 @@
         "evidence": "Notice Compliance 14 / 2; Delay Event Register \"event date missing 0\". EOT page still shows \"Independent comparison not confirmed\"."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "65ed08a4",
+          "b08d17d9"
+        ],
+        "regressionFiles": [
+          "tests/t05-same-measure-every-page.test.ts",
+          "tests/sw15-delay-events-not-from-claims.test.ts"
+        ],
+        "repairNotes": "Round 8: named tests \"T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages\" and \"SW-15: events from an event source are counted; claim rows citing them add no events\" prove claim and event counts come from one rule on every claims page.",
+        "notCovered": "Notice timing (14 timely / 2 late), determinations, awarded and claimed / assessed days per page are not tested; EOT page \"Independent comparison not confirmed\" not tested. With only a claims register the event count is now null with a reason, not 16."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5535,10 +5559,25 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "65ed08a4",
+            "subject": "fix(T05): same measure, same value across pages for 7 cross-page differences",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b08d17d9",
+            "subject": "fix(T07 SW-15): claims register rows no longer make the delay event count; event counts are null with a reason until an event source exists",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R1",
         "plannedConsultantStep": 1
       },
@@ -5555,9 +5594,12 @@
         "detail": "Shared facts: same measure, same value on every page and role view; then stage challenge.",
         "consultantExpectedCheck": "16 events, 0 event dates missing, 14 timely / 2 late notices, 13 d awarded, 75 claimed / 34 assessed on every claims page.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t05-same-measure-every-page.test.ts",
+          "tests/sw15-delay-events-not-from-claims.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F07",
@@ -5800,9 +5842,15 @@
         "evidence": "Ask not tested (read-only rule: no questions asked)."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "8ee92f64"
+        ],
+        "regressionFiles": [
+          "tests/t05-role-views-page-facts-shown.test.ts"
+        ],
+        "repairNotes": "Round 8: named tests \"SW-05 executive role view uses the page action register and facts, not the empty overview summary\" and \"SW-08 ... places held contract values, awarded EOT and the forecast\" prove the director view reads the page facts.",
+        "notCovered": "Ask CMeng answers are not checked against the answer key."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -5811,10 +5859,18 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "8ee92f64",
+            "subject": "fix(T05 SW-05, SW-08): role views take decisions, contract values and held facts from the open page, not the empty overview summary",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R1",
         "plannedConsultantStep": 1
       },
@@ -5831,9 +5887,11 @@
         "detail": "Shared facts: same measure, same value on every page and role view; then stage challenge.",
         "consultantExpectedCheck": "Director drawer figures equal the dashboard; each suggested Ask question gives the answer-key value.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t05-role-views-page-facts-shown.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F12",
@@ -6156,9 +6214,16 @@
         "evidence": "Both files classified correctly in the data; curves on pages not re-checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "5c81f67c",
+          "ffc6bc30"
+        ],
+        "regressionFiles": [
+          "tests/t02-register-reading-truth.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"T02 SW-11 R2 a file named as one type but holding another is identified by content and queued for review\" proves content, not file name, decides the type.",
+        "notCovered": "The permit register driving the Permits page and the monthly EVM history driving the cost trend and progress curve are not tested."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6169,10 +6234,7 @@
         "SW-11"
       ],
       "repairReference": {
-        "state": "via_proposed_sw_root",
-        "swRootIds": [
-          "SW-11"
-        ],
+        "state": "commits",
         "commits": [
           {
             "sha": "5c81f67c",
@@ -6194,7 +6256,6 @@
           "T03"
         ],
         "liveState": "saved_not_live",
-        "basis": "Proposed by matching the consultant item title to the SW defect title. Unverified; a reviewer confirms or removes each link. Nothing is deleted.",
         "plannedConsultantRoot": "R4",
         "plannedConsultantStep": 2
       },
@@ -6212,9 +6273,11 @@
         "detail": "Register and file reading checked by the independent reader from the source files.",
         "consultantExpectedCheck": "Permit register drives Permits; monthly EVM history drives the cost trend and progress curve.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it. Rules of the overlapping SW item added.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t02-register-reading-truth.test.ts"
+        ]
       },
-      "boardStatus": "open_root_repair_saved_not_live"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F18",
@@ -6284,9 +6347,15 @@
         "evidence": "VO-026 rejected, pending 0. Payment linkage not re-checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "b58020ed"
+        ],
+        "regressionFiles": [
+          "tests/t07-commercial-position-checks.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"SW-21 variation position: every change counted by state; an approved-only list is not the full change register\" proves VO status is read from the register (rejected is not pending).",
+        "notCovered": "The IPC variations column linking VOs to payment (100% linkage, 11,776,000 by IPC-023) is not tested."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6295,10 +6364,18 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "b58020ed",
+            "subject": "fix(T07): SW-21 change register counted by state; SW-31 implausible source EAC challenged",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R4",
         "plannedConsultantStep": 2
       },
@@ -6315,9 +6392,11 @@
         "detail": "Register and file reading checked by the independent reader from the source files.",
         "consultantExpectedCheck": "VO-026 rejected; pending 0; payment linkage 100% (11,776,000 certified by IPC-023).",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t07-commercial-position-checks.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F20",
@@ -6499,9 +6578,15 @@
         "evidence": ""
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "55298d86"
+        ],
+        "regressionFiles": [
+          "tests/t08-delivery-supplied-register-first.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"SW-33: Handover Readiness uses the supplied asset register; programme names are only the labelled fallback without one\" proves the labelled programme fallback for handover.",
+        "notCovered": "Testing, Snag and Weather pages with no register are not tested; disruption claims as a fallback are not tested."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -6510,10 +6595,18 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "55298d86",
+            "subject": "fix(T08 SW-33 SW-34): Delivery pages read the supplied register first; fallbacks stay labelled candidates and are never counted",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R4",
         "plannedConsultantStep": 2
       },
@@ -6530,9 +6623,11 @@
         "detail": "Register and file reading checked by the independent reader from the source files.",
         "consultantExpectedCheck": "Testing, Snag, Handover and Weather pages show the programme activities and claims.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t08-delivery-supplied-register-first.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F24",
@@ -7520,9 +7615,15 @@
         "evidence": "427-day gap and 17-day movement in data; pages not re-checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "0c94e0d3"
+        ],
+        "regressionFiles": [
+          "tests/t07-contract-time-original-and-completion-movement.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"SW-23 window programme movement is the completion movement, not the largest single-activity shift\" proves the stated movement per window.",
+        "notCovered": "Logic / lag / duration / constraint cause split, the 427-day update gap flag, slip rate and driving activities per window are not tested."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7531,10 +7632,18 @@
       "ownerAcceptance": "not_accepted",
       "proposedSwOverlapIds": [],
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "0c94e0d3",
+            "subject": "fix(T07 SW-22, SW-23): original completion read from contract and amendments; window movement is completion movement",
+            "liveState": "saved_not_live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [],
-        "liveState": "no_repair",
+        "liveState": "saved_not_live",
         "plannedConsultantRoot": "R5",
         "plannedConsultantStep": 4
       },
@@ -7548,9 +7657,11 @@
         "detail": "Engineering rule: independent calculators (CPM solver, EVM workbook, commercial ledger, notice calculator, delivery state tables) and the stage challenge, not the guard (plan, 'All 57 system defects').",
         "consultantExpectedCheck": "+17 d (Update01 to 02) and +32 d (baseline to 01) stated; logic / lag / duration / constraint split; 427-day gap flagged; slip rate; window driving activities.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t07-contract-time-original-and-completion-movement.test.ts"
+        ]
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F41",
@@ -7568,9 +7679,15 @@
         "evidence": "Revision History shows 41 / 7 / 41; chart lines not re-checked."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "264cb8e8"
+        ],
+        "regressionFiles": [
+          "tests/t06-float-trend-share-of-unfinished.test.ts"
+        ],
+        "repairNotes": "Round 8: named tests \"SW-25: unknown float stays unknown in share and direction, never 0\" and \"SW-25: the float trend chart plots the share\" prove unknown points are gaps, not zero.",
+        "notCovered": "The REEM chart values (0 critical at baseline, 41 now) are not hand-checked; the chart now plots the share of unfinished work beside the count."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7581,10 +7698,7 @@
         "SW-25"
       ],
       "repairReference": {
-        "state": "via_proposed_sw_root",
-        "swRootIds": [
-          "SW-25"
-        ],
+        "state": "commits",
         "commits": [
           {
             "sha": "264cb8e8",
@@ -7598,7 +7712,6 @@
           "T06"
         ],
         "liveState": "saved_not_live",
-        "basis": "Proposed by matching the consultant item title to the SW defect title. Unverified; a reviewer confirms or removes each link. Nothing is deleted.",
         "plannedConsultantRoot": "R5",
         "plannedConsultantStep": 4
       },
@@ -7612,9 +7725,11 @@
         "detail": "Engineering rule: independent calculators (CPM solver, EVM workbook, commercial ledger, notice calculator, delivery state tables) and the stage challenge, not the guard (plan, 'All 57 system defects').",
         "consultantExpectedCheck": "Charts show 0 critical at baseline and 41 now.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it. Rules of the overlapping SW item added.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t06-float-trend-share-of-unfinished.test.ts"
+        ]
       },
-      "boardStatus": "open_root_repair_saved_not_live"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F42",
@@ -7684,9 +7799,15 @@
         "evidence": "Recovery target shown; \"Crew acceleration candidates 0\" and \"Late procurement packages 44\" (N-1)."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "658d32a5"
+        ],
+        "regressionFiles": [
+          "tests/t06-recovery-completion-path.test.ts"
+        ],
+        "repairNotes": "Round 8: named test \"SW-24 a driving-path crew option states its completion gain from a CMeng CPM run; late work off the path is not recovery\" proves the second-crew option on the driving path.",
+        "notCovered": "The sixth-working-day option and the recovery target (11 working days extended / 20 original) are not tested."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -7697,10 +7818,7 @@
         "SW-24"
       ],
       "repairReference": {
-        "state": "via_proposed_sw_root",
-        "swRootIds": [
-          "SW-24"
-        ],
+        "state": "commits",
         "commits": [
           {
             "sha": "658d32a5",
@@ -7714,7 +7832,6 @@
           "T06"
         ],
         "liveState": "saved_not_live",
-        "basis": "Proposed by matching the consultant item title to the SW defect title. Unverified; a reviewer confirms or removes each link. Nothing is deleted.",
         "plannedConsultantRoot": "R5",
         "plannedConsultantStep": 4
       },
@@ -7728,9 +7845,11 @@
         "detail": "Engineering rule: independent calculators (CPM solver, EVM workbook, commercial ledger, notice calculator, delivery state tables) and the stage challenge, not the guard (plan, 'All 57 system defects').",
         "consultantExpectedCheck": "Target 11 working days (extended) / 20 (original); second-crew and six-day scenarios for the plaster chain.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it. Rules of the overlapping SW item added.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t06-recovery-completion-path.test.ts"
+        ]
       },
-      "boardStatus": "open_root_repair_saved_not_live"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F44",
@@ -8233,9 +8352,16 @@
         "evidence": "Internal IDs 2,779 to 614 hits (27 to 7 pages); codes 44 to 12."
       },
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "6ffa8bea",
+          "413524f5"
+        ],
+        "regressionFiles": [
+          "tests/t10-no-code-names-on-screen.test.ts"
+        ],
+        "repairNotes": "Round 8: named tests \"T10: cells, scalar lists, record groups and population tables never print raw codes\" and \"T10: paths keep their context and one code has one label everywhere\" prove codes do not reach page text.",
+        "notCovered": "Internal record IDs (614 hits on 7 pages at the last check) and readable names for revisions, documents and clauses are not tested; the test keeps IDs unchanged by design."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -8246,28 +8372,11 @@
         "SW-45"
       ],
       "repairReference": {
-        "state": "via_proposed_sw_root",
-        "swRootIds": [
-          "SW-45"
-        ],
+        "state": "commits",
         "commits": [
-          {
-            "sha": "fb318c1a",
-            "subject": "fix(T10): never show internal field names or codes as headings, columns, labels or values",
-            "liveState": "saved_not_live",
-            "onBranch": false,
-            "history": "per-fix history only (v/history1); the same change is in squashed commit 413524f5"
-          },
           {
             "sha": "6ffa8bea",
             "subject": "fix(T10): review fixes - curated labels win, issue headings, report preview and downloads, safe rewriting, unique groups",
-            "liveState": "saved_not_live",
-            "onBranch": false,
-            "history": "per-fix history only (v/history1); the same change is in squashed commit 413524f5"
-          },
-          {
-            "sha": "7f2f7429",
-            "subject": "fix(T10): keep the raw table path where the report model uses it as a lookup key",
             "liveState": "saved_not_live",
             "onBranch": false,
             "history": "per-fix history only (v/history1); the same change is in squashed commit 413524f5"
@@ -8278,20 +8387,12 @@
             "liveState": "saved_not_live",
             "onBranch": true,
             "history": "on this branch"
-          },
-          {
-            "sha": "3b421deb",
-            "subject": "fix(T10): shared field label reads SHA-256, SAR, LDs, ISO dates, percentiles and joined names in plain words; commercial cells and tax basis in words",
-            "liveState": "saved_not_live",
-            "onBranch": true,
-            "history": "on this branch"
           }
         ],
         "plannedTasks": [
           "T10"
         ],
         "liveState": "saved_not_live",
-        "basis": "Proposed by matching the consultant item title to the SW defect title. Unverified; a reviewer confirms or removes each link. Nothing is deleted.",
         "plannedConsultantRoot": "R7",
         "plannedConsultantStep": 6
       },
@@ -8313,9 +8414,11 @@
         "detail": "Wording and look rules; then stage challenge.",
         "consultantExpectedCheck": "Zero hash IDs, data paths, API paths or UPPER_SNAKE codes in page text.",
         "basis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it. Rules of the overlapping SW item added.",
-        "namedTests": []
+        "namedTests": [
+          "tests/t10-no-code-names-on-screen.test.ts"
+        ]
       },
-      "boardStatus": "open_root_repair_saved_not_live"
+      "boardStatus": "repair_saved_not_live_named_test"
     },
     {
       "id": "F54",
@@ -62084,9 +62187,9 @@
         "repair_live_named_test_not_certified": 1
       },
       "F": {
-        "open_no_repair_linked": 46,
-        "open_root_repair_saved_not_live": 7,
-        "repair_saved_not_live_named_test": 6,
+        "open_no_repair_linked": 40,
+        "repair_saved_not_live_named_test": 16,
+        "open_root_repair_saved_not_live": 3,
         "repair_live_named_test_not_certified": 2
       },
       "S": {

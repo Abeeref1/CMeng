@@ -136,6 +136,9 @@ test('Verified contract adjustment and available CPM do not clear an unknown mil
  assert.match(rendered(d,data),/No identified milestone or reviewed key date is ranked for attention/);
 });
 test('Role lenses retain the same management brief instead of replacing it with unrelated detailed analysis',()=>{
- assert.match(experienceScript,/key==='pmo-analysis'\?\(role==='overall'\?analysis:roleContext\+analysis\)/);
+ // F52: the old pattern pinned roleContext BEFORE the brief, which is the defect itself
+ // (a 220-row role table opened the Management Brief). The brief is still kept in every
+ // lens; the role context is kept too, after the brief, collapsed.
+ assert.match(experienceScript,/key==='pmo-analysis'\?\(role==='overall'\|\|!roleContext\?analysis:analysis\+experienceDisclosure\('Role detail · '\+roleViews\[role\]\.label,roleContext,/);
  assert.match(experienceScript,/key==='pmo-analysis'\?'':experienceManagementReading\(key,brief\)/);
 });

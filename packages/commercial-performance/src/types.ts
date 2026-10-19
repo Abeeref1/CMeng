@@ -83,12 +83,14 @@ export interface CommercialPerformanceInput {
 /** SW-31: plausibility challenge of the source EAC against CMeng's independent
  * EVM calculation. The source figure is never replaced; both values are shown. */
 export interface SourceEacChallenge {
-  state: "challenge" | "consistent" | "not_assessable";
+  /** challenge = R1 implausible; query = R2 outside the independent range, explain. */
+  state: "challenge" | "query" | "consistent" | "not_assessable";
   sourceEac: number | null;
   actualCost: number | null;
   independentRange: {low: number; high: number; bacOverCpi: number; acPlusRemainingBudget: number} | null;
   findings: Array<{
     rule: "below_actual_cost" | "outside_independent_range";
+    severity: "implausible" | "query";
     sourceEac: number;
     independentValue: number;
     statement: string;

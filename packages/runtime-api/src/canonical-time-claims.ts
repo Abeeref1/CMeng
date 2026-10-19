@@ -10,6 +10,7 @@ import { inferDocumentType } from './evidence';
 import { resolveClaimActivityCorrespondence } from '../../claim-activity-correspondence/src';
 import type {ClaimActivityCorrespondenceInput,ClaimActivityCorrespondenceResolution} from '../../claim-activity-correspondence/src';
 import { contractNoticeRules } from './contract-notice-rules';
+import { detailedClaimTimeBar } from './detailed-claim-time-bar';
 import { reportedClaim } from '../../delay-analysis-core/src/reporting';
 export interface DeterminationRecord {
   determinationId: string; claimId: string; awardedDays: number | null; determinationDate: string | null;
@@ -455,6 +456,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   };
   const claims:CanonicalClaimRecord[]=[],events:CanonicalDelayEvent[]=[],notices:CanonicalNoticeRecord[]=[];
   const claimIds=new Set<string>();
+  // F47: the contract's own detailed-claim rule (notice calculator rules), read once.
+  const detailedClaimRules=contractNoticeRules(state,'detailed_claim');
   for(const table of sourceTablesForClaims) for(const r of table.rows){
     const claimId=cell(r,'claim id');if(!claimId)continue;
     if(claimIds.has(claimId)){diagnostics.push('DUPLICATE_CLAIM_ID_REQUIRES_REVISION_RECONCILIATION:'+claimId);continue;}claimIds.add(claimId);
@@ -559,7 +562,17 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       claimedDays:n(r,'days claimed','claimed days'),claimedAmount:n(r,'claimed amount'),assessedDays:n(r,'source granted days','days granted'),assessedDaysState:n(r,'source granted days','days granted')===null?'missing':'candidate',
       assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION']});
     const claim=claims.at(-1)!;
-    claim.sourceRegister={...reportedClaim(claim),sourceStatus:cell(r,'status')||'Not stated',registerGrantedDays:n(r,'source granted days','days granted')};
+    // F13: the register's responsibility, awareness and determination columns are
+    // carried on the claim as source values (unknown stays null, never inferred).
+    const detailedSubmitted=dateValue(cell(r,'detailed claim date','fully detailed claim date','detailed submission date','claim submission date','submission date'));
+    const determinationText=cell(r,'determination','engineer determination','determination status','determination outcome')||null;
+    const determinationDateIso=dateValue(cell(r,'determination date'));
+    const determinationDays=n(r,'determined days','determination days','awarded days','awarded eot days');
+    const determinationReference=cell(r,'determination id','determination reference','determination ref')||null;
+    claim.sourceRegister={...reportedClaim(claim),sourceStatus:cell(r,'status')||'Not stated',registerGrantedDays:n(r,'source granted days','days granted'),
+      responsibility:responsibilityValue,responsibilitySourceText:responsibilityText||null,awarenessIso,eventStartIso:eventStart,detailedClaimSubmittedIso:detailedSubmitted,
+      registerDetermination:determinationText||determinationDateIso||determinationDays!==null||determinationReference?{text:determinationText,dateIso:determinationDateIso,days:determinationDays,reference:determinationReference}:null,
+      detailedClaimTimeBar:detailedClaimTimeBar({awarenessIso,eventStartIso:eventStart,submittedIso:detailedSubmitted,cutoffIso:dataDateIso?dateValue(dataDateIso):null},detailedClaimRules)};
     if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice')],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
     if(issued&&sourceLetter){
       notices.at(-1)!.correspondenceEvidence={sourceLetter,identityFound:Boolean(linkedCorrespondence)||anchoredCorrespondenceVerified,
@@ -796,6 +809,46 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   );
   // Source identity patterns do not remove retained claim, notice, event or
   // determination records from analysis. Status and authority stay per-record.
+  // SW-15: delay events come only from event sources. An event/delay register
+  // (event id with an event date or description, and no claim id) gives events; a
+  // notice register row that states an event id gives a notice-stated event. A claim
+  // row is never an event: a claim-cited reference with the same id is merged into
+  // the source event (its links kept), and the event's dates come from the source.
+  const eventSourceTables=tables.filter(t=>has(t,'event id')&&!has(t,'claim id')&&
+    ['event date','event start','event start date','start date','delay start','description','event description','event','title'].some(h=>has(t,h)));
+  const sourceEventIds=new Set<string>();
+  for(const table of eventSourceTables)for(const r of table.rows){
+    const eventId=cell(r,'event id');if(!eventId)continue;
+    if(sourceEventIds.has(eventId)){diagnostics.push('DUPLICATE_EVENT_ID_IN_EVENT_SOURCE:'+eventId);continue;}
+    sourceEventIds.add(eventId);
+    const noticeStated=['notice date','notice reference','letter reference','letter no','issued date'].some(h=>has(table,h));
+    const cited=events.filter(event=>event.eventId===eventId);
+    const responsibilityText=cell(r,'responsibility','cause');
+    const responsibility=/employer|client|owner/i.test(responsibilityText)?'employer'
+      :/contractor/i.test(responsibilityText)?'contractor'
+      :/concurrent|shared/i.test(responsibilityText)?'concurrent'
+      :/neutral|authority|weather|force majeure/i.test(responsibilityText)?'neutral'
+      :'unknown';
+    const clause=cell(r,'clause');
+    const sourceEvent:CanonicalDelayEvent={eventId,title:cell(r,'description','event description','event','title')||cited[0]?.title||eventId,category:'other',
+      identitySource:noticeStated?'notice':'event_register',
+      startIso:dateValue(cell(r,'event date','event start','event start date','start date','delay start','from date')),
+      awarenessIso:dateValue(cell(r,'awareness date')),
+      endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date')),
+      responsibility:responsibility==='unknown'&&cited[0]?cited[0].responsibility:responsibility,
+      responsibilityState:responsibility!=='unknown'?'candidate':cited[0]?.responsibilityState??'missing',
+      describedImpactDays:cited[0]?.describedImpactDays??null,describedImpactState:cited[0]?.describedImpactState??'missing',
+      relatedActivityIds:uniq(cited.flatMap(event=>event.relatedActivityIds)).sort(),
+      ...(cited.find(event=>event.activityCorrespondence)?{activityCorrespondence:cited.find(event=>event.activityCorrespondence)!.activityCorrespondence}:{}),
+      relatedWindowReferences:uniq(cited.flatMap(event=>event.relatedWindowReferences??[])),
+      relatedClauseIdentifiers:uniq([...(clause?[clause]:[]),...cited.flatMap(event=>event.relatedClauseIdentifiers)]),
+      evidenceRefs:[{sourceType:noticeStated?'notice':'other',sourceId:r.receipt.documentId,locator:r.receipt.locator},...cited.flatMap(event=>event.evidenceRefs)],
+      diagnostics:[noticeStated?'EVENT_FROM_NOTICE_STATING_EVENT':'EVENT_FROM_EVENT_REGISTER','SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(cited.length?['CLAIM_CITED_EVENT_REFERENCES_MERGED:'+cited.length]:[])]};
+    for(let index=events.length-1;index>=0;index-=1)if(events[index]!.eventId===eventId)events.splice(index,1);
+    events.push(sourceEvent);
+  }
+  // SW-15: a claim-cited event reference keeps its links but never an event date.
+  for(const event of events)if(event.identitySource==='claims_register_row'){event.startIso=null;event.awarenessIso=null;event.endIso=null;}
   const trustedClaims=claims;
   const trustedEvents=events;
   const trustedNotices=notices;
@@ -946,7 +999,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const conflict=reported.state==='determined'&&!trustedDeterminations.some(d=>d.claimId===claim.claimId);
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
-  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
+  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }

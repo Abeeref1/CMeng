@@ -2415,8 +2415,11 @@ export class RuntimeProjectStore {
 
   async refreshDeferredPdfReads(projectId?:string,onPageRead?:(pageNumber:number,totalPages:number)=>void,onlyDocumentId?:string) {
     let refreshedDocumentCount=0;const diagnostics:string[]=[];const changedProjects:string[]=[];
+    // Stored ids are normalised; compare normalised so a caller id such as a raw
+    // worker id never makes the idle queue skip every PDF of its own project.
+    const wantedProjectId=projectId?normalizeProjectCode(projectId):null;
     for(const state of this.projects.values()){
-      if(projectId&&state.projectId!==projectId)continue;
+      if(wantedProjectId&&normalizeProjectCode(state.projectId)!==wantedProjectId)continue;
       for(const document of [...state.evidenceDocuments]){
         if(onlyDocumentId&&document.documentId!==onlyDocumentId)continue;
         try{

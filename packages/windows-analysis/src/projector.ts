@@ -1,4 +1,5 @@
 import {completeSum} from '../../truth-kernel/src/aggregates';
+import {eventFromEventSource} from '../../delay-analysis-core/src/event-population';
 import {naturalCompare} from '../../shared/src/natural-order';
 import {
   compareScheduleRevisions,
@@ -463,8 +464,10 @@ export function buildWindowsAnalysisProjection(
       from.revisionId +
       "->" +
       to.revisionId;
+    // SW-15: only events from an event source are matched to windows; a
+    // claim-cited reference has no event date and is not matched (no event source).
     const overlappingEvents =
-      delayModel.events.filter((event) =>
+      delayModel.events.filter((event) => eventFromEventSource(event, delayModel)).filter((event) =>
         eventOverlapsWindow(
           event,
           startIso,
