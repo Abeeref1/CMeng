@@ -338,11 +338,11 @@ function buildDelivery(state:ProjectRuntimeState){
  const packagesByReference=new Map<string,DeliveryRecord[]>();
  for(const p of byKind('package'))if(p.reference){const k=packageKey(p.reference);packagesByReference.set(k,[...(packagesByReference.get(k)??[]),p]);}
  const boqHash=boq.boq?.sourceHashSha256??null;
- const boqSourceRows=controlledBoq&&boqHash?boqItemSourceRows(governedTables((state.evidenceDocuments??[]).filter(d=>d.sourceHashSha256===boqHash),[]),boqHash,quantities?.items??[]):new Map();
+ const boqSourceRows=controlledBoq&&boqHash?boqItemSourceRows(governedTables((state.evidenceDocuments??[]).filter(d=>d.sourceHashSha256===boqHash),[]),boqHash,quantities?.items??[]):new Map<string,import('../../truth-kernel/src').SourceRow[]>();
  const itemPackages=new Map<string,Set<string>>(),itemPackageCandidates=new Map<string,Set<string>>();
  const addTo=(target:Map<string,Set<string>>,itemId:string,value:string)=>{const set=target.get(itemId)??new Set<string>();set.add(value);target.set(itemId,set);};
  for(const [itemId,list] of packagesByItem)if(items.has(itemId))for(const p of list)addTo(itemPackages,itemId,p.recordId);
- for(const [itemId,rows] of boqSourceRows)for(const code of new Set(rows.flatMap((r:any)=>sourceCell(r,'package id','package','package code','work package').split(/[;|]/).map((x:string)=>x.trim()).filter(Boolean)))){
+ for(const [itemId,rows] of boqSourceRows)for(const code of new Set<string>(rows.flatMap(r=>sourceCell(r,'package id','package','package code','work package').split(/[;|]/).map(x=>x.trim()).filter(Boolean)))){
   const matches=packagesByReference.get(packageKey(code))??[];
   if(matches.length===1)addTo(itemPackages,itemId,matches[0]!.recordId);
   else addTo(itemPackageCandidates,itemId,code+(matches.length?' (several current packages share this reference)':' (no current package with this reference)'));
