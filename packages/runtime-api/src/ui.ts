@@ -1835,6 +1835,7 @@ function forecastDiagnosticMessages(codes){
     CPM_REMAINING_DURATION_UNRESOLVED:"CPM remaining duration cannot be established for an activity.",
     CPM_RELATIONSHIP_TYPE_UNRESOLVED:"A schedule relationship type cannot be established.",
     CPM_RELATIONSHIP_LAG_UNRESOLVED:"A schedule relationship lag cannot be established.",
+    CPM_RELATIONSHIP_LAG_CALENDAR_UNRESOLVED:"The programme states the project default calendar for relationship lag, but that calendar cannot be read; lags cannot be counted.",
     CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:"An external relationship cannot be resolved inside the current programme.",
     CPM_RELATIONSHIP_UNRESOLVED:"A schedule relationship cannot be resolved for the CPM calculation.",
     CPM_PROJECT_START_UNRESOLVED:"The CPM project start cannot be established.",
@@ -1857,6 +1858,10 @@ function forecastDiagnosticMessages(codes){
     grouped.set(key,group);
   }
   return [...grouped.entries()].map(([key,group])=>labels[key]+(group.count>1?" ("+fmt(group.count)+" occurrences)":"")+(group.examples.length?" Affected: "+group.examples.join(", ")+".":""));
+}
+function forecastLagCalendarText(p){
+  const lag=p&&p.relationshipLagCalendar;
+  return lag&&lag.basis?'<p><b>Relationship lag calendar:</b> '+escapeHtml(lag.basis)+'</p>':'';
 }
 function renderForecastVisual(data){
   const p=projectionFor(data,"independent_forecast");
@@ -1891,7 +1896,7 @@ function renderForecastVisual(data){
   const technical='<details><summary>Additional technical calculation evidence</summary><p>Untranslated source calculation codes remain in the downloadable calculation data rather than primary management copy.</p></details>';
   const forecastDrivers=(gate.publishable===true?p.activities||[]:[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
   const driverRows=forecastDrivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(planningShortDate(row.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(row.independentEarlyFinishIso))+'</td><td>'+escapeHtml((row.finishVarianceDays>0?"+":"")+fmt(row.finishVarianceDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td></tr>').join("");
-  const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
+  const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+forecastLagCalendarText(p)+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
   const review=p.managementReviewState==="review_required"||gate.publishable===false;
   const positionBars=[
     {label:"Contractor programme",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"current"},

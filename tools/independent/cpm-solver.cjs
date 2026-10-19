@@ -16,11 +16,22 @@
 //    hour p; a finish at position p is the end of working hour p-1. A zero
 //    duration activity (milestone) uses the start instant for both dates.
 // 4. Relationship lag is counted in working hours of the SUCCESSOR calendar,
-//    in both passes. Predecessor events are read on the successor calendar:
+//    in both passes, unless input.lagCalendar states another calendar (4b).
+//    Predecessor events are read on the successor calendar:
 //    FS  succ start  >= pos(pred finish) + lag
 //    SS  succ start  >= pos(pred start)  + lag
 //    FF  succ finish >= pos(pred finish) + lag
 //    SF  succ finish >= pos(pred start)  + lag
+// 4b. P6 option "Calendar for scheduling Relationship Lag" (input.lagCalendar):
+//    'successor' (or absent): rule 4. 'predecessor': the predecessor's
+//    calendar. '24_hour': continuous time. 'project_default': the calendar
+//    input.projectDefaultCalendar. For these the lag is walked on that
+//    calendar L from the predecessor event t, giving an instant X, and the
+//    successor reads X on its own calendar: succ position >= pos(succ, X).
+//    Lag 0: X = t. 24-hour: X = t + lag hours. Working calendar L, p =
+//    pos(L, t): lag > 0: X = end of L's working hour p + lag - 1 (the lag-th
+//    working hour of L at or after t); lag < 0: X = start of L's working hour
+//    p + lag (|lag| working hours of L before t).
 // 5. Progress (retained logic): a completed activity keeps its actual dates
 //    and has no float. An in-progress activity keeps its actual start (that
 //    is its start event for SS/SF successors); its remaining work starts no
@@ -94,6 +105,10 @@ function solve(input) {
   const to = dataDate + (input.windowDays || 1500) * DAY;
   const calendars = new Map();
   for (const def of input.calendars || []) calendars.set(def.id, buildCalendar(def, from, to));
+  const lagRule = input.lagCalendar === undefined ? 'successor' : input.lagCalendar;
+  if (!['successor', 'predecessor', '24_hour', 'project_default'].includes(lagRule)) fail('lag calendar rule unknown: ' + lagRule);
+  const defaultCal = lagRule === 'project_default' ? calendars.get(input.projectDefaultCalendar) : null;
+  if (lagRule === 'project_default' && !defaultCal) fail('project default calendar ' + input.projectDefaultCalendar + ' unknown');
 
   const acts = new Map();
   for (const a of input.activities || []) {
@@ -120,6 +135,19 @@ function solve(input) {
     p.succs.push(link); s.preds.push(link);
   }
 
+  // Rule 4/4b: the position on the successor calendar that a predecessor
+  // event instant t reaches after the link's lag.
+  function reach(l, t) {
+    const s = l.succ.cal;
+    if (lagRule === 'successor') return pos(s, t) + l.lag;
+    if (l.lag === 0) return pos(s, t);
+    if (lagRule === '24_hour') return pos(s, t + l.lag * HOUR);
+    const L = lagRule === 'predecessor' ? l.pred.cal : defaultCal;
+    const p = pos(L, t);
+    const x = l.lag > 0 ? slotStart(L, p + l.lag - 1) + HOUR : slotStart(L, p + l.lag);
+    return pos(s, x);
+  }
+
   // Topological order (Kahn). A loop is an error.
   const indegree = new Map([...acts.values()].map(a => [a, a.preds.length]));
   const queue = [...acts.values()].filter(a => a.preds.length === 0);
@@ -142,10 +170,10 @@ function solve(input) {
     if (a.constraint && a.constraint.type === 'start_on_or_after') s = Math.max(s, pos(a.cal, parseInstant(a.constraint.date, a.id + ' constraint date')));
     for (const l of a.preds) {
       const p = l.pred;
-      if (l.type === 'FS') s = Math.max(s, pos(a.cal, finishEvent(p)) + l.lag);
-      if (l.type === 'SS') s = Math.max(s, pos(a.cal, startEvent(p)) + l.lag);
-      if (l.type === 'FF') s = Math.max(s, pos(a.cal, finishEvent(p)) + l.lag - d);
-      if (l.type === 'SF') s = Math.max(s, pos(a.cal, startEvent(p)) + l.lag - d);
+      if (l.type === 'FS') s = Math.max(s, reach(l, finishEvent(p)));
+      if (l.type === 'SS') s = Math.max(s, reach(l, startEvent(p)));
+      if (l.type === 'FF') s = Math.max(s, reach(l, finishEvent(p)) - d);
+      if (l.type === 'SF') s = Math.max(s, reach(l, startEvent(p)) - d);
     }
     a.es = s; a.ef = s + d;
   }
@@ -173,11 +201,11 @@ function solve(input) {
         const s = l.succ;
         if (s.status === 'completed') continue;
         const sLs = s.ls; // remaining late start (retained logic)
-        if (l.type === 'FS' && pos(s.cal, fin) + l.lag > sLs) return false;
-        if (l.type === 'FF' && pos(s.cal, fin) + l.lag > s.lf) return false;
+        if (l.type === 'FS' && reach(l, fin) > sLs) return false;
+        if (l.type === 'FF' && reach(l, fin) > s.lf) return false;
         if (st === null) continue;
-        if (l.type === 'SS' && pos(s.cal, st) + l.lag > sLs) return false;
-        if (l.type === 'SF' && pos(s.cal, st) + l.lag > s.lf) return false;
+        if (l.type === 'SS' && reach(l, st) > sLs) return false;
+        if (l.type === 'SF' && reach(l, st) > s.lf) return false;
       }
       return true;
     };
@@ -202,11 +230,11 @@ function solve(input) {
         const s = l.succ;
         if (s.status === 'completed') continue;
         const sEs = s.es; // remaining early start (retained logic)
-        if (l.type === 'FS' && pos(s.cal, fin) + l.lag > sEs) return false;
-        if (l.type === 'FF' && pos(s.cal, fin) + l.lag > s.ef) return false;
+        if (l.type === 'FS' && reach(l, fin) > sEs) return false;
+        if (l.type === 'FF' && reach(l, fin) > s.ef) return false;
         if (st === null) continue;
-        if (l.type === 'SS' && pos(s.cal, st) + l.lag > sEs) return false;
-        if (l.type === 'SF' && pos(s.cal, st) + l.lag > s.ef) return false;
+        if (l.type === 'SS' && reach(l, st) > sEs) return false;
+        if (l.type === 'SF' && reach(l, st) > s.ef) return false;
       }
       return true;
     };
@@ -235,7 +263,7 @@ function solve(input) {
   }
   return {
     dataDate: iso(dataDate), projectFinish: iso(projectFinish),
-    lagCalendarRule: 'successor_calendar_both_passes',
+    lagCalendarRule: lagRule === '24_hour' ? '24_hour_continuous_both_passes' : lagRule + '_calendar_both_passes',
     criticalIds: activities.filter(a => a.critical === true).map(a => a.id).sort(),
     activities,
   };

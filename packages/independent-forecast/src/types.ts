@@ -50,6 +50,9 @@ export interface IndependentForecastProjection {
   origin: IndependentForecastOrigin;
   durationBasis: CpmDurationBasis;
   calculationMode: CpmCalculationMode;
+  /** Calendar the relationship lags are counted on, and its basis (stated by
+   * the programme, or not stated: successor calendar used). Additive. */
+  relationshipLagCalendar?: import('../../schedule-cpm/src').RelationshipLagCalendarSummary;
   sourceForecastCompletionIso: string | null;
   independentForecastCompletionIso: string | null;
   forecastVarianceDays: number | null;

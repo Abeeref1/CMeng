@@ -21,6 +21,10 @@ import {
 } from "./duration";
 import {activityConstraints} from './constraints';
 import {
+  lagCalendarResolver,
+  relationshipLagCalendarBasis,
+} from "./lag-calendar";
+import {
   DEFAULT_CPM_CONFIG,
   type CpmActivityResult,
   type CpmConfig,
@@ -209,13 +213,16 @@ function forwardConstraintStart(
   predecessorFinishMs: number | null,
   successorDurationHours: number,
   successorCalendar: WorkingCalendarResolution,
+  // The calendar the lag is counted on (relationshipLagCalendarBasis); the
+  // successor's own calendar when the programme does not state another.
+  lagCalendar: WorkingCalendarResolution = successorCalendar,
 ): number | null {
   switch (relation.type) {
     case "FS":
       return predecessorFinishMs === null
         ? null
         : shiftByLag(
-            successorCalendar,
+            lagCalendar,
             predecessorFinishMs,
             relation.lagHours,
           );
@@ -223,7 +230,7 @@ function forwardConstraintStart(
       return predecessorStartMs === null
         ? null
         : shiftByLag(
-            successorCalendar,
+            lagCalendar,
             predecessorStartMs,
             relation.lagHours,
           );
@@ -234,7 +241,7 @@ function forwardConstraintStart(
         return null;
       }
       const requiredFinish = shiftByLag(
-        successorCalendar,
+        lagCalendar,
         predecessorFinishMs,
         relation.lagHours,
       );
@@ -251,7 +258,7 @@ function forwardConstraintStart(
         return null;
       }
       const requiredFinish = shiftByLag(
-        successorCalendar,
+        lagCalendar,
         predecessorStartMs,
         relation.lagHours,
       );
@@ -271,6 +278,7 @@ function backwardConstraintFinish(
   predecessorDurationHours: number,
   predecessorCalendar: WorkingCalendarResolution,
   successorCalendar: WorkingCalendarResolution,
+  lagCalendar: WorkingCalendarResolution = successorCalendar,
 ): {finish: number; start: number | null} | null {
   const endpoint = relation.type === 'FS' || relation.type === 'SS'
     ? successorLateStartMs : successorLateFinishMs;
@@ -279,10 +287,18 @@ function backwardConstraintFinish(
   // negative lag can admit every instant in a nonworking gap, up to its next
   // opening. Preserve that bound rather than inventing negative float.
   const reversed = relation.lagHours === 0 ? endpoint : addWorkingHours(
-    successorCalendar.calendar, endpoint, -relation.lagHours,
+    lagCalendar.calendar, endpoint, -relation.lagHours,
   );
-  const bound = relation.lagHours < 0
-    ? nextWorkingInstant(successorCalendar.calendar, reversed) : reversed;
+  let bound = relation.lagHours < 0
+    ? nextWorkingInstant(lagCalendar.calendar, reversed) : reversed;
+  // A lag counted on another calendar than the successor's: when the
+  // successor event lies in a nonworking gap of the lag calendar, a negative
+  // lag window must start before that gap. The latest predecessor event is
+  // then the start of the window's last working hour (whole working hours).
+  if (relation.lagHours < 0 && lagCalendar !== successorCalendar &&
+    addWorkingHours(lagCalendar.calendar, bound, relation.lagHours) > endpoint) {
+    bound = subtractWorkingHours(lagCalendar.calendar, reversed, 1);
+  }
   if (relation.type === 'FS' || relation.type === 'FF') {
     return {finish: bound, start: null};
   }
@@ -300,8 +316,11 @@ function backwardConstraintFinish(
   // reversal. Moving this predecessor start one extra working hour changes
   // that lag's feasible boundary and invents negative/one-hour float.
   // A zero-lag start link instead requires a genuine working start before a
-  // successor event occurring in the predecessor's closed shift.
-  const zeroLagStartLink=relation.lagHours===0;
+  // successor event occurring in the predecessor's closed shift. So does a
+  // lag counted on another calendar than the successor's (predecessor, 24-hour
+  // or project default lag calendar): its bound is not a successor working
+  // instant, and a start at a closing instant would really begin after it.
+  const zeroLagStartLink=relation.lagHours===0||lagCalendar!==successorCalendar;
   const start=zeroLagStartLink&&closing&&strictlyAfterClosing&&lastClosesShift&&predecessorDurationHours>0
     ?subtractWorkingHours(predecessorCalendar.calendar,last,Math.min(1,predecessorDurationHours))
     :last;
@@ -353,6 +372,11 @@ export function calculateCpm(
   const config = mergeConfig(input);
   const graph = analyzeScheduleGraph(model);
   const assumptions: string[] = [];
+  // The calendar relationship lag is counted on: as the programme states it,
+  // else the successor calendar (labelled as not stated).
+  const lagBasis = relationshipLagCalendarBasis(model);
+  const lagCalendarFor = lagCalendarResolver(model, lagBasis);
+  if (lagBasis.assumption) assumptions.push(lagBasis.assumption);
   const constrainedActivities=model.activities.filter(a=>a.sourceConstraints?.length);
   const noConstraints:ReturnType<typeof activityConstraints>={constraints:[],diagnostics:[]};
   const constraintsByActivity=new Map(config.applySourceConstraints
@@ -475,11 +499,26 @@ export function calculateCpm(
       },
     );
 
+  // A stated project default lag calendar that the file does not name, or
+  // that has no working pattern: any non-zero lag is unknown, so the network
+  // is not calculable (never counted on another calendar instead).
+  const lagCalendarUnresolved =
+    lagBasis.rule === "project_default" &&
+    lagCalendarFor(null, null) === null &&
+    effectiveRelationships.some((relation) => relation.lagHours !== 0);
+  if (lagCalendarUnresolved) {
+    diagnostics.push(
+      "CPM_RELATIONSHIP_LAG_CALENDAR_UNRESOLVED:project_default:" +
+        (lagBasis.projectDefaultCalendarId ?? "not_named"),
+    );
+  }
+
   if (
     graph.duplicateActivityIds.length > 0 ||
     graph.cyclicActivityIds.length > 0 ||
     graph.topologicalOrder === null ||
-    anchor === null
+    anchor === null ||
+    lagCalendarUnresolved
   ) {
     if (anchor === null) {
       diagnostics.push(
@@ -536,7 +575,7 @@ export function calculateCpm(
       calculationMode:
         "elapsed_time_fallback",
       relationshipLagCalendarMethod:
-        "successor_calendar_forward_and_backward",
+        lagBasis.method,
       projectStartIso:
         isoInstant(anchor),
       projectFinishIso: null,
@@ -602,6 +641,16 @@ export function calculateCpm(
     linkedSuccessor.push(successorIndex);
   }
   const linkCount = linked.length;
+  // Lag calendar of each link. Zero lag needs no lag calendar: the successor
+  // calendar places the event, exactly as before, under every option.
+  const successorLagRule = lagBasis.rule === "successor";
+  const linkLagCalendar: Array<WorkingCalendarResolution | null> = successorLagRule ? [] :
+    linked.map((relation, link) => relation.lagHours === 0 ? null :
+      lagCalendarFor(contexts[linkedPredecessor[link]!]!.calendar, contexts[linkedSuccessor[link]!]!.calendar));
+  // A null lag calendar here only belongs to a predecessor without a
+  // calendar, whose dates are unresolved, so the lag is never applied.
+  const lagCalendarOf = (link: number, successorCalendar: WorkingCalendarResolution): WorkingCalendarResolution =>
+    successorLagRule ? successorCalendar : linkLagCalendar[link] ?? successorCalendar;
   const incomingStart = new Int32Array(activityCount + 1);
   const outgoingStart = new Int32Array(activityCount + 1);
   for (let link = 0; link < linkCount; link += 1) {
@@ -722,6 +771,7 @@ export function calculateCpm(
           predecessorFinish,
           durationHours,
           calendar,
+          lagCalendarOf(link, calendar),
         );
 
       if (candidate !== null) {
@@ -733,7 +783,7 @@ export function calculateCpm(
         } else {
           candidateHasFinish[candidates] = 1;
           candidateFinish[candidates] = relation.lagHours===0?finishAnchor:
-            shiftByLag(calendar,finishAnchor,relation.lagHours);
+            shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours);
         }
         candidates += 1;
       } else {
@@ -862,7 +912,7 @@ export function calculateCpm(
         const link=outgoingLinks[slot]!,relation=linked[link]!,successorIndex=linkedSuccessor[link]!;
         const calendar=contexts[successorIndex]!.calendar;
         if(!calendar)continue;
-        const bound=backwardConstraintFinish(relation,forwardStartOf(successorIndex),forwardFinishOf(successorIndex),context.durationHours,context.calendar,calendar);
+        const bound=backwardConstraintFinish(relation,forwardStartOf(successorIndex),forwardFinishOf(successorIndex),context.durationHours,context.calendar,calendar,lagCalendarOf(link,calendar));
         if(bound){finishBound=Math.min(finishBound,bound.finish);if(bound.start!==null)startBounds.push(bound.start);}
       }
       const start=Math.min(subtractWorkingHours(context.calendar.calendar,finishBound,context.durationHours),...startBounds);
@@ -887,9 +937,9 @@ export function calculateCpm(
         const link=incomingLinks[slot]!,relation=linked[link]!,predecessorIndex=linkedPredecessor[link]!;
         if(forwardState[predecessorIndex]===0)continue;
         const predecessorStart=relationStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
-        const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar);
+        const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar,lagCalendarOf(link,calendar));
         const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
-        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(calendar,finishAnchor,relation.lagHours);
+        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours);
         if(start!==null&&Math.abs(addWorkingHours(calendar.calendar,start,0)-early.start)<1||finish!==null&&Math.abs(finish-early.finish)<1)bindingLinks.push(link);
       }
       bindingCount[index]=bindingLinks.length-bindingStart[index]!;
@@ -980,6 +1030,7 @@ export function calculateCpm(
           durationHours,
           calendar,
           successorCalendar,
+          lagCalendarOf(link, successorCalendar),
         );
 
       if (candidate !== null) {
@@ -1263,7 +1314,7 @@ export function calculateCpm(
       config.durationBasis,
     calculationMode,
     relationshipLagCalendarMethod:
-      "successor_calendar_forward_and_backward",
+      lagBasis.method,
     projectStartIso:
       isoInstant(anchor),
     projectFinishIso:

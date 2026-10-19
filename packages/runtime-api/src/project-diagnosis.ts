@@ -155,13 +155,18 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
      if(numeric(movement)&&movement>0){text+=(first?'':'; ')+rel.predecessorActivityId+' moved '+movement+' elapsed days later';first=false;}}
    return text;
  }
+ // Lag in working days of the calendar the CPM counts it on, hours second.
+ const lagText=(rel:{predecessorActivityId:string;successorActivityId:string;lagHours:number})=>{
+   const lag=lagWorkingDays(model,rel.successorActivityId,rel.lagHours,rel.predecessorActivityId);
+   return lagHoursText(rel.lagHours,lag.dayHours,lag.label);
+ };
  // describe() returns a fresh object, so appending the network fields in place
  // yields the same keys, order and values as spreading it into a new object.
  const networkRows=(network?.activityIds??[]).flatMap((id:string,index:number)=>{const r=byId.get(id);if(!r)return [];const calculated=calculatedById.get(id);return [Object.assign(describe(r),{sequence:index+1,
    calculatedStartIso:calculated?.independentEarlyStartIso??null,calculatedFinishIso:calculated?.independentEarlyFinishIso??null,independentTotalFloatHours:calculated?.independentTotalFloatHours??null,
    // T06/N7: lag in working days of the successor calendar, hours second.
-   drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+lagHoursText(rel.lagHours,lagWorkingDays(model,rel.successorActivityId,rel.lagHours).dayHours)+')').join('; '),
-   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+lagHoursText(rel.lagHours,lagWorkingDays(model,rel.successorActivityId,rel.lagHours).dayHours)+')').join('; ')})];});
+   drivingPredecessors:(networkIncoming.get(id)??[]).map(rel=>rel.predecessorActivityId+' ('+rel.type+', '+lagText(rel)+')').join('; '),
+   drivingSuccessors:(networkOutgoing.get(id)??[]).map(rel=>rel.successorActivityId+' ('+rel.type+', '+lagText(rel)+')').join('; ')})];});
  // Reuse the exact Schedule Analytics source-float population from this
  // resolved module set. The independent reconciliation still runs in the
  // shared criticality producer, and missing/unresolved values remain unknown.
