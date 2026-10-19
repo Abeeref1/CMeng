@@ -770,6 +770,22 @@ export function buildCommercialControlPosition(
         ...(advancePercent?.basis.sourceRefs??[]),
         ...certifiedAdvanceRows.flatMap(row=>row.amounts.advanceRecovery.receipts.map(receipt=>"evidence-document:"+receipt.documentId+":"+receipt.locator)),
       ]);
+      // F36: where the contract advance percentage is not established, the
+      // advance paid (dated advance-payment rows in this currency) less the
+      // certified recoveries to date gives the outstanding advance. Every
+      // advance row of the currency must carry a dated paid amount; otherwise
+      // the balance stays not established.
+      const advanceRows=(input.sourceLedger?.advancePayments??[]).filter(row=>row.amounts.paidAmount.currency===currency||row.amounts.netCertifiedAmount.currency===currency);
+      const advancePaidRows=advanceRows.filter(row=>row.amounts.paidAmount.currency===currency&&row.amounts.paidAmount.value!==null&&row.amounts.paidAmount.state==='official'&&reportingScope(row.paymentDate,input.sourceLedger?.dataDateIso)==='as_of');
+      const advancePaidKnown=derivedAdvanceBalance===null&&advanceRecoveredTotal!==null&&advancePaidRows.length>0&&
+        advanceRows.every(row=>advancePaidRows.includes(row)||reportingScope(row.paymentDate??row.periodEnd,input.sourceLedger?.dataDateIso)==='future');
+      const advancePaidBalance=advancePaidKnown
+        ?Math.max(0,Number((sum(advancePaidRows.map(row=>row.amounts.paidAmount.value!))-advanceRecoveredTotal!).toFixed(8)))
+        :null;
+      const advancePaidRefs=advancePaidKnown?uniq([
+        ...advancePaidRows.flatMap(row=>row.amounts.paidAmount.receipts.map(receipt=>"evidence-document:"+receipt.documentId+":"+receipt.locator)),
+        ...certifiedAdvanceRows.flatMap(row=>row.amounts.advanceRecovery.receipts.map(receipt=>"evidence-document:"+receipt.documentId+":"+receipt.locator)),
+      ]):[];
       const completePaidCoverage =
         invoices.length > 0 &&
         paid.length ===
@@ -961,13 +977,15 @@ export function buildCommercialControlPosition(
           ),
         advanceBalance:
           moneyMetric(
-            latestAdvanceBalance?.advanceBalance ?? derivedAdvanceBalance,
+            latestAdvanceBalance?.advanceBalance ?? derivedAdvanceBalance ?? advancePaidBalance,
             latestAdvanceBalance
               ? "established"
               : derivedAdvanceBalance!==null
                 ? advancePercent?.state==="established" ? "established" : "candidate"
-                : stateFor(false, sources.payments),
-            latestAdvanceBalance?.sourceRefs ?? derivedAdvanceRefs,
+                : advancePaidBalance!==null
+                  ? "established"
+                  : stateFor(false, sources.payments),
+            latestAdvanceBalance?.sourceRefs ?? (derivedAdvanceBalance!==null||advancePaidBalance===null?derivedAdvanceRefs:advancePaidRefs),
             latestAdvanceBalance
               ? [
                   "ADVANCE_BALANCE_FROM_EXPLICIT_PAYMENT_CERTIFICATE_EVIDENCE",
@@ -976,6 +994,10 @@ export function buildCommercialControlPosition(
                 ? [
                     "ADVANCE_BALANCE_FROM_CONTRACT_ADVANCE_PERCENT_LESS_CERTIFIED_RECOVERIES",
                   ]
+                : advancePaidBalance!==null
+                  ? [
+                      "ADVANCE_BALANCE_FROM_ADVANCE_PAID_LESS_CERTIFIED_RECOVERIES",
+                    ]
                 : [
                     "ADVANCE_BALANCE_REQUIRES_CONTRACT_ADVANCE_AND_CERTIFIED_RECOVERIES",
                     "ADVANCE_BALANCE_IS_NOT_DERIVED_FROM_ADVANCE_PAYMENT_BOND_VALUE",

@@ -2954,6 +2954,30 @@ function tradeChainReason(code){
   }[head];
   return (words||head.toLowerCase().split("_").join(" "))+(rest.length?" ("+rest.join(", ")+")":"");
 }
+// F29: Challenge the Contract shows the feasibility of the repeated trade
+// chains (F46 shared calculation, compact project-facts view): remaining
+// assigned hours against stated capacity and the completion effect. Driving
+// chains come first. Formats server values only.
+function renderDrivingChainFeasibility(tc){
+  if(!tc||typeof tc!=="object")return "";
+  const title="Driving-chain feasibility: trade chains against stated capacity";
+  const intro="Same-trade work repeated across locations and joined by programme logic, checked with the remaining assigned hours, the activity calendars and the stated capacity held. Unknown values stay not established.";
+  const chains=Array.isArray(tc.chains)?[...tc.chains].sort((a,b)=>(b.onDrivingPath===true)-(a.onDrivingPath===true)):[];
+  if(!chains.length)return managementPanel(title,intro,'<div class="notice info">'+escapeHtml(tc.state==="none_found"?"No repeated trade chain was found in the current programme.":"Trade-chain feasibility is not established: "+tradeChainReason(tc.reason||""))+'.</div>');
+  const hours=v=>v===null||v===undefined?"Not established":fmt(v)+" h";
+  const reasons=list=>(list||[]).slice(0,4).map(tradeChainReason).join("; ");
+  const effect=c=>{const e=c.completionEffect||{};
+    if(e.state==="established")return e.completionDelayCalendarDays>0?"Not feasible at the stated capacity: completion later by "+fmt(e.completionDelayCalendarDays)+" calendar days (chain finish "+planningShortDate(e.chainFinishIso)+" to "+planningShortDate(e.resourceLimitedFinishIso)+")":"Feasible at the stated capacity: no completion effect";
+    if(e.state==="not_on_driving_path")return "Not on the driving path";
+    return "Feasibility not established: "+(reasons(e.reasons)||reasons(c.reasons)||"see the chain reasons");};
+  const body=chains.map(c=>{
+    const rows=(c.resources||[]).map(r=>'<tr><td>'+escapeHtml(r.resourceId+(r.resourceName?" · "+r.resourceName:""))+'</td><td>'+escapeHtml(hours(r.remainingHours))+'</td><td>'+escapeHtml(r.capacitySource?humanizeKey(r.capacitySource):"Capacity not stated")+'</td><td>'+escapeHtml(hours(r.totalShortfallHours))+'</td><td>'+escapeHtml(r.peakShortfallHours==null?"Not established":fmt(r.peakShortfallHours)+" h"+(r.firstShortfallPeriodIso?" (first short week "+planningShortDate(r.firstShortfallPeriodIso)+")":""))+'</td><td>'+escapeHtml(r.state==="established"?"Established":"Not established")+'</td></tr>').join("");
+    return '<div class="trade-chain"><p><b>'+escapeHtml(c.trade)+'</b> · '+escapeHtml(c.tradeSource||"")+' · '+escapeHtml(fmt(c.activityCount))+' activities ('+escapeHtml(c.firstActivityId||"")+' to '+escapeHtml(c.lastActivityId||"")+'), '+escapeHtml(fmt(c.openActivityCount))+' open, across '+escapeHtml(fmt((c.locations||[]).length))+' locations · Driving path: '+escapeHtml(c.onDrivingPath===true?"Yes":c.onDrivingPath===false?"No":"Not established")+'</p>'+
+      '<p>Remaining assigned hours: <b>'+escapeHtml(hours(c.remainingHours))+'</b> · Shortfall: <b>'+escapeHtml(hours(c.totalShortfallHours))+'</b> · '+escapeHtml(effect(c))+'</p>'+
+      (rows?'<div class="table-wrap"><table><thead><tr><th>Resource</th><th>Remaining hours</th><th>Capacity basis</th><th>Shortfall</th><th>Worst week</th><th>Position</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice warn">Chain hours not established: '+escapeHtml(reasons(c.reasons))+'.</div>')+'</div>';
+  }).join("");
+  return managementPanel(title,intro+" "+(tc.periodBasis||""),body,true);
+}
 function renderTradeChainPanel(tc){
   if(!tc||typeof tc!=="object")return "";
   const title="Repeated trade chains: hours against capacity";
@@ -5729,6 +5753,17 @@ function recoveryScenarioTable(scenarios){
   const otherRows=others.map(s=>'<tr><td><b>'+escapeHtml(s.pathRole==='late_work'?'Late work, not recovery':'Path to completion not established')+'</b><br><span class="muted">'+escapeHtml(humanizeKey(s.type))+'</span></td><td>'+escapeHtml(s.subject)+'</td><td>'+escapeHtml(s.currentPosition)+'</td><td>'+escapeHtml(s.pathBasis||'Path to completion not established.')+'</td></tr>').join('');
   return '<p>Showing '+fmt(scenarios.length)+' of '+fmt(responseListPopulation(scenarios).total)+' recovery rows: '+fmt(options.length)+' recovery option'+(options.length===1?'':'s')+' on the CPM path to completion, '+fmt(others.length)+' late or unplaced item'+(others.length===1?'':'s')+' shown separately. Basis references apply to the shown options only.</p>'+(options.length?'<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Subject</th><th>Current position</th><th>Target</th><th>Completion gain (CMeng CPM)</th><th>Local effect (not completion)</th><th>Additional resources</th><th>Estimated cost</th><th>Basis</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice info"><b>No recovery option on the CPM path to completion is established in the shown rows.</b></div>')+(others.length?'<h5>Late work and items not on an established path to completion (not recovery options)</h5><div class="table-wrap"><table><thead><tr><th>Position</th><th>Subject</th><th>Current position</th><th>Why it is not a recovery option</th></tr></thead><tbody>'+otherRows+'</tbody></table></div>':'')+sourcePopulationControl(scenarios,'Browse all recovery options')+'<h5>Assumptions and limits for shown options</h5><ol class="recovery-basis-list">'+basis+'</ol>';
 }
+// F29: crew candidates from the data held. Formats the server rows only; no
+// crew size, productivity or gain is calculated here.
+function recoveryHeldDataPanel(h){
+  if(!h||typeof h!=="object")return "";
+  const c=h.crewOptionCounts||{},n=v=>v==null?"not assessed":fmt(v);
+  const intro='<p><b>Crew candidates from the data held: '+escapeHtml(h.crewCandidateTotal==null?"not assessable":fmt(h.crewCandidateTotal))+'</b> · '+escapeHtml(n(c.calculatedNeed))+' from crew need · '+escapeHtml(n(c.sequentialChain))+' second-crew sequences on the path to completion · '+escapeHtml(n(c.tradeChain))+' trade chains · '+escapeHtml(n(c.statedResource))+' stated labour resources. '+escapeHtml(h.basis||"")+'</p>';
+  const rows=(h.candidates||[]).map(r=>'<tr><td><b>'+escapeHtml(r.subject)+'</b><br><span class="muted">'+escapeHtml(r.basisSource==="trade_chain"?"Trade chain on the driving network":"Stated labour on the driving network")+' · Needs assumption</span></td><td>'+escapeHtml((r.held||[]).join("; "))+'</td><td>'+escapeHtml(fmt(r.activityCount))+' ('+escapeHtml((r.affectedActivities||[])[0]||"")+((r.affectedActivities||[]).length>1?' to '+escapeHtml((r.affectedActivities||[]).at(-1)):'')+')</td><td>'+escapeHtml((r.limitingInputs||[]).map(l=>l.label).join("; "))+'</td><td>'+escapeHtml(r.completionGainBasis||"Not calculated")+'</td></tr>').join("");
+  const limits=(h.limitingInputs||[]).length?'<p><b>Inputs that limit the rest:</b> '+escapeHtml(h.limitingInputs.map(l=>l.label+(l.candidateCount?' ('+fmt(l.candidateCount)+' candidate'+(l.candidateCount===1?'':'s')+')':'')).join("; "))+'.</p>':'';
+  const body=rows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Data held</th><th>Activities</th><th>Limiting inputs</th><th>Completion gain</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>'+escapeHtml(h.state==="not_established"?"Trade-chain and stated-labour candidates are not assessed: the completion-driving network is not established.":"No further crew candidate is supported by the data held on the uncovered driving work.")+'</p>';
+  return '<h5>Crew candidates from the data held</h5>'+intro+body+limits;
+}
 function renderRecoveryAccelerationVisual(data){
   const p=projectionFor(data,"recovery_acceleration");if(!p)return "";
   const scenarios=Array.isArray(p.scenarios)?p.scenarios:[],eligibility=p.eligibility||{};
@@ -5759,8 +5794,9 @@ function renderRecoveryAccelerationVisual(data){
     ["Crew acceleration candidates",count(eligibility.crewAccelerationCandidateCount,eligibility.knownCrewAccelerationCandidateCount),"submitted crew below calculated need"],
     ["Late procurement packages",count(eligibility.lateProcurementPackageCount,eligibility.knownLateProcurementPackageCount),"undelivered packages late against their need date"],
     ["Checks needing basis",count(eligibility.unresolvedFeasibilityCheckCount,eligibility.knownUnresolvedFeasibilityCheckCount),"working-time / productivity / resource input"+(eligibility.unlinkedFeasibilityRowCount>0?"; "+fmt(eligibility.unlinkedFeasibilityRowCount)+" source item(s) still need activity links":"")],
-    ["Resequencing-enabled workfronts",count(eligibility.governedResequencingWorkfrontCount,eligibility.knownGovernedResequencingWorkfrontCount),"explicit governed permission"]
-  ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered remain local to the affected activity/package unless project-completion effect is separately proven.</p></div></div><div class="planning-panel-body">'+table+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||"")+'</p></details></section>';
+    ["Resequencing-enabled workfronts",count(eligibility.governedResequencingWorkfrontCount,eligibility.knownGovernedResequencingWorkfrontCount),"explicit governed permission"],
+    ...(p.heldDataCandidates?[["Crew candidates from the data held",p.heldDataCandidates.crewCandidateTotal==null?"Not assessable":fmt(p.heldDataCandidates.crewCandidateTotal),"crew need, second-crew sequences, trade chains and stated labour on the driving network"]]:[])
+  ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered remain local to the affected activity/package unless project-completion effect is separately proven.</p></div></div><div class="planning-panel-body">'+table+(p.heldDataCandidates?recoveryHeldDataPanel(p.heldDataCandidates):'')+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||"")+'</p></details></section>';
 }
 function interfaceDisplay(value,fallback='—'){if(value===null||value===undefined)return fallback;const text=String(value).trim();return !text||/^(?:undefined|null|nan)$/i.test(text)?fallback:text;}
 function renderInterfaceIntelligenceVisual(data){
@@ -6155,6 +6191,8 @@ function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
   if((result.legacyKey||result.key)==='challenge-contract')container.insertAdjacentHTML('beforeend',recoveryScenarioPanel(result.data?.recoveryScenario));
+  // F29: the driving-chain feasibility from the shared trade-chain calculation (project facts).
+  if((result.legacyKey||result.key)==='challenge-contract'&&result.data?.projectFacts?.resources?.tradeChains)container.insertAdjacentHTML('beforeend',renderDrivingChainFeasibility(result.data.projectFacts.resources.tradeChains));
   const decisions=renderDecisionAnalysis(result.legacyKey||result.key,result.data);
   const linkReview=linkCandidateEntry(result.legacyKey||result.key);if(linkReview)container.insertAdjacentHTML('beforeend',linkReview);
   if(decisions)container.insertAdjacentHTML('beforeend',decisions);
