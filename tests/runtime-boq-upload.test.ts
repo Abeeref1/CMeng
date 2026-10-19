@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import ExcelJS from "exceljs";
+import {fieldKeyColumn,worksheetWithFieldKeys} from './workbook-field-keys';
 
 import {
   createCmengServer,
@@ -177,11 +178,11 @@ test("runtime API accepts Excel BOQ upload and returns retrievable governed stat
       if(format==='json')assert.equal((await download.json() as any).result.data.suppliedBoq.rows[0].quantity,100);
       else {
         const book=new ExcelJS.Workbook();await book.xlsx.load(Buffer.from(await download.arrayBuffer()) as any);
-        const sheet=book.worksheets.find(s=>{const headers=Array.from(s.getRow(1).values as any[]);return ['quantity','rate','amount','currency'].every(h=>headers.includes(h));});
+        const sheet=worksheetWithFieldKeys(book,['quantity','rate','amount','currency']);
         assert.ok(sheet,'the spreadsheet retains the supplied BOQ rows');assert.equal(sheet.rowCount,2);
-        const headers=Array.from(sheet.getRow(1).values as any[]);
-        assert.equal(sheet.getRow(2).getCell(headers.indexOf('quantity')).value,100);
-        assert.equal(sheet.getRow(2).getCell(headers.indexOf('amount')).value,2000);
+        const column=(key:string)=>fieldKeyColumn(book,sheet!.name,key);
+        assert.equal(sheet!.getRow(2).getCell(column('quantity')).value,100);
+        assert.equal(sheet!.getRow(2).getCell(column('amount')).value,2000);
       }
     }
   } finally {

@@ -54,7 +54,8 @@ test('a report search selects the item while retaining its complete dated histor
 test('streamed worksheets split at Excel row capacity and retain boundary and final records', {timeout:120000}, async()=>{
  const values=new Array(1_048_577).fill('retained');values[1_048_574]='END-FIRST';values[1_048_575]='FIRST-SECOND';values[1_048_576]='LAST-ROW';
  const bytes=await buildModuleWorkbook('LIMIT','progress-report',{key:'progress-report',status:'ready',reason:null,dependencies:[],data:{rows:values}});
- const zip=await JSZip.loadAsync(bytes),names=Object.keys(zip.files).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n));assert.equal(names.length,3,'summary plus two complete table worksheets');
+ const zip=await JSZip.loadAsync(bytes),names=Object.keys(zip.files).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n));assert.equal(names.length,4,'summary, two complete table worksheets and the field-key sheet');
+ const workbookXml=await zip.file('xl/workbook.xml')!.async('string');assert.match(workbookXml,/<sheet sheetId="4" name="Field keys"/,'the field-key sheet comes after every table worksheet');
  const countRows=(xml:string)=>{let count=0;const pattern=/<row\b/g;while(pattern.exec(xml))count++;return count;};
  const first=await zip.file('xl/worksheets/sheet2.xml')!.async('string'),last=await zip.file('xl/worksheets/sheet3.xml')!.async('string');
  assert.equal(countRows(first),1_048_576);assert.equal(countRows(last),3);assert.match(first,/>END-FIRST</);assert.doesNotMatch(first,/>FIRST-SECOND</);assert.match(last,/>FIRST-SECOND</);assert.match(last,/>LAST-ROW</);
