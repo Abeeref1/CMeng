@@ -418,7 +418,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,
-        'Canonical contract-time position used by every consumer.',
+        // T04: every page, report and Ask answer reading this fact shows the label.
+        contractTime?.contractualCompletionSourceUse==='qualified_source_read'
+          ?'Canonical contract-time position used by every consumer. '+(contractTime.contractualCompletionSourceNote??'Read from source; not formally adopted.')
+          :'Canonical contract-time position used by every consumer.',
       ),
       awardedEotDays:commercialFact(
         commercial.timeExposure.approvedEotDays,
