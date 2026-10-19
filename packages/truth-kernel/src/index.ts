@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 export * from './reporting';
 export * from './issues';
+export * from './conditional-notice';
 export * from './aggregates';
 export * from './procurement-timing';
 export * from './security-state';
