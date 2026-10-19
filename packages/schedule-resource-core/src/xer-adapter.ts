@@ -1,5 +1,6 @@
 import {
   parseXerDateStrict,
+  xerBaselineProjects,
   type XerParseResult,
   type XerRow,
 } from "../../xer-parser/src";
@@ -118,16 +119,21 @@ export function canonicalResourcesFromXer(
     projectId?: string | null;
   },
 ): CanonicalResourceModel {
-  const taskRows = rows(result, "TASK");
+  // F22: a baseline project's TASK / TASKRSRC / TRSRCFIN rows describe the
+  // baseline, not current work; the shared rule keeps them out of current
+  // resources so nothing is counted twice.
+  const baselineIds = xerBaselineProjects(result).baselineIds;
+  const currentScope = (row: XerRow) => { const id = field(row, "proj_id"); return !id || !baselineIds.has(id); };
+  const taskRows = rows(result, "TASK").filter(currentScope);
   const resourceRows = rows(result, "RSRC");
   const rateRows = rows(result, "RSRCRATE");
   const unitRows = rows(result, "UMEASURE");
   const financialPeriodRows =
     rows(result, "FINDATES");
   const assignmentRows =
-    rows(result, "TASKRSRC");
+    rows(result, "TASKRSRC").filter(currentScope);
   const periodActualRows =
-    rows(result, "TRSRCFIN");
+    rows(result, "TRSRCFIN").filter(currentScope);
 
   const taskCodeByNative = new Map<
     string,

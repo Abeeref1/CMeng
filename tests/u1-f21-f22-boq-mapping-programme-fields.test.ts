@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {parseXerBytes} from '../packages/xer-parser/src';
 import {canonicalScheduleFromXer} from '../packages/schedule-analysis-core/src';
+import {canonicalResourcesFromXer} from '../packages/schedule-resource-core/src';
 import {scheduleScopeClassification} from '../packages/runtime-api/src/schedule-scope-classification';
 import {assignScope,reconcileScope,boqReferenceResolver,boqItemSourceRows} from '../packages/runtime-api/src/boq-scope-mapping';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
@@ -33,7 +34,10 @@ function baselineXer(projects:string[][]){
   ...of('2',task('22','2','W2','A300','2031-01-21','2031-01-30','2031-01-21','2031-01-30')),
   ...of('3',task('31','3','W3','A100','2030-12-01','2030-12-10','2030-12-01','2030-12-10')),
   '%T\tTASKPRED','%F\ttask_pred_id\ttask_id\tpred_task_id\tproj_id\tpred_proj_id\tpred_type\tlag_hr_cnt',
-  ...of('1','%R\tL1\t12\t11\t1\t1\tPR_FS\t0'),...of('2','%R\tL2\t22\t21\t2\t2\tPR_FS\t0')]);
+  ...of('1','%R\tL1\t12\t11\t1\t1\tPR_FS\t0'),...of('2','%R\tL2\t22\t21\t2\t2\tPR_FS\t0'),
+  '%T\tRSRC','%F\trsrc_id\trsrc_name\trsrc_type','%R\tR1\tMason\tRT_Labor',
+  '%T\tTASKRSRC','%F\ttaskrsrc_id\ttask_id\tproj_id\trsrc_id\ttarget_qty',
+  ...of('1','%R\tTR11\t11\t1\tR1\t40'),...of('2','%R\tTR21\t21\t2\tR1\t40')]);
 }
 
 test('F22 baseline dates come from the baseline project the XER carries, labelled, and its rows never become current work',()=>{
@@ -54,6 +58,9 @@ test('F22 baseline dates come from the baseline project the XER carries, labelle
  assert.equal(a200.baselineDateBasis,'source_declared_baseline');
  assert.ok(a200.diagnostics.includes('XER_ACTIVITY_NOT_IN_BASELINE_PROJECT:2'));
  assert.ok(model.diagnostics.includes('XER_BASELINE_PROJECT:2:FOR:1:sum_base_proj_id'));
+ // The same shared rule keeps the baseline's resource assignments out of current resources.
+ const resources=canonicalResourcesFromXer(baselineXer([['1','CUR','2031-08-31 08:00','','2'],['2','CUR-BL','2031-01-05 08:00','1','']]),{sourceRevisionId:'R1',projectId:'CUR'});
+ assert.deepEqual(resources.assignments.map(a=>[a.assignmentId,a.activityId]),[['TR11','A100']],'baseline hours are not counted twice');
 });
 
 test('F22 sum_base_proj_id chooses among several baselines; without that choice the file\'s own target dates stay, labelled',()=>{

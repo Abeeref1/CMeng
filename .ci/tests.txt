@@ -31,3 +31,10 @@ t08-delivery-supplied-register-first
 w10-delivery-banner-shared-decision
 ui-management-experience
 universal-reporting-contract
+resource-utilization
+quantity-manhour
+t06-programme-hand-checked
+system-evidence-governance
+parser-reconciliation-integration
+xer-parser
+xer-coverage

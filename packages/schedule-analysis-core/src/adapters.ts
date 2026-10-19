@@ -1,6 +1,7 @@
 import {
   parseXerDateStrict,
   verifyXerCalendars,
+  xerBaselineProjects,
   type P6CalendarDataResult,
   type XerParseResult,
   type XerRow,
@@ -382,7 +383,7 @@ function canonicalScheduleFromXerRead(
   // its own TASK / PROJWBS / TASKPRED rows. Those rows are the baseline, not
   // current work: they never become current activities, links or WBS, and
   // they never take part in the current data date.
-  const baselines = xerBaselineProjects(xerRows(result, "PROJECT"));
+  const baselines = xerBaselineProjects(result);
   const currentScope = (row: XerRow) => { const id = xerField(row, "proj_id"); return !id || !baselines.baselineIds.has(id); };
   const projectRows = xerRows(result, "PROJECT").filter(currentScope);
   const taskRows = xerRows(result, "TASK").filter(currentScope);
@@ -1100,40 +1101,6 @@ function canonicalScheduleFromXerRead(
       ...baselineTasks.diagnostics,
     ],
   };
-}
-
-/** F22: baseline projects carried in one P6 export, identified only from
- * explicit P6 fields: a baseline's orig_proj_id (the project it was copied
- * from) or the current project's sum_base_proj_id (its project baseline).
- * The project baseline is the one sum_base_proj_id names, else the only
- * baseline whose orig_proj_id names the project. Several candidates without
- * that choice stay unresolved: the activities keep their own target dates. */
-function xerBaselineProjects(projectRows: XerRow[]) {
-  const ids = new Set(projectRows.map((row) => xerField(row, "proj_id")).filter((id): id is string => !!id));
-  const originOf = new Map<string, string>();
-  for (const row of projectRows) {
-    const id = xerField(row, "proj_id"), origin = xerField(row, "orig_proj_id");
-    if (id && origin && origin !== id && ids.has(origin)) originOf.set(id, origin);
-  }
-  const declared = new Map<string, string>();
-  for (const row of projectRows) {
-    const id = xerField(row, "proj_id"), base = xerField(row, "sum_base_proj_id");
-    if (id && base && base !== id && ids.has(base) && !originOf.has(id)) declared.set(id, base);
-  }
-  const baselineIds = new Set<string>([...originOf.keys(), ...declared.values()]);
-  const chosen = new Map<string, string>(), diagnostics: string[] = [];
-  // A file in which every project is a baseline has no current project to
-  // compare against; nothing is set aside then.
-  if ([...ids].every((id) => baselineIds.has(id))) return {baselineIds: new Set<string>(), chosen, diagnostics: ["XER_BASELINE_PROJECT_WITHOUT_CURRENT_PROJECT"]};
-  for (const id of ids) {
-    if (baselineIds.has(id)) continue;
-    const named = declared.get(id);
-    const copies = [...originOf].filter(([, origin]) => origin === id).map(([baseline]) => baseline).sort();
-    const baseline = named ?? (copies.length === 1 ? copies[0]! : null);
-    if (baseline) { chosen.set(id, baseline); diagnostics.push("XER_BASELINE_PROJECT:" + baseline + ":FOR:" + id + ":" + (named ? "sum_base_proj_id" : "orig_proj_id")); }
-    else if (copies.length > 1) diagnostics.push("XER_BASELINE_PROJECT_AMBIGUOUS:" + id + ":" + copies.join("|"));
-  }
-  return {baselineIds, chosen, diagnostics};
 }
 
 /** Baseline TASK rows by activity ID (task_code) within each chosen baseline.
