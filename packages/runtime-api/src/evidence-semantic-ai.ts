@@ -132,7 +132,7 @@ export function configuredContractHeadingAiResolver():ContractAiResolver|null{
 }
 
 type AiReadingStep={sourceHashSha256:string;status:string;attempted:boolean};
-const awaitingAi=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','failed']);
+const awaitingAi=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','provider_error','invalid_response','failed']);
 /** R5: when reading is incomplete, say so on screen, with AI set-up state and the
  * upper-bound cost to finish shown before any paid call is switched on. */
 export function aiReadingCoverage(documents:ReadonlyArray<{sourceHashSha256:string;semanticAiSteps?:ReadonlyArray<AiReadingStep>}>,

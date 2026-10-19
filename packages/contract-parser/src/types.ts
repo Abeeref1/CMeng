@@ -127,7 +127,10 @@ export type ContractAiStepStatus =
   | "validated"
   | "unresolved"
   | "failed"
-  | "call_limit";
+  | "call_limit"
+  | "stopped_at_cap"
+  | "provider_error"
+  | "invalid_response";
 
 export interface ContractAiStepReceipt {
   sourceSpan: ContractSourceSpan;
