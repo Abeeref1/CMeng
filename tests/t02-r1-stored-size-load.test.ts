@@ -49,9 +49,12 @@ test('T02 R1 the stored file and its load time grow by at most 10% on an 8,900-a
  const sizeRatio=Buffer.byteLength(after)/Buffer.byteLength(before);
  // Load time: the same data directory, alternating the two snapshots.
  const loadMs=async(text:string)=>{await writeFile(stateFile,text);const start=performance.now();const loaded=new RuntimeProjectStore({dataDir,durable:false});const ms=performance.now()-start;assert.ok((loaded as any).projects.get('R1-SIZE-8900'),'project loads');return ms;};
- await loadMs(before);await loadMs(after);
+ // Two warm-up loads each, then 15 alternating pairs: the minimum of many samples is a
+ // stable estimate of the load cost on a shared runner (5 pairs measured 0.94 to 1.20 for
+ // the same build). The 10% limit is unchanged.
+ for(let warm=0;warm<2;warm++){await loadMs(before);await loadMs(after);}
  const times={before:[] as number[],after:[] as number[]};
- for(let run=0;run<5;run++){times.before.push(await loadMs(before));times.after.push(await loadMs(after));}
+ for(let run=0;run<15;run++){times.before.push(await loadMs(before));times.after.push(await loadMs(after));}
  const loadRatio=Math.min(...times.after)/Math.min(...times.before);
  t.diagnostic(`R1-SIZE before=${Buffer.byteLength(before)} after=${Buffer.byteLength(after)} ratio=${sizeRatio.toFixed(4)}`);
  t.diagnostic(`R1-LOAD beforeMinMs=${Math.min(...times.before).toFixed(1)} afterMinMs=${Math.min(...times.after).toFixed(1)} ratio=${loadRatio.toFixed(4)}`);
