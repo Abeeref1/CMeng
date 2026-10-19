@@ -658,6 +658,12 @@ function calculationSnapshotTime(state:ProjectRuntimeState):string {
   return sourceTimes.sort().at(-1)??new Date().toISOString();
 }
 
+/** F01: the one contract-time basis pages show. It is the reporting view's basis,
+ * which the project facts and every commercial consumer also read; a stored
+ * governed basis is not dropped because it was not re-derived from documents. */
+function reportingContractTime(state:ProjectRuntimeState){
+  return reportingState(state).controls.contractTimeBasis??null;
+}
 // One full calculation per project version. The Dashboard, Accountability,
 // every specialist page, the shared facts and the action register all read
 // this same bundle; no caller receives a reduced or deferred variant.
@@ -3234,11 +3240,12 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     const netMovement = windows?.projectCompletionMovementDays ?? null;
     const resourceData = modules.get("resource-utilization")?.data as Record<string, any> | null;
     pmo.claims = { ...pmo.claims,
-      contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+      // F01: the reporting contract-time basis every consumer and the project facts read.
+      contractualCompletionIso: reportingContractTime(state)?.contractualCompletionIso ?? null,
       effectiveDeterminationDays: time.effectiveDeterminationDays,
-      incorporatedEotDays: time.contractTimeBasis?.incorporatedEotDays ?? null,
+      incorporatedEotDays: reportingContractTime(state)?.incorporatedEotDays ?? null,
       registerDeterminationDays: time.registerDeterminationDays,
-      officialApprovedEotDays: time.contractTimeBasis?.officialApprovedEotDays ?? null,
+      officialApprovedEotDays: reportingContractTime(state)?.officialApprovedEotDays ?? null,
       officialAdjustedCompletionIso: eotAssessment?.officialAdjustedCompletionIso ?? null,
       scenarioAdjustedCompletionIso: eotAssessment?.scenarioAdjustedCompletionIso ?? null,
       netSubmittedFinishMovementDays: netMovement,
@@ -5379,7 +5386,7 @@ function eotCompletionAuthorityContext(
     ...(completion.original.sourceAnalyticalNote ? {originalContractualCompletionSourceNote: completion.original.sourceAnalyticalNote} : {}),
     amendedContractualCompletionIso,
     amendedContractualCompletionState,
-    currentContractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+    currentContractualCompletionIso: reportingContractTime(state)?.contractualCompletionIso ?? null,
     sourceForecastCompletionIso: sourceOnlyForecast(state,model, generatedAt).sourceForecastCompletionIso,
   };
 }
@@ -7474,7 +7481,7 @@ function resolveProjectModuleCandidate(
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis, scheduleAuthorityReview:scheduleAuthorityReview(state),
       ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend','scope-classification'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
-      ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
+      ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,reportingContractTime(state)?.contractualCompletionIso??null)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
       ...(['quantity-scurve','independent-forecast','challenge-contract'].includes(key)?{quantityBasisReview:quantityBasisReview(state)}:{}),
       ...(contractReview ? { contractValueBasisReview: contractReview, ...(data.contractValueEvidence ? {contractValueEvidence: { ...data.contractValueEvidence, extractionScope: 'original_contract_only', currentSource: contractReview.current, currentSourceState: contractReview.state, note: 'The original-contract extraction is historical. Read currentSource for the explicit value from the contract version effective at the data date; formal approval remains separate.' }} : {}) } : {}),
@@ -7499,7 +7506,8 @@ function resolveProjectModuleCandidate(
             basis:'Conditional arithmetic only: if all effective register determinations are already inside the amendment, no further days apply; if none are incorporated and all can be applied on a calendar-day basis, the alternative subtracts those days. Award-letter evidence, overlap and entitlement still require confirmation.'};})()}:{}),
       ...(key==='notices-claims'?{contractNoticePeriod:commercialFoundationForState(state).commercialTerms.noticePeriodDays,contractNoticeReview:commercialFoundationForState(state).commercialTerms.noticeReview}:{}),
       ...(["milestones", "independent-forecast", "notices-claims"].includes(key) ? {
-        contractualCompletionIso: time.contractTimeBasis?.contractualCompletionIso ?? null,
+        // F01: the same contract completion as the project facts (reporting basis).
+        contractualCompletionIso: reportingContractTime(state)?.contractualCompletionIso ?? null,
         effectiveDeterminationDays: time.effectiveDeterminationDays,
         registerDeterminationDays: time.registerDeterminationDays,
         futureDeterminationCount: time.futureDeterminationCount,
