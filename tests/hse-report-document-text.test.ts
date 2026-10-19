@@ -27,6 +27,9 @@ test('HSE report narrative text: number-first exposure and LTI/MTC/RWC abbreviat
  assert.equal(parseHseSummary('TRIR is normalised to 200,000 man-hours. LTIFR per 1,000,000 man-hours.','h','doc').metrics.manHours,null,'a rate denominator is never exposure');
  assert.equal(parseHseSummary('LTIFR: 0.5','h','doc').metrics.lostTimeInjuries,null,'LTIFR is not an LTI count');
  assert.equal(parseHseSummary('Man hours: 10250000\nLost Time Injuries: 1','h','doc').metrics.manHours,10250000,'label-first wording still reads');
+ assert.equal(parseHseSummary('Report date: 2026-09-30\nMan hours: 10250000','h','doc').metrics.manHours,10250000,'a date on the previous line is not exposure');
+ const header=parseHseSummary('LTI MTC RWC\n1 5 1','h','doc').metrics;
+ assert.equal(header.lostTimeInjuries,null);assert.equal(header.restrictedWorkCases,null,'a column header is not read across lines');
 });
 
 function stateWith(doc:Record<string,unknown>){

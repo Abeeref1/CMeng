@@ -44,15 +44,19 @@ export function parseHseStatisticsTable(text:string,hash:string,sourceRef:string
 export function parseHseSummary(text:string,hash:string,sourceRef:string):HseReportSummary {
   const metrics:Record<string,number|null>={};const diagnostics:string[]=[];
   // Native report wording uses both "Lost Time Injuries: 1" and the abbreviations "LTI 1" / "MTC" / "RWC";
-  // exposure is also written number-first ("831,000 man-hours"). A rate denominator ("per 1,000,000 man-hours",
-  // "normalised to 200,000 man-hours") is never exposure, so a number-first value preceded by per/x/by/to/every is excluded.
-  const patterns:Record<string,string>={manHours:'(?:total\\s+)?man[ -]?hours',lostTimeInjuries:'(?:lost[ -]time\\s+injur(?:y|ies)|LTIs?)',medicalTreatmentCases:'(?:medical\\s+treatment\\s+cases|MTCs?)',restrictedWorkCases:'(?:restricted[ -]work\\s+cases|RWCs?)',firstAidCases:'first\\s+aid\\s+cases',nearMisses:'near\\s+misses',ltifr:'LTIFR',trir:'TRIR'};
-  const numberFirst:Record<string,string>={manHours:'(?:safe\\s+)?man[ -]?hours'};
+  // exposure is also written number-first ("831,000 man-hours"). Abbreviations and number-first values are read
+  // only within one line, so a column header or a date on the previous line ("2026-09-30\nMan hours") is never
+  // taken as a value. A rate denominator ("per 1,000,000 man-hours", "normalised to 200,000 man-hours") is never
+  // exposure, so a number-first value preceded by per/x/by/to/every/each, an operator or a date separator is excluded.
+  const patterns:Record<string,string>={manHours:'(?:total\\s+)?man[ -]?hours',lostTimeInjuries:'lost[ -]time\\s+injur(?:y|ies)',medicalTreatmentCases:'medical\\s+treatment\\s+cases',restrictedWorkCases:'restricted[ -]work\\s+cases',firstAidCases:'first\\s+aid\\s+cases',nearMisses:'near\\s+misses',ltifr:'LTIFR',trir:'TRIR'};
+  const abbreviations:Record<string,string>={lostTimeInjuries:'LTIs?',medicalTreatmentCases:'MTCs?',restrictedWorkCases:'RWCs?'};
+  const numberFirst:Record<string,string>={manHours:'(?:safe[ \\t]+)?man[ -]?hours'};
   const num='([0-9][0-9,]*(?:\\.[0-9]+)?)';
   for(const [key,pattern] of Object.entries(patterns)){
     const labelFirst=[...text.matchAll(new RegExp('\\b'+pattern+'\\s*[:|]?\\s*'+num+'\\b','gi'))];
-    const before=numberFirst[key]?[...text.matchAll(new RegExp('(?<!\\b(?:per|x|by|to|every|each)\\s+)(?<![0-9,.×*\\/]\\s*)(?<![0-9,.])'+num+'\\s+(?:total\\s+)?'+numberFirst[key]+'\\b','gi'))]:[];
-    const values=[...labelFirst,...before].map(m=>Number(m[1]!.replaceAll(',','')));
+    const short=abbreviations[key]?[...text.matchAll(new RegExp('\\b'+abbreviations[key]+'[ \\t]*[:|]?[ \\t]*'+num+'\\b','g'))]:[];
+    const before=numberFirst[key]?[...text.matchAll(new RegExp('(?<!\\b(?:per|x|by|to|every|each)[ \\t]+)(?<![0-9,.×*\\/-][ \\t]*)(?<![0-9,.\\/-])'+num+'[ \\t]+(?:total[ \\t]+)?'+numberFirst[key]+'\\b','gi'))]:[];
+    const values=[...labelFirst,...short,...before].map(m=>Number(m[1]!.replaceAll(',','')));
     const unique=[...new Set(values)];metrics[key]=unique.length===1?unique[0]!:null;
     if(unique.length>1)diagnostics.push('HSE_SUMMARY_VALUE_CONFLICT:'+key);
   }
