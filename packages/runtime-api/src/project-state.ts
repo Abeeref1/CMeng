@@ -2471,7 +2471,7 @@ export class RuntimeProjectStore {
     let refreshedDocumentCount=0;const diagnostics:string[]=[];
     for(const state of this.projects.values()){
       if(projectId&&state.projectId!==projectId)continue;
-      let changed=false;const families=new Set<string>();
+      let changed=false,aiStepsRecorded=false;const families=new Set<string>();
       for(const document of state.evidenceDocuments){
         const isCsv=/csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename)),isWorkbook=/spreadsheetml|macroEnabled/.test(document.mediaType);
         if(!isCsv&&!isWorkbook)continue;
@@ -2479,7 +2479,22 @@ export class RuntimeProjectStore {
         // T04: a CSV held as 'partial' only for its type review is re-read once
         // the type is reviewed for this exact file, so it can be marked read.
         const typeReviewedCsv=isCsv&&!!document.classificationDecision&&document.classificationDecision.sourceHash===document.sourceHashSha256;
-        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3')&&!(typeReviewedCsv&&document.parserState==='partial'))continue;
+        // R5: a workbook read before AI reading steps were recorded has no step for its
+        // current source, so the screen could not say its reading is incomplete.
+        const hasCurrentAiSteps=(document.semanticAiSteps??[]).some(step=>step.sourceHashSha256===document.sourceHashSha256);
+        if(document.derivedRegisterRead?.producerVersion==='register-derived-v9'&&document.derivedRegisterRead.sourceHashSha256===document.sourceHashSha256&&(!isWorkbook||document.tabularRead?.producerVersion==='register-workbook-v3')&&!(typeReviewedCsv&&document.parserState==='partial')){
+          // Current derived data stays as it is. Record only what its read did, from the
+          // retained worksheet rows; no AI is called and nothing is re-derived.
+          if(isWorkbook&&!hasCurrentAiSteps&&document.tabularRead?.sourceHashSha256===document.sourceHashSha256){
+            try{
+              const copy=structuredClone(document.tabularRead);for(const sheet of copy.sheets)delete sheet.semantic;
+              const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
+              await enrichRegisterSheetSemantics(copy,{cached:document.tabularRead,steps});
+              if(steps.length){document.semanticAiSteps=[...(document.semanticAiSteps??[]),...steps];aiStepsRecorded=true;}
+            }catch(error){diagnostics.push('AI_READING_STEPS_UNRESOLVED:'+document.documentId+':'+String(error));}
+          }
+          continue;
+        }
         try{
           const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)throw new Error('SOURCE_HASH_MISMATCH');
           const identified=await identifyEvidenceDocument({bytes,sourceFilename:document.sourceFilename,sourceRelativePath:document.sourceRelativePath,declaredMediaType:document.mediaType});
@@ -2492,7 +2507,10 @@ export class RuntimeProjectStore {
             next.familyKey=family.familyKey;next.logicalDocumentKey=family.logicalDocumentKey;
           }
           if(isWorkbook){
-            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics:next.identification.diagnostics});
+            const refreshSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics:next.identification.diagnostics,...(hasCurrentAiSteps?{}:{steps:refreshSteps})});
+            // Steps already recorded for this source (including paid calls) are kept as they are.
+            if(!hasCurrentAiSteps&&refreshSteps.length)next.semanticAiSteps=[...(document.semanticAiSteps??[]),...refreshSteps];
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
             if(!reviewed){next.category=resolved.category;next.documentType=resolved.documentType;next.identification=resolved.identification;}
             const family=evidenceFamily({category:next.category,documentType:next.documentType,scheduleRole:next.scheduleRole,textSample:identified.textSample,sourceFilename:next.sourceFilename});
@@ -2525,7 +2543,7 @@ export class RuntimeProjectStore {
         for(const family of families)rebuildEvidenceFamily(state,family);
         if(families.has('boq:quantity'))synchronizeActiveBoq(state);
         rebuildReadinessEvidence(state);rebuildDerivedControls(state);this.touchEvidence(state);
-      }
+      }else if(aiStepsRecorded)this.touch(state);
     }
     return {refreshedDocumentCount,diagnostics};
   }

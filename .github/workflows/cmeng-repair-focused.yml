@@ -136,6 +136,7 @@ jobs:
             dist/tests/t03-contract-ai-call-cap.test.js \
             dist/tests/t03-ai-reading-controls.test.js \
             dist/tests/t03-ai-completion.test.js \
+            dist/tests/t03-r5-workbook-ai-steps.test.js \
             dist/tests/t03-ai-error-states.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
