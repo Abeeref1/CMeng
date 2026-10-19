@@ -1,5 +1,5 @@
 import { partitionAsOf } from "../../truth-kernel/src";
-import {performanceSecurityValidity} from './security-validity';
+import {performanceSecurityValidity,insuranceCoverValidity} from './security-validity';
 import {sectionalLdPosition} from './sectional-ld';
 import { reportingScope, securityStateAtDataDate } from "../../truth-kernel/src";
 import type {
@@ -1976,6 +1976,9 @@ function bondsInsurance(
             expiry.days,
           expiryState:
             expiry.state,
+          // F02/F35: the shared Data Date rule and the contract cover period, as for securities.
+          securityState:securityStateAtDataDate({status:row.status,expiryIso:row.expiryDate},input.dataDateIso),
+          coverage:insuranceCoverValidity(row,input.contractClauses,input.ldTime.programmeCompletionIso),
           sourceRequirement:
             row.sourceRequirement,
           sourceRefs: [
@@ -2018,11 +2021,7 @@ function bondsInsurance(
   const validInsurance =
     insurances.some(
       (row) =>
-        /active|valid|in.force/i.test(
-          row.status,
-        ) &&
-        row.expiryState !==
-          "expired",
+        row.securityState?.inForce === true,
     );
   const requirementGap =
     (
@@ -2081,29 +2080,22 @@ function bondsInsurance(
     activeInsuranceCount:
       insuranceDatesEstablished ? insurances.filter(
         (row) =>
-          /active|valid|in.force/i.test(
-            row.status,
-          ) &&
-          row.expiryState !==
-            "expired",
+          row.securityState?.inForce === true,
       ).length : null,
     expiredInsuranceCount:
       insuranceDatesEstablished ? insurances.filter(
         (row) =>
-          row.expiryState ===
-            "expired" ||
-          /expired/i.test(
-            row.status,
-          ),
+          row.securityState?.state ===
+            "expired",
       ).length : null,
     expiringInsuranceCount:
       insuranceDatesEstablished ? insurances.filter(
         (row) =>
-          row.expiryState ===
-            "expiring_30" ||
-          row.expiryState ===
-            "expiring_90",
+          row.securityState?.state ===
+            "expiring",
       ).length : null,
+    insuranceCoverGapCount:
+      insurances.length ? insurances.filter(row=>row.coverage?.coverageState==='gap').length : null,
     bonds,
     insurances,
     diagnostics: [

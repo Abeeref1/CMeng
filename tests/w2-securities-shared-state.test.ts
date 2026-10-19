@@ -426,3 +426,93 @@ test("F35 contract-controls security validity uses the shared coverage rule", ()
   const noPeriod=performanceSecurityValidity(bond,[{clauseId:"C2",textPreview:"The Performance Security shall remain valid until the Contractor has remedied all defects.",sourceRef:"test:c2"}] as never,"2027-10-06")!;
   assert.equal(noPeriod.coverageState,"not_established");assert.equal(noPeriod.coverageGapDays,null);
 });
+
+import {insuranceCoverValidity} from "../packages/commercial-contract-controls/src/security-validity";
+import {createHash} from "node:crypto";
+import {sectionStatedTerms} from "../packages/runtime-api/src/project-contract-sections";
+
+const policy=(policyId:string,kind:string,status:string,expiryDate:string|null)=>({policyId,kind,insurer:"Insurer",status,inceptionDate:"2026-01-01",expiryDate,
+  coverageAmount:{amount:210_000_000,currency:"SAR",state:"official",sourceRefs:["test:"+policyId]},sourceRequirement:null,sourceRefs:["test:"+policyId]});
+
+test("F02 insurance uses the same shared Data Date rule and one 30-day expiring window as securities", () => {
+  const cc=buildContractControls({...minimalContractInput(),insurances:[
+    policy("CAR-01","Contractor's All Risks","Active","2026-08-01"),   // stale "Active", expired at DD 2026-08-31
+    policy("TPL-01","Third party liability","Valid","2026-09-20"),     // within 30 days
+    policy("WC-01","Workmen's compensation","In force","2026-11-15"),  // 76 days: active, not expiring
+    policy("PI-01","Professional indemnity","Cancelled","2027-06-30"), // released
+  ]} as never);
+  const bi=cc.bondsInsurance;
+  assert.deepEqual(bi.insurances.map(row=>row.securityState?.state),["expired","expiring","active","released"]);
+  assert.equal(bi.expiredInsuranceCount,1);
+  assert.equal(bi.expiringInsuranceCount,1,"one window: the 76-day policy is active, not expiring");
+  assert.equal(bi.activeInsuranceCount,2,"in force = active plus expiring; expired and released are not");
+  for(const row of bi.insurances)assert.equal(row.securityState?.state,securityStateAtDataDate({status:row.status,expiryIso:row.expiryDate},"2026-08-31").state);
+});
+
+test("F35 insurance cover is checked against the contract-stated period; unknown period stays not established", () => {
+  const car={policyId:"CAR-01",kind:"Contractor's All Risks",expiryDate:"2027-09-30",sourceRefs:["test:car"]};
+  const clause=(text:string)=>({clauseKey:"k",identifier:"18.1",heading:"Insurance",governanceState:"effective",textPreview:text,sourceRef:"test:18.1"}) as never;
+  const toTakingOver=insuranceCoverValidity(car,[clause("The Contractor shall maintain Contractor's All Risks insurance in force until the issue of the Taking-Over Certificate.")],"2027-10-06");
+  assert.equal(toTakingOver.coverageState,"gap");assert.equal(toTakingOver.requiredEndIso,"2027-10-06");assert.equal(toTakingOver.daysShort,6);
+  assert.match(toTakingOver.reason,/until taking-over/);
+  const toDnp=insuranceCoverValidity({...car,expiryDate:"2028-12-31"},[clause("The works insurance shall remain in force until the end of the Defects Notification Period. The Defects Notification Period is 365 days.")],"2027-10-06");
+  assert.equal(toDnp.coverageState,"covered");assert.equal(toDnp.requiredEndIso,"2028-10-05");
+  const short=insuranceCoverValidity(car,[clause("The works insurance shall remain in force until the end of the Defects Notification Period. The Defects Notification Period is 365 days.")],"2027-10-06");
+  assert.equal(short.coverageState,"gap");assert.equal(short.daysShort,371);
+  // A clause for another insurance class does not set this policy's period.
+  assert.equal(insuranceCoverValidity(car,[clause("Third party liability insurance shall be maintained in force until the issue of the Taking-Over Certificate.")],"2027-10-06").coverageState,"not_established");
+  assert.equal(insuranceCoverValidity(car,[],"2027-10-06").coverageState,"not_established");
+  const both=insuranceCoverValidity(car,[clause("Insurance shall be maintained in force until taking-over."),clause("Insurance shall remain in force until the end of the Defects Notification Period.")],"2027-10-06");
+  assert.equal(both.coverageState,"not_established");assert.match(both.reason,/more than one insurance end condition/);
+  assert.equal(insuranceCoverValidity(car,[clause("The Contractor shall maintain Contractor's All Risks insurance in force until the issue of the Taking-Over Certificate.")],null).coverageState,"not_established","no taking-over date: not established, never assumed");
+  // Contract controls carry it on each policy.
+  const cc=buildContractControls({...minimalContractInput(),contractClauses:[clause("The Contractor shall maintain Contractor's All Risks insurance in force until the issue of the Taking-Over Certificate.")],
+    ldTime:{...minimalContractInput().ldTime,programmeCompletionIso:"2026-12-31"},insurances:[policy("CAR-02","Contractor's All Risks","Active","2026-10-31")]} as never);
+  assert.equal(cc.bondsInsurance.insurances[0]?.coverage?.coverageState,"gap");assert.equal(cc.bondsInsurance.insuranceCoverGapCount,1);
+});
+
+test("F34 a section's own stated completion date and explicit cap are read; durations and percentages stay unknown", () => {
+  const page="Section 1 Completion Date 2031-05-31\nSection 1 Delay Damages SAR 35,000 per day, capped at SAR 1,000,000\nSection 3 Time for Completion: 540 days\nSection 3 Delay Damages SAR 5,000 per day, capped at 10% of the Section 3 estimated value";
+  const contract={sections:[],pdf:{pages:[{method:"native",text:page}]}};
+  assert.deepEqual(sectionStatedTerms(contract,"1","Section 1 Delay Damages SAR 35,000 per day, capped at SAR 1,000,000","SAR"),{completionIso:"2031-05-31",completionDateConflict:false,capAmount:1_000_000});
+  assert.deepEqual(sectionStatedTerms(contract,"3","Section 3 Delay Damages SAR 5,000 per day, capped at 10% of the Section 3 estimated value","SAR"),{completionIso:null,completionDateConflict:false,capAmount:null});
+  assert.equal(sectionStatedTerms(contract,"1","capped at USD 1,000,000","SAR").capAmount,null,"a cap in another currency is not this section's cap");
+  const twoDates={sections:[{text:"Section 1 Completion Date 2031-06-30"}],pdf:{pages:[{method:"native",text:page}]}};
+  assert.equal(sectionStatedTerms(twoDates,"1","","SAR").completionIso,null,"competing dates stay unknown");
+});
+
+test("F34 non-empty project: Dashboard and Financial Claims show the same non-zero sectional LD figure", () => {
+  const projectId="W2-SECTIONAL-LD-FULL";
+  const state:any=runtimeProjects.getOrCreate(projectId);
+  const name="sectional-contract";
+  const documentId=projectId+":"+name;
+  state.evidenceDocuments.push({documentId,category:"contract",documentType:"main_contract",sourceFilename:name+".pdf",sourceRelativePath:name+".pdf",mediaType:"application/pdf",
+    storedPath:"/nonexistent/"+name,sourceHashSha256:createHash("sha256").update(name).digest("hex"),sizeBytes:1,uploadedAt:"2031-04-30T00:00:00Z",
+    authority:"candidate_only",parserState:"parsed",basisState:"candidate",familyKey:"contract:main",logicalDocumentKey:name,supersededByDocumentId:null,
+    identification:{needsReview:false},lineage:{needsReview:false},sourceRefs:[]});
+  const pageText="SECTIONAL COMPLETION\nThe Works comprise Section 1 (Infrastructure) and Section 2 (the whole of the Works).\nSection 1 Completion Date 2031-05-31\nSection 1 Delay Damages SAR 35,000 per day, capped at SAR 1,000,000\nSection 2 Completion Date 2031-09-01\nSection 2 Delay Damages SAR 60,000 per day, capped at 10% of the Accepted Contract Amount (SAR 21,000,000)\n";
+  state.contractDocuments.push({documentId,role:"main",result:{
+    sections:[{heading:"Contract Data",text:pageText,startPage:3,sectionKey:"s1",sourceMode:"deterministic",sourceSpans:[{sourceKind:"pdf_page",sourceIndex:3,start:0,end:pageText.length,text:pageText}]}],
+    pdf:{pages:[{pageNumber:3,method:"native",text:pageText}]}}});
+  const milestone=(activityId:string,name:string,finish:string)=>({projectId,activityId,nativeId:activityId,name,wbsId:"W",calendarId:"C0",activityType:"finish_milestone",status:"not_started",
+    baselineStartIso:finish,baselineFinishIso:finish,currentStartIso:finish,currentFinishIso:finish,actualStartIso:null,actualFinishIso:null,forecastStartIso:finish,forecastFinishIso:finish,
+    originalDurationHours:0,remainingDurationHours:0,totalFloatHours:0,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]});
+  const model:any={projectId,source:"xer",sourceRevisionId:"W2-REV-1",dataDateIso:"2031-04-30",
+    activities:[milestone("M1","Infrastructure Works Completion","2031-06-10"),milestone("M2","Whole of the Works Completion","2031-09-21")],
+    relationships:[],wbs:[{wbsId:"W",name:"Works",parentWbsId:null,sourceRefs:[]}],calendars:[],diagnostics:[]};
+  state.schedules.push({role:"update",format:"xer",sourceFilename:"W2-REV-1.xer",sourceHashSha256:"W2-REV-1",uploadedAt:"2031-04-30",
+    revision:{revisionId:"W2-REV-1",label:"W2-REV-1",sequence:1,effectiveAt:"2031-04-30",model}});
+  state.testProject=true;runtimeProjects.touch(state);
+  const dash=moduleForProject(projectId,"master-dashboard").data as any,claims=moduleForProject(projectId,"commercial-claims-notices").data as any;
+  const a=dash.projectFacts?.commercial?.sectionalLd,b=claims.projectFacts?.commercial?.sectionalLd;
+  assert.ok(a,"Dashboard carries the sectional LD position");
+  assert.deepEqual(a,b,"Dashboard and Financial Claims read one shared position");
+  assert.equal(a.sectionCount,2);
+  assert.equal(a.state,"calculated",a.reason);
+  assert.equal(a.currency,"SAR");
+  assert.equal(a.sections.find((s:any)=>s.sectionId==="1").cappedExposure,10*35_000);
+  assert.equal(a.sections.find((s:any)=>s.sectionId==="1").capAmount,1_000_000);
+  assert.equal(a.sections.find((s:any)=>s.sectionId==="2").capAmount,21_000_000);
+  assert.equal(a.cappedTotal,10*35_000+20*60_000);
+  assert.ok(a.cappedTotal>0);
+});
