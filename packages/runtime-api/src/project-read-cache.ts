@@ -41,6 +41,12 @@ export function cacheableProjectRead(method:string|undefined,path:string){
   if(url.searchParams.get('refresh')==='1'||url.searchParams.get('includeItems')==='true')return false;
   return /^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|phases|(?:schedule|commercial|delivery)\/modules\/[a-z0-9-]+|management\/[a-z0-9-]+|advanced\/[a-z0-9-]+|record-page|actions|evidence\/documents|boq\/(?:page-review|numeric-review))$/.test(url.pathname);
 }
+// T11: stored bytes per cache directory, an upper bound kept from the last
+// full listing plus every write since (an overwritten entry is counted twice,
+// never under-counted). The listing of every entry and the oldest-first
+// eviction run only when that bound says the byte cap could be exceeded, so a
+// page read no longer lists and stats every saved result of its project.
+const storedBytes=new Map<string,number>();
 /** Derived read results are scoped to exact project, release and source-state
  * version. They survive worker eviction, never substitute an older position,
  * and contain no cookies or per-request identity headers. */
@@ -83,16 +89,21 @@ export class ProjectReadCache {
     try{
       const directory=join(this.directory,'.analysis-reads');await mkdir(directory,{recursive:true});
       const space=await statfs(directory);if(space.bavail*space.bsize-body.length<STORAGE_RESERVE_BYTES)return;
-      const entries=await Promise.all((await readdir(directory)).filter(name=>name.endsWith('.json')).map(async name=>({path:join(directory,name),info:await stat(join(directory,name))})));
-      let bytes=entries.reduce((sum,entry)=>sum+entry.info.size,0);
-      for(const entry of entries.sort((a,b)=>a.info.mtimeMs-b.info.mtimeMs)){
-        if(bytes+stored.length<=this.maxBytes)break;
-        await rm(entry.path,{force:true});bytes-=entry.info.size;
+      const known=storedBytes.get(directory);
+      if(known===undefined||known+stored.length>this.maxBytes){
+        const entries=await Promise.all((await readdir(directory)).filter(name=>name.endsWith('.json')).map(async name=>({path:join(directory,name),info:await stat(join(directory,name))})));
+        let bytes=entries.reduce((sum,entry)=>sum+entry.info.size,0);
+        for(const entry of entries.sort((a,b)=>a.info.mtimeMs-b.info.mtimeMs)){
+          if(bytes+stored.length<=this.maxBytes)break;
+          await rm(entry.path,{force:true});bytes-=entry.info.size;
+        }
+        storedBytes.set(directory,bytes);
       }
       await writeFile(temporary,stored);await rename(temporary,file);
+      storedBytes.set(directory,(storedBytes.get(directory)??0)+stored.length);
       await writeFile(join(directory,'release'),release);
     }
     catch{await rm(temporary,{force:true}).catch(()=>{});}
   }
-  async invalidate(){this.memory.clear();this.memoryBytes=0;await rm(join(this.directory,'.analysis-reads'),{recursive:true,force:true}).catch(()=>{});}
+  async invalidate(){this.memory.clear();this.memoryBytes=0;storedBytes.delete(join(this.directory,'.analysis-reads'));await rm(join(this.directory,'.analysis-reads'),{recursive:true,force:true}).catch(()=>{});storedBytes.delete(join(this.directory,'.analysis-reads'));}
 }
