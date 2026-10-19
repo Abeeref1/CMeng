@@ -122,6 +122,8 @@ import {
 } from "./schedule-control-basis";
 import {resolveBoqSource} from './boq-source';
 import {projectFactsForState} from "./project-facts";
+import {aiReadingCoverage} from './evidence-semantic-ai';
+import {configuredProviderState} from '../../project-ask/src/provider';
 
 const advancedControlKeys=new Set([
   'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
@@ -158,6 +160,7 @@ export function projectDocumentRegister(projectId:string){
     return {
       projectId,
       projectVersion:state.version,
+      aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState()),
       documentCount:
         state.evidenceDocuments
           .length,

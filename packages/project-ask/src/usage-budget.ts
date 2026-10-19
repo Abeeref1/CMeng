@@ -8,6 +8,16 @@ const rates:Record<string,[number,number]>={'gpt-4.1-mini':[0.4,1.6],'gpt-4.1-mi
 interface Ledger {schema:1;month:string;reservedMicros:number;calls:number;inputTokens:number;outputTokens:number}
 export interface BudgetReservation {finish(inputTokens:number|null,outputTokens:number|null):void}
 const write=(path:string,value:unknown)=>{const temp=path+'.'+randomUUID()+'.tmp';writeFileSync(temp,JSON.stringify(value),{mode:0o600});const fd=openSync(temp,'r');try{fsyncSync(fd);}finally{closeSync(fd);}renameSync(temp,path);};
+/** Upper-bound cost in USD of one call, at the same rates and token bounds the ledger reserves.
+ * Null when no price is known for the model: the cost is then unknown, never zero. */
+export function callUpperBoundUsd(model:string,inputUpper:number,outputUpper:number,env:NodeJS.ProcessEnv=process.env):number|null{
+ const inputRate=env.CMENG_AI_INPUT_USD_PER_MILLION,outputRate=env.CMENG_AI_OUTPUT_USD_PER_MILLION,hasRates=inputRate!==undefined||outputRate!==undefined;
+ const configured=[Number(inputRate),Number(outputRate)];
+ if(hasRates&&(!inputRate?.trim()||!outputRate?.trim()||configured.some(v=>!Number.isFinite(v)||v<0)))return null;
+ const rate=hasRates?configured:rates[model];
+ if(!rate||!Number.isSafeInteger(inputUpper)||inputUpper<0||!Number.isSafeInteger(outputUpper)||outputUpper<0)return null;
+ return Math.ceil(inputUpper*rate[0]!+outputUpper*rate[1]!)/1e6;
+}
 export function reserveModelUsage(model:string,inputUpper:number,outputUpper:number,env:NodeJS.ProcessEnv=process.env):BudgetReservation|null{
  const directory=env.CMENG_AI_USAGE_DIR;if(!directory)return null;
  const cap=Number(env.CMENG_AI_MONTHLY_USD??20);if(!Number.isFinite(cap)||cap<0||cap>20)throw Error('MODEL_BUDGET_CONFIGURATION_INVALID');

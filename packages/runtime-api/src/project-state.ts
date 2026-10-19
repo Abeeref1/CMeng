@@ -239,7 +239,7 @@ export async function enrichRegisterSheetSemantics(
   return read;
 }
 
-function workbookSemanticIdentity(
+export function workbookSemanticIdentity(
   category:EvidenceCategory,
   documentType:string,
   identification:EvidenceIdentification,
@@ -264,8 +264,9 @@ function workbookSemanticIdentity(
       category:only.category as EvidenceCategory,
       documentType:only.documentType,
       identification:{...identification,detectedCategory:only.category as EvidenceCategory,detectedDocumentType:only.documentType,
-        confidence:only.confidence,method:'tabular_content' as const,needsReview:false,
-        signals:[...identification.signals,...only.signals,'Worksheet content established the register role.'],
+        // An AI-read role is labelled as such and stays under review until a person adopts it.
+        confidence:only.confidence,method:'tabular_content' as const,needsReview:only.method==='ai_grounded',
+        signals:[...identification.signals,...only.signals,only.method==='ai_grounded'?'AI-read worksheet content proposed the register role; review required before use.':'Worksheet content established the register role.'],
         diagnostics:[...identification.diagnostics,'WORKBOOK_REGISTER_ROLE_ESTABLISHED_FROM_SHEET_CONTENT']},
     };
   }
