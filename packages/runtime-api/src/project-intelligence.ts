@@ -331,6 +331,8 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
       add('command-center.operationalReporting.counts.openCriticalMajorNcrCount','Complete open major/critical NCR count at Data Date',canonical?.controls.openCriticalMajorNcrCount.value,context);
       add('command-center.operationalReporting.knownCounts.openCriticalMajorNcrCount','Confirmed open major/critical NCRs · known subset',r?.knownCounts?.openCriticalMajorNcrCount,context);
       add('command-center.operationalReporting.knownCounts.uncertainCriticalMajorNcrCount','Current major/critical NCRs with unresolved status or severity',r?.knownCounts?.uncertainCriticalMajorNcrCount,context);
+      add('command-center.operationalReporting.knownCounts.unclearNcrCount','Current NCRs with unclear status · counted neither open nor closed',r?.knownCounts?.unclearNcrCount,context);
+      add('command-center.operationalReporting.quality.unclearStatusSummary','Unclear NCR status and reason',r?.quality?.unclearStatusSummary,context);
       population('command-center','ncrs','NCR records');
     }
     if(/\brfi\b/.test(q)){

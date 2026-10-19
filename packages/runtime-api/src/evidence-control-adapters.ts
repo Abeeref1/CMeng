@@ -982,6 +982,7 @@ export function deriveControlsFromCsv(
               statusIndex,
             ),
           ),
+        statusReason: ncrStatusFromSource(value(row,statusIndex)).reason,
         raisedIso: iso(value(row,indexOf(headers,["raised date","opened date","issue date","identified date"]))),
         closedIso: iso(value(row,indexOf(headers,["close date","closed date","response date","answered date"]))),
         statusAsOfIso: iso(value(row,indexOf(headers,["status as of","status date","snapshot date","as of date"]))),
