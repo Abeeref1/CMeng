@@ -5720,6 +5720,13 @@ function observeProjectDisplay(){
  projectDisplayObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
 }
 
+// SW-43: page-level buttons and notices added after the page is drawn go after
+// the page verdict, so the answer stays first. A page without a verdict keeps
+// them at the top, as before.
+function insertAfterPageAnswer(container,html){
+  const answer=typeof container.querySelector==='function'?container.querySelector(':scope>.position-verdict'):null;
+  if(answer)answer.insertAdjacentHTML('afterend',html);else container.insertAdjacentHTML('afterbegin',html);
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -5727,7 +5734,7 @@ function renderModuleResult(result){
   const decisions=renderDecisionAnalysis(result.legacyKey||result.key,result.data);
   const linkReview=linkCandidateEntry(result.legacyKey||result.key);if(linkReview)container.insertAdjacentHTML('beforeend',linkReview);
   if(decisions)container.insertAdjacentHTML('beforeend',decisions);
-  if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))container.insertAdjacentHTML('afterbegin','<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button>'+((result.legacyKey||result.key)==='challenge-contract'?'<button class="btn" onclick="openRecoveryScenario()">Enter or edit recovery assumptions</button>':'')+'</div>');
+  if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))insertAfterPageAnswer(container,'<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button>'+((result.legacyKey||result.key)==='challenge-contract'?'<button class="btn" onclick="openRecoveryScenario()">Enter or edit recovery assumptions</button>':'')+'</div>');
   const mapping=result.data?.boqProgrammeLinks;
   if(mapping){
    const text=fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+(mapping.coveragePercent==null?'Coverage not calculable':fmt(mapping.coveragePercent)+'%');
@@ -5776,7 +5783,7 @@ function renderModuleResult(result){
   const timeFact=result.data?.projectFacts?.time?.extendedContractCompletionIso??result.projectFacts?.time?.extendedContractCompletionIso;
   if(timeFact?.diagnostics?.includes('AMENDMENT_OVERLAP_TO_CONFIRM')&&timeFact.value){
     const award=result.data?.projectFacts?.time?.awardedEotDays?.value??null;
-    container.insertAdjacentHTML('afterbegin','<div class="notice info"><b>Extended completion comparison · '+escapeHtml(planningShortDate(timeFact.value))+'</b><p>Amendment overlap to confirm'+(award!==null?' · '+fmt(award)+' awarded EOT days':'')+'. The source figures are retained; this is not an additional certified EOT or a basis for liquidated damages.</p></div>');
+    insertAfterPageAnswer(container,'<div class="notice info"><b>Extended completion comparison · '+escapeHtml(planningShortDate(timeFact.value))+'</b><p>Amendment overlap to confirm'+(award!==null?' · '+fmt(award)+' awarded EOT days':'')+'. The source figures are retained; this is not an additional certified EOT or a basis for liquidated damages.</p></div>');
   }
   applyPmcDisplayOwners(container,result.key);
   applyProjectDisplayText(container);
