@@ -2184,13 +2184,19 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
     documentType:decision.documentType,category:decision.category,recordedDocumentType:document.documentType,reviewRequired:false,
     reason:'Document type confirmed from source review: '+decision.reference,
   };
+  // Content decides the type. When the file name says another type, the
+  // content type is still used, but the difference is queued for the user to
+  // confirm instead of being filed silently.
+  const nameHint=document.category!=='schedule'&&document.identification&&!['metadata_fallback','unreadable'].includes(document.identification.method)?document.identification.filenameHintDocumentType:null;
+  const nameDiffers=(type:string)=>!!nameHint&&nameHint!=='supporting_document'&&nameHint!==type;
+  const nameReason=(type:string)=>'The file name suggests '+nameHint!.replaceAll('_',' ')+' but the content shows '+type.replaceAll('_',' ')+'. The content type is used. Confirm it after checking the source.';
   const headerRoute=tableRows?inferTableSemanticRoute(tableRows,document.documentType):null;
   if(headerRoute)return {
     documentType:headerRoute.documentType,category:headerRoute.category,
     recordedDocumentType:document.documentType,confidence:headerRoute.confidence,
-    reviewRequired:false,headerClassified:true,
+    reviewRequired:nameDiffers(headerRoute.documentType),headerClassified:true,
     usableRegister:!['superseded','scenario'].includes(document.basisState),
-    reason:'Register type established by the retained header and rows. Row-level qualifications and completeness are assessed separately.',
+    reason:(nameDiffers(headerRoute.documentType)?nameReason(headerRoute.documentType)+' ':'')+'Register type established by the retained header and rows. Row-level qualifications and completeness are assessed separately.',
   };
   if(document.boqTableRead&&document.sourceHashSha256&&document.boqTableRead.sourceHashSha256===document.sourceHashSha256&&document.boqTableRead.structuredTableFound)return {
     documentType:'boq',category:'boq_cost',recordedDocumentType:document.documentType,
@@ -2208,8 +2214,8 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
   return { documentType: changed ? detected.documentType : document.documentType,
     category: changed ? detected.category : document.category,
     recordedDocumentType: document.documentType,
-    reviewRequired: Boolean(changed||document.identification?.needsReview),
-    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : document.identification?.needsReview?'The source reader is uncertain about this document type. Confirm or correct the type after checking the retained source.':null };
+    reviewRequired: Boolean(changed||document.identification?.needsReview||nameDiffers(changed?detected.documentType:document.documentType)),
+    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : document.identification?.needsReview?'The source reader is uncertain about this document type. Confirm or correct the type after checking the retained source.':nameDiffers(document.documentType)?nameReason(document.documentType):null };
 }
 
 export function documentClassificationChoices(document:StoredEvidenceDocument){
