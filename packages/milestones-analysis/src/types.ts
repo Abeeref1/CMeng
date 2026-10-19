@@ -123,5 +123,30 @@ export interface MilestonesProjection {
   highPriorityCount: number;
   sourceFloatCriticalMilestoneIds: string[];
   terminalCriticalMilestoneIds: string[];
+  /** F49: completed milestones whose actual date is after the baseline date. Additive. */
+  completedLate?: CompletedLateMilestones;
   rows: MilestoneRow[];
+}
+
+export interface CompletedLateMilestone {
+  activityId: string;
+  name: string | null;
+  calendarId: string | null;
+  baselineDateIso: string;
+  actualDateIso: string;
+  lateCalendarDays: number;
+  /** Working time between baseline and actual on the milestone's own calendar / that calendar's day length. Null when the calendar is missing or not usable. */
+  lateWorkingDays: number | null;
+}
+
+export interface CompletedLateMilestones {
+  basis: "actual_date_after_baseline_date";
+  formula: string;
+  completedCount: number;
+  comparableCount: number;
+  /** Completed milestones with no baseline date or no actual date: lateness unknown, never counted as on time. */
+  notComparableCount: number;
+  notComparableActivityIds: string[];
+  count: number;
+  milestones: CompletedLateMilestone[];
 }

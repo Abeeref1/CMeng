@@ -847,6 +847,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     for(let index=events.length-1;index>=0;index-=1)if(events[index]!.eventId===eventId)events.splice(index,1);
     events.push(sourceEvent);
   }
+  // SW-15: a claim-cited event reference keeps its links but never an event date.
+  for(const event of events)if(event.identitySource==='claims_register_row'){event.startIso=null;event.awarenessIso=null;event.endIso=null;}
   const trustedClaims=claims;
   const trustedEvents=events;
   const trustedNotices=notices;

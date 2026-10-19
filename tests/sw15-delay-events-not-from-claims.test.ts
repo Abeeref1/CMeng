@@ -141,3 +141,12 @@ test('SW-15: an event register gives the events, dates and notice timing; claim 
   assert.equal(reporting.eventPopulationState,'established');
   assert.deepEqual(reporting.events.asOf.map(e=>e.eventId).sort(),['EV-1','EV-2']);
 });
+
+test('SW-15: claim-cited references keep links but no event date, and are not matched to a window (no event source)',t=>{
+  const model=canonicalTimeClaims(claimsRegisterOnlyState(t)).delayClaims!;
+  assert.ok(model.events.length>0);
+  assert.ok(model.events.every(e=>e.startIso===null&&e.endIso===null&&(e.awarenessIso??null)===null),'the claim row event start is never an event date');
+  assert.deepEqual(model.claims.map(c=>c.eventIds.length),[1,1,1],'claim links kept');
+  const delay=buildDelayClaimsProjection(noWindows,model,meta);
+  assert.ok(delay.events.every(row=>row.overlappingWindowIds.length===0&&row.observedNetProgrammeMovementDays===null&&row.diagnostics.includes('NOT_MATCHED_TO_WINDOW_NO_EVENT_SOURCE')));
+});

@@ -2,6 +2,7 @@ import { reportingScope } from "../../truth-kernel/src";
 import {
   assessAllEventNotices,
   delayEventPopulation,
+  eventFromEventSource,
   type DelayClaimsModel,
 } from "../../delay-analysis-core/src";
 import type {
@@ -179,7 +180,11 @@ export function buildDelayClaimsProjection(
 
       const diagnostics: string[] = [];
 
-      if (
+      if (!eventFromEventSource(event, model)) {
+        diagnostics.push(
+          "NOT_MATCHED_TO_WINDOW_NO_EVENT_SOURCE",
+        );
+      } else if (
         overlapping.length === 0 &&
         event.startIso !== null
       ) {

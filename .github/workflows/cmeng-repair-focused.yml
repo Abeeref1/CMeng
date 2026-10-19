@@ -33,6 +33,7 @@ jobs:
           node --test --test-concurrency=1 \
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
+            dist/tests/t09-action-assignment.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-module-issues-walk-parity.test.js \
             dist/tests/t10-downloads-match-screen.test.js \
@@ -134,6 +135,7 @@ jobs:
             dist/tests/t03-semantic-ai-step-audit.test.js \
             dist/tests/t03-contract-ai-call-cap.test.js \
             dist/tests/t03-ai-reading-controls.test.js \
+            dist/tests/t03-ai-completion.test.js \
             dist/tests/t03-ai-error-states.test.js \
             dist/tests/t11-diagnosis-source-count-parity.test.js \
             dist/tests/t11-controlled-baseline-full-source-parity.test.js \
@@ -162,7 +164,9 @@ jobs:
             dist/tests/w3-commercial-headline-basis.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \
             dist/tests/w1-f14-delivered-status-without-date.test.js \
-            dist/tests/w9-management-brief-answer-first.test.js
+            dist/tests/w9-management-brief-answer-first.test.js \
+            dist/tests/f49-completed-late-milestones.test.js \
+            dist/tests/f26-constraint-comparison.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

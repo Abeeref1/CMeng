@@ -64,4 +64,16 @@ export interface IndependentForecastProjection {
   probabilistic: ProbabilisticForecastComparator;
   activities: IndependentForecastActivityRow[];
   complete: boolean;
+  /** F26: the same CPM run with and without the source constraints. Additive; present only when the constrained run was asked for. */
+  constraintComparison?: ConstraintComparison;
+}
+
+export interface ConstraintComparison {
+  basis: "source_constraints_applied_vs_not_applied" | "no_source_constraints_identical_network";
+  formula: string;
+  constrainedActivityCount: number;
+  withConstraintsCompletionIso: string | null;
+  withoutConstraintsCompletionIso: string | null;
+  /** with-constraints completion minus without-constraints completion, elapsed calendar days; positive = constraints delay completion. Null when either run is unresolved. */
+  differenceCalendarDays: number | null;
 }
