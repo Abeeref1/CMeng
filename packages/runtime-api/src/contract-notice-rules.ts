@@ -2,6 +2,7 @@ import {dateValue} from '../../truth-kernel/src';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {noticeReviewBasis,reportingContractTermVersions} from './notice-review';
+import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 
 /** Extract explicit initial-claim periods with their contract version. Never
  * turn a document-wide topic count into a notice rule or apply an amendment
@@ -11,11 +12,16 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
   const review=noticeKind==='claim_notice'?noticeReviewBasis(state):null;
   const labelledTerms=noticeKind==='claim_notice'?reportingContractTermVersions(state).filter(v=>v.term==='noticePeriodDays'):[];
   const selected=review?.decision?.choice==='choose_provisions';
-  const interpretationUnresolved=noticeKind==='claim_notice'&&(review?.decision?.choice==='refer_contracts'||labelledTerms.some(t=>t.applicability==='unresolved'));
+  // An unadopted term cannot make an adopted notice rule unresolved.
+  const adoptedTerms=labelledTerms.filter(t=>!t.sourceAnalyticalUse);
+  const interpretationUnresolved=noticeKind==='claim_notice'&&(review?.decision?.choice==='refer_contracts'||(adoptedTerms.length?adoptedTerms:labelledTerms).some(t=>t.applicability==='unresolved'));
+  // T04: the shared source-analytical rule; a unique fully read candidate is used and labelled.
+  const sources=contractSourceAnalysis(state);
   for(const document of state.contractDocuments){
     if(!['main','amendment','replacement'].includes(document.role))continue;
     const evidence=state.evidenceDocuments.find(d=>d.documentId===document.documentId);
-    if(evidence&&!['active','additive'].includes(evidence.basisState))continue;
+    if(!sources.eligible(document.documentId,true))continue;
+    const unadopted=sources.unadopted(document.documentId);
     const pages=document.result.pdf?.pages??[];
     const sections=document.result.sections??[];
     const fragments=pages.length?pages.map(p=>({text:p.text,locator:'page:'+p.pageNumber})):
@@ -44,16 +50,26 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
         applicabilityState:interpretationUnresolved||conflictingDayBasis||/retrospective|retroactive/i.test(text)?'unresolved':'established',
         ...(term?.unit.includes('working')?{sourceDayBasis:'working' as const}:{}),
         triggerBasis:/became aware|become aware|should have become aware/i.test(ruleText)?'awareness':/after (?:the )?event (?:start|occurr)|from (?:the )?event date/i.test(ruleText)?'event_start':'not_stated',
-        state:periods.length===1&&Boolean(evidence)&&sections.some(s=>s.sourceMode==='deterministic')?'official':'candidate',
+        // Read from an unadopted source: used and labelled, never 'official'.
+        state:!unadopted&&periods.length===1&&Boolean(evidence)&&sections.some(s=>s.sourceMode==='deterministic')?'official':'candidate',
+        ...(unadopted?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{}),
         clauseIdentifiers:[...new Set([...text.matchAll(/(?:Sub[- ]Clause|Clause|Article)\s+(\d+(?:\.\d+)*)/gi)].map(m=>m[1]!))],
         evidenceRefs:[...new Set(matches.filter(m=>m.days===days).map(m=>m.locator))].map(locator=>({sourceType:'contract' as const,sourceId:document.documentId,locator})),
         applicabilityNote:'Version dates assume prospective application. Confirm the contractual trigger, day basis and any retrospective effect before a notice-compliance conclusion.'});
     }
   }
-  const changes=[...new Set(rules.map(r=>r.effectiveFromIso).filter((v):v is string=>Boolean(v)))].sort();
+  // An adopted notice rule is never erased, shortened or overridden by an
+  // unadopted source: when adopted rules exist, a different unadopted period is
+  // kept as a named source conflict and takes no part in the intervals.
+  const adoptedRules=rules.filter(r=>!r.sourceAnalyticalUse);
+  const sourceConflicts=adoptedRules.length?[...new Set(rules.filter(r=>r.sourceAnalyticalUse&&!adoptedRules.some(a=>a.noticePeriodDays===r.noticePeriodDays))
+    .map(r=>'UNADOPTED_SOURCE_NOTICE_PERIOD_DIFFERS:'+noticeKind+':'+r.noticePeriodDays+' days:'+r.requirementId.split(':'+noticeKind+':')[0]))]:[];
+  const used=adoptedRules.length?adoptedRules:rules;
+  const changes=[...new Set(used.map(r=>r.effectiveFromIso).filter((v):v is string=>Boolean(v)))].sort();
   // Preserve source intervals even when a later provision is not selected:
   // excluding it cannot silently extend the earlier rule into that gap.
-  return rules.map(rule=>({...rule,effectiveToIso:rule.effectiveToIso??changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null}));
+  return used.map(rule=>({...rule,effectiveToIso:rule.effectiveToIso??changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null,
+    ...(sourceConflicts.length?{sourceConflicts}:{})}));
 }
 
 export function noticeVersionCohorts(notices:readonly {kind:string;actualIssuedAt:string|null}[],rules:readonly NoticeRequirement[]){

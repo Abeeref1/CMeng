@@ -235,6 +235,11 @@ export interface NoticeRequirement {
   state: GovernanceState;
   clauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
+  /** T04: read from a contract source that is not formally adopted. */
+  sourceAnalyticalUse?: "qualified_source_read";
+  sourceAnalyticalNote?: string;
+  /** Unadopted sources stating a different period than the adopted rules. */
+  sourceConflicts?: string[];
 }
 
 export interface DelayClaimsModel {

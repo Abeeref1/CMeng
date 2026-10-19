@@ -2,6 +2,7 @@ import {extractContractLdTerms} from '../../contract-commercial/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
+import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 
 export function sectionCompletionMilestone(activities:CanonicalScheduleModel['activities'],label:string){
  const whole=/(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project)/i.test(label);
@@ -14,18 +15,24 @@ export function sectionCompletionMilestone(activities:CanonicalScheduleModel['ac
 }
 
 export function contractCompletionDependencies(state:ProjectRuntimeState){
- const rows:Array<{fromSection:string;toSection:string;sourceRefs:string[]}>=[];
+ const rows:Array<{fromSection:string;toSection:string;sourceRefs:string[];sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE}>=[];
+ // T04: the shared source-analytical rule; a dependency read only from an
+ // unadopted contract is used and labelled, never as adopted.
+ const sources=contractSourceAnalysis(state);
  for(const document of state.contractDocuments??[]){
   if(!['main','replacement','amendment'].includes(document.role))continue;
-  const evidence=state.evidenceDocuments.find(row=>row.documentId===document.documentId);
-  if(evidence&&!['active','additive'].includes(evidence.basisState))continue;
+  if(!sources.eligible(document.documentId,true))continue;
+  const unadopted=sources.unadopted(document.documentId);
   const fragments=document.result.pdf?.pages.map(page=>({text:page.text,locator:'page:'+page.pageNumber}))??document.result.sections.map(section=>({text:section.text,locator:section.sectionKey}));
   for(const fragment of fragments){
    const text=fragment.text.replace(/\s+/g,' ');
    for(const match of text.matchAll(/\bSection\s+(\d+)(?:\s*\([^)]*\))?[^.;]{0,100}?(?:shall\s+not|must\s+not|cannot)[^.;]{0,100}?\buntil\s+Section\s+(\d+)/gi)){
     if(match[1]===match[2])continue;
     const fromSection=match[2]!,toSection=match[1]!;
-    if(!rows.some(row=>row.fromSection===fromSection&&row.toSection===toSection))rows.push({fromSection,toSection,sourceRefs:['evidence-document:'+document.documentId+':'+fragment.locator]});
+    const prior=rows.find(row=>row.fromSection===fromSection&&row.toSection===toSection);
+    // An adopted statement of the same dependency keeps the adopted label.
+    if(prior){if(prior.sourceAnalyticalUse&&!unadopted){prior.sourceRefs=['evidence-document:'+document.documentId+':'+fragment.locator];delete prior.sourceAnalyticalUse;}continue;}
+    rows.push({fromSection,toSection,sourceRefs:['evidence-document:'+document.documentId+':'+fragment.locator],...(unadopted?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE}:{})});
    }
   }
  }
@@ -33,8 +40,14 @@ export function contractCompletionDependencies(state:ProjectRuntimeState){
 }
 
 export function projectContractSections(state:ProjectRuntimeState,originalFinish:string|null,extendedFinish:string|null){
-  if(!state.contract)return [];
-  const terms=extractContractLdTerms(state.contract),model=projectControlSchedule(state)?.revision.model,dependencies=contractCompletionDependencies(state);
+  // T04: with no adopted contract, the unique fully read unadopted main
+  // contract (shared rule) is read and every section is labelled.
+  const sources=contractSourceAnalysis(state);
+  const unadoptedMain=state.contract?[]:(state.contractDocuments??[]).filter(d=>['main','replacement'].includes(d.role)&&sources.unadopted(d.documentId));
+  const contract=state.contract??(unadoptedMain.length===1?unadoptedMain[0]!.result:null);
+  if(!contract)return [];
+  const fromUnadoptedContract=!state.contract;
+  const terms=extractContractLdTerms(contract),model=projectControlSchedule(state)?.revision.model,dependencies=contractCompletionDependencies(state);
   return terms.rateCandidates.filter(rate=>rate.sectionKey?.startsWith('contract-section:')).map(rate=>{
     const label=rate.sectionHeading??'Section '+rate.sectionIdentifier;
     const whole=/(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project)/i.test(label);
@@ -47,7 +60,9 @@ export function projectContractSections(state:ProjectRuntimeState,originalFinish
       contractCompletionIso:whole?originalFinish:null,extendedCompletionIso:whole?extendedFinish:null,
       milestoneId:activity?.activityId??null,programmeCompletionIso:activity?(activity.actualFinishIso??activity.forecastFinishIso??activity.currentFinishIso):null,
       completionDependsOnSectionIds:dependencies.filter(row=>row.toSection===rate.sectionIdentifier).map(row=>row.fromSection),
-      authority:'From contract, not yet confirmed',sourceRefs:rate.sourceRefs};
+      authority:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'From contract, not yet confirmed',sourceRefs:rate.sourceRefs,
+      ...(fromUnadoptedContract||dependencies.some(row=>row.toSection===rate.sectionIdentifier&&row.sourceAnalyticalUse)
+        ?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'Section dependency read from a source that is not formally adopted.'}:{})};
     return {...section,scenario:sectionDelayDamagesScenario(section)};
   });
 }

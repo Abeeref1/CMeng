@@ -1,6 +1,6 @@
 import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
-import {contractCompletionPosition} from './contract-completion';
+import {completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
@@ -868,14 +868,22 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     if(trustedDeterminations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
-  if(completion.hasContractDocuments){
-    const previous=contractTimeBasis??state.controls.contractTimeBasis;
+  // T04: a date read only from a unique, fully read unadopted contract is used
+  // with state 'candidate' and its label; it never replaces an adopted or
+  // user-confirmed date, which keeps the different date as a named conflict.
+  const heldByAdopted=completionHeldByAdoptedBasis(contractTimeBasis??state.controls.contractTimeBasis,completion);
+  if(heldByAdopted){
+    const previous=(contractTimeBasis??state.controls.contractTimeBasis)!;
+    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...previous.sourceRefs],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
+  }
+  else if(completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments){
+    const previous=withoutCompletionSourceLabel(contractTimeBasis??state.controls.contractTimeBasis);
     const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>
       candidate.role==='amendment'&&candidate.date===completion.value&&candidate.effectiveFrom!==null&&dataDateIso!==null&&candidate.effectiveFrom<=dataDateIso
     );
     const determinationOnlyExtension=!amendment&&!completionAlreadyAmended&&completion.state==='official'&&effectiveDeterminationDays!==null;
     const effectiveDeterminationRefs=effective.map(d=>'evidence-document:'+d.receipt.documentId+':'+d.receipt.locator);
-    contractTimeBasis={...previous,contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
+    contractTimeBasis={...previous,...completionSourceLabel(completion),contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
       officialApprovedEotDays:determinationOnlyExtension?effectiveDeterminationDays:previous?.officialApprovedEotDays??null,
       officialApprovedEotState:determinationOnlyExtension?'official':previous?.officialApprovedEotState??'missing',
       eotDayBasis:determinationOnlyExtension?'calendar_days':previous?.eotDayBasis??'unknown',
@@ -892,7 +900,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       }:{}),
       sourceRefs:[...new Set([...(previous?.sourceRefs??[]),...completion.sourceRefs,...(determinationOnlyExtension?effectiveDeterminationRefs:[])])]};
     if(determinationOnlyExtension)diagnostics.push('OFFICIAL_DETERMINATIONS_APPLIED_TO_UNAMENDED_CONTRACT_COMPLETION');
-    if(completion.reason)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
+    if(completion.reason&&!completion.sourceAnalyticalUse)diagnostics.push('CONTRACT_COMPLETION_UNRESOLVED:'+completion.reason);
+    if(completion.sourceAnalyticalUse)diagnostics.push('SOURCE_ANALYTICAL_NOT_ADOPTED:contract-completion');
+    diagnostics.push(...completion.sourceConflicts);
   }
 
   // A governed award is not erased merely because the importer did not

@@ -15,7 +15,7 @@ import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identi
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {readRegisterWorkbook,registerCsv} from './register-workbook';
-import {contractCompletionPosition} from './contract-completion';
+import {completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead} from './document-read-review';
@@ -145,8 +145,12 @@ function promoteContractTimeBasis(state: ProjectRuntimeState): void {
   const current=state.controls.contractTimeBasis;
   const asOf=projectDataDate(state);
   const resolved=contractCompletionPosition(state,asOf);
-  if(!resolved.hasContractDocuments)return;
-  state.controls.contractTimeBasis={...current,
+  // T04: a date read only from a unique, fully read unadopted contract is used
+  // with state 'candidate' and its label; it never replaces an adopted date.
+  if(!resolved.hasContractDocuments&&!resolved.hasSourceAnalyticalDocuments)return;
+  const held=completionHeldByAdoptedBasis(current,resolved);
+  if(held){if(held.length)state.controls.contractTimeBasis={...current!,contractualCompletionSourceConflicts:[...new Set([...(current!.contractualCompletionSourceConflicts??[]),...held])]};return;}
+  state.controls.contractTimeBasis={...withoutCompletionSourceLabel(current),...completionSourceLabel(resolved),
     contractualCompletionIso:resolved.value,contractualCompletionState:resolved.state,
     completionReason:resolved.reason,
     officialApprovedEotDays:current?.officialApprovedEotDays??null,officialApprovedEotState:current?.officialApprovedEotState??'missing',

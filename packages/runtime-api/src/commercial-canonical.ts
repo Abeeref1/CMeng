@@ -5,6 +5,8 @@ import { reconcilePaymentEvidence } from './payment-reconciliation';
 import { canonicalTimeClaims, projectDataDate } from './canonical-time-claims';
 import type { ProjectRuntimeState, ModuleRuntimeResult } from './project-state-types';
 import type {BondRecord} from '../../project-director/src';
+import {contractSourceAnalysis} from './contract-source-analysis';
+import {sourceAnalyticalDiagnostic} from './operational-reporting';
 export interface CommercialMoney {
   value: number | null; currency: string | null; taxBasis: 'exclusive' | 'inclusive' | 'unknown';
   amountBasis: string; state: FactState; asOf: string | null; receipts: SourceReceipt[];
@@ -203,10 +205,22 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const diagnostics:string[]=[],tables=governedTables(state.evidenceDocuments,diagnostics),dataDateIso=projectDataDate(state);
  // A currency is inherited only from an explicit contract currency statement, never from project location or an unrelated ledger.
  const contractCurrencies=new Set<string>(); const currencyReceipts:SourceReceipt[]=[];
- const approvedAmendments=new Set(canonicalTimeClaims(state).amendments.filter(a=>a.state==='official'&&a.effectiveDate&&dataDateIso&&a.effectiveDate<=dataDateIso).map(a=>a.documentId));
- for(const c of state.contractDocuments){if(c.role==='amendment'&&!approvedAmendments.has(c.documentId))continue;const d=state.evidenceDocuments.find(d=>d.documentId===c.documentId);if(!d||!['active','additive'].includes(d.basisState))continue;
+ const timeAmendments=canonicalTimeClaims(state).amendments;
+ const approvedAmendments=new Set(timeAmendments.filter(a=>a.state==='official'&&a.effectiveDate&&dataDateIso&&a.effectiveDate<=dataDateIso).map(a=>a.documentId));
+ const effectiveUnadoptedAmendments=new Set(timeAmendments.filter(a=>a.effectiveDate&&dataDateIso&&a.effectiveDate<=dataDateIso).map(a=>a.documentId));
+ // T04: the shared source-analytical rule. A currency stated only in a unique,
+ // fully read unadopted contract is used and labelled; an adopted statement is
+ // never overridden, and a different unadopted one is a named source conflict.
+ const contractSources=contractSourceAnalysis(state);const unadoptedCurrencies:Array<{currency:string;receipt:SourceReceipt}>=[];
+ for(const c of state.contractDocuments){if(c.role==='amendment'&&!approvedAmendments.has(c.documentId)&&!(contractSources.unadopted(c.documentId)&&effectiveUnadoptedAmendments.has(c.documentId)))continue;const d=state.evidenceDocuments.find(d=>d.documentId===c.documentId);if(!d||!contractSources.eligible(d.documentId))continue;const unadopted=contractSources.unadopted(d.documentId);
  const textSources=[...c.result.sections.filter(s=>s.sourceMode==='deterministic').map(s=>({text:s.text,startPage:s.startPage})),...(c.result.pdf?.pages??[]).filter(p=>p.method==='native').map(p=>({text:p.text,startPage:p.pageNumber}))];
- for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push({documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'}); }}
+ for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ const receipt:SourceReceipt={documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'};
+   if(unadopted){unadoptedCurrencies.push({currency:m[1]!.toUpperCase(),receipt});continue;}
+   contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push(receipt); }}
+ if(!contractCurrencies.size&&unadoptedCurrencies.length){
+   for(const u of unadoptedCurrencies){contractCurrencies.add(u.currency);currencyReceipts.push(u.receipt);}
+   for(const id of new Set(unadoptedCurrencies.map(u=>u.receipt.documentId)))diagnostics.push(sourceAnalyticalDiagnostic(id)+':contract-currency');
+ } else for(const u of unadoptedCurrencies)if(!contractCurrencies.has(u.currency))diagnostics.push('UNADOPTED_SOURCE_CONTRACT_CURRENCY_DIFFERS:'+u.currency+':'+u.receipt.documentId);
  const inheritedCurrency=contractCurrencies.size===1?[...contractCurrencies][0]!:null;
  const costMetrics:CostMetricRecord[]=[],payments:PaymentStageRecord[]=[],variations:CommercialVariation[]=[],siteInstructions:CommercialSiteInstruction[]=[],insurances:CommercialInsuranceRecord[]=[],obligations:CommercialObligationRecord[]=[],retentions:CommercialRetentionRecord[]=[];
  const bondTables=tables.filter(t=>has(t,'bond id')&&(has(t,'bond type')||has(t,'type')));

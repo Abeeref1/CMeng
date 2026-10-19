@@ -1,7 +1,8 @@
 import {numberValue,registerDate} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
+import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 export type ContractTermKey='ldRate'|'ldCap'|'retentionPercent'|'retentionCapPercent'|'paymentPeriodDays'|'noticePeriodDays'|'performanceSecurity'|'advanceSecurity';
-export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;}
+export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string;}
 const labels:Array<[ContractTermKey,RegExp]>=[
  ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|LD)|(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
  ['retentionCapPercent',/(?:limit of retention(?: money)?|retention\s*(?:cap|maximum|limit))/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)?/i],
@@ -12,8 +13,11 @@ const labels:Array<[ContractTermKey,RegExp]>=[
  * are never scanned as amounts. Effective intervals are exclusive at the end. */
 export function contractTermVersions(state:ProjectRuntimeState):ContractTermVersion[]{
  const versions:ContractTermVersion[]=[];
+ // T04: the shared source-analytical rule (adopted, or the unique fully read candidate).
+ const sources=contractSourceAnalysis(state);
  for(const doc of state.contractDocuments){
-  if(!['main','replacement','amendment'].includes(doc.role)||!state.evidenceDocuments.some(d=>d.documentId===doc.documentId&&['active','additive'].includes(d.basisState)))continue;
+  if(!['main','replacement','amendment'].includes(doc.role)||!sources.eligible(doc.documentId))continue;
+  const unadopted=sources.unadopted(doc.documentId);
   const nativePages=(doc.result.pdf?.pages??[]).filter(p=>p.method==='native');
   const fragments=nativePages.length?nativePages.map(p=>({text:p.text,page:p.pageNumber})):(doc.result.sections??[]).filter(s=>s.sourceMode==='deterministic').map(s=>({text:[s.heading??'',s.text].join('\n'),page:s.startPage}));
   const whole=fragments.map(f=>f.text).join('\n');
@@ -47,19 +51,32 @@ export function contractTermVersions(state:ProjectRuntimeState):ContractTermVers
    const sourceRef='evidence-document:'+doc.documentId+':page:'+(f.page??'unresolved');
    const prior=versions.find(v=>v.documentId===doc.documentId&&v.term===term&&v.value===value&&v.unit===unit&&v.effectiveFromIso===from);
    if(prior){if(!prior.sourceRefs.includes(sourceRef))prior.sourceRefs.push(sourceRef);continue;}
-   versions.push({term,value,unit,effectiveFromIso:from,effectiveToIso:null,documentId:doc.documentId,role:doc.role,sourceRefs:[sourceRef],clauseIdentifier:clause,applicability});
+   versions.push({term,value,unit,effectiveFromIso:from,effectiveToIso:null,documentId:doc.documentId,role:doc.role,sourceRefs:[sourceRef],clauseIdentifier:clause,applicability,
+    ...(unadopted?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{})});
   }
   }
  }
- for(const v of versions)v.effectiveToIso=versions.filter(x=>x.term===v.term&&x.applicability==='prospective'&&x.effectiveFromIso&&(!v.effectiveFromIso||x.effectiveFromIso>v.effectiveFromIso)).map(x=>x.effectiveFromIso!).sort()[0]??null;
+ // An unadopted version never closes the interval of an adopted one.
+ for(const v of versions)v.effectiveToIso=versions.filter(x=>x.term===v.term&&x.applicability==='prospective'&&x.effectiveFromIso&&(!v.effectiveFromIso||x.effectiveFromIso>v.effectiveFromIso)&&(v.sourceAnalyticalUse||!x.sourceAnalyticalUse)).map(x=>x.effectiveFromIso!).sort()[0]??null;
  return versions;
 }
 export function termAtEvent(versions:readonly ContractTermVersion[],term:ContractTermKey,eventDate:string|null){
- const all=versions.filter(v=>v.term===term);const date=registerDate(eventDate??'');
+ // T04: an adopted value is never erased or overridden by an unadopted source.
+ // When an adopted version exists for this term, unadopted versions are kept
+ // only as named source conflicts; otherwise they are used and labelled.
+ const termVersions=versions.filter(v=>v.term===term);
+ const adoptedVersions=termVersions.filter(v=>!v.sourceAnalyticalUse);
+ const all=adoptedVersions.length?adoptedVersions:termVersions;const date=registerDate(eventDate??'');
  const applicable=all.filter(v=>date&&(!v.effectiveFromIso||v.effectiveFromIso<=date)&&(!v.effectiveToIso||v.effectiveToIso>date));
  const unresolved=all.some(v=>v.applicability==='unresolved');const distinct=new Set(applicable.map(v=>v.value+'|'+v.unit));
  const established=Boolean(date)&&!unresolved&&distinct.size===1;
- return {state:established?'established' as const:'unresolved' as const,value:established?applicable[0]!.value:null,unit:established?applicable[0]!.unit:null,reason:!date?'Event date is unresolved.':unresolved?'Amendment applicability is unresolved.':distinct.size>1?'Conflicting applicable contract values.':!distinct.size?'No applicable labelled contract value was recognised.':null,versions:applicable,sourceRefs:[...new Set(applicable.flatMap(v=>v.sourceRefs))]};
+ const unadoptedUsed=applicable.some(v=>v.sourceAnalyticalUse);
+ const sourceConflicts=adoptedVersions.length?[...new Set(termVersions.filter(v=>v.sourceAnalyticalUse&&!applicable.some(a=>a.value===v.value&&a.unit===v.unit))
+  .filter(v=>date&&(!v.effectiveFromIso||v.effectiveFromIso<=date))
+  .map(v=>'UNADOPTED_SOURCE_CONTRACT_TERM_DIFFERS:'+term+':'+v.value+' '+v.unit+':'+v.documentId))]:[];
+ return {...(unadoptedUsed?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{}),
+  ...(sourceConflicts.length?{sourceConflicts,sourceConflictNote:'An unadopted contract source states a different value; the adopted value is used until the source decision is made.'}:{}),
+  state:established?'established' as const:'unresolved' as const,value:established?applicable[0]!.value:null,unit:established?applicable[0]!.unit:null,reason:!date?'Event date is unresolved.':unresolved?'Amendment applicability is unresolved.':distinct.size>1?'Conflicting applicable contract values.':!distinct.size?'No applicable labelled contract value was recognised.':null,versions:applicable,sourceRefs:[...new Set(applicable.flatMap(v=>v.sourceRefs))]};
 }
 
 export function contractTermSelectionFactState(selected:ReturnType<typeof termAtEvent>){
@@ -67,6 +84,7 @@ export function contractTermSelectionFactState(selected:ReturnType<typeof termAt
  const hasApplicableSource=selected.versions.length>0;
  return {
   state:selected.state==='established'?'established' as const:conflicting?'conflicted' as const:hasApplicableSource?'partial' as const:'missing' as const,
-  authority:selected.state==='established'?'source' as const:conflicting?'mixed' as const:hasApplicableSource?'candidate' as const:'missing' as const,
+  // Read from source but not formally adopted is never reported as source authority.
+  authority:selected.state==='established'?(selected.sourceAnalyticalUse?'candidate' as const:'source' as const):conflicting?'mixed' as const:hasApplicableSource?'candidate' as const:'missing' as const,
  };
 }
