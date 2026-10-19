@@ -11,10 +11,10 @@ Starting point: guard run at b3c76d6, 11,822 failing of 43,401 checks, 39 rules,
 | Group | Rows | open_no_repair_linked | open_root_repair_saved_not_live | repair_saved_not_live_named_test | repair_live_no_named_test | repair_live_named_test_not_certified | originally_correct_watch |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SW | 57 | 1 | 0 | 55 | 0 | 1 | 0 |
-| F | 61 | 46 | 7 | 6 | 0 | 2 | 0 |
+| F | 61 | 40 | 3 | 16 | 0 | 2 | 0 |
 | S | 8 | 5 | 0 | 0 | 3 | 0 | 0 |
 | ABB | 641 | 57 | 522 | 0 | 0 | 0 | 62 |
-| All | 767 | 109 | 529 | 61 | 3 | 3 | 62 |
+| All | 767 | 103 | 525 | 71 | 3 | 3 | 62 |
 
 Before round-2 linking (commit b4ce3bf9), all groups: open_no_repair_linked 160, open_root_repair_saved_not_live 347, repair_saved_not_live_named_test 9, repair_live_no_named_test 3, repair_live_named_test_not_certified 4, originally_correct_watch 62.
 
@@ -147,6 +147,16 @@ Notes on linked repairs:
 - **F39**: completed work excluded from remaining duration and remaining resource figures (T06). Not covered: RFIs and NCRs on finished work as close-out, and finished areas not blocked, are not covered.
 - **F57**: an empty table says why it is empty in one line (S2). Not covered: One plain status word list on every page is not covered.
 - **F58**: delivery document receipts list the columns no calculation uses (R1). Not covered: Per-file view of mapped columns on the Documents page not checked here.
+- **F03**: Round 8: named test "T05 schedule float measures are identical on Dashboard, PMO analysis and Near-critical pages" proves one float calculation feeds those three pages. Not covered: Delayed-open count, area tables (Villa Type B), delay pages and charts are not in the test. a29151bc (Dashboard activity counts use the Activity Review binding) has no named test, so it is not linked.
+- **F06**: Round 8: named tests "T05 claims counts on commercial, dashboard and PMO pages equal the claims register pages" and "SW-15: events from an event source are counted; claim rows citing them add no events" prove claim and event counts come from one rule on every claims page. Not covered: Notice timing (14 timely / 2 late), determinations, awarded and claimed / assessed days per page are not tested; EOT page "Independent comparison not confirmed" not tested. With only a claims register the event count is now null with a reason, not 16.
+- **F11**: Round 8: named tests "SW-05 executive role view uses the page action register and facts, not the empty overview summary" and "SW-08 ... places held contract values, awarded EOT and the forecast" prove the director view reads the page facts. Not covered: Ask CMeng answers are not checked against the answer key.
+- **F17**: Round 8: named test "T02 SW-11 R2 a file named as one type but holding another is identified by content and queued for review" proves content, not file name, decides the type. Not covered: The permit register driving the Permits page and the monthly EVM history driving the cost trend and progress curve are not tested.
+- **F19**: Round 8: named test "SW-21 variation position: every change counted by state; an approved-only list is not the full change register" proves VO status is read from the register (rejected is not pending). Not covered: The IPC variations column linking VOs to payment (100% linkage, 11,776,000 by IPC-023) is not tested.
+- **F23**: Round 8: named test "SW-33: Handover Readiness uses the supplied asset register; programme names are only the labelled fallback without one" proves the labelled programme fallback for handover. Not covered: Testing, Snag and Weather pages with no register are not tested; disruption claims as a fallback are not tested.
+- **F40**: Round 8: named test "SW-23 window programme movement is the completion movement, not the largest single-activity shift" proves the stated movement per window. Not covered: Logic / lag / duration / constraint cause split, the 427-day update gap flag, slip rate and driving activities per window are not tested.
+- **F41**: Round 8: named tests "SW-25: unknown float stays unknown in share and direction, never 0" and "SW-25: the float trend chart plots the share" prove unknown points are gaps, not zero. Not covered: The REEM chart values (0 critical at baseline, 41 now) are not hand-checked; the chart now plots the share of unfinished work beside the count.
+- **F43**: Round 8: named test "SW-24 a driving-path crew option states its completion gain from a CMeng CPM run; late work off the path is not recovery" proves the second-crew option on the driving path. Not covered: The sixth-working-day option and the recovery target (11 working days extended / 20 original) are not tested.
+- **F53**: Round 8: named tests "T10: cells, scalar lists, record groups and population tables never print raw codes" and "T10: paths keep their context and one code has one label everywhere" prove codes do not reach page text. Not covered: Internal record IDs (614 hits on 7 pages at the last check) and readable names for revisions, documents and clauses are not tested; the test keeps IDs unchanged by design.
 - **S02**: Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02. Not covered: Plan of 13 Oct still lists S02 open; Accountability 5 to 18 s at b3c76d6.
 - **S35**: Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35. Not covered: Plan of 13 Oct still lists S35 open.
 - **S45**: Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50. Not covered: Plan of 13 Oct still lists S45 open.
@@ -170,27 +180,27 @@ Repairs saved with no SW row:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | F01 | Tests read the screen, with independent answers | 1 | R9 | none | none yet; consultant root R9 step 0 | expert_review | open_no_repair_linked |
 | F02 | Securities from one rule | 3 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
-| F03 | Schedule counts from one calculation | 7 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
+| F03 | Schedule counts from one calculation | 7 | R1 | none | 9e44e026 (saved, not live); consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | repair_saved_not_live_named_test |
 | F04 | RFI and NCR counts from one register reading | 3 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F05 | One action register | 3 | R1 | SW-39 | ddedd70b (saved, not live); consultant root R1 step 1 | guard_rule, expert_review (N4, N5, A3, A2) | open_root_repair_saved_not_live |
-| F06 | Claims and EOT facts shared | 6 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
+| F06 | Claims and EOT facts shared | 6 | R1 | none | 65ed08a4 (saved, not live), b08d17d9 (saved, not live); consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | repair_saved_not_live_named_test |
 | F07 | Shared inputs and prerequisites | 7 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F08 | One programme state and a real consistency check | 2 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F09 | Portfolio uses the same rules for every project | 1 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
 | F10 | One page per question, no duplicate blocks | 14 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
-| F11 | Director drawer and Ask CMeng read the same facts | 2 | R1 | none | none yet; consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | open_no_repair_linked |
+| F11 | Director drawer and Ask CMeng read the same facts | 2 | R1 | none | 8ee92f64 (saved, not live); consultant root R1 step 1 | guard_rule, expert_review (N4, N5) | repair_saved_not_live_named_test |
 | F12 | Owners from the registers, never hard-coded | 8 | R4 | none | 4eb29dd1 (saved, not live), ddedd70b (saved, not live); consultant root R4 step 2 | independent_reader (R1, R2, R3) | repair_saved_not_live_named_test |
 | F13 | Claims register fully read | 5 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F14 | Procurement register fully read; status drives delivered | 8 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F15 | Risk register fully read | 3 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F16 | Resource register actual hours | 2 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
-| F17 | Classify files by header, not file name | 4 | R4 | SW-11 | 5c81f67c (saved, not live), ffc6bc30 (saved, not live); consultant root R4 step 2 | independent_reader, guard_rule (R1, R2, R3) | open_root_repair_saved_not_live |
+| F17 | Classify files by header, not file name | 4 | R4 | SW-11 | 5c81f67c (saved, not live), ffc6bc30 (saved, not live); consultant root R4 step 2 | independent_reader, guard_rule (R1, R2, R3) | repair_saved_not_live_named_test |
 | F18 | Bond register instrument column | 1 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
-| F19 | VO and IPC registers | 2 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
+| F19 | VO and IPC registers | 2 | R4 | none | b58020ed (saved, not live); consultant root R4 step 2 | independent_reader (R1, R2, R3) | repair_saved_not_live_named_test |
 | F20 | Commercial terms and dated payments | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F21 | BOQ to programme mapping | 3 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F22 | Programme (XER) fields | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
-| F23 | Programme fallback for empty delivery registers | 4 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
+| F23 | Programme fallback for empty delivery registers | 4 | R4 | none | 55298d86 (saved, not live); consultant root R4 step 2 | independent_reader (R1, R2, R3) | repair_saved_not_live_named_test |
 | F24 | HSE report fields | 1 | R4 | none | none yet; consultant root R4 step 2 | independent_reader (R1, R2, R3) | open_no_repair_linked |
 | F25 | Clean registers used immediately | 9 | R2 | none | e6a1c480 (saved, not live), 8dfc6cd3 (saved, not live); consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | repair_saved_not_live_named_test |
 | F26 | A normal constraint does not block CPM or the forecast | 5 | R2 | none | none yet; consultant root R2 step 3 | guard_rule, expert_review (C1, C2, W10) | open_no_repair_linked |
@@ -207,10 +217,10 @@ Repairs saved with no SW row:
 | F37 | Cost rules | 4 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F38 | CPM, driving path and programme quality checks | 5 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F39 | Finished work is not open work | 9 | R5 | none | 7597c612 (saved, not live), a42a6be5 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | repair_saved_not_live_named_test |
-| F40 | Programme change analysis | 9 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
-| F41 | Float trend charts | 1 | R5 | SW-25 | 264cb8e8 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | open_root_repair_saved_not_live |
+| F40 | Programme change analysis | 9 | R5 | none | 0c94e0d3 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | repair_saved_not_live_named_test |
+| F41 | Float trend charts | 1 | R5 | SW-25 | 264cb8e8 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | repair_saved_not_live_named_test |
 | F42 | Look-ahead blockers | 4 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
-| F43 | Recovery options | 2 | R5 | SW-24 | 658d32a5 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | open_root_repair_saved_not_live |
+| F43 | Recovery options | 2 | R5 | SW-24 | 658d32a5 (saved, not live); consultant root R5 step 4 | independent_calculator, expert_review | repair_saved_not_live_named_test |
 | F44 | EOT pending pipeline | 1 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F45 | Progress and quantity rules | 8 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F46 | Resources against the driving chain | 1 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
@@ -220,7 +230,7 @@ Repairs saved with no SW row:
 | F50 | Portfolio card content | 1 | R5 | none | none yet; consultant root R5 step 4 | independent_calculator, expert_review | open_no_repair_linked |
 | F51 | Priority by consequence, one action per chain | 3 | R6 | none | none yet; consultant root R6 step 5 | guard_rule, expert_review (A3) | open_no_repair_linked |
 | F52 | Summary pages open with the answer | 5 | R7 | SW-43 | 75f0a422 (saved, not live), a2031606 (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_root_repair_saved_not_live |
-| F53 | No internal IDs, codes or data paths on screen | 9 | R7 | SW-45 | fb318c1a (saved, not live, per-fix history), 6ffa8bea (saved, not live, per-fix history), 7f2f7429 (saved, not live, per-fix history), 413524f5 (saved, not live), 3b421deb (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3, W3) | open_root_repair_saved_not_live |
+| F53 | No internal IDs, codes or data paths on screen | 9 | R7 | SW-45 | 6ffa8bea (saved, not live, per-fix history), 413524f5 (saved, not live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3, W3) | repair_saved_not_live_named_test |
 | F54 | Name the record, the blocker and the issue | 6 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
 | F55 | Accountability grouped by owner | 1 | R7 | none | none yet; consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | open_no_repair_linked |
 | F56 | Precision and formats | 8 | R7 | none | cb7443bf (live); consultant root R7 step 6 | guard_rule, expert_review (W1, W2, W5, W8, L1, L3) | repair_live_named_test_not_certified |
@@ -231,6 +241,56 @@ Repairs saved with no SW row:
 | F61 | Page weight | 2 | R8 | none | none yet; consultant root R8 step 7 | guard_rule (P2, N10) | open_no_repair_linked |
 
 Each F row keeps the consultant's expected check word for word in the ledger (`expectedSourceCheck`). Overlaps are proposed from titles and are unverified.
+
+### F rows not covered by any tested shared fix
+
+Round 8 (v/int5 at fbf01a6a): every F row with no tested shared fix. Each reason states what is wrong in the product at the last consultant check (ledger consultantObservation) and why no commit on v/int5 covers it. Nothing here is certified.
+
+- **F01** (open_no_repair_linked): No browser test opens every REEM page and compares displayed text with the answer key; the 251-check answer key reads API data only.
+- **F02** (open_no_repair_linked): No shared rule decides active / expired / expiring securities from expiry date vs data date; 21M shows as active on all 9 pages and insurance is not tested apart from bonds.
+- **F04** (open_no_repair_linked): RFI and NCR open / overdue / severity counts are not proven equal on Dashboard, RFI & Design and Quality; "Not established" still in 83 row cells on RFI & Design. SW-19 (unclear NCR state) is a different case.
+- **F05** (open_root_repair_saved_not_live): The same action total is not proven on Command Center, Accountability, Project review and Portfolio (276 shown), and RFI / NCR duplicated as activity actions is not tested. The proposed overlap SW-39 (module links) does not match; 5e9b9111 is marked not tested.
+- **F07** (open_no_repair_linked): Calendars, quantities, CPM coverage, capacity, discipline list, risk owners and row counts are still decided per page; no shared prerequisite status and no test.
+- **F08** (open_no_repair_linked): No test that Update02 has one state on every page (including Documents), and the cross-module consistency check still does not compare displayed values.
+- **F09** (open_no_repair_linked): Portfolio cards are not proven to read each project's shared facts; REEM extended date 21 Sep 2027 on the card not tested.
+- **F10** (open_no_repair_linked): Duplicate blocks across pages not checked or tested; no one-owner-page rule.
+- **F13** (open_no_repair_linked): Delay Event Register fields (awareness date, responsibility per claim, determinations) are not proven carried through; responsibility column not checked.
+- **F14** (open_no_repair_linked): A terminal package status (Delivered, Installed, Closed) without an actual date is not treated as delivered: "44 known late" counts 27 delivered packages (N-1). SW-42 and SW-18 commits cover other cases.
+- **F15** (open_no_repair_linked): Risk Impact, Score, Last Reviewed, Action Due Date and Closed status are not proven used for all 110 rows; no test.
+- **F16** (open_no_repair_linked): Actual Approved Usage by week is not read; recorded-hours fields show "Unresolved" 41 times on Resources and the Look-Ahead resources column is not linked.
+- **F18** (open_no_repair_linked): Instrument column setting the instrument type has no named test (consultant saw APG and CAR correct, but nothing guards it).
+- **F20** (open_no_repair_linked): Dated cash series from payment dates, the brief cost line (CPI 0.96, EAC 218.4M, unpaid 9.9M) and the three progress measures side by side are not proven; no test.
+- **F21** (open_no_repair_linked): BOQ WBS-to-programme mapping to the 14 areas and BOQ-to-package links have no named test.
+- **F22** (open_no_repair_linked): Baseline dates from the baseline file, discipline from the programme and plot / zone parsed from names have no named test.
+- **F24** (open_no_repair_linked): Values from a native-text HSE report (man-hours 831,000, LTI 1) are not proven extracted. SW-35 test covers rates from register period totals, not report text extraction.
+- **F26** (open_no_repair_linked): CPM is not run both with source constraints (as P6) and without them with both published; no test.
+- **F27** (open_no_repair_linked): The basis of each sum and date addition (extended date, unpaid, pending VOs, notice proxy, actual hours) is not shown and tested; actual-hours point not checked.
+- **F29** (open_no_repair_linked): Cash forecast still says "No source rows"; plaster-chain feasibility and recovery scenarios from the data held are not generated; no test.
+- **F30** (open_no_repair_linked): "Information needed" still 342 times on 29 pages; gaps do not each name the field, file, column, owner and one button. ca24362b gives a route for 2 gaps only (contract value, approved EOT days).
+- **F31** (open_no_repair_linked): No test that two sections with their own dates and damages raise no "section numbers repeat" item. 77baa5c2 / 2df7f3df test section reading, not the absence of the issue.
+- **F32** (open_no_repair_linked): No test that the "newly uploaded schedule needs your review" footer shows only while a schedule awaits review (consultant saw 0 of 50 pages, unguarded).
+- **F33** (open_root_repair_saved_not_live): Extended date (contract + awarded EOT) and days late are not proven on every page and finish chart; the completion constraint giving -88 h is not named. SW-22 test covers reading original vs extended from the contract only.
+- **F34** (open_no_repair_linked): Contract page marks the sectional LD (1,680,000 / 900,000) as "Needs review", and LD exposure is not on Dashboard or Financial Claims. 6975b694 checks the LD arithmetic against the independent ledger, not the display.
+- **F35** (open_no_repair_linked): Security cover to completion plus defects period and expired insurance flag have no named test.
+- **F36** (open_no_repair_linked): Gross vs net, applications not certified, 1-riyal rounding not a failure and the due date vs Sub-Clause 14.7 have no named test.
+- **F37** (open_no_repair_linked): Headline still "ADVERSE FORECAST 8.4M above original budget" instead of EAC vs current contract; positive "omissions" and register value above contract sum are not queried. SW-31 test covers an implausible source EAC only.
+- **F38** (open_no_repair_linked): Driving chain, stage classification, DCMA-type checks, BEI, CPLI and float erosion rate are not proven; no test.
+- **F42** (open_no_repair_linked): A late long-lead package or open RFI / NCR on a driving activity is not named as the blocker in the look-ahead, and float per activity in the window is not tested.
+- **F44** (open_no_repair_linked): Pending EOT claims scenario (8 pending, 21 assessed days) has no named test.
+- **F45** (open_no_repair_linked): Per-item curves load on every management page (N-5); progress by area, LS query, installed vs certified and earned hours have no test.
+- **F46** (open_no_repair_linked): Hours, shortfall and trade for the plaster chain are not calculated; no test.
+- **F47** (open_no_repair_linked): No per-claim check of days from notice to detailed claim against the 42-day Sub-Clause 20.2.4 bar.
+- **F48** (open_no_repair_linked): Expired permits are not linked to open or finished work; no test.
+- **F49** (open_no_repair_linked): Milestones that finished late are not listed; no test.
+- **F50** (open_no_repair_linked): Portfolio card text (forecast vs extended, days late, cost position, top threat) not checked or tested.
+- **F51** (open_no_repair_linked): Actions are not ranked by driving path, float, milestone and money with one action per chain under a test.
+- **F52** (open_root_repair_saved_not_live): Management Brief still opens with a 220-row float comparison table. SW-43 test covers generic module pages only, not the Management Brief, Activity Review, Milestones, Near-Critical or director view.
+- **F54** (open_no_repair_linked): Issue column does not state the defect and actions name only the activity, not the RFI / NCR / package; no test.
+- **F55** (open_no_repair_linked): Accountability actions are not grouped by owner with counts and overdue under a test.
+- **F60** (open_no_repair_linked): No test that an empty module returns a normal response (no HTTP 409) with one empty-state line; the consultant saw no errors, but nothing guards it. 428cf1dd tests the empty-table line, not the response.
+- **F61** (open_no_repair_linked): Management pages carry 16.5 to 17.8 MB of data (N-5) against the 2 MB limit. SW-03 test pages deep registers, not management page payloads.
+
+Round 8 (v/int5 at fbf01a6a): every F row read with its evidence; each round-4 to round-6 commit in 1153164d..v/int5 and the named tests of the SW rows read case by case. An F row is linked only where a named test case proves the F case; the rest of the F case is stated under Not covered.
 
 ## S-items
 
@@ -325,14 +385,15 @@ Commits on agent branches that are not in v/int3 (this build) when scanned at 20
 
 ## Still open with no repair linked
 
-Rows: SW-32, F01, F02, F03, F04, F06, F07, F08, F09, F10, F11, F13, F14, F15, F16, F18, F19, F20, F21, F22, F23, F24, F26, F27, F29, F30, F31, F32, F34, F35, F36, F37, F38, F40, F42, F44, F45, F46, F47, F48, F49, F50, F51, F54, F55, F60, F61, S06, S07, S17, S21, S32. Plus 57 page findings.
+Rows: SW-32, F01, F02, F04, F07, F08, F09, F10, F13, F14, F15, F16, F18, F20, F21, F22, F24, F26, F27, F29, F30, F31, F32, F34, F35, F36, F37, F38, F42, F44, F45, F46, F47, F48, F49, F50, F51, F54, F55, F60, F61, S06, S07, S17, S21, S32. Plus 57 page findings.
 
 - SW-17: Linked in round 3 (a18851b3).
 - SW-37: Commit 616ec8b8 was reverted by 85f740b9; see related.
 - SW-38: Commit 616ec8b8 was reverted by 85f740b9; see related.
 - ABB: 57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.
 - S: S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.
-- F: No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles.
+- F: Round 8 (v/int5): 43 F rows have no tested shared fix; each reason is under "F rows not covered by any tested shared fix". Earlier note (v/int2): no commit or test named these consultant items.
+- SW-32: Round 8: still open_no_repair_linked. No commit on v/int5 names SW-32 or changes the Delivery risk source; the live Delivery risk commits (47aa0c14, adf46522, eaa92bb0, all inside b3c76d6) predate the 13 Oct review that still saw 1 candidate risk from BOQ wording while a 600-row register is loaded.
 
 ## Sources not in the repository
 
