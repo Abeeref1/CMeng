@@ -12,7 +12,7 @@ import {conditionalNotice} from '../packages/runtime-api/src/conditional-notice'
 // The real page functions, taken from the built page script by name.
 const PAGE_FUNCTIONS=['conditionalNotice','knownScreenCount','screenCountText',
   'resourcePerHourNotAssessableNote','manhourUnitNote','manhourActualMissingNote',
-  'renderResourceVisual','renderManhourVisual'];
+  'renderResourceVisual','renderManhourVisual','renderRevisionTrendVisual'];
 function pageScript():string {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
@@ -23,7 +23,7 @@ const joinText=(...args:unknown[])=>args.filter(arg=>typeof arg==='string').join
 function render(call:string,p:Record<string,unknown>):string {
   return vm.runInNewContext(pageScript()+'\n'+call+'(p);',{
     p,projectionFor:(value:unknown)=>value,escapeHtml:text,fmt:text,humanizeKey:text,planningShortDate:text,resourceUnitLabel:text,
-    planningKpis:()=>'',moduleEvidenceGate:()=>'',renderLineChart:()=>'',renderResourceBasisReview:()=>'',moduleBarList:()=>'',
+    planningKpis:()=>'',planningRevisionLabel:text,moduleEvidenceGate:()=>'',renderLineChart:()=>'',renderResourceBasisReview:()=>'',moduleBarList:()=>'',
     experienceDisclosure:joinText,managementPanel:joinText,renderVisualPanel:joinText,visualSection:joinText,
   }) as string;
 }
@@ -86,4 +86,20 @@ test('SW-46 Delivery challenge prerequisites: calendars and labour hours are cal
   assert.equal(evidence(present,'calendar_working_time').established,true);
   assert.equal(evidence(present,'calendar_working_time').evidence,'Readable programme calendars are available independently of BOQ activity links; item-level working-time checks require those links.');
   assert.equal(evidence(present,'resource_basis').evidence,'Submitted activity-linked labour hours are available; independent required headcount also needs quantity/productivity evidence.');
+});
+
+test('SW-46 Revision History: "Revision History is available" is not shown when no revision is recorded',()=>{
+  const featureAvailability={state:'evidence_only',reason:'At least two comparable programme revisions are required.'};
+  const none=render('renderRevisionTrendVisual',{points:[],featureAvailability});
+  assert.doesNotMatch(none,/Revision History is available/);
+  assert.match(none,/No controlled programme revision is recorded, so Revision History and its trend are not available\./);
+  const one=render('renderRevisionTrendVisual',{points:[{label:'Rev 1',sequence:1,dataDateIso:'2026-08-31'}],featureAvailability});
+  assert.match(one,/Revision History is available, but a trend is not yet established\./);
+});
+
+test('SW-46 Resources: a programme without a stored resource model reports assignments as not established, not 0',()=>{
+  // The projection count is null (see canonical-resource-runtime.ts); the page must not say the programme has none.
+  const html=render('renderResourceVisual',{rows:[],assignedResourceCount:null,assignmentRecordCount:null,perHourCapacityBasedResourceCount:0,capacityCoveragePercent:null});
+  assert.doesNotMatch(html,/has no resource assignments|contains resource assignments/);
+  assert.match(html,/Resource assignments for the current programme are not established/);
 });
