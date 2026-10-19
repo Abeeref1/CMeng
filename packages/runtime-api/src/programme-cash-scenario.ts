@@ -1,5 +1,7 @@
 import type {CommercialControlPosition} from '../../commercial-control/src';
 
+const NET_ONLY_REASON='the payment certificates state net certified amounts only; the gross certified amount is not stated, and a net amount is not subtracted from the contract value.';
+const NET_ONLY_GROSS_MISSING='Dated gross certification (the certificates state net certified amounts only)';
 /** An explicit, reversible planning assumption over the existing money facts.
  * It never writes to the certificate, receipt or actual expenditure ledgers. */
 export function programmeCashScenario(position:CommercialControlPosition,dataDateIso:string|null,submittedProgrammeFinishIso:string|null=null){
@@ -28,20 +30,27 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
  const round=(value:number)=>Math.round(value*100)/100,totalDays=months.reduce((sum,row)=>sum+row.days,0);
  type CashRow={periodEndIso:string;grossValuation:number;netReceipt:number|null;assumedReceiptIso:string|null};
  type CashGroup={currency:string;remainingGross:number|null;retention:number|null;advanceRecovery:number|null;
-   netReceipts:number|null;rows:CashRow[];curvePoints?:Array<{dateIso:string;grossValuation:number;netReceipt:number|null}>;certificateCount:number|null;missingInputs:string[];basis:string};
+   netReceipts:number|null;rows:CashRow[];curvePoints?:Array<{dateIso:string;grossValuation:number;netReceipt:number|null}>;certificateCount:number|null;missingInputs:string[];basis:string;
+   /** R12 follow-up: why the scenario is not established when a known figure is deliberately not used. */
+   notEstablishedReason?:string};
  const groups:CashGroup[]=(position?.currencies??[]).flatMap((currency):CashGroup[]=>{
-  const current=finite(currency?.currentContractValue?.value),certified=finite(currency?.grossCertifiedAmount?.value);
+  // R12 follow-up: net certification is never subtracted from the contract value.
+  // When the certificates state net only, gross certification is not established
+  // and the scenario says so with that reason.
+  const netOnly=currency?.grossCertifiedAmountColumn==='net'&&finite(currency?.grossCertifiedAmount?.value)!==null;
+  const current=finite(currency?.currentContractValue?.value),certified=netOnly?null:finite(currency?.grossCertifiedAmount?.value);
   const advance=finite(currency.advanceBalance?.value);
   // Report every required source input together, including receipt terms when
   // missing valuation inputs prevent any rows from being calculated yet.
-  const missingInputs=[current===null?'Current contract value':null,certified===null?'Dated gross certification':null,!months.length?'Submitted programme finish after reporting date':null,
+  const missingInputs=[current===null?'Current contract value':null,certified===null?(netOnly?NET_ONLY_GROSS_MISSING:'Dated gross certification'):null,!months.length?'Submitted programme finish after reporting date':null,
     ...missingTerms,advance===null?'Remaining advance recovery balance':null].filter((value):value is string=>value!==null);
   if(current===null||certified===null||!months.length){
    const knownCertificates=currency.interimCertificateCount?.value??null;
    return [{currency:currency.currency,remainingGross:null,retention:null,advanceRecovery:null,netReceipts:null,
      rows:[] as Array<{periodEndIso:string;grossValuation:number;netReceipt:number|null;assumedReceiptIso:string|null}>,
      certificateCount:knownCertificates,missingInputs,
-     basis:'Receipts planning scenario withheld pending exact source inputs; '+(knownCertificates===null?'The certificate count is not established; known records remain visible.':knownCertificates+' payment certificates are recorded and retained.')}];
+     ...(netOnly?{notEstablishedReason:NET_ONLY_REASON}:{}),
+     basis:(netOnly?'Receipts planning scenario not established: '+NET_ONLY_REASON+' ':'Receipts planning scenario withheld pending exact source inputs; ')+(knownCertificates===null?'The certificate count is not established; known records remain visible.':knownCertificates+' payment certificates are recorded and retained.')}];
   }
   const remainingGross=round(Math.max(0,current-certified));
   const retention=retentionPercent===null?null:round(remainingGross*retentionPercent/100);
@@ -65,8 +74,8 @@ export function programmeCashScenario(position:CommercialControlPosition,dataDat
     basis:'Straight-line source-qualified future receipts, not actual cash.'}];
  });
  // R12: the certified figure is named by the register column it came from; net or
- // unlabelled certification is never called gross. The figures are unchanged.
- const certifiedNames=[...new Set((position?.currencies??[]).filter(c=>finite(c?.grossCertifiedAmount?.value)!==null)
+ // unlabelled certification is never called gross. Net is never subtracted (above).
+ const certifiedNames=[...new Set((position?.currencies??[]).filter(c=>finite(c?.grossCertifiedAmount?.value)!==null&&c.grossCertifiedAmountColumn!=='net')
   .map(c=>c.grossCertifiedAmountColumn&&c.grossCertifiedAmountColumn!=='gross'&&c.grossCertifiedAmountLabel?'the dated certified amount "'+c.grossCertifiedAmountLabel+'"':'dated gross certification'))];
  const certifiedBasisText=certifiedNames.length?certifiedNames.join(' / '):'dated gross certification';
  const missingInputs=[!dataDateIso?'Programme Data Date':null,!finishIso?'Submitted programme forecast finish':null,!(position?.currencies?.length)?'Currency-specific contract and certification records':null,...missingTerms,...groups.flatMap(g=>g.missingInputs)].filter((v):v is string=>v!==null);

@@ -1,5 +1,5 @@
 import {csv as parseCsv} from "../../truth-kernel/src";
-import {canonicalHeader,prepareEvidenceRows,registerDate,securityInstrumentKind} from '../../truth-kernel/src';
+import {canonicalHeader,prepareEvidenceRows,registerDate,securityInstrumentKind,NET_PAYABLE_HEADERS} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import {ncrStatusFromSource} from './operational-reporting';
 import {detectEventSourceTable,eventFromSourceRow,eventSourceCandidate,mergeSourceEvents} from './event-source-register';
@@ -516,16 +516,21 @@ export function deriveControlsFromCsv(
           "payment certificate",
         ],
       );
+    // R12 follow-up: the existing columns keep their priority. Only a register
+    // without any of them is read from a Net Payable column, and only a register
+    // without a net column either is read from its Gross Certified column; the
+    // column read is recorded in certifiedAmountColumn.
     const certifiedIndex =
-      indexOf(
-        headers,
+      [
         [
           "net certified",
           "certified amount",
           "net amount certified",
           "amount certified",
         ],
-      );
+        [...NET_PAYABLE_HEADERS],
+        ["gross certified amount"],
+      ].map((candidates) => indexOf(headers, candidates)).find((index) => index >= 0) ?? -1;
     const paidIndex =
       indexOf(
         headers,

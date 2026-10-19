@@ -1,5 +1,5 @@
 import {parseCsv as parseDelimitedCsv} from "../../tabular-parser/src";
-import {canonicalHeader,prepareRegisterRows} from './register-schema';
+import {canonicalHeader,prepareRegisterRows,NET_PAYABLE_HEADERS} from './register-schema';
 import {analyzeEvidenceTable, type EvidenceTableIntelligence, type EvidenceColumnConfirmation} from './table-intelligence';
 export * from './register-schema';
 export * from './table-intelligence';
@@ -391,7 +391,7 @@ export interface TableSemanticRoute {
 
 export interface TableSemanticSchema {documentType:string;category:string;required:string[][];optional:string[]}
 export const tableSemanticSchemas:readonly TableSemanticSchema[]=[
-  {documentType:'payment_certificates',category:'boq_cost',required:[['certificate no'],['net certified','gross work','paid amount','retention','advance recovery']],optional:['period end','certificate date','payment date','currency','status']},
+  {documentType:'payment_certificates',category:'boq_cost',required:[['certificate no'],['net certified','gross work','paid amount','retention','advance recovery',...NET_PAYABLE_HEADERS,'gross certified amount']],optional:['period end','certificate date','payment date','currency','status']},
   {documentType:'variation_register',category:'boq_cost',required:[['variation id'],['approved amount','submitted amount','agreed amount','assessed amount','status']],optional:['approval date','currency','description']},
   {documentType:'site_instruction_register',category:'boq_cost',required:[['instruction id','site instruction id','si id'],['issue date','instruction date']],optional:['status','quotation due date','quotation date','description','variation id','estimated amount','currency']},
   {documentType:'contract_obligation_register',category:'contract',required:[['obligation id'],['due date']],optional:['clause','description','responsible party','status','evidence reference']},

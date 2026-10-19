@@ -1,4 +1,4 @@
-import {canonicalHeader,selectCostMetricRows,securityStatusAtDataDate,securityInstrumentKind} from '../../truth-kernel/src';
+import {canonicalHeader,selectCostMetricRows,securityStatusAtDataDate,securityInstrumentKind,NET_PAYABLE_HEADERS} from '../../truth-kernel/src';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
@@ -162,7 +162,7 @@ export interface CanonicalCommercialModel {
 }
 const moneyNames=['applicationAmount','engineerAssessedAmount','employerCertifiedAmount','grossWork','grossCertifiedAmount','variations','variationCertifiedAmount','retentionDeduction','advanceRecovery','otherDeduction','taxAmount','netCertifiedAmount','paidAmount','outstandingAmount'] as const;
 const paymentHeaders:Record<typeof moneyNames[number],string[]>={
-  applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],grossCertifiedAmount:['gross certified','gross certified amount'],variations:['variations'],variationCertifiedAmount:['variation certified','variation certified amount','variation certification','certified variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount'],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
+  applicationAmount:['application amount','applied amount'],engineerAssessedAmount:['engineer assessed amount'],employerCertifiedAmount:['employer certified amount'],grossWork:['gross work'],grossCertifiedAmount:['gross certified','gross certified amount'],variations:['variations'],variationCertifiedAmount:['variation certified','variation certified amount','variation certification','certified variations'],retentionDeduction:['retention','retention deduction'],advanceRecovery:['advance recovery'],otherDeduction:['other deduction','other deductions'],taxAmount:['tax amount','vat amount'],netCertifiedAmount:['net certified','net certified amount',...NET_PAYABLE_HEADERS],paidAmount:['paid amount'],outstandingAmount:['outstanding amount'],
 };
 const tax=(s:string):CommercialMoney['taxBasis']=>/excl/i.test(s)?'exclusive':/incl/i.test(s)?'inclusive':'unknown';
 /** The one reading of a source tax / VAT basis cell (also used for BOQ rates, F45). */
@@ -288,7 +288,9 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
     paymentId:cell(r,'payment id','certificate no','ipc')||null,
    });
   }
-  if(has(t,'certificate no')&&amountHeader(t.headers,'net certified'))for(const r of t.rows){
+  // R12 follow-up: a Net Payable column is the certificate's net certified amount
+  // (a Net Certified column, when present, keeps priority in paymentHeaders).
+  if(has(t,'certificate no')&&amountHeader(t.headers,'net certified',...NET_PAYABLE_HEADERS))for(const r of t.rows){
    const asOf=dateValue(cell(r,'period end')),currency=cell(r,'currency')||inheritedCurrency;
    // Currency-qualified headers carry real source values; they are not missing
    // columns. A conflicting row/header currency remains an explicit conflict.
