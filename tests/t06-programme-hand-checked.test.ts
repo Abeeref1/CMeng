@@ -12,6 +12,9 @@ import {
 } from "../packages/schedule-analysis-core/src";
 import { parseScheduleCsv } from "../packages/schedule-tabular-parser/src";
 import { buildProgressBreakdownProjection } from "../packages/progress-breakdown/src";
+import { parseXerBytes } from "../packages/xer-parser/src";
+import { canonicalResourcesFromXer } from "../packages/schedule-resource-core/src";
+import { buildResourceUtilizationProjection } from "../packages/resource-utilization/src";
 
 // Ten activities. Durations in hours, as written in the file.
 //  A100 Task             OD 16 RD 0  Completed
@@ -167,4 +170,74 @@ test("completed work is excluded from remaining duration on every WBS row (typed
   assert.equal(projection.overallSummary!.remainingDurationHoursKnown, 48);
   const w1 = projection.rows.find((row) => row.wbsId === "W1")!;
   assert.equal(w1.remainingDurationHoursKnown, 48);
+});
+
+// One labour resource on two activities.
+//  A100 completed, float 0. Its assignment still carries a stale remaining
+//       quantity of 8 h at 1 h/h (12 to 14 Jan) in the source.
+//  A200 in progress, float 16 h. Remaining 30 h at 2 h/h (12 to 16 Jan).
+// No source at-completion quantity, so at-completion = actual + remaining.
+function resourceFixture() {
+  const xer = [
+    "ERMHDR\t23.12",
+    "%T\tPROJECT",
+    "%F\tproj_id\tproj_short_name",
+    "%R\t1\tT06",
+    "%T\tPROJWBS",
+    "%F\twbs_id\tproj_id\twbs_short_name",
+    "%R\t10\t1\tROOT",
+    "%T\tTASK",
+    "%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name",
+    "%R\t100\t1\t10\tA100\tFormwork",
+    "%R\t101\t1\t10\tA200\tRebar",
+    "%T\tUMEASURE",
+    "%F\tunit_id\tunit_name\tunit_abbrev\tseq_num",
+    "%R\t500\tHour\thr\t1",
+    "%T\tRSRC",
+    "%F\trsrc_id\tparent_rsrc_id\tclndr_id\trsrc_short_name\trsrc_name\trsrc_type\tunit_id\tcost_qty_type",
+    "%R\tR1\t\t\tCARP\tCarpenter\tRT_Labor\t500\tQT_Hour",
+    "%T\tTASKRSRC",
+    "%F\ttaskrsrc_id\tproj_id\ttask_id\trsrc_id\trsrc_type\ttarget_qty\tact_reg_qty\tact_ot_qty\tremain_qty\ttotal_qty\ttarget_qty_per_hr\tremain_qty_per_hr\ttarget_start_date\ttarget_end_date\tact_start_date\tact_end_date\trestart_date\treend_date\tcurv_id",
+    "%R\tAR1\t1\t100\tR1\tRT_Labor\t40\t40\t0\t8\t\t1\t1\t2026-01-01\t2026-01-05\t2026-01-01\t2026-01-06\t2026-01-12\t2026-01-14\t",
+    "%R\tAR2\t1\t101\tR1\tRT_Labor\t40\t10\t0\t30\t\t2\t2\t2026-01-05\t2026-01-10\t2026-01-05\t\t2026-01-12\t2026-01-16\t",
+    "%E",
+  ].join("\n");
+  const resources = canonicalResourcesFromXer(parseXerBytes(Buffer.from(xer, "utf8")), {
+    sourceRevisionId: "t06-res",
+    projectId: "T06",
+  });
+  const schedule = {
+    projectId: "T06",
+    source: "xer",
+    sourceRevisionId: "t06-res",
+    dataDateIso: "2026-01-12",
+    activities: [
+      activity("A100", { nativeId: "100", wbsId: "10", calendarId: null, status: "completed", actualFinishIso: "2026-01-06", totalFloatHours: 0, remainingDurationHours: 0, percentComplete: 100 }),
+      activity("A200", { nativeId: "101", wbsId: "10", calendarId: null, status: "in_progress", totalFloatHours: 16, remainingDurationHours: 30, percentComplete: 25 }),
+    ],
+    relationships: [],
+    wbs: [],
+    calendars: [],
+    diagnostics: [],
+  } as CanonicalScheduleModel;
+  return buildResourceUtilizationProjection(resources, schedule, {
+    generatedAt: "2026-01-12T00:00:00.000Z",
+    producerVersion: "t06-test",
+  }).rows.find((row) => row.resourceId === "R1")!;
+}
+
+test("resources: completed work is excluded from remaining units, remaining peak and pressure", () => {
+  const row = resourceFixture();
+  // Planned 40 + 40 = 80 and actual 40 + 10 = 50 are unchanged source values.
+  assert.equal(row.plannedUnitsKnown, 80);
+  assert.equal(row.actualUnitsKnown, 50);
+  // Remaining: A100 is complete, so 0 (not the stale 8) + 30 = 30.
+  assert.equal(row.remainingUnitsKnown, 30);
+  assert.equal(row.remainingUnitsKnownCount, 2);
+  // At completion: (40 + 0) + (10 + 30) = 80, not 88.
+  assert.equal(row.atCompletionUnitsKnownOrDerived, 80);
+  // Remaining peak: only A200 at 2 h/h; the stale 1 h/h on A100 is not added (old figure 3).
+  assert.equal(row.peakRemainingUnitsPerHour, 2);
+  // The completed A100 with zero float is not schedule pressure.
+  assert.equal(row.programmeEffect, "Affected programme scope is identified; project-completion effect is not established from resource evidence alone.");
 });
