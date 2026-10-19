@@ -356,6 +356,12 @@ function procurementSourceTotals(state:ProjectRuntimeState):ProcurementCompariso
  });
 }
 
+/** F37: the same register-to-contract rule, limited to the procurement package
+ * register so a dashboard can show its query without BOQ measurement work. */
+export function packageRegisterContractChecks(state:ProjectRuntimeState,commercial:any){
+ return buildRegisterChecks(commercial,{},null,procurementSourceTotals(state)).checkedRows.filter((r:any)=>String(r.register).startsWith('Procurement package register'));
+}
+
 /** Source-qualified commercial comparison, whether or not an exception exists.
  * Consumers keep the exceptions in rows exactly as before. The supporting
  * checkedRows show which comparable source populations were actually examined;

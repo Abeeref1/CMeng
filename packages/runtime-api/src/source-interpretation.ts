@@ -7,6 +7,7 @@ import {reviewScheduleCalendarBasis} from './schedule-calendar-review';
 import {operationalReporting} from './reporting-state';
 import {hseReportPosition} from './hse-report-evidence';
 import {commercialPositionForState} from './commercial-runtime';
+import {contractTaxBasis,likeForLikeCertifiedRatio} from './commercial-sum-basis';
 import {nearCriticalScreening} from './near-critical-screening';
 
 /** Shared source meaning accompanies API, management, reporting and AI results. */
@@ -37,7 +38,12 @@ export function sourceInterpretation(state:ProjectRuntimeState,progress?:Progres
       evm:(commercial.performance.costControl?.positions??[]).map(r=>({currency:r.currency,taxBasis:r.taxBasis,bac:r.bac.value,ev:r.ev.value,pv:r.pv.value,ac:r.ac.value,
         currentContractValue:commercial.currencies.find(g=>g.currency===r.currency)?.currentContractValue.value??null,
         earnedValuePercentOfBac:r.ev.value!==null&&r.bac.value!==null&&r.bac.value>0?r.ev.value/r.bac.value*100:null,spi:r.spi.value})),
-      certifiedWork:certificateGroups.map(g=>{const original= commercial.currencies.find(row=>row.currency===g.currency)?.originalContractValue.value??null,current=commercial.currencies.find(row=>row.currency===g.currency)?.currentContractValue.value??null,work=g.certifiedTotals?.grossWork??null;return {currency:g.currency,taxBasis:g.taxBasis,certifiedCount:g.certifiedCount,grossWork:work,originalContractValue:original,currentContractValue:current,percentOriginal:work!==null&&original!==null&&original>0?work/original*100:null,percentCurrent:work!==null&&current!==null&&current>0?work/current*100:null,basis:'Dated incremental certificates only; measured gross work excludes variations and advance applications. This is a monetary ratio, not measured physical progress.'};}),
+      certifiedWork:certificateGroups.map(g=>{const original= commercial.currencies.find(row=>row.currency===g.currency)?.originalContractValue.value??null,current=commercial.currencies.find(row=>row.currency===g.currency)?.currentContractValue.value??null,work=g.certifiedTotals?.grossWork??null;
+        // F36: the one like-for-like rule (same scope, currency and stated tax basis).
+        const ratio=likeForLikeCertifiedRatio({currency:g.currency,certifiedGrossWork:work,certificateTaxBasis:g.taxBasis,originalContract:original,
+          contractTax:((commercial as any).originalContractTaxBases??[]).find((c:any)=>c.currency===g.currency)??contractTaxBasis([],g.currency,original),certificateCount:g.certifiedCount??null});
+        return {currency:g.currency,taxBasis:g.taxBasis,certifiedCount:g.certifiedCount,grossWork:work,originalContractValue:original,currentContractValue:current,percentOriginal:ratio.valuePercent,
+        percentOriginalState:ratio.state,percentOriginalReason:ratio.reason,percentOriginalBasis:ratio.basis,percentCurrent:work!==null&&current!==null&&current>0?work/current*100:null,basis:'Dated incremental certificates only; measured gross work excludes variations and advance applications. This is a monetary ratio, not measured physical progress.'};}),
       certificatePeriods:certificateGroups.map(g=>({currency:g.currency,taxBasis:g.taxBasis,grossWork:g.totals?.grossWork??null,net:g.totals?.netCertifiedAmount??null,
         count:g.as_of.length,basis:g.totalLabel,certificationUnconfirmedCount:g.certificationUnconfirmedIds.length})),
       interpretation:'Schedule snapshot, time-phased baseline plan, earned value and certificate-period amounts use different weights and populations. The schedule ratio is an indicative comparison, not EVM SPI. Source certificate sums do not establish physical progress or cash.'},

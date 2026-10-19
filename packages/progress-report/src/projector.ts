@@ -61,10 +61,12 @@ function progressBasis(
     asOfIso?: string | null;
     coveragePercent?: number | null;
     basis?: string;
+    query?: string;
   } = {},
 ): ProgressBasisValue {
   return {
     ...(input.basis?{basis:input.basis}:{}),
+    ...(input.query&&valuePercent!==null?{query:input.query}:{}),
     valuePercent,
     state:
       valuePercent === null
@@ -284,6 +286,8 @@ export function buildProgressReportProjection(
             ?.certified
             ?.coveragePercent ??
           null,
+        ...(input.progressEvidence?.certified?.basis?{basis:input.progressEvidence.certified.basis}:{}),
+        ...(input.progressEvidence?.certified?.query?{query:input.progressEvidence.certified.query}:{}),
       },
     ),
     earnedValue: progressBasis(
@@ -313,7 +317,8 @@ export function buildProgressReportProjection(
         authority: headlineSelected.basis.authority,
         basis: headlineSelected.key === "schedule_snapshot"
           ? "Submitted activity percentage-complete snapshot; not certified physical progress."
-          : headlineSelected.basis.basis??"Best available achieved-progress evidence; current planned phasing remains a separate comparator.",
+          : (headlineSelected.basis.basis??"Best available achieved-progress evidence; current planned phasing remains a separate comparator.")+
+            (headlineSelected.basis.query?" Query: "+headlineSelected.basis.query:""),
       }
     : {
         key: "missing" as const,
