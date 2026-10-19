@@ -3006,7 +3006,7 @@ function renderRevisionTrendVisual(data){
   const availability=data?.featureAvailability||p.featureAvailability||null;
   if(availability&&availability.state!=="active"){
     const latest=p.points.at(-1)||null;
-    return '<section class="planning-view revision-view"><div class="notice info"><b>Revision History is available, but a trend is not yet established.</b><p>'+escapeHtml(availability.reason||"At least two controlled revisions are required for movement trends.")+'</p></div>'+(latest?planningKpis([
+    return '<section class="planning-view revision-view"><div class="notice info"><b>'+conditionalNotice(p.points.length>0,'Revision History is available, but a trend is not yet established.','No controlled programme revision is recorded, so Revision History and its trend are not available.')+'</b><p>'+escapeHtml(availability.reason||"At least two controlled revisions are required for movement trends.")+'</p></div>'+(latest?planningKpis([
       ["Current revision",planningRevisionLabel(latest.label)||("Revision "+latest.sequence),"chronology only"],
       ["Data Date",planningShortDate(latest.dataDateIso),"current controlled programme"],
       ["Schedule progress",latest.durationWeightedProgressPercent==null?"—":fmt(latest.durationWeightedProgressPercent)+"%","current revision"],
