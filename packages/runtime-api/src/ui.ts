@@ -5623,6 +5623,17 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const chips='<div class="module-basis">'+values.map(([label,value])=>'<span class="basis-chip"><b>'+escapeHtml(label)+'</b><strong title="'+escapeHtml(value)+'">'+escapeHtml(value)+'</strong></span>').join("")+'</div>';
   return contextOnly?chips:baselineHeadline+completionHeadline+calendarHeadline+screeningHeadline+chips;
 }
+// SW-44: the one generic field view for pages without a purpose-built view.
+// Every scalar field stays on the page (none is cut off after the first 12).
+// The first six are the key figures; the rest sit one click away in Details.
+// A figure (same label and same shown value) is printed once.
+function renderGenericFieldView(data){
+  const seen=new Set();
+  const fields=(data&&typeof data==="object"?Object.entries(data):[]).filter(([k,v])=>isScalarValue(v)&&k!=="challenge"&&!readerTechnicalField(k)&&!readerPresentationTechnicalField(k)).map(([k,v])=>[humanizeKey(k),fmtForField(k,v)]).filter(([label,shown])=>{const figure=JSON.stringify([label,shown]);if(seen.has(figure))return false;seen.add(figure);return true;});
+  const cells=rows=>rows.map(([label,shown])=>'<div class="scalar"><b>'+escapeHtml(label)+'</b><span>'+escapeHtml(shown)+'</span></div>').join("");
+  const lead=fields.slice(0,6),rest=fields.slice(6);
+  return (lead.length?'<div class="scalar-grid generic-key-figures">'+cells(lead)+'</div>':'')+(rest.length?'<details class="management-detail generic-field-details"><summary>Details · '+fmt(rest.length)+' more field'+(rest.length===1?'':'s')+'</summary><div class="scalar-grid">'+cells(rest)+'</div></details>':'')+renderStructuredSections(data);
+}
 function renderStructuredSections(data){
   if(!data||typeof data!=="object")return"";
   const hiddenKeys=new Set(["challenge","projectionKey","generatedAt","producerVersion","dependencyReceipts","sourceManifestId","evidenceReceiptIds","projectFactBindings","sourceRefs","diagnostics","recordIds","evidenceRefs","projectFacts","schemaVersion","valueState","calculatedWithStatedBasis","calculated_with_stated_basis"]);
@@ -5658,7 +5669,7 @@ function bindAdvancedControls(parentKey){
     try{
       const result=await api("/api/projects/"+encodeURIComponent(project())+"/advanced/"+encodeURIComponent(key));
       const data=result.data||{},specialized=renderSpecializedModule(key,data);
-      const fallback='<div class="scalar-grid">'+scalarPairs(data).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmt(v))+'</span></div>').join("")+'</div>'+renderStructuredSections(data);
+      const fallback=renderGenericFieldView(data);
       host.innerHTML='<div class="advanced-control-head"><div><h3>'+escapeHtml(label)+'</h3><p>'+escapeHtml(userFacingModuleReason(key,result.reason)||"Current project position.")+'</p></div><div class="ask-export-bar"><a class="btn small" href="/api/projects/'+encodeURIComponent(project())+'/advanced/'+encodeURIComponent(key)+'/report.xlsx">Excel</a><a class="btn small" href="/api/projects/'+encodeURIComponent(project())+'/advanced/'+encodeURIComponent(key)+'/report.json">JSON</a></div></div>'+(specialized||fallback)+renderModuleReadiness(data,result.reason||"");
     }catch(e){const d=e.data||{};host.innerHTML='<div class="notice warn"><b>'+escapeHtml(label)+' is not established.</b><p>'+escapeHtml(d.reason||d.message||e.message||"The current project evidence does not support this analysis.")+'</p></div>';}
   });
@@ -5860,9 +5871,7 @@ function renderModuleResultBody(result){
   const challengeBody=result.key==='progress-breakdown'?'':renderUniversalChallenge(data.challenge);
   const challengeHtml=challengeBody?'<details class="reconciliation-panel"><summary><span>Comparison with the submitted position</span><b>'+escapeHtml(reconciliationSummary(data.challenge))+'</b></summary><div class="reconciliation-body">'+challengeBody+'</div></details>':'';
   const specialized=renderSpecializedModule(result.key,data);
-  const scalars=scalarPairs(data).filter(([k])=>k!=="challenge"&&!readerTechnicalField(k)&&!readerPresentationTechnicalField(k)).map(([k,v])=>'<div class="scalar"><b>'+escapeHtml(humanizeKey(k))+'</b><span>'+escapeHtml(fmtForField(k,v))+'</span></div>').join("");
-  const structured=specialized?"":renderStructuredSections(data);
-  const genericView=(scalars?'<div class="scalar-grid">'+scalars+'</div>':'')+structured;
+  const genericView=specialized?"":renderGenericFieldView(data);
   const sourceBasis=['source-quality','challenge-contract'].includes(result.key)?renderBasisReviews(data,result.key):'';
   // Every analytical page leads with its answer. Review and source administration
   // are supporting context, never a per-page opt-in presentation rule.
@@ -5877,7 +5886,11 @@ function renderModuleResultBody(result){
   const progressBreakdown=result.key==='progress-breakdown';
   const supporting=progressBreakdown?'':result.key==='source-quality'?experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+sourceBasis,"Dates, records and calculation qualifications"):'<p class="module-evidence-link">'+escapeHtml(moduleName)+' evidence and qualifications · '+managementModuleLink('source-quality','Open the shared source review')+'</p>'+(result.key==='notices-claims'?renderClaimsReporting(data.claimsReporting,result.key)+((data.contractNoticeReview?.treatment||new Set((data.contractNoticeReview?.sourceTerms||[]).map(t=>t.value+'|'+t.unit)).size>1||data.contractNoticeReview?.sourceTerms?.some(t=>t.applicability==='unresolved'))?'<p>Original notice provisions and saved source choices are available in Project Review. <button class="btn" onclick="openProjectActions()">Review notice provisions</button></p>':''):'');
   const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
-  el("moduleContent").innerHTML=context+(managementSurface&&result.key!=='source-quality'?renderPositionVerdict(data):'')+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
+  // SW-43: every page opens with its answer (the page verdict: state, finding and
+  // next step) before tables and evidence, not only the management surfaces.
+  // Source review and Progress Breakdown keep their own answer-first layout.
+  const answer=result.key==='source-quality'||progressBreakdown?'':renderPositionVerdict(data);
+  el("moduleContent").innerHTML=context+answer+(managementSurface?primaryView:renderRoleContent(result.key,data,primaryView,challengeHtml,Boolean(specialized)))+
     (floatReview?experienceDisclosure('Planner detail · submitted and calculated float',floatReview,'Both source values retained; only classification differences are disputed'):'')+
     (typeof advancedControlsHtml==="function"?advancedControlsHtml(result.key):"")+
     supporting+review;
