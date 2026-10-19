@@ -565,6 +565,7 @@ export interface ProjectRuntimeOverview {
   updateRevisionCount: number;
   recoveryRevisionCount: number;
   evidenceDocumentCount: number;
+  documentReading?: import('./document-read-review').DocumentReadingSummary;
   evidenceCategoryCounts: Record<string, number>;
   latestRevisionId: string | null;
   latestRevisionLabel?: string | null;

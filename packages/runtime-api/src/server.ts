@@ -124,6 +124,7 @@ import {
 import {resolveBoqSource} from './boq-source';
 import {projectFactsForState} from "./project-facts";
 import {aiReadingCoverage} from './evidence-semantic-ai';
+import {projectDocumentReading,readingSetup} from './document-read-review';
 import {configuredProviderState} from '../../project-ask/src/provider';
 
 const advancedControlKeys=new Set([
@@ -158,10 +159,13 @@ export function projectDocumentRegister(projectId:string){
     const sourceAnalyticalIds=new Set(analyticalOperationalDocuments(state.evidenceDocuments)
       .filter(d=>d.basisState==='candidate'&&(tablesByDocument.get(d.documentId)??[]).some(t=>t.rows.length>0))
       .map(d=>d.documentId));
+    // SW-14: one reading state per document plus the unread count and deferred list.
+    const reading=projectDocumentReading(state,readingSetup(process.env,configuredProviderState().providerConfigured),parsedTables);
     return {
       projectId,
       projectVersion:state.version,
       aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState()),
+      documentReading:reading.summary,
       documentCount:
         state.evidenceDocuments
           .length,
@@ -179,6 +183,7 @@ export function projectDocumentRegister(projectId:string){
               ...schemaByDocument.get(document.documentId)!.rows.slice(0,3).map(row=>schemaByDocument.get(document.documentId)!.headers.map(header=>row.cells[header]??'')),
             ]:undefined),
             readReview:documentReadReview(document,state,tablesByDocument.get(document.documentId)),
+            readingStatus:reading.byDocument.get(document.documentId)??null,
             semanticAiSteps:(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256),
             schemaHeaders:
               schemaByDocument.get(
