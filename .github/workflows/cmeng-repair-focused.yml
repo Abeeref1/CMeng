@@ -35,6 +35,7 @@ jobs:
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t10-downloads-match-screen.test.js \
+            dist/tests/t10-delivery-downloads-charts.test.js \
             dist/tests/t11-activity-movement-source-date-reuse.test.js \
             dist/tests/t11-activity-analytics-date-population.test.js \
             dist/tests/t11-analytics-shared-source-dates.test.js \
