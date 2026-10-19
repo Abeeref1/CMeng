@@ -10,6 +10,7 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {resolveWorkingCalendar,addWorkingHours,workingHoursBetween} from '../../schedule-cpm/src/calendar';
 import {commercialCanonical} from './commercial-canonical';
 import {plotCrewScenarios} from './plot-crew-scenarios';
+import {classifyRecoveryAgainstCompletion,type RecoveryCpmChange} from './recovery-completion-path';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 
 const dayDiff=(later:string|null,earlier:string|null)=>later&&earlier&&Number.isFinite(Date.parse(later))&&Number.isFinite(Date.parse(earlier))?Number(((Date.parse(later)-Date.parse(earlier))/86400000).toFixed(2)):null;
@@ -20,6 +21,9 @@ export interface RecoveryScenario {
   subject:string;affectedActivities:string[];affectedPackages:string[];assumption:string;currentPosition:string;targetPosition:string;
   possibleDaysRecovered:number|null;effectBasis:string;additionalResources:string|null;estimatedCost:number|null;currency:string|null;costBasis:string;
   implementationDate:string|null;constraints:string[];risks:string[];diminishingReturn:string;authority:'scenario';
+  // SW-24: role against the CPM path to completion, and the CPM completion gain.
+  cpmChange?:RecoveryCpmChange|null;pathRole?:'recovery_option'|'late_work'|'path_not_established';pathBasis?:string;
+  completionGainWorkingDays?:number|null;completionGainBasis?:string;
 }
 export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const control=projectControlSchedule(state),feasibility=deliveryFeasibilityForState(state),delivery=deliveryPosition(state),programme=control?.revision.model??null,dataDateIso=projectDataDate(state);
@@ -123,7 +127,8 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
             additionalResources:'Resource sharing is not assumed. Confirm that the workfront can run in parallel without taking labour/plant from another controlling activity.',
             estimatedCost:null,currency:null,costBasis:'No additional cost is asserted because the scenario changes sequence, not evidenced resource quantities.',
             implementationDate:dataDateIso,constraints:['Governed workfront record explicitly permits parallel execution/resequencing.','All internal predecessors are complete at the reporting position.','No retained future source constraint prevents the earlier start.'],
-            risks:['Resource conflicts, access interfaces or permits may still prevent the earlier start even when schedule logic does not.'],diminishingReturn:'Recovery is capped at the local start shift shown; downstream recovery requires a fresh CPM calculation after an approved programme change.',authority:'scenario'});
+            risks:['Resource conflicts, access interfaces or permits may still prevent the earlier start even when schedule logic does not.'],diminishingReturn:'Recovery is capped at the local start shift shown; downstream recovery requires a fresh CPM calculation after an approved programme change.',authority:'scenario',
+            cpmChange:{removeRelationshipIds:programme.relationships.filter(r=>!r.external&&r.successorActivityId===activityId).map(r=>r.relationshipId),addRelationships:[]}});
         }catch{}
       }
     }
@@ -172,6 +177,9 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   scenarios.sort((a,b)=>Number(b.drivingPath)-Number(a.drivingPath)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const time= commercialPositionForState(state).timeExposure,pc=programmePcMilestone(programme),finish=pc.dateIso;
   const finishActivity=pc.activityIds.length===1?activityById.get(pc.activityIds[0]!):null,calendar=finishActivity&&programme?resolveWorkingCalendar(finishActivity.calendarId,programme.calendars,false)?.calendar:null;
+  const completionPath=classifyRecoveryAgainstCompletion(scenarios,programme,forecast??null,calendar??null);
+  const pathRank={recovery_option:0,path_not_established:1,late_work:2} as const;
+  scenarios.sort((a,b)=>pathRank[a.pathRole??'path_not_established']-pathRank[b.pathRole??'path_not_established']);
   const target=(dateIso:string|null)=>{let hours:number|null=null;if(calendar&&dateIso&&finish)try{hours=Math.max(0,workingHoursBetween(calendar,Date.parse(dateIso.slice(0,10)),Date.parse(finish.slice(0,10))));}catch{}return {dateIso,calendarDays:dateIso&&finish?Math.max(0,(Date.parse(finish.slice(0,10))-Date.parse(dateIso.slice(0,10)))/86400000):null,workingHours:hours,workingDays:hours!==null&&calendar?.standardDayHours?hours/calendar.standardDayHours:null};};
   const recoveryTargets={submittedCompletionIso:finish,original:target(time.contractualCompletion.value),extended:target(time.officialAdjustedCompletion.value),basis:'Calendar days compare the date portion of the submitted completion and contract dates. Working days use the completion milestone calendar and its standard day hours; this is the recovery target, not a calculated scenario gain.'};
   const drivingChainShortfall={calendarDays:recoveryTargets.extended.calendarDays,
@@ -182,7 +190,11 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     knownDrivingOpenActivityCount:drivingOpen.length,
     sixthDayScenarioAvailable:drivingOpen.length>0?true:drivingStatusComplete?false:null,
     basis:'Submitted project finish versus current contractual completion including awarded EOT, using the completion milestone calendar. A sixth working day is a candidate only, not approved recoverable time.'};
-  const calculated=scenarios.filter(s=>s.state==='calculated'),max=calculated.find(s=>s.possibleDaysRecovered!==null)??null;
+  // SW-24: only options on the path to completion count, and "calculated"
+  // means the completion gain came from a CMeng CPM run, not a local effect.
+  const recoveryOptions=scenarios.filter(s=>s.pathRole==='recovery_option');
+  const calculated=recoveryOptions.filter(s=>typeof s.completionGainWorkingDays==='number'),max=[...calculated].sort((a,b)=>b.completionGainWorkingDays!-a.completionGainWorkingDays!)[0]??null;
+  const lateWorkNote=completionPath.lateWorkCount?' '+completionPath.lateWorkCount+' late item(s) are off the CPM path to completion: late work, not recovery.':'';
   const feasibilitySourceRowCount=feasibility?.rows?.length??0;
   const deliveryPackagePopulationCount=delivery.packageRows.length;
   const workfrontPopulationCount=delivery.records.filter(r=>r.kind==='workfront').length;
@@ -225,26 +237,31 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     supportingBasisAvailable,
     actualEligibilityChecksPerformed:supportingBasisAvailable?actualEligibilityChecksPerformed:null,
   };
-  const scenarioState=calculated.length?'calculated_options_available':scenarios.length?'options_need_assumptions':'no_eligible_recovery_basis';
+  const scenarioState=calculated.length?'calculated_options_available':recoveryOptions.length?'options_need_assumptions':'no_eligible_recovery_basis';
   const eligibilityAssessmentState=
     calculated.length
       ? 'calculated_options_available'
-      : scenarios.length
+      : recoveryOptions.length
         ? 'candidates_need_assumptions'
+        : scenarios.length
+          ? 'no_completion_path_option'
         : !supportingBasisAvailable
           ? 'supporting_basis_absent'
           : !crewAssessmentComplete||!packageAssessmentComplete||!workfrontAssessmentComplete
             ? 'supporting_basis_incomplete'
             : 'checked_no_eligible_basis';
   const managementPosition=max
-    ? 'The strongest currently calculable local recovery option is '+max.subject+': up to '+max.possibleDaysRecovered+' days of local '+(max.type==='procurement_expedite'?'procurement headroom':'activity production')+' could be recovered under the stated scenario assumptions. This is not an approved Project plan or guaranteed completion recovery.'
+    ? 'The strongest CPM-calculated recovery option is '+max.subject+': in the CMeng CPM run the project finish moves '+max.completionGainWorkingDays+' working days earlier under the stated scenario assumptions. This is not an approved Project plan.'+lateWorkNote
+    : recoveryOptions.length
+      ? 'Recovery options on the path to completion exist, but their completion gain is not established by a CMeng CPM run without additional assumptions.'+(unresolvedChecks.length?' '+unresolvedChecks.length+' linked feasibility check(s) need a quantified working-time, productivity or resource basis.':'')+(unlinkedFeasibilityRowCount?' '+unlinkedFeasibilityRowCount+' source item(s) still need activity links before their feasibility can be checked.':!feasibilityPopulationComplete?' Activity feasibility coverage is not established.':'')+lateWorkNote
     : scenarios.length
-      ? 'Recovery options exist, but the current Project evidence is insufficient to quantify days recovered without additional assumptions.'+(unresolvedChecks.length?' '+unresolvedChecks.length+' linked feasibility check(s) need a quantified working-time, productivity or resource basis.':'')+(unlinkedFeasibilityRowCount?' '+unlinkedFeasibilityRowCount+' source item(s) still need activity links before their feasibility can be checked.':!feasibilityPopulationComplete?' Activity feasibility coverage is not established.':'')
+      ? 'No recovery option on the CPM path to completion is established.'+lateWorkNote+(completionPath.pathNotEstablishedCount?' '+completionPath.pathNotEstablishedCount+' item(s) have no established path to completion.':'')
       : !supportingBasisAvailable
         ? 'No supporting recovery basis is established. Supply current quantity/productivity/resource evidence and applicable procurement/workfront records or confirm their absence through the existing population review.'
         : 'No eligible scenario has been established from the available evidence. '+feasibilityChecks.length+' linked activity feasibility position(s), '+packageTimingAssessed.length+' package timing position(s) and '+permissionAssessed.length+' explicit governed workfront permission(s) were checked.'+(!crewAssessmentComplete||!packageAssessmentComplete||!workfrontAssessmentComplete?' Eligibility remains incomplete; missing domains and unresolved inputs are not assessed zeros.':' No eligible scenario basis was found in these checked populations.');
   return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,recoveryTargets,drivingChainShortfall,
-    calculatedScenarioCount:calculated.length,assumptionRequiredCount:scenarios.length-calculated.length,scenarioState,eligibility,
+    calculatedScenarioCount:calculated.length,assumptionRequiredCount:recoveryOptions.length-calculated.length,scenarioState,eligibility,
+    recoveryOptionCount:completionPath.recoveryOptionCount,lateWorkCount:completionPath.lateWorkCount,pathNotEstablishedCount:completionPath.pathNotEstablishedCount,
     eligibilityAssessmentState,
     managementPosition,
     basis:'Scenarios use existing BOQ/productivity/resource feasibility, source calendars, resource costs where fully supported, governed workfront permissions and package need-date calculations. They never replace the current programme, do not assert entitlement, and retain local-effect versus Project-completion effect separately.'};

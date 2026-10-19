@@ -132,7 +132,8 @@ jobs:
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-remaining-true-totals.test.js \
             dist/tests/t05-reporting-contract-not-cut.test.js \
-            dist/tests/t05-progress-workfront-null-display.test.js
+            dist/tests/t05-progress-workfront-null-display.test.js \
+            dist/tests/t06-recovery-completion-path.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements
