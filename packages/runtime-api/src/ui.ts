@@ -1055,6 +1055,8 @@ function documentUseLabel(state,document=null){
   if(state==="candidate"&&document?.sourceAnalyticalUse==="qualified_source_read")
     return "Source read and used in analysis · not approved";
   if(document?.classificationReview?.usableRegister&&state==="historical")return "From register, not yet confirmed";
+  // F08: a programme's state comes from the one shared programme-authority review.
+  if(document?.category==="schedule"&&document.programmeAuthority?.label)return document.programmeAuthority.label;
   if(document?.category==="schedule"&&state==="active"&&['submitted_update','legacy_retained'].includes(document.scheduleAdoption?.method))return"Current submitted programme · not an approval";
   if(document?.category==="schedule"&&state==="active"&&!document.scheduleAdoption)return"Programme selection needs review";
   if(document?.category==="schedule_control"){

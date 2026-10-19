@@ -93,6 +93,7 @@ jobs:
             dist/tests/t05-business-status-paging-precedence.test.js \
             dist/tests/t04-source-analytical-candidate.test.js \
             dist/tests/t04-document-source-analytical-label.test.js \
+            dist/tests/w7-programme-authority-crosspage.test.js \
             dist/tests/t04-clear-source-analysis-all-families.test.js \
             dist/tests/t04-contract-terms-source-analysis.test.js \
             dist/tests/t04-missing-value-inputs.test.js \

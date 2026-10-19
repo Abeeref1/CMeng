@@ -33,7 +33,10 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
   const formalBaseline=!!revision&&['baseline','revised_baseline'].includes(revision.role)&&!!revision.approvalReference?.trim();
   const submittedCurrent=validDecision&&(decision?.method==='submitted_update'||decision?.method==='legacy_retained');
   const authority=!validDecision?'none':formalBaseline&&decision?.method==='explicit'?'official':'submitted';
+  const reviewState=!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':submittedCurrent?'submitted_current':'pending_review';
   return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,
+    // F08: one programme-authority state that every page reads.
+    programmeState:programmeStateFor(reviewState),
     documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
     state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':submittedCurrent?'submitted_current':'pending_review',
     method:validDecision?decision?.method:null,authority,
@@ -69,4 +72,31 @@ export function explicitScheduleDecision(document:StoredEvidenceDocument,recorde
 }
 export function submittedScheduleDecision(document:StoredEvidenceDocument,recordedAt:string,note='Latest ordinary programme update accepted as the current submitted analytical position. No contractual approval is inferred.'){
   document.scheduleAdoption={method:'submitted_update',sourceHashSha256:document.sourceHashSha256,recordedAt,note};
+}
+
+export type ProgrammeAuthorityState='adopted'|'current'|'candidate'|'missing'|'invalid';
+/** F08: the single programme-authority state shared by every page. Adopted =
+ * explicit source-bound adoption; current = submitted update used as the
+ * current analytical position (not an approval); candidate = selected or
+ * uploaded but not adopted, so it is not the current programme anywhere. */
+export function programmeStateFor(reviewState:string):ProgrammeAuthorityState{
+  return reviewState==='established'?'adopted':reviewState==='submitted_current'?'current':reviewState==='pending_review'?'candidate':reviewState==='invalid'?'invalid':'missing';
+}
+export const programmeAuthorityLabels:Record<string,string>={
+  adopted:'Current programme · adopted',
+  current:'Current submitted programme · not an approval',
+  candidate:'Programme candidate · needs adoption before current',
+  previous:'Previous version',
+  scenario:'Scenario only',
+  reference:'Reference only',
+};
+/** Programme-authority state of one schedule document, read from the shared review. */
+export function programmeDocumentAuthority(review:ReturnType<typeof scheduleAuthorityReview>,document:StoredEvidenceDocument){
+  if(document.category!=='schedule')return null;
+  let state:string;
+  if(review.documentId===document.documentId&&review.currentRevisionId===document.linkedArtifactId)
+    state=review.programmeState==='adopted'||review.programmeState==='current'||review.programmeState==='candidate'?review.programmeState:'scenario';
+  else if(review.pendingSchedules.some(p=>p.documentId===document.documentId))state='candidate';
+  else return null; // other schedule documents keep their own evidence-basis label
+  return {state,label:programmeAuthorityLabels[state]!};
 }
