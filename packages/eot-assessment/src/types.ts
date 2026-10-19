@@ -10,6 +10,12 @@ export type EotDayBasis =
 
 export interface ContractTimeBasis {
   completionReason?: string | null;
+  /** T04: the completion date was read from a source that is not formally
+   * adopted (state 'candidate'); shown with this label, never as official. */
+  contractualCompletionSourceUse?: "qualified_source_read";
+  contractualCompletionSourceNote?: string;
+  /** Unadopted sources that state a different date than the adopted one. */
+  contractualCompletionSourceConflicts?: string[];
   incorporatedEotDays?: number | null;
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";
