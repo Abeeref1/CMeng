@@ -56,7 +56,9 @@ export function reportingContractTermVersions(state:ProjectRuntimeState):Contrac
 }
 /** T04: the conflicts and unsure readings offered in the decision place (before any saved decision). */
 export function contractFactDecisionItemsForState(state:ProjectRuntimeState){
- return contractFactDecisionItems(state,noticeReviewedTermVersions(state),projectDataDate(state));
+ const versions=noticeReviewedTermVersions(state);
+ // No contract term read, nothing to decide (and no Data Date read).
+ return versions.length?contractFactDecisionItems(state,versions,projectDataDate(state)):[];
 }
 function noticeReviewedTermVersions(state:ProjectRuntimeState):ContractTermVersion[]{
  const basis=noticeReviewBasis(state),decision=basis.decision;

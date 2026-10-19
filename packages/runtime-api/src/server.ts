@@ -135,6 +135,244 @@ const advancedControlKeys=new Set([
   'site-instructions','contract-obligations','liquidated-damages','bonds-insurance','retention-calendar'
 ]);
 
+/** F09: one Portfolio row per project, exported so the card can be checked
+ * against the Dashboard it must agree with. */
+export function portfolioProjectRow(projectId:string){
+          const state =
+            runtimeProjects.get(
+              projectId,
+            );
+          if (!state) {
+            return null;
+          }
+
+          if (
+            state.demo === true ||
+            projectId
+              .toUpperCase()
+              .startsWith(
+                "PERSISTENCE-SMOKE-",
+              )
+          ) {
+            return null;
+          }
+
+          const programmeSchedules =
+            state.schedules.filter(
+              isProgrammeScheduleRevision,
+            );
+          const latest =
+            runtimeProjects.latestSchedule(
+              projectId,
+            );
+          const coreScheduleModules=scheduleModules.filter(module=>!module.onDemand);
+          const coreCommercialModules=commercialModules.filter(module=>!module.onDemand);
+          const resolvedModules =
+            new Map(
+              [
+                ...coreScheduleModules,
+                ...coreCommercialModules,
+              ].map(
+                (module) => [
+                  module.key,
+                  moduleForProject(
+                    projectId,
+                    module.key,
+                  ),
+                ] as const,
+              ),
+            );
+          const moduleStatuses = [
+            ...resolvedModules,
+          ].map(
+            ([key, resolved]) => ({
+              key,
+              status: resolved.status,
+            }),
+          );
+          const readyModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "ready",
+            ).length;
+          const partialModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "partial",
+            ).length;
+          const blockedModules =
+            moduleStatuses.filter(
+              (module) =>
+                module.status ===
+                "blocked",
+            ).length;
+
+          // Reuse the canonical Commercial Overview projection already resolved
+          // above instead of rebuilding the same commercial position again.
+          const commercialOverviewData =
+            resolvedModules.get(
+              "commercial-overview",
+            )?.data as
+              | {
+                  position?: ReturnType<
+                    typeof commercialPositionForState
+                  >;
+                }
+              | null
+              | undefined;
+          const commercialPosition =
+            commercialOverviewData
+              ?.position ??
+            commercialPositionForState(
+              state,
+            );
+
+          const projectFacts=projectFactsForState(state);
+          const commandCenter=moduleForProject(projectId,"command-center").data as any;
+          const canonicalManagementActions=Array.isArray(commandCenter?.actions)
+            ?commandCenter.actions
+            :[];
+
+          const minimumEvidenceReady =
+            programmeSchedules.length >
+              0 &&
+            state.boqRevisions.length >
+              0;
+          const lastRerunState =
+            state.lastRerunReceipt
+              ?.certification
+              .state ??
+            null;
+
+          const director =
+            directorForProject(
+              projectId,
+            );
+          // F09: the card reads the Dashboard's own headline completion and
+          // claim count (command-center and master-dashboard share them).
+          const dashboardCompletion=commandCenter?.projectDiagnosis
+            ?commandCenter.projectDiagnosis.completion??null
+            :commandCenter?.completionPosition??null;
+          const forecastPosition =
+            managementForecastPosition(
+              director,
+              commandCenter?{completion:dashboardCompletion,productivityForecast:commandCenter.sourceInterpretation?.productivityForecast??null}:null,
+            );
+          const dashboardClaims=commandCenter?.managementContext?.crossModule?.claimsEot;
+          const windowsResult =
+            resolvedModules.get(
+              "windows-analysis",
+            ) ??
+            moduleForProject(
+              projectId,
+              "windows-analysis",
+            );
+          const windowsData =
+            windowsResult.data &&
+            typeof windowsResult.data ===
+              "object"
+              ? windowsResult.data as {
+                  projectCompletionMovementDays?:
+                    number | null;
+                }
+              : null;
+
+          return {
+            projectId,
+            demo: false,
+            version:
+              state.version,
+            latestDataDateIso:
+              latest?.revision.model
+                .dataDateIso ??
+              null,
+            evidenceDocumentCount:
+              state.evidenceDocuments
+                .length,
+            revisionCount:
+              programmeSchedules.length,
+            minimumEvidenceReady,
+            moduleCount:
+              moduleStatuses.length,
+            scheduleModuleCount:
+              coreScheduleModules.length,
+            commercialModuleCount:
+              coreCommercialModules.length,
+            readyModules,
+            partialModules,
+            blockedModules,
+            lastRerunState,
+            positionState:
+              !minimumEvidenceReady
+                ? "needs_information"
+                : lastRerunState ===
+                    "pass" && readyModules === moduleStatuses.length
+                  ? "current"
+                  : "needs_review",
+            forecastCompletionIso:
+              forecastPosition.completionIso,
+            forecastAuthority:
+              forecastPosition.authority,
+            forecastLabel:
+              forecastPosition.label,
+            calendarRecalculationIso:
+              forecastPosition.calendarRecalculationIso,
+            officialCompletionIso:
+              projectFacts.time.contractualCompletionIso.value,
+            contractualCompletionState:
+              projectFacts.time.contractualCompletionIso.value===null
+                ?"missing"
+                :projectFacts.time.contractualCompletionIso.complete
+                  ?"established"
+                  :"candidate",
+            furtherAdjustedCompletionIso:
+              projectFacts.time.extendedContractCompletionIso.value,
+            programmeMovementDays:
+              windowsData
+                ?.projectCompletionMovementDays ??
+              null,
+            approvedEotDays:
+              projectFacts.time.awardedEotDays.value,
+            approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
+            extendedContractBasis:projectFacts.time.extendedContractCompletionIso.basis,
+            extendedContractState:projectFacts.time.extendedContractCompletionIso.state,
+            criticalActivityCount:projectFacts.schedule.criticalActivityCount.value,
+            nearCriticalActivityCount:projectFacts.schedule.nearCriticalActivityCount.value,
+            negativeFloatActivityCount:projectFacts.schedule.negativeFloatActivityCount.value,
+            openRfiCount:projectFacts.controls.openRfiCount.value,
+            overdueRfiCount:projectFacts.controls.overdueRfiCount.value,
+            openNcrCount:projectFacts.controls.openNcrCount.value,
+            overdueNcrCount:projectFacts.controls.overdueNcrCount.value,
+            activeBondCount:projectFacts.commercial.activeBondCount.value,
+            expiredBondCount:projectFacts.commercial.expiredBondCount.value,
+            claimCount:
+              dashboardClaims
+                ?dashboardClaims.claimCount??null
+                :director?.claims
+                .claimCount ??
+              null,
+            fullyLinkedClaimCount:
+              director?.claims
+                .fullyLinkedClaimCount ??
+              null,
+            managementActionCount:
+              projectFacts.actions.openCount.value,
+            managementActions:
+              canonicalManagementActions.map((action:any)=>
+                [action.issue,action.requiredAction].filter(Boolean).join(" — ")
+              ),
+            commercialCurrencyCount:
+              projectFacts.commercial.currencies.length,
+            submittedDaysAfterCurrentContract:projectFacts.time.submittedDaysAfterCurrentContract?.value??null,
+            submittedProgrammeCompletionIso:projectFacts.schedule.submittedProgrammeCompletionIso.value,
+            independentDaysAfterCurrentContract:projectFacts.time.independentDaysAfterCurrentContract?.value??null,
+            commercialSummary:projectFacts.commercial.currencies.map(row=>({currency:row.currency,currentContractValue:row.currentContractValue.value,forecastEac:row.forecastEac?.value??null,certifiedUnpaidAmount:row.certifiedUnpaidAmount.value,cpi:row.cpi?.value??null})),
+            analysisError: null,
+          };
+}
+
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
     const schemaDiagnostics: string[] = [];
@@ -663,232 +901,7 @@ async function route(
     const projects =
       runtimeProjects
         .listProjectIds()
-        .map((projectId) => {
-          const state =
-            runtimeProjects.get(
-              projectId,
-            );
-          if (!state) {
-            return null;
-          }
-
-          if (
-            state.demo === true ||
-            projectId
-              .toUpperCase()
-              .startsWith(
-                "PERSISTENCE-SMOKE-",
-              )
-          ) {
-            return null;
-          }
-
-          const programmeSchedules =
-            state.schedules.filter(
-              isProgrammeScheduleRevision,
-            );
-          const latest =
-            runtimeProjects.latestSchedule(
-              projectId,
-            );
-          const coreScheduleModules=scheduleModules.filter(module=>!module.onDemand);
-          const coreCommercialModules=commercialModules.filter(module=>!module.onDemand);
-          const resolvedModules =
-            new Map(
-              [
-                ...coreScheduleModules,
-                ...coreCommercialModules,
-              ].map(
-                (module) => [
-                  module.key,
-                  moduleForProject(
-                    projectId,
-                    module.key,
-                  ),
-                ] as const,
-              ),
-            );
-          const moduleStatuses = [
-            ...resolvedModules,
-          ].map(
-            ([key, resolved]) => ({
-              key,
-              status: resolved.status,
-            }),
-          );
-          const readyModules =
-            moduleStatuses.filter(
-              (module) =>
-                module.status ===
-                "ready",
-            ).length;
-          const partialModules =
-            moduleStatuses.filter(
-              (module) =>
-                module.status ===
-                "partial",
-            ).length;
-          const blockedModules =
-            moduleStatuses.filter(
-              (module) =>
-                module.status ===
-                "blocked",
-            ).length;
-
-          // Reuse the canonical Commercial Overview projection already resolved
-          // above instead of rebuilding the same commercial position again.
-          const commercialOverviewData =
-            resolvedModules.get(
-              "commercial-overview",
-            )?.data as
-              | {
-                  position?: ReturnType<
-                    typeof commercialPositionForState
-                  >;
-                }
-              | null
-              | undefined;
-          const commercialPosition =
-            commercialOverviewData
-              ?.position ??
-            commercialPositionForState(
-              state,
-            );
-
-          const projectFacts=projectFactsForState(state);
-          const commandCenter=moduleForProject(projectId,"command-center").data as any;
-          const canonicalManagementActions=Array.isArray(commandCenter?.actions)
-            ?commandCenter.actions
-            :[];
-
-          const minimumEvidenceReady =
-            programmeSchedules.length >
-              0 &&
-            state.boqRevisions.length >
-              0;
-          const lastRerunState =
-            state.lastRerunReceipt
-              ?.certification
-              .state ??
-            null;
-
-          const director =
-            directorForProject(
-              projectId,
-            );
-          const forecastPosition =
-            managementForecastPosition(
-              director,
-            );
-          const windowsResult =
-            resolvedModules.get(
-              "windows-analysis",
-            ) ??
-            moduleForProject(
-              projectId,
-              "windows-analysis",
-            );
-          const windowsData =
-            windowsResult.data &&
-            typeof windowsResult.data ===
-              "object"
-              ? windowsResult.data as {
-                  projectCompletionMovementDays?:
-                    number | null;
-                }
-              : null;
-
-          return {
-            projectId,
-            demo: false,
-            version:
-              state.version,
-            latestDataDateIso:
-              latest?.revision.model
-                .dataDateIso ??
-              null,
-            evidenceDocumentCount:
-              state.evidenceDocuments
-                .length,
-            revisionCount:
-              programmeSchedules.length,
-            minimumEvidenceReady,
-            moduleCount:
-              moduleStatuses.length,
-            scheduleModuleCount:
-              coreScheduleModules.length,
-            commercialModuleCount:
-              coreCommercialModules.length,
-            readyModules,
-            partialModules,
-            blockedModules,
-            lastRerunState,
-            positionState:
-              !minimumEvidenceReady
-                ? "needs_information"
-                : lastRerunState ===
-                    "pass" && readyModules === moduleStatuses.length
-                  ? "current"
-                  : "needs_review",
-            forecastCompletionIso:
-              forecastPosition.completionIso,
-            forecastAuthority:
-              forecastPosition.authority,
-            forecastLabel:
-              forecastPosition.label,
-            calendarRecalculationIso:
-              forecastPosition.calendarRecalculationIso,
-            officialCompletionIso:
-              projectFacts.time.contractualCompletionIso.value,
-            contractualCompletionState:
-              projectFacts.time.contractualCompletionIso.value===null
-                ?"missing"
-                :projectFacts.time.contractualCompletionIso.complete
-                  ?"established"
-                  :"candidate",
-            furtherAdjustedCompletionIso:
-              projectFacts.time.extendedContractCompletionIso.value,
-            programmeMovementDays:
-              windowsData
-                ?.projectCompletionMovementDays ??
-              null,
-            approvedEotDays:
-              projectFacts.time.awardedEotDays.value,
-            approvedEotBasis: 'Gross source-approved determinations through the Data Date; overlap and further contractual adjustment require reconciliation.',
-            extendedContractBasis:projectFacts.time.extendedContractCompletionIso.basis,
-            extendedContractState:projectFacts.time.extendedContractCompletionIso.state,
-            criticalActivityCount:projectFacts.schedule.criticalActivityCount.value,
-            nearCriticalActivityCount:projectFacts.schedule.nearCriticalActivityCount.value,
-            negativeFloatActivityCount:projectFacts.schedule.negativeFloatActivityCount.value,
-            openRfiCount:projectFacts.controls.openRfiCount.value,
-            overdueRfiCount:projectFacts.controls.overdueRfiCount.value,
-            openNcrCount:projectFacts.controls.openNcrCount.value,
-            overdueNcrCount:projectFacts.controls.overdueNcrCount.value,
-            activeBondCount:projectFacts.commercial.activeBondCount.value,
-            expiredBondCount:projectFacts.commercial.expiredBondCount.value,
-            claimCount:
-              director?.claims
-                .claimCount ??
-              null,
-            fullyLinkedClaimCount:
-              director?.claims
-                .fullyLinkedClaimCount ??
-              null,
-            managementActionCount:
-              projectFacts.actions.openCount.value,
-            managementActions:
-              canonicalManagementActions.map((action:any)=>
-                [action.issue,action.requiredAction].filter(Boolean).join(" — ")
-              ),
-            commercialCurrencyCount:
-              projectFacts.commercial.currencies.length,
-            submittedDaysAfterCurrentContract:projectFacts.time.submittedDaysAfterCurrentContract?.value??null,
-            submittedProgrammeCompletionIso:projectFacts.schedule.submittedProgrammeCompletionIso.value,
-            independentDaysAfterCurrentContract:projectFacts.time.independentDaysAfterCurrentContract?.value??null,
-            commercialSummary:projectFacts.commercial.currencies.map(row=>({currency:row.currency,currentContractValue:row.currentContractValue.value,forecastEac:row.forecastEac?.value??null,certifiedUnpaidAmount:row.certifiedUnpaidAmount.value})),
-            analysisError: null,
-          };
-        })
+        .map(portfolioProjectRow)
         .filter(
           (
             value,

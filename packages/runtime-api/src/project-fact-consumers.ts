@@ -64,6 +64,27 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     data=write(data,['metrics'],[...metrics,{label:'Open critical / major NCRs',value:facts.controls.openCriticalMajorNcrCount.value,unit:'records',state:facts.controls.openCriticalMajorNcrCount.state,basis:facts.controls.openCriticalMajorNcrCount.basis}]);
     bind('controls.openCriticalMajorNcrCount',['metrics.'+index+'.value']);
   }
+  // F04: one RFI / NCR count on every page. The register pages read the same
+  // shared counts as the Dashboard. When the page population is exactly that
+  // register, its own open / overdue tiles are the shared counts; otherwise
+  // (design deliverables, inspections or manual records are mixed in) the
+  // shared register counts are shown beside the page's own population.
+  const registerCounts:Record<string,{identity:string;facts:[string,string,string][]}>={
+    'delivery-design':{identity:'rfi id',facts:[['Open records','Open RFIs','controls.openRfiCount'],['Overdue records','Overdue RFIs','controls.overdueRfiCount']]},
+    'delivery-quality':{identity:'ncr id',facts:[['Open records','Open NCRs','controls.openNcrCount'],['Overdue records','Overdue NCRs','controls.overdueNcrCount']]},
+  };
+  const register=registerCounts[key];
+  if(register&&Array.isArray(at(data,'metrics'))){
+    for(const [pageLabel,registerLabel,factPath] of register.facts){
+      const metrics=at(data,'metrics') as any[],fact=at(facts,factPath);
+      const own=at(data,'registerIdentity')===register.identity?metrics.findIndex(m=>m?.label===pageLabel):-1;
+      const index=own>=0?own:metrics.length;
+      data=write(data,['metrics'],own>=0
+        ?metrics.map((m,i)=>i===index?{...m,value:fact.value,state:fact.state,basis:fact.basis}:m)
+        :[...metrics,{label:registerLabel,value:fact.value,unit:'records',state:fact.state,basis:fact.basis}]);
+      bind(factPath,['metrics.'+index+'.value']);
+    }
+  }
   bind('schedule.delayedExecutionActivityCount',['delayEotEvidenceChain.programmeContext.delayedActivityCount','contextualProgrammeIntelligence.delayedActivityCount']);
   bind('schedule.negativeFloatActivityCount',['delayEotEvidenceChain.programmeContext.negativeFloatActivityCount','contextualProgrammeIntelligence.negativeFloatActivityCount']);
   bind('actions.openCount',['actionCount','managementActionCount']);
@@ -107,7 +128,19 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
       for(const field of Object.keys(group).filter(k=>k!=='currency'))bind('commercial.currencies.'+factIndex+'.'+field,[base+'.'+index+'.'+field+'.value']);
     });
   }
-  return {...data,projectFacts:facts,projectFactBindings:bindings} as T & {projectFacts:ProjectFactsSnapshot;projectFactBindings:ProjectFactBinding[]};
+  return {...withLinkedClaimFigures(data,facts),projectFacts:facts,projectFactBindings:bindings} as T & {projectFacts:ProjectFactsSnapshot;projectFactBindings:ProjectFactBinding[]};
+}
+
+/** F61: each event row that links claims carries the canonical figures of those
+ * claims (the same rows as projectFacts.claims.pipeline.rows), so a page shows
+ * them without receiving the complete claim list, which is paged on large
+ * projects. Additive field; event identity and order are unchanged. */
+export function withLinkedClaimFigures<T extends ObjectValue>(data:T,facts:ProjectFactsSnapshot):T{
+  const rows=facts.claims?.pipeline?.rows,events=(data as any)?.events;
+  if(!Array.isArray(rows)||!rows.length||!Array.isArray(events)||!events.some((e:any)=>Array.isArray(e?.linkedClaimIds)&&e.linkedClaimIds.length))return data;
+  const byId=new Map(rows.map(row=>[row.claimId,row]));
+  return {...data,events:events.map((e:any)=>Array.isArray(e?.linkedClaimIds)&&e.linkedClaimIds.length
+    ?{...e,linkedClaimFigures:e.linkedClaimIds.map((id:string)=>byId.get(id)).filter((row:unknown)=>row!==undefined)}:e)};
 }
 
 /** Checks the fields consumed by renderers, not just an attached snapshot. */

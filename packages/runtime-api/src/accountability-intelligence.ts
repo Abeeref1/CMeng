@@ -7,7 +7,7 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import type {DeliveryRecord} from '../../delivery-core/src/types';
-import {actionRecordKey,prioritizeActions,pmcRoleOwner} from './action-priority';
+import {actionRecordKey,prioritizeActions,pmcRoleOwner,consolidateScheduleChains} from './action-priority';
 import {commercialCanonical} from './commercial-canonical';
 import {registerProgrammeContext} from './register-programme-context';
 
@@ -191,7 +191,9 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       requiredAction:'Obtain the renewed instrument and record its expiry date and responsible owner.',dueIso:bond.expiryIso,sourceOverdueDays:daysOver(bond.expiryIso,dataDateIso),escalation:'Escalate the uncovered security exposure.',
       severity:'high',authority:'source',owningModule:'contract-particulars-bonds',sourceRefs:bond.sourceRefs,moneyAtRisk:bond.amount===null?[]:[{amount:bond.amount,currency:bond.currency}]}));
   }
-  const recordActions=prioritizeActions(actionRows,programme);
+  // F51: activities connected by programme logic (same accountable party) are one
+  // recovery action per causal chain; each member stays listed in memberActionIds.
+  const recordActions=prioritizeActions(consolidateScheduleChains(actionRows,programme),programme);
   // A source register row is evidence, not a separate executive decision.
   // Group it by accountable party, register/control and completed-work cleanup state.
   // All individual records remain traceable in "details"; no source row is removed.
@@ -199,16 +201,20 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   for(const action of recordActions){
     const cleanup=(action.consequence??'').startsWith('All linked activities are complete.');
     const register=['delay-claims','notices-claims'].includes(action.owningModule??'')?'claims-and-notices':action.owningModule??'project controls';
-    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),register,cleanup?'register_cleanup':'active_control'].join('|');
+    // A causal chain is its own action; its key adds the chain identity to owner, register and state.
+    const chain=action.recordKey?.startsWith('schedule-chain|')?action.recordKey:null;
+    const key=[action.owner??pmcRoleOwner(action.owningModule??'project controls',null),register,cleanup?'register_cleanup':'active_control'].join('|')+(chain?'|'+chain:'');
     const members=buckets.get(key)??[];members.push(action);buckets.set(key,members);
     (action as ManagementAction&{ownerGroupKey:string}).ownerGroupKey=key;
   }
   const actions=[...buckets.entries()].map(([key,members])=>{
     const first=members[0]!,owner=first.owner??pmcRoleOwner(first.owningModule??'project controls',null);
     const cleanup=(first.consequence??'').startsWith('All linked activities are complete.');
-    const sourceCount=new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size;
+    const sourceIds=members.flatMap(m=>m.memberActionIds??[m.actionId]);
+    const sourceCount=new Set(sourceIds.map(id=>String(id).split('|').at(-1))).size;
+    const chainGroup=Boolean(first.recordKey?.startsWith('schedule-chain|'));
     // F54: name the records, highest-ranked first (members keep the ranked order).
-    const memberNames=[...new Set(members.map(m=>{const id=String(m.actionId);return id.includes('|')?id.split('|').slice(1).join('|'):id.replace(/^[^:]*:/,'');}).filter(Boolean))];
+    const memberNames=[...new Set(sourceIds.map(m=>{const id=String(m);return id.includes('|')?id.split('|').slice(1).join('|'):id.replace(/^[^:]*:/,'');}).filter(Boolean))];
     const references=[...new Set(members.flatMap(item=>item.sourceRefs))];
     const scope=[...new Set(members.flatMap(item=>item.affectedScope))];
     const sourceDueIso=members.flatMap(m=>m.dueIso?[m.dueIso]:[]).sort()[0]??null;
@@ -221,7 +227,8 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       dueIso:null,sourceDueIso,sourceOverdueDays,sourceOverdueCount,knownSourceOverdueCount,sourceUnknownDueRecordCount,
       escalation:knownSourceOverdueCount?'Escalate '+knownSourceOverdueCount+' overdue source record(s); the oldest required date is '+sourceOverdueDays+' calendar days past at the reporting date. Agree a follow-up deadline.':members.find(m=>m.escalation)?.escalation??null,
       recordKey:'accountability-owner-group:'+key,
-      issue:(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)'+(memberNames.length?': '+namedList(memberNames):''),
+      ...(chainGroup?{memberActionIds:sourceIds}:{}),
+      issue:chainGroup?(cleanup?'Close-out review: ':'')+first.issue+': '+namedList(memberNames):(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)'+(memberNames.length?': '+namedList(memberNames):''),
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
       affectedScope:scope.slice(0,20),
       requiredAction:first.requiredAction,
@@ -234,7 +241,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     const [owner,register,stateKey]=key.split('|');
     const priority=(members.some(m=>m.severity==='critical')?'critical':members.some(m=>m.severity==='high')?'high':members.some(m=>m.severity==='medium')?'medium':'low');
     return {groupId:'accountability-owner-group:'+encodeURIComponent(key),key,owner,register,state:stateKey,
-      memberActionIds:members.map(m=>m.actionId),count:new Set(members.map(m=>String(m.actionId).split('|').at(-1))).size,
+      memberActionIds:members.map(m=>m.actionId),sourceActionIds:members.flatMap(m=>m.memberActionIds??[m.actionId]),count:new Set(members.flatMap(m=>m.memberActionIds??[m.actionId]).map(id=>String(id).split('|').at(-1))).size,
       earliestDueIso:members.map(m=>m.dueIso).filter((d):d is string=>!!d).sort()[0]??null,
       overdueRecordCount:members.some(m=>(m.sourceOverdueDays??null)===null)?null:members.filter(m=>((m.sourceOverdueDays??null)??0)>0).length,
       knownOverdueRecordCount:members.filter(m=>((m.sourceOverdueDays??null)??0)>0).length,
@@ -243,7 +250,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       topPriority:priority};
   });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActions,ownerGroups,recordActionCount:recordActions.length,
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActions,ownerGroups,ownerBlocks:accountabilityOwnerBlocks(ownerGroups),recordActionCount:recordActions.length,
     managementPosition:recordActions.length
       ?recordActions.length+' underlying control records are organised into '+actions.length+' accountable owner/register action groups; '+owned+' groups have an accountable role'+(unassigned?' and '+unassigned+' still need ownership.':'.')
       :'No actionable ownership chain is established from the current open/overdue records.',
@@ -251,4 +258,18 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
 }
 export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.actions.length||data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.actions.length||data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};
+}
+
+/** F61: one summary per accountable owner (assigned owner, else accountable
+ * role: the first part of the stable group key), computed from ALL register
+ * groups on the server. A paged owner list therefore never shows a partial
+ * owner total. Each block keeps its register groups unchanged (additive). */
+export function accountabilityOwnerBlocks<G extends {key?:string|undefined;owner?:string|null|undefined;count?:number|null|undefined;overdueRecordCount?:number|null|undefined;knownOverdueRecordCount?:number|null|undefined}>(groups:readonly G[]){
+  const owners=new Map<string,G[]>();
+  for(const group of groups){const id=String(group.key??group.owner??'').split('|')[0]!.trim().toLowerCase();const list=owners.get(id)??[];list.push(group);owners.set(id,list);}
+  return [...owners.entries()].map(([ownerKey,list])=>({ownerKey,owner:list[0]!.owner??null,groupCount:list.length,
+    recordCount:list.reduce((n,g)=>n+(typeof g.count==='number'?g.count:0),0),
+    knownOverdueRecordCount:list.reduce((n,g)=>n+(typeof g.knownOverdueRecordCount==='number'?g.knownOverdueRecordCount:0),0),
+    overdueRecordCount:list.some(g=>g.overdueRecordCount==null)?null:list.reduce((n,g)=>n+(g.overdueRecordCount as number),0),
+    groups:list}));
 }

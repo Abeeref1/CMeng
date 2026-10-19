@@ -2,6 +2,7 @@ import {dateValue} from '../../truth-kernel/src';
 import type {NoticeRequirement} from '../../delay-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {noticeReviewBasis,reportingContractTermVersions} from './notice-review';
+import type {ContractTermVersion} from './contract-term-versions';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 
 /** Extract explicit initial-claim periods with their contract version. Never
@@ -68,8 +69,47 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
   const changes=[...new Set(used.map(r=>r.effectiveFromIso).filter((v):v is string=>Boolean(v)))].sort();
   // Preserve source intervals even when a later provision is not selected:
   // excluding it cannot silently extend the earlier rule into that gap.
-  return used.map(rule=>({...rule,effectiveToIso:rule.effectiveToIso??changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null,
+  const result=used.map(rule=>({...rule,effectiveToIso:rule.effectiveToIso??changes.find(date=>!rule.effectiveFromIso||date>rule.effectiveFromIso)??null,
     ...(sourceConflicts.length?{sourceConflicts}:{})}));
+  // T04: a notice period decided in the decision place governs its interval.
+  const decided=labelledTerms.filter(t=>t.decisionReference);
+  return decided.length?applyDecidedNoticePeriods(result,decided,noticeKind):result;
+}
+
+/** The decided interval is taken out of every other rule (their parts before and
+ * after it are kept) and one rule with the decided period covers it. Trigger and
+ * interpretation follow the source rule in force there; nothing is inferred.
+ * The decided rule is never 'official': it carries the not-adopted label. */
+function applyDecidedNoticePeriods(rules:NoticeRequirement[],decided:readonly ContractTermVersion[],noticeKind:'claim_notice'|'detailed_claim'):NoticeRequirement[]{
+  const overlaps=(r:{effectiveFromIso?:string|null;effectiveToIso?:string|null},d:ContractTermVersion)=>
+    (!d.effectiveToIso||!r.effectiveFromIso||r.effectiveFromIso<d.effectiveToIso)&&(!r.effectiveToIso||!d.effectiveFromIso||r.effectiveToIso>d.effectiveFromIso);
+  let kept=[...rules];
+  const added:NoticeRequirement[]=[];
+  for(const d of decided){
+    const inForce=kept.filter(r=>overlaps(r,d));
+    const template=inForce.find(r=>r.requirementId.startsWith(d.documentId+':'))??inForce[0]??rules.find(r=>r.requirementId.startsWith(d.documentId+':'))??rules[0];
+    kept=kept.flatMap(r=>{
+      if(!overlaps(r,d))return [r];
+      const parts:NoticeRequirement[]=[];
+      if(d.effectiveFromIso&&(!r.effectiveFromIso||r.effectiveFromIso<d.effectiveFromIso))parts.push({...r,effectiveToIso:d.effectiveFromIso});
+      if(d.effectiveToIso&&(!r.effectiveToIso||r.effectiveToIso>d.effectiveToIso))parts.push({...r,effectiveFromIso:d.effectiveToIso});
+      return parts;
+    });
+    if(!template)continue;
+    const {sourceDayBasis:_basis,sourceConflicts:_conflicts,sourceFilename,...base}=template;
+    const documentRefs=d.sourceRefs.filter(ref=>ref.startsWith('evidence-document:'));
+    added.push({...base,requirementId:'user-decision:'+noticeKind+':'+d.value+':'+(d.effectiveFromIso??'start'),
+      ...(sourceFilename&&template.requirementId.startsWith(d.documentId+':')?{sourceFilename}:{}),
+      noticePeriodDays:d.value,effectiveFromIso:d.effectiveFromIso,effectiveToIso:d.effectiveToIso,
+      ...(d.unit.includes('working')?{sourceDayBasis:'working' as const}:{}),
+      reviewReference:d.decisionReference!,state:'candidate',
+      sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:d.sourceAnalyticalUse?d.sourceAnalyticalNote??CONTRACT_SOURCE_ANALYTICAL_NOTE:'Chosen by the user in the decision place; not formally adopted.',
+      evidenceRefs:documentRefs.map(ref=>({sourceType:'contract' as const,sourceId:ref.split(':')[1]!,locator:ref.split(':').slice(-2).join(':')}))});
+  }
+  // A decided period is no longer an open source conflict.
+  const open=(c:string)=>!decided.some(d=>c.endsWith(':'+d.value+' days:'+d.documentId));
+  kept=kept.map(r=>{if(!r.sourceConflicts)return r;const {sourceConflicts,...rest}=r;const left=sourceConflicts.filter(open);return left.length?{...rest,sourceConflicts:left}:rest;});
+  return [...kept,...added];
 }
 
 export function noticeVersionCohorts(notices:readonly {kind:string;actualIssuedAt:string|null}[],rules:readonly NoticeRequirement[]){

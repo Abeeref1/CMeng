@@ -177,7 +177,8 @@ test('T04 a commercial adopted-vs-unadopted conflict is choosable: pick, type ow
     const unadopted=doc(p,'vo-site-copy','variation_register','commercial:variation-site');
     withVariations(state,adopted,100000);withVariations(state,unadopted,150000);
     rebuildDerivedControls(state);
-    const action=()=>projectActions(state,summarizeControlIssues([])).actions.find((a:any)=>a.id==='matter:commercial-record:variations:VO-1') as any;
+    // A saved decision is listed under information (where confirm-review finds it for change and undo).
+    const action=()=>{const r=projectActions(state,summarizeControlIssues([]));return [...r.actions,...r.information].find((a:any)=>a.id==='matter:commercial-record:variations:VO-1') as any;};
     const open=action();
     assert.ok(open,'one decision for the record');assert.equal(open.category,'confirmation');
     assert.deepEqual(open.target.reviewOptions.map((o:any)=>o.value),['keep_adopted','use_source:'+unadopted.documentId,'enter_value']);
@@ -207,4 +208,26 @@ test('T04 a commercial adopted-vs-unadopted conflict is choosable: pick, type ow
     assert.equal(action().category,'confirmation','undo reopens the decision');
     assert.ok(state.evidenceDocuments.every((d:any)=>d.basisState===(d.documentId===adopted.documentId?'active':'candidate')),'stored basisState unchanged');
   }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('T04 a saved commercial decision stays reachable in the register that confirm-review searches (change and undo)',async()=>{
+  const {projectActionRegisterForState}=await import('../packages/runtime-api/src/project-projections');
+  const store=new RuntimeProjectStore({durable:false});
+  const state=store.getOrCreate('T04-COMMERCIAL-REG') as any;const p=state.projectId;
+  const adopted=doc(p,'vo-adopted','variation_register','commercial:variations','active');
+  const unadopted=doc(p,'vo-site-copy','variation_register','commercial:variation-site');
+  withVariations(state,adopted,100000);withVariations(state,unadopted,150000);
+  rebuildDerivedControls(state);store.touch(state);
+  // The same lists the confirm-review route searches.
+  const reachable=()=>{const w=projectActionRegisterForState(store.get(p)!).workflow as any;return [...w.actions,...w.information].find((a:any)=>a.id==='matter:commercial-record:variations:VO-1');};
+  const open=reachable();
+  assert.ok(open,'the open decision is in the register');assert.equal(open.category,'confirmation');
+  const decisions={...(state.controls.reviewDecisions??{}),'commercial-record:variations:VO-1':{sourceFingerprint:open.reviewFingerprint,choice:'use_source:'+unadopted.documentId,confirmedAt:'2031-05-01T00:00:00Z',sourceRefs:[]}};
+  store.updateControls(p,{reviewDecisions:decisions});rebuildDerivedControls(store.get(p)!);store.touch(store.get(p)!);
+  const saved=reachable();
+  assert.ok(saved,'a saved decision is still found by confirm-review, so it can be changed or undone');
+  assert.equal(saved.category,'information');
+  assert.equal(saved.reviewFingerprint,open.reviewFingerprint,'the same fingerprint the route checks');
+  assert.ok(saved.target.reviewOptions.some((o:any)=>o.value==='undo'),'undo is offered');
+  assert.ok(saved.target.reviewOptions.some((o:any)=>o.value==='keep_adopted'),'change is offered');
 });

@@ -79,7 +79,12 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPo
   if(seen.has(input))return input;
   seen.add(input);
   if(Array.isArray(input)){
-   const shown=evidenceList.test(key)?Math.min(input.length,PROJECT_TABLE_PAGE_SIZE):input.length;
+   // F61: any other fact list that grows with the source records (claim
+   // pipeline rows, security instruments, statements) is paged by the same
+   // rule as screen tables (more than 100 entries). Diagnostic code sets and
+   // per-currency figures are bounded and stay complete.
+   const longFactList=input.length>100&&!/^(?:diagnostics|currencies)$/.test(key);
+   const shown=evidenceList.test(key)||longFactList?Math.min(input.length,PROJECT_TABLE_PAGE_SIZE):input.length;
    if(shown<input.length)retainPage({pointer,total:input.length,shown,kind:'array'});
    const result=input.slice(0,shown).map((item:any,index:number)=>walk(item,pointer+'/'+index,''));
    seen.delete(input);return result;
@@ -144,7 +149,7 @@ export function pageProjectResponse(
  const neverPageArray=(key:string,pointer:string,value:unknown[])=>(
    // These eight links are columns of one event's evidence chain, not separate records.
    (/\/delayEotEvidenceChain\/rows\/\d+\/links$/.test(pointer)&&value.length<=8)
-   ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|ownerGroups|ownerRegisterGroups|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
+   ||(/^(?:points|weeklyTotals|actualSnapshots|readinessCoverage|blockerTypes|sourceResourceTrades|resourceSummaries|monthlyPoints|monthlySeries|chartPoints|curvePoints|series|metrics|kpis|milestoneFullCounts|largestFloatMovements|movementClusters|monthlyEvmPoints|evmPoints|periods|currencies)$/i.test(key)&&!quantityItemSeries(pointer))
    ||(pointer==='/rows'&&Number.isInteger(item.page)&&Number.isInteger(item.pageSize)&&Number.isInteger(item.matchingCount)&&value.length<=item.pageSize)
    // A source record-page has already been bounded, sorted and filtered.
    // Do not turn the requested 50 original rows into a 25-row preview.

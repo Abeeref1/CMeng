@@ -118,6 +118,8 @@ export function completionDecisionItem(state:ProjectRuntimeState):CompletionDeci
   const value=readCompletionDecisionItem(state);completionCache.set(state,{version:state.version,value});return value;
 }
 function readCompletionDecisionItem(state:ProjectRuntimeState):CompletionDecisionItem|null{
+  // No contract document, no completion date to decide (and no Data Date read).
+  if(!state.contractDocuments?.length)return null;
   const asOf=registerDate(projectDataDate(state)??'')||null;
   const position=contractCompletionPosition(state,asOf);
   const stored=state.controls.contractTimeBasis;
@@ -146,6 +148,8 @@ function readCompletionDecisionItem(state:ProjectRuntimeState):CompletionDecisio
 }
 /** The decided completion date on any time basis (canonical or stored); idempotent. */
 export function applyCompletionDecision(state:ProjectRuntimeState,basis:ContractTimeBasis|null|undefined):ContractTimeBasis|null|undefined{
+  // Only a saved decision changes the basis; nothing else is read without one.
+  if(!state.controls?.reviewDecisions?.[COMPLETION_DECISION_KEY])return basis;
   const item=completionDecisionItem(state),decision=item?.decision;
   if(!item||!decision)return basis;
   const ref='user-confirmation:'+item.key+':'+item.fingerprint;

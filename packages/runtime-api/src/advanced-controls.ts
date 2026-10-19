@@ -11,6 +11,16 @@ import {deliveryModule} from './delivery-projections';
 import {conditionalNotice} from './conditional-notice';
 // SW-46: "checks passed" needs records that were checked; null when the record list is not established.
 const checkedRecordCount=(m:any):number|null=>Array.isArray(m?.data?.rows)?m.data.rows.length:null;
+/** SW-46: final-account state and detail for the closeout or handover page. "clear" needs a ready page
+ * with at least one checked record; a ready page with no checked records (or an unknown record list) is
+ * not established ("unresolved"), never clear. */
+export function deliveryCheckState(m:{status:string;reason?:string|null;data?:unknown},area:'closeout'|'handover'):{state:'unresolved'|'open'|'clear';detail:string}{
+  const checked=checkedRecordCount(m),ran=checked===null?null:checked>0;
+  const state=m.status==='blocked'?'unresolved':m.status==='ready'?(ran===true?'clear':'unresolved'):'open';
+  const Area=area==='closeout'?'Closeout':'Handover';
+  const detail=m.reason??(m.status==='ready'?conditionalNotice(ran,'Current '+area+' checks passed.','No '+area+' records were checked.',Area+' check coverage is not established.'):Area+' requires review.');
+  return {state,detail};
+}
 
 const norm=(value:string)=>value.trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ');
 const day=(iso:string)=>Date.parse(iso.slice(0,10)+'T00:00:00Z');
@@ -159,8 +169,9 @@ export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeRes
   const retention=controls.retentionCalendar;
   check('retention','Retention',retention.state==='missing'?'unresolved':(retention.heldCount??0)>0||(retention.overdueCount??0)>0?'open':'clear',
     retention.state==='missing'?'Retention calendar not established.':String(retention.heldCount??0)+' held · '+String(retention.overdueCount??0)+' overdue release(s).','Retention Calendar');
-  check('closeout','Snag / closeout',closeout.status==='blocked'?'unresolved':closeout.status==='ready'?'clear':'open',closeout.reason??(closeout.status==='ready'?conditionalNotice(checkedRecordCount(closeout)===null?null:checkedRecordCount(closeout)!>0,'Current closeout checks passed.','No closeout records were checked.','Closeout check coverage is not established.'):'Closeout requires review.'),'Snag & Closeout');
-  check('handover','Handover',handover.status==='blocked'?'unresolved':handover.status==='ready'?'clear':'open',handover.reason??(handover.status==='ready'?conditionalNotice(checkedRecordCount(handover)===null?null:checkedRecordCount(handover)!>0,'Current handover checks passed.','No handover records were checked.','Handover check coverage is not established.'):'Handover requires review.'),'Handover Readiness');
+  const closeoutCheck=deliveryCheckState(closeout,'closeout'),handoverCheck=deliveryCheckState(handover,'handover');
+  check('closeout','Snag / closeout',closeoutCheck.state,closeoutCheck.detail,'Snag & Closeout');
+  check('handover','Handover',handoverCheck.state,handoverCheck.detail,'Handover Readiness');
   const currencies=(commercial.currencies??[]).map((r:any)=>({currency:r.currency,originalContractValue:value(r.originalContractValue),currentContractValue:value(r.currentContractValue),
     approvedVariationAmount:value(r.approvedVariationAmount),pendingVariationAmount:value(r.pendingVariationAmount),grossCertifiedAmount:value(r.grossCertifiedAmount),paidAmount:value(r.paidAmount),
     certifiedUnpaidAmount:value(r.certifiedUnpaidAmount),retentionHeldAmount:value(r.retentionHeldAmount),claimedAmount:value(r.claimedAmount),assessedClaimAmount:value(r.assessedClaimAmount)}));

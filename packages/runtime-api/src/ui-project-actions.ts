@@ -164,7 +164,7 @@ function renderProjectActionList(){
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
    '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+(a.assignedOwner?escapeHtml(a.assignedOwner)+' <small>Assigned in CMeng</small>':ownerMissingHtml(a.owner,a.accountableRole))+'</p>'+records+(information?'':actionAssignEditor(a))+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
-   (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner))).join('; ')+'</p>':'')+
+   actionGapsHtml(a)+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
    (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>'+(actionListTotal(a.correctionRecords)===a.correctionRecords.length?'Open all '+fmt(a.correctionRecords.length)+' recorded locations':'Open '+actionShownOf(a.correctionRecords,'recorded locations'))+'</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information||a.target?.kind?.startsWith('review-')?actionResolutionHtml(a):'')+
@@ -237,17 +237,34 @@ async function resolveDocumentAction(id){
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }
-async function resolveUploadAction(id){
+/** F30: each missing field once, with the control that supplies it: the inline
+ * input of this matter, or an upload naming the document type and the field. */
+function actionGapsHtml(a){
+ const rows=a.missingFields||[];if(!rows.length)return '';
+ const owner=row=>typeof apiOwnerText==='function'?apiOwnerText(row):row.owner;
+ const control=(row,index)=>{
+  const s=row.supply;if(!s)return '';
+  if(s.type==='input')return '<small class="gap-supply">Supplied here: '+escapeHtml(s.label)+(a.target?.kind===s.kind?' (below)':'')+'</small>';
+  const schedule=s.uploadMode==='schedule';
+  return '<div class="action-resolution-grid"><label>'+escapeHtml(s.uploadHint)+'<input type="file" class="gap-upload-file" '+(schedule?'accept=".xer,.xml,.xlsx,.xlsm,.csv"':'accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"')+'></label>'+
+   (schedule?'<label>Programme purpose<select class="gap-upload-role">'+programmePurposeOptions('update')+'</select></label><label>Baseline approval reference<input type="text" class="gap-upload-approval" placeholder="Required only for baseline / revised baseline"></label>':'')+
+   '</div><button class="btn small" type="button" data-resolve-gap-upload="'+escapeHtml(a.id)+'" data-gap-index="'+index+'">'+escapeHtml(s.label)+'</button>';
+ };
+ return '<div class="action-gaps"><b>Information needed · '+fmt(rows.length)+' field'+(rows.length===1?'':'s')+'</b><ul>'+rows.map((row,index)=>'<li data-gap-row="'+index+'"><span>'+escapeHtml(row.field+' · '+(row.supply?.type==='upload'?row.supply.documentType:row.file)+' · '+owner(row))+'</span>'+control(row,index)+'</li>').join('')+'</ul><p class="gap-inline-message" role="status"></p></div>';
+}
+async function resolveUploadAction(id,gapIndex=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- const t=a.target,node=actionNode(id),file=node.querySelector('.action-upload-file')?.files?.[0];
- if(!file){actionMessage(id,'Choose a file to upload.');return;}
- setActionBusy(id,true);actionMessage(id,'Uploading and updating the Project position…');
+ const owner=project(),a=[...projectActionState.data.actions,...(projectActionState.data.information||[])].find(x=>x.id===id);if(!a)return;
+ const gap=gapIndex===null?null:a.missingFields?.[gapIndex]?.supply;if(gapIndex!==null&&gap?.type!=='upload')return;
+ const t=gap||a.target,node=gapIndex===null?actionNode(id):actionNode(id)?.querySelector('[data-gap-row="'+gapIndex+'"]'),cls=gapIndex===null?'.action-upload':'.gap-upload',file=node?.querySelector(cls+'-file')?.files?.[0];
+ const say=text=>{if(gapIndex===null){actionMessage(id,text);return;}const m=actionNode(id)?.querySelector('.gap-inline-message');if(m)m.textContent=text;};
+ if(!file){say('Choose a file to upload.');return;}
+ setActionBusy(id,true);say('Uploading and updating the Project position…');
  try{
   const headers={'content-type':fileType(file),'x-source-filename':file.name,'x-source-relative-path':file.webkitRelativePath||file.name,'x-rerun-after-upload':'true'};
   let path='/api/projects/'+encodeURIComponent(owner)+'/evidence/uploads';
   if(t.uploadMode==='schedule'){
-   const role=node.querySelector('.action-upload-role')?.value||'update',approval=node.querySelector('.action-upload-approval')?.value.trim()||'';
+   const role=node.querySelector(cls+'-role')?.value||'update',approval=node.querySelector(cls+'-approval')?.value.trim()||'';
    if(['baseline','revised_baseline'].includes(role)&&!approval)throw new Error('Enter the baseline approval reference.');
    path=t.phaseId?'/api/projects/'+encodeURIComponent(owner)+'/phases/'+encodeURIComponent(t.phaseId)+'/schedule/uploads':'/api/projects/'+encodeURIComponent(owner)+'/schedule/uploads';
    Object.assign(headers,{'x-upload-intent':'replace_current_basis','x-schedule-role':role,'x-schedule-role-confirmed':'1'});
@@ -255,7 +272,7 @@ async function resolveUploadAction(id){
   }else Object.assign(headers,{'x-upload-intent':'add_update'});
   await api(path,{method:'POST',headers,body:file});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){say(e.message);setActionBusy(id,false);}
 }
 async function resolveContractCompletionAction(id){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
@@ -315,6 +332,7 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
  root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
  root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));
+ root.querySelectorAll('[data-resolve-gap-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveGapUpload,Number(b.dataset.gapIndex)));
  root.querySelectorAll('[data-resolve-population]').forEach(b=>b.onclick=()=>resolvePopulationAction(b.dataset.resolvePopulation));
  root.querySelectorAll('[data-resolve-contract-completion]').forEach(b=>b.onclick=()=>resolveContractCompletionAction(b.dataset.resolveContractCompletion));
  root.querySelectorAll('[data-resolve-missing-value]').forEach(b=>b.onclick=()=>resolveMissingValueAction(b.dataset.resolveMissingValue));

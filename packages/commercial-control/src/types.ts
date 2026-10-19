@@ -171,6 +171,7 @@ export interface CommercialControlInput {
 
 export interface CommercialControlPosition {
   programmeCashScenario?: ReturnType<typeof import("../../runtime-api/src/programme-cash-scenario").programmeCashScenario>;
+  datedCashSeries?: import("../../runtime-api/src/dated-cash-series").DatedCashSeries;
   certificateProfile?: import("../../runtime-api/src/certificate-profile").ReturnCertificateProfile;
   variationBasisReview?: ReturnType<typeof import("../../runtime-api/src/commercial-basis-review").variationBasisReview>;
   costBasisReview?: ReturnType<typeof import("../../runtime-api/src/commercial-basis-review").costBasisReview>;
