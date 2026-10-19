@@ -152,3 +152,20 @@ test('A4 downloads: JSON and Excel module downloads carry the same owner present
   assert.match(report,/buildModuleWorkbook\(projectId,moduleKey,presentMissingOwners\(prepared\)\)/);
   assert.match(report,/buildModuleJsonDownload\(projectId,moduleKey,presentMissingOwners\(prepared\)\)/);
 });
+
+test('A4 exports and Ask: Excel, PDF, DOCX, CSV and Ask read owners through the same helper as the screen', async ()=>{
+  const {apiOwnerText}=await import('../packages/runtime-api/src/action-priority');
+  const risk=pmcRoleOwner('risk',null);
+  assert.equal(apiOwnerText({owner:risk}),'Owner not set · Accountable role: PMC Risk Manager','calculated placeholder (Ask, analysis exports)');
+  assert.equal(apiOwnerText({owner:null,ownerState:'missing',accountableRole:'PMC Risk Manager'}),'Owner not set · Accountable role: PMC Risk Manager','presented row (Excel)');
+  assert.equal(apiOwnerText({accountableOwner:risk},'accountableOwner'),'Owner not set · Accountable role: PMC Risk Manager');
+  assert.equal(apiOwnerText({dimension:'owner',value:risk},'value'),'Owner not set · Accountable role: PMC Risk Manager');
+  assert.equal(apiOwnerText({dimension:'organisation',value:risk},'value'),risk,'only owner values are reworded');
+  assert.equal(apiOwnerText({owner:'Jane Smith'}),'Jane Smith');
+  assert.equal(apiOwnerText(apiOwnerText({owner:risk}) as any),apiOwnerText(apiOwnerText({owner:risk}) as any),'stable');
+  assert.ok(script.includes(apiOwnerText.toString()),'the browser runs the same function');
+  const read=(f:string)=>require('node:fs').readFileSync(require('node:path').join(__dirname,'../../packages/runtime-api/src/'+f),'utf8');
+  assert.match(read('module-report.ts'),/const text=apiOwnerText\(row,key\);if\(typeof text==='string'&&text!==flat\[key\]\)flat\[key\]=text;/);
+  assert.match(read('ask-authorities.ts'),/owner:apiOwnerText\(row\)\?\?null,/);
+  assert.match(read('ask-engine.ts'),/const ownerText=apiOwnerText\(row\);/);
+});

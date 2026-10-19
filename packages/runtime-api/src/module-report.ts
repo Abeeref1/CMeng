@@ -1,4 +1,4 @@
-import {presentMissingOwners} from './action-priority';
+import {presentMissingOwners,apiOwnerText} from './action-priority';
 import {PassThrough} from 'node:stream';
 import {readableFieldLabel,readablePathLabel,uniqueHeadings,FIELD_KEYS_SHEET} from './field-labels';
 import {setImmediate as yieldExport} from 'node:timers/promises';
@@ -248,7 +248,12 @@ function styleHeader(
 const nestedColumnLabels:Record<string,string>={parentPointer:'Parent record location',sourcePointer:'Record location',parentReference:'Parent record'};
 const EXCEL_DATA_ROWS=1_048_575; // One header plus data must fit a worksheet.
 function flatArrayRow(row:unknown):Record<string,FlatValue> {
- return row&&typeof row==='object'&&!Array.isArray(row)?flattenRecord(row):{value:primitiveValue(row)};
+ if(!(row&&typeof row==='object'&&!Array.isArray(row)))return {value:primitiveValue(row)};
+ const flat=flattenRecord(row);
+ // T09 A4: a missing owner cell reads exactly what the screen reads (same helper);
+ // ownerState and accountableRole stay their own columns.
+ for(const key of ['owner','accountableOwner','value'])if(key in flat){const text=apiOwnerText(row,key);if(typeof text==='string'&&text!==flat[key])flat[key]=text;}
+ return flat;
 }
 /** One row of the field-key sheet: where a value sits and which field key it carries. */
 type FieldKeyRow=[worksheet:string,column:number,row:number,heading:string,fieldKey:string];

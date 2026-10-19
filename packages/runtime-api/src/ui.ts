@@ -4,7 +4,7 @@ import {boqSectionReviewScript} from './ui-boq-section-review';
 import {decisionFactsScript} from './ui-decision-facts';
 import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText} from './management-values';
-import {pmcRoleOwner} from './action-priority';
+import {pmcRoleOwner,apiOwnerText} from './action-priority';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
@@ -653,7 +653,7 @@ async function api(path,opts={}){
  * ownerState / accountableOwnerState "missing" and accountableRole. Every screen reads
  * owners through this one helper so such an owner shows as "Owner not set" with its
  * role, never blank and never replaced by another field. Other values are unchanged. */
-function apiOwnerText(row,field){field=field||"owner";const value=row?row[field]:null;const state=row?row[field==="accountableOwner"?"accountableOwnerState":"ownerState"]:null;if(value==null&&state==="missing")return "Owner not set"+(typeof row.accountableRole==="string"&&row.accountableRole.trim()?" · Accountable role: "+row.accountableRole.trim():"");return value;}
+${apiOwnerText.toString()}
 function escapeHtml(s){if(s===null||s===undefined)return"";return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 function fileType(file){const n=file.name.toLowerCase();if(n.endsWith(".zip"))return"application/zip";if(n.endsWith(".xer"))return"text/plain";if(n.endsWith(".xml"))return"application/xml";if(n.endsWith(".csv"))return"text/csv";if(n.endsWith(".pdf"))return"application/pdf";if(n.endsWith(".docx"))return"application/vnd.openxmlformats-officedocument.wordprocessingml.document";if(n.endsWith(".png"))return"image/png";if(n.endsWith(".jpg")||n.endsWith(".jpeg"))return"image/jpeg";if(n.endsWith(".tif")||n.endsWith(".tiff"))return"image/tiff";if(n.endsWith(".bmp"))return"image/bmp";if(n.endsWith(".webp"))return"image/webp";if(n.endsWith(".xlsm"))return"application/vnd.ms-excel.sheet.macroEnabled.12";return file.type||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
 function inferScheduleRole(name){const n=name.toLowerCase();if(/(?:^|[_ .-])(draft|scenario|proposed)(?:[_ .-]|$)/.test(n))return"scenario";if(n.includes("revised")&&n.includes("baseline"))return"revised_baseline";if(n.includes("recovery"))return"recovery";if(n.includes("baseline")||n.includes("rev0")||n.startsWith("s01_"))return"baseline";return"update"}

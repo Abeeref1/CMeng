@@ -1,3 +1,4 @@
+import {apiOwnerText} from './action-priority';
 import {randomUUID} from 'node:crypto';
 import type {AnalysisPlan,AnalysisResult,AskRequest,AskSession,AuthorityResult,NarrativeBlock,Presentation,ProjectScope,SavedView} from '../../project-ask/src/types';
 import {AskError,resolveAskScopeType} from '../../project-ask/src/catalogue';
@@ -27,7 +28,8 @@ function managementActionsAnswer(result:AnalysisResult):NarrativeBlock|null{
   const matching=table.selection?.matching??table.rows.length;
   if(section.state==='unavailable')return {heading:'Management actions',text:'The canonical Command Center action population is not established from the current project evidence. This is not confirmation that there are no management issues.',classification:'calculated_intelligence',traceIds:[table.traceId]};
   const preview=table.rows.slice(0,result.presentation.detail==='short'?3:10).map((row,index)=>{
-    const owner=row.owner?'; owner '+String(row.owner):'; owner not established';
+    const ownerText=apiOwnerText(row);
+    const owner=ownerText?'; owner '+String(ownerText):'; owner not established';
     const due=row.dueDate?'; due '+String(row.dueDate).slice(0,10):'';
     const consequence=row.consequence?'; consequence '+String(row.consequence):'';
     const action=row.requiredAction?'; action '+String(row.requiredAction):'';

@@ -29,6 +29,19 @@ export function ownerDisplayState(owner:string|null|undefined):{named:boolean;ro
  return {named:true,role:null};
 }
 
+/** T09 A4: the one owner wording for screens, downloads and Ask. An owner sent as
+ * missing (null with ownerState / accountableOwnerState 'missing') or still held as a
+ * role-only placeholder reads "Owner not set · Accountable role: <role>". Any other
+ * value is returned unchanged. The browser script embeds this same function. */
+export function apiOwnerText(row:any,field:string='owner'):unknown{
+ const value=row?row[field]:null;
+ const state=row?row[field==='accountableOwner'?'accountableOwnerState':'ownerState']:null;
+ let role:string|null=null,missing=false;
+ if(value==null&&state==='missing'){missing=true;role=typeof row.accountableRole==='string'&&row.accountableRole.trim()?row.accountableRole.trim():null;}
+ else if(typeof value==='string'&&(field!=='value'||row.dimension==='owner')){const shown=ownerDisplayState(value);if(!shown.named&&shown.role){missing=true;role=shown.role;}}
+ return missing?'Owner not set'+(role?' · Accountable role: '+role:''):value;
+}
+
 /** API presentation of owners (T09 A4). A role assigned only because no individual
  * is named is sent as owner null with ownerState 'missing' and its accountableRole.
  * Keys (recordKey, ownerGroupKey, key) are separate fields and are never changed, so

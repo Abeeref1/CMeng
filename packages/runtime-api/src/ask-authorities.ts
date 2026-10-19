@@ -1,3 +1,4 @@
+import {apiOwnerText} from './action-priority';
 import {phaseProgrammePosition} from './phase-programmes';
 import {projectFactsForState,type ProjectFact} from './project-facts';
 import {askScheduleActivities,askCriticalPath} from './ask-schedule';
@@ -212,7 +213,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
       consequence:row.consequence??null,
       affectedScope:Array.isArray(row.affectedScope)?row.affectedScope.join('; '):null,
       affectedMilestones:Array.isArray(row.affectedMilestones)?row.affectedMilestones.join('; '):null,
-      owner:row.owner??null,
+      owner:apiOwnerText(row)??null,
       organisation:row.organisation??null,
       requiredAction:row.requiredAction??null,
       dueDate:row.dueIso??null,
