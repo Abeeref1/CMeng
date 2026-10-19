@@ -66,7 +66,7 @@ function pagePath(projectId:string,page:(typeof moduleRegistry)[number]){
     for(const project of projects){
       const ps=performance.now(),P='/api/projects/'+encodeURIComponent(project.projectId);
       const h:Record<string,string>={};hashes[project.projectId]=h;
-      const keep=dumpIds.has(project.projectId)?(dumps[project.projectId]={}):null;
+      const keep:Record<string,string>|null=dumpIds.has(project.projectId)?(dumps[project.projectId]={}):null;
       const record=(key:string,text:string)=>{const masked=mask(text);h[key]=hash(masked);if(keep)keep[key]=masked;};
       record('documents',(await request(P+'/evidence/documents')).text);
       await request(P+'/evidence/upload-progress/J8-SHARED-0');
