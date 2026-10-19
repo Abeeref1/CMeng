@@ -110,6 +110,8 @@ export interface LookAheadProjection {
   evidenceGapActivityCount?: number;
   blockedWithEvidenceGapCount?: number;
   blockerOccurrenceCount?: number;
+  /** F42: named blockers on each driving activity in the look-ahead. Additive. */
+  drivingBlockers?: DrivingActivityBlockers;
   blockerTypes?: Array<{ documentType: string; activityCount: number; recordCount: number; recordIds: string[] }>;
   readinessCoverage?: Array<{ key: ReadinessDimensionKey; denominator: number; knownCount: number; coveragePercent: number | null; linkedActivityCount?:number; linkedSourceRecordCount?:number; unresolvedLinkedActivityCount?:number }>;
   forwardWindowCount: number;
@@ -136,4 +138,27 @@ export interface LookAheadProjection {
   blockedCount: number;
   rows: LookAheadActivityRow[];
   missingCurrentDateActivityIds: string[];
+}
+
+export interface DrivingActivityBlocker {
+  activityId: string;
+  name: string | null;
+  startIso: string | null;
+  finishIso: string | null;
+  totalFloatHours: number | null;
+  inForwardWindow: boolean;
+  incompletePredecessors: Array<{ activityId: string; name: string | null; status: CanonicalActivityStatus | "not_in_programme"; finishIso: string | null }>;
+  /** Readiness dimensions with no source evidence: unknown, not ready. */
+  missingReadiness: Array<{ dimension: ReadinessDimensionKey; note: string | null }>;
+  /** Linked source records still open (state blocked): RFIs, NCRs, permits, procurement and others. */
+  openItems: Array<{ dimension: ReadinessDimensionKey; recordId: string | null; documentType: string; dueIso: string | null; owner: string | null; note: string; sourceRefs: string[] }>;
+  blockerCount: number;
+}
+
+export interface DrivingActivityBlockers {
+  basis: "independent_driving_path";
+  formula: string;
+  drivingActivityCount: number;
+  blockedDrivingActivityCount: number;
+  rows: DrivingActivityBlocker[];
 }

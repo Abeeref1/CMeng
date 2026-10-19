@@ -357,7 +357,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     projectVersion:state.version,
     dataDateIso,
     actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
-    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
+    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
+      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null}),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
