@@ -3188,7 +3188,7 @@ function renderScopeClassificationVisual(data){
     if(!group&&responseListPopulation(p.rows||[]).total===(p.rows||[]).length)for(const row of p.rows||[]){const value=row[key];if(value!==null&&value!==undefined&&String(value).trim())values.set(String(value),(values.get(String(value))||0)+1);}
     const items=group?.rows||[...values].map(([value,activityCount])=>({value,activityCount}));
     if(!items.length)return"";
-    const rows=items.map(row=>'<tr><td>'+escapeHtml(row.value)+'</td><td>'+escapeHtml(fmt(row.activityCount))+'</td></tr>').join("");
+    const rows=items.map(row=>'<tr><td>'+escapeHtml(row.value)+'</td><td>'+escapeHtml(fmt(row.activityCount))+'</td></tr>').join("")+(group?.notGrouped?.activityCount?'<tr><td><i>'+escapeHtml(group.notGrouped.label)+'</i></td><td>'+escapeHtml(fmt(group.notGrouped.activityCount))+'</td></tr>':"");
     return '<details class="source-scope"><summary>By '+escapeHtml(humanizeKey(key))+' · '+escapeHtml(screenCountText(group?.valueCount??listTotal(items)))+' values</summary><p>Counts use the complete classification population. Showing '+fmt(items.length)+' of '+screenCountText(group?.valueCount??listTotal(items))+' groups.</p>'+sourcePopulationControl(items)+'<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
   }).filter(Boolean).join("");
   const available=p.coverage.filter(row=>row.classified>0).length,missing=p.coverage.filter(row=>row.classified===0).length;

@@ -91,10 +91,10 @@ test('T11 workfront discipline and location with exactly the same complete sourc
   const overall=expected.overallSummary!;
   assert.ok(overall,'independent full-source summary must be present');
   assert.equal(group.completedActivityCount,overall.completedCount);
-  assert.equal(group.scheduleProgressPercent,
-   overall.durationWeightedCoveragePercent===100?overall.durationWeightedProgressPercent:null);
-  assert.equal(group.plannedPercent,
-   overall.currentPlanCoveragePercent===100?overall.currentPlanPercent:null);
+  // SW-27: the group total is the independent producer's known-member total;
+  // partial coverage is shown as an unknown count, not by blanking the total.
+  assert.equal(group.scheduleProgressPercent,overall.durationWeightedProgressPercent);
+  assert.equal(group.plannedPercent,overall.currentPlanPercent);
  }
  assert.equal(JSON.stringify({schedules:state.schedules,delivery:state.delivery}),before,
   'shared Delivery calculation may not mutate source files, review decisions or programmes');
