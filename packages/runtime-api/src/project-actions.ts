@@ -9,7 +9,8 @@ import {sourceTables,controlIssueField} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
-import {noticeReviewBasis} from './notice-review';
+import {noticeReviewBasis,contractFactDecisionItemsForState} from './notice-review';
+import {completionDecisionItem} from './contract-fact-decisions';
 import {operationalControlsAsOf} from './operational-reporting';
 import {commercialSourceReadConflicts} from './evidence-control-adapters';
 import {sourceAnalyticalCandidateIds} from './operational-reporting';
@@ -40,7 +41,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewInputType?:'date';reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string;documentId?:string;sourceHash?:string}>;
   missingFields?:Array<{field:string;file:string;owner:string}>;
@@ -279,6 +280,41 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         ...(first.numericField?[{value:'enter_value',label:'Enter my own '+first.numericField}]:[]),...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
       ...(first.fingerprint?{reviewFingerprint:first.fingerprint}:{}),reviewSourceRefs:[...new Set(group.flatMap(c=>[...c.sourceRefs,...c.againstSourceRefs]))]});
   }
+  // T04: contract terms whose read values disagree, or whose reading is unsure,
+  // are decided here with both values, their sources and the effect: pick a
+  // read value, enter your own, change or undo. One shared reader applies it.
+  // Saved contract decisions go to the information list, where change and undo stay reachable.
+  const savedContractDecisions:ProjectAction[]=[];
+  {
+    // T04 (a): the contractual completion date, same decision place and controls.
+    const item=completionDecisionItem(state);
+    if(item){
+      const saved=item.decision,describeDate=(c:typeof item.candidates[number])=>c.date+(c.documentIds.length?' from '+c.documentIds.map(fileOf).join('; '):'')+(c.userConfirmed?' (confirmed by user)':c.adopted?' (adopted)':' (read from source; not formally adopted)');
+      // A saved decision stays reachable (change or undo) in the information list.
+      (saved?savedContractDecisions:actions).push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contractual completion date',owner:'Contracts Manager',recordCount:item.candidates.length,
+        reason:(item.reason==='sources_disagree'?'The sources state different contractual completion dates: '+item.candidates.map(describeDate).join(' versus ')+'.':'The contractual completion date is read as '+item.candidates.map(describeDate).join(' versus ')+', but the amendment applicability is unresolved.')+
+          ' Effect: the chosen date drives the completion position, EOT, delay damages, notices, Ask and downloads.',
+        evidenceSummary:[...item.candidates.map(c=>'Read value: '+describeDate(c)),...(saved?['Saved decision: '+(saved.choice==='enter_value'?'your own date '+saved.enteredDateIso:'the date '+saved.choice.slice(4))+'. Not formally adopted.']:[])],
+        resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Pick one of the dates or enter your own. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
+        target:{type:'inline',kind:'review-contract-fact',label:'Choose date',reviewChoice:saved?.choice??null,reviewInputType:'date',reviewOptions:[
+          ...item.candidates.map(c=>({value:'use:'+c.date,label:'Use '+describeDate(c)})),{value:'enter_value',label:'Enter my own date'},...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
+        reviewFingerprint:item.fingerprint,reviewSourceRefs:[...new Set(item.candidates.flatMap(c=>c.sourceRefs))]});
+    }
+  }
+  for(const item of contractFactDecisionItemsForState(state)){
+    const saved=item.decision;
+    const describe=(c:typeof item.candidates[number])=>c.value+' '+c.unit+' from '+c.documentIds.map(fileOf).join('; ')+(c.adopted?' (adopted)':' (read from source; not formally adopted)');
+    const savedText=saved?(saved.choice==='enter_value'?'your own value '+saved.enteredValue+' '+item.enterUnit:'the read value '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.value??'')+' '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.unit??'')):'';
+    (saved?savedContractDecisions:actions).push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contract '+item.label,owner:'Contracts Manager',recordCount:item.candidates.length,
+      reason:(item.reason==='sources_disagree'?'The contract sources state different values for the '+item.label+(item.dataDateIso?' in force at '+item.dataDateIso:'')+': '+item.candidates.map(describe).join(' versus ')+'.':'The '+item.label+' is read as '+item.candidates.map(describe).join(' versus ')+', but the amendment applicability is unresolved.')+
+        ' Effect: until you decide, the '+item.label+' stays unresolved on every page (commercial, notices, delay damages, Ask and downloads).',
+      evidenceSummary:[...item.candidates.map(c=>'Read value: '+describe(c)),...(saved?['Saved decision: '+savedText+'. Not formally adopted.']:[])],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Pick one of the read values'+(item.enterUnit?' or enter your own ('+item.enterUnit+')':'')+'. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
+      target:{type:'inline',kind:'review-contract-fact',label:'Choose value',reviewChoice:saved?.choice??null,reviewOptions:[
+        ...item.candidates.map(c=>({value:'use:'+c.valueKey,label:'Use '+describe(c)})),
+        ...(item.enterUnit?[{value:'enter_value',label:'Enter my own value ('+item.enterUnit+')'}]:[]),...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
+      reviewFingerprint:item.fingerprint,reviewSourceRefs:[...new Set(item.candidates.flatMap(c=>c.sourceRefs))]});
+  }
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     const saved=d.relationshipDecision;
@@ -343,7 +379,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const dataDate=projectControlSchedule(state)?.revision.model.dataDateIso?.slice(0,10)??null;
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
-  const information:ProjectAction[]=[...classificationInformation];
+  const information:ProjectAction[]=[...classificationInformation,...savedContractDecisions];
   const noticeBasis=noticeReviewBasis(state),noticeVersions=noticeBasis.candidates;
   // The saved selection can resolve the original conflict. Keep the decision
   // reachable from its source provisions independently of stale issue groups.
@@ -473,7 +509,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       reason:'Select the contract value to use for reporting from the retained source candidates.',reviewFingerprint:valueReview.sourceFingerprint,reviewSourceRefs:valueReview.candidates.flatMap(c=>c.sourceRefs),
       evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+c.amount+' · '+c.sourceRefs.join('; ')),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the value against the cited contract and amendment, then confirm the applicable value. Original source candidates are retained.',completionRule:'The selected amount and currency become the shared reporting value for these contract sources.'},
-      target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??null,reviewOptions:valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')}))}};
+      target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??null,reviewOptions:[...valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')})),
+        {value:'enter_value',label:'Enter my own contract value and currency'},...(saved?[{value:'undo',label:'Undo my decision'}]:[])]}};
+    if(saved?.choice==='enter_value')item.evidenceSummary=[...(item.evidenceSummary??[]),'Saved decision: your own value '+saved.enteredCurrency+' '+saved.enteredValue+'. Not formally adopted.'];
     (saved?information:actions).push(item);
   }
 
