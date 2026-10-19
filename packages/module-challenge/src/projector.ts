@@ -442,6 +442,17 @@ function submittedValue(
   };
 }
 
+/** SW-30 (W8): only CMeng's own calculation may be called independent. A
+ * comparison value whose authority is a source authority (submitted, official,
+ * governed or candidate) is a submitted figure, even when CMeng counted or
+ * summed it from the submitted records. Shared by the comparison text and the
+ * browser labels. */
+export function challengeValueFromSubmission(
+  value: { authority?: string | null } | null | undefined,
+): boolean {
+  return !!value && ["submitted", "official", "governed", "candidate"].includes(String(value.authority));
+}
+
 function independentValue(
   spec:
     IndependentMetricSpec,
@@ -1334,8 +1345,9 @@ function itemFor(
     action =
       spec.actionWhenDifferent;
   } else {
-    consequence =
-      "Submitted and independent positions are within the configured tolerance.";
+    consequence = challengeValueFromSubmission(independent)
+      ? "The two values agree within the configured tolerance. Both come from submitted records, so this is not an independent check."
+      : "Submitted and independent positions are within the configured tolerance.";
     action =
       "No reconciliation action is required for this metric unless newer evidence changes the basis.";
   }
