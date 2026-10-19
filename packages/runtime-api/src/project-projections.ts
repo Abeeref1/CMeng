@@ -401,7 +401,7 @@ function revisionChronology(
         b.revision.sequence;
 }
 
-function analyticalHistory(
+export function analyticalHistory(
   state: ProjectRuntimeState,
 ): ProjectRuntimeState["schedules"] {
   const cutoff=projectControlSchedule(state)?.revision.model.dataDateIso??null;

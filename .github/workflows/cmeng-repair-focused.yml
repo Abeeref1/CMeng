@@ -203,6 +203,7 @@ jobs:
             dist/tests/f60-empty-project-every-page.test.js \
             dist/tests/f61-management-page-weight.test.js \
             dist/tests/f38-programme-quality-driving-chain.test.js \
+            dist/tests/f38-stage-erosion-bei.test.js \
             dist/tests/f42-lookahead-driving-blockers.test.js \
             dist/tests/f61-adversarial-list-paging.test.js \
             dist/tests/t11-issue-summary-fold-parity.test.js \
