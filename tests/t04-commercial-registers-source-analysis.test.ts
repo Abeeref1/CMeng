@@ -137,3 +137,31 @@ test('T04 tender readiness uses a clear unadopted source with its label; competi
   const adopted=criterion();
   assert.equal(adopted.state,'established');assert.equal(adopted.sourceAnalyticalUse,undefined,'adopted source is not labelled unadopted');
 });
+
+test('T04 no approval request for a clear unique candidate used in analysis; competing and conflicting sources keep the document decision',async()=>{
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const state=new RuntimeProjectStore({durable:false}).getOrCreate('T04-COMMERCIAL-E') as any;
+  const p=state.projectId;
+  const clear=doc(p,'vo-clear','variation_register','commercial:variations');
+  withVariations(state,clear,250000);
+  rebuildDerivedControls(state);
+  const ids=()=>projectActions(state,summarizeControlIssues([])).actions.map((a:any)=>a.id);
+  assert.equal(state.controls.variations[0].sourceAnalyticalUse,LABEL,'used in analysis');
+  assert.ok(!ids().includes('document:'+clear.documentId),'a clear fact asks for no approval');
+  assert.equal(clear.basisState,'candidate','and is not shown as adopted');
+  const rival=doc(p,'vo-rival','variation_register','commercial:variations');
+  withVariations(state,rival,260000);
+  rebuildDerivedControls(state);
+  assert.ok(ids().includes('document:'+clear.documentId)&&ids().includes('document:'+rival.documentId),'a competing pair stays in the decision place');
+  assert.equal(state.controls.variations.length,0);
+  const reviewed=doc(p,'pay-review','payment_certificates','commercial:payments');reviewed.lineage={needsReview:true};
+  state.evidenceDocuments.push(reviewed);
+  assert.ok(ids().includes('document:'+reviewed.documentId),'a review-needed source stays in the decision place');
+});
+
+test('T04 commercial register screens show the not-adopted label beside records read from source',async()=>{
+  const {cmengUatHtml}=await import('../packages/runtime-api/src/ui');
+  const src=cmengUatHtml();
+  for(const id of ['variationId','invoiceId','bondId'])
+    assert.ok(src.includes("escapeHtml(row."+id+")+'</b>'+(row.sourceAnalyticalNote?' <span class=\"muted\">· '+escapeHtml(row.sourceAnalyticalNote)+'</span>':'')"),id+' row carries the label');
+});

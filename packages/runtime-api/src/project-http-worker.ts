@@ -1,3 +1,4 @@
+import {flushWorkerCompileCache} from './worker-compile-cache';
 import {parentPort,workerData} from 'node:worker_threads';
 import {createCmengServer,projectDocumentRegister} from './server';
 import {runtimeProjects} from './project-state';
@@ -66,5 +67,6 @@ void (async()=>{
   server.listen(0,'127.0.0.1',()=>{
     parentPort?.postMessage({type:'ready',port:(server.address() as AddressInfo).port});
     deferredReading.start();
+    setImmediate(flushWorkerCompileCache);
   });
 })().catch(error=>{throw error;});

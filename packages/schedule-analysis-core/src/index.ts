@@ -7,6 +7,7 @@ export * from "./activity-index";
 
 
 export * from "./float-thresholds";
+export * from "./finish-variance";
 export * from "./population";
 
 export * from "./date-time";

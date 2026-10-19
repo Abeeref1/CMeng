@@ -34,19 +34,24 @@ jobs:
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
+            dist/tests/t11-module-issues-walk-parity.test.js \
             dist/tests/t10-downloads-match-screen.test.js \
+            dist/tests/t10-delivery-downloads-charts.test.js \
             dist/tests/t11-activity-movement-source-date-reuse.test.js \
             dist/tests/t11-activity-analytics-date-population.test.js \
             dist/tests/t11-analytics-shared-source-dates.test.js \
             dist/tests/t11-intake-limit-512mb.test.js \
             dist/tests/detailed-claim-source-rule.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
+            dist/tests/t12-independent-commercial-calculators.test.js \
+            dist/tests/t07-commercial-vs-independent.test.js \
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-dashboard-first-source-cover.test.js \
             dist/tests/t11-dashboard-on-demand-original-content.test.js \
             dist/tests/t05-same-measure-every-page.test.js \
             dist/tests/t11-retained-calculation-only.test.js \
             dist/tests/t11-owner-page-publication.test.js \
+            dist/tests/t11-worker-compile-cache.test.js \
             dist/tests/t11-lookahead-cold-reuse-parity.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
             dist/tests/t11-progress-breakdown-float-source-parity.test.js \
@@ -54,6 +59,8 @@ jobs:
             dist/tests/t11-float-calendar-full-source-parity.test.js \
             dist/tests/t11-working-calendar-prefix-parity.test.js \
             dist/tests/t11-cpm-engine-differential.test.js \
+            dist/tests/t12-independent-cpm-solver.test.js \
+            dist/tests/t06-cmeng-cpm-vs-independent.test.js \
             dist/tests/t11-float-reconciliation-calendar-parity.test.js \
             dist/tests/t11-near-critical-calendar-index.test.js \
             dist/tests/t11-near-critical-full-population-parity.test.js \
@@ -63,12 +70,14 @@ jobs:
             dist/tests/t11-milestone-calendar-join-scale.test.js \
             dist/tests/t11-workfront-identical-source-reuse.test.js \
             dist/tests/t11-wbs-discipline-scale.test.js \
+            dist/tests/t11-scope-literal-prefilter.test.js \
             dist/tests/t11-variance-full-population.test.js \
             dist/tests/lookahead-procurement-linked-readiness.test.js \
             dist/tests/t11-source-completion-base-parity.test.js \
             dist/tests/t11-schedule-change-completion-reuse-parity.test.js \
             dist/tests/t11-revision-date-reuse.test.js \
             dist/tests/t11-revision-compare-aligned-parity.test.js \
+            dist/tests/t11-change-category-single-pass-parity.test.js \
             dist/tests/consultant-response-paging.test.js \
             dist/tests/t05-governed-screen-counts.test.js \
             dist/tests/t05-mcp-programme-unknown-blockers.test.js \
@@ -96,6 +105,7 @@ jobs:
             dist/tests/t10-primary-source-detail-collapsed.test.js \
             dist/tests/t10-no-code-names-on-screen.test.js \
             dist/tests/t10-identity-independent-of-wording.test.js \
+            dist/tests/t10-combined-request-keeps-every-original.test.js \
             dist/tests/t10-wording-rules.test.js \
             dist/tests/t10-look-sort-empty-access.test.js \
             dist/tests/t08-asof-handover-programme-truth.test.js \
@@ -118,6 +128,7 @@ jobs:
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-remaining-true-totals.test.js \
+            dist/tests/t05-reporting-contract-not-cut.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs

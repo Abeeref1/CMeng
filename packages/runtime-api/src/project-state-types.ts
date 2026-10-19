@@ -615,6 +615,7 @@ export interface ProjectRuntimeOverview {
     controls: {
       progress: Record<string, unknown> | null;
       forecastCompletionIso: string | null;
+      forecastCompletionBasis?: "cmeng_independent_recalculation";
       submittedCompletionIso: string | null;
       scheduleVarianceDays: number | null;
       revision: Record<string, unknown> | null;
@@ -630,6 +631,7 @@ export interface ProjectRuntimeOverview {
       contractualCompletionIso: string | null;
       submittedCompletionIso: string | null;
       forecastCompletionIso: string | null;
+      forecastCompletionBasis?: "cmeng_independent_recalculation";
       metrics: Array<Record<string, unknown>>;
       commercialByCurrency: Array<Record<string, unknown>>;
       decisions: Array<Record<string, unknown>>;

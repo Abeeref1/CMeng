@@ -1,5 +1,5 @@
 import {procurementDateBasis} from './procurement-date-basis';
-import {cell,csv as parseCsv,sourceTables,procurementTiming} from "../../truth-kernel/src";
+import {cell,csv as parseCsv,sourceTables,procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS} from "../../truth-kernel/src";
 import {canonicalHeader,registerBusinessStatusFields,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
@@ -326,6 +326,7 @@ export function deriveReadinessFromCsv(
   const longLeadIndex=headerIndex(headers,['long lead']);
   const ownerIndex=headerIndex(headers,['owner','responsible','responsible party','action owner']);
   const forecastDeliveryIndex=headerIndex(headers,['forecast delivery','forecast delivery date','delivery forecast date']);
+  const leadReviewIndex=headerIndex(headers,PROCUREMENT_LEAD_REVIEW_HEADERS);
   const actualDeliveryIndex=headerIndex(headers,['actual delivery','actual delivery date','delivered date']);
 
 
@@ -411,7 +412,7 @@ export function deriveReadinessFromCsv(
     }
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
-      const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status});
+      const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status,leadReviewTime:valueAt(row,leadReviewIndex)});
       if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
       else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
       else if(timing.overdueUndelivered){state='blocked';scopeNote='Assessed need date ('+timing.needDateBasis+') '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}

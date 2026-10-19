@@ -19,6 +19,23 @@ export interface ControlIssue {
    * segments joined by '.', plus '|'+topic when the record names one
    * (e.g. 'position.dataDateIso'). Identity only; never a reader label. */
   field?: string;
+  /** Machine ids of every underlying finding this request stands for; one id
+   * when nothing was combined. De-duplication never drops an identity. */
+  memberIssueIds?: string[];
+  /** Present when genuinely duplicate findings were combined into one request:
+   * each original finding with its own heading, field, pages, paths, source
+   * references and action, so nothing of either original is lost. */
+  members?: ControlIssueMember[];
+}
+/** One original finding inside a combined request. */
+export interface ControlIssueMember {
+  id: string;
+  summary: string;
+  field?: string;
+  action: string;
+  moduleKeys: string[];
+  evidencePaths: string[];
+  sourceRefs: string[];
 }
 /** Stable machine identity of the field a finding concerns. Keys, groups,
  * de-duplication and hashes use this, never the display summary: rewording a
@@ -26,6 +43,27 @@ export interface ControlIssue {
  * field are identified by their code and raw evidence path. */
 export function controlIssueField(issue: Pick<ControlIssue,'code'|'evidencePaths'|'field'>): string {
   return issue.field ?? issue.code+':'+(issue.evidencePaths[0]??'');
+}
+/** Machine identity of one original finding: kind, code, raw field, modules
+ * and raw evidence paths. Never display text. */
+export function controlIssueMemberId(issue: Pick<ControlIssue,'kind'|'code'|'evidencePaths'|'field'|'moduleKeys'>): string {
+  return [issue.kind,issue.code,controlIssueField(issue),[...issue.moduleKeys].sort().join('+'),[...issue.evidencePaths].sort().join('|')].join(':');
+}
+function controlIssueMembers(issue: ControlIssue): ControlIssueMember[] {
+  return issue.members??[{id:issue.memberIssueIds?.[0]??controlIssueMemberId(issue),summary:issue.summary,
+    ...(issue.field!==undefined?{field:issue.field}:{}),action:issue.action,
+    moduleKeys:[...issue.moduleKeys],evidencePaths:[...issue.evidencePaths],sourceRefs:[...issue.sourceRefs]}];
+}
+function mergeMembers(left: ControlIssueMember[], right: ControlIssueMember[]): ControlIssueMember[] {
+  const out=left.map(m=>({...m}));
+  for(const member of right){
+    const same=out.find(m=>m.id===member.id);
+    if(!same){out.push({...member});continue;}
+    same.moduleKeys=[...new Set([...same.moduleKeys,...member.moduleKeys])];
+    same.evidencePaths=[...new Set([...same.evidencePaths,...member.evidencePaths])];
+    same.sourceRefs=[...new Set([...same.sourceRefs,...member.sourceRefs])];
+  }
+  return out;
 }
 export interface ControlIssueAssessment {
   schemaVersion: '1.0';
@@ -49,7 +87,13 @@ export function summarizeControlIssues(issues: readonly ControlIssue[]): Control
     const key=JSON.stringify(sourceIdentity
       ? [issue.kind,issue.code,issue.sourceFactKey,issue.detail,issue.action,issue.owner,sourceIdentity]
       : [issue.kind,issue.code,controlIssueField(issue),issue.detail,issue.action,issue.owner]);
-    const old=grouped.get(key);grouped.set(key,old?{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])]}:{...issue});
+    const old=grouped.get(key);
+    if(!old){grouped.set(key,{...issue,memberIssueIds:issue.memberIssueIds??[controlIssueMemberId(issue)]});continue;}
+    // One request, the union of everything both originals carried, and both
+    // original identities retained as members.
+    const members=mergeMembers(controlIssueMembers(old),controlIssueMembers(issue));
+    grouped.set(key,{...old,moduleKeys:[...new Set([...old.moduleKeys,...issue.moduleKeys])],sourceRefs:[...new Set([...old.sourceRefs,...issue.sourceRefs])],evidencePaths:[...new Set([...old.evidencePaths,...issue.evidencePaths])],checkIds:[...new Set([...old.checkIds,...issue.checkIds])],
+      memberIssueIds:members.map(m=>m.id),...(members.length>1?{members}:{})});
   }
   const unique=[...grouped.values()];
   const counts = Object.fromEntries(CONTROL_ISSUE_KINDS.map(kind=>[kind,unique.filter(i=>i.kind===kind).length])) as Record<ControlIssueKind,number>;

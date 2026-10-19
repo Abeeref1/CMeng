@@ -49,6 +49,10 @@ function chosenKeys(value:Record<string,unknown>,max:number):string[]{
  if(keys.length<=max)return keys;
  return [...keys.filter(key=>PRIORITY_FIELDS.has(key)),...keys.filter(key=>!PRIORITY_FIELDS.has(key))].slice(0,max);
 }
+/** True for the reporting contract object and every object nested inside it
+ * (for example /data/reportingContract/metricContracts), wherever the screen
+ * or management bundle nests it. */
+const reportingContractObject=(pointer:string)=>/\/reportingContract(?:\/|$)/.test(pointer);
 /** A canonical fact snapshot is projected by the SAME fixed rule on every
  * screen, independent of how large the surrounding specialist module is.
  * Original registers, receipts and full source facts remain in producers and
@@ -201,7 +205,12 @@ export function pageProjectResponse(
      const rows=candidate.slice(0,shown).map((item:any,i:number)=>visit(item,pointer+'/'+i,'',depth+1));
      seen.delete(value);return rows;
    }
-   const names=Object.keys(value),ordered=chosenKeys(value,budget.keys);
+   // The reporting contract is shared metadata (populations and one semantic
+   // contract per reported metric), not a display table. Like projectFacts it
+   // is never key-capped: a cut map silently drops the contract of a metric the
+   // screen still shows. Its long identity lists remain paged arrays with their
+   // true totals, and its bytes still count towards the screen size budget.
+   const names=Object.keys(value),ordered=reportingContractObject(pointer)?names:chosenKeys(value,budget.keys);
    if(ordered.length<names.length)record({pointer,total:names.length,shown:ordered.length,kind:'object'});
    const result:Record<string,unknown>={};
    for(const field of ordered)result[field]=visit(value[field],pointer+'/'+token(field),field,depth+1);

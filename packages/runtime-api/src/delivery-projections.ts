@@ -4,7 +4,7 @@ import {projectScopeClassification,locationReviewSummary} from './location-revie
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {cachedIndependentForecast} from './forecast-cache';
-import {procurementTiming,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
+import {procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
 import {hseReportPosition} from './hse-report-evidence';
 import {deliveryNumericIssues} from './delivery-validation';
@@ -58,6 +58,23 @@ export const deliveryPopulationAuthority=(population:any,sourceCount:number|null
  });
 };
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof buildDelivery>}>();
+// The milestone header spellings of a lifecycle stage are fixed text, so each
+// spelling's canonical register key (a pure function of the spelling) is
+// derived once per stage instead of on every record, stage and series read.
+// keyedField reads those keys in the same order and with the same rule as field.
+const milestoneKeyCache=new Map<string,{planned:string[];forecast:string[];actual:string[]}>();
+function milestoneFieldKeys(stage:string){
+ const known=milestoneKeyCache.get(stage);if(known)return known;
+ const keys=(...names:string[])=>names.map(name=>canonicalHeader(name));
+ const value={
+  planned:keys(stage+' planned date','planned '+stage+' date',stage+' planned','planned '+stage,...(stage==='delivery'?['required on site','required on site date']:[])),
+  forecast:keys(stage+' forecast date','forecast '+stage+' date',stage+' forecast','forecast '+stage),
+  actual:keys(stage+' actual date','actual '+stage+' date',stage+' date',stage+' actual','actual '+stage),
+ };
+ if(milestoneKeyCache.size>=1024)milestoneKeyCache.clear();
+ milestoneKeyCache.set(stage,value);return value;
+}
+const keyedField=(r:DeliveryRecord,keys:readonly string[])=>{for(const k of keys){const v=r.fields[k];if(v!==null&&v!==undefined&&String(v).trim())return String(v).trim();}return '';};
 
 function buildDelivery(state:ProjectRuntimeState){
  const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
@@ -94,11 +111,11 @@ function buildDelivery(state:ProjectRuntimeState){
   for(const [label,linked,available] of [['Activity',r.links.activityIds,activities],['BOQ',r.links.boqItemIds,items],['Package',r.links.packageIds,byId],['Supplier',r.links.supplierIds,byId],['Location',r.links.locationIds,byId],['Asset',r.links.assetIds,byId],['Record',r.links.recordIds,byId]] as const)
    if(linked.some(id=>!available.has(id)))add('STALE_RELATIONSHIP',r,label+' relationship no longer resolves to the current authority.','Review this relationship against the current project records.');
  }
- const milestone=(r:DeliveryRecord,stage:string)=>({stage,
-  planned:date(r,stage+' planned date','planned '+stage+' date',stage+' planned','planned '+stage,...(stage==='delivery'?['required on site','required on site date']:[])),
-  forecast:date(r,stage+' forecast date','forecast '+stage+' date',stage+' forecast','forecast '+stage),
-  actual:date(r,stage+' actual date','actual '+stage+' date',stage+' date',stage+' actual','actual '+stage),
- });
+ const milestone=(r:DeliveryRecord,stage:string)=>{const keys=milestoneFieldKeys(stage);return {stage,
+  planned:registerDate(keyedField(r,keys.planned)),
+  forecast:registerDate(keyedField(r,keys.forecast)),
+  actual:registerDate(keyedField(r,keys.actual)),
+ };};
  const actualOn=(r:DeliveryRecord,stage:string)=>{const m=milestone(r,stage);return isOnDate(m.actual,dataDateIso)?m.actual:null;};
  const gatesByScope=new Map<string,DeliveryRecord[]>();for(const g of byKind('gate'))for(const id of new Set([...g.links.packageIds,...g.links.recordIds])){const rows=gatesByScope.get(id)??[];rows.push(g);gatesByScope.set(id,rows);}
  const submittalsByPackage=new Map<string,DeliveryRecord[]>();
@@ -153,7 +170,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const unfinishedDrivingLink=drivingIds&&linkedActivities.length&&linkedActivities.every(Boolean)?r.links.activityIds.some(id=>drivingIds.has(id)&&activities.get(id)?.status!=='completed'):null;
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
+  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status'),leadReviewTime:field(r,...PROCUREMENT_LEAD_REVIEW_HEADERS)});
   if(forecastLate&&headroom!==null&&!registerCleanup)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
   if(overdueUndelivered&&!registerCleanup)add('PACKAGE_REQUIRED_DATE_MISSED',r,'The assessed need date ('+needDateBasis+', '+needDate+') has passed and delivery is not recorded at the reporting date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(deliveryDateConflict)add('PROCUREMENT_DELIVERY_DATE_CONFLICT',r,'Source completion status conflicts with a delivery date after the reporting date.','Review the reported status and delivery dates against the receipt; save the corrected record without inventing an actual delivery date.');
@@ -310,9 +327,9 @@ function buildDelivery(state:ProjectRuntimeState){
   procurementMappingPercent:controlledBoq?pct(boqRows.filter(r=>mapped.has(r.itemId)).length,boqRows.length):null,currencies:currencyGroups,
   topCostDrivers:currencyGroups.map(g=>({currency:g.currency,items:boqRows.filter(r=>r.currency===g.currency&&r.amount!==null).sort((a,b)=>b.amount!-a.amount!).slice(0,20)})),rows:boqRows};
  const events:Array<{recordId:string;kind:string;stage:string;series:string;dateIso:string;value:number;unit:string;authority:string}>=[];
- for(const r of byKind('package'))for(const stage of ['rfq','tender return','award','po','delivery'])for(const series of ['planned','forecast','actual'] as const){const when=milestone(r,stage)[series];if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'throughput',stage,series,dateIso:when,value:1,unit:'records',authority:'governed_record'});}
- for(const r of byKind('submittal'))for(const stage of ['submission','review','approval','rejection','resubmission'])for(const series of ['planned','forecast','actual'] as const){const when=milestone(r,stage)[series]??(stage==='submission'?date(r,series==='planned'?'planned issue':series==='actual'?'actual issue':'forecast issue'):null);if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'submittal_throughput',stage,series,dateIso:when,value:1,unit:'records',authority:'governed_record'});}
- for(const r of byKind('package')){const amount=numeric(r,'package value','amount','value'),currency=field(r,'currency');if(amount===null||!currency)continue;for(const series of ['planned','forecast','actual'] as const){const when=milestone(r,'po')[series];if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'commitment_value',stage:'po',series,dateIso:when,value:amount,unit:currency,authority:'source_package_value'});}}
+ for(const r of byKind('package'))for(const stage of ['rfq','tender return','award','po','delivery']){const dates=milestone(r,stage);for(const series of ['planned','forecast','actual'] as const){const when=dates[series];if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'throughput',stage,series,dateIso:when,value:1,unit:'records',authority:'governed_record'});}}
+ for(const r of byKind('submittal'))for(const stage of ['submission','review','approval','rejection','resubmission']){const dates=milestone(r,stage);for(const series of ['planned','forecast','actual'] as const){const when=dates[series]??(stage==='submission'?date(r,series==='planned'?'planned issue':series==='actual'?'actual issue':'forecast issue'):null);if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'submittal_throughput',stage,series,dateIso:when,value:1,unit:'records',authority:'governed_record'});}}
+ for(const r of byKind('package')){const amount=numeric(r,'package value','amount','value'),currency=field(r,'currency');if(amount===null||!currency)continue;const dates=milestone(r,'po');for(const series of ['planned','forecast','actual'] as const){const when=dates[series];if(when&&(series!=='actual'||isOnDate(when,dataDateIso)))events.push({recordId:r.recordId,kind:'commitment_value',stage:'po',series,dateIso:when,value:amount,unit:currency,authority:'source_package_value'});}}
  const groupEvents=new Map<string,typeof events>();for(const e of events){const key=[e.kind,e.stage,e.series,e.unit].join('|');const list=groupEvents.get(key)??[];list.push(e);groupEvents.set(key,list);}
  const curves=[...groupEvents].map(([key,rows])=>{let cumulative=0;const buckets=new Map<string,typeof events>();for(const e of rows){const list=buckets.get(e.dateIso)??[];list.push(e);buckets.set(e.dateIso,list);}return {key,kind:rows[0]!.kind,stage:rows[0]!.stage,series:rows[0]!.series,unit:rows[0]!.unit,population:rows.map(r=>r.recordId),dataDateIso,denominator:null,weighting:rows[0]!.kind==='commitment_value'?'Package value by currency':'Count of dated events; throughput, not physical progress',points:[...buckets].sort(([a],[b])=>a.localeCompare(b)).map(([dateIso,entries])=>({dateIso,value:round(cumulative+=entries.reduce((n,e)=>n+e.value,0)),recordIds:entries.map(e=>e.recordId)}))};});
  const weightedPackages=byKind('package').map(r=>{const template=lifecycleById.get(field(r,'lifecycle id'));const stages=template?ids(field(template,'stages')):[];const weights=stages.map(s=>numeric(template!,s+' weight'));const total=weights.every(w=>w!==null&&w>=0)?sumKnown(weights):null;const basis=field(r,'weighting basis');const weight=basis==='controlled package value'?numeric(r,'package value','amount','value'):basis==='controlled management weight'?numeric(r,'management weight'):null;let earned=0;let known=!!dataDateIso&&stages.length>0&&total===100;

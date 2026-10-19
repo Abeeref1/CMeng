@@ -14,7 +14,7 @@ import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 import {STATUS_LABELS} from '../packages/runtime-api/src/position-review';
 import {resolveBoqSource} from '../packages/runtime-api/src/boq-source';
 import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
-import {buildDeliveryWorkbook} from '../packages/runtime-api/src/delivery-export';
+import {buildDeliveryWorkbook,deliveryColumnKeys} from '../packages/runtime-api/src/delivery-export';
 import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import type {DeliveryKind,DeliveryRecord} from '../packages/delivery-core/src/types';
 import {crossDomainAccountability} from '../packages/runtime-api/src/accountability-intelligence';
@@ -657,7 +657,7 @@ test('asset register flags, criticality and text locations reach asset and hando
  for(const key of ['location','criticality','tagInstalledStatus','commissionedStatus','omManualStatus','warrantyStatus'])assert.ok(ui.columns.some(([k]:string[])=>k===key));
  assert.ok(ui.ready.some(([k]:string[])=>k==='linkedSubmittals'));assert.ok(ui.submittals.some(([k]:string[])=>k==='linkedPackages'));
  const book=new ExcelJS.Workbook();await book.xlsx.load(await buildDeliveryWorkbook(f.state.projectId,deliveryModule(f.state,'handover-readiness')) as any);
- const sheet=book.worksheets.find(s=>s.name.endsWith('assetSourceRows'))!;assert.ok(sheet);assert.equal(sheet.rowCount,3);assert.ok((sheet.getRow(1).values as any[]).includes('tagInstalledStatus'));assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
+ const sheet=book.worksheets.find(s=>s.name.endsWith('assetSourceRows'))!;assert.ok(sheet);assert.equal(sheet.rowCount,3);assert.ok(deliveryColumnKeys(book,sheet.name).includes('tagInstalledStatus'));assert.ok((sheet.getRow(1).values as any[]).includes('Tag installed status'));assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
 });
 
 test('procurement lateness checks recognize the supplied required-on-site date',async t=>{

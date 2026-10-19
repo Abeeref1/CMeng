@@ -12,6 +12,7 @@ import {commercialCanonical} from './commercial-canonical';
 import {noticeReviewBasis} from './notice-review';
 import {operationalControlsAsOf} from './operational-reporting';
 import {commercialSourceReadConflicts} from './evidence-control-adapters';
+import {sourceAnalyticalCandidateIds} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
@@ -20,7 +21,7 @@ import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule,canonicalTimeClaims,projectDataDate} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
-import type {ControlIssueAssessment,ControlIssue} from '../../truth-kernel/src';
+import type {ControlIssueAssessment,ControlIssue,ControlIssueMember} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {scheduleAuthorityReview} from './schedule-authority';
 import {phaseProgrammeState} from './phase-programmes';
@@ -48,6 +49,13 @@ const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value
 /** A finding's id is hashed from machine data only (kind, code, raw field,
  * raw evidence paths, modules and source references), never from its display
  * summary or wording, so a reworded label keeps the same id. */
+/** One original finding of a combined request, seen with its own heading,
+ * field, pages, paths and references. Used to place and list it; the request
+ * itself stays one finding. */
+const memberView=(issue:ControlIssue,member:ControlIssueMember):ControlIssue=>{
+  const rest:ControlIssue={...issue};delete rest.field;
+  return {...rest,summary:member.summary,moduleKeys:member.moduleKeys,evidencePaths:member.evidencePaths,sourceRefs:member.sourceRefs,...(member.field!==undefined?{field:member.field}:{})};
+};
 export const actionFindingId=(issue:ControlIssue)=>identity([issue.kind,issue.code,controlIssueField(issue),
   [...issue.evidencePaths].sort(),[...issue.moduleKeys].sort(),[...issue.sourceRefs].sort()]);
 type ReviewGroup=ReturnType<typeof projectReviewGroup>;
@@ -242,6 +250,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // the one source-bound document decision, naming the unadopted source.
   const commercialConflicts=commercialSourceReadConflicts(state);
   const fileOf=(id:string)=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id;
+  // Clear, unique candidates the shared rule already uses in analysis.
+  const usedInAnalysis=sourceAnalyticalCandidateIds(state.evidenceDocuments);
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     const saved=d.relationshipDecision;
@@ -250,7 +260,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       '; unadopted source '+d.sourceFilename+(c.against==='adopted'?'. The adopted value is kept until you decide.':'. Both readings are held until you decide.'));
     const decided=Boolean(saved&&saved.sourceHash&&saved.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash)));
     const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
-    if(!decided&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
+    // T04: no approval request for a clear fact. A unique, clearly read
+    // candidate that is already used in analysis (labelled not formally
+    // adopted) asks nothing unless it disagrees with a record (real conflict).
+    const clearFact=d.basisState==='candidate'&&usedInAnalysis.has(d.documentId)&&!saved&&!recordConflicts.length;
+    if(!decided&&!clearFact&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
       {
         const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
         const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
@@ -286,8 +300,16 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
-    const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
-    if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
+    // A combined request stays in every matter that any of its original
+    // findings belongs to, so combining duplicates never removes a finding,
+    // reference or page from a matter. The request itself is counted once.
+    const views=[issue,...(issue.members??[]).map(member=>memberView(issue,member))];
+    const placed=new Set<string>();
+    for(const view of views){
+      const group=projectReviewGroup(view,state);if(placed.has(group.key))continue;placed.add(group.key);
+      const existing=groups.get(group.key);
+      if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
+    }
   }
   const heldCommercial=commercialCanonical(state);
   const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String(b.kind??(b as any).type??(b as any).bondType??'')+' '+b.bondId));
@@ -305,7 +327,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const item:ProjectAction={id:'matter:notice-term-versions',category:saved?'information':'confirmation',title:'Review claim notice provisions',owner:'Contracts Manager',recordCount:noticeVersions.length,
       reason:saved?.choice==='refer_contracts'?'Interpretation remains unresolved for Contracts review. The saved choice can be revised here.':'Compare the source periods and their effective intervals before choosing the reporting provisions.',
       findings:noticeFindings,reviewFingerprint:noticeBasis.sourceFingerprint,reviewSourceRefs:noticeBasis.sourceRefs,
-      evidenceSummary:noticeVersions.map(v=>v.value+' '+v.unit+' · '+v.sourceFilename+' · '+v.sourceRefs.map(ref=>ref.split(':').slice(-2).join(' ')).join('; ')+(v.effectiveFromIso?' · from '+v.effectiveFromIso:' · original provision')+(v.effectiveToIso?' · replaced from '+v.effectiveToIso:'')),
+      evidenceSummary:noticeVersions.map(v=>v.value+' '+v.unit+' · '+v.sourceFilename+' · '+v.sourceRefs.map(ref=>ref.split(':').slice(-2).join(' ')).join('; ')+(v.effectiveFromIso?' · from '+v.effectiveFromIso:' · original provision')+(v.effectiveToIso?' · replaced from '+v.effectiveToIso:'')+(v.sourceAnalyticalUse==='qualified_source_read'?' · read from source; not formally adopted':'')),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Confirm the source intervals, choose the applicable retained provisions, or retain the unresolved interpretation. Original periods, triggers and source dates remain unchanged; this is not an entitlement decision.',completionRule:'Saved against these source files and editable after saving. Source changes reopen review.'},
       target:{type:'inline',kind:'review-notice',label:'Record notice review',reviewChoice:saved?.choice??'confirm_versions',reviewReference:saved?.reference??null,noticeCandidates:noticeVersions,noticeSourceKeys:saved?.noticeSourceKeys??noticeVersions.map(v=>v.sourceKey),
         reviewOptions:[{value:'confirm_versions',label:'Confirm all dated source provisions'},{value:'choose_provisions',label:'Use selected source provisions'},{value:'refer_contracts',label:'Keep interpretation unresolved'}]}};
@@ -339,7 +361,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const owner=pmcRoleOwner(group.key,subset.find(issue=>issue.owner&&issue.owner!=='CMeng')?.owner);
       const sourceFiles=actionSourceFilenames(state,refs);
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
-      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').map(issue=>{
+      // Every distinct affected field of a combined request stays listed.
+      const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').flatMap(issue=>(issue.members?.map(member=>memberView(issue,member))??[issue])
+        .filter((member,index,all)=>all.findIndex(other=>other.summary===member.summary)===index)).map(issue=>{
         const subject=[controlIssueField(issue),...(issue.evidencePaths??[])].join(' ');
         const advance=/advance.?payment.?bond|advance.?payment.?security/i.test(subject)&&heldAdvanceBonds.length>0;
         const certified=/certified.?progress/i.test(subject)&&heldCertificates.length>0;

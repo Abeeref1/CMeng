@@ -34,17 +34,20 @@ function milestoneExposureNote(exposure){
 function renderProjectPrioritySummary(register){
  const actions=register?.actions||[];
  const decisions=actions.filter(row=>String(row.recordKey||'').startsWith('review|'));
+ const decisionTotal=typeof listTotal==='function'?listTotal(decisions):decisions.length;
  const team=actions.filter(row=>!String(row.recordKey||'').startsWith('review|'));
+ const teamTotal=typeof listTotal==='function'?listTotal(team):team.length;
  const text=value=>typeof readerText==='function'?readerText(value):String(value??'');
  const grouped=team.slice(0,3).map(row=>'<li><b>'+escapeHtml(text(row.issue))+'</b>'+
    '<p>'+escapeHtml(text(row.consequence||row.requiredAction||''))+'</p>'+
    '<small>Responsible: '+escapeHtml(row.owner||row.organisation||'Not assigned')+' · '+escapeHtml(actionDeadlineText(row))+'</small></li>').join('');
  return '<p>Contract interpretations and other confirmations are managed in Project Review. Operational work is assigned through Accountability.</p>'+
   '<p><button class="btn small" onclick="openProjectActions()">Open Project Review</button> '+managementModuleLink('cross-domain-accountability','Open Accountability')+'</p>'+
-  (decisions.length?'<p><b>'+fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' included in the ranked register.</b> Confirm only after reviewing the original evidence.</p>':'')+
+  // T05/N1: register.actions can be a 25-row preview; a subset of it is counted only when the list is whole.
+  (decisions.length?'<p><b>'+(decisionTotal===null?fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' among the '+fmt(actions.length)+' of '+screenCountText(listTotal(actions))+' ranked actions received here.':fmt(decisionTotal)+' source decision'+(decisionTotal===1?'':'s')+' included in the ranked register.')+'</b> Confirm only after reviewing the original evidence.</p>':'')+
   '<h5>Highest-ranked delegated follow-ups</h5>'+
   (grouped?'<ol>'+grouped+'</ol>':'<p>No team follow-up is currently ranked from the available source records.</p>')+
-  (team.length>3?'<p>'+fmt(team.length-3)+' other ranked groups remain in Accountability, with the full individual records.</p>':'');
+  (team.length>3?'<p>'+(teamTotal===null?'More ranked groups remain':fmt(teamTotal-3)+' other ranked groups remain')+' in Accountability, with the full individual records.</p>':'');
 }
 function renderProjectDashboardSummary(d){
  if(!d)return '';

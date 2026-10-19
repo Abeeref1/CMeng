@@ -7,7 +7,8 @@ import {contractTermVersions,termAtEvent,contractTermSelectionFactState} from '.
 import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
 import {amendmentAmounts} from '../packages/runtime-api/src/commercial-basis-review';
-import {contractCompletionDependencies} from '../packages/runtime-api/src/project-contract-sections';
+import {contractCompletionDependencies,projectContractSections} from '../packages/runtime-api/src/project-contract-sections';
+import {projectActionRegisterForState} from '../packages/runtime-api/src/project-projections';
 import {commercialCanonical} from '../packages/runtime-api/src/commercial-canonical';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
 
@@ -190,3 +191,63 @@ test('T04 contract currency from a unique candidate is used and labelled; a diff
   assert.ok(diagnostics.includes('UNADOPTED_SOURCE_CONTRACT_CURRENCY_DIFFERS:USD:'+particulars.documentId));
   assert.ok(!diagnostics.some(d=>d.startsWith('SOURCE_ANALYTICAL_NOT_ADOPTED:')),'the adopted currency is not labelled unadopted');
 });
+
+test('T04 with no adopted contract, sections of the unique clearly read candidate contract are read and labelled; competing ones stay held',()=>{
+  const state=setup('T04-CT-M');
+  const source=evidence(state.projectId,'contract','contract:main');
+  state.evidenceDocuments.push(source);
+  const pageText='Section 1 Delay Damages\nSAR 10,000 per day\n';
+  const sectioned=(documentId:string)=>({documentId,role:'main',result:{
+    sections:[{heading:'Contract Data',text:pageText,startPage:3,sectionKey:'s1',sourceMode:'deterministic',sourceSpans:[{sourceKind:'pdf_page',sourceIndex:3,start:0,end:pageText.length,text:pageText}]}],
+    pdf:{pages:[{pageNumber:3,method:'native',text:pageText}]}}}) as any;
+  (state.contractDocuments as any[]).push(sectioned(source.documentId));
+  assert.equal(state.contract??null,null,'no adopted contract');
+  const sections=projectContractSections(state,null,null) as any[];
+  assert.equal(sections.length,1,'the clear candidate contract sections are not held');
+  assert.equal(sections[0].sectionId,'1');
+  assert.equal(sections[0].rate,10000);
+  assert.equal(sections[0].sourceAnalyticalUse,'qualified_source_read');
+  assert.match(sections[0].authority,/not formally adopted/);
+  const second=evidence(state.projectId,'contract-b','contract:main');
+  state.evidenceDocuments.push(second);
+  (state.contractDocuments as any[]).push(sectioned(second.documentId));
+  assert.deepEqual(projectContractSections(state,null,null),[],'competing candidates stay held');
+});
+
+test('T04 the completion fact that pages, reports and Ask read carries the not-adopted label',()=>{
+  const state=setup('T04-CT-N');
+  const source=evidence(state.projectId,'contract','contract:main');
+  state.evidenceDocuments.push(source);
+  (state.contractDocuments as any[]).push(contract(source.documentId,'main','Date for Completion: 2031-12-31'));
+  const fact=projectFactsForState(state).time.contractualCompletionIso as any;
+  assert.equal(fact.value,'2031-12-31');
+  assert.match(fact.basis,/Read from source; not formally adopted/);
+});
+
+test('T04 a different unadopted notice period is offered in the existing notice decision; picking it and changing back are applied',()=>{
+  const store=new RuntimeProjectStore({durable:false});
+  const state=store.getOrCreate('T04-CT-O');
+  const adopted=evidence(state.projectId,'contract','contract:main','active');
+  const amendment=evidence(state.projectId,'amendment','contract:amendment-1');
+  state.evidenceDocuments.push(adopted,amendment);
+  (state.contractDocuments as any[]).push(contract(adopted.documentId,'main','Initial claim notice: 28 days'),
+    contract(amendment.documentId,'amendment','Effective date: 2031-01-01\nInitial claim notice: 14 days'));
+  state.version++;
+  const workflow=projectActionRegisterForState(state).workflow as any;
+  const action=[...workflow.actions,...workflow.information].find((a:any)=>a.id==='matter:notice-term-versions');
+  assert.ok(action,'the conflict is in the existing decision place');
+  assert.equal(action.target.kind,'review-notice');
+  assert.ok(action.evidenceSummary.some((line:string)=>/^28 days/.test(line)&&!/not formally adopted/.test(line)),'adopted value and source shown');
+  assert.ok(action.evidenceSummary.some((line:string)=>/^14 days/.test(line)&&/read from source; not formally adopted/.test(line)),'unadopted value shown with its label');
+  const candidate=action.target.noticeCandidates.find((c:any)=>c.value===14);
+  const save=(choice:string,keys:string[])=>store.updateControls(state.projectId,{reviewDecisions:{...(store.get(state.projectId)!.controls.reviewDecisions??{}),
+    'notice-term-versions':{sourceFingerprint:action.reviewFingerprint,choice,noticeSourceKeys:keys,reference:'T04 review',confirmedAt:'2031-05-01T00:00:00Z',sourceRefs:[]}}});
+  save('choose_provisions',[candidate.sourceKey]);
+  const picked=contractNoticeRules(store.get(state.projectId)!) as any[];
+  assert.deepEqual(picked.map(r=>[r.noticePeriodDays,r.state,r.sourceAnalyticalUse]),[[14,'candidate','qualified_source_read']],'the picked source value is applied and still labelled');
+  save('confirm_versions',action.target.noticeCandidates.map((c:any)=>c.sourceKey));
+  const changed=contractNoticeRules(store.get(state.projectId)!) as any[];
+  assert.deepEqual(changed.map(r=>r.noticePeriodDays),[28],'changing the decision restores the adopted period');
+  assert.equal(store.get(state.projectId)!.evidenceDocuments[1]!.basisState,'candidate','no auto-adoption');
+});
+

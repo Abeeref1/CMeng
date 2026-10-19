@@ -137,104 +137,27 @@ function compareActivity(
     ActivityIdentityMatch,
   sourceInstant: typeof dateMs,
 ): ScheduleActivityChange {
-  const fieldChanges = [
-    fieldChange(
-      "name",
-      before.name,
-      after.name,
-    ),
-    fieldChange(
-      "activityType",
-      before.activityType,
-      after.activityType,
-    ),
-    fieldChange(
-      "wbsId",
-      before.wbsId,
-      after.wbsId,
-    ),
-    fieldChange(
-      "calendarId",
-      before.calendarId,
-      after.calendarId,
-    ),
-    fieldChange(
-      "status",
-      before.status,
-      after.status,
-    ),
-    fieldChange(
-      "baselineStartIso",
-      before.baselineStartIso,
-      after.baselineStartIso,
-    ),
-    fieldChange(
-      "baselineFinishIso",
-      before.baselineFinishIso,
-      after.baselineFinishIso,
-    ),
-    fieldChange(
-      "currentStartIso",
-      before.currentStartIso,
-      after.currentStartIso,
-    ),
-    fieldChange(
-      "currentFinishIso",
-      before.currentFinishIso,
-      after.currentFinishIso,
-    ),
-    fieldChange(
-      "forecastStartIso",
-      before.forecastStartIso,
-      after.forecastStartIso,
-    ),
-    fieldChange(
-      "forecastFinishIso",
-      before.forecastFinishIso,
-      after.forecastFinishIso,
-    ),
-    fieldChange(
-      "actualStartIso",
-      before.actualStartIso,
-      after.actualStartIso,
-    ),
-    fieldChange(
-      "actualFinishIso",
-      before.actualFinishIso,
-      after.actualFinishIso,
-    ),
-    fieldChange(
-      "originalDurationHours",
-      before.originalDurationHours,
-      after.originalDurationHours,
-    ),
-    fieldChange(
-      "remainingDurationHours",
-      before.remainingDurationHours,
-      after.remainingDurationHours,
-    ),
-    fieldChange(
-      "totalFloatHours",
-      before.totalFloatHours,
-      after.totalFloatHours,
-    ),
-    fieldChange(
-      "freeFloatHours",
-      before.freeFloatHours,
-      after.freeFloatHours,
-    ),
-    fieldChange(
-      "percentComplete",
-      before.percentComplete,
-      after.percentComplete,
-    ),
-  ].filter(
-    (
-      value,
-    ): value is
-      ActivityFieldChange =>
-      value !== null,
-  );
+  // Same fields in the same order as before; only differing fields allocate.
+  const fieldChanges: ActivityFieldChange[] = [];
+  let change: ActivityFieldChange | null;
+  if ((change = fieldChange("name", before.name, after.name))) fieldChanges.push(change);
+  if ((change = fieldChange("activityType", before.activityType, after.activityType))) fieldChanges.push(change);
+  if ((change = fieldChange("wbsId", before.wbsId, after.wbsId))) fieldChanges.push(change);
+  if ((change = fieldChange("calendarId", before.calendarId, after.calendarId))) fieldChanges.push(change);
+  if ((change = fieldChange("status", before.status, after.status))) fieldChanges.push(change);
+  if ((change = fieldChange("baselineStartIso", before.baselineStartIso, after.baselineStartIso))) fieldChanges.push(change);
+  if ((change = fieldChange("baselineFinishIso", before.baselineFinishIso, after.baselineFinishIso))) fieldChanges.push(change);
+  if ((change = fieldChange("currentStartIso", before.currentStartIso, after.currentStartIso))) fieldChanges.push(change);
+  if ((change = fieldChange("currentFinishIso", before.currentFinishIso, after.currentFinishIso))) fieldChanges.push(change);
+  if ((change = fieldChange("forecastStartIso", before.forecastStartIso, after.forecastStartIso))) fieldChanges.push(change);
+  if ((change = fieldChange("forecastFinishIso", before.forecastFinishIso, after.forecastFinishIso))) fieldChanges.push(change);
+  if ((change = fieldChange("actualStartIso", before.actualStartIso, after.actualStartIso))) fieldChanges.push(change);
+  if ((change = fieldChange("actualFinishIso", before.actualFinishIso, after.actualFinishIso))) fieldChanges.push(change);
+  if ((change = fieldChange("originalDurationHours", before.originalDurationHours, after.originalDurationHours))) fieldChanges.push(change);
+  if ((change = fieldChange("remainingDurationHours", before.remainingDurationHours, after.remainingDurationHours))) fieldChanges.push(change);
+  if ((change = fieldChange("totalFloatHours", before.totalFloatHours, after.totalFloatHours))) fieldChanges.push(change);
+  if ((change = fieldChange("freeFloatHours", before.freeFloatHours, after.freeFloatHours))) fieldChanges.push(change);
+  if ((change = fieldChange("percentComplete", before.percentComplete, after.percentComplete))) fieldChanges.push(change);
 
   return {
     activityId:

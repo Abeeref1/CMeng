@@ -225,7 +225,9 @@ for(const item of all){
  for(const c of r.commits){
   assert.match(c.sha,/^[0-9a-f]{8}$/,'commit hash on '+item.id);
   assert.ok(COMMIT_LIVE.has(c.liveState),'commit '+c.sha+' resolved in repository and marked live or saved_not_live on '+item.id);
+  assert.equal(typeof c.onBranch,'boolean','branch membership recorded for '+c.sha+' on '+item.id);
  }
+ if(r.commits.length)assert.ok(r.commits.some(c=>c.onBranch),'at least one repair commit is on the branch itself (not only in per-fix history): '+item.id);
  if(r.state==='commits'){
   assert.ok(r.commits.length>0,'commit repair reference needs a hash: '+item.id);
   assert.deepEqual(r.commits.map(c=>c.sha).sort(),[...new Set((item.implementation.sourceCommits??[]).map(x=>x.slice(0,8)))].sort(),
