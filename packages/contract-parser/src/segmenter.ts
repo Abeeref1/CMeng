@@ -613,9 +613,12 @@ export function segmentContractTextBlocks(
         // Sectional-completion tables repeat a section identifier for its
         // completion date, damages and value. These are fields of one section,
         // not competing legal clauses bearing the same number.
-        const sectionalParticular=/^section\s+\d+\s+(?:time\s+for\s+completion|completion\s+date|delay\s+damages|estimated\s+value|description|scope)\b/i;
+        // F31: the row may separate the section number from its particular with
+        // ":" or "-" and may say liquidated damages or taking-over; all are
+        // particulars of the same section (sectional completion is valid).
+        const sectionalParticular=/^section\s+\d+\s*(?:[:.\-\u2013\u2014]\s*)?(?:time\s+for\s+completion|completion\s+date|(?:delay|liquidated)\s+damages|taking[\s-]*over(?:\s+date)?|estimated\s+value|description|scope)\b/i;
         if(prior===current&&heading.kind==='clause'&&sectionalParticular.test(line.text)&&
-          /^section\s+\d+\s+/i.test(current.sourceSpans[0]?.text??'')){
+          /^section\s+\d+\b/i.test(current.sourceSpans[0]?.text??'')){
           appendLine(current,line);continue;
         }
         // A contract-data table can have several particulars under one Article

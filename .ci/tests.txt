@@ -9,3 +9,10 @@ source-only-forecast-isolation
 ui-management-experience
 schedule-adoption-authority
 programme-review-workflow
+contract-parser
+contract-commercial
+contract-value-extraction
+delay-chain
+t03-contract-ai-call-cap
+t03-ai-error-states
+t07-commercial-vs-independent
