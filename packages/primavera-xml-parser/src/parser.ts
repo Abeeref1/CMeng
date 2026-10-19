@@ -4,12 +4,19 @@ import {
   parseP6ApiDuration,
   parseScheduleDate,
 } from "../../schedule-values/src";
+import { sourceColumnAuditEntry } from "../../truth-kernel/src/register-schema";
 import type {
   PrimaveraXmlActivity,
   PrimaveraXmlProject,
   PrimaveraXmlRelationship,
   PrimaveraXmlResult,
 } from "./types";
+
+/** P6 XML business-object elements CMeng collects; each is audited as its own table. */
+export const P6_XML_ELEMENTS: Record<string, string> = {
+  project: "Project", wbs: "WBS", calendar: "Calendar", activity: "Activity", relationship: "Relationship",
+  resource: "Resource", resourceassignment: "ResourceAssignment", costaccount: "CostAccount",
+};
 
 type AnyObject = Record<string, unknown>;
 
@@ -26,9 +33,26 @@ function keyNorm(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Field names the activity reader asks for while one activity is read
+// Field names the reader asks for while one element type is read
 // (shared R1 unused-column report).
 let fieldNamesRead: Set<string> | null = null;
+
+/** Every field of every collected element type except Activity (audited by
+ * the schedule adapter, which also reads Activity fields): read, or unused
+ * with its first scalar value. Child elements that are collected element
+ * types are audited as their own table, not as a field. */
+function elementColumnAudit(found: Map<string, AnyObject[]>, reads: Map<string, Set<string>>) {
+  return Object.entries(P6_XML_ELEMENTS).filter(([key]) => key !== "activity").flatMap(([key, table]) => {
+    const samples = new Map<string, string | null>();
+    for (const obj of found.get(key) ?? []) for (const [name, value] of Object.entries(obj)) {
+      if (P6_XML_ELEMENTS[keyNorm(name)]) continue;
+      const sample = typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value).trim() || null : null;
+      if (!samples.has(name) || (samples.get(name) === null && sample !== null)) samples.set(name, sample);
+    }
+    return [...samples].map(([name, sample]) => ({table, ...sourceColumnAuditEntry(name, name, "other", reads.get(key)?.has(keyNorm(name)) ?? false,
+      "Read by the P6 XML reader.", sample)}));
+  });
+}
 function field(obj: AnyObject, names: string[]): string | null {
   if (fieldNamesRead) for (const name of names) fieldNamesRead.add(keyNorm(name));
   const wanted = new Set(names.map(keyNorm));
@@ -148,6 +172,7 @@ function duplicateKeys<T>(
 }
 
 export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
+  fieldNamesRead = null;
   const diagnostics: string[] = [];
   let parsed: unknown;
 
@@ -196,10 +221,13 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
   const found = new Map<string, AnyObject[]>();
   collectByLocalName(
     parsed,
-    new Set(["project", "activity", "relationship", "calendar", "wbs"]),
+    new Set(Object.keys(P6_XML_ELEMENTS)),
     found,
   );
+  const reads = new Map<string, Set<string>>();
+  const readsFor = (element: string) => { let set = reads.get(element); if (!set) reads.set(element, set = new Set()); return set; };
 
+  fieldNamesRead = readsFor("project");
   const projects: PrimaveraXmlProject[] = (found.get("project") ?? []).map(
     (obj) => ({
       objectId: field(obj, ["ObjectId", "ProjectObjectId"]),
@@ -217,12 +245,14 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       .filter((value): value is string => !!value),
   );
 
+  fieldNamesRead = readsFor("wbs");
   const wbsObjects = new Set(
     (found.get("wbs") ?? [])
       .map((obj) => field(obj, ["ObjectId", "WBSObjectId", "WbsObjectId"]))
       .filter((value): value is string => !!value),
   );
 
+  fieldNamesRead = readsFor("calendar");
   const calendarObjects = new Set(
     (found.get("calendar") ?? [])
       .map((obj) => field(obj, ["ObjectId", "CalendarObjectId"]))
@@ -232,7 +262,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
   const missingWbsReferences = new Set<string>();
   const missingCalendarReferences = new Set<string>();
 
-  const activityFieldsRead = new Set<string>();
+  const activityFieldsRead = readsFor("activity");
   fieldNamesRead = activityFieldsRead;
   let activities: PrimaveraXmlActivity[];
   try { activities = (
@@ -331,6 +361,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       .filter((value): value is string => !!value),
   );
 
+  fieldNamesRead = readsFor("relationship");
   const relationships: PrimaveraXmlRelationship[] = (
     found.get("relationship") ?? []
   ).map((obj) => {
@@ -404,6 +435,32 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
     };
   });
 
+  // WBS hierarchy, resources, cost accounts and resource assignments as the
+  // file states them (exact ObjectId references; nothing is guessed).
+  fieldNamesRead = readsFor("wbs");
+  const wbsNodes = (found.get("wbs") ?? []).map((obj) => ({
+    objectId: field(obj, ["ObjectId", "WBSObjectId", "WbsObjectId"]),
+    parentObjectId: field(obj, ["ParentObjectId", "ParentWBSObjectId"]),
+    code: field(obj, ["Code"]),
+    name: field(obj, ["Name"]),
+  }));
+  fieldNamesRead = readsFor("resource");
+  const resources = (found.get("resource") ?? []).map((obj) => ({
+    objectId: field(obj, ["ObjectId", "ResourceObjectId"]), id: field(obj, ["Id", "ResourceId"]), name: field(obj, ["Name", "ResourceName"]),
+  }));
+  fieldNamesRead = readsFor("costaccount");
+  const costAccounts = (found.get("costaccount") ?? []).map((obj) => ({
+    objectId: field(obj, ["ObjectId", "CostAccountObjectId"]), id: field(obj, ["Id", "CostAccountId"]), name: field(obj, ["Name", "CostAccountName"]),
+  }));
+  fieldNamesRead = readsFor("resourceassignment");
+  const resourceAssignments = (found.get("resourceassignment") ?? []).map((obj) => ({
+    activityObjectId: field(obj, ["ActivityObjectId"]),
+    resourceObjectId: field(obj, ["ResourceObjectId"]),
+    costAccountObjectId: field(obj, ["CostAccountObjectId"]),
+  }));
+  fieldNamesRead = null;
+  const columnAudit = elementColumnAudit(found, reads);
+
   const duplicateActivityIdentities = duplicateKeys(activities, (activity) => {
     const project = activity.projectObjectId ?? "?";
     if (activity.objectId) {
@@ -456,6 +513,11 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
     projects,
     activities,
     activityFieldsRead: [...activityFieldsRead].sort(),
+    wbsNodes,
+    resources,
+    costAccounts,
+    resourceAssignments,
+    columnAudit,
     relationships,
     calendarsSeen: (found.get("calendar") ?? []).length,
     wbsSeen: (found.get("wbs") ?? []).length,
