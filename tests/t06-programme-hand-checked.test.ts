@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import {
   analyzeSchedule,
   canonicalScheduleFromTabular,
+  finishVarianceBetween,
+  type CanonicalCalendar,
   type CanonicalScheduleActivity,
   type CanonicalScheduleModel,
 } from "../packages/schedule-analysis-core/src";
@@ -240,4 +242,56 @@ test("resources: completed work is excluded from remaining units, remaining peak
   assert.equal(row.peakRemainingUnitsPerHour, 2);
   // The completed A100 with zero float is not schedule pressure.
   assert.equal(row.programmeEffect, "Affected programme scope is identified; project-completion effect is not established from resource evidence alone.");
+});
+
+// Working calendars, day index 1 = Sunday ... 7 = Saturday (UTC).
+function calendar(id: string, days: number[], start: string, finish: string, minutes: number, dayHours: number, complete = true): CanonicalCalendar {
+  const weekly = [0, 0, 0, 0, 0, 0, 0] as [number, number, number, number, number, number, number];
+  for (const d of days) weekly[d - 1] = minutes;
+  return {
+    calendarId: id, name: id, semanticComplete: complete, weeklyWorkMinutes: weekly,
+    weeklyWorkIntervals: days.map((dayIndex) => ({ dayIndex, intervals: [{ start, finish, minutes }] })),
+    exceptions: [], standardDayHours: dayHours, standardWeekHours: dayHours * days.length, sourceRefs: [],
+  };
+}
+// Sunday to Thursday, 08:00-16:00, 8 h day (Friday and Saturday off).
+const SUN_THU_8 = calendar("SUN-THU-8", [1, 2, 3, 4, 5], "08:00", "16:00", 480, 8);
+// Saturday to Thursday, 07:00-17:00, 10 h day (Friday off).
+const SAT_THU_10 = calendar("SAT-THU-10", [7, 1, 2, 3, 4, 5], "07:00", "17:00", 600, 10);
+const INCOMPLETE = calendar("PART", [1, 2, 3, 4, 5], "08:00", "16:00", 480, 8, false);
+const ms = (iso: string) => Date.parse(iso + "T00:00:00Z");
+
+test("baseline variance: working days of the activity's own calendar, calendar days kept apart", () => {
+  // 1 Jan 2026 is a Thursday. Baseline Thu 15 Jan, current Sun 18 Jan.
+  // Sun-Thu 8 h: only Thu 15 is worked in between = 8 h = 1 working day.
+  assert.deepEqual(finishVarianceBetween(ms("2026-01-15"), ms("2026-01-18"), SUN_THU_8), { calendarDays: 3, workingDays: 1 });
+  // Sat-Thu 10 h: Thu 15 and Sat 17 are worked = 20 h = 2 working days.
+  assert.deepEqual(finishVarianceBetween(ms("2026-01-15"), ms("2026-01-18"), SAT_THU_10), { calendarDays: 3, workingDays: 2 });
+  // Early finish: baseline Sun 25 Jan, current Thu 15 Jan. Worked days
+  // between: Thu 15, Sun 18 to Thu 22 = 6 days, so -6 working, -10 calendar.
+  assert.deepEqual(finishVarianceBetween(ms("2026-01-25"), ms("2026-01-15"), SUN_THU_8), { calendarDays: -10, workingDays: -6 });
+  // Incomplete or missing calendar: working days unknown, never assumed.
+  assert.deepEqual(finishVarianceBetween(ms("2026-01-15"), ms("2026-01-18"), INCOMPLETE), { calendarDays: 3, workingDays: null });
+  assert.deepEqual(finishVarianceBetween(ms("2026-01-15"), ms("2026-01-18"), null), { calendarDays: 3, workingDays: null });
+});
+
+test("baseline variance summary in analytics uses each activity's own calendar", () => {
+  const m = {
+    projectId: "T06", source: "xer", sourceRevisionId: "t06-var", dataDateIso: "2026-01-12",
+    activities: [
+      activity("V1", { calendarId: "SUN-THU-8", baselineFinishIso: "2026-01-15", currentFinishIso: "2026-01-18", originalDurationHours: 8, remainingDurationHours: 8, totalFloatHours: 0 }),
+      activity("V2", { calendarId: "SAT-THU-10", baselineFinishIso: "2026-01-15", currentFinishIso: "2026-01-18", originalDurationHours: 10, remainingDurationHours: 10, totalFloatHours: 0 }),
+      activity("V3", { calendarId: "MISSING", baselineFinishIso: "2026-01-15", currentFinishIso: "2026-01-18", originalDurationHours: 8, remainingDurationHours: 8, totalFloatHours: 0 }),
+    ],
+    relationships: [], wbs: [], calendars: [SUN_THU_8, SAT_THU_10], diagnostics: [],
+  } as CanonicalScheduleModel;
+  const v = analyzeSchedule(m).finishVariance;
+  // Calendar days unchanged: 3, 3, 3.
+  assert.equal(v.comparableActivities, 3);
+  assert.equal(v.averageFinishVarianceDays, 3);
+  assert.equal(v.maximumDelayDays, 3);
+  // Working days: V1 = 1, V2 = 2, V3 unknown (calendar not in the file).
+  assert.equal(v.comparableWorkingDayActivities, 2);
+  assert.equal(v.averageFinishVarianceWorkingDays, 1.5);
+  assert.equal(v.maximumDelayWorkingDays, 2);
 });

@@ -59,6 +59,23 @@ import { parseScheduleTime,analyzeSchedule } from "../../schedule-analysis-core/
 import { checkProjectionIntegrity } from "./projection-integrity";
 import { resolveRevisionActivityCorrespondence, compareScheduleRevisions } from "../../schedule-revision-core/src";
 import { activityPopulation, isExecutionActivity, numericDistribution } from "../../schedule-analysis-core/src";
+import { finishVarianceBetween, firstSourceCalendars, workingDayVarianceSummary, type CanonicalScheduleModel } from "../../schedule-analysis-core/src";
+/** Controlled-baseline finish variance in working days of each activity's own
+ * source calendar (shared T06 helper). Unknown stays null. */
+function controlledWorkingDayVariances(
+  model: CanonicalScheduleModel,
+  baselineFinishOf: (activity: CanonicalScheduleModel["activities"][number]) => string | null,
+  currentFinishOf: (activity: CanonicalScheduleModel["activities"][number]) => string | null,
+): Array<number | null> {
+  const calendars = firstSourceCalendars(model.calendars);
+  return model.activities.map((activity) => {
+    const baselineIso = baselineFinishOf(activity), currentIso = currentFinishOf(activity);
+    if (!baselineIso || !currentIso) return null;
+    const before = parseScheduleTime(baselineIso), after = parseScheduleTime(currentIso);
+    if (!Number.isFinite(before) || !Number.isFinite(after)) return null;
+    return finishVarianceBetween(before, after, activity.calendarId === null ? null : calendars.get(activity.calendarId)).workingDays;
+  });
+}
 import {
   canonicalCommercialModule,
   commercialPositionForState,
@@ -972,6 +989,20 @@ function buildBundle(
               denominator: model.activities.length,
               method:
                 "controlled baseline programme versus current/forecast finish",
+              // Working-day fields from the same controlled-baseline pairs, so
+              // they never mix with the source-baseline values spread above.
+              ...workingDayVarianceSummary(
+                controlledBaseline
+                  ? controlledWorkingDayVariances(
+                      model,
+                      (activity) => {
+                        const baseline = baselineByActivity.get(activity.activityId);
+                        return baseline ? controlledBaselineFinish(baseline) : null;
+                      },
+                      currentEffectiveFinish,
+                    )
+                  : [],
+              ),
               comparableActivities:
                 knownControlledVariances
                   .length,
@@ -3985,6 +4016,19 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
               denominator: model.activities.length,
               method:
                 "controlled baseline programme versus current/forecast finish",
+              // Working-day fields from the same controlled-baseline pairs.
+              ...workingDayVarianceSummary(
+                controlledBaseline
+                  ? controlledWorkingDayVariances(
+                      model,
+                      (activity) => {
+                        const baseline = baselineByActivity.get(activity.activityId);
+                        return baseline ? baselineFinish(baseline) : null;
+                      },
+                      currentFinish,
+                    )
+                  : [],
+              ),
               comparableActivities:
                 knownVariances.length,
               lateActivities:
