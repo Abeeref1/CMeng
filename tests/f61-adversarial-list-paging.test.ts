@@ -18,15 +18,15 @@ const day=(offset:number)=>new Date(Date.UTC(2031,4,1)+offset*86400000).toISOStr
 // Plain cells (no commas or quotes in any value), so no field needs quoting.
 const csv=(headers:string[],rows:string[][])=>Buffer.from([headers,...rows].map(row=>row.join(',')).join('\r\n'));
 const registers:Array<{file:string;headers:string[];rows:(i:number)=>string[];count:number}>=[
- {file:'rfi_register.csv',headers:['RFI ID','Subject','Status','Raised Date','Due Date','Response Date','Owner','Linked Activity'],count:3000,
-  rows:i=>['RFI-'+i,'Design clarification '+i,i%3?'Open':'Answered',day(-60+i%50),day(-20+i%40),i%3?'':day(-5),'Design Engineer '+(i%400),'A'+(i*7%N)]},
+ {file:'rfi_register.csv',headers:['RFI ID','Subject','Status','Raised Date','Due Date','Response Date','Owner','Linked Activity'],count:6000,
+  rows:i=>['RFI-'+i,'Design clarification '+i,i%3?'Open':'Answered',day(-60+i%50),day(-20+i%40),i%3?'':day(-5),'Design Engineer '+(i%3000),'A'+(i*7%N)]},
  {file:'ncr_register.csv',headers:['NCR ID','Description','Owner','Closed Date','Status'],count:3000,
-  rows:i=>['NCR-'+i,'Quality issue '+i,'QA Inspector '+(i%300),i%4?'':day(-3),i%4?'Open':'Closed']},
+  rows:i=>['NCR-'+i,'Quality issue '+i,'QA Inspector '+(i%1500),i%4?'':day(-3),i%4?'Open':'Closed']},
  {file:'risk_register.csv',headers:['Risk ID','Description','Owner','Due Date','Status'],count:3000,
-  rows:i=>['RSK-'+i,'Delivery risk '+i,'Risk Owner '+(i%350),day(-30+i%90),i%5?'Open':'Closed']},
+  rows:i=>['RSK-'+i,'Delivery risk '+i,'Risk Owner '+(i%1500),day(-30+i%90),i%5?'Open':'Closed']},
  {file:'variation_register.csv',headers:['Variation ID','Description','Approved Amount','Period End','Status','Currency'],count:3000,
   rows:i=>['VO-'+i,'Scope change '+i,String(1000+i),day(-200+i%180),i%3===0?'Approved':i%3===1?'Pending':'Rejected','SAR']},
- {file:'claim_register.csv',headers:['Claim ID','Event','Days Claimed','Notice Date','Status'],count:2000,
+ {file:'claim_register.csv',headers:['Claim ID','Event','Days Claimed','Notice Date','Status'],count:8000,
   rows:i=>['CLM-'+i,'Delay event '+i,String(1+i%30),i%6?day(-100+i%90):'',i%2?'Submitted':'Under Review']},
  {file:'procurement_register.csv',headers:['Package ID','Description','Required On Site','Forecast Delivery','Status','Linked Activity'],count:2000,
   rows:i=>['PKG-'+i,'Equipment package '+i,day(10+i%120),day(20+i%150),i%2?'Ordered':'Not Ordered','A'+(i*11%N)]},
@@ -104,6 +104,10 @@ test('F61 adversarial project: every management page under 2 MB, not over budget
   for(const [size,pointer] of largest(body))console.log('F61-ADV   large '+path+pointer+' '+size);
   for(const [pointer,length,size] of unpagedLongLists(body).slice(0,30))console.log('F61-ADV   unpaged '+path+pointer+' rows '+length+' bytes '+size);
   if(bytes>2_000_000)problems.push(path+' is '+bytes+' bytes');
+  // No list that grows with the source records is sent in full. Chart time
+  // series (one point per period) are bounded by the programme dates.
+  for(const [pointer,length] of unpagedLongLists(body))
+   if(length>100&&!/\/(?:points|series|periods|weeklyTotals|monthlyPoints|monthlySeries|chartPoints|curvePoints|evmPoints|monthlyEvmPoints|actualSnapshots)$/.test(pointer))problems.push(path+pointer+' sends '+length+' rows unpaged');
   if(paging?.overBudget===true)problems.push(path+' flagged over budget');
   // Every paged list keeps its true total and its later rows stay reachable.
   // The bundle repeats the page projections; its lists are fetched through each page's own route.
