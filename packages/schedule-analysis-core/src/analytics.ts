@@ -5,6 +5,7 @@ import {
   activityNearCriticalThresholdHours,
   nearCriticalThresholdBasis,
 } from "./float-thresholds";
+import { finishVarianceBetween, firstSourceCalendars, workingDayVarianceSummary } from "./finish-variance";
 import type {
   AverageMetric,
   CanonicalScheduleActivity,
@@ -267,8 +268,11 @@ function finishVariance(
   activities: readonly CanonicalScheduleActivity[],
   config: ScheduleAnalysisConfig,
   sourceInstant: (value:string|null)=>number|null = validIsoDate,
+  calendars: readonly CanonicalScheduleModel["calendars"][number][] = [],
 ): VarianceSummary {
   const variances: number[] = [];
+  const workingVariances: Array<number | null> = [];
+  const calendarById = firstSourceCalendars(calendars);
 
   for (const activity of activities) {
     const baseline = sourceInstant(
@@ -282,9 +286,13 @@ function finishVariance(
       continue;
     }
 
-    variances.push(
-      (current - baseline) / 86_400_000,
+    const variance = finishVarianceBetween(
+      baseline,
+      current,
+      activity.calendarId === null ? null : calendarById.get(activity.calendarId),
     );
+    variances.push(variance.calendarDays);
+    workingVariances.push(variance.workingDays);
   }
 
   const late = variances.filter(
@@ -328,6 +336,8 @@ function finishVariance(
       variances.length,
       activities.length,
     ),
+    workingDayBasis: "working days of each activity's own source calendar; unknown where the calendar or its day length is not read",
+    ...workingDayVarianceSummary(workingVariances),
   };
 }
 
@@ -620,6 +630,7 @@ export function analyzeSchedule(
       activities,
       config,
       sourceInstant,
+      model.calendars,
     ),
     completionBases: completionBases(activities,sourceInstant),
     activityCount: model.activities.length,

@@ -294,6 +294,11 @@ export interface VarianceSummary {
   averageFinishVarianceDays: number | null;
   maximumDelayDays: number | null;
   coveragePercent: number | null;
+  /** Same comparison in working days of each activity's own source calendar (T06). */
+  workingDayBasis?: string;
+  comparableWorkingDayActivities?: number;
+  averageFinishVarianceWorkingDays?: number | null;
+  maximumDelayWorkingDays?: number | null;
 }
 
 export interface ProgressSummary {
