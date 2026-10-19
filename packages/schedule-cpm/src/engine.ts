@@ -634,6 +634,26 @@ export function calculateCpm(
     forwardState[index] === 2 ? earlyStartMs[index]! : null;
   const forwardFinishOf = (index: number): number | null =>
     forwardState[index] === 2 ? earlyFinishMs[index]! : null;
+  // Retained logic: work that has started has a fixed start event. An SS/SF
+  // successor counts its lag from the predecessor's actual start, not from
+  // the remaining-work start at the data date (T06 D2). Only a recorded
+  // actual start no later than the remaining start is used; anything else
+  // keeps the calculated start.
+  const actualStartMs = new Float64Array(activityCount).fill(NaN);
+  if (config.durationBasis === "remaining") {
+    for (let index = 0; index < activityCount; index += 1) {
+      const activity = model.activities[index]!;
+      if (activity.status !== "in_progress") continue;
+      const actual = parseScheduleInstant(activity.actualStartIso);
+      if (actual !== null) actualStartMs[index] = actual;
+    }
+  }
+  const startedAt = (index: number): number | null => {
+    const actual = actualStartMs[index]!;
+    return forwardState[index] === 2 && !Number.isNaN(actual) && actual <= earlyStartMs[index]! ? actual : null;
+  };
+  const relationStartOf = (index: number): number | null =>
+    startedAt(index) ?? forwardStartOf(index);
   // Binding (driving) predecessor links of each activity, as link numbers.
   // A later retrace appends a fresh list and repoints the activity to it.
   const bindingStart = new Int32Array(activityCount);
@@ -693,7 +713,7 @@ export function calculateCpm(
 
       if (forwardState[predecessorIndex] === 0) continue;
 
-      const predecessorStart = forwardStartOf(predecessorIndex);
+      const predecessorStart = relationStartOf(predecessorIndex);
       const predecessorFinish = forwardFinishOf(predecessorIndex);
       const candidate =
         forwardConstraintStart(
@@ -866,7 +886,7 @@ export function calculateCpm(
       for(let slot=incomingStart[index]!;slot<incomingStart[index+1]!;slot++){
         const link=incomingLinks[slot]!,relation=linked[link]!,predecessorIndex=linkedPredecessor[link]!;
         if(forwardState[predecessorIndex]===0)continue;
-        const predecessorStart=forwardStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
+        const predecessorStart=relationStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
         const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar);
         const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
         const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(calendar,finishAnchor,relation.lagHours);
@@ -948,6 +968,9 @@ export function calculateCpm(
       const successorCalendar=contexts[successorIndex]!.calendar;
       if (backwardState[successorIndex] === 0 || !successorCalendar) continue;
 
+      // A started predecessor's start is fixed in the past: an SS/SF link
+      // cannot move it, so it gives no late bound (T06 D2, retained logic).
+      if ((relation.type === "SS" || relation.type === "SF") && startedAt(index) !== null) continue;
       const successorKnown = backwardState[successorIndex] === 2;
       const candidate =
         backwardConstraintFinish(
@@ -994,7 +1017,12 @@ export function calculateCpm(
     let lateFinish=earlyFinishOfActivity<=lateFinishCandidate&&
       earlyFinishOfActivity>normalizedLateFinish&&workingHoursBetween(calendar.calendar,normalizedLateFinish,earlyFinishOfActivity)===0
       ?earlyFinishOfActivity:normalizedLateFinish;
-    const durationStart = subtractWorkingHours(
+    // A zero-duration activity starts where it finishes. Subtracting zero
+    // work from a finish held at a work opening returns the previous closing
+    // instant; a predecessor on a calendar that works through that gap was
+    // then forced to finish before its early finish (false negative float,
+    // T06 D1).
+    const durationStart = durationHours === 0 ? lateFinish : subtractWorkingHours(
         calendar.calendar,
         lateFinish,
         durationHours,
