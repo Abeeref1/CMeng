@@ -10,7 +10,7 @@ import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
-import {activityFloatReconciliation,attachActivityFloatReconciliation} from './activity-float-reconciliation';
+import {activityFloatReconciliation,attachActivityFloatReconciliation,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
 import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,deliveryPosition} from './delivery-projections';
@@ -599,17 +599,26 @@ function previousComparableFloatBasis(
     );
   const totalFloatByActivity =
     new Map<string, number | null>();
+  // T06: the previous float converts with the previous revision's own
+  // calendar for that activity; unknown stays null (never an 8-hour day).
+  const previousCalendars = sourceCalendarWorkingDays(previous.revision.model);
+  const workingDayHoursByActivity =
+    new Map<string, number | null>();
   for (const match of correspondence.matches) {
+    const from = sourceById.get(match.fromActivityId);
     totalFloatByActivity.set(
       match.toActivityId,
-      sourceById.get(match.fromActivityId)
+      from
         ?.totalFloatHours ?? null,
     );
+    workingDayHoursByActivity.set(match.toActivityId,
+      from ? previousCalendars.workingDayHours(from.calendarId) : null);
   }
   return {
     revisionId:
       previous.revision.revisionId,
     totalFloatByActivity,
+    workingDayHoursByActivity,
   };
 }
 

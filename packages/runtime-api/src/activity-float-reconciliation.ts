@@ -158,7 +158,9 @@ export function attachActivityFloatReconciliation<T>(data:T,review:ReturnType<ty
 // (previous float, erosion, shift) is not converted here: it needs both
 // revisions' calendars, so it stays in its original hours.
 const CURRENT_FLOAT_FIELDS=['totalFloatHours','submittedTotalFloatHours','independentTotalFloatHours','sourceTotalFloatHours',
- 'sourceFloatHours','currentFloatHours','submittedFloatHours','freeFloatHours'] as const;
+ 'sourceFloatHours','currentFloatHours','submittedFloatHours','freeFloatHours',
+ // An activity's own near-critical limit in hours converts with the same calendar.
+ 'nearCriticalThresholdHours'] as const;
 const GROUP_FLOAT_FIELDS=[['lowestFloatHours','lowestFloatCalendarIds'],['worstFloatHours','worstFloatCalendarIds'],['linkedFloatHours','linkedFloatCalendarIds']] as const;
 const daysKey=(field:string)=>field.replace(/Hours$/,'WorkingDays');
 /** Returns a copy with working-day float beside every current float in hours

@@ -57,6 +57,8 @@ export interface NearCriticalRow {
   floatDaysBasis?:'source_activity_calendar'|'calendar_working_day_not_established';
   previousTotalFloatHours?: number | null;
   floatErosionHours?: number | null;
+  previousTotalFloatWorkingDays?: number | null;
+  floatErosionWorkingDays?: number | null;
   nearCriticalThresholdHours: number | null;
   baselineFinishIso: string | null;
   sourceTargetFinishIso?: string | null;
@@ -92,6 +94,8 @@ export interface NearCriticalProjection {
   population?: ActivityPopulationContract;
   floatDistribution?: ReturnType<typeof numericDistribution>;
   floatHourHistogram?: ReturnType<typeof import('./projector').floatHourHistogram>;
+  floatDistributionWorkingDays?: ReturnType<typeof numericDistribution> | null;
+  floatDistributionDaysBasis?: string | null;
   rows: NearCriticalRow[];
   watchlistRows: NearCriticalRow[];
   criticalRows: NearCriticalRow[];
@@ -106,6 +110,7 @@ export interface NearCriticalProjection {
     negativeFloatCount: number;
     lowestFloatHours: number | null;
     lowestFloatWorkingDays?: number | null;
+    lowestFloatDaysBasis?: string | null;
     lowestFloatActivityId?: string | null;
     floatErosionKnownCount?: number;
     maxFloatErosionHours?: number | null;

@@ -25,7 +25,7 @@ function coverage(
 }
 
 /** Full submitted-hour population; calendar-based screening is separate. */
-export function floatHourHistogram(values:readonly (number|null)[]){
+export function floatHourHistogram(values:readonly (number|null)[],days?:{workingDayHours:number|null;daysBasis:string|null}){
   const counts=new Map<number,number>();
   for(const value of values)if(typeof value==='number'&&Number.isFinite(value))counts.set(value,(counts.get(value)??0)+1);
   const distinct=[...counts.keys()].sort((a,b)=>a-b),exact=distinct.length<=10;
@@ -34,7 +34,13 @@ export function floatHourHistogram(values:readonly (number|null)[]){
     Array.from({length:10},(_,i)=>({lowerHours:minimum!*(1-i/10)+maximum!*(i/10),upperHours:minimum!*(1-(i+1)/10)+maximum!* ((i+1)/10),upperInclusive:i===9,count:0}));
   if(!exact)for(const [value,count] of counts){const index=groups.findIndex(g=>value<g.upperHours);groups[index<0?groups.length-1:index]!.count+=count;}
   const knownCount=[...counts.values()].reduce((n,count)=>n+count,0);
-  return {unit:'hours' as const,basis:'All unfinished execution activities with supplied finite total float; no working-day conversion.',knownCount,unknownCount:values.length-knownCount,exact,groups};
+  // T06 group rule: buckets show working days only when every float-bearing
+  // activity uses one source calendar working-day length.
+  const dayHours=days?.daysBasis==='source_activity_calendar'?days.workingDayHours:null;
+  const toDays=(hours:number)=>dayHours!==null&&dayHours>0?Number((hours/dayHours).toFixed(6)):null;
+  return {unit:'hours' as const,basis:dayHours!==null&&dayHours>0?'All unfinished execution activities with supplied finite total float; working days from the one source calendar day length they all share.':'All unfinished execution activities with supplied finite total float; no working-day conversion.',knownCount,unknownCount:values.length-knownCount,exact,
+    groups:days?groups.map(group=>({...group,lowerWorkingDays:toDays(group.lowerHours),upperWorkingDays:toDays(group.upperHours)})):groups,
+    ...(days?{workingDayHours:dayHours,daysBasis:days.daysBasis}:{})};
 }
 
 /** Retain the exact original sorted first-N boundary rows without sorting the
@@ -121,7 +127,7 @@ export function buildNearCriticalProjection(
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
     controlledBaseline?: { revisionId: string; finishByActivity: ReadonlyMap<string, string | null> } | null;
-    previousFloat?: { revisionId: string; totalFloatByActivity: ReadonlyMap<string, number | null> } | null;
+    previousFloat?: { revisionId: string; totalFloatByActivity: ReadonlyMap<string, number | null>; workingDayHoursByActivity?: ReadonlyMap<string, number | null> } | null;
   },
 ): NearCriticalProjection {
   const config =
@@ -156,6 +162,16 @@ export function buildNearCriticalProjection(
       typeof activity.totalFloatHours === "number" &&
       Number.isFinite(activity.totalFloatHours),
   );
+
+  // T06 group rule for whole-population float buckets and summaries: one
+  // working-day value only when every float-bearing activity shares one
+  // source calendar working-day length; never an assumed 8-hour day.
+  const knownDayLengths=new Set(known.map(activity=>workingDayHours(activity.calendarId)));
+  const populationDays={
+    workingDayHours:knownDayLengths.size===1?[...knownDayLengths][0]??null:null,
+    daysBasis:!known.length?null:knownDayLengths.has(null)?'calendar_working_day_not_established':
+      knownDayLengths.size>1?'mixed_calendar_day_lengths':'source_activity_calendar',
+  };
 
   // The entire source-float classification is calculated ONCE per known
   // activity. Boundary audit, specialist rows and management counts reuse it;
@@ -206,6 +222,21 @@ export function buildNearCriticalProjection(
       (() => { const previous = input.previousFloat?.totalFloatByActivity.get(activity.activityId);
         return typeof previous === 'number' && Number.isFinite(previous)
           ? Number((previous - activity.totalFloatHours!).toFixed(6)) : null; })(),
+    // T06: each side converts with its own revision's calendar; days only
+    // when both working-day lengths are known.
+    ...(() => {
+      if (!input.previousFloat) return {};
+      const previous = input.previousFloat.totalFloatByActivity.get(activity.activityId);
+      const previousDayHours = input.previousFloat.workingDayHoursByActivity?.get(activity.activityId) ?? null;
+      const currentDayHours = workingDayHours(activity.calendarId);
+      const toDays = (hours: number, dayHours: number | null) => dayHours !== null && dayHours > 0 ? Number((hours / dayHours).toFixed(6)) : null;
+      const previousDays = typeof previous === 'number' && Number.isFinite(previous) ? toDays(previous, previousDayHours) : null;
+      const currentDays = toDays(activity.totalFloatHours!, currentDayHours);
+      return {
+        previousTotalFloatWorkingDays: previousDays,
+        floatErosionWorkingDays: previousDays !== null && currentDays !== null ? Number((previousDays - currentDays).toFixed(6)) : null,
+      };
+    })(),
     nearCriticalThresholdHours:
       threshold,
     baselineFinishIso:
@@ -450,6 +481,12 @@ export function buildNearCriticalProjection(
     const lowest=group.rows.reduce((best,row)=>!best||row.totalFloatHours<best.totalFloatHours||
        row.totalFloatHours===best.totalFloatHours&&naturalCompare(row.activityId,best.activityId)<0?row:best,
        null as (typeof group.rows)[number]|null);
+    // T06 group rule: the lowest float converts to working days only when
+    // every member activity uses one working-day length; otherwise the value
+    // stays in its original hours with an explicit basis.
+    const dayLengths=new Set(group.rows.map(row=>row.workingDayHours??null));
+    const lowestFloatDaysBasis=!lowest?null:dayLengths.has(null)?'calendar_working_day_not_established':
+      dayLengths.size>1?'mixed_calendar_day_lengths':'source_activity_calendar';
     return {
       wbsId:group.wbsId,wbsPath:group.wbsPath,activityCount:group.rows.length,activityIds:group.rows.map(row=>row.activityId),
       nearCriticalCount:group.rows.filter(row=>row.totalFloatHours>config.criticalFloatThresholdHours).length,
@@ -457,7 +494,8 @@ export function buildNearCriticalProjection(
       negativeFloatCount:group.rows.filter(row=>row.totalFloatHours<0).length,
       lowestFloatHours:lowest?.totalFloatHours??null,
       lowestFloatActivityId:lowest?.activityId??null,
-      lowestFloatWorkingDays:lowest?.submittedTotalFloatWorkingDays??null,
+      lowestFloatWorkingDays:lowestFloatDaysBasis==='source_activity_calendar'?lowest?.submittedTotalFloatWorkingDays??null:null,
+      lowestFloatDaysBasis,
       floatErosionKnownCount:erosions.length,
       maxFloatErosionHours:erosions.length?Math.max(...erosions):null,
       averageFloatErosionHours:erosions.length?Number((erosions.reduce((sum,value)=>sum+value,0)/erosions.length).toFixed(6)):null,
@@ -528,7 +566,10 @@ export function buildNearCriticalProjection(
       config.floatRiskWatchlistIncludesCriticalThreshold === true,
     population: population.contract,
     floatDistribution: numericDistribution(known.map(activity => activity.totalFloatHours)),
-    floatHourHistogram:floatHourHistogram(unfinished.map(activity=>activity.totalFloatHours)),
+    floatDistributionWorkingDays:populationDays.daysBasis==='source_activity_calendar'&&populationDays.workingDayHours!==null&&populationDays.workingDayHours>0
+      ?numericDistribution(known.map(activity=>Number((activity.totalFloatHours!/populationDays.workingDayHours!).toFixed(6)))):null,
+    floatDistributionDaysBasis:populationDays.daysBasis,
+    floatHourHistogram:floatHourHistogram(unfinished.map(activity=>activity.totalFloatHours),populationDays),
     rows,
     watchlistRows,
     criticalRows,
