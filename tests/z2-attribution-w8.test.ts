@@ -6,6 +6,14 @@ import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 import {positionVerdict,blockedCause} from '../packages/runtime-api/src/position-review';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {createCmengServer} from '../packages/runtime-api/src/server';
+import {scheduleRiskMonteCarlo} from '../packages/runtime-api/src/schedule-risk-monte-carlo';
+import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+import {projectControlSchedule} from '../packages/runtime-api/src/canonical-time-claims';
+import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
+// The CPM engine module itself (not the re-exporting index), so a sampled run
+// failure can be injected for this one simulation and then restored.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const cpmEngine:{calculateCpm:(...args:any[])=>any}=require('../packages/schedule-cpm/src/engine');
 
 // W8: a statement on screen must be true for the data behind it.
 const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -83,4 +91,43 @@ test('SW-30: counts taken from the contractor\'s submitted float are labelled su
   assert.match(script,/challengeValueFromSubmission\(independent\)\?'From submitted records: ':'CMeng check: '/);
   assert.match(script,/'CMeng value and basis':'CMeng independent check'/);
  }finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
+
+function calendarXer(){
+ const cal='(0||CalendarData()((0||DaysOfWeek()('+[1,2,3,4,5,6,7].map(d=>'(0||'+d+'()((0||0(s|08:00|f|16:00)())))').join('')+'))))';
+ return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tRISK\t2030-01-01 08:00',
+  '%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data','%R\t1\tEight hour calendar\t8\t56\t'+cal,
+  '%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttask_type\tstatus_code\tclndr_id\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tearly_start_date\tearly_end_date',
+  '%R\t1\t1\tA\tFoundation work\tTT_Task\tTK_NotStart\t1\t160\t160\t0\t2030-01-01 08:00\t2030-01-20 16:00','%E'].join('\n');
+}
+
+test('SW-29: a Monte Carlo run with zero successful iterations is CMeng\'s own failure, not a missing input',async()=>{
+ const id='Z2-MC-'+Date.now();
+ await runtimeProjects.ingestSchedule({projectId:id,sourceFilename:'programme.xer',bytes:Buffer.from(calendarXer()),mediaType:'text/plain',uploadedAt:'2030-01-01',role:'update',uploadIntent:'replace_current_basis'});
+ const state=runtimeProjects.get(id)!;
+ const model=projectControlSchedule(state)!.revision.model;
+ // The deterministic network on the adopted model calculates; every sampled
+ // network run fails, as when the CPM engine cannot finish a sampled network.
+ const real=cpmEngine.calculateCpm;
+ let sampledRuns=0;
+ cpmEngine.calculateCpm=(m:any,o:any)=>{const r=real(m,o);if(m===model)return r;sampledRuns++;return {...r,complete:false,projectFinishIso:null};};
+ let failed:any;
+ try{failed=scheduleRiskMonteCarlo(state,{iterations:100,seed:101,minFactor:.8,modeFactor:1,maxFactor:1.3});}
+ finally{cpmEngine.calculateCpm=real;}
+ assert.equal(sampledRuns,100);
+ assert.equal(failed.data.iterationsCompleted,0);assert.equal(failed.data.failedIterations,100);
+ assert.equal(failed.status,'blocked');
+ assert.equal(failed.engineState,'failed');
+ assert.equal(blockedCause(failed),'calculation_incomplete');
+ const v=positionVerdict(failed);
+ assert.match(v.text,/CMeng did not complete this calculation/);
+ assert.doesNotMatch(v.text,/missing inputs/i);
+ assert.doesNotMatch(v.nextAction,/Provide the missing inputs/);
+ // The real state reaches the issue register as CMeng's calculation failure.
+ const issues=assessModuleIssues(failed,{state:'pass',failedCheckIds:[],checkCount:0});
+ assert.ok(issues.issues.some((i:any)=>i.kind==='system_defect'&&i.code==='CALCULATION_CHECK_FAILED'&&/No successful simulation iterations/.test(i.detail)));
+ // A run whose iterations succeed keeps its ready engine state.
+ const ok:any=scheduleRiskMonteCarlo(state,{iterations:100,seed:102,minFactor:.8,modeFactor:1,maxFactor:1.3});
+ assert.equal(ok.data.iterationsCompleted,100);assert.equal(ok.status,'partial');assert.equal(ok.engineState,'ready');
+ assert.equal(blockedCause(ok),null);
 });
