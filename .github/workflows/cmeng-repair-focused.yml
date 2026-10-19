@@ -191,6 +191,7 @@ jobs:
             dist/tests/sw14-document-reading-state.test.js \
             dist/tests/y11-sw46-conditional-notices.test.js \
             dist/tests/w2-securities-shared-state.test.js \
+            dist/tests/r12-f34-time-for-completion-from-commencement.test.js \
             dist/tests/w3-commercial-headline-basis.test.js \
             dist/tests/w3-commercial-round10.test.js \
             dist/tests/f13-f47-claim-register-time-bar.test.js \
