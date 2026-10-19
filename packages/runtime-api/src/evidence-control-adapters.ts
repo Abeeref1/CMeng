@@ -25,6 +25,11 @@ import type {
   RiskControlRecord,
   StoredEvidenceDocument,
 } from "./project-state-types";
+import {
+  analyticalOperationalDocuments,
+  SOURCE_ANALYTICAL_USE,
+  sourceAnalyticalDiagnostic,
+} from "./operational-reporting";
 
 function delayResponsibility(
   raw: string,
@@ -1815,6 +1820,130 @@ function latestById<T>(
   ];
 }
 
+/** T04 commercial registers. Label carried by every record read from a clear,
+ * unique source that is not formally adopted, all the way to screens and Ask. */
+export const SOURCE_READ_NOTE = "Read from source; not formally adopted";
+type CommercialRegisterKind =
+  "variations" | "invoices" | "retentions" | "bonds" | "claimCommercials" | "delayClaims";
+const commercialRegisterIds: Array<[Exclude<CommercialRegisterKind, "delayClaims">, (row: any) => string]> = [
+  ["variations", (row) => row.variationId],
+  ["invoices", (row) => row.invoiceId],
+  ["retentions", (row) => row.retentionId],
+  ["bonds", (row) => row.bondId],
+  ["claimCommercials", (row) => row.claimId],
+];
+export interface CommercialSourceReadConflict {
+  kind: CommercialRegisterKind;
+  recordId: string;
+  /** The unadopted source whose reading disagrees. */
+  documentId: string;
+  sourceRefs: string[];
+  against: "adopted" | "source_read";
+  againstDocumentIds: string[];
+  againstSourceRefs: string[];
+}
+const comparableRecord = (row: object) =>
+  JSON.stringify(
+    Object.entries(row)
+      .filter(([key]) => !["sourceRefs", "sourceAnalyticalUse", "sourceAnalyticalNote"].includes(key))
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+/** Documents named by source references; a document id may itself contain ':'. */
+const referencedDocumentIds = (documents: readonly StoredEvidenceDocument[], refs: string[]) =>
+  documents.filter((document) => refs.some((ref) => ref === "evidence-document:" + document.documentId || ref.startsWith("evidence-document:" + document.documentId + ":")))
+    .map((document) => document.documentId);
+/** A source reading never carries an official determination by itself. */
+const sourceReadStates = <T extends object>(row: T): T =>
+  Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [key, key.endsWith("State") && value === "official" ? "candidate" : value]),
+  ) as T;
+
+/**
+ * T04: the commercial registers read from candidates that the ONE shared rule
+ * (analyticalOperationalDocuments) admits. Adopted and manual records always
+ * win and are never overridden or erased; a different reading of the same
+ * record is returned as a conflict naming the unadopted source. Two unadopted
+ * sources that disagree on one record are both held. Stored basisState and
+ * authority are never changed.
+ */
+export function sourceReadCommercialControls(
+  state: ProjectRuntimeState,
+  adopted: Pick<DerivedControlEvidence, Exclude<CommercialRegisterKind, "delayClaims">> & { delayClaims: DelayClaimsModel | null },
+) {
+  const documents = analyticalOperationalDocuments(state.evidenceDocuments)
+    .filter((document) => document.basisState === "candidate")
+    .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+  const rows: Required<Pick<DerivedControlEvidence, Exclude<CommercialRegisterKind, "delayClaims">>> = {
+    variations: [], invoices: [], retentions: [], bonds: [], claimCommercials: [],
+  };
+  const conflicts: CommercialSourceReadConflict[] = [];
+  for (const [kind, id] of commercialRegisterIds) {
+    const adoptedById = new Map((adopted[kind] ?? []).map((row: any) => [id(row), row]));
+    const read = new Map<string, Array<{ documentId: string; row: any }>>();
+    for (const document of documents)
+      for (const row of (state.derivedControlsByDocument[document.documentId]?.[kind] ?? []) as any[]) {
+        const list = read.get(id(row)) ?? [];
+        list.push({ documentId: document.documentId, row });
+        read.set(id(row), list);
+      }
+    for (const [recordId, list] of read) {
+      const current = adoptedById.get(recordId);
+      if (current) {
+        for (const entry of list)
+          if (comparableRecord(entry.row) !== comparableRecord(current))
+            conflicts.push({ kind, recordId, documentId: entry.documentId, sourceRefs: entry.row.sourceRefs,
+              against: "adopted", againstDocumentIds: referencedDocumentIds(state.evidenceDocuments, current.sourceRefs), againstSourceRefs: current.sourceRefs });
+        continue;
+      }
+      if (new Set(list.map((entry) => entry.documentId)).size > 1 && new Set(list.map((entry) => comparableRecord(entry.row))).size > 1) {
+        for (const entry of list) {
+          const others = list.filter((other) => other.documentId !== entry.documentId);
+          conflicts.push({ kind, recordId, documentId: entry.documentId, sourceRefs: entry.row.sourceRefs, against: "source_read",
+            againstDocumentIds: [...new Set(others.map((other) => other.documentId))], againstSourceRefs: others.flatMap((other) => other.row.sourceRefs) });
+        }
+        continue;
+      }
+      // Same last-row-wins rule as adopted rows read from one document.
+      (rows[kind] as any[]).push({ ...sourceReadStates(list.at(-1)!.row), sourceAnalyticalUse: SOURCE_ANALYTICAL_USE, sourceAnalyticalNote: SOURCE_READ_NOTE });
+    }
+  }
+  const delayDocuments = documents.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims);
+  let delayClaims: DelayClaimsModel | null = null;
+  if (adopted.delayClaims) {
+    const adoptedClaims = new Map(adopted.delayClaims.claims.map((claim) => [claim.claimId, claim]));
+    for (const document of delayDocuments)
+      for (const claim of state.derivedControlsByDocument[document.documentId]!.delayClaims!.claims) {
+        const current = adoptedClaims.get(claim.claimId);
+        if (current && comparableRecord(claim) !== comparableRecord(current))
+          conflicts.push({ kind: "delayClaims", recordId: claim.claimId, documentId: document.documentId, sourceRefs: ["evidence-document:" + document.documentId],
+            against: "adopted", againstDocumentIds: referencedDocumentIds(state.evidenceDocuments, [adopted.delayClaims.evidenceRevisionId]), againstSourceRefs: [adopted.delayClaims.evidenceRevisionId] });
+      }
+  } else if (delayDocuments.length === 1) {
+    const document = delayDocuments[0]!, model = state.derivedControlsByDocument[document.documentId]!.delayClaims!;
+    delayClaims = { ...model, events: model.events.map(sourceReadStates), notices: model.notices.map(sourceReadStates),
+      claims: model.claims.map(sourceReadStates), diagnostics: [...model.diagnostics, sourceAnalyticalDiagnostic(document.documentId)] };
+  } else if (delayDocuments.length > 1) {
+    // Two unadopted delay/claim populations are never merged or ranked.
+    for (const document of delayDocuments)
+      conflicts.push({ kind: "delayClaims", recordId: "delay-claims-population", documentId: document.documentId, sourceRefs: ["evidence-document:" + document.documentId],
+        against: "source_read", againstDocumentIds: delayDocuments.filter((other) => other !== document).map((other) => other.documentId), againstSourceRefs: [] });
+  }
+  return { rows, delayClaims, conflicts };
+}
+
+/** Conflicts between the commercial registers in project state and the
+ * unadopted sources. Read by the one decision place (document actions). */
+export function commercialSourceReadConflicts(state: ProjectRuntimeState): CommercialSourceReadConflict[] {
+  const adopted = (row: { sourceRefs: string[]; sourceAnalyticalUse?: string }) => !row.sourceAnalyticalUse;
+  const delay = state.controls.delayClaims;
+  return sourceReadCommercialControls(state, {
+    variations: state.controls.variations.filter(adopted), invoices: state.controls.invoices.filter(adopted),
+    retentions: state.controls.retentions.filter(adopted), bonds: state.controls.bonds.filter(adopted),
+    claimCommercials: state.controls.claimCommercials.filter(adopted),
+    delayClaims: delay && !delay.diagnostics.some((d) => d.startsWith("SOURCE_ANALYTICAL_NOT_ADOPTED:")) ? delay : null,
+  }).conflicts;
+}
+
 export function rebuildDerivedControls(
   state: ProjectRuntimeState,
 ): void {
@@ -2038,6 +2167,20 @@ export function rebuildDerivedControls(
       (row) =>
         row.riskId,
     );
+
+  // T04: clear, unique unadopted commercial sources feed project state and
+  // every downstream calculation, labelled; adopted records always win.
+  const sourceRead = sourceReadCommercialControls(state, {
+    variations: state.controls.variations, invoices: state.controls.invoices,
+    retentions: state.controls.retentions, bonds: state.controls.bonds,
+    claimCommercials: state.controls.claimCommercials, delayClaims: derivedDelay,
+  });
+  state.controls.variations.push(...sourceRead.rows.variations);
+  state.controls.invoices.push(...sourceRead.rows.invoices);
+  state.controls.retentions.push(...sourceRead.rows.retentions);
+  state.controls.bonds.push(...sourceRead.rows.bonds);
+  state.controls.claimCommercials.push(...sourceRead.rows.claimCommercials);
+  derivedDelay ??= sourceRead.delayClaims;
 
   const currentDelay =
     state.controls

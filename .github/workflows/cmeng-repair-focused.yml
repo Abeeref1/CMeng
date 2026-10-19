@@ -82,6 +82,7 @@ jobs:
             dist/tests/t07-certificate-calendar-date-truth.test.js \
             dist/tests/t07-commercial-gregorian-integrity.test.js \
             dist/tests/t04-payment-review-authority-truth.test.js \
+            dist/tests/t04-commercial-registers-source-analysis.test.js \
             dist/tests/t08-procurement-gregorian-date-truth.test.js \
             dist/tests/t06-activity-float-working-days-truth.test.js \
             dist/tests/t06-float-days-every-remaining-place.test.js \
