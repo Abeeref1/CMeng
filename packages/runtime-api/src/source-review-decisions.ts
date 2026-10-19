@@ -2,11 +2,12 @@ import {createHash} from 'node:crypto';
 import {extractContractValue} from '../../contract-commercial/src';
 import type {ContractTimeBasis} from '../../eot-assessment/src';
 import type {ProjectRuntimeState} from './project-state-types';
+import {applyCompletionDecision} from './contract-fact-decisions';
 
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 export function isSourceDerivedTimeBasis(basis:ContractTimeBasis|null|undefined){
-  return !!basis?.sourceRefs.length&&basis.sourceRefs.every(ref=>ref.startsWith('evidence-document:')||ref.startsWith('user-confirmation:eot-overlap:'));
+  return !!basis?.sourceRefs.length&&basis.sourceRefs.every(ref=>ref.startsWith('evidence-document:')||ref.startsWith('user-confirmation:eot-overlap:')||ref.startsWith('user-confirmation:contract-fact:'));
 }
 
 /** Decisions qualify derived reporting only; the retained source is immutable. */
@@ -41,7 +42,8 @@ export function applyEotOverlapDecision(state:ProjectRuntimeState,basis:Contract
 
 export function reportingTimeBasis(state:ProjectRuntimeState,canonical:ContractTimeBasis|null){
   const stored=state.controls.contractTimeBasis;
-  return applyEotOverlapDecision(state,stored&&!isSourceDerivedTimeBasis(stored)?stored:canonical??stored);
+  // T04: the completion decision is applied here and in the canonical time position alike.
+  return applyEotOverlapDecision(state,applyCompletionDecision(state,stored&&!isSourceDerivedTimeBasis(stored)?stored:canonical??stored)??null);
 }
 
 export function contractValueReview(state:ProjectRuntimeState){
@@ -49,8 +51,21 @@ export function contractValueReview(state:ProjectRuntimeState){
   const unique=candidates;
   const sourceFingerprint=fingerprint({candidates:unique,documents:state.evidenceDocuments.filter(d=>/contract|amendment/.test(d.documentType+' '+d.category)).map(d=>[d.documentId,d.sourceHashSha256,d.basisState])});
   const saved=state.controls.reviewDecisions?.['contract-value'];
-  const selected=saved?.sourceFingerprint===sourceFingerprint?unique.find(c=>'value:'+c.currency+':'+c.amount===saved.choice):undefined;
+  const current=saved?.sourceFingerprint===sourceFingerprint?saved:undefined;
+  // T04: a contract value and currency typed by the user in the decision place
+  // (choice 'enter_value'); used with a user-confirmation reference, never as adopted.
+  const entered=current?.choice==='enter_value'&&validContractValueEntry(current.enteredValue,current.enteredCurrency)?{amount:current.enteredValue!,currency:current.enteredCurrency!,sourceRefs:[] as string[]}:undefined;
+  const selected:{amount:number;currency:string;sourceRefs:string[]}|undefined=entered??(current?unique.find(c=>'value:'+c.currency+':'+c.amount===current.choice):undefined);
   return {sourceFingerprint,candidates:unique,selected:selected??null,decision:selected?saved:null};
+}
+function validContractValueEntry(amount:unknown,currency:unknown){
+  return typeof amount==='number'&&Number.isFinite(amount)&&amount>0&&typeof currency==='string'&&/^[A-Z]{3}$/.test(currency);
+}
+/** Validated own-value entry for the contract value decision (amount and currency). */
+export function contractValueEntryInput(input:{enteredValue?:unknown;enteredCurrency?:unknown}){
+  const raw=String(input.enteredValue??'').replace(/,/g,'').trim(),amount=Number(raw),currency=String(input.enteredCurrency??'').trim().toUpperCase();
+  if(raw===''||!validContractValueEntry(amount,currency))throw new Error('Enter the contract value (a positive amount) and its three-letter currency code.');
+  return {enteredValue:amount,enteredCurrency:currency};
 }
 
 export function reportingContractValue(state:ProjectRuntimeState){

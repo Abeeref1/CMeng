@@ -3,6 +3,9 @@ import {registerDate} from '../../truth-kernel/src';
 import type {ContractTermKey,ContractTermVersion} from './contract-term-versions';
 import {SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import type {ProjectRuntimeState} from './project-state-types';
+import type {ContractTimeBasis} from '../../eot-assessment/src';
+import {contractCompletionPosition,completionHeldByAdoptedBasis,withoutCompletionSourceLabel} from './contract-completion';
+import {projectDataDate} from './canonical-time-claims';
 
 // T04: one decision place for contract terms whose sources disagree or whose
 // reading is unsure. The user picks a read value, types their own, changes or
@@ -96,5 +99,71 @@ export function contractFactDecisionPatch(state:ProjectRuntimeState,item:Contrac
     if(raw===''||!Number.isFinite(enteredValue)||enteredValue<0)throw new Error('Enter the value to use.');
   }else if(!isValidChoice(choice,item.candidates,Boolean(item.enterUnit),undefined))throw new Error('Select one of the available decisions.');
   decisions[item.key]={sourceFingerprint:item.fingerprint,choice,...(enteredValue!==undefined?{enteredValue}:{}),confirmedAt:new Date().toISOString(),sourceRefs:[...new Set([...sourceRefs,'user-confirmation:'+item.key+':'+item.fingerprint])]};
+  return {reviewDecisions:decisions};
+}
+
+// T04 (a): the contractual completion date uses the same decision place and the
+// same stored form (reviewDecisions['contract-fact:contractualCompletion'],
+// additive enteredDateIso field). It is applied to the canonical time position
+// and to reportingTimeBasis by applyCompletionDecision, so every page agrees.
+export const COMPLETION_DECISION_KEY=CONTRACT_FACT_DECISION_PREFIX+'contractualCompletion';
+export const COMPLETION_DECISION_NOTE='Chosen by the user in the decision place; not formally adopted.';
+export interface CompletionDecisionItem {key:string;dataDateIso:string|null;fingerprint:string;reason:'sources_disagree'|'unsure_reading';
+  candidates:Array<{date:string;adopted:boolean;userConfirmed:boolean;documentIds:string[];sourceRefs:string[]}>;
+  decision:{choice:string;enteredDateIso?:string;confirmedAt:string}|null;}
+const isoDate=(value:unknown)=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+const completionCache=new WeakMap<ProjectRuntimeState,{version:number;value:CompletionDecisionItem|null}>();
+export function completionDecisionItem(state:ProjectRuntimeState):CompletionDecisionItem|null{
+  const prior=completionCache.get(state);if(prior&&prior.version===state.version)return prior.value;
+  const value=readCompletionDecisionItem(state);completionCache.set(state,{version:state.version,value});return value;
+}
+function readCompletionDecisionItem(state:ProjectRuntimeState):CompletionDecisionItem|null{
+  const asOf=registerDate(projectDataDate(state)??'')||null;
+  const position=contractCompletionPosition(state,asOf);
+  const stored=state.controls.contractTimeBasis;
+  const held=completionHeldByAdoptedBasis(stored,position)?.length&&stored?.contractualCompletionIso?stored.contractualCompletionIso.slice(0,10):null;
+  const relevant=position.candidates.filter(c=>!c.historical&&(c.role!=='amendment'||!c.effectiveFrom||!asOf||c.effectiveFrom<=asOf));
+  const latest=relevant.filter(c=>c.role==='amendment'&&c.effectiveFrom&&asOf).map(c=>c.effectiveFrom!).sort().at(-1);
+  // A base date replaced by an applicable dated amendment is not a competing value.
+  const offered=relevant.filter(c=>!latest||(c.role==='amendment'&&(!c.effectiveFrom||c.effectiveFrom===latest)));
+  const unsure=position.state==='conflicted'&&/applicability is unresolved/.test(position.reason??'');
+  const dates=new Map<string,CompletionDecisionItem['candidates'][number]>();
+  for(const c of offered){const row=dates.get(c.date)??{date:c.date,adopted:false,userConfirmed:false,documentIds:[],sourceRefs:[]};
+    row.adopted||=!c.sourceAnalytical;if(!row.documentIds.includes(c.documentId))row.documentIds.push(c.documentId);if(!row.sourceRefs.includes(c.sourceRef))row.sourceRefs.push(c.sourceRef);dates.set(c.date,row);}
+  if(held){const row=dates.get(held)??{date:held,adopted:false,userConfirmed:true,documentIds:[],sourceRefs:[]};row.userConfirmed=true;
+    row.sourceRefs.push(...(stored?.sourceRefs??[]).filter(r=>r.startsWith('user-confirmation:contract-completion:')));dates.set(held,row);}
+  const disagree=dates.size>1&&(position.state==='conflicted'||position.sourceConflicts.length>0||Boolean(held));
+  if(!disagree&&!unsure)return null;
+  const candidates=[...dates.values()];
+  const fingerprint=hash(['contract-completion-v1',state.projectId,asOf,held,position.state,candidates.map(c=>[c.date,c.adopted,c.userConfirmed,c.documentIds,c.sourceRefs])]);
+  const saved=state.controls?.reviewDecisions?.[COMPLETION_DECISION_KEY];
+  const valid=saved&&saved.sourceFingerprint===fingerprint&&(saved.choice==='enter_value'?isoDate(saved.enteredDateIso):saved.choice.startsWith('use:')&&dates.has(saved.choice.slice(4)));
+  return {key:COMPLETION_DECISION_KEY,dataDateIso:asOf,fingerprint,reason:disagree?'sources_disagree':'unsure_reading',candidates,
+    decision:valid?{choice:saved!.choice,...(saved!.enteredDateIso?{enteredDateIso:saved!.enteredDateIso}:{}),confirmedAt:saved!.confirmedAt}:null};
+}
+/** The decided completion date on any time basis (canonical or stored); idempotent. */
+export function applyCompletionDecision<T extends ContractTimeBasis|null|undefined>(state:ProjectRuntimeState,basis:T):T|ContractTimeBasis{
+  const item=completionDecisionItem(state),decision=item?.decision;
+  if(!item||!decision)return basis;
+  const ref='user-confirmation:'+item.key+':'+item.fingerprint;
+  if(basis?.sourceRefs?.includes(ref))return basis;
+  const date=decision.choice==='enter_value'?decision.enteredDateIso!:decision.choice.slice(4);
+  const chosen=item.candidates.find(c=>c.date===date);
+  const base=withoutCompletionSourceLabel(basis??undefined);
+  return {...(base??{}),
+    contractualCompletionIso:date,contractualCompletionState:'candidate',completionReason:COMPLETION_DECISION_NOTE,
+    officialApprovedEotDays:base?.officialApprovedEotDays??null,officialApprovedEotState:base?.officialApprovedEotState??'missing',
+    eotDayBasis:base?.eotDayBasis??'unknown',eotDayBasisState:base?.eotDayBasisState??'missing',
+    contractualCompletionSourceUse:SOURCE_ANALYTICAL_USE,contractualCompletionSourceNote:COMPLETION_DECISION_NOTE,
+    sourceRefs:[...new Set([...(base?.sourceRefs??[]),...(chosen?.sourceRefs??[]),ref])]} as ContractTimeBasis;
+}
+/** Validated reviewDecisions patch for the completion decision (pick, type, change, undo). */
+export function completionDecisionPatch(state:ProjectRuntimeState,item:CompletionDecisionItem,input:{choice?:unknown;enteredDateIso?:unknown},sourceRefs:string[]){
+  const choice=String(input.choice??''),decisions={...(state.controls.reviewDecisions??{})};
+  if(choice==='undo'){if(!decisions[item.key])throw new Error('There is no saved decision to undo.');delete decisions[item.key];return {reviewDecisions:decisions};}
+  const enteredDateIso=choice==='enter_value'?String(input.enteredDateIso??'').trim():undefined;
+  if(choice==='enter_value'&&!isoDate(enteredDateIso))throw new Error('Enter a valid contractual completion date.');
+  if(choice!=='enter_value'&&!(choice.startsWith('use:')&&item.candidates.some(c=>c.date===choice.slice(4))))throw new Error('Select one of the available decisions.');
+  decisions[item.key]={sourceFingerprint:item.fingerprint,choice,...(enteredDateIso?{enteredDateIso}:{}),confirmedAt:new Date().toISOString(),sourceRefs:[...new Set([...sourceRefs,'user-confirmation:'+item.key+':'+item.fingerprint])]};
   return {reviewDecisions:decisions};
 }

@@ -443,7 +443,7 @@ export interface ProjectControlState {
   rfis: RfiRecord[];
   permits: PermitRecord[];
   risks: RiskControlRecord[];
-  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;enteredValue?:number;noticeSourceKeys?:string[];locationAssignments?:Array<{wbsId:string;location:string}>;activityIds?:string[];matrix?:Record<string,string>;asOfIso?:string;additionalDays?:number;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reference?:string;confirmedAt:string;sourceRefs:string[]}>;
+  reviewDecisions?: Record<string,{sourceFingerprint:string;choice:string;enteredValue?:number;enteredCurrency?:string;enteredDateIso?:string;noticeSourceKeys?:string[];locationAssignments?:Array<{wbsId:string;location:string}>;activityIds?:string[];matrix?:Record<string,string>;asOfIso?:string;additionalDays?:number;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reference?:string;confirmedAt:string;sourceRefs:string[]}>;
   boardPublication:
     | BoardReportPublicationInput
     | null;

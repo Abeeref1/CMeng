@@ -4,7 +4,13 @@ import {createHash} from 'node:crypto';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {termAtEvent,contractTermSelectionFactState} from '../packages/runtime-api/src/contract-term-versions';
 import {reportingContractTermVersions,contractFactDecisionItemsForState} from '../packages/runtime-api/src/notice-review';
-import {contractFactDecisionPatch} from '../packages/runtime-api/src/contract-fact-decisions';
+import {contractFactDecisionPatch,completionDecisionItem,completionDecisionPatch} from '../packages/runtime-api/src/contract-fact-decisions';
+import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
+import {reportingTimeBasis,contractValueReview,reportingContractValue,contractValueEntryInput} from '../packages/runtime-api/src/source-review-decisions';
+import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import {projectActionRegisterForState} from '../packages/runtime-api/src/project-projections';
 import {commercialFoundationForState} from '../packages/runtime-api/src/commercial-foundation-runtime';
 
@@ -127,4 +133,109 @@ test('T04 a stale decision is refused and never applied after the sources change
     assert.equal(item.decision,null,'the stale decision is not applied');
   }
   assert.ok(!(retention(changed).sourceRefs??[]).some((r:string)=>r.startsWith('user-confirmation:')),'stale decision never applied');
+});
+
+// (a) Contractual completion date: one decision, applied to the canonical time
+// position and to reportingTimeBasis together so every page reads the same date.
+function completionFixture(store:RuntimeProjectStore,id:string,decisions?:unknown){
+  const state=store.getOrCreate(id);
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'schedule-hash',uploadedAt:'2031-07-01T00:00:00.000Z',
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2031-06-30',model:{projectId:id,source:'xer',sourceRevisionId:'U1',dataDateIso:'2031-06-30T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as any);
+  const adopted=evidence(id,'contract','contract:main','active'),amendment=evidence(id,'amendment','contract:amendment-1','candidate');
+  state.evidenceDocuments.push(adopted,amendment);
+  (state.contractDocuments as any[]).push(contract(adopted.documentId,'main','Date for Completion: 2031-12-31'),
+    contract(amendment.documentId,'amendment','Effective date: 2031-03-01\nRevised Date for Completion: 2032-03-31'));
+  if(decisions)store.updateControls(id,{reviewDecisions:JSON.parse(JSON.stringify(decisions))});
+  return store.get(id)!;
+}
+const completionDates=(state:any)=>{
+  const canonical=canonicalTimeClaims(state,true).contractTimeBasis as any;
+  const reporting=reportingTimeBasis(state,canonical) as any;
+  return {canonical:canonical?.contractualCompletionIso?.slice(0,10)??null,reporting:reporting?.contractualCompletionIso?.slice(0,10)??null,canonicalBasis:canonical,reportingBasis:reporting};
+};
+const decideCompletion=(store:RuntimeProjectStore,id:string,input:{choice:string;enteredDateIso?:unknown})=>{
+  const state=store.get(id)!,item=completionDecisionItem(state)!;
+  store.updateControls(id,completionDecisionPatch(state,item,input,[]));return store.get(id)!;
+};
+
+test('T04 completion date: conflict offered with both dates; pick, type, change, undo reach canonical and reporting readers alike',()=>{
+  const store=new RuntimeProjectStore({durable:false});let state=completionFixture(store,'CF-C');
+  const item=completionDecisionItem(state);
+  assert.ok(item,'the different unadopted completion date is offered as a decision');
+  assert.deepEqual(item!.candidates.map(c=>[c.date,c.adopted]),[['2031-12-31',true],['2032-03-31',false]]);
+  let dates=completionDates(state);
+  assert.deepEqual([dates.canonical,dates.reporting],['2031-12-31','2031-12-31'],'adopted date used until decided');
+  // Pick the unadopted date.
+  state=decideCompletion(store,'CF-C',{choice:'use:2032-03-31'});dates=completionDates(state);
+  assert.deepEqual([dates.canonical,dates.reporting],['2032-03-31','2032-03-31'],'every reader shows the decided date');
+  assert.equal(dates.canonicalBasis.contractualCompletionState,'candidate','never shown as formally adopted');
+  assert.match(dates.canonicalBasis.contractualCompletionSourceNote,/not formally adopted/);
+  assert.ok(dates.canonicalBasis.sourceRefs.some((r:string)=>r.startsWith('user-confirmation:contract-fact:contractualCompletion:')));
+  // Type your own date.
+  state=decideCompletion(store,'CF-C',{choice:'enter_value',enteredDateIso:'2032-06-30'});dates=completionDates(state);
+  assert.deepEqual([dates.canonical,dates.reporting],['2032-06-30','2032-06-30']);
+  assert.throws(()=>completionDecisionPatch(state,completionDecisionItem(state)!,{choice:'enter_value',enteredDateIso:'2032-02-30'},[]),/valid contractual completion date/);
+  // Change back to the adopted date, then undo: the prior source state returns.
+  state=decideCompletion(store,'CF-C',{choice:'use:2031-12-31'});
+  assert.equal(completionDates(state).canonical,'2031-12-31');
+  state=decideCompletion(store,'CF-C',{choice:'undo'});dates=completionDates(state);
+  assert.deepEqual([dates.canonical,dates.reporting],['2031-12-31','2031-12-31']);
+  assert.equal(dates.canonicalBasis.contractualCompletionState,'official');
+  assert.ok(!dates.canonicalBasis.sourceRefs.some((r:string)=>r.startsWith('user-confirmation:contract-fact:')),'undo leaves no decision reference');
+  assert.equal(completionDecisionItem(state)!.decision,null);
+});
+
+test('T04 completion and term decisions survive a fresh durable store (restart)',()=>{
+  const dataDir=mkdtempSync(join(tmpdir(),'cmeng-t04-contract-fact-'));
+  try{
+    const first=new RuntimeProjectStore({dataDir,durable:true});
+    completionFixture(first,'CF-R');
+    let state=decideCompletion(first,'CF-R',{choice:'use:2032-03-31'});
+    const savedDecisions=JSON.parse(JSON.stringify(state.controls.reviewDecisions));
+    const second=new RuntimeProjectStore({dataDir,durable:true});
+    const restored=second.get('CF-R');
+    assert.ok(restored,'project restored from disk');
+    assert.deepEqual(restored!.controls.reviewDecisions?.['contract-fact:contractualCompletion'],savedDecisions['contract-fact:contractualCompletion'],'decision kept after restart');
+    // Same sources after restart give the same decided date on every reader.
+    const again=completionFixture(new RuntimeProjectStore({durable:false}),'CF-R',restored!.controls.reviewDecisions);
+    const dates=completionDates(again);
+    assert.deepEqual([dates.canonical,dates.reporting],['2032-03-31','2032-03-31']);
+  }finally{rmSync(dataDir,{recursive:true,force:true});}
+});
+
+// (c) Contract value and currency: type your own and undo on the existing decision.
+test('T04 contract value decision: type your own amount and currency, change and undo',()=>{
+  const store=new RuntimeProjectStore({durable:false}),state=store.getOrCreate('CF-V');
+  state.contract={semanticComplete:true,pdf:{pages:[]},sections:[
+    {sectionKey:'amount-1',kind:'clause',text:'Accepted Contract Amount AED 1,000',startPage:1,diagnostics:[]},
+    {sectionKey:'amount-2',kind:'clause',text:'Contract Sum SAR 1,200',startPage:2,diagnostics:[]},
+  ].map((s,index)=>({...s,sourceSpans:[{sourceKind:'pdf_page',sourceIndex:index+1,start:0,end:40}],status:'verified',sourceMode:'deterministic'}))} as any;
+  const review=contractValueReview(state);
+  assert.equal(review.candidates.length,2);assert.equal(reportingContractValue(state),null);
+  assert.throws(()=>contractValueEntryInput({enteredValue:'1500',enteredCurrency:'dirham'}),/three-letter currency/);
+  assert.throws(()=>contractValueEntryInput({enteredValue:'',enteredCurrency:'AED'}),/positive amount/);
+  store.updateControls('CF-V',{reviewDecisions:{'contract-value':{sourceFingerprint:review.sourceFingerprint,choice:'enter_value',...contractValueEntryInput({enteredValue:'1,500',enteredCurrency:'usd'}),confirmedAt:'2031-07-01T00:00:00Z',sourceRefs:[]}}});
+  const typed=reportingContractValue(store.get('CF-V')!) as any;
+  assert.deepEqual([typed.amount,typed.currency],[1500,'USD'],'the typed amount and currency are used');
+  assert.ok(typed.sourceRefs.some((r:string)=>r.startsWith('user-confirmation:contract-value:')));
+  assert.equal(store.get('CF-V')!.controls.contractValue,null,'the governed control is never overwritten');
+  store.updateControls('CF-V',{reviewDecisions:{'contract-value':{sourceFingerprint:review.sourceFingerprint,choice:'value:SAR:1200',confirmedAt:'2031-07-01T00:00:00Z',sourceRefs:[]}}});
+  assert.deepEqual([(reportingContractValue(store.get('CF-V')!) as any).currency,(reportingContractValue(store.get('CF-V')!) as any).amount],['SAR',1200]);
+  store.updateControls('CF-V',{reviewDecisions:{}});
+  assert.equal(reportingContractValue(store.get('CF-V')!),null,'undo restores the undecided state');
+});
+
+// Route: a stale project version and a decision that is no longer open are refused.
+test('T04 confirm-review refuses a stale version and a contract decision that is not open',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'contract-fact-route-'));const gateway=await createProjectGateway(root,{maxWorkers:1});
+  t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
+  await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+(gateway.server.address() as any).port;
+  const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  assert.equal((await post('/api/projects',{projectId:'ROUTE-CF'})).status,201);
+  const workflow=await (await fetch(base+'/api/projects/ROUTE-CF/actions')).json() as any;
+  const version=workflow.projectVersion??workflow.version;
+  const stale=await post('/api/projects/ROUTE-CF/actions/confirm-review',{expectedVersion:(typeof version==='number'?version:0)-1,actionId:'matter:contract-fact:retentionPercent',sourceFingerprint:'x',choice:'use:5|%'});
+  assert.equal(stale.status,409);assert.match((await stale.json() as any).message,/changed/);
+  const notOpen=await post('/api/projects/ROUTE-CF/actions/confirm-review',{expectedVersion:version,actionId:'matter:contract-fact:contractualCompletion',sourceFingerprint:'x',choice:'use:2031-12-31'});
+  assert.equal(notOpen.status,409,'no decision is saved when the conflict is not open');
 });

@@ -1,4 +1,5 @@
 import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
+import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
@@ -1000,6 +1001,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
   const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
+  // T04: a saved completion decision applies to the one shared time position.
+  contractTimeBasis=applyCompletionDecision(state,contractTimeBasis) as ContractTimeBasis|null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }

@@ -2167,10 +2167,27 @@ async function route(
       const milestoneReview=key==='milestone-selection'?(await import('./milestone-review')).milestoneReviewInput(state,{...input,choice}):{};
       const hseReview=key==='hse-rate-basis'?(await import('./hse-report-evidence')).hseRateDecisionInput({...input,choice}):{};
       const sourceRefs=[...new Set([...(action.reviewSourceRefs??[]),...(action.findings??[]).flatMap(f=>f.sourceRefs)])];
+      if(key==='contract-value'&&(choice==='enter_value'||choice==='undo')){
+        // T04 contract value and currency: type your own, or undo the saved decision.
+        const decisions={...(state.controls.reviewDecisions??{})};
+        if(choice==='undo')delete decisions[key];
+        else decisions[key]={sourceFingerprint:action.reviewFingerprint!,choice,...(await import('./source-review-decisions')).contractValueEntryInput(input),confirmedAt:new Date().toISOString(),sourceRefs:[...sourceRefs,'user-confirmation:contract-value:'+action.reviewFingerprint]};
+        runtimeProjects.updateControls(projectId,{reviewDecisions:decisions});
+        invalidateProject(projectId);
+        json(res,200,{projectId,projectVersion:runtimeProjects.get(projectId)?.version,completedActionId:action.id,choice});return;
+      }
       if(action.target.kind==='review-contract-fact'){
         // T04 contract term decision: pick, type own, change or undo (one shared reader applies it).
         const {contractFactDecisionItemsForState}=await import('./notice-review');
         const {contractFactDecisionPatch}=await import('./contract-fact-decisions');
+        if(key===(await import('./contract-fact-decisions')).COMPLETION_DECISION_KEY){
+          const {completionDecisionItem,completionDecisionPatch}=await import('./contract-fact-decisions');
+          const completion=completionDecisionItem(state);
+          if(!completion||completion.fingerprint!==input.sourceFingerprint)throw new Error('The supporting records or review request changed. Refresh Project Review.');
+          runtimeProjects.updateControls(projectId,completionDecisionPatch(state,completion,{...input,choice},sourceRefs));
+          invalidateProject(projectId);
+          json(res,200,{projectId,projectVersion:runtimeProjects.get(projectId)?.version,completedActionId:action.id,choice});return;
+        }
         const item=contractFactDecisionItemsForState(state).find(i=>i.key===key&&i.fingerprint===input.sourceFingerprint);
         if(!item)throw new Error('The supporting records or review request changed. Refresh Project Review.');
         runtimeProjects.updateControls(projectId,contractFactDecisionPatch(state,item,{...input,choice},sourceRefs));
