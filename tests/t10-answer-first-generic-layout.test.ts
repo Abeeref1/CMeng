@@ -54,3 +54,26 @@ test('SW-44: the generic field view prints each figure once, keeps every field, 
  assert.ok(html.indexOf('class="position-verdict')<html.indexOf('generic-key-figures'),'the answer leads the key figures');
  assert.ok(html.indexOf('generic-key-figures')<details,'key figures come before the collapsed detail');
 });
+
+test('SW-43: buttons and notices added after the page is drawn go after the verdict, not above it',()=>{
+ const run=(withVerdict:boolean)=>{
+  const calls:string[]=[];
+  const verdictNode={insertAdjacentHTML:(where:string,html:string)=>calls.push('verdict:'+where+':'+html)};
+  const content:any={insertAdjacentHTML:(where:string,html:string)=>calls.push('page:'+where+':'+html),querySelector:(selector:string)=>withVerdict&&selector===':scope>.position-verdict'?verdictNode:null,querySelectorAll:()=>[]};
+  const ctx:any={renderModuleResultBody(){},el:(id:string)=>id==='moduleContent'?content:null,applyPmcDisplayOwners(){},applyProjectDisplayText(){},observeProjectDisplay(){},
+   renderDecisionAnalysis:()=>'',linkCandidateEntry:()=>'',openProjectActions(){},bindProjectActions(){},planningShortDate:String,fmt:String};
+  runInNewContext(functions(['renderModuleResult']),ctx);
+  ctx.renderModuleResult({key:'material-tracking',status:'partial',data:{projectFacts:{time:{extendedContractCompletionIso:{value:'2031-05-01',diagnostics:['AMENDMENT_OVERLAP_TO_CONFIRM']},awardedEotDays:{value:12}}}}});
+  return calls;
+ };
+ const placed=run(true);
+ const buttons=placed.find(c=>c.includes('Create BOQ links')),notice=placed.find(c=>c.includes('Extended completion comparison'));
+ assert.ok(buttons?.startsWith('verdict:afterend:'),'BOQ link buttons follow the verdict');
+ assert.ok(notice?.startsWith('verdict:afterend:'),'the extended completion notice follows the verdict');
+ assert.ok(!placed.some(c=>c.startsWith('page:afterbegin:')),'nothing is put above the verdict');
+ assert.match(notice!,/12 awarded EOT days/,'the notice keeps its figures');
+ // A page without a verdict keeps them at the top, as before.
+ const plain=run(false);
+ assert.ok(plain.find(c=>c.includes('Create BOQ links'))?.startsWith('page:afterbegin:'));
+ assert.ok(plain.find(c=>c.includes('Extended completion comparison'))?.startsWith('page:afterbegin:'));
+});
