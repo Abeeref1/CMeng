@@ -399,6 +399,8 @@ function parseRows(
         wbs: valueAt(row, roleColumn(header.roles, "wbs")),
         wbsId: valueAt(row, roleColumn(header.roles, "wbs_id")),
         calendar: valueAt(row, roleColumn(header.roles, "calendar")),
+        ...(roleColumn(header.roles, "resource") !== null ? {resource: valueAt(row, roleColumn(header.roles, "resource"))} : {}),
+        ...(roleColumn(header.roles, "cost_account") !== null ? {costAccount: valueAt(row, roleColumn(header.roles, "cost_account"))} : {}),
         start,
         startIso: normalizedDate(
           start,
@@ -581,6 +583,7 @@ function parseMetadataSheet(
 
 
 interface MixedScheduleRows {
+  columnAudit: NonNullable<ScheduleTabularResult["columnAudit"]>;
   activities: ScheduleActivityRow[];
   relationships: ScheduleRelationshipRow[];
   wbsRows: ScheduleWbsRow[];
@@ -625,6 +628,20 @@ function parseMixedScheduleRows(
   const statusIndex = mixedHeaderIndex(header, "Status");
   const lagIndex = mixedHeaderIndex(header, "Lag");
   const revisionIndex = mixedHeaderIndex(header, "Revision");
+  // Column list for the mixed-row layout: a column is read when the mixed
+  // reader uses its header, otherwise listed as unused with a sample.
+  const mixedRead = new Map<number, string>([
+    [recordTypeIndex, "record_type"], [recordIdIndex, "record_id"], [parentIndex, "parent_or_successor"],
+    [predecessorIndex, "predecessor_id"], [wbsIndex, "wbs"], [nameIndex, "name"], [typeIndex, "type"],
+    [startIndex, "start"], [finishIndex, "finish"], [durationIndex, "duration"], [floatIndex, "total_float"],
+    [percentIndex, "percent_complete"], [statusIndex, "status"], [lagIndex, "lag"], [revisionIndex, "revision"],
+  ].filter(([index]) => (index as number) >= 0) as Array<[number, string]>);
+  const columnAudit: MixedScheduleRows["columnAudit"] = header.flatMap((label, index) => {
+    if (!String(label ?? "").trim()) return [];
+    const role = mixedRead.get(index) ?? "unknown";
+    const sample = rows.slice(1).map((row) => String(row[index] ?? "").trim()).find(Boolean) ?? null;
+    return [{table: "csv", ...sourceColumnAuditEntry(label, role, "other", role !== "unknown", "Read by the mixed-row programme reader as " + role + ".", sample)}];
+  });
 
   const at = (
     row: readonly string[],
@@ -895,6 +912,7 @@ function parseMixedScheduleRows(
   }
 
   return {
+    columnAudit,
     activities,
     relationships,
     wbsRows,
@@ -1168,6 +1186,7 @@ export function parseScheduleCsv(
       },
     );
     result.dataDateValues = activityDataDates("csv", null, rows, headers, result.activities);
+    result.columnAudit = mixed.columnAudit;
     return result;
   }
 

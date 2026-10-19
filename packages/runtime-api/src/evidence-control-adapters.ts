@@ -2,6 +2,7 @@ import {csv as parseCsv} from "../../truth-kernel/src";
 import {canonicalHeader,prepareEvidenceRows,registerDate,securityInstrumentKind} from '../../truth-kernel/src';
 import { numberValue } from "../../truth-kernel/src";
 import {ncrStatusFromSource} from './operational-reporting';
+import {detectEventSourceTable,eventFromSourceRow,eventSourceCandidate,mergeSourceEvents} from './event-source-register';
 import type {
   CanonicalClaimRecord,
   CanonicalDelayEvent,
@@ -1154,6 +1155,34 @@ export function deriveControlsFromCsv(
     return { risks };
   }
 
+  // SW-15 / F06: an event register (or a notice register stating events) is read by
+  // the same shared reader as canonical-time-claims, so both readers give the same
+  // events and dates. A claims table is never read here (claims stay claims).
+  if (eventSourceCandidate(input.document.documentType, headers)) {
+    const eventColumns = detectEventSourceTable({
+      documentType: input.document.documentType,
+      headers,
+      rawHeaders: parsedTable.rawHeaders,
+      rows: rows.slice(1),
+    });
+    if (eventColumns) {
+      const sourceEvents = rows.slice(1).map((row, rowIndex) =>
+        eventFromSourceRow(eventColumns, row, { sourceId: input.document.documentId, locator: "row:" + (rowIndex + 1) }))
+        .filter((event): event is CanonicalDelayEvent => event !== null);
+      const events: CanonicalDelayEvent[] = [];
+      const diagnostics: string[] = [];
+      mergeSourceEvents(events, sourceEvents, diagnostics);
+      return {
+        delayClaims: {
+          projectId: input.state.projectId,
+          evidenceRevisionId: "evidence-document:" + input.document.documentId,
+          events, notices: [], claims: [], noticeRequirements: [],
+          diagnostics: ["DELAY_EVENTS_FROM_EVENT_SOURCE_REGISTER", ...diagnostics],
+        },
+      };
+    }
+  }
+
   if (
     input.document
       .documentType ===
@@ -1779,6 +1808,28 @@ export function deriveControlsFromCsv(
   return {};
 }
 
+/** True for a model read from an event register or notices only (no claims). */
+function eventSourceOnlyModel(model: DelayClaimsModel): boolean {
+  return model.claims.length === 0 && model.events.length > 0 &&
+    model.events.every((event) => event.identitySource === "event_register" || event.identitySource === "notice");
+}
+
+/**
+ * SW-15 / F06: an event register is not a competing claims population. Its
+ * events are merged into the claims model by the shared rule (claim-cited
+ * references keep their links on the source event). Two claims models keep the
+ * previous behaviour.
+ */
+export function combineDelayModels(current: DelayClaimsModel | null, next: DelayClaimsModel): DelayClaimsModel {
+  if (!current) return next;
+  const [base, source] = eventSourceOnlyModel(next) ? [current, next] : eventSourceOnlyModel(current) ? [next, current] : [null, null];
+  if (!base || !source) return next;
+  const events = [...base.events];
+  const diagnostics = [...base.diagnostics];
+  mergeSourceEvents(events, source.events, diagnostics);
+  return { ...base, events, diagnostics: [...new Set([...diagnostics, ...source.diagnostics])] };
+}
+
 function derivedRef(
   refs: string[],
 ): boolean {
@@ -1925,7 +1976,10 @@ export function sourceReadCommercialControls(
       (rows[kind] as any[]).push({ ...sourceReadStates(list.at(-1)!.row), sourceAnalyticalUse: SOURCE_ANALYTICAL_USE, sourceAnalyticalNote: SOURCE_READ_NOTE });
     }
   }
-  const delayDocuments = documents.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims);
+  const delayModelDocuments = documents.filter((document) => state.derivedControlsByDocument[document.documentId]?.delayClaims);
+  // Event-register documents are merged into the claims population, never ranked against it.
+  const eventSourceDocuments = delayModelDocuments.filter((document) => eventSourceOnlyModel(state.derivedControlsByDocument[document.documentId]!.delayClaims!));
+  const delayDocuments = delayModelDocuments.filter((document) => !eventSourceDocuments.includes(document));
   let delayClaims: DelayClaimsModel | null = null;
   if (adopted.delayClaims) {
     const adoptedClaims = new Map(adopted.delayClaims.claims.map((claim) => [claim.claimId, claim]));
@@ -1936,10 +1990,12 @@ export function sourceReadCommercialControls(
           conflicts.push({ kind: "delayClaims", recordId: claim.claimId, documentId: document.documentId, sourceRefs: ["evidence-document:" + document.documentId],
             against: "adopted", againstDocumentIds: referencedDocumentIds(state.evidenceDocuments, [adopted.delayClaims.evidenceRevisionId]), againstSourceRefs: [adopted.delayClaims.evidenceRevisionId] });
       }
-  } else if (delayDocuments.length === 1) {
-    const document = delayDocuments[0]!, model = state.derivedControlsByDocument[document.documentId]!.delayClaims!;
+  } else if (delayDocuments.length === 1 || (delayDocuments.length === 0 && eventSourceDocuments.length > 0)) {
+    const readDocuments = [...delayDocuments, ...eventSourceDocuments];
+    const model = readDocuments.map((document) => state.derivedControlsByDocument[document.documentId]!.delayClaims!)
+      .reduce<DelayClaimsModel | null>((combined, next) => combineDelayModels(combined, next), null)!;
     delayClaims = { ...model, events: model.events.map(sourceReadStates), notices: model.notices.map(sourceReadStates),
-      claims: model.claims.map(sourceReadStates), diagnostics: [...model.diagnostics, sourceAnalyticalDiagnostic(document.documentId)] };
+      claims: model.claims.map(sourceReadStates), diagnostics: [...model.diagnostics, ...readDocuments.map((document) => sourceAnalyticalDiagnostic(document.documentId))] };
   } else if (delayDocuments.length > 1) {
     // Two unadopted delay/claim populations are never merged or ranked.
     for (const document of delayDocuments)
@@ -2129,7 +2185,7 @@ export function rebuildDerivedControls(
       derived.delayClaims
     ) {
       derivedDelay =
-        derived.delayClaims;
+        combineDelayModels(derivedDelay, derived.delayClaims);
     }
     if (
       derived.contractTimeBasis

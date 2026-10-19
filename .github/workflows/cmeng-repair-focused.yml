@@ -49,6 +49,7 @@ jobs:
             dist/tests/t11-intake-limit-512mb.test.js \
             dist/tests/detailed-claim-source-rule.test.js \
             dist/tests/sw15-delay-events-not-from-claims.test.js \
+            dist/tests/f06-event-register-content-both-readers.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t12-independent-commercial-calculators.test.js \
             dist/tests/t07-commercial-vs-independent.test.js \
@@ -103,6 +104,7 @@ jobs:
             dist/tests/t04-contract-terms-source-analysis.test.js \
             dist/tests/t04-missing-value-inputs.test.js \
             dist/tests/t04-contract-fact-decisions.test.js \
+            dist/tests/t04-contract-decisions-e2e.test.js \
             dist/tests/t07-contract-time-original-and-completion-movement.test.js \
             dist/tests/f32-schedule-footer-awaiting-review.test.js \
             dist/tests/f33-negative-float-constraint.test.js \
@@ -120,11 +122,13 @@ jobs:
             dist/tests/t08-sw35-hse-rates.test.js \
             dist/tests/hse-report-document-text.test.js \
             dist/tests/resource-actual-hours-headings.test.js \
+            dist/tests/resource-stated-capacity-programme-hours.test.js \
             dist/tests/t06-activity-float-working-days-truth.test.js \
             dist/tests/t06-float-days-every-remaining-place.test.js \
             dist/tests/t06-durations-and-buckets-days.test.js \
             dist/tests/t06-lag-working-days.test.js \
             dist/tests/t06-delay-working-days.test.js \
+            dist/tests/t06-start-and-completion-delay-days.test.js \
             dist/tests/t06-float-trend-share-of-unfinished.test.js \
             dist/tests/t10-diagnostic-heading-meaning.test.js \
             dist/tests/t10-primary-source-detail-collapsed.test.js \
@@ -158,6 +162,7 @@ jobs:
             dist/tests/t02-cost-report-content-date-formats.test.js \
             dist/tests/t02-xer-column-audit-activity-codes.test.js \
             dist/tests/t02-programme-column-audit-formats.test.js \
+            dist/tests/t02-r1-stored-size-load.test.js \
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-remaining-true-totals.test.js \
@@ -171,6 +176,7 @@ jobs:
             dist/tests/sw27-group-totals-known-members.test.js \
             dist/tests/sw27-source-grounded-grouping.test.js \
             dist/tests/u1-f21-f22-boq-mapping-programme-fields.test.js \
+            dist/tests/f46-trade-chain-resources.test.js \
             dist/tests/t06-recovery-completion-path.test.js \
             dist/tests/sw14-document-reading-state.test.js \
             dist/tests/y11-sw46-conditional-notices.test.js \
@@ -181,11 +187,15 @@ jobs:
             dist/tests/w1-f48-expired-permits-linked-to-work.test.js \
             dist/tests/w1-f15-risk-register-fully-read.test.js \
             dist/tests/f18-security-instrument-type.test.js \
+            dist/tests/f20-f29-dated-cash-series.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
+            dist/tests/w9-actions-named-ranked.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
             dist/tests/f26-constraint-comparison.test.js \
             dist/tests/f60-empty-project-every-page.test.js \
-            dist/tests/f61-management-page-weight.test.js
+            dist/tests/f61-management-page-weight.test.js \
+            dist/tests/f38-programme-quality-driving-chain.test.js \
+            dist/tests/f42-lookahead-driving-blockers.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

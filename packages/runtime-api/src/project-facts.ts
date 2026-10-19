@@ -21,6 +21,7 @@ import {securityValidityReview} from './security-validity';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
+import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -44,6 +45,9 @@ export interface ProjectFactsSnapshot {
   projectVersion:number;
   dataDateIso:string|null;
   programmeQuality?:ReturnType<typeof pmcScheduleRules>;
+  /** F46: repeated trade chains, their remaining assigned hours, stated capacity,
+   * shortfall and completion effect (one shared calculation with the Resources page). */
+  resources?:{tradeChains:ReturnType<typeof tradeChainFacts>};
   contractSections?:ReturnType<typeof projectContractSections>;
   actions:{openCount:ProjectFact<number>;recordCount:ProjectFact<number>;reviewCount:ProjectFact<number>};
   schedule:{
@@ -122,11 +126,36 @@ export interface ProjectFactsSnapshot {
       certifiedUnpaidAmount:ProjectFact<number>;
       advanceBalance:ProjectFact<number>;
       activeBondAmount:ProjectFact<number>;
+      /** F20: summary of the shared dated cash series (commercial position datedCashSeries). */
+      cashSeries?:{
+        periodCount:number;latestActualPeriod:string|null;
+        latestPeriod:{period:string;certified:number|null;paid:number|null;sourceRefs:string[]}|null;
+        certifiedToDate:number|null;paidToDate:number|null;
+        forecastBasis:string;forecastBasisLabel:string;forecastReason:string|null;
+        nextForecastPeriod:string|null;nextForecast:{forecastIncome:number|null;forecastExpenditure:number|null}|null;
+        forecastIncomeTotal:number|null;forecastExpenditureTotal:number|null;
+      };
     }>;
   };
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+
+/** F20: the brief and every page read one dated cash series; this is its summary per currency. */
+function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|undefined,currency:string){
+  const row=series?.currencies.find(c=>c.currency===currency);
+  if(!row)return {};
+  const actual=row.periods.filter(p=>p.certified!==null||p.paid!==null);
+  const latest=actual.at(-1)??null,next=row.nextForecastPeriod?row.periods.find(p=>p.period===row.nextForecastPeriod)??null:null;
+  return {cashSeries:{
+    periodCount:row.periods.length,latestActualPeriod:row.latestActualPeriod,
+    latestPeriod:latest?{period:latest.period,certified:latest.certified,paid:latest.paid,sourceRefs:latest.sourceRefs.slice(0,10)}:null,
+    certifiedToDate:row.certifiedToDate,paidToDate:row.paidToDate,
+    forecastBasis:row.forecastBasis,forecastBasisLabel:row.forecastBasisLabel,forecastReason:row.forecastReason,
+    nextForecastPeriod:row.nextForecastPeriod,nextForecast:next?{forecastIncome:next.forecastIncome,forecastExpenditure:next.forecastExpenditure}:null,
+    forecastIncomeTotal:row.forecastIncomeTotal,forecastExpenditureTotal:row.forecastExpenditureTotal,
+  }};
+}
 
 function fact<T>(
   value:T|null,
@@ -357,7 +386,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     projectVersion:state.version,
     dataDateIso,
     actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
-    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
+    resources:{tradeChains:tradeChainFacts(tradeChainResourcesForState(scoped))},
+    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
+      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null}),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
@@ -586,6 +617,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
           row.activeBondAmount,
           'Valid active security amounts only; currencies remain separate.',
         ),
+        ...cashSeriesSummary(commercial.datedCashSeries,row.currency),
       })),
     },
   };
@@ -607,6 +639,8 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const briefCommercialPosition=key==='pmo-analysis'?{currencies:decisions.commercialSummary}:undefined;
   const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
+  // F46: the Resources page shows the same trade-chain calculation as the project facts.
+  const tradeChains=key==='resource-utilization'?tradeChainResourcesForState(scoped):undefined;
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
@@ -614,5 +648,5 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

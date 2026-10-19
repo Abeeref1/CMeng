@@ -7,6 +7,7 @@ import {
   type XerRow,
 } from "../../xer-parser/src";
 import type { PrimaveraXmlResult } from "../../primavera-xml-parser/src";
+import { P6_XML_ELEMENTS } from "../../primavera-xml-parser/src/parser";
 import type { ScheduleTabularResult } from "../../schedule-tabular-parser/src";
 import { parseScheduleDate } from "../../schedule-values/src";
 import {reconcileCalendarWithP6Dates} from "../../xer-parser/src/calendar-date-reconciliation";
@@ -24,7 +25,19 @@ import type {
   CanonicalScheduleRelationship,
   CanonicalWbsNode,
   ScheduleSourceRef,
+  SourceResourceAssignment,
+  SourceResourceRef,
+  SourceWbsPath,
 } from "./types";
+
+/** Model-level source lookups, present only when the source has them. */
+function sourceLookups(wbsPaths:SourceWbsPath[],resources:SourceResourceRef[],costAccounts:SourceResourceRef[]){
+  return {
+    ...(wbsPaths.length?{sourceWbsPaths:wbsPaths}:{}),
+    ...(resources.length?{sourceResources:resources}:{}),
+    ...(costAccounts.length?{sourceCostAccounts:costAccounts}:{}),
+  };
+}
 
 function xerRows(
   result: XerParseResult,
@@ -179,6 +192,7 @@ export function canonicalScheduleFromTabular(
           name: activity.activityName,
           wbsId: activity.wbsId ?? activity.wbs,
           calendarId: activity.calendar,
+          ...(activity.resource||activity.costAccount?{sourceResourceAssignments:[{resourceRef:activity.resource??null,costAccountRef:activity.costAccount??null}]}:{}),
           activityType: type.type,
           status: normalizeActivityStatus(
             activity.status,
@@ -317,6 +331,13 @@ export function canonicalScheduleFromTabular(
     relationships,
     wbs,
     calendars,
+    // Resource and cost-account cell text is kept as the source states it;
+    // whether it is a code or a name is not known, so both stay null.
+    ...sourceLookups(
+      sourceWbsPaths(result.wbsRows.map(row=>({wbsId:row.wbsId||null,parentWbsId:row.parentWbsId,code:null,name:row.name}))),
+      [...new Set(result.activities.map(a=>a.resource).filter((v):v is string=>!!v))].map(ref=>({ref,code:null,name:null})),
+      [...new Set(result.activities.map(a=>a.costAccount).filter((v):v is string=>!!v))].map(ref=>({ref,code:null,name:null})),
+    ),
     diagnostics: [...result.diagnostics, ...dateDiagnostics],
   };
 }
@@ -334,40 +355,36 @@ export function canonicalScheduleFromXer(
   return {...model,sourceColumnAudit:xerSourceColumnAudit(result,read)};
 }
 
-/** WBS path (root to node, by WBS code, else name) for each PROJWBS id. A
- * missing parent or a loop ends the path; nothing is guessed. */
-function xerWbsPaths(result: XerParseResult): Map<string,string[]> {
-  const nodes=new Map(xerRows(result,"PROJWBS").map(row=>[xerField(row,"wbs_id"),row] as const));
-  const paths=new Map<string,string[]>();
-  for(const id of nodes.keys()){
-    if(!id)continue;
+/** WBS path (root to node, by WBS code, else name, else id) for each node.
+ * A missing parent or a loop ends the path; nothing is guessed. Shared by
+ * every programme format. */
+type SourceWbsNodeInput={wbsId:string|null;parentWbsId:string|null;code:string|null;name:string|null};
+export function sourceWbsPaths(nodes: ReadonlyArray<SourceWbsNodeInput>): SourceWbsPath[] {
+  const byId=new Map<string,SourceWbsNodeInput>(nodes.filter(node=>node.wbsId).map(node=>[node.wbsId!,node] as const));
+  return [...byId.keys()].map(wbsId=>{
     const path:string[]=[],seen=new Set<string>();
-    let current:string|null=id;
-    while(current&&nodes.has(current)&&!seen.has(current)){
-      seen.add(current);const node=nodes.get(current)!;
-      path.unshift(xerField(node,"wbs_short_name")??xerField(node,"wbs_name")??current);
-      current=xerField(node,"parent_wbs_id");
+    let current:string|null=wbsId;
+    while(current&&byId.has(current)&&!seen.has(current)){
+      seen.add(current);const node:SourceWbsNodeInput=byId.get(current)!;
+      path.unshift(node.code??node.name??current);
+      current=node.parentWbsId;
     }
-    paths.set(id,path);
-  }
-  return paths;
+    return {wbsId,path};
+  });
 }
 
-/** Resource and cost-account assignments per task (TASKRSRC with RSRC and ACCOUNT). */
-function xerResourceAssignments(result: XerParseResult): Map<string,{resourceId:string|null;resourceName:string|null;costAccountId:string|null;costAccountCode:string|null;costAccountName:string|null}[]> {
-  const resources=new Map(xerRows(result,"RSRC").map(row=>[xerField(row,"rsrc_id"),row] as const));
-  const accounts=new Map(xerRows(result,"ACCOUNT").map(row=>[xerField(row,"acct_id"),row] as const));
-  const byTask=new Map<string,{resourceId:string|null;resourceName:string|null;costAccountId:string|null;costAccountCode:string|null;costAccountName:string|null}[]>();
+/** Resources, cost accounts and per-task assignment references (TASKRSRC with RSRC and ACCOUNT). */
+function xerResourceSources(result: XerParseResult){
+  const resources:SourceResourceRef[]=xerRows(result,"RSRC").flatMap(row=>{const ref=xerField(row,"rsrc_id");return ref?[{ref,code:xerField(row,"rsrc_short_name"),name:xerField(row,"rsrc_name")}]:[];});
+  const costAccounts:SourceResourceRef[]=xerRows(result,"ACCOUNT").flatMap(row=>{const ref=xerField(row,"acct_id");return ref?[{ref,code:xerField(row,"acct_short_name"),name:xerField(row,"acct_name")}]:[];});
+  const byTask=new Map<string,SourceResourceAssignment[]>();
   for(const row of xerRows(result,"TASKRSRC")){
     const taskId=xerField(row,"task_id");if(!taskId)continue;
-    const resourceId=xerField(row,"rsrc_id"),costAccountId=xerField(row,"acct_id");
-    const resource=resources.get(resourceId),account=accounts.get(costAccountId);
     const list=byTask.get(taskId)??[];
-    list.push({resourceId,resourceName:resource?xerField(resource,"rsrc_name"):null,costAccountId,
-      costAccountCode:account?xerField(account,"acct_short_name"):null,costAccountName:account?xerField(account,"acct_name"):null});
+    list.push({resourceRef:xerField(row,"rsrc_id"),costAccountRef:xerField(row,"acct_id")});
     byTask.set(taskId,list);
   }
-  return byTask;
+  return {resources,costAccounts,byTask};
 }
 
 function canonicalScheduleFromXerRead(
@@ -377,8 +394,7 @@ function canonicalScheduleFromXerRead(
     projectId?: string | null;
   },
 ): CanonicalScheduleModel {
-  const wbsPaths=xerWbsPaths(result);
-  const resourceAssignments=xerResourceAssignments(result);
+  const resourceSources=xerResourceSources(result);
   // F22: a P6 export can carry the project baseline as its own PROJECT with
   // its own TASK / PROJWBS / TASKPRED rows. Those rows are the baseline, not
   // current work: they never become current activities, links or WBS, and
@@ -493,8 +509,7 @@ function canonicalScheduleFromXerRead(
           activityId,
           nativeId,
           name: xerField(row, "task_name"),
-          ...(()=>{const wbsId=xerField(row,"wbs_id"),path=wbsId?wbsPaths.get(wbsId):undefined;return path?.length?{sourceWbsPath:path}:{};})(),
-          ...(()=>{const list=nativeId?resourceAssignments.get(nativeId):undefined;return list?.length?{sourceResourceAssignments:list}:{};})(),
+          ...(()=>{const list=nativeId?resourceSources.byTask.get(nativeId):undefined;return list?.length?{sourceResourceAssignments:list}:{};})(),
           sourceConstraints: [
             {type:xerField(row,'cstr_type'),dateIso:xerDate(xerField(row,'cstr_date'))},
             {type:xerField(row,'cstr_type2'),dateIso:xerDate(xerField(row,'cstr_date2'))},
@@ -1086,6 +1101,7 @@ function canonicalScheduleFromXerRead(
     relationships,
     wbs,
     calendars,
+    ...sourceLookups(sourceWbsPaths(wbs.map(node=>({wbsId:node.wbsId,parentWbsId:node.parentWbsId,code:node.code??null,name:node.name}))),resourceSources.resources,resourceSources.costAccounts),
     diagnostics: [
       ...result.diagnostics.map(
         (diagnostic) =>
@@ -1170,15 +1186,31 @@ export function canonicalScheduleFromPrimaveraXml(
   rawFieldNamesRead=read;
   let model: CanonicalScheduleModel;
   try{model=canonicalScheduleFromPrimaveraXmlRead(result,input);}finally{rawFieldNamesRead=previous;}
-  // Every Activity field in the file: read by the reader/adapter, or unused with a sample.
+  // Every Activity field in the file: read by the reader/adapter, or unused
+  // with a sample. Child elements that P6 XML collects as their own element
+  // type (for example ResourceAssignment) are audited as their own table.
+  const norm=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]/g,'');
   const headers=new Map<string,string|null>();
   for(const activity of result.activities)for(const [key,value] of Object.entries(activity.raw)){
+    if(P6_XML_ELEMENTS[norm(key)])continue;
     const sample=typeof value==='string'||typeof value==='number'||typeof value==='boolean'?String(value).trim()||null:null;
     if(!headers.has(key)||(headers.get(key)===null&&sample!==null))headers.set(key,sample);
   }
-  const sourceColumnAudit=[...headers].map(([header,sample])=>({table:'Activity',...sourceColumnAuditEntry(header,header,'other',read.has(header.toLowerCase().replace(/[^a-z0-9]/g,'')),
-    'Read by the P6 XML schedule reader into the canonical schedule model.',sample)}));
-  return {...model,sourceColumnAudit};
+  const sourceColumnAudit=[...(result.columnAudit??[]),...[...headers].map(([header,sample])=>({table:'Activity',...sourceColumnAuditEntry(header,header,'other',read.has(norm(header)),
+    'Read by the P6 XML schedule reader into the canonical schedule model.',sample)}))];
+  // WBS path, resources and cost accounts once per file; activities carry
+  // only the assignment references (exact ObjectIds).
+  const wbsPaths=sourceWbsPaths((result.wbsNodes??[]).map(node=>({wbsId:node.objectId,parentWbsId:node.parentObjectId,code:node.code,name:node.name})));
+  const refs=(items:ReadonlyArray<{objectId:string|null;id:string|null;name:string|null}>):SourceResourceRef[]=>items.flatMap(item=>item.objectId?[{ref:item.objectId,code:item.id,name:item.name}]:[]);
+  const byActivity=new Map<string,SourceResourceAssignment[]>();
+  for(const assignment of result.resourceAssignments??[]){
+    if(!assignment.activityObjectId)continue;
+    const list=byActivity.get(assignment.activityObjectId)??[];
+    list.push({resourceRef:assignment.resourceObjectId,costAccountRef:assignment.costAccountObjectId});
+    byActivity.set(assignment.activityObjectId,list);
+  }
+  const activities=byActivity.size?model.activities.map(activity=>{const list=activity.nativeId?byActivity.get(activity.nativeId):undefined;return list?{...activity,sourceResourceAssignments:list}:activity;}):model.activities;
+  return {...model,activities,sourceColumnAudit,...sourceLookups(wbsPaths,refs(result.resources??[]),refs(result.costAccounts??[]))};
 }
 
 function canonicalScheduleFromPrimaveraXmlRead(

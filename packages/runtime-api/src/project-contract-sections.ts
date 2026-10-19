@@ -1,4 +1,5 @@
 import {extractContractLdTerms} from '../../contract-commercial/src';
+import {dateValue} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
@@ -39,6 +40,23 @@ export function contractCompletionDependencies(state:ProjectRuntimeState){
  return rows;
 }
 
+/** F34: the completion date and monetary cap a contract states for one section.
+ * Only an explicit calendar date ("Section 1 Completion Date / Time for
+ * Completion / Taking-Over <date>") is read; a duration or competing dates stay
+ * unknown. A cap is read only as an explicit amount in the section's own LD
+ * wording and its currency; a percentage of an unstated value stays unknown. */
+export function sectionStatedTerms(contract:{sections:Array<{text:string}>;pdf?:{pages:Array<{method?:string;text:string}>}|undefined|null},sectionId:string,ldText:string,currency:string|null){
+ const texts=[...(contract.pdf?.pages??[]).filter(page=>page.method==='native').map(page=>page.text),...contract.sections.map(section=>section.text)];
+ const id=sectionId.replace(/[^0-9A-Za-z]/g,'');
+ const datePattern=new RegExp('\\bSection\\s+'+id+'\\b\\s*[:\\-\u2013]?\\s*(?:Completion\\s+Date|Date\\s+for\\s+Completion|Time\\s+for\\s+Completion|Taking[- ]Over(?:\\s+Date)?)\\s*[:\\-\u2013]?\\s*([^\\n;]+)','gi');
+ const dates=new Set<string>();let unreadable=false;
+ if(id)for(const text of texts)for(const match of text.matchAll(datePattern)){const raw=match[1]!.trim().replace(/[.,]+$/,'');const iso=dateValue(raw)??dateValue((/^(\d{4}-\d{2}-\d{2}|\d{1,2}\s+[A-Za-z]+\s+\d{4})\b/.exec(raw)??[''])[0]!);if(iso)dates.add(iso);else unreadable=true;}
+ const flat=ldText.replace(/\s+/g,' ');
+ const cap=/cap(?:ped)?\s+(?:at|to)\b[^.;]*?\(\s*([A-Z]{3})\s*([\d,]+(?:\.\d+)?)\s*\)/.exec(flat)??/cap(?:ped)?\s+(?:at|to)\s+([A-Z]{3})\s*([\d,]+(?:\.\d+)?)\b/.exec(flat);
+ const capAmount=cap&&(!currency||cap[1]!.toUpperCase()===currency.toUpperCase())?Number(cap[2]!.replace(/,/g,'')):null;
+ return {completionIso:dates.size===1&&!unreadable?[...dates][0]!:null,completionDateConflict:dates.size>1,capAmount:capAmount!==null&&Number.isFinite(capAmount)?capAmount:null};
+}
+
 export function projectContractSections(state:ProjectRuntimeState,originalFinish:string|null,extendedFinish:string|null){
   // T04: with no adopted contract, the unique fully read unadopted main
   // contract (shared rule) is read and every section is labelled.
@@ -53,11 +71,14 @@ export function projectContractSections(state:ProjectRuntimeState,originalFinish
     const whole=/(?:whole|entire)\s+(?:of\s+(?:the\s+)?)?works|overall\s+(?:works|project)/i.test(label);
     const activity=sectionCompletionMilestone(model?.activities??[],label);
     const cap=terms.cap?.sectionKey===rate.sectionKey?terms.cap:null;
+    const stated=sectionStatedTerms(contract,rate.sectionIdentifier??'',rate.textSnippet,rate.currency);
     const section={sectionId:rate.sectionIdentifier,label,rate:rate.amount,rateBasis:rate.basis,currency:rate.currency,
-      capAmount:cap?.basis==='fixed_amount'?cap.amount:null,
+      capAmount:cap?.basis==='fixed_amount'?cap.amount:stated.capAmount,
       capPercent:cap?.percent??(Number(/cap(?:ped)?\s+(?:at|to)\s*(\d+(?:\.\d+)?)\s*%/i.exec(rate.textSnippet)?.[1]??NaN)||null),
       capBasis:cap?.basis==='fixed_amount'?'Explicit monetary cap from contract':/section.*estimated value/i.test(rate.textSnippet)?'Percentage of the section estimated value; section value required':'Percentage of the accepted contract amount',
-      contractCompletionIso:whole?originalFinish:null,extendedCompletionIso:whole?extendedFinish:null,
+      // The whole-of-Works section keeps the contract completion; every other
+      // section uses only the date the contract states for that section.
+      contractCompletionIso:whole?(originalFinish??stated.completionIso):stated.completionIso,extendedCompletionIso:whole?extendedFinish:null,
       milestoneId:activity?.activityId??null,programmeCompletionIso:activity?(activity.actualFinishIso??activity.forecastFinishIso??activity.currentFinishIso):null,
       completionDependsOnSectionIds:dependencies.filter(row=>row.toSection===rate.sectionIdentifier).map(row=>row.fromSection),
       authority:fromUnadoptedContract?CONTRACT_SOURCE_ANALYTICAL_NOTE:'From contract, not yet confirmed',sourceRefs:rate.sourceRefs,

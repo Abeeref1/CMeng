@@ -1,4 +1,5 @@
 import { securityStateAtDataDate } from "../../truth-kernel/src";
+import { finishVarianceBetween } from "../../schedule-analysis-core/src";
 import type {
   ContractLdTerms,
   LdCapCandidate,
@@ -45,6 +46,32 @@ function positiveDelayDays(
       ).toFixed(6),
     ),
   );
+}
+
+/** Completion delay in working days of the completion calendar: working time
+ * between the two date-only instants used for delayDays, divided by that
+ * calendar's day length. No delay stays zero; unknown stays null. */
+export function completionDelayWorkingDays(
+  delayDays: number | null,
+  contractual: string | null,
+  forecast: string | null,
+  completion: DirectorPositionInput["completionCalendar"],
+): { workingDays: number | null; basis: string } {
+  if (delayDays === null) return { workingDays: null, basis: "unavailable" };
+  if (delayDays === 0) return { workingDays: 0, basis: "no_delay" };
+  if (!completion?.calendar)
+    return { workingDays: null, basis: completion?.basis === "completion_calendar_not_established" || !completion
+      ? "completion_calendar_not_established" : "calendar_working_day_not_established" };
+  const contractMs = ms(contractual?.slice(0, 10) ?? null);
+  const forecastMs = ms(forecast?.slice(0, 10) ?? null);
+  if (contractMs === null || forecastMs === null)
+    return { workingDays: null, basis: "unavailable" };
+  let workingDays: number | null = null;
+  try { workingDays = finishVarianceBetween(contractMs, forecastMs, completion.calendar).workingDays; }
+  catch { workingDays = null; }
+  return workingDays === null
+    ? { workingDays: null, basis: "calendar_working_day_not_established" }
+    : { workingDays, basis: completion.basis };
 }
 
 function upperCurrency(
@@ -710,6 +737,13 @@ export function buildProjectDirectorPosition(
 
   const delayDays = input.independentForecast.origin === "deterministic_source_calendar"
     ? varianceDaysToOfficialAdjustedCompletion : null;
+  // T06/N7: the same completion delay in working days of the completion
+  // calendar (same date-only instants as delayDays). The LD amount below
+  // stays on calendar days: every LD rate basis read from the contract is
+  // per day or per week, and no working-day LD basis is read.
+  const completion = input.completionCalendar;
+  const delayWorking = completionDelayWorkingDays(
+    delayDays, officialAdjustedCompletion, forecast, completion);
   const ld = buildLdScenario(
     input.ldTerms,
     delayDays,
@@ -1206,6 +1240,11 @@ export function buildProjectDirectorPosition(
         delayDays === null
           ? "unavailable"
           : "official_adjusted_completion",
+      delayWorkingDays: delayWorking.workingDays,
+      delayWorkingDaysBasis: delayWorking.basis,
+      completionCalendarActivityId: completion?.activityId ?? null,
+      completionCalendarId: completion?.calendarId ?? null,
+      ldTimeBasis: "calendar_days_per_contract_rate",
     },
     commercialByCurrency:
       positions

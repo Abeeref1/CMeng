@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 export * from './reporting';
 export * from './issues';
+export * from './conditional-notice';
 export * from './aggregates';
 export * from './procurement-timing';
 export * from './security-state';
@@ -199,6 +200,8 @@ export function establishedPopulationCount(
 
 export interface ManagementAction {
   recordKey?: string;
+  /** F51: a causal-chain action lists every member action it stands for. */
+  memberActionIds?: string[];
   priorityBasis?: {linkedFloatHours:number|null;linkedFloatActivityId?:string|null;linkedFloatCalendarIds?:(string|null)[];floatAuthority?:'independent_cpm'|'source_total_float';drivingPath:boolean|null;milestoneCount:number;moneyAtRisk?:Array<{amount:number;currency:string}>;safety?:boolean};
   moneyAtRisk?:Array<{amount:number;currency:string}>;
   actionId: string;
