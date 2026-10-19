@@ -213,6 +213,8 @@ export function assessEventNotice(
     noticeIssuedAt:
       notice.actualIssuedAt,
     elapsedDays,
+    elapsedFromIso:requirement.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso,
+    elapsedFromBasis:requirement.triggerBasis==='awareness'?'awareness':'event_start',
     timeliness:
       elapsedDays <=
       requirement.noticePeriodDays
