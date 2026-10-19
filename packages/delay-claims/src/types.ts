@@ -95,6 +95,9 @@ export interface DelayClaimsProjection {
   contractorRiskWindowMovementDays: number | null;
   concurrentReviewWindowMovementDays: number | null;
 
+  /** "not_established" when no event source exists (claims register rows only): event counts are then null, claims are still counted. */
+  eventPopulationState: "established" | "not_established";
+  eventPopulationReason: string | null;
   events: DelayClaimEventAssessmentRow[];
   diagnostics: string[];
 }

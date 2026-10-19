@@ -143,6 +143,12 @@ export interface CanonicalDelayEvent {
   relatedClauseIdentifiers: string[];
   evidenceRefs: DelayEvidenceRef[];
   diagnostics: string[];
+  /**
+   * Where this event identity comes from. "claims_register_row" means a claim
+   * row that cites an event: a claim is not an event, so such a row never
+   * establishes the event population, the event count or event dates.
+   */
+  identitySource?: "event_register" | "notice" | "user_recorded" | "claims_register_row";
 }
 
 export type NoticeKind =

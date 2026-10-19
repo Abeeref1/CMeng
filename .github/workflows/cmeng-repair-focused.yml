@@ -44,6 +44,7 @@ jobs:
             dist/tests/t11-analytics-shared-source-dates.test.js \
             dist/tests/t11-intake-limit-512mb.test.js \
             dist/tests/detailed-claim-source-rule.test.js \
+            dist/tests/sw15-delay-events-not-from-claims.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t12-independent-commercial-calculators.test.js \
             dist/tests/t07-commercial-vs-independent.test.js \

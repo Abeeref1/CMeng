@@ -538,7 +538,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       :'unknown';
     const eventStart=dateValue(cell(r,'event start','event start date','start date','delay start','from date','impact start','analysis start'));
     const awarenessIso=dateValue(cell(r,'awareness date'));
-    events.push({eventId,title,category:'other',
+    events.push({eventId,title,category:'other',identitySource:'claims_register_row',
       startIso:eventStart,
       awarenessIso,
       endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date','impact end','analysis end')),

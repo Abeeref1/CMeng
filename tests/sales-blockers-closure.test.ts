@@ -732,11 +732,20 @@ test("P0-3 merges EOT activity and explicit window references into the governed 
       producerVersion: "sales-blocker-test",
     },
   );
-  assert.equal(delay.activityLinkedEventCount, 1);
-  assert.equal(delay.windowLinkedEventCount, 1);
-  assert.equal(delay.noticeLinkedEventCount, 1);
-  assert.equal(delay.determinationLinkedEventCount, 1);
-  assert.equal(delay.fullDeterminationChainEventCount, 1);
+  // SW-15: EV-001 is cited by claims register row CL01 only, so the merged links stay on
+  // the row, but event counts are not established without an event source (null, never 1).
+  const row = delay.events.find((item) => item.eventId === "EV-001")!;
+  assert.ok(row.relatedActivityIds.length > 0);
+  assert.ok(row.overlappingWindowIds.length > 0);
+  assert.ok(row.noticeIds.length > 0);
+  assert.ok(row.determinationIds.length > 0);
+  assert.equal(row.evidenceChainState, "full_determination_chain");
+  assert.equal(delay.eventPopulationState, "not_established");
+  assert.equal(delay.activityLinkedEventCount, null);
+  assert.equal(delay.windowLinkedEventCount, null);
+  assert.equal(delay.noticeLinkedEventCount, null);
+  assert.equal(delay.determinationLinkedEventCount, null);
+  assert.equal(delay.fullDeterminationChainEventCount, null);
 });
 
 test("P0-3 claim-event-activity-window-notice-determination chain uses verified L01 correspondence rows", (t) => {

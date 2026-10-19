@@ -2,6 +2,7 @@ import {completeSum} from '../../truth-kernel/src/aggregates';
 import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
 import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
+import {delayEventPopulation} from '../../delay-analysis-core/src/event-population';
 
 type SharedIntegrityBasis={
   execution:ReturnType<typeof activityPopulation>;
@@ -165,8 +166,12 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
     // A quarantined source population is retained for audit but deliberately
     // withheld from current management truth. Withheld is null, never zero.
     compare('claim_headline_matches_register', data.claimCount, claimsSource ? (quarantined ? null : claims.length) : null);
-    compare('event_headline_matches_register', data.eventCount, claimsSource ? (quarantined ? null : events.length) : null);
-    const count=(state:string)=>claimsSource?(quarantined?null:events.filter((r:any)=>r.noticeTimeliness===state).length):null;
+    // Event counts come only from event sources; claims register rows never establish them (SW-15).
+    const eventPopulation=claimsSource?delayEventPopulation(claimsSource):null;
+    const eventsWithheld=quarantined||eventPopulation?.state==='not_established';
+    const sourceEvents=events.filter((_r:any,index:number)=>eventPopulation?.fromEventSource[index]===true);
+    compare('event_headline_matches_register', data.eventCount, claimsSource ? (eventsWithheld ? null : sourceEvents.length) : null);
+    const count=(state:string)=>claimsSource?(eventsWithheld?null:sourceEvents.filter((r:any)=>r.noticeTimeliness===state).length):null;
     compare('timely_notice_count',data.timelyNoticeCount,count('timely'));
     compare('late_notice_count',data.lateNoticeCount,count('late'));
     compare('event_date_missing_count',data.noticeEventDateMissingCount,count('event_date_missing'));

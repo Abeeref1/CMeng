@@ -1,6 +1,7 @@
 import { reportingScope } from "../../truth-kernel/src";
 import {
   assessAllEventNotices,
+  delayEventPopulation,
   type DelayClaimsModel,
 } from "../../delay-analysis-core/src";
 import type {
@@ -325,6 +326,9 @@ export function buildDelayClaimsProjection(
       row,
     ]),
   );
+  // Delay events come only from event sources; claim rows stay claims (SW-15).
+  const eventPopulation = delayEventPopulation(model);
+  const eventRows = rows.filter((_, index) => eventPopulation.fromEventSource[index]);
 
   let employerOrNeutral = 0;
   let contractor = 0;
@@ -384,35 +388,35 @@ export function buildDelayClaimsProjection(
     evidenceRevisionId:
       model.evidenceRevisionId,
 
-    eventCount: rows.length,
+    eventCount: eventRows.length,
     claimCount:
       model.claims.length,
     windowCount:
       windows.windowCount,
     claimLinkedEventCount:
-      rows.filter((row) => row.linkedClaimIds.length > 0).length,
+      eventRows.filter((row) => row.linkedClaimIds.length > 0).length,
     activityLinkedEventCount:
-      rows.filter((row) => row.relatedActivityIds.length > 0).length,
+      eventRows.filter((row) => row.relatedActivityIds.length > 0).length,
     windowLinkedEventCount:
-      rows.filter((row) => row.overlappingWindowIds.length > 0).length,
+      eventRows.filter((row) => row.overlappingWindowIds.length > 0).length,
     noticeLinkedEventCount:
-      rows.filter((row) => row.noticeIds.length > 0).length,
+      eventRows.filter((row) => row.noticeIds.length > 0).length,
     determinationLinkedEventCount:
-      rows.filter((row) => row.determinationIds.length > 0).length,
+      eventRows.filter((row) => row.determinationIds.length > 0).length,
     fullDeterminationChainEventCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.evidenceChainState ===
           "full_determination_chain",
       ).length,
     determinationChainIncompleteEventCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.evidenceChainState ===
           "determination_chain_incomplete",
       ).length,
     activityEvidenceInsufficientEventCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.relatedActivityIds.length === 0 &&
           (
@@ -422,22 +426,22 @@ export function buildDelayClaimsProjection(
           ),
       ).length,
     activityCorrespondenceAcceptedCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.activityCorrespondence?.acceptedActivityIds.length,
       ).length,
     activityCorrespondenceCandidateCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.activityCorrespondence?.classification === "candidate",
       ).length,
     activityCorrespondenceAmbiguousCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           row.activityCorrespondence?.classification === "ambiguous",
       ).length,
     activityCorrespondenceUnresolvedCount:
-      rows.filter(
+      eventRows.filter(
         (row) =>
           !row.activityCorrespondence ||
           row.activityCorrespondence.classification === "unresolved",
@@ -460,6 +464,8 @@ export function buildDelayClaimsProjection(
     concurrentReviewWindowMovementDays:
       windows.windows.length>0&&windows.windows.every(w=>w.netCompletionMovementDays!==null)&&rows.some(r=>r.responsibility!=='unknown'&&r.responsibilityState==='official')?Number(concurrent.toFixed(6)):null,
 
+    eventPopulationState: eventPopulation.state,
+    eventPopulationReason: eventPopulation.reason,
     events: rows,
     diagnostics: [
       ...model.diagnostics,
@@ -468,9 +474,13 @@ export function buildDelayClaimsProjection(
       "DELAY_WINDOW_MOVEMENT_IS_NOT_CONTRACTUAL_CAUSATION_OR_ENTITLEMENT",
     ],
   };
+  if(eventPopulation.state==="not_established")for(const key of DELAY_EVENT_COUNT_KEYS)projection[key]=null;
   if(input.populationEstablished===false)for(const key of DELAY_CLAIM_POPULATION_COUNT_KEYS)projection[key]=null;
   return projection;
 }
 
 /** Counts that describe the contractor event/claim population (not the CMeng schedule windows). */
 export const DELAY_CLAIM_POPULATION_COUNT_KEYS = ["eventCount", "claimCount", "claimLinkedEventCount", "activityLinkedEventCount", "windowLinkedEventCount", "noticeLinkedEventCount", "determinationLinkedEventCount", "fullDeterminationChainEventCount", "determinationChainIncompleteEventCount", "activityEvidenceInsufficientEventCount", "activityCorrespondenceAcceptedCount", "activityCorrespondenceCandidateCount", "activityCorrespondenceAmbiguousCount", "activityCorrespondenceUnresolvedCount"] as const;
+
+/** Counts of delay events (not claims). Not established without an event source. */
+export const DELAY_EVENT_COUNT_KEYS = DELAY_CLAIM_POPULATION_COUNT_KEYS.filter((key) => key !== "claimCount") as Array<Exclude<(typeof DELAY_CLAIM_POPULATION_COUNT_KEYS)[number], "claimCount">>;
