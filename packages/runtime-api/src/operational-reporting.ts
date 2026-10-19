@@ -1,5 +1,5 @@
 import {riskReviewBasis} from './source-review-decisions';
-import {cell,registerBusinessStatusFields,dateValue,norm,numberValue,partitionAsOf,sourceTables,sourceCandidateHold,type SourceRow} from '../../truth-kernel/src';
+import {cell,registerBusinessStatusFields,dateValue,norm,numberValue,partitionAsOf,sourceTables,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
 import type {ProjectRuntimeState,RiskControlRecord,StoredEvidenceDocument} from './project-state-types';
 
@@ -42,11 +42,15 @@ function sourceStatusFor(row:SourceRow,kind:'ncr'|'rfi'|'risk',diagnostics:strin
  * operational family rather than requiring a manual approval for clear data.
  */
 export function analyticalOperationalDocuments(documents:readonly StoredEvidenceDocument[]):StoredEvidenceDocument[]{
-  // The one shared candidate rule (truth-kernel sourceCandidateHold); the
-  // same rule governs governedTables and every caller of it.
-  const hold=sourceCandidateHold(documents);
+  const activeFamilies=new Set(documents.filter(d=>['active','additive'].includes(d.basisState)).map(d=>d.familyKey));
+  const candidatesByFamily=new Map<string,number>();
+  for(const d of documents)if(d.basisState==='candidate')
+    candidatesByFamily.set(d.familyKey,(candidatesByFamily.get(d.familyKey)??0)+1);
   return documents.filter(d=>['active','additive'].includes(d.basisState)||(
-    d.basisState==='candidate' && hold(d)===null
+    d.basisState==='candidate' && d.parserState==='parsed' &&
+    !d.identification?.needsReview && !d.lineage?.needsReview &&
+    !d.supersededByDocumentId && Boolean(d.familyKey) &&
+    !activeFamilies.has(d.familyKey) && candidatesByFamily.get(d.familyKey)===1
   ));
 }
 
