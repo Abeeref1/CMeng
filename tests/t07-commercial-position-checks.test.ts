@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {buildCommercialFoundation} from '../packages/commercial-foundation/src';
 import {buildCommercialPerformance} from '../packages/commercial-performance/src';
-import {buildContractControls, type ContractControlsInput} from '../packages/commercial-contract-controls/src';
+import {buildContractControls, variationRegisterState, type ContractControlsInput} from '../packages/commercial-contract-controls/src';
+import {randomUUID} from 'node:crypto';
+import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+import {moduleForProject} from '../packages/runtime-api/src/project-projections';
+import {commercialContractControlsForState} from '../packages/runtime-api/src/commercial-contract-controls-runtime';
+import {commercialPositionForState} from '../packages/runtime-api/src/commercial-runtime';
+import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
+import type {ProjectRuntimeState} from '../packages/runtime-api/src/project-state-types';
+import type {CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 
 // SW-21 and SW-31 (T07): commercial position checks.
 // SW-21: the variation position counts every variation in the change register by
@@ -41,7 +49,8 @@ test('SW-21 variation position: every change counted by state; an approved-only 
   assert.equal(full.changeRegister.state, 'established');
   assert.equal(full.changeRegister.approvedOnly, false);
   assert.equal(full.changeRegister.recordCount, 5);
-  assert.deepEqual(full.changeRegister.stateCounts, {submitted: 1, underReview: 1, approved: 1, rejected: 1, withdrawn: 1, unknown: 0});
+  // The fixture carries no instruction ids or dates, so instructions are not distinguished.
+  assert.deepEqual(full.changeRegister.stateCounts, {instructed: null, submitted: 1, underReview: 1, approved: 1, rejected: 1, withdrawn: 1, unknown: 0});
   assert.equal(full.rejectedCount, 1);
 
   // Only an approved list is supplied: approved is counted, every other state is
@@ -52,7 +61,7 @@ test('SW-21 variation position: every change counted by state; an approved-only 
   ]);
   assert.equal(approvedList.changeRegister.state, 'not_established');
   assert.equal(approvedList.changeRegister.approvedOnly, true);
-  assert.deepEqual(approvedList.changeRegister.stateCounts, {submitted: null, underReview: null, approved: 2, rejected: null, withdrawn: null, unknown: null});
+  assert.deepEqual(approvedList.changeRegister.stateCounts, {instructed: null, submitted: null, underReview: null, approved: 2, rejected: null, withdrawn: null, unknown: null});
   assert.match(approvedList.changeRegister.consequence ?? '', /not the full change register/);
   // The approved list is not presented as an established full variation position.
   assert.notEqual(approvedList.state, 'established');
@@ -82,14 +91,16 @@ test('SW-31 source EAC: implausible values are challenged beside the independent
   assert.equal(p.sourceEacChallenge.actualCost, 500);
   assert.equal(p.sourceEacChallenge.independentRange!.bacOverCpi, ind.eac.cpi);
   assert.equal(p.sourceEacChallenge.independentRange!.acPlusRemainingBudget, ind.eac.budgetRate);
-  assert.deepEqual(p.sourceEacChallenge.findings.map(f => [f.rule, f.sourceEac, f.independentValue]),
-    [['below_actual_cost', 450, 500], ['outside_independent_range', 450, 1100]]);
+  assert.deepEqual(p.sourceEacChallenge.findings.map(f => [f.rule, f.severity, f.sourceEac, f.independentValue]),
+    [['below_actual_cost', 'implausible', 450, 500], ['outside_independent_range', 'query', 450, 1100]]);
   assert.ok(p.sourceEacChallenge.rules.some(rule => /below actual cost/.test(rule)));
 
-  // R2: above the higher independent forecast.
+  // R2: above the higher independent forecast is a query (explain), not implausible:
+  // a contractor may foresee further overruns.
   const high = position({bac: 1000, pv: 500, ev: 400, ac: 500, eac: 1900});
-  assert.equal(high.sourceEacChallenge.state, 'challenge');
-  assert.deepEqual(high.sourceEacChallenge.findings.map(f => [f.rule, f.independentValue]), [['outside_independent_range', 1250]]);
+  assert.equal(high.sourceEacChallenge.state, 'query');
+  assert.deepEqual(high.sourceEacChallenge.findings.map(f => [f.rule, f.severity, f.independentValue]), [['outside_independent_range', 'query', 1250]]);
+  assert.match(high.sourceEacChallenge.findings[0]!.statement, /above the independent range; explain/);
   assert.equal(high.sourceEac.value, 1900);
 
   // Inside the independent range: consistent, no challenge.
@@ -101,4 +112,53 @@ test('SW-31 source EAC: implausible values are challenged beside the independent
   const none = position({bac: 1000, pv: 500, ev: 400, ac: 500});
   assert.equal(none.sourceEacChallenge.state, 'not_assessable');
   assert.equal(none.sourceEacChallenge.sourceEac, null);
+});
+
+test('SW-21 withdrawn changes: one state rule gives the same counts in lifecycle fields, change register, page, Ask facts and export data', async () => {
+  const state = runtimeProjects.getOrCreate('T07-SW21-WITHDRAWN-' + randomUUID());
+  const model: CanonicalScheduleModel = {projectId: state.projectId, source: 'xer', sourceRevisionId: 'CURRENT', dataDateIso: '2031-04-15T18:00:00+04:00',
+    wbs: [], relationships: [], calendars: [{calendarId: 'C', name: 'Calendar', standardDayHours: 8, semanticComplete: true, sourceRefs: []}], diagnostics: [], activities: [{
+      projectId: state.projectId, activityId: 'WORK', nativeId: '1', name: 'Work', wbsId: null, calendarId: 'C', activityType: 'task', status: 'not_started',
+      baselineStartIso: '2031-04-20', baselineFinishIso: '2031-05-01', currentStartIso: '2031-04-20', currentFinishIso: '2031-05-09', actualStartIso: null, actualFinishIso: null,
+      forecastStartIso: null, forecastFinishIso: null, originalDurationHours: 40, remainingDurationHours: 40, totalFloatHours: 16, freeFloatHours: null, percentComplete: 0, sourceRefs: [], diagnostics: []}]};
+  state.schedules.push({role: 'update', format: 'xer', sourceFilename: 'update.xer', sourceHashSha256: 'test', uploadedAt: '2031-05-01',
+    revision: {revisionId: 'CURRENT', label: 'April update', sequence: 1, effectiveAt: '2031-04-15', model}} as ProjectRuntimeState['schedules'][number]);
+  state.version++;
+  await runtimeProjects.ingestEvidenceFile({projectId: state.projectId, mediaType: 'text/csv', sourceFilename: 'Variations.csv', uploadedAt: '2031-04-15',
+    bytes: Buffer.from('Variation ID,Description,Status,Submitted Date,Approval Date,Approved Amount,Claimed Amount,Currency,Tax Basis\n' +
+      'S1,Open change,Submitted,2031-04-01,,,100,AED,exclusive\n' +
+      'A1,Approved change,Approved,2031-03-01,2031-03-20,500,500,AED,exclusive\n' +
+      'R1,Rejected change,Rejected,2031-03-05,,,200,AED,exclusive\n' +
+      'W1,Withdrawn change,Withdrawn,2031-03-10,,,300,AED,exclusive')});
+  const vo = commercialContractControlsForState(state).variations;
+  // Lifecycle fields: the withdrawn change is withdrawn, not submitted or pending.
+  assert.equal(vo.rows.find(r => r.variationId === 'W1')!.lifecycleStage, 'withdrawn');
+  const lifecycle = vo.lifecycleStageCounts;
+  assert.deepEqual([lifecycle.submitted, lifecycle.approved, lifecycle.rejected, lifecycle.withdrawn], [1, 1, 1, 1]);
+  assert.equal(vo.knownPendingCount, 1);
+  assert.equal(vo.pendingCount, 1);
+  assert.equal(vo.rejectedCount, 1);
+  assert.equal(vo.approvedCount, 1);
+  // Change register: the same counts, from the same rule.
+  const reg = vo.changeRegister.stateCounts;
+  assert.deepEqual({submitted: reg.submitted, underReview: reg.underReview, approved: reg.approved, rejected: reg.rejected, withdrawn: reg.withdrawn, unknown: reg.unknown},
+    {submitted: 1, underReview: 0, approved: 1, rejected: 1, withdrawn: 1, unknown: 0});
+  // The source has no instruction id or date, so instructions are not a separate count.
+  assert.equal(reg.instructed, null);
+  for (const row of vo.rows) assert.notEqual(variationRegisterState(row.lifecycleStage), 'unknown', row.variationId);
+  // Pending money excludes the withdrawn change (100, not 100 + 300); registers count it as withdrawn.
+  const position = commercialPositionForState(state);
+  assert.equal(position.currencies.find(r => r.currency === 'AED')!.pendingVariationAmount.value, 100);
+  // Ask reads the shared project facts.
+  const facts = projectFactsForState(state).commercial;
+  assert.deepEqual([facts.pendingVariationCount.value, facts.approvedVariationCount.value, facts.rejectedVariationCount.value], [1, 1, 1]);
+  // Variations page and its export data carry the same projection.
+  const page = moduleForProject(state.projectId, 'variations-change').data as any;
+  for (const control of [page.focus.variationControl, page.position.contractControls.variations]) {
+    assert.deepEqual(control.lifecycleStageCounts, lifecycle);
+    assert.deepEqual(control.changeRegister.stateCounts, vo.changeRegister.stateCounts);
+    assert.equal(control.knownPendingCount, 1);
+  }
+  assert.equal(page.position.registers.variationStateCounts.withdrawn, 1);
+  assert.equal(page.position.registers.variationStateCounts.pending, 1);
 });

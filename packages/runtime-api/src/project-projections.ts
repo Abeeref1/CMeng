@@ -7296,19 +7296,14 @@ export function applyProfessionalModuleState(
     const position = data?.position;
     const cost = position?.performance?.costControl;
     const conflicts = (position?.sourceLedger?.costPosition ?? []).some((row: any) => (row.diagnostics ?? []).some((issue: string) => /CONFLICT|UNRESOLVED/.test(issue)));
-    const costReviewed = conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100;
-    if (costReviewed) {
+    if (conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100) {
       review((position?.sourceLedger?.costPosition ?? []).length
         ? "Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend."
         : "Cost snapshots are not established. Supply dated EVM inputs with a compatible currency, tax basis and measurement population before calculating cost performance.");
     }
-    // SW-31: an implausible source EAC is raised as a challenge beside the
-    // independent EVM values (stated rules R1/R2); the source figure is kept.
-    const eacChallenges = (cost?.positions ?? []).filter((row: any) => row?.sourceEacChallenge?.state === "challenge")
-      .map((row: any) => row.currency + " source EAC is challenged: " + row.sourceEacChallenge.findings.map((finding: any) => finding.statement).join(" "));
-    if (eacChallenges.length) {
-      review((costReviewed ? reason + " " : "") + eacChallenges.join(" ") + " The source figure is retained and shown beside the independent values.");
-    }
+    // SW-31: a source EAC challenge or query is shown on the page as an exception
+    // beside the independent values. It concerns the submitted figure, so it
+    // never downgrades CMeng's own calculated position.
   }
 
   if (
