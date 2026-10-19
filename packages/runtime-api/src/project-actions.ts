@@ -315,16 +315,12 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const issue of assessment.issues){
     if(systemItems.includes(issue))continue;
     if(/PROGRAMME_ADOPTION|CURRENT_PROGRAMME_ADOPTION|SCHEDULE_ADOPTION/.test(issue.code)&&actions.some(a=>a.target.type==='schedule'))continue;
-    // A combined request stays in every matter that any of its original
-    // findings belongs to, so combining duplicates never removes a finding,
-    // reference or page from a matter. The request itself is counted once.
-    const views=[issue,...(issue.members??[]).map(member=>memberView(issue,member))];
-    const placed=new Set<string>();
-    for(const view of views){
-      const group=projectReviewGroup(view,state);if(placed.has(group.key))continue;placed.add(group.key);
-      const existing=groups.get(group.key);
-      if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
-    }
+    // One distinct problem is one request in one matter, so request counts
+    // count distinct problems. A combined request keeps every original as a
+    // member (pages, source references, fields and actions), so nothing of
+    // either original is lost by counting it once.
+    const group=projectReviewGroup(issue,state),existing=groups.get(group.key);
+    if(existing){existing.issues.push(issue);existing.group.available ||= group.available;}else groups.set(group.key,{group,issues:[issue]});
   }
   const heldCommercial=commercialCanonical(state);
   const heldAdvanceBonds=(heldCommercial.bonds??state.controls.bonds).filter(b=>/advance/i.test(String(b.kind??(b as any).type??(b as any).bondType??'')+' '+b.bondId));
