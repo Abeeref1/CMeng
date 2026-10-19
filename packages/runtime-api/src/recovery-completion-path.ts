@@ -73,7 +73,7 @@ export function classifyRecoveryAgainstCompletion(
   const finishIds=complete?forecast!.drivingNetwork!.finishActivityIds??[]:[];
   const finishCalendarIds=[...new Set(finishIds.map(id=>activityById.get(id)?.calendarId??null))];
   const finishCalendar=!completionCalendar&&finishIds.length&&finishCalendarIds.length===1&&finishCalendarIds[0]!==null
-    ?resolveWorkingCalendar(finishCalendarIds[0],programme!.calendars,false)?.calendar??null:null;
+    ?resolveWorkingCalendar(finishCalendarIds[0]!,programme!.calendars,false)?.calendar??null:null;
   const gainCalendar=completionCalendar??finishCalendar;
   const gainCalendarLabel=completionCalendar?'completion milestone calendar':'calendar '+(finishCalendar?.calendarId??'')+' of the CPM finish activity';
   let runs=0;const baseline=()=>programme?cpmFinish(programme,null):null;
