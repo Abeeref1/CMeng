@@ -182,7 +182,10 @@ export function scheduleRiskMonteCarlo(state:ProjectRuntimeState,input:Partial<M
       sourceRanges.byId.size?'Explicit correlation groups are applied where supplied; ungrouped activities are sampled independently.':'Activity durations are sampled independently because no explicit correlation groups are established from the current project evidence.',
       'Completed activities retain their actual dates. Deterministic CPM remains the canonical current schedule calculation.'
     ]};
-  const result:ModuleRuntimeResult={key:'monte-carlo-risk',status:completed?'partial':'blocked',engineState:'ready',evidenceState:'partial',professionalState:'review_required',
+  // SW-29: zero successful iterations is CMeng's own simulation failing (every
+  // sampled CPM run failed after the deterministic network calculated), not a
+  // missing input.
+  const result:ModuleRuntimeResult={key:'monte-carlo-risk',status:completed?'partial':'blocked',engineState:completed?'ready':'failed',evidenceState:'partial',professionalState:'review_required',
     reason:completed?'Monte Carlo is available as an explicit scenario. Project-specific uncertainty ranges and correlation groups are not established, so P-values are not an official forecast.':'No successful simulation iterations were produced.',
     dependencies:['adopted programme','complete deterministic CPM','remaining durations','scenario uncertainty factors'],data};
   cache.set(state,{version:state.version,key,result});return result;
