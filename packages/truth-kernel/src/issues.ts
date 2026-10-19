@@ -33,6 +33,8 @@ export interface ControlIssueMember {
   summary: string;
   field?: string;
   action: string;
+  /** This original's own detail text (F05: kept when requests combine). */
+  detail?: string;
   moduleKeys: string[];
   evidencePaths: string[];
   sourceRefs: string[];
@@ -51,7 +53,7 @@ export function controlIssueMemberId(issue: Pick<ControlIssue,'kind'|'code'|'evi
 }
 function controlIssueMembers(issue: ControlIssue): ControlIssueMember[] {
   return issue.members??[{id:issue.memberIssueIds?.[0]??controlIssueMemberId(issue),summary:issue.summary,
-    ...(issue.field!==undefined?{field:issue.field}:{}),action:issue.action,
+    ...(issue.field!==undefined?{field:issue.field}:{}),action:issue.action,detail:issue.detail,
     moduleKeys:[...issue.moduleKeys],evidencePaths:[...issue.evidencePaths],sourceRefs:[...issue.sourceRefs]}];
 }
 function mergeMembers(left: ControlIssueMember[], right: ControlIssueMember[]): ControlIssueMember[] {
@@ -84,9 +86,12 @@ export function summarizeControlIssues(issues: readonly ControlIssue[]): Control
     // different source populations separate, even if their wording is equal.
     const sourceIdentity=issue.kind==='source_conflict'&&issue.sourceFactKey&&issue.sourceRefs.length
       ? [...new Set(issue.sourceRefs)].sort() : null;
+    // F05: the key is machine identity only. Detail and action are prose that
+    // differ by page; they never split one problem into two requests. Each
+    // original keeps its own detail and action as a member.
     const key=JSON.stringify(sourceIdentity
-      ? [issue.kind,issue.code,issue.sourceFactKey,issue.detail,issue.action,issue.owner,sourceIdentity]
-      : [issue.kind,issue.code,controlIssueField(issue),issue.detail,issue.action,issue.owner]);
+      ? [issue.kind,issue.code,issue.sourceFactKey,issue.owner,sourceIdentity]
+      : [issue.kind,issue.code,controlIssueField(issue),issue.owner]);
     const old=grouped.get(key);
     if(!old){grouped.set(key,{...issue,memberIssueIds:issue.memberIssueIds??[controlIssueMemberId(issue)]});continue;}
     // One request, the union of everything both originals carried, and both

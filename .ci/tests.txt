@@ -6,3 +6,8 @@ t10-identity-independent-of-wording
 ui-management-experience
 universal-reporting-contract
 ui-workspace
+v1-f05-one-action-per-problem
+t10-combined-request-keeps-every-original
+module-issue-classification
+system-root-causes
+management-population-counts

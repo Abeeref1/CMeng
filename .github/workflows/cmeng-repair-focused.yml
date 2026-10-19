@@ -34,6 +34,7 @@ jobs:
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/v1-f10-no-duplicate-page-blocks.test.js \
+            dist/tests/v1-f05-one-action-per-problem.test.js \
             dist/tests/t09-action-assignment.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
             dist/tests/t11-module-issues-walk-parity.test.js \
