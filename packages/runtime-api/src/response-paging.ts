@@ -259,7 +259,11 @@ export function pageProjectResponse(
  // populated registers appear empty and removed their record navigation.
  // F61: the overrun is stated in the response, never silent.
  const lastPaging=(smallestProjection as any)?.responsePaging as ResponsePaging|undefined;
- if(smallestProjection!==body&&lastPaging&&lastPaging.responseBytes>maxBytes){lastPaging.overBudget=true;lastPaging.budgetBytes=maxBytes;}
+ if(smallestProjection!==body&&lastPaging&&lastPaging.responseBytes>maxBytes){
+  lastPaging.overBudget=true;lastPaging.budgetBytes=maxBytes;
+  // Same measuring convention as above: responseBytes describes the bytes sent.
+  lastPaging.responseBytes=0;lastPaging.responseBytes=bytes(smallestProjection);
+ }
  return smallestProjection;
 }
 export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25,filter?:{

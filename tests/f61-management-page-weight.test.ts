@@ -19,7 +19,7 @@ function scaleProject(){
   baselineStartIso:'2031-01-01',baselineFinishIso:'2031-12-01',currentStartIso:'2031-01-01',currentFinishIso:'2031-12-01',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,
   originalDurationHours:8000,remainingDurationHours:8000,totalFloatHours:i%13,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]}));
  const relationships:any[]=[];
- for(let i=1;i<N;i++)if(i%100)relationships.push({relationshipId:'R'+i,predecessorActivityId:'A'+(i-1),successorActivityId:'A'+i,type:'FS',lagHours:i%2?-7900:0,sourceRefs:[],diagnostics:[]});
+ for(let i=1;i<N;i++)if(i%100)relationships.push({relationshipId:'R'+i,predecessorActivityId:'A'+(i-1),successorActivityId:'A'+i,type:'FS',lagHours:-7900,sourceRefs:[],diagnostics:[]});
  const wbs=Array.from({length:89},(_,i)=>({wbsId:'W'+i,name:'Area '+i,parentWbsId:null,sourceRefs:[]}));
  for(let r=0;r<3;r++){
   const revisionId='REV-'+r,model={projectId:id,source:'xer',sourceRevisionId:revisionId,dataDateIso:'2031-0'+(4+r)+'-01',activities:activities.map(a=>({...a})),relationships,wbs,calendars:[{...ELAPSED_24H_CALENDAR,calendarId:'C'}],diagnostics:[]};
@@ -42,12 +42,12 @@ test('F61 management pages and bundle stay under 2 MB at 8,900 activities and 89
  const timed=async(path:string)=>{const start=performance.now();const response=await fetch(base+path);const text=await response.text();return {status:response.status,text,ms:performance.now()-start};};
  const cold=await timed('/management/master-dashboard');const warm=await timed('/management/master-dashboard');
  console.log('F61 dashboard timing (8,900 activities, 896 item curves): cold '+cold.ms.toFixed(0)+' ms, warm '+warm.ms.toFixed(0)+' ms, '+Buffer.byteLength(cold.text)+' bytes');
- assert.equal(cold.status,200);
+ assert.equal(cold.status,200,cold.text.slice(0,400));
  for(const path of ['/management/master-dashboard','/management/command-center','/management/master-control-programme','/management/source-quality','/management-surfaces','/schedule/modules/installed-quantities']){
   const page=path==='/management/master-dashboard'?cold:await timed(path);
   const bytes=Buffer.byteLength(page.text),body=JSON.parse(page.text);
   console.log('F61 '+path+': '+bytes+' bytes');
-  assert.equal(page.status,200,path);
+  assert.equal(page.status,200,path+' '+page.text.slice(0,400));
   assert.ok(bytes<=2_000_000,path+' is '+bytes+' bytes');
   assert.notEqual(body.responsePaging?.overBudget,true,path+' flagged over budget');
   if(path==='/management-surfaces'){
