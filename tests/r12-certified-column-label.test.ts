@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn,type ChildProcess} from 'node:child_process';
-import {existsSync,readdirSync} from 'node:fs';
+import {existsSync,readdirSync,readFileSync} from 'node:fs';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {createServer} from 'node:net';
 import {tmpdir} from 'node:os';
@@ -142,10 +142,19 @@ async function launchChrome(binary:string,profile:string){
   const child=own(spawn(binary,['--headless=new','--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--no-sandbox','--disable-gpu',
     '--disable-dev-shm-usage','--no-first-run','--no-default-browser-check','--disable-extensions','--disable-background-networking',
     '--window-size=1440,1000','--user-data-dir='+profile,'about:blank'],{stdio:['ignore','ignore','pipe'],detached:true}));
+  // Chrome reports its DevTools address on stderr and in <profile>/DevToolsActivePort; either one
+  // is accepted. If Chrome does not start, its whole process group is stopped before the test
+  // fails, so a failed start can never leave a browser holding the test process open.
+  const kill=()=>{try{process.kill(-child.pid!,'SIGKILL');}catch{try{child.kill('SIGKILL');}catch{}}};
   const url=await new Promise<string>((resolve,reject)=>{
-    let log='';const timer=setTimeout(()=>reject(new Error('Chrome did not start: '+log.slice(-2000))),30_000);
-    child.stderr!.on('data',d=>{log+=d;const m=/DevTools listening on (ws:\/\/\S+)/.exec(log);if(m){clearTimeout(timer);resolve(m[1]!);}});
-    child.once('exit',code=>{clearTimeout(timer);reject(new Error('Chrome exited '+code+': '+log.slice(-2000)));});
+    let log='',done=false;
+    const finish=(error:Error|null,value?:string)=>{if(done)return;done=true;clearTimeout(timer);clearInterval(poll);
+      if(error){kill();child.stderr?.destroy();reject(error);}else resolve(value!);};
+    const timer=setTimeout(()=>finish(new Error('Chrome did not start within 120 s: '+log.slice(-2000))),120_000);
+    const poll=setInterval(()=>{try{const [port,path]=readFileSync(join(profile,'DevToolsActivePort'),'utf8').split('\n');
+      if(port&&path)finish(null,'ws://127.0.0.1:'+port.trim()+path.trim());}catch{}},250);
+    child.stderr!.on('data',d=>{log=(log+d).slice(-20000);const m=/DevTools listening on (ws:\/\/\S+)/.exec(log);if(m)finish(null,m[1]!);});
+    child.once('exit',code=>finish(new Error('Chrome exited '+code+': '+log.slice(-2000))));
   });
   return {child,url};
 }
