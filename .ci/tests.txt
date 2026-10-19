@@ -58,3 +58,6 @@ f20-f29-dated-cash-series
 module-challenge
 sales-blockers-closure
 t09-action-assignment
+w3-commercial-round10
+v1-f01-page-figures-match-api
+v1-f07-shared-input-status
