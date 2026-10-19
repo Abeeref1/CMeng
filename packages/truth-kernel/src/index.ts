@@ -199,6 +199,8 @@ export function establishedPopulationCount(
 
 export interface ManagementAction {
   recordKey?: string;
+  /** F51: a causal-chain action lists every member action it stands for. */
+  memberActionIds?: string[];
   priorityBasis?: {linkedFloatHours:number|null;linkedFloatActivityId?:string|null;linkedFloatCalendarIds?:(string|null)[];floatAuthority?:'independent_cpm'|'source_total_float';drivingPath:boolean|null;milestoneCount:number;moneyAtRisk?:Array<{amount:number;currency:string}>;safety?:boolean};
   moneyAtRisk?:Array<{amount:number;currency:string}>;
   actionId: string;

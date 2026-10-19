@@ -181,6 +181,7 @@ jobs:
             dist/tests/w1-f15-risk-register-fully-read.test.js \
             dist/tests/f18-security-instrument-type.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
+            dist/tests/w9-actions-named-ranked.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
             dist/tests/f26-constraint-comparison.test.js \
             dist/tests/f60-empty-project-every-page.test.js \
