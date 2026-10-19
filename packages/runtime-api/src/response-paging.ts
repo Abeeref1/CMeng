@@ -190,9 +190,26 @@ export function pageProjectResponse(
    if(key==='sourceLabels'){changed=true;return {};}
    if(seen.has(value))return {detailAvailable:true};
    if(depth>budget.depth){
-     record({pointer,total:Array.isArray(value)?value.length:Object.keys(value).length,shown:0,
-       kind:Array.isArray(value)?'array':'object'});
-     return Array.isArray(value)?[]:{detailAvailable:true};
+     // SW-03 / N10: below the nesting budget a register keeps its first page
+     // (each row's own scalar fields) with its true total and pointer, so the
+     // remaining pages are fetched by recordDetailPage. It was replaced by an
+     // empty [] / {detailAvailable:true} stub, and the screen showed no rows.
+     const clip=(v:unknown)=>typeof v==='string'&&v.length>budget.text?v.slice(0,budget.text)+'…':v;
+     const scalars=(row:any)=>{
+       if(row===null||typeof row!=='object')return clip(row);
+       if(Array.isArray(row))return row.filter(v=>v===null||typeof v!=='object').slice(0,budget.rows).map(clip);
+       const out:Record<string,unknown>={};
+       for(const field of chosenKeys(row,budget.keys)){const v=row[field];if(v===null||typeof v!=='object')out[field]=clip(v);}
+       return out;
+     };
+     if(Array.isArray(value)){
+       const shown=Math.min(budget.rows,value.length);
+       record({pointer,total:value.length,shown,kind:'array'});
+       return value.slice(0,shown).map(scalars);
+     }
+     const result=scalars(value) as Record<string,unknown>,total=Object.keys(value).length,shown=Object.keys(result).length;
+     if(shown<total)record({pointer,total,shown,kind:'object'});
+     return result;
    }
    seen.add(value);
    if(Array.isArray(value)){
