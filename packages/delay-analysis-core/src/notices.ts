@@ -13,6 +13,15 @@ function ms(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/** UTC midnight of the civil date written at the start of an ISO value. */
+function civilDayMs(value: string | null): number | null {
+  if (!value || ms(value) === null) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return null;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isFinite(t) ? t : null;
+}
+
 function applicableRequirement(
   event: CanonicalDelayEvent,
   requirements: readonly NoticeRequirement[],
@@ -179,9 +188,14 @@ export function assessEventNotice(
     };
   }
 
+  // Contract notice periods count civil days: a notice issued at any time on
+  // the last allowed day is within the period. Measure from the stated dates,
+  // not from milliseconds, so the time of day never turns a timely notice late.
+  const triggerCivil = civilDayMs(requirement.triggerBasis==='awareness'?event.awarenessIso??null:event.startIso);
+  const issuedCivil = civilDayMs(notice.actualIssuedAt);
   const elapsedDays = Number(
     (
-      (issued - eventStart) /
+      (issuedCivil !== null && triggerCivil !== null ? issuedCivil - triggerCivil : issued - eventStart) /
       86_400_000
     ).toFixed(6),
   );

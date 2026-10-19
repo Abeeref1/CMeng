@@ -575,14 +575,16 @@ function contractValueRows(
               variation.state ===
                 "approved" && reportingScope(variation.approvalDate,input.dataDateIso)==='as_of',
           );
+      // Money sums are held to 6 decimals (as commercial-control moneyMetric does)
+      // so binary floating noise never shows: 50000.1 + 0.2 is 50000.3, not 50000.299999999996.
       const approvedValue =
         approvedRows.length
-          ? approvedRows.reduce(
+          ? Number(approvedRows.reduce(
               (sum, row) =>
                 sum +
                 row.amount,
               0,
-            )
+            ).toFixed(6))
           : null;
       const approvedVariations =
         finding(
@@ -624,11 +626,11 @@ function contractValueRows(
       );
       const currentValue =
         original.value !== null && !approvalDatesMissing
-          ? original.value +
+          ? Number((original.value +
             (
               approvedValue ??
               0
-            )
+            )).toFixed(6))
           : null;
       return {
         currency,
