@@ -194,7 +194,7 @@ function deliverySourceAvailabilityHtml(p){
 }
 function renderProgrammeTaskScope(p){
  if(!p)return '';
- return '<section class="card"><h4>Programme task scope</h4><p>'+escapeHtml(p.basis)+'</p><p>'+escapeHtml(p.qualification)+'</p><p>'+escapeHtml(fmt(p.selectedCount))+' selected tasks · '+escapeHtml(p.sourceFilename)+'</p><button class="btn" onclick="openProjectActions()">Review programme task IDs</button><button class="btn" onclick="selected=\'activity-analytics\';localStorage.setItem(\'cmeng-module\',selected);renderNav();loadModule(selected)">Open Activity Review</button>'+(p.additionalCandidates.length?deliveryTable('programmeValidationCandidates','Additional validation candidates · not selected',p.additionalCandidates,[['activityId','Activity ID'],['name','Source activity name'],['status','Source status'],['basis','Qualification']]):'')+'</section>';
+ return '<section class="card"><h4>Programme task scope</h4><p>'+escapeHtml(p.basis)+'</p><p>'+escapeHtml(p.qualification)+'</p><p>'+escapeHtml(fmt(p.selectedCount))+' selected tasks · '+escapeHtml(p.sourceFilename)+'</p><button class="btn" onclick="openProjectActions()">Review programme task IDs</button><button class="btn" onclick="selected=\'activity-analytics\';localStorage.setItem(\'cmeng-module\',selected);syncBrowserRoute();renderNav();loadModule(selected)">Open Activity Review</button>'+(p.additionalCandidates.length?deliveryTable('programmeValidationCandidates','Additional validation candidates · not selected',p.additionalCandidates,[['activityId','Activity ID'],['name','Source activity name'],['status','Source status'],['basis','Qualification']]):'')+'</section>';
 }
 function renderHandoverSourceComparison(p){
  if(!p)return '';
@@ -363,5 +363,5 @@ function renderDeliveryDashboard(p){if(!p)return '';
    kpi('Design source rows',design?.readableRowCount??(design?.documentCount?design.documentCount+' document(s)':'Not established'),design?.basis||'design control population not established')+
    kpi('Quality source rows',quality?.readableRowCount??(quality?.documentCount?quality.documentCount+' document(s)':'Not established'),quality?.basis||'quality control population not established')+
    kpi('Handover readiness',p.handoverReadinessPercent??'Not established','% of confirmed requirements only')+
-   '</div><button class="btn" onclick="selected=\'delivery-control\';loadModule(selected);renderNav()">Open Delivery Control</button></section>';}
+   '</div><button class="btn" onclick="selected=\'delivery-control\';syncBrowserRoute();loadModule(selected);renderNav()">Open Delivery Control</button></section>';}
 `;}

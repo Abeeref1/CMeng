@@ -4694,6 +4694,8 @@ function managementHealthBadge(health){
 function managementModuleLink(key,label="Open owning module"){
   if(!key)key="documents";
   if(!names[key]&&key!=="documents")return '<span class="muted">Correction route requires review</span>';
+  // A button must never send the user back to the page they are on.
+  if(key!=="documents"&&key===selected&&appView==="project")return '<span class="muted">Shown on this page</span>';
   return '<button type="button" class="management-module-link" data-module="'+escapeHtml(key)+'">'+escapeHtml(label)+'</button>';
 }
 function managementPanel(title,description,body,primary=false){
@@ -5552,6 +5554,7 @@ function applyPmcDisplayOwners(root,defaultDomain){
  // Missing source individuals receive the accountable PMC role, never a
  // fabricated person. Non-owner columns keep their actual source state.
  const missing=value=>/^\s*(?:Not assigned|Unassigned|Not recorded|Owner not assigned|Owner not recorded|Unknown owner|Not in source)\s*$/i.test(String(value||''));
+ const roleOnly=value=>ownerDisplayState(String(value||'')).role!==null;
  root.querySelectorAll('table').forEach(table=>{
    const headings=[...table.querySelectorAll('thead th')].map(th=>String(th.textContent||'').trim().toLowerCase());
    const ownerColumns=headings.flatMap((heading,i)=>/\b(?:owner|responsible party|accountable party|accountable owner)\b/i.test(heading)?[i]:[]);
@@ -5559,18 +5562,20 @@ function applyPmcDisplayOwners(root,defaultDomain){
    table.querySelectorAll('tbody tr').forEach(tr=>{
      const cells=[...tr.children].filter(cell=>cell.tagName==='TD');
      for(const i of ownerColumns){
-       const cell=cells[i];if(!cell||!missing(cell.textContent))continue;
+       const cell=cells[i];if(!cell||cell.querySelector('[data-owner-missing]'))continue;
+       if(roleOnly(cell.textContent)){cell.innerHTML=ownerMissingHtml(cell.textContent);continue;}
+       if(!missing(cell.textContent))continue;
        const section=table.closest('.planning-panel,.card,.data-section,.action,.project-action');
        const area=section?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
-       cell.textContent=pmcDisplayOwner(area);
-       cell.title='Accountable PMC role; individual source owner not designated';
+       cell.innerHTML=ownerMissingHtml(pmcDisplayOwner(area));
      }
    });
  });
  root.querySelectorAll('.action-owner,[data-owner-fallback]').forEach(node=>{
+   if(node.querySelector('[data-owner-missing]'))return;
+   if(roleOnly(node.textContent)){node.innerHTML=ownerMissingHtml(node.textContent);return;}
    if(!missing(node.textContent))return;
-   node.textContent=pmcDisplayOwner(defaultDomain||'project controls');
-   node.title='Accountable PMC role; individual source owner not designated';
+   node.innerHTML=ownerMissingHtml(pmcDisplayOwner(defaultDomain||'project controls'));
  });
 }
 function applyProjectDisplayText(root){
@@ -6729,6 +6734,7 @@ document.addEventListener("click",event=>{
   if(!key||!names[key])return;
   selected=key;
   localStorage.setItem("cmeng-module",selected);
+  syncBrowserRoute(); // the page change writes its own address, so Back and reload work
   renderNav();
   loadModule(selected);
 });

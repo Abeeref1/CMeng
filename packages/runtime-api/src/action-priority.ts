@@ -18,6 +18,17 @@ export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=nu
  return 'PMC Project Controls Manager — individual not designated';
 }
 
+/** Display state of an owner value. The stored owner (and every key built from it)
+ * is unchanged; a role assigned because no individual is named is shown as a missing
+ * owner with its accountable role, never as if it were a named owner. */
+export function ownerDisplayState(owner:string|null|undefined):{named:boolean;role:string|null}{
+ const text=typeof owner==='string'?owner.trim():'';
+ const match=/^(.+?)\s+—\s+individual not designated$/i.exec(text);
+ if(match)return {named:false,role:match[1]!.trim()};
+ if(!text||/^(not assigned|not recorded|not in source|not established|unassigned|unknown|unknown owner|owner not assigned|owner not recorded|not supplied|null|undefined|tbd|n\/?a|n-a|n_a|—|-)$/i.test(text))return {named:false,role:null};
+ return {named:true,role:null};
+}
+
 export function actionRecordKey(domain:string,reference:string){
  const name=domain.toLowerCase();
  const kind=({design:'rfi',quality:'ncr',package:'procurement',activity:'schedule'} as Record<string,string>)[name]??name;
