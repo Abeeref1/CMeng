@@ -81,6 +81,8 @@ export interface CanonicalCalendar {
 }
 
 export interface CanonicalScheduleActivity {
+  /** Source activity codes (XER TASKACTV/ACTVCODE/ACTVTYPE); additive. */
+  sourceActivityCodes?: {codeType:string|null;codeValue:string|null;codeDescription:string|null}[];
   projectId: string | null;
   activityId: string;
   nativeId: string | null;
@@ -141,6 +143,8 @@ export interface CanonicalScheduleRelationship {
 }
 
 export interface CanonicalScheduleModel {
+  /** Every source column of every table: read into a field or listed as unused with a sample; additive. */
+  sourceColumnAudit?: {table:string;sourceHeader:string;canonicalHeader:string;kind:string;mappingState:'schema_recognized'|'unused';reason:string;sample?:string|null}[];
   projectId: string | null;
   source: CanonicalScheduleSource;
   sourceRevisionId: string;

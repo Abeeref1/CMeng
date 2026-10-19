@@ -203,6 +203,15 @@ export function isRegisterDateHeader(value:string):boolean {
   return registerDateHeaders.has(canonicalHeader(value));
 }
 
+/** Shared unused-column report entry for every source table (registers and
+ * programme files): a column is either read into a field or listed as unused
+ * with its name, and its values are retained, never treated as zero. */
+export function sourceColumnAuditEntry<K extends string>(sourceHeader:string,canonicalHeader:string,kind:K,mapped:boolean,readReason:string,sample?:string|null){
+  return {sourceHeader,canonicalHeader,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
+    reason:mapped?readReason
+      :'No canonical calculation consumes this source header. The source column and its values remain retained and must not be silently treated as zero.',
+    ...(sample!==undefined?{sample}:{})};
+}
 const registerDateMemo=new Map<string,string|null>();
 const memoRegisterDate=(source:string,parsed:string|null)=>{
   // Source date parsing is pure; bounded memoization avoids parsing identical
@@ -251,10 +260,8 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
       // A code, id or reference names a record (cost code, payment no); it is never a money amount.
       /(?:^| )(code|id|no|number|ref|reference)$/.test(normalizeHeader(rawHeader))?'other':
       /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
-    return {sourceHeader:rawHeader,canonicalHeader:field,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
-      reason:mapped
-        ?'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.'
-        :'No canonical calculation consumes this source header. The source column and its values remain retained and must not be silently treated as zero.'};
+    return sourceColumnAuditEntry(rawHeader,field,kind,mapped,
+      'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.');
   });
   const unknown=columnAudit.filter(column=>column.mappingState==='unused').map(column=>column.sourceHeader);
   // Column meaning is constant for the table. Do not normalise and match the
