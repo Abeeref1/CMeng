@@ -1488,10 +1488,12 @@ function renderLineChart(points,series,yMaxHint=null,options={}){
   }
 
   const facts=typeof currentModuleResult==='undefined'?null:currentModuleResult?.data?.projectFacts;
-  const contractDate=options.contractDateIso||facts?.time?.extendedContractCompletionIso?.value||facts?.time?.contractualCompletionIso?.value;
+  // F33: the shared contract time reader; the latest governing line is shown.
+  const sharedContractLine=options.contractDateIso?{label:'Contract',dateIso:options.contractDateIso}:(contractTimeLines({projectFacts:facts}).at(-1)||null);
+  const contractDate=sharedContractLine?.dateIso||null;
   const contractMs=contractDate?planningDateMs(contractDate):null;
   const contractX=useDateScale&&typeof contractMs==='number'&&contractMs>=minX&&contractMs<=maxX?left+((contractMs-minX)/Math.max(1,maxX-minX))*plotW:null;
-  const contractLine=contractX===null?'':'<line x1="'+contractX.toFixed(1)+'" y1="'+top+'" x2="'+contractX.toFixed(1)+'" y2="'+(height-bottom)+'" stroke="#ab4737" stroke-width="1.5" stroke-dasharray="7 3"/><text x="'+Math.min(width-165,contractX+5).toFixed(1)+'" y="'+(top+25)+'" font-size="10" fill="#ab4737">Contract '+escapeHtml(planningShortDate(contractDate))+'</text>';
+  const contractLine=contractX===null?'':'<line x1="'+contractX.toFixed(1)+'" y1="'+top+'" x2="'+contractX.toFixed(1)+'" y2="'+(height-bottom)+'" stroke="#ab4737" stroke-width="1.5" stroke-dasharray="7 3"/><text x="'+Math.min(width-165,contractX+5).toFixed(1)+'" y="'+(top+25)+'" font-size="10" fill="#ab4737">'+escapeHtml(sharedContractLine?.label||'Contract')+' '+escapeHtml(planningShortDate(contractDate))+'</text>';
   const dataDateMs=options.dataDateIso?planningDateMs(options.dataDateIso):null;
   const dataDateX=useDateScale&&typeof dataDateMs==="number"&&dataDateMs>=minX&&dataDateMs<=maxX
     ? left+((dataDateMs-minX)/Math.max(1,maxX-minX))*plotW
@@ -2071,7 +2073,19 @@ function planningSignedBars(items,unit){
     return '<div class="signed-row"><div class="signed-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="signed-track"><span class="signed-zero"></span><span class="signed-bar '+(item.value>0?"late":item.value<0?"early":"neutral")+'" style="left:'+left.toFixed(2)+'%;width:'+pct.toFixed(2)+'%"></span></div><b class="'+(item.value>0?"late-text":item.value<0?"early-text":"")+'">'+escapeHtml((item.value>0?"+":"")+fmt(item.value)+" "+(unit||""))+'</b></div>';
   }).join("")+'</div>';
 }
-function planningDateTrend(points,series,contractDateIso){
+// F33: one reader of the contract time basis for every page and chart: the
+// contract completion and, when an EOT is awarded, contract + awarded EOT. A
+// chart never labels the original date as including EOT.
+function contractTimeLines(data){
+  const t=data?.projectFacts?.time||{};
+  const contractual=t.contractualCompletionIso?.value||null,extended=t.extendedContractCompletionIso?.value||null;
+  const lines=[];
+  if(contractual)lines.push({key:'contract',label:'Contract completion',dateIso:contractual,color:'#7a8899',dash:'3 4'});
+  if(extended&&String(extended).slice(0,10)!==String(contractual||'').slice(0,10))
+    lines.push({key:'extended',label:t.extendedContractCompletionIso?.complete===false?'Contract including awarded EOT (to confirm)':'Contract including awarded EOT',dateIso:extended,color:'#ab4737',dash:'7 3'});
+  return lines;
+}
+function planningDateTrend(points,series,contractLines){
   const width=960,height=308,left=118,right=26,top=24,bottom=58;
   const prepared=points.map((point,index)=>{
     const raw=point.dateIso||null;
@@ -2086,7 +2100,8 @@ function planningDateTrend(points,series,contractDateIso){
   }));
   if(!vals.length)return '<div class="empty-visual">No completion-date trend is available.</div>';
 
-  const contractMs=planningDateMs(contractDateIso);if(typeof contractMs==='number')vals.push(contractMs);
+  const lines=(Array.isArray(contractLines)?contractLines:[]).map(line=>({...line,ms:planningDateMs(line.dateIso)})).filter(line=>typeof line.ms==='number');
+  lines.forEach(line=>vals.push(line.ms));
   let min=Math.min(...vals),max=Math.max(...vals);
   if(min===max){min-=14*86400000;max+=14*86400000}
   const pad=Math.max(7*86400000,(max-min)*.08);
@@ -2155,7 +2170,7 @@ function planningDateTrend(points,series,contractDateIso){
 
   return '<div class="chart-canvas" data-chart-canvas>'+toolbar+legend+
     '<div class="chart-scroll"><svg class="svg-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Forecast completion trend">'+
-    ticks+(typeof contractMs==='number'?'<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y(contractMs).toFixed(1)+'" y2="'+y(contractMs).toFixed(1)+'" stroke="#ab4737" stroke-dasharray="7 3"/><text x="'+(left+5)+'" y="'+(y(contractMs)-6).toFixed(1)+'" fill="#ab4737" font-size="11">Contract including awarded EOT · '+escapeHtml(planningShortDate(contractDateIso))+'</text>':'')+paths+pointsSvg+labels+'</svg></div></div>';
+    ticks+lines.map((line,index)=>'<line data-contract-line="'+escapeHtml(line.key)+'" x1="'+left+'" x2="'+(width-right)+'" y1="'+y(line.ms).toFixed(1)+'" y2="'+y(line.ms).toFixed(1)+'" stroke="'+line.color+'" stroke-dasharray="'+line.dash+'"/><text x="'+(left+5+index*250)+'" y="'+(y(line.ms)-6).toFixed(1)+'" fill="'+line.color+'" font-size="11">'+escapeHtml(line.label)+' · '+escapeHtml(planningShortDate(line.dateIso))+'</text>').join('')+paths+pointsSvg+labels+'</svg></div></div>';
 }
 function planningActivityPressure(rows,summary){
   const all=rows||[],excluded=all.filter(r=>["level_of_effort","wbs_summary"].includes(r.activityType)),completed=all.filter(r=>r.status==="completed"&&!["level_of_effort","wbs_summary"].includes(r.activityType)),candidates=all.filter(r=>r.status!=="completed"&&!["level_of_effort","wbs_summary"].includes(r.activityType));
@@ -2318,22 +2333,24 @@ function planningMilestoneChartPriority(row){
   else if(row.managementPriority==="watch")score+=8;
   return score;
 }
-function planningMilestoneTimeline(p,contractCompletionIso=null){
+function planningMilestoneTimeline(p,contractLines=null){
+  // F33: contract lines from contractTimeLines(data); a bare date is one line.
+  const lines=(Array.isArray(contractLines)?contractLines:contractLines?[{key:'extended',label:'Contract including awarded EOT',dateIso:contractLines}]:[]).filter(line=>planningDateMs(line.dateIso)!==null);
   const source=(p.rows||[]).filter(r=>r.status!=="completed"&&(planningDateMs(r.currentDateIso)!==null||planningDateMs(r.baselineDateIso)!==null));
   if(!source.length)return '<div class="empty-visual">No open milestone dates are available.</div>';
   const movements=new Set();
   const rows=[...source].sort((a,b)=>planningMilestoneChartPriority(b)-planningMilestoneChartPriority(a)||planningMilestonePriorityRank(a.managementPriority)-planningMilestonePriorityRank(b.managementPriority)||((a.daysFromDataDate??Infinity)-(b.daysFromDataDate??Infinity)))
     .filter(r=>{if(r.managementPriority!=="watch"||typeof r.varianceDays!=="number")return true;const k=r.varianceDays.toFixed(6);if(movements.has(k))return false;movements.add(k);return true}).slice(0,12);
   const dates=rows.flatMap(r=>[planningDateMs(r.baselineDateIso),planningDateMs(r.currentDateIso)]).filter(v=>v!==null);
-  const contractDate=planningDateMs(contractCompletionIso);if(contractDate!==null)dates.push(contractDate);
+  lines.forEach(line=>dates.push(planningDateMs(line.dateIso)));
   const low=Math.min(...dates),high=Math.max(...dates),pad=Math.max(14*86400000,(high-low)*.08),min=low-pad,max=high+pad;
   const x=v=>{const at=planningDateMs(v);return at===null?null:100*(at-min)/(max-min)};
   const axis='<div class="milestone-date-axis">'+[0,.25,.5,.75,1].map(f=>'<span>'+escapeHtml(planningShortDate(new Date(min+(max-min)*f).toISOString()))+'</span>').join('')+'</div>';
-  return '<div class="milestone-date-legend"><span>○ Controlled baseline</span><span><b>◆ Current forecast</b></span>'+ (contractDate===null?'':'<span>Contract including awarded EOT · '+escapeHtml(planningShortDate(contractCompletionIso))+'</span>')+'<span>Open milestones only · Data Date '+escapeHtml(planningShortDate(p.dataDateIso))+'</span></div><div class="milestone-date-chart">'+rows.map(r=>{
+  return '<div class="milestone-date-legend"><span>○ Controlled baseline</span><span><b>◆ Current forecast</b></span>'+ lines.map(line=>'<span>'+escapeHtml(line.label)+' · '+escapeHtml(planningShortDate(line.dateIso))+'</span>').join('')+'<span>Open milestones only · Data Date '+escapeHtml(planningShortDate(p.dataDateIso))+'</span></div><div class="milestone-date-chart">'+rows.map(r=>{
     const bx=x(r.baselineDateIso),cx=x(r.currentDateIso),variance=typeof r.varianceDays==='number'?(r.varianceDays>0?'+':'')+fmt(r.varianceDays)+' d':'Not established';
     const count=source.filter(a=>a.managementPriority==='watch'&&a.varianceDays===r.varianceDays).length;
     const track=(bx!==null&&cx!==null?'<span class="date-span" style="left:'+Math.min(bx,cx)+'%;width:'+Math.abs(cx-bx)+'%"></span>':'')+(bx===null?'':'<span class="date-baseline" style="left:'+bx+'%"></span>')+(cx===null?'':'<span class="date-current" style="left:'+cx+'%"></span>');
-    return '<div class="milestone-date-row"><div class="milestone-date-name"><b>'+escapeHtml(r.activityId)+' · '+escapeHtml(r.name||'')+'</b><span>'+escapeHtml(planningMilestoneCriticalityLabel(r))+' · '+escapeHtml(planningMilestoneDueLabel(r))+'</span><small>'+escapeHtml(r.wbsName||r.wbsId||'')+'</small>'+(r.managementPriority==='watch'&&count>1?'<small>Representative of '+escapeHtml(fmt(count))+' watch milestones with the same movement. This does not establish a common cause.</small>':'')+'</div><div>'+axis+'<div class="milestone-date-track">'+(contractDate===null?'':'<span class="date-contract" title="Contract including awarded EOT · '+escapeHtml(planningShortDate(contractCompletionIso))+'" style="position:absolute;top:-5px;bottom:-5px;border-left:2px dashed #b4483e;left:'+x(contractCompletionIso)+'%"></span>')+track+'</div><div class="milestone-date-values"><span>Baseline <b>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</b></span><span>Current <b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b></span><span>Movement <b>'+escapeHtml(variance)+'</b></span><span>Float <b>'+escapeHtml(sourceWorkingFloat(r))+'</b></span></div></div></div>';
+    return '<div class="milestone-date-row"><div class="milestone-date-name"><b>'+escapeHtml(r.activityId)+' · '+escapeHtml(r.name||'')+'</b><span>'+escapeHtml(planningMilestoneCriticalityLabel(r))+' · '+escapeHtml(planningMilestoneDueLabel(r))+'</span><small>'+escapeHtml(r.wbsName||r.wbsId||'')+'</small>'+(r.managementPriority==='watch'&&count>1?'<small>Representative of '+escapeHtml(fmt(count))+' watch milestones with the same movement. This does not establish a common cause.</small>':'')+'</div><div>'+axis+'<div class="milestone-date-track">'+lines.map(line=>'<span class="date-contract" data-contract-line="'+escapeHtml(line.key)+'" title="'+escapeHtml(line.label)+' · '+escapeHtml(planningShortDate(line.dateIso))+'" style="position:absolute;top:-5px;bottom:-5px;border-left:2px dashed '+(line.color||'#b4483e')+';left:'+x(line.dateIso)+'%"></span>').join('')+track+'</div><div class="milestone-date-values"><span>Baseline <b>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</b></span><span>Current <b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b></span><span>Movement <b>'+escapeHtml(variance)+'</b></span><span>Float <b>'+escapeHtml(sourceWorkingFloat(r))+'</b></span></div></div></div>';
   }).join('')+'</div><p class="muted">'+escapeHtml(fmt(rows.length))+' priority representatives from '+escapeHtml(screenCountText(listTotal(source)))+' open milestones. All milestone records remain below.</p>';
 }
 /** T06: why grouped float stays in hours when no single working-day length applies. */
@@ -2449,11 +2466,11 @@ function renderPmoVisual(data){
     ["Overdue milestones",p.progress.lateMilestoneCount,"past the data date","danger"],["Missed planned starts",p.progress.lookAheadMissedStartCount,"execution activities","warning"]
   ]);
   const completion=planningDateLadder([
-    {label:"Contract completion",date:p.claims?.contractualCompletionIso,tone:"baseline"},
+    // F33: contract and extended dates from the shared contract time reader.
+    ...contractTimeLines(data).map(line=>({label:line.label,date:line.dateIso,tone:"baseline"})),
     {label:"Controlled baseline finish",date:p.programmeBaselineCompletionIso,tone:"baseline"},
     {label:"Submitted finish",date:p.forecast.sourceCompletionIso,tone:"current"},
     {label:"Productivity forecast",date:p.sourceProductivityForecast?.completionIso,tone:"current"},
-    {label:"Approved finish date",date:p.claims?.officialAdjustedCompletionIso,tone:"baseline"},
     {label:"Scenario finish date",date:p.claims?.scenarioAdjustedCompletionIso,tone:"scenario"}
   ],null);
   const attention=planningAttention([
@@ -3047,7 +3064,7 @@ function renderRevisionTrendVisual(data){
   const completion=planningDateTrend(points,[
     {key:"programmeCompletionIso",label:"Programme finish",color:"#506579"},
     {key:"forecastCompletionIso",label:"Submitted forecast finish",color:"#4f7fb4"}
-  ],data?.projectFacts?.time?.extendedContractCompletionIso?.value||data?.projectFacts?.time?.contractualCompletionIso?.value);
+  ],contractTimeLines(data));
   const pressure=renderFloatPressureTrend(points,p.floatTrend);
   const changeBars=latest.addedVsPrevious===null?'<div class="empty-visual">N/A: no preceding revision.</div>':planningStatusBand([
     ["Added",latest.addedVsPrevious??null,"accent"],["Removed",latest.removedVsPrevious??null,"neutral"],["Modified",latest.modifiedVsPrevious??null,"warning"]
@@ -3444,7 +3461,7 @@ const movementClusters=new Map();
     ["Contract completion",planningShortDate(p.contractualCompletionIso),"contract evidence, separate from activity names"],
     ["Independent driving path",humanizeKey(p.independentDrivingPathState||"not_established"),p.independentDrivingPathReason||"Independent CPM evidence required","warning"]
   ]);
-  const timeline=planningMilestoneTimeline(p,data.projectFacts?.time?.extendedContractCompletionIso?.value??data.projectFacts?.time?.contractualCompletionIso?.value??null);
+  const timeline=planningMilestoneTimeline(p,contractTimeLines(data));
   const priorityBoard=planningMilestonePriorityBoard(p);
   const {statusBand,priorityBand}=milestoneStatusBands(full);
   const detail=[...p.rows].sort((a,b)=>{
@@ -3747,7 +3764,7 @@ function renderForecastHistoryVisual(data){
   const trend=planningDateTrend(points,[
     {key:"sourceForecastCompletionIso",label:"Submitted forecast finish",color:"#506579"},
     {key:"independentForecastCompletionIso",label:"Programme calendar recalculation",color:"#4f7fb4"}
-  ],data?.projectFacts?.time?.extendedContractCompletionIso?.value||data?.projectFacts?.time?.contractualCompletionIso?.value);
+  ],contractTimeLines(data));
   const cards=p.points.map((x,index)=>'<div class="revision-value-card"><div class="revision-value-head"><b>'+escapeHtml(shortRevision(x.sourceRevisionId,labels))+'</b><span>'+escapeHtml(planningShortDate(x.dataDateIso))+'</span></div><div class="revision-value-lines"><span>Submitted finish <b>'+escapeHtml(planningShortDate(x.sourceForecastCompletionIso))+'</b></span><span>Programme calendar recalculation <b>'+escapeHtml((x.independentForecastCompletionIso?planningShortDate(x.independentForecastCompletionIso):'Not calculated'))+'</b></span><span>Submitted move vs prior <b>'+escapeHtml(index===0?'N/A':fmt(planningCalendarDaysBetween(p.points[index-1].sourceForecastCompletionIso,x.sourceForecastCompletionIso))+' d')+'</b></span><span>Submitted move vs first <b>'+escapeHtml(index===0?'N/A':fmt(planningCalendarDaysBetween(p.points[0].sourceForecastCompletionIso,x.sourceForecastCompletionIso))+' d')+'</b></span><span>Calendar movement vs prior <b>'+escapeHtml(x.movementDaysVsPrevious===null?"—":fmt(x.movementDaysVsPrevious)+" d")+'</b></span></div></div>').join("");
   const rows=p.points.map(x=>'<tr><td>'+escapeHtml(planningShortDate(x.dataDateIso))+'</td><td><b>'+escapeHtml(shortRevision(x.sourceRevisionId,labels))+'</b></td><td>'+escapeHtml(planningShortDate(x.sourceForecastCompletionIso))+'</td><td>'+escapeHtml((x.independentForecastCompletionIso?planningShortDate(x.independentForecastCompletionIso):'Not calculated'))+'</td><td>'+escapeHtml(x.movementDaysVsPrevious===null?"—":fmt(x.movementDaysVsPrevious))+'</td><td>'+escapeHtml(x.movementDaysVsFirst===null?"—":fmt(x.movementDaysVsFirst))+'</td><td>'+escapeHtml(x.independentForecastCompletionIso?humanizeKey(x.origin):"Not calculated in history view")+'</td></tr>').join("");
   const first=p.points[0],initialGap=first?.calendarVersusSubmittedDays??planningCalendarDaysBetween(first?.sourceForecastCompletionIso,first?.independentForecastCompletionIso);

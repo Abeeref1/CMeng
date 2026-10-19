@@ -12,6 +12,7 @@ import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
+import {contractTimeDates} from './contract-time-reader';
 import {activityFloatReconciliation,attachActivityFloatReconciliation,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {buildProjectDiagnosis,presentProjectDiagnosis} from './project-diagnosis';
 import {buildModuleChallenge} from '../../module-challenge/src';
@@ -7566,7 +7567,8 @@ function resolveProjectModuleCandidate(
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis, scheduleAuthorityReview:scheduleAuthorityReview(state),
       ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend','scope-classification'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
-      ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,time.contractTimeBasis?.contractualCompletionIso??null)}:{}),
+      // F33: package lateness is measured against the shared governing date.
+      ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,contractTimeDates(state).governingCompletionIso)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),
       ...(['quantity-scurve','independent-forecast','challenge-contract'].includes(key)?{quantityBasisReview:quantityBasisReview(state)}:{}),
       ...(contractReview ? { contractValueBasisReview: contractReview, ...(data.contractValueEvidence ? {contractValueEvidence: { ...data.contractValueEvidence, extractionScope: 'original_contract_only', currentSource: contractReview.current, currentSourceState: contractReview.state, note: 'The original-contract extraction is historical. Read currentSource for the explicit value from the contract version effective at the data date; formal approval remains separate.' }} : {}) } : {}),
@@ -8837,14 +8839,18 @@ export function managementSurfacesForProject(
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
   const rawCompletion=currentForecast?.completionPosition??null;
-  const completion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
+  const withheldCompletion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
     // Withhold everything derived from the withheld finish (same rule as the
     // project diagnosis), so no day difference survives without its finish.
     ?{...rawCompletion,independentFinishIso:null,differenceElapsedDays:null,differenceRows:[],calculationState:'unresolved',
       interpretation:'Independent CPM/calendar calculation failed reconciliation. No recalculated finish or day difference is presented as a management position.',
       reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
     :rawCompletion;
-  const diagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  // F33: the Dashboard is published without the per-page fact binding, so its
+  // completion position takes the extended date from the same shared fact.
+  const completion=withheldCompletion?{...withheldCompletion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}:withheldCompletion;
+  const rawDiagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const diagnosis=rawDiagnosis?.completion?{...rawDiagnosis,completion:{...rawDiagnosis.completion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}}:rawDiagnosis;
   const issueStage2=profiling?performance.now():0;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
   const issueStage3=profiling?performance.now():0;
