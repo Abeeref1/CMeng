@@ -3,6 +3,7 @@ import {
   type XerParseResult,
   type XerRow,
 } from "../../xer-parser/src";
+import {noteXerRead} from "../../xer-parser/src/read-tracking";
 import type {
   CanonicalFinancialPeriod,
   CanonicalResource,
@@ -31,6 +32,7 @@ function field(
   row: XerRow,
   name: string,
 ): string | null {
+  noteXerRead(row.table, name);
   const value = row.data?.[name]?.trim();
   return value ? value : null;
 }
