@@ -3254,7 +3254,7 @@ function renderScopeClassificationVisual(data){
   const sourceGrouped=['discipline','location'].map(key=>{
     const g=p.dimensionGroups?.[key]?.sourceGrouping;if(!g||!Array.isArray(g.rows))return"";
     const rows=g.rows.map(row=>'<tr><td>'+escapeHtml(row.value)+'</td><td>'+escapeHtml(row.source)+'</td><td>'+escapeHtml(fmt(row.activityCount))+'</td></tr>').join("")+(g.notGrouped?.activityCount?'<tr><td><i>'+escapeHtml(g.notGrouped.label)+'</i></td><td></td><td>'+escapeHtml(fmt(g.notGrouped.activityCount))+'</td></tr>':"");
-    return '<details class="source-scope"><summary>'+escapeHtml(humanizeKey(key))+' groups · from source '+escapeHtml(fmt(g.sourceGroupedActivityCount))+' · '+escapeHtml(g.nameMatchLabel)+' '+escapeHtml(fmt(g.nameMatchActivityCount))+' · Not grouped '+escapeHtml(fmt(g.notGrouped?.activityCount??0))+'</summary><div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Source</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+    return '<details class="source-scope"><summary>'+escapeHtml(humanizeKey(key))+' groups · from source '+escapeHtml(fmt(g.sourceGroupedActivityCount))+' · '+escapeHtml(g.nameMatchLabel)+' '+escapeHtml(fmt(g.nameMatchActivityCount))+' · Not grouped '+escapeHtml(fmt(g.notGrouped?.activityCount))+'</summary><div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Source</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
   }).join("");
   const grouped=sourceGrouped+dimensions.map(key=>{
     const group=p.dimensionGroups?.[key],values=new Map();
