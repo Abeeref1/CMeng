@@ -81,3 +81,12 @@ test("SW-16: mixed record layout reads the shared Type column on ACTIVITY rows",
   assert.equal(m.relationships.length, 1);
   assert.equal(m.relationships[0]!.type, "FS");
 });
+
+test("milestones: source-typed milestones are not reported as inferred from zero duration", () => {
+  const result = analyzeSchedule(model());
+  assert.deepEqual([...result.milestones.milestoneActivityIds].sort(), ["A110", "A400", "A600", "A700"]);
+  assert.deepEqual(result.milestones.completedMilestones, []);
+  assert.deepEqual([...result.milestones.openMilestones].sort(), ["A110", "A400", "A600", "A700"]);
+  // A600 is typed "Milestone" in the file; only A700 was inferred.
+  assert.deepEqual(result.milestones.inferredFromZeroDurationIds, ["A700"]);
+});
