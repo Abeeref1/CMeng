@@ -1,5 +1,5 @@
 import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
-import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus} from './project-input-status';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus} from './project-input-status';
 import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
@@ -13,7 +13,9 @@ import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
 import {bindProjectFacts} from './project-fact-consumers';
 import {pmcScheduleRules} from './pmc-schedule-rules';
-import {projectActionRegisterForState,peekCachedScheduleAnalytics} from './project-projections';
+import {projectActionRegisterForState,peekCachedScheduleAnalytics,analyticalHistory} from './project-projections';
+import {cachedIndependentForecast} from './forecast-cache';
+import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
 import {projectSourceLabels} from './project-presentation';
 import {projectContractSections} from './project-contract-sections';
 import {contractCompletionPosition} from './contract-completion';
@@ -361,6 +363,18 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   }):null;
   const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
     ?independentForecast?.independentForecastCompletionIso??null:null;
+  // F38: the previous dated, adopted revision (latest earlier Data Date in the
+  // shared revision history) and its CMeng CPM, under the same publication gate
+  // as the current CPM. Only read when the current CPM is publishable.
+  const history=current&&independentFinish!==null?analyticalHistory(scoped):[];
+  const currentAt=current?history.findIndex(row=>row.revision.revisionId===current.revision.revisionId):-1;
+  const currentDataMs=parseScheduleInstant(model?.dataDateIso??null);
+  const previousStored=currentAt>0&&currentDataMs!==null?history.slice(0,currentAt).filter(row=>{const at=parseScheduleInstant(row.revision.model.dataDateIso??null);return at!==null&&at<currentDataMs;}).at(-1)??null:null;
+  const previousForecast=previousStored?cachedIndependentForecast(previousStored.revision.model,'project-version:'+state.version):null;
+  const previousPublishable=!!previousStored&&!!previousForecast&&buildForecastReconciliationGate({model:previousStored.revision.model,forecast:previousForecast,requiredFinishIso:currentContractCompletion}).publishable===true&&!hasUnreconciledScheduleCalendar(previousForecast);
+  const previousRevision=previousStored?{revisionId:previousStored.revision.revisionId,label:previousStored.revision.label??previousStored.sourceFilename??null,model:previousStored.revision.model,
+    forecast:previousPublishable?previousForecast:null,reason:previousPublishable?null:'The CMeng CPM of the previous revision did not pass the same publication gate as the current one, so its total floats are not established.'}:null;
+  const controlBasis=projectScheduleControlBasis(scoped);
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
   // F33: one shared governing date (contract + awarded EOT; never the original
   // date while an award exists but the extended date is unknown).
@@ -411,7 +425,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
     resources:{tradeChains:tradeChainFacts(tradeChainResourcesForState(scoped))},
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
-      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null}),
+      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
+        criticality:{config,thresholdMethod:controlBasis.nearCriticalThresholdMethod,headlineFloatBasis:floatBasis},previousRevision}),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
@@ -656,6 +671,8 @@ export interface ProjectInputStatus {
   calendar:CalendarInputStatus;
   capacity:CapacityInputStatus;
   riskOwners:RiskOwnerInputStatus;
+  /** F07: the one risk register row count every risk page states. */
+  riskRows:RiskRowInputStatus;
 }
 /** F07: shared input status for a project, from the same rules the pages use. */
 export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
@@ -665,6 +682,7 @@ export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus
     capacity:capacityInputStatus(canonicalResources(state)),
     // No supplied risk rows: owner coverage is unknown, never 0 of 0.
     riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
+    riskRows:riskRowInputStatus(operationalReporting(state).risk),
   };
 }
 

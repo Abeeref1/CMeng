@@ -31,11 +31,19 @@ export function reportedClaimSummary(claims: readonly CanonicalClaimRecord[]) {
  */
 export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | null) {
   const earliest = (dates: Array<string | null | undefined>) => dates.filter((v): v is string=>!!v).sort()[0]??null;
+  // Each event and claim reads only the notices that name it. Group the
+  // notices once (source order kept) instead of scanning every notice per row.
+  const noticesByEvent = new Map<string | null, DelayClaimsModel['notices']>(), noticesByClaim = new Map<string | null, DelayClaimsModel['notices']>();
+  for (const notice of source.notices) {
+    const forEvent = noticesByEvent.get(notice.eventId), forClaim = noticesByClaim.get(notice.claimId);
+    if (forEvent) forEvent.push(notice); else noticesByEvent.set(notice.eventId, [notice]);
+    if (forClaim) forClaim.push(notice); else noticesByClaim.set(notice.claimId, [notice]);
+  }
   const notices = partitionAsOf(source.notices,{name:'Notices issued by Data Date',entity:'notice',dataDateIso,
     dateBasis:'actualIssuedAt',sourceRevisionId:source.evidenceRevisionId,id:r=>r.noticeId,date:r=>r.actualIssuedAt});
   const eventPartition = (rows: DelayClaimsModel['events']) => partitionAsOf(rows,{name:'Delay events evidenced by Data Date',entity:'delay_event',dataDateIso,
     dateBasis:'event start; otherwise earliest linked actual notice (existence only)',sourceRevisionId:source.evidenceRevisionId,id:r=>r.eventId,
-    date:r=>r.startIso??earliest(source.notices.filter(n=>n.eventId===r.eventId).map(n=>n.actualIssuedAt))});
+    date:r=>r.startIso??earliest((noticesByEvent.get(r.eventId)??[]).map(n=>n.actualIssuedAt))});
   // SW-15: the reported event population lists only events from an event source.
   // Claim-cited event references stay on the current model for claim links only.
   const eventPopulation = delayEventPopulation(source);
@@ -43,7 +51,7 @@ export function delayClaimsAsOf(source: DelayClaimsModel, dataDateIso: string | 
   const events = eventPartition(source.events.filter((_, index) => eventPopulation.fromEventSource[index]));
   const claims = partitionAsOf(source.claims,{name:'Claim identities evidenced by Data Date',entity:'claim',dataDateIso,
     dateBasis:'earliest submission or linked actual notice; not a determination date',sourceRevisionId:source.evidenceRevisionId,id:r=>r.claimId,
-    date:r=>earliest([r.submittedAt,...source.notices.filter(n=>n.claimId===r.claimId&&n.kind!=='determination').map(n=>n.actualIssuedAt)])});
+    date:r=>earliest([r.submittedAt,...(noticesByClaim.get(r.claimId)??[]).filter(n=>n.kind!=='determination').map(n=>n.actualIssuedAt)])});
   const current: DelayClaimsModel = {...source,dataDateIso,
     events:allEvents.asOf.map(r=>({...r,endIso:reportingScope(r.endIso,dataDateIso)==='as_of'?r.endIso:null})),
     claims:claims.asOf.map(r=>({...r,sourceRegister:reportedClaim(r),submittedAt:reportingScope(r.submittedAt,dataDateIso)==='as_of'?r.submittedAt:null,

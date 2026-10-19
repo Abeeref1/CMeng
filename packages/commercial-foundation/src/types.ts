@@ -305,6 +305,9 @@ export interface PaymentRegisterRecord {
     certificationDate: string | null;
     certificationDueDate: CommercialFinding<string>;
     paymentDueDate: CommercialFinding<string>;
+    /** F36: certificate date plus the contract payment period, kept beside an
+     * explicit source due date so the two can be compared. Additive. */
+    contractPeriodDueDate?: CommercialFinding<string>;
     paymentDate: string | null;
     paymentTimestamp: string | null;
     retentionReleaseDate: string | null;

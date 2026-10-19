@@ -91,6 +91,13 @@ export function commercialFoundationForState(
 
   const ledger =
     commercialCanonical(state);
+  // T11: one id lookup per variation instead of a scan of the ledger for each
+  // one; find() returned the first ledger row of an id, and so does this.
+  let ledgerVariations:Map<unknown,(typeof ledger.variations)[number]>|null=null;
+  const ledgerVariation=(id:unknown)=>{
+    if(!ledgerVariations){ledgerVariations=new Map();for(const row of ledger.variations)if(!ledgerVariations.has(row.variationId))ledgerVariations.set(row.variationId,row);}
+    return ledgerVariations.get(id);
+  };
   const timeClaims =
     canonicalTimeClaims(state);
   const contractValueExtraction =
@@ -258,7 +265,7 @@ export function commercialFoundationForState(
       variations:
         state.controls.variations.map(
           (variation) => ({
-            approvalDate: ledger.variations.find(row=>row.variationId===variation.variationId)?.approvalDate ?? null,
+            approvalDate: ledgerVariation(variation.variationId)?.approvalDate ?? null,
             variationId:
               variation.variationId,
             state:

@@ -1,5 +1,5 @@
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
-import {riskOwner} from './project-input-status';
+import {riskOwner,riskRowInputStatus} from './project-input-status';
 import {commercialPerformanceForState} from './commercial-performance-runtime';
 import {commercialCanonical} from './commercial-canonical';
 import {commercialContractControlsForState} from './commercial-contract-controls-runtime';
@@ -128,6 +128,8 @@ export function riskRegisterForState(state:ProjectRuntimeState):ModuleRuntimeRes
     reason:rows.length?(risk.validation?.explanation??null):'No governed risk-register population is established.',
     dependencies:['risk register','dated risk status','documented rating method'],
     data:{projectionKey:'risk_register_control',schemaVersion:'1.0',projectId:state.projectId,dataDateIso:reporting.dataDateIso,state:risk.state,
+      // F07: the same register row counts as Delivery risks and the project facts.
+      ...(counts=>({rowCounts:counts,rowScopeLabel:counts.registerLabel}))(riskRowInputStatus(risk)),
       currentRecordCount:risk.currentRecordCount,futureRecordCount:risk.futureRecordCount,undatedRecordCount:risk.undatedRecordCount,
       validation:risk.validation,rows,basis:'Source risk status is reconstructed as of the programme Data Date. Probability × impact is checked only where source values exist; rating thresholds are never invented.'}};
 }

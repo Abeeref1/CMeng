@@ -34,9 +34,11 @@ jobs:
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/v1-f10-no-duplicate-page-blocks.test.js \
+            dist/tests/r11-f10-one-owner-page-per-block.test.js \
             dist/tests/v1-f05-one-action-per-problem.test.js \
             dist/tests/v1-f01-page-figures-match-api.test.js \
             dist/tests/v1-f07-shared-input-status.test.js \
+            dist/tests/v1b-f07-risk-rows-trade-capacity.test.js \
             dist/tests/f01-real-browser-every-page.test.js \
             dist/tests/t09-action-assignment.test.js \
             dist/tests/t11-project-proxy-disconnect.test.js \
@@ -195,6 +197,8 @@ jobs:
             dist/tests/w1-f15-risk-register-fully-read.test.js \
             dist/tests/f18-security-instrument-type.test.js \
             dist/tests/f20-f29-dated-cash-series.test.js \
+            dist/tests/f29-best-available-recovery.test.js \
+            dist/tests/f29-f36-payment-rules.test.js \
             dist/tests/w9-management-brief-answer-first.test.js \
             dist/tests/w9-actions-named-ranked.test.js \
             dist/tests/f49-completed-late-milestones.test.js \
@@ -202,8 +206,11 @@ jobs:
             dist/tests/f60-empty-project-every-page.test.js \
             dist/tests/f61-management-page-weight.test.js \
             dist/tests/f38-programme-quality-driving-chain.test.js \
+            dist/tests/f38-stage-erosion-bei.test.js \
             dist/tests/f42-lookahead-driving-blockers.test.js \
-            dist/tests/f61-adversarial-list-paging.test.js
+            dist/tests/f61-adversarial-list-paging.test.js \
+            dist/tests/t11-issue-summary-fold-parity.test.js \
+            dist/tests/t11-large-register-cold-dashboard.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

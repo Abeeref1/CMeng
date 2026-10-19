@@ -230,10 +230,20 @@ export function assessAllEventNotices(
 ): EventNoticeAssessment[] {
   // SW-15: an event date (and awareness date) comes only from an event source.
   // A claim row that cites an event gives no event date, so its timing is not assessed.
+  // The notices known by the Data Date are the same for every event: select
+  // them once. Each event reads only the notices that name it, so group them
+  // once by event id in source order; assessEventNotice then sees exactly the
+  // rows its own event-id filter would keep, in the same order.
+  const asOf = model.dataDateIso ? model.notices.filter(n=>reportingScope(n.actualIssuedAt,model.dataDateIso)==='as_of') : model.notices;
+  const byEvent = new Map<string | null, CanonicalNoticeRecord[]>();
+  for (const notice of asOf) {
+    const group = byEvent.get(notice.eventId);
+    if (group) group.push(notice); else byEvent.set(notice.eventId, [notice]);
+  }
   return model.events.map((event) =>
     assessEventNotice(
       eventFromEventSource(event, model) ? event : { ...event, startIso: null, awarenessIso: null, endIso: null },
-      model.dataDateIso ? model.notices.filter(n=>reportingScope(n.actualIssuedAt,model.dataDateIso)==='as_of') : model.notices,
+      byEvent.get(event.eventId) ?? [],
       model.noticeRequirements,
     ),
   );
