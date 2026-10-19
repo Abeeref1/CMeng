@@ -796,6 +796,44 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   );
   // Source identity patterns do not remove retained claim, notice, event or
   // determination records from analysis. Status and authority stay per-record.
+  // SW-15: delay events come only from event sources. An event/delay register
+  // (event id with an event date or description, and no claim id) gives events; a
+  // notice register row that states an event id gives a notice-stated event. A claim
+  // row is never an event: a claim-cited reference with the same id is merged into
+  // the source event (its links kept), and the event's dates come from the source.
+  const eventSourceTables=tables.filter(t=>has(t,'event id')&&!has(t,'claim id')&&
+    ['event date','event start','event start date','start date','delay start','description','event description','event','title'].some(h=>has(t,h)));
+  const sourceEventIds=new Set<string>();
+  for(const table of eventSourceTables)for(const r of table.rows){
+    const eventId=cell(r,'event id');if(!eventId)continue;
+    if(sourceEventIds.has(eventId)){diagnostics.push('DUPLICATE_EVENT_ID_IN_EVENT_SOURCE:'+eventId);continue;}
+    sourceEventIds.add(eventId);
+    const noticeStated=['notice date','notice reference','letter reference','letter no','issued date'].some(h=>has(table,h));
+    const cited=events.filter(event=>event.eventId===eventId);
+    const responsibilityText=cell(r,'responsibility','cause');
+    const responsibility=/employer|client|owner/i.test(responsibilityText)?'employer'
+      :/contractor/i.test(responsibilityText)?'contractor'
+      :/concurrent|shared/i.test(responsibilityText)?'concurrent'
+      :/neutral|authority|weather|force majeure/i.test(responsibilityText)?'neutral'
+      :'unknown';
+    const clause=cell(r,'clause');
+    const sourceEvent:CanonicalDelayEvent={eventId,title:cell(r,'description','event description','event','title')||cited[0]?.title||eventId,category:'other',
+      identitySource:noticeStated?'notice':'event_register',
+      startIso:dateValue(cell(r,'event date','event start','event start date','start date','delay start','from date')),
+      awarenessIso:dateValue(cell(r,'awareness date')),
+      endIso:dateValue(cell(r,'event end','event end date','end date','delay end','to date')),
+      responsibility:responsibility==='unknown'&&cited[0]?cited[0].responsibility:responsibility,
+      responsibilityState:responsibility!=='unknown'?'candidate':cited[0]?.responsibilityState??'missing',
+      describedImpactDays:cited[0]?.describedImpactDays??null,describedImpactState:cited[0]?.describedImpactState??'missing',
+      relatedActivityIds:uniq(cited.flatMap(event=>event.relatedActivityIds)).sort(),
+      ...(cited.find(event=>event.activityCorrespondence)?{activityCorrespondence:cited.find(event=>event.activityCorrespondence)!.activityCorrespondence}:{}),
+      relatedWindowReferences:uniq(cited.flatMap(event=>event.relatedWindowReferences??[])),
+      relatedClauseIdentifiers:uniq([...(clause?[clause]:[]),...cited.flatMap(event=>event.relatedClauseIdentifiers)]),
+      evidenceRefs:[{sourceType:noticeStated?'notice':'other',sourceId:r.receipt.documentId,locator:r.receipt.locator},...cited.flatMap(event=>event.evidenceRefs)],
+      diagnostics:[noticeStated?'EVENT_FROM_NOTICE_STATING_EVENT':'EVENT_FROM_EVENT_REGISTER','SOURCE_REGISTER_EVENT_NOT_PROVEN_CAUSATION',...(cited.length?['CLAIM_CITED_EVENT_REFERENCES_MERGED:'+cited.length]:[])]};
+    for(let index=events.length-1;index>=0;index-=1)if(events[index]!.eventId===eventId)events.splice(index,1);
+    events.push(sourceEvent);
+  }
   const trustedClaims=claims;
   const trustedEvents=events;
   const trustedNotices=notices;
@@ -946,7 +984,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const conflict=reported.state==='determined'&&!trustedDeterminations.some(d=>d.claimId===claim.claimId);
     claim.sourceRegister={...reported,evidenceRefs:[...claim.evidenceRefs],diagnostics:[...new Set([...reported.diagnostics,...claim.diagnostics,...(conflict?['REGISTER_DETERMINED_STATUS_NOT_IN_DETERMINATION_REGISTER']:[])])]};
   }
-  const delayClaims:DelayClaimsModel|null=claims.length?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
+  const delayClaims:DelayClaimsModel|null=claims.length||sourceEventIds.size?{dataDateIso,projectId:state.projectId,evidenceRevisionId:'canonical-evidence:'+createHash('sha256').update(JSON.stringify(tables.filter(t=>has(t,'claim id')||eventSourceTables.includes(t)).map(t=>[t.document.documentId,t.document.sourceHashSha256,t.document.basisState]))).digest('hex'),events:trustedEvents,claims:trustedClaims,notices:trustedNotices,noticeRequirements:contractNoticeRules(state),diagnostics:['EVENT_IDENTITIES_ESTABLISHED_FROM_SOURCE_REGISTER_CAUSATION_REMAINS_UNPROVEN',...diagnostics],integrity:claimIntegrity}:null;
   const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
   cache.set(state,{version:state.version,value:result});return result;
 }

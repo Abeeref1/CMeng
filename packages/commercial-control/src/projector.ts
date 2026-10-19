@@ -317,7 +317,7 @@ function commercialClaimsNotices(
     undatedNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
     dimensionalEvidenceGaps:lifecycleQuarantined
       ? {requirementMissing:null,eventDateMissing:null,noticeDateMissing:null}
-      : {requirementMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:assessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
+      : {requirementMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
     evidenceRevisionId:
       lifecycle
         ?.evidenceRevisionId ??
