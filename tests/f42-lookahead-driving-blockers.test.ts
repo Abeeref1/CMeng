@@ -5,6 +5,9 @@ import {resolve} from 'node:path';
 import type {CanonicalCalendar, CanonicalScheduleActivity, CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
+import * as vm from 'node:vm';
+import {createSourceFile, ScriptTarget, isFunctionDeclaration} from 'typescript';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 
 // F42 (D-054, D-055, D-119, D-232): the look-ahead names, for each driving
 // activity, the incomplete predecessors, missing readiness items and linked
@@ -37,6 +40,28 @@ function model(): CanonicalScheduleModel {
     relationships: NET.map(([relationshipId, p, s]) => ({relationshipId, predecessorActivityId: p, successorActivityId: s, type: 'FS', lagHours: 0, external: false, sourceRefs: [], diagnostics: []}))} as unknown as CanonicalScheduleModel;
 }
 const rec = (recordId: string, documentType: string, dueIso: string, note: string) => ({recordId, documentType, state: 'blocked' as const, dueIso, note, owner: 'Site manager', sourceRefs: [documentType + ':' + recordId]});
+
+// Same harness as tests/batch-c-overdue-start-acceptance.test.ts: the real
+// renderLookAheadVisual from the assembled browser script.
+function renderLookAhead(p: ReturnType<typeof buildLookAheadProjection>): string {
+  const script = cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const start = script.indexOf('function renderLookAheadVisual(data){');
+  const end = script.indexOf('function renderMonteCarloRiskVisual(data){', start);
+  assert.ok(start >= 0 && end > start);
+  const source = createSourceFile('browser.js', script, ScriptTarget.Latest, true);
+  const required = ['sourcePopulationControl', 'responseListPopulation', 'indexResponsePopulations', 'knownScreenCount', 'screenCountText'];
+  const helpers = source.statements.filter(isFunctionDeclaration).filter(n => n.name && required.includes(n.name.text));
+  assert.equal(helpers.length, required.length);
+  const text = (value: unknown) => String(value ?? '');
+  const scope: Record<string, unknown> = {
+    currentModuleResult: null, responsePopulationRoot: null, responsePopulationIndex: new WeakMap(), responseRowPopulationIndex: new WeakMap(),
+    p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, planningShortDate: text, humanizeKey: text, planningStateLabel: text,
+    planningKpis: () => '', experienceDisclosure: () => '', moduleBarList: () => '', planningLookAheadTimeline: () => '',
+    planningStatusBand: () => '', planningLookAheadBlockers: () => '',
+    managementPanel: (title: string, description: string, content: string) => '<section><h4>' + title + '</h4>' + description + content + '</section>',
+  };
+  return vm.runInNewContext(helpers.map(n => n.getText(source)).join('\n') + '\n' + script.slice(start, end) + ';renderLookAheadVisual(p);', scope) as string;
+}
 
 test('F42: each driving activity in the look-ahead names its incomplete predecessors, missing readiness items and open linked records with due dates', () => {
   const m = model();
@@ -73,4 +98,14 @@ test('F42: each driving activity in the look-ahead names its incomplete predeces
 
   const noPath = buildLookAheadProjection(m, {generatedAt: DD, producerVersion: 'f42'});
   assert.equal(noPath.drivingBlockers, undefined, 'no driving path: blockers unknown, not an empty "none" list');
+
+  // The look-ahead page names them.
+  const html = renderLookAhead(p);
+  assert.match(html, /<h4>Driving-activity blockers<\/h4>/);
+  assert.match(html, /<b>B<\/b>/);
+  assert.match(html, /PTW-12 \(permit, due 2027-01-05\)/);
+  assert.match(html, /NCR-0259 \(ncr, due 2027-01-06\)/);
+  assert.match(html, /RFI-0680 \(rfi, due 2027-01-07\)/);
+  assert.match(html, /<td>A Activity A<\/td>/, 'incomplete predecessor named');
+  assert.doesNotMatch(renderLookAhead(noPath), /Driving-activity blockers/);
 });

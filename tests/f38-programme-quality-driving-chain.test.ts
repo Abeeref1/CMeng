@@ -6,6 +6,22 @@ import type {CanonicalCalendar, CanonicalScheduleActivity, CanonicalScheduleMode
 import {workingHoursBetween} from '../packages/schedule-cpm/src';
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {pmcScheduleRules, PROGRAMME_QUALITY_FORMULAS} from '../packages/runtime-api/src/pmc-schedule-rules';
+import * as vm from 'node:vm';
+import {createSourceFile, ScriptTarget, isFunctionDeclaration} from 'typescript';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+
+// The real renderProgrammeQuality from the assembled browser script.
+function renderQuality(q: unknown): string {
+  const script = cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const source = createSourceFile('browser.js', script, ScriptTarget.Latest, true);
+  const fn = source.statements.filter(isFunctionDeclaration).find(n => n.name?.text === 'renderProgrammeQuality')!;
+  assert.ok(fn, 'renderProgrammeQuality present');
+  const text = (value: unknown) => String(value ?? '');
+  return vm.runInNewContext(fn.getText(source) + ';renderProgrammeQuality(q);', {
+    q, escapeHtml: text, fmt: text, planningShortDate: text, experienceRecordCount: (rows: unknown[]) => String(rows.length),
+    planningKpis: (rows: unknown[][]) => rows.map(r => '<kpi>' + r[0] + '=' + r[1] + '</kpi>').join(''), basisTable: () => '',
+  }) as string;
+}
 
 // F38 (D-006, D-008, D-032, D-165, D-234): driving chain to completion from the
 // independent CPM, DCMA-type checks (missing logic, resources, missed tasks
@@ -62,7 +78,14 @@ test('F38: driving chain to completion and independent CPLI come from the indepe
   assert.equal(q.independentCpli.value, (48 + 16) / 48);
   assert.equal(q.independentCpli.formula, PROGRAMME_QUALITY_FORMULAS.independent_cpli);
 
+  const html = renderQuality(q);
+  assert.match(html, /<kpi>Independent CPLI=1\.3333333333333333<\/kpi>/);
+  assert.match(html, /Driving chain to completion \(independent CPM\): 3 activities/);
+  assert.match(html, /Independent CPLI = \(working hours from the Data Date/);
+  assert.match(html, /missed_tasks: count of detail tasks due by the Data Date/);
+
   const none = pmcScheduleRules(model, [], '2027-01-13');
+  assert.match(renderQuality(none), /Driving chain to completion \(independent CPM\): not established/);
   assert.equal(none.drivingChain.state, 'not_established');
   assert.equal(none.independentCpli.value, null, 'no independent CPM: CPLI unknown, never invented');
 });
