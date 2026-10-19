@@ -2318,7 +2318,7 @@ async function route(
       invalidateProject(projectId);
       const updated=runtimeProjects.get(projectId)!;
       json(res,200,{projectId,projectVersion:updated.version,completedActionId:action.id,kind,value:heldMissingValue(updated,kind),
-        sourceRefs:kind==='contract-value'?updated.controls.contractValue?.sourceRefs??[]:updated.controls.contractTimeBasis?.sourceRefs??[]});
+        sourceRefs:kind==='contract-value'?updated.controls.contractValue?.sourceRefs??[]:kind==='commencement-date'?updated.controls.commencementDate?.sourceRefs??[]:updated.controls.contractTimeBasis?.sourceRefs??[]});
     }catch(e){json(res,409,{error:'missing_value_not_saved',message:e instanceof Error?e.message:'The value could not be saved.'});}return;}
     // T09: one validated route for a user-assigned owner and due date (or clear).
     if(req.method==='POST'&&actionsMatch[2]==='assign'){try{

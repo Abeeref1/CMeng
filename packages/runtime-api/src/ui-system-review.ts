@@ -77,6 +77,37 @@ function renderProgrammeCashScenario(scenario){
   '. Existing payments and unpaid certificates remain separately visible; no unsupported amount is converted into zero.</p>'
  )).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
 }
+// F34: the basis of a section's contract date (stated date, or Commencement Date +
+// the stated period) and of its governing date (with the EOT awarded for the
+// section), or the reason the date is unknown.
+function contractDateNote(section){
+ const note=[section.completionBasis||section.completionReason,section.governingBasis&&section.governingBasis!==section.completionReason?section.governingBasis:null].filter(Boolean).join(' ');
+ return note?'<br><small>'+escapeHtml(note)+'</small>':'';
+}
+// F34: one shared block of contract completion dates: the Works and each section,
+// with the contract date and its basis (Commencement Date + the stated period, or
+// the stated date), the awarded EOT and the governing date; an unknown date states
+// why. Owner page: Milestones; the Dashboard is the summary page; other pages link.
+function contractCompletionDatesFigure(data){
+ const facts=data?.projectFacts||{},time=facts.time||{},sections=facts.contractSections||[];
+ const date=value=>value?planningShortDate(value):'not established';
+ return ['Works '+date(time.governingContractCompletionIso?.value),...sections.map(section=>(section.label||('Section '+section.sectionId))+' '+date(section.governingCompletionIso!==undefined?section.governingCompletionIso:(section.extendedCompletionIso||section.contractCompletionIso)))].join(' · ');
+}
+function renderContractCompletionDates(data,pageKey){
+ const facts=data?.projectFacts;if(!facts)return '';
+ const time=facts.time||{},sections=facts.contractSections||[],period=time.completionPeriod||null;
+ if(!sections.length&&!period)return '';
+ const show=value=>value?planningShortDate(value):'Not established';
+ const works='<tr><td><b>The Works</b></td><td>'+escapeHtml(show(time.contractualCompletionIso?.value))+'</td><td>'+escapeHtml(period?.label||period?.reason||time.contractualCompletionIso?.basis||'')+'</td>'+
+  '<td>'+escapeHtml(time.awardedEotDays?.value==null?'Not established':fmt(time.awardedEotDays.value)+' days')+'</td><td>'+escapeHtml(show(time.governingContractCompletionIso?.value))+'<br><small>'+escapeHtml(time.governingContractCompletionIso?.basis||'')+'</small></td></tr>';
+ const rows=sections.map(section=>'<tr><td><b>'+escapeHtml(section.label||('Section '+section.sectionId))+'</b><br><small>Section '+escapeHtml(section.sectionId||'')+'</small></td>'+
+  '<td>'+escapeHtml(show(section.contractCompletionIso))+'</td><td>'+escapeHtml(section.completionBasis||section.completionReason||'')+'</td>'+
+  '<td>'+escapeHtml(section.awardedEotDays==null?'None stated for this section':fmt(section.awardedEotDays)+' days')+'</td>'+
+  '<td>'+escapeHtml(show(section.governingCompletionIso!==undefined?section.governingCompletionIso:(section.extendedCompletionIso||section.contractCompletionIso)))+'<br><small>'+escapeHtml(section.governingBasis||'')+'</small></td></tr>').join('');
+ const html='<section class="planning-panel contract-completion-dates"><div class="planning-panel-head"><div><h4>Contract completion dates</h4><p>The Works and each section keep their own contract date, basis, awarded EOT and governing date. Lateness and delay damages are measured against the governing date. An unknown date states why; it is never assumed.</p></div></div>'+
+  '<div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Scope</th><th>Contract date</th><th>Basis</th><th>Awarded EOT</th><th>Governing date</th></tr></thead><tbody>'+works+rows+'</tbody></table></div></div></section>';
+ return ownedBlock('contract-completion-dates',html,contractCompletionDatesFigure(data),pageKey);
+}
 function renderContractSections(data){
  const facts=data?.projectFacts;
  const sections=facts?.contractSections||[];
@@ -90,7 +121,7 @@ function renderContractSections(data){
   '<tr><td><b>'+escapeHtml(section.label||('Section '+section.sectionId))+'</b>'+
    ((section.completionDependsOnSectionIds||[]).length?'<br><small>Completion depends on section '+escapeHtml(section.completionDependsOnSectionIds.join(', '))+'</small>':'')+'</td>'+
   '<td>'+escapeHtml(section.milestoneId||'No matching source completion milestone')+'</td>'+
-  '<td>'+escapeHtml(due?planningShortDate(due):'Not in source')+'</td>'+
+  '<td>'+escapeHtml(due?planningShortDate(due):'Not in source')+contractDateNote(section)+'</td>'+
   '<td>'+escapeHtml(finish?planningShortDate(finish):'Not in source')+'</td>'+
   '<td>'+escapeHtml(section.rate===null?'Not in source':fmt(section.rate)+' '+(section.currency||'')+' / '+(section.rateBasis==='fixed_amount_per_week'?'week':'day'))+'</td>'+
   '<td>'+escapeHtml(days===null?'Not calculated':fmt(days)+' calendar days')+'</td>'+
@@ -118,7 +149,9 @@ function renderRegisterContractQueries(data){
   for(const [name,key] of metrics){
     const fact=row[key],value=fact?.value;
     if(typeof value!=='number'||!Number.isFinite(value)||value<=sum+0.01)continue;
-    exceptions.push({currency:row.currency,name,total:value,current:sum,difference:value-sum,
+    // R12: a certified figure from a net or unlabelled column carries its shared label.
+    const shown=key==='grossCertifiedAmount'&&row.grossCertifiedAmountColumn&&row.grossCertifiedAmountColumn!=='gross'&&row.grossCertifiedAmountLabel?row.grossCertifiedAmountLabel:name;
+    exceptions.push({currency:row.currency,name:shown,total:value,current:sum,difference:value-sum,
       basis:fact?.basis||'Source population/period basis must be checked'});
   }
  }

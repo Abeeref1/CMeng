@@ -344,7 +344,7 @@ export interface StoredScheduleRevision {
   tabularDateReaderVersion?:string;
   dataDateReadRefresh?:{readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDataDateIso:string|null;dataDateIso:string|null;diagnostics:string[]};
   calendarReaderVersion?:string;
-  calendarReadRefresh?:{repairedRelationshipCount?:number;readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDiagnostics:string[];diagnostics:string[];resolvedCalendarCount:number;totalCalendarCount:number};
+  calendarReadRefresh?:{repairedRelationshipCount?:number;linkedActivityCalendarCount?:number;readerVersion:string;sourceHashSha256:string;refreshedAt:string;previousDiagnostics:string[];diagnostics:string[];resolvedCalendarCount:number;totalCalendarCount:number};
   roleConfirmed?:boolean;
   approvalReference?:string;
   revision: ScheduleRevision;
@@ -413,6 +413,9 @@ export interface DerivedControlEvidence {
 }
 
 export interface ProjectControlState {
+  /** F34: the Commencement Date confirmed by the user in Actions required (additive).
+   * Used only while no source states it, or the sources disagree. */
+  commencementDate?: {dateIso:string;confirmedAt:string;sourceRefs:string[]};
   /** T09: user-assigned action owners and due dates, keyed by action identity (additive). */
   actionAssignments?: Record<string, import('./action-assignments').ActionAssignment>;
   actionAssignmentHistory?: import('./action-assignments').ActionAssignment[];

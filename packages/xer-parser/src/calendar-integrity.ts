@@ -65,46 +65,94 @@ function findCycles(parentById: Map<string, string | null>): string[][] {
 
 export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity {
   const rows = parsedRows(result, "CALENDAR");
-  const ids = new Set(
-    rows.map((row) => field(row, "clndr_id")).filter((id): id is string => !!id),
-  );
-  const missingBase = new Set<string>();
-  const parentById = new Map<string, string | null>();
-  const calendars: XerCalendarAssessment[] = [];
+  const entries: P6CalendarSourceEntry[] = [];
 
   for (const row of rows) {
     const calendarId = field(row, "clndr_id");
     if (!calendarId) continue;
     const baseCalendarId = field(row, "base_clndr_id");
-    parentById.set(calendarId, baseCalendarId);
-
-    const diagnostics: string[] = [];
     const conversionDiagnostics:string[]=[];
     // Read explicit source aliases without treating a calendar name as a shift.
     // Conflicting declarations remain unresolved rather than choosing silently.
-    const conversionHours=(name:string,alias:string):number|null=>{
-      const declarations=[name,alias].map(key=>({key,raw:field(row,key)})).filter(item=>item.raw!==null);
-      if(!declarations.length)return null;
-      const values=declarations.map(item=>Number(item.raw));
-      if(values.some(value=>!Number.isFinite(value)||value<=0)){
-        conversionDiagnostics.push(`CALENDAR_CONVERSION_INVALID:${name}`);
-        return null;
-      }
-      if(values.some(value=>Math.abs(value-values[0]!)>0.001)){
-        conversionDiagnostics.push(`CALENDAR_CONVERSION_CONFLICT:${name}:${alias}`);
-        return null;
-      }
-      return values[0]!;
-    };
+    const conversionHours=(name:string,alias:string):number|null=>
+      statedConversionHours([name,alias].map(key=>({key,raw:field(row,key)})),conversionDiagnostics);
     const dayHours=conversionHours('day_hr_cnt','hours_per_day');
     const weekHours=conversionHours('week_hr_cnt','hours_per_week');
+    const raw = field(row, "clndr_data");
+    entries.push({
+      calendarId,
+      baseCalendarId,
+      name: field(row, "clndr_name"),
+      definitionPresent: !!raw,
+      data: raw ? parseP6CalendarData(raw) : null,
+      conversionDayHours: dayHours,
+      conversionWeekHours: weekHours,
+      conversionDiagnostics,
+    });
+  }
+  return assessP6Calendars(entries);
+}
+
+/** Stated P6 hours-per-period conversion factor (XER day_hr_cnt with its
+ * hours_per_day alias, P6 XML HoursPerDay; the same for week hours). An
+ * invalid or conflicting declaration stays unresolved (null) with its
+ * diagnostic; nothing is chosen silently. */
+export function statedConversionHours(
+  declarations: ReadonlyArray<{ key: string; raw: string | null }>,
+  conversionDiagnostics: string[],
+): number | null {
+  const name = declarations[0]?.key ?? "";
+  const alias = declarations[1]?.key ?? "";
+  const stated = declarations.filter((item) => item.raw !== null);
+  if (!stated.length) return null;
+  const values = stated.map((item) => Number(item.raw));
+  if (values.some((value) => !Number.isFinite(value) || value <= 0)) {
+    conversionDiagnostics.push(`CALENDAR_CONVERSION_INVALID:${name}`);
+    return null;
+  }
+  if (values.some((value) => Math.abs(value - values[0]!) > 0.001)) {
+    conversionDiagnostics.push(`CALENDAR_CONVERSION_CONFLICT:${name}:${alias}`);
+    return null;
+  }
+  return values[0]!;
+}
+
+/** One P6 calendar as its source states it, in any P6 format (XER CALENDAR
+ * row, P6 XML Calendar element). */
+export interface P6CalendarSourceEntry {
+  calendarId: string;
+  baseCalendarId: string | null;
+  name: string | null;
+  /** The source states a working-time definition (XER clndr_data; P6 XML StandardWorkWeek or HolidayOrExceptions). */
+  definitionPresent: boolean;
+  data: P6CalendarDataResult | null;
+  conversionDayHours: number | null;
+  conversionWeekHours: number | null;
+  conversionDiagnostics: string[];
+}
+
+/** Shared P6 calendar integrity: base-calendar references and cycles, the
+ * stated working time, and the stated conversion factors checked against it.
+ * One rule for every P6 format. */
+export function assessP6Calendars(entries: readonly P6CalendarSourceEntry[]): XerCalendarIntegrity {
+  const ids = new Set(entries.map((entry) => entry.calendarId));
+  const missingBase = new Set<string>();
+  const parentById = new Map<string, string | null>();
+  const calendars: XerCalendarAssessment[] = [];
+
+  for (const entry of entries) {
+    const { calendarId, baseCalendarId, data } = entry;
+    parentById.set(calendarId, baseCalendarId);
+
+    const diagnostics: string[] = [];
+    const conversionDiagnostics:string[]=[...entry.conversionDiagnostics];
+    const dayHours=entry.conversionDayHours;
+    const weekHours=entry.conversionWeekHours;
     if (baseCalendarId && !ids.has(baseCalendarId)) {
       missingBase.add(baseCalendarId);
       diagnostics.push(`CALENDAR_BASE_MISSING:${baseCalendarId}`);
     }
 
-    const raw = field(row, "clndr_data");
-    const data = raw ? parseP6CalendarData(raw) : null;
     if (data?.status === "invalid") {
       diagnostics.push(...data.diagnostics);
     }
@@ -146,14 +194,14 @@ export function verifyXerCalendars(result: XerParseResult): XerCalendarIntegrity
       }
     }
 
-    if (!raw && !baseCalendarId) {
+    if (!entry.definitionPresent && !baseCalendarId) {
       diagnostics.push("CALENDAR_DATA_AND_BASE_BOTH_MISSING");
     }
 
     calendars.push({
       calendarId,
       baseCalendarId,
-      name: field(row, "clndr_name"),
+      name: entry.name,
       data,
       status: diagnostics.length === 0 ? "verified" : "unresolved",
       diagnostics,

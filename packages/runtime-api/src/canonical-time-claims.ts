@@ -23,6 +23,17 @@ export interface DeterminationRecord {
   state: 'source_immutable' | 'candidate' | 'conflicted'; authority: string; sourceLetter: string | null;
   supersedes: string | null; incorporatedInAmendment: string | null; receipt: SourceReceipt;
   correspondenceReview?: {identityFound:boolean;awardTextDays:number|null;awardMatchesRegister:boolean|null;basis:string};
+  /** F34: the contract Section the award is stated for (null: the Works). */
+  section?: string | null;
+}
+/** F34: awarded EOT stated for one contract Section, effective at the Data Date. */
+export interface SectionalDeterminationAward {sectionId:string;awardedDays:number|null;determinationIds:string[];sourceRefs:string[]}
+/** F34: the scope a determination register states for an award. Blank or the
+ * Works is the Works; "Section 1" / "1" is that Section. */
+export function determinationSection(text:string):string|null{
+  const value=text.trim();
+  if(!value||/^(?:-|n\/?a|none|(?:the\s+)?(?:whole\s+(?:of\s+the\s+)?|entire\s+)?works|all(?:\s+sections)?|(?:whole\s+)?project)$/i.test(value))return null;
+  return /^(?:section\s*)?([0-9]+[A-Za-z]?)\b/i.exec(value)?.[1]??value;
 }
 export interface AmendmentTimeRecord {
   documentId: string; effectiveDate: string | null; completionIso: string; incorporatedEotDays: number | null;
@@ -34,6 +45,8 @@ export interface CanonicalTimeClaims {
   determinations: DeterminationRecord[]; amendments: AmendmentTimeRecord[];
   registerDeterminationDays: number | null; effectiveDeterminationDays: number | null;
   futureDeterminationCount: number; diagnostics: string[];
+  /** F34: awards stated for a contract Section; they extend that Section only. */
+  sectionalDeterminations?: SectionalDeterminationAward[];
 }
 const cache = new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalTimeClaims}>();
 /** One deterministic association pass per source event/project version. A
@@ -757,7 +770,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const sourceDetermination=determinationRegister&&awardedDays!==null&&determinationDate!==null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState);
     const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays,determinationDate,
       state:sourceDetermination?'source_immutable':'candidate',
-      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'}};
+      authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'},
+      section:determinationSection(cell(r,'section','contract section','section id','section no','section number'))};
     if(!record.determinationId)continue;
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
@@ -939,10 +953,21 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const superseded = new Set(accepted.map(d => d.supersedes).filter(Boolean));
     return accepted.filter(d => !superseded.has(d.determinationId));
   }
-  const eligible = population(null);
+  // F34: an award stated for a contract Section extends that Section only, never the Works.
+  const worksAward = (d: DeterminationRecord) => !d.section;
+  const sectionalDeterminations: SectionalDeterminationAward[] = [...new Set(trustedDeterminations.filter(d => d.section).map(d => d.section!))].map(sectionId => {
+    const all = population(null).filter(d => d.section === sectionId);
+    const atDate = dataDateIso === null ? [] : population(dataDateIso).filter(d => d.section === sectionId);
+    const conflicted = trustedDeterminations.some(d => d.section === sectionId && d.state === 'conflicted');
+    const awardedDays = conflicted || dataDateIso === null || all.some(d => d.determinationDate === null) ? null :
+      atDate.length ? sumKnown(atDate.map(d => d.awardedDays)) : all.length ? 0 : null;
+    return {sectionId, awardedDays, determinationIds: atDate.map(d => d.determinationId), sourceRefs: atDate.map(d => 'evidence-document:' + d.receipt.documentId + ':' + d.receipt.locator)};
+  });
+  if (sectionalDeterminations.length) diagnostics.push('SECTIONAL_DETERMINATIONS_NOT_APPLIED_TO_WORKS:' + sectionalDeterminations.map(row => row.sectionId).join(','));
+  const eligible = population(null).filter(worksAward);
   const registerDeterminationDays = determinations.some(d => d.state === 'conflicted') ? null :
     sumKnown(eligible.map(d => d.awardedDays));
-  const effective = dataDateIso === null ? [] : population(dataDateIso);
+  const effective = dataDateIso === null ? [] : population(dataDateIso).filter(worksAward);
   const asOfConflict = trustedDeterminations.some(d => d.state === 'conflicted' &&
     (d.determinationDate === null || dataDateIso !== null && d.determinationDate <= dataDateIso));
   const effectiveDeterminationDays = asOfConflict || dataDateIso === null ||
@@ -1075,7 +1100,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     ...(sourceRecordQueries.length?{sourceRecordQueries}:{})}:null;
   // T04: a saved completion decision applies to the one shared time position.
   contractTimeBasis=applyCompletionDecision(state,contractTimeBasis) as ContractTimeBasis|null;
-  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics};
+  const result:CanonicalTimeClaims={producerVersion:'canonical-time-claims-v1',dataDateIso,delayClaims,contractTimeBasis,determinations:trustedDeterminations,amendments,registerDeterminationDays,effectiveDeterminationDays,futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,diagnostics,
+    ...(sectionalDeterminations.length?{sectionalDeterminations}:{})};
   cache.set(state,{version:state.version,value:result});return result;
 }
 /** A reporting view may reuse source extraction only when every extraction
