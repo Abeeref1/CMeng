@@ -9,7 +9,7 @@ import {sourceTables,controlIssueField} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
-import {noticeReviewBasis} from './notice-review';
+import {noticeReviewBasis,contractFactDecisionItemsForState} from './notice-review';
 import {operationalControlsAsOf} from './operational-reporting';
 import {commercialSourceReadConflicts} from './evidence-control-adapters';
 import {sourceAnalyticalCandidateIds} from './operational-reporting';
@@ -278,6 +278,23 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         ...group.map(c=>({value:'use_source:'+c.documentId,label:'Use the value read from '+fileOf(c.documentId)})),
         ...(first.numericField?[{value:'enter_value',label:'Enter my own '+first.numericField}]:[]),...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
       ...(first.fingerprint?{reviewFingerprint:first.fingerprint}:{}),reviewSourceRefs:[...new Set(group.flatMap(c=>[...c.sourceRefs,...c.againstSourceRefs]))]});
+  }
+  // T04: contract terms whose read values disagree, or whose reading is unsure,
+  // are decided here with both values, their sources and the effect: pick a
+  // read value, enter your own, change or undo. One shared reader applies it.
+  for(const item of contractFactDecisionItemsForState(state)){
+    const saved=item.decision;
+    const describe=(c:typeof item.candidates[number])=>c.value+' '+c.unit+' from '+c.documentIds.map(fileOf).join('; ')+(c.adopted?' (adopted)':' (read from source; not formally adopted)');
+    const savedText=saved?(saved.choice==='enter_value'?'your own value '+saved.enteredValue+' '+item.enterUnit:'the read value '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.value??'')+' '+(item.candidates.find(c=>'use:'+c.valueKey===saved.choice)?.unit??'')):'';
+    actions.push({id:'matter:'+item.key,category:saved?'information':'confirmation',title:'Choose the contract '+item.label,owner:'Contracts Manager',recordCount:item.candidates.length,
+      reason:(item.reason==='sources_disagree'?'The contract sources state different values for the '+item.label+(item.dataDateIso?' in force at '+item.dataDateIso:'')+': '+item.candidates.map(describe).join(' versus ')+'.':'The '+item.label+' is read as '+item.candidates.map(describe).join(' versus ')+', but the amendment applicability is unresolved.')+
+        ' Effect: until you decide, the '+item.label+' stays unresolved on every page (commercial, notices, delay damages, Ask and downloads).',
+      evidenceSummary:[...item.candidates.map(c=>'Read value: '+describe(c)),...(saved?['Saved decision: '+savedText+'. Not formally adopted.']:[])],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Pick one of the read values'+(item.enterUnit?' or enter your own ('+item.enterUnit+')':'')+'. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
+      target:{type:'inline',kind:'review-contract-fact',label:'Choose value',reviewChoice:saved?.choice??null,reviewOptions:[
+        ...item.candidates.map(c=>({value:'use:'+c.valueKey,label:'Use '+describe(c)})),
+        ...(item.enterUnit?[{value:'enter_value',label:'Enter my own value ('+item.enterUnit+')'}]:[]),...(saved?[{value:'undo',label:'Undo my decision'}]:[])]},
+      reviewFingerprint:item.fingerprint,reviewSourceRefs:[...new Set(item.candidates.flatMap(c=>c.sourceRefs))]});
   }
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;

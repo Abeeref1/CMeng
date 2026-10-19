@@ -1,6 +1,8 @@
 import {createHash} from 'node:crypto';
 import {contractTermVersions,type ContractTermVersion} from './contract-term-versions';
 import type {ProjectRuntimeState} from './project-state-types';
+import {applyContractFactDecisions,contractFactDecisionItems} from './contract-fact-decisions';
+import {projectDataDate} from './canonical-time-claims';
 
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof readBasis>}>();
@@ -45,6 +47,13 @@ export function noticeReviewInput(state:ProjectRuntimeState,input:{choice:string
 /** A reporting selection never edits the extracted terms or extends a source
  * interval. Unselected time intervals remain unknown, including any gap. */
 export function reportingContractTermVersions(state:ProjectRuntimeState):ContractTermVersion[]{
+ return applyContractFactDecisions(state,noticeReviewedTermVersions(state),projectDataDate(state));
+}
+/** T04: the conflicts and unsure readings offered in the decision place (before any saved decision). */
+export function contractFactDecisionItemsForState(state:ProjectRuntimeState){
+ return contractFactDecisionItems(state,noticeReviewedTermVersions(state),projectDataDate(state));
+}
+function noticeReviewedTermVersions(state:ProjectRuntimeState):ContractTermVersion[]{
  const basis=noticeReviewBasis(state),decision=basis.decision;
  if(!decision)return basis.allSourceTerms;
  if(decision.choice==='refer_contracts')return basis.allSourceTerms.map(term=>term.term==='noticePeriodDays'?{...term,applicability:'unresolved' as const,reviewReference:decision.reference!}:term);

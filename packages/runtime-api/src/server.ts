@@ -2109,10 +2109,10 @@ async function route(
       if(input.expectedVersion!==state.version)throw new Error('Project records changed. Refresh this decision before confirming.');
       const reviewWorkflow=projectActionRegisterForState(state).workflow;
       const action=[...reviewWorkflow.actions,...reviewWorkflow.information].find(a=>a.id===input.actionId);
-      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates','review-document-classification','review-milestones','review-locations','review-handover-sources','review-programme-tasks','review-commercial-record'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
+      if(!action||!['review-notice','review-risk','review-procurement-date','review-risk-snapshot','review-eot-overlap','review-contract-value','review-hse-rates','review-document-classification','review-milestones','review-locations','review-handover-sources','review-programme-tasks','review-commercial-record','review-contract-fact'].includes(action.target.kind??'')||!action.reviewFingerprint||action.reviewFingerprint!==input.sourceFingerprint)
         throw new Error('The supporting records or review request changed. Refresh Project Review.');
       const keys:Record<string,string>={'review-notice':'notice-term-versions','review-procurement-date':'procurement-date-basis','review-risk':'risk-rating-rule','review-risk-snapshot':'risk-status-snapshot','review-eot-overlap':'eot-overlap','review-contract-value':'contract-value','review-hse-rates':'hse-rate-basis','review-milestones':'milestone-selection','review-locations':'location-grouping','review-handover-sources':'handover-source-basis'};
-      const key=['review-programme-tasks','review-commercial-record'].includes(action.target.kind!)?action.id.replace(/^matter:/,''):keys[action.target.kind!]!;
+      const key=['review-programme-tasks','review-commercial-record','review-contract-fact'].includes(action.target.kind!)?action.id.replace(/^matter:/,''):keys[action.target.kind!]!;
       const choice=String(input.choice??'');
       const allowed=action.target.reviewOptions?.map(option=>option.value)??[];
       if(!allowed.includes(choice))throw new Error('Select one of the available decisions.');
@@ -2158,6 +2158,16 @@ async function route(
       const milestoneReview=key==='milestone-selection'?(await import('./milestone-review')).milestoneReviewInput(state,{...input,choice}):{};
       const hseReview=key==='hse-rate-basis'?(await import('./hse-report-evidence')).hseRateDecisionInput({...input,choice}):{};
       const sourceRefs=[...new Set([...(action.reviewSourceRefs??[]),...(action.findings??[]).flatMap(f=>f.sourceRefs)])];
+      if(action.target.kind==='review-contract-fact'){
+        // T04 contract term decision: pick, type own, change or undo (one shared reader applies it).
+        const {contractFactDecisionItemsForState}=await import('./notice-review');
+        const {contractFactDecisionPatch}=await import('./contract-fact-decisions');
+        const item=contractFactDecisionItemsForState(state).find(i=>i.key===key&&i.fingerprint===input.sourceFingerprint);
+        if(!item)throw new Error('The supporting records or review request changed. Refresh Project Review.');
+        runtimeProjects.updateControls(projectId,contractFactDecisionPatch(state,item,{...input,choice},sourceRefs));
+        invalidateProject(projectId);
+        json(res,200,{projectId,projectVersion:runtimeProjects.get(projectId)?.version,completedActionId:action.id,choice});return;
+      }
       if(action.target.kind==='review-commercial-record'){
         // T04 commercial record decision: pick, type own, change or undo.
         const {rebuildDerivedControls}=await import('./evidence-control-adapters');

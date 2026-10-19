@@ -2,7 +2,7 @@ import {numberValue,registerDate} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
 export type ContractTermKey='ldRate'|'ldCap'|'retentionPercent'|'retentionCapPercent'|'paymentPeriodDays'|'noticePeriodDays'|'performanceSecurity'|'advanceSecurity';
-export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string;}
+export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;decisionReference?:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string;}
 const labels:Array<[ContractTermKey,RegExp]>=[
  ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|LD)|(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
  ['retentionCapPercent',/(?:limit of retention(?: money)?|retention\s*(?:cap|maximum|limit))/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)?/i],
@@ -65,7 +65,9 @@ export function termAtEvent(versions:readonly ContractTermVersion[],term:Contrac
  // When an adopted version exists for this term, unadopted versions are kept
  // only as named source conflicts; otherwise they are used and labelled.
  const termVersions=versions.filter(v=>v.term===term);
- const adoptedVersions=termVersions.filter(v=>!v.sourceAnalyticalUse);
+ // A user decision from the decision place governs its interval; it keeps its
+ // 'not formally adopted' label (sourceAnalyticalUse) and is never shown as adopted.
+ const adoptedVersions=termVersions.filter(v=>!v.sourceAnalyticalUse||v.decisionReference);
  const all=adoptedVersions.length?adoptedVersions:termVersions;const date=registerDate(eventDate??'');
  const applicable=all.filter(v=>date&&(!v.effectiveFromIso||v.effectiveFromIso<=date)&&(!v.effectiveToIso||v.effectiveToIso>date));
  const unresolved=all.some(v=>v.applicability==='unresolved');const distinct=new Set(applicable.map(v=>v.value+'|'+v.unit));
@@ -74,7 +76,7 @@ export function termAtEvent(versions:readonly ContractTermVersion[],term:Contrac
  const sourceConflicts=adoptedVersions.length?[...new Set(termVersions.filter(v=>v.sourceAnalyticalUse&&!applicable.some(a=>a.value===v.value&&a.unit===v.unit))
   .filter(v=>date&&(!v.effectiveFromIso||v.effectiveFromIso<=date))
   .map(v=>'UNADOPTED_SOURCE_CONTRACT_TERM_DIFFERS:'+term+':'+v.value+' '+v.unit+':'+v.documentId))]:[];
- return {...(unadoptedUsed?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{}),
+ return {...(unadoptedUsed?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:applicable.find(v=>v.sourceAnalyticalUse)?.sourceAnalyticalNote??CONTRACT_SOURCE_ANALYTICAL_NOTE}:{}),
   ...(sourceConflicts.length?{sourceConflicts,sourceConflictNote:'An unadopted contract source states a different value; the adopted value is used until the source decision is made.'}:{}),
   state:established?'established' as const:'unresolved' as const,value:established?applicable[0]!.value:null,unit:established?applicable[0]!.unit:null,reason:!date?'Event date is unresolved.':unresolved?'Amendment applicability is unresolved.':distinct.size>1?'Conflicting applicable contract values.':!distinct.size?'No applicable labelled contract value was recognised.':null,versions:applicable,sourceRefs:[...new Set(applicable.flatMap(v=>v.sourceRefs))]};
 }
