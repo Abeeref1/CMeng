@@ -38,7 +38,7 @@ for(const [authority,label] of [
   const visible=visibleWithoutOpeningDetails(html);
   assert.match(visible,/Float screening basis:/);
   assert.ok(visible.includes(label));
-  assert.match(visible,/Critical = TF ≤ 0 h; Near-Critical screening = TF > 0 h and ≤ 40 h/);
+  assert.match(visible,/Critical = TF ≤ 0 working days; Near-Critical screening = TF > 0 working days and ≤ 40 h \(an hours threshold; working days differ by activity calendar\)/);
   assert.ok(html.indexOf('Float classification coverage:')<html.indexOf('Float screening basis:'));
   assert.ok(html.indexOf('Float screening basis:')<html.indexOf('Work packages closest to critical'));
   assert.equal((html.match(/Float screening basis:/g)||[]).length,1,'one canonical basis, not duplicate disclosures');
