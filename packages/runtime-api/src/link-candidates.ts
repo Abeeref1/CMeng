@@ -8,7 +8,7 @@ import {runtimeProjects} from './project-state';
 import type {ProjectRuntimeState} from './project-state-types';
 import {auditContext} from './audit-context';
 import {sendHttpBody} from './http-response';
-import {assessLinkProposal,compatibleLink,linkHash,reviewLink,shortlistLinks,type LinkCandidate,type LinkEntity,type LinkInput,type LinkKind} from './link-candidate-core';
+import {assessLinkProposal,compatibleLink,explicitReferenceCandidates,linkHash,reviewLink,shortlistLinks,type LinkCandidate,type LinkEntity,type LinkInput,type LinkKind} from './link-candidate-core';
 const object=(properties:Record<string,unknown>)=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 const schema=object({projectId:{type:'string'},requestHash:{type:'string'},sourceId:{type:'string'},matches:{type:'array',maxItems:5,items:object({targetId:{type:'string'},confidence:{type:'number'},reason:{type:'string'},sourceRefs:{type:'array',items:{type:'string'}}})}});
 const date=(v:unknown)=>typeof v==='string'?dateValue(v):null;
@@ -99,6 +99,15 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
     hasMoreTargets:ranked.hasMore,nextTargetOffset:Math.min(targetOffset+ranked.targets.length,ranked.eligibleCount)});return true;}
   if((state.linkCandidateReviews??[]).length>=2000)throw Error('LINK_REVIEW_CAPACITY_REACHED');
   const lock=id+':'+requestHash;if(inflight.has(lock)){send(res,409,{error:'matching_request_in_progress'});return true;}
+  if(!(state.linkCandidateReviews??[]).some(r=>r.requestHash===requestHash)){
+   const explicit=explicitReferenceCandidates({kind,projectId:id,basisVersion:version+1,dataDateIso:cutoff,source,targets:ranked.targets,requestHash});
+   if(explicit.length){
+    state.linkCandidateReviews=[...(state.linkCandidateReviews??[]).map(r=>r.basisVersion===version?{...r,basisVersion:version+1}:r),...explicit];runtimeProjects.touch(state);
+    send(res,200,{projectVersion:state.version,rows:explicit,aiInvoked:false,cacheHit:false,explicitReference:true,eligibleTargetCount:ranked.eligibleCount,targetsOffered:ranked.targets.length,targetOffset,
+     hasMoreTargets:ranked.hasMore,nextTargetOffset:Math.min(targetOffset+ranked.targets.length,ranked.eligibleCount),
+     automaticallyApproved:false,quantitiesChanged:false,amountsChanged:false});return true;
+   }
+  }
   const model=configuredAskModel();if(!model){send(res,503,{error:'provider_not_configured'});return true;}
   inflight.add(lock);
   try{

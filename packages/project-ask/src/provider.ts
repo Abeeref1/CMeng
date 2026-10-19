@@ -1,4 +1,4 @@
-import {reserveModelUsage} from './usage-budget';
+import {callUpperBoundUsd,reserveModelUsage} from './usage-budget';
 import type {AnalysisPlan,AnalysisResult,AskTelemetry,AuthorityDescriptor,NarrativeBlock} from './types';
 import {validateProposedPlan} from './intent';
 import {selectEvidence,retrieveEvidence,type EvidenceItem,type EvidenceRequest,type ReferencePage} from './evidence';
@@ -152,6 +152,8 @@ export function configuredProviderState(env:NodeJS.ProcessEnv=process.env){
  const config=configuredModelSettings(env);
  return {providerConfigured:config!==null,model:config?.model??null,protocol:config?.protocol??null,
   monthlyBudgetUsd:env.CMENG_AI_USAGE_DIR?Number(env.CMENG_AI_MONTHLY_USD??20):null,
+  // Shown before AI is switched on: the most one call can reserve against the cap.
+  estimatedMaxUsdPerCall:config?callUpperBoundUsd(config.model,configuredModelLimits(env).contextTokens,configuredModelLimits(env).outputTokens,env):null,
   configuredIsNotConnectivityProof:true};
 }
 export function configuredAskModel(env:NodeJS.ProcessEnv=process.env){

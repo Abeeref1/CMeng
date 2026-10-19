@@ -47,11 +47,27 @@ export function reviewLink(rows:LinkCandidate[],id:string,version:number,review:
  if(review.decision==='confirm'&&record.kind==='payment_certificate'&&rows.some(r=>r.id!==id&&r.kind===record.kind&&r.sourceId===record.sourceId&&r.state==='confirmed'&&r.basisVersion===version))throw Error('PAYMENT_ALREADY_LINKED');
  return rows.map(r=>({...r,...(r.basisVersion===version?{basisVersion:version+1}:{}),...(r.id===id?{state:review.decision==='confirm'?'confirmed' as const:'rejected' as const,reviewedAt:new Date().toISOString(),reviewedBy:review.reviewer.trim(),reviewActor:review.actor}:{})}));
 }
+/** True when the source text cites the target's own reference as a whole token sequence. */
+export function citesReference(source:LinkEntity,target:LinkEntity):boolean{
+ const ref=norm(target.reference);if(ref.length<3||!/\p{N}/u.test(ref))return false;
+ const text=norm(source.description);
+ const escaped=ref.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ return new RegExp('(^|[^\\p{L}\\p{N}])'+escaped+'($|[^\\p{L}\\p{N}])','u').test(text);
+}
+/** Explicit references are matched before any AI call. Each one is still only a
+ * candidate: a person must confirm it, exactly as for an AI proposal. */
+export function explicitReferenceCandidates(input:LinkInput):LinkCandidate[]{
+ const matches=input.targets.filter(t=>!compatibleLink(input.kind,input.source,t,input.dataDateIso)&&citesReference(input.source,t)&&input.source.sourceRefs.length&&t.sourceRefs.length).slice(0,5);
+ if(!matches.length)return [];
+ return assessLinkProposal(input,{projectId:input.projectId,requestHash:input.requestHash,sourceId:input.source.id,matches:matches.map(t=>({targetId:t.id,confidence:1,
+  reason:'Exact existing reference: the source record cites '+t.reference+'. Rule-based match, not AI-read.',sourceRefs:[input.source.sourceRefs[0]!,t.sourceRefs[0]!]}))});
+}
 export function shortlistLinks(kind:LinkKind,source:LinkEntity,targets:LinkEntity[],cutoff:string|null,limit=20,offset=0){
  const words=(v:string)=>new Set(norm(v).split(/[^\p{L}\p{N}]+/u).filter(x=>x.length>1));
  const sw=words(source.reference+' '+source.description+' '+(source.area??''));
  const eligible=targets.filter(t=>!compatibleLink(kind,source,t,cutoff));
- const ranked=eligible.map(t=>{const ts=words(t.reference+' '+t.description+' '+(t.area??''));let score=0;for(const w of sw)if(ts.has(w))score++;return{entity:t,score};}).sort((a,b)=>b.score-a.score||a.entity.id.localeCompare(b.entity.id));
+ // An exact cited reference always ranks ahead of word overlap, so a window cut never hides it.
+ const ranked=eligible.map(t=>{const ts=words(t.reference+' '+t.description+' '+(t.area??''));let score=0;for(const w of sw)if(ts.has(w))score++;return{entity:t,score,explicit:citesReference(source,t)?1:0};}).sort((a,b)=>b.explicit-a.explicit||b.score-a.score||a.entity.id.localeCompare(b.entity.id));
  const start=Number.isSafeInteger(offset)&&offset>=0?offset:0;
   const size=Number.isSafeInteger(limit)&&limit>0?Math.min(20,limit):20;
   return {eligibleCount:eligible.length,offset:start,hasMore:start+size<eligible.length,targets:ranked.slice(start,start+size).map(r=>r.entity)};

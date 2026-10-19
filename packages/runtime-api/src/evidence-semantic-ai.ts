@@ -130,3 +130,24 @@ export function configuredContractHeadingAiResolver():ContractAiResolver|null{
     return proposal as ContractAiHeadingProposal;
   }};
 }
+
+type AiReadingStep={sourceHashSha256:string;status:string;attempted:boolean};
+const awaitingAi=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','failed']);
+/** R5: when reading is incomplete, say so on screen, with AI set-up state and the
+ * upper-bound cost to finish shown before any paid call is switched on. */
+export function aiReadingCoverage(documents:ReadonlyArray<{sourceHashSha256:string;semanticAiSteps?:ReadonlyArray<AiReadingStep>}>,
+  provider:{providerConfigured:boolean;estimatedMaxUsdPerCall:number|null}){
+  const steps=documents.flatMap(document=>(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256));
+  const awaiting=steps.filter(step=>awaitingAi.has(step.status)).length;
+  const incomplete=awaiting+steps.filter(step=>step.status==='unresolved').length;
+  const perCall=provider.providerConfigured?provider.estimatedMaxUsdPerCall:null;
+  const toFinish=perCall===null?null:Math.round(perCall*awaiting*1e6)/1e6;
+  const statement=incomplete===0?null:
+    'Reading is incomplete: '+incomplete+' source step'+(incomplete===1?' is':'s are')+' not fully read. '+
+    (!provider.providerConfigured?'AI is not set up.':
+      'AI is set up. '+(awaiting===0?'AI has already read the rest; they need review.':
+        (toFinish===null?'The cost cannot be estimated because no price is set for this model.':
+          'Reading the remaining '+awaiting+' with AI would cost at most USD '+toFinish.toFixed(4)+' (upper bound at published rates).')+
+        ' Owner permission is required before any paid call.'));
+  return {incompleteSteps:incomplete,stepsAwaitingAi:awaiting,aiSetUp:provider.providerConfigured,estimatedMaxUsdPerCall:perCall,estimatedMaxUsdToFinish:toFinish,statement};
+}
