@@ -11,7 +11,9 @@ function render(overrides:Record<string,unknown>={}):string {
   assert.ok(start>=0&&end>start);
   // Real list-total and count-text helpers from the built page script (T05).
   const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
-  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+parsed.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText'].includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
+  const countHelpers='let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n'+parsed.statements.filter(isFunctionDeclaration).filter(n=>['indexResponsePopulations','listTotal','knownScreenCount','screenCountText',
+    // T06: real shared float-threshold and float-summary helpers from the same page script.
+    'floatThresholdText','floatBucketDaysNote','floatDistributionSummary'].includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
   const p={rows:[],watchlistRows:[],criticalRows:[],negativeFloatRows:[],managementGroups:[],
     nearCriticalCount:0,floatRiskWatchlistCount:0,zeroFloatCount:0,negativeFloatCount:0,
     floatCoveragePercent:100,classificationCoveragePercent:100,unresolvedActivityCount:0,
