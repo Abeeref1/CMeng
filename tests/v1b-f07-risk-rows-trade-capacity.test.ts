@@ -72,7 +72,7 @@ test('F07 risk rows: the risk register and Delivery risks state the same 110-row
   assert.match(html,/<kpi>Open=66<\/kpi>/,'open count is the register count, not the 25 previewed rows');
   assert.match(html,/<kpi>Closed=20<\/kpi>/);
   assert.ok(html.includes(escapeHtml(register.rowScopeLabel)),'the risk register page shows its subset label');
-  assert.match(deliveryScript,/p\.rowScopeLabel/,'the Delivery page shows its row label');
+  assert.match(deliveryScript(),/p\.rowScopeLabel/,'the Delivery page shows its row label');
 });
 
 // 14 trades: T01-T12 state a weekly capacity, T13 has weekly rows with no
