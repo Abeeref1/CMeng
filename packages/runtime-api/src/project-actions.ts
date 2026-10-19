@@ -11,6 +11,7 @@ import {procurementDateBasis} from './procurement-date-basis';
 import {commercialCanonical} from './commercial-canonical';
 import {noticeReviewBasis} from './notice-review';
 import {operationalControlsAsOf} from './operational-reporting';
+import {commercialSourceReadConflicts} from './evidence-control-adapters';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
@@ -231,9 +232,17 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     reason:pendingPageCount+' source pages still need their complete item list checked.',recordCount:pendingPageCount,
     resolution:{kind:'choose',requiresUserAction:true,instruction:'Compare each source page with its items, correct missing or combined items and save the page review.',completionRule:'Every required source page has a saved completeness decision.'},
     target:{type:'inline',kind:'boq-numeric-review',label:'Review BOQ source pages'}});
+  // T04: a commercial record read from an unadopted source that disagrees with
+  // the adopted record (or with another unadopted source) is decided here, at
+  // the one source-bound document decision, naming the unadopted source.
+  const commercialConflicts=commercialSourceReadConflicts(state);
+  const fileOf=(id:string)=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id;
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     const saved=d.relationshipDecision;
+    const recordConflicts=commercialConflicts.filter(c=>c.documentId===d.documentId).map(c=>(c.against==='adopted'?'Differs from adopted ':'Differs from another unadopted source for ')+
+      c.kind.replace(/([A-Z])/g,' $1').toLowerCase()+' record '+c.recordId+(c.againstDocumentIds.length?' ('+c.againstDocumentIds.map(fileOf).join('; ')+')':'')+
+      '; unadopted source '+d.sourceFilename+(c.against==='adopted'?'. The adopted value is kept until you decide.':'. Both readings are held until you decide.'));
     const decided=Boolean(saved&&saved.sourceHash&&saved.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash)));
     const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
     if(!decided&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
@@ -251,6 +260,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
           :d.sourceFilename+'. Choose once; CMeng will apply the relationship and refresh the project.',recordCount:1,
           evidenceSummary:['Source type: '+d.documentType.replaceAll('_',' '),'Current source state: '+d.basisState,
             ...(peerNames.length?['Competing retained candidate(s): '+peerNames.join('; ')]:[]),
+            ...recordConflicts,
             ...(proposed.length?['Reader-proposed predecessor: '+proposed.join('; ')]:[])],
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,

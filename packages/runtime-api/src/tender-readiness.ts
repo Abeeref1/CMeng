@@ -1,6 +1,7 @@
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {quarantineUnconfirmedBoqNumerics} from '../../boq-ingestion/src';
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
+import {analyticalOperationalDocuments,SOURCE_ANALYTICAL_USE} from './operational-reporting';
 
 type TenderCriterionState='established'|'partial'|'missing';
 
@@ -18,6 +19,8 @@ interface TenderCriterion {
   owner:string;
   gap:string|null;
   sourceRefs:string[];
+  sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;
+  sourceAnalyticalNote?:string;
 }
 
 const VERSION='cmeng-tender-readiness-v1';
@@ -31,7 +34,7 @@ const refs=(rows:Array<{documentId?:string|null;sourceFilename?:string|null}>)=>
 
 function tenderCriterion(input:{
   key:string;criterion:string;owner:string;established:boolean;partial?:boolean;
-  availableEvidence:string;gap:string;sourceRefs?:string[];
+  availableEvidence:string;gap:string;sourceRefs?:string[];sourceReadOnly?:boolean;
 }):TenderCriterion{
   const state:TenderCriterionState=input.established?'established':input.partial?'partial':'missing';
   return {
@@ -44,10 +47,12 @@ function tenderCriterion(input:{
     criteriaAuthority:AUTHORITY,
     evidenceCoverage:state==='established'?100:state==='partial'?50:0,
     state,
-    availableEvidence:input.availableEvidence,
+    availableEvidence:input.availableEvidence+(state==='established'&&input.sourceReadOnly?' · read from source; not formally adopted':''),
     owner:input.owner,
     gap:state==='established'?null:input.gap,
     sourceRefs:[...new Set(input.sourceRefs??[])],
+    // T04: established only from a clear source that is not formally adopted.
+    ...(state==='established'&&input.sourceReadOnly?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:'Read from source; not formally adopted'}:{}),
   };
 }
 
@@ -56,7 +61,12 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
   const matching=(pattern:RegExp)=>documents.filter(document=>pattern.test(
     [document.documentType,document.sourceFilename,document.familyKey,document.category].filter(Boolean).join(' ')
   ));
-  const parsed=(rows:typeof documents)=>rows.some(document=>document.parserState==='parsed'&&['active','additive'].includes(document.basisState));
+  // One shared T04 rule: adopted sources, plus clear unique unadopted sources
+  // used in analysis with their label. Competing/review-needed stay held.
+  const analytical=new Set(analyticalOperationalDocuments(state.evidenceDocuments).map(document=>document.documentId));
+  const parsed=(rows:typeof documents)=>rows.some(document=>document.parserState==='parsed'&&analytical.has(document.documentId));
+  const parsedAdopted=(rows:typeof documents)=>rows.some(document=>document.parserState==='parsed'&&['active','additive'].includes(document.basisState));
+  const sourceReadOnly=(rows:typeof documents)=>parsed(rows)&&!parsedAdopted(rows);
 
   const tenderContracts=state.contractDocuments.filter(document=>document.role==='tender');
   const tenderSources=matching(/tender|employer.?requirements|request for proposal|\brfp\b|invitation to tender|\bitt\b/i);
@@ -87,7 +97,7 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
   const criteria:TenderCriterion[]=[
     tenderCriterion({
       key:'employer-requirements',criterion:'Tender / Employer Requirements basis',owner:'Bid / Contracts',
-      established:tenderContracts.length>0||parsed(tenderSources),partial:tenderSources.length>0,
+      established:tenderContracts.length>0||parsed(tenderSources),partial:tenderSources.length>0,sourceReadOnly:!tenderContracts.length&&sourceReadOnly(tenderSources),
       availableEvidence:tenderContracts.length
         ? tenderContracts.length+' tender contract document(s) retained'
         : tenderSources.length?tenderSources.length+' candidate tender / Employer Requirements source(s) retained':'No tender / Employer Requirements source is established',
@@ -126,21 +136,21 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
     }),
     tenderCriterion({
       key:'resources-manpower',criterion:'Resource / manpower basis',owner:'Planning / Operations',
-      established:resourceEstablished,partial:resourceSources.length>0,
+      established:resourceEstablished,partial:resourceSources.length>0,sourceReadOnly:!state.submittedManpowerPlan&&sourceReadOnly(resourceSources),
       availableEvidence:resourceEstablished?'Resource/manpower evidence is available':resourceSources.length?resourceSources.length+' resource/manpower source(s) supplied but not fully established':'No resource/manpower basis is established',
       gap:'Provide the manpower/resource basis where tender deliverability depends on capacity.',
       sourceRefs:refs(resourceSources)
     }),
     tenderCriterion({
       key:'procurement-subcontract',criterion:'Procurement / subcontract strategy basis',owner:'Procurement',
-      established:procurementEstablished,partial:procurementSources.length>0,
+      established:procurementEstablished,partial:procurementSources.length>0,sourceReadOnly:!deliveryRecords.some(row=>['package','supplier'].includes(String(row.kind??'')))&&sourceReadOnly(procurementSources),
       availableEvidence:procurementEstablished?'Procurement/package/supplier evidence is available':procurementSources.length?procurementSources.length+' procurement/subcontract source(s) supplied but not fully established':'No procurement/subcontract strategy evidence is established',
       gap:'Establish the applicable procurement, supplier and subcontract strategy/long-lead basis.',
       sourceRefs:refs(procurementSources)
     }),
     tenderCriterion({
       key:'risk-basis',criterion:'Tender risk basis',owner:'Project Controls / Risk',
-      established:riskEstablished,partial:riskSources.length>0,
+      established:riskEstablished,partial:riskSources.length>0,sourceReadOnly:state.controls.risks.length===0&&sourceReadOnly(riskSources),
       availableEvidence:riskEstablished?state.controls.risks.length+' governed/current risk record(s) available':riskSources.length?riskSources.length+' risk source(s) supplied but no governed risk population is established':'No tender/project risk population is established',
       gap:'Provide or establish the applicable risk register and rating basis.',
       sourceRefs:refs(riskSources)

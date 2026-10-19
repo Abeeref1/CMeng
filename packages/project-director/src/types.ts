@@ -26,12 +26,19 @@ export interface MoneyValue {
   sourceRefs: string[];
 }
 
-export interface VariationRecord extends MoneyValue {
+/** T04: a record read from a clear, unique source that is not formally
+ * adopted. Used in analysis with this label; never an adoption. */
+export interface SourceAnalyticalLabel {
+  sourceAnalyticalUse?: "qualified_source_read";
+  sourceAnalyticalNote?: string;
+}
+
+export interface VariationRecord extends MoneyValue, SourceAnalyticalLabel {
   variationId: string;
   state: "pending" | "approved" | "rejected";
 }
 
-export interface InvoiceRecord {
+export interface InvoiceRecord extends SourceAnalyticalLabel {
   invoiceId: string;
   currency: string;
   certifiedAmount: number | null;
@@ -44,12 +51,12 @@ export interface InvoiceRecord {
   sourceRefs: string[];
 }
 
-export interface RetentionRecord extends MoneyValue {
+export interface RetentionRecord extends MoneyValue, SourceAnalyticalLabel {
   retentionId: string;
   state: "held" | "released";
 }
 
-export interface BondRecord extends Omit<MoneyValue,'amount'> {
+export interface BondRecord extends Omit<MoneyValue,'amount'>, SourceAnalyticalLabel {
   amount: number | null;
   bondId: string;
   kind:
@@ -61,7 +68,7 @@ export interface BondRecord extends Omit<MoneyValue,'amount'> {
   expiryIso: string | null;
 }
 
-export interface ClaimCommercialRecord {
+export interface ClaimCommercialRecord extends SourceAnalyticalLabel {
   claimId: string;
   currency: string;
   claimedAmount: number | null;
