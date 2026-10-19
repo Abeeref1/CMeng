@@ -194,6 +194,42 @@ export function readinessForActivity(
   };
 }
 
+/** T11: readiness is a pure function of the revision model, the activity, its
+ * incoming relationships, their predecessor activities and the evidence
+ * object. Look-Ahead and Diagnosis assess the same activity of the same
+ * revision; a later consumer reuses the earlier result only when every one of
+ * those inputs is the very same object. Entries are held weakly by the
+ * immutable revision model, so another project or revision never shares one.
+ * The instant reader and memo only speed up the same arithmetic. */
+type SharedReadinessEntry={predecessors:readonly CanonicalScheduleRelationship[];
+  predecessorActivities:(CanonicalScheduleActivity|undefined)[];evidence:unknown;value:ReturnType<typeof readinessForActivity>};
+const sharedReadinessByModel=new WeakMap<CanonicalScheduleModel,WeakMap<CanonicalScheduleActivity,SharedReadinessEntry>>();
+export function sharedReadinessForActivity(
+  model: CanonicalScheduleModel,
+  activity: CanonicalScheduleActivity,
+  predecessors: readonly CanonicalScheduleRelationship[],
+  activityById: ReadonlyMap<string, CanonicalScheduleActivity>,
+  externalEvidence: Partial<Record<ReadinessDimensionKey, ReadinessEvidence>> | undefined,
+  instant:(value:string|null)=>number|null=parseScheduleInstant,
+  memo?: PredecessorAssessmentMemo,
+) {
+  let byActivity=sharedReadinessByModel.get(model);
+  if(!byActivity){byActivity=new WeakMap();sharedReadinessByModel.set(model,byActivity);}
+  const entry=byActivity.get(activity);
+  if(entry&&entry.evidence===externalEvidence&&entry.predecessors.length===predecessors.length){
+    let same=true;
+    for(let i=0;i<predecessors.length;i++){
+      const relation=predecessors[i]!;
+      if(relation!==entry.predecessors[i]||activityById.get(relation.predecessorActivityId)!==entry.predecessorActivities[i]){same=false;break;}
+    }
+    if(same)return entry.value;
+  }
+  const value=readinessForActivity(model,activity,predecessors,activityById,externalEvidence,instant,memo);
+  byActivity.set(activity,{predecessors:predecessors.slice(),
+    predecessorActivities:predecessors.map(relation=>activityById.get(relation.predecessorActivityId)),evidence:externalEvidence,value});
+  return value;
+}
+
 function coverage(
   known: number,
   total: number,
@@ -470,7 +506,7 @@ export function buildLookAheadProjection(
         [...(activityLogic?.predecessorIds ?? [])],
       successorIds:
         [...(activityLogic?.successorIds ?? [])],
-      readiness: readinessForActivity(
+      readiness: sharedReadinessForActivity(
         model,
         activity,
         incoming.get(activity.activityId) ?? [],
