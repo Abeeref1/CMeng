@@ -257,7 +257,7 @@ export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeRes
  * role: the first part of the stable group key), computed from ALL register
  * groups on the server. A paged owner list therefore never shows a partial
  * owner total. Each block keeps its register groups unchanged (additive). */
-export function accountabilityOwnerBlocks<G extends {key?:string;owner?:string|null;count?:number|null;overdueRecordCount?:number|null;knownOverdueRecordCount?:number|null}>(groups:readonly G[]){
+export function accountabilityOwnerBlocks<G extends {key?:string|undefined;owner?:string|null|undefined;count?:number|null|undefined;overdueRecordCount?:number|null|undefined;knownOverdueRecordCount?:number|null|undefined}>(groups:readonly G[]){
   const owners=new Map<string,G[]>();
   for(const group of groups){const id=String(group.key??group.owner??'').split('|')[0]!.trim().toLowerCase();const list=owners.get(id)??[];list.push(group);owners.set(id,list);}
   return [...owners.entries()].map(([ownerKey,list])=>({ownerKey,owner:list[0]!.owner??null,groupCount:list.length,
