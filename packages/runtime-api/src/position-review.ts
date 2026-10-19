@@ -29,7 +29,7 @@ export function blockedCause(result:{status?:string|null;engineState?:string|nul
 }
 export function positionVerdict(result:ModuleRuntimeResult) {
   const d:any=result.data??{},p=d.result??d,a=result.issueAssessment??d.issueAssessment,counts=issueCounters(a);
-  const facts:{noticeEventDateMissingCount?:number}={};
+  const facts:{noticeEventDateMissingCount?:number|null}={};
   let text='The results, records and follow-up actions for this view are shown below.',rag:'red'|'amber'|'green'|'unknown'='amber';
   let specific=false;
   let nextAction:string|null=null,assignTo='Project Controls';
@@ -78,6 +78,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     // and can contain several letters for one event; it is not an event counter.
     const missing=p.noticeEventDateMissingCount??p.position?.claimsNotices?.noticeTimelinessCounts?.event_date_missing;
     if(number(missing))facts.noticeEventDateMissingCount=missing;
+    else if(missing===null&&(p.eventPopulationState??p.position?.claimsNotices?.eventPopulationState)==='not_established')facts.noticeEventDateMissingCount=null;
     text=number(missing)&&missing>0?missing+' events lack the event dates needed to assess notice timing. Reported claim values remain visible.':'Notice timing, reported claim values and dated determinations have separate evidence bases.';
     nextAction=number(missing)&&missing>0?'Enter the event or awareness date for these '+missing+' events, then reassess notice timing.':'Review notice timing against each event date and applicable contract period.';assignTo='Contracts Manager';
   } else if(result.key==='windows-analysis') {

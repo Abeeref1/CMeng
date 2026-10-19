@@ -83,6 +83,9 @@ export interface CommercialClaimsNoticesPosition {
   evidenceRevisionId: string | null;
   /** null when no claim lifecycle is submitted or it is quarantined; 0 only for an established empty register. */
   eventCount: number | null;
+  /** "not_established" when only claims register rows cite events (SW-15): event counts are then null. */
+  eventPopulationState?: "established" | "not_established" | null;
+  eventPopulationReason?: string | null;
   noticeCount: number | null;
   lifecycleClaimCount: number | null;
   commercialClaimCount: number;

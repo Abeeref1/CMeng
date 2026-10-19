@@ -3,6 +3,7 @@ import { buildCommercialFoundation } from "../../commercial-foundation/src";
 import { buildCommercialPerformance } from "../../commercial-performance/src";
 import {
   assessAllEventNotices,
+  delayEventPopulation,
 } from "../../delay-analysis-core/src";
 import type {
   CommercialClaimsNoticesPosition,
@@ -241,16 +242,20 @@ function commercialClaimsNotices(
       event_date_missing: 0,
       notice_date_missing: 0,
     };
+  // Delay events come only from event sources; claim rows stay claims (SW-15).
+  const eventPopulation = lifecycle ? delayEventPopulation(lifecycle) : null;
+  const eventsNotEstablished = eventPopulation?.state === "not_established";
+  const sourceAssessments = assessments.filter((_, index) => eventPopulation?.fromEventSource[index] === true);
   for (
     const assessment of
-      assessments
+      sourceAssessments
   ) {
     noticeTimelinessCounts[
       assessment.timeliness
     ] = (noticeTimelinessCounts[assessment.timeliness] ?? 0) + 1;
   }
   const lifecycleQuarantined = lifecycle?.integrity?.state === "quarantined";
-  if(!lifecycle || lifecycleQuarantined)for(const key of Object.keys(noticeTimelinessCounts) as Array<keyof typeof noticeTimelinessCounts>)noticeTimelinessCounts[key]=null;
+  if(!lifecycle || lifecycleQuarantined || eventsNotEstablished)for(const key of Object.keys(noticeTimelinessCounts) as Array<keyof typeof noticeTimelinessCounts>)noticeTimelinessCounts[key]=null;
 
   const eventTitles =
     new Map(
@@ -312,7 +317,7 @@ function commercialClaimsNotices(
     undatedNoticeCount:(sourceLifecycle?.notices??[]).filter(n=>n.kind!=='determination'&&reportingScope(n.actualIssuedAt,input.sourceLedger?.dataDateIso??lifecycle?.dataDateIso)==='undated').length,
     dimensionalEvidenceGaps:lifecycleQuarantined
       ? {requirementMissing:null,eventDateMissing:null,noticeDateMissing:null}
-      : {requirementMissing:assessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:assessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
+      : {requirementMissing:eventsNotEstablished?null:sourceAssessments.filter(a=>a.evidenceGaps.requirementMissing).length,eventDateMissing:assessments.filter(a=>a.evidenceGaps.eventDateMissing).length,noticeDateMissing:assessments.filter(a=>a.evidenceGaps.noticeDateMissing).length},
     evidenceRevisionId:
       lifecycle
         ?.evidenceRevisionId ??
@@ -320,7 +325,9 @@ function commercialClaimsNotices(
     // No submitted claim lifecycle, or a quarantined one: the population is
     // unknown (null), the same value Notices & Claims and Delay & Claims show.
     eventCount:
-      lifecycle && !lifecycleQuarantined ? lifecycle.events.length : null,
+      lifecycle && !lifecycleQuarantined && !eventsNotEstablished ? sourceAssessments.length : null,
+    eventPopulationState: eventPopulation?.state ?? null,
+    eventPopulationReason: eventPopulation?.reason ?? null,
     noticeCount:
       lifecycle && !lifecycleQuarantined ? lifecycle.notices.filter(notice=>notice.kind!=="determination").length : null,
     lifecycleClaimCount:
