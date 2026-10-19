@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createHash} from 'node:crypto';
 import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 import {parseXerBytes} from '../packages/xer-parser/src';
 import {canonicalScheduleFromXer} from '../packages/schedule-analysis-core/src';
@@ -117,10 +121,10 @@ test('F46 a 6-plot plaster chain with stated programme capacity gives the exact 
 
 test('F46 register weekly capacity is used before the programme rate; weeks it does not state stay not established',()=>{
  const {schedule,resources,groups}=models();
- const register=(weeks:number)=>Array.from({length:weeks},(_,i)=>({resourceId:'PLAST',resourceName:'Plasterer gang',weekStartIso:day(7*i),capacityHours:90,authority:'source_unconfirmed' as const,sourceRef:'evidence-document:REG:row:'+(i+1)}));
+ const register=(weeks:number)=>Array.from({length:weeks},(_,i)=>({resourceId:'PLAST',resourceName:'Plasterer gang',weekStartIso:day(7*i),capacityHours:90,authority:'stated_not_approved' as const,sourceRef:'evidence-document:REG:row:'+(i+1)}));
  const full=buildTradeChainResourcePosition(schedule,resources,{groups,drivingActivityIds:CHAIN,drivingPathBasis:'test',registerCapacity:register(8)}).chains[0]!;
  const row=full.resources[0]!;
- assert.equal(row.capacitySource,'resource_register');assert.match(row.capacityLabel,/approval not recorded/);
+ assert.equal(row.capacitySource,'resource_register');assert.match(row.capacityLabel,/stated in the register, not approved/);
  assert.deepEqual(row.periods.map(p=>[p.periodStartIso.slice(0,10),p.demandHours,p.capacityHours,p.shortfallHours]),
   [[day(0),90,90,0],[day(7),135,90,45],[day(14),90,90,0],[day(21),180,90,90],[day(28),45,90,0],[day(35),135,90,45]]);
  assert.equal(row.resourceLimitedFinishIso,'2026-12-22T11:30:00.000Z');assert.equal(full.completionEffect.completionDelayCalendarDays,11.7708);
@@ -181,4 +185,32 @@ test('F46 the Resources page and the project facts show the same plaster-chain c
  assert.match(html,/<td>R1<\/td><td>2026-11-29<\/td><td>45 h<\/td><td>90 h<\/td><td>0 h<\/td><td>0 h<\/td><td>90 h<\/td>/);
  const empty=renderPanel({state:'not_established',reason:'PROGRAMME_LABOUR_HOUR_ASSIGNMENTS_NOT_SUPPLIED',chains:[]});
  assert.match(empty,/Trade-chain hours are not established: the programme has no labour-hour resource assignments\./);
+});
+
+// The register path on the uploaded project follows the shared register
+// capacity rule: a register with no approval column states the capacity
+// (used, labelled stated, not approved); a register whose approval column does
+// not say approved is not used, and the programme max units apply instead.
+function register(dir:string,id:string,approval:string|null){
+ const head='resource id,resource name,week start,available capacity,planned demand,unit'+(approval?',capacity approval':'');
+ const rows=Array.from({length:8},(_,i)=>['PLAST','Plasterer gang',day(7*i),90,0,'labor_hour',...(approval?[approval]:[])].join(','));
+ const bytes=Buffer.from([head,...rows].join('\n')+'\n'),storedPath=join(dir,id+'.csv');writeFileSync(storedPath,bytes);
+ return {documentId:id,sourceHashSha256:createHash('sha256').update(bytes).digest('hex'),storedPath,sourceFilename:'resource_'+id+'.csv',mediaType:'text/csv',
+  basisState:'active',linkedArtifactId:null,uploadedAt:'2026-11-02',familyKey:'family-'+id,documentType:'resource_register',parserState:'parsed',
+  identification:{needsReview:false},lineage:{needsReview:false},supersededByDocumentId:null} as any;
+}
+test('F46 on the uploaded project the resource register capacity follows the shared stated-capacity rule',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'f46-register-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ for(const [suffix,approval,source,label] of [['STATED',null,'resource_register',/stated in the register, not approved/],['PENDING','Pending','programme_max_units',/Programme resource max units/]] as const){
+  const id='F46-REGISTER-'+suffix;
+  await runtimeProjects.ingestSchedule({projectId:id,sourceFilename:'Villa Type B.xer',bytes:xer(),mediaType:'text/plain',uploadedAt:'2026-11-02',role:'update',uploadIntent:'replace_current_basis'});
+  const state=runtimeProjects.get(id)!;
+  state.evidenceDocuments.push(register(dir,'reg-'+suffix.toLowerCase(),approval));runtimeProjects.touch(state);
+  const row=tradeChainResourcesForState(state).chains[0]!.resources[0]!;
+  assert.equal(row.capacitySource,source);assert.match(row.capacityLabel,label);
+  assert.deepEqual(row.periods.map(p=>[p.demandHours,p.capacityHours,p.shortfallHours]),[[90,90,0],[135,90,45],[90,90,0],[180,90,90],[45,90,0],[135,90,45]]);
+  assert.equal(row.resourceLimitedFinishIso,'2026-12-22T11:30:00.000Z');
+  const page=moduleForProject(id,'resource-utilization').data as any;
+  assert.equal(page.tradeChains.chains[0].resources[0].capacitySource,source,'the page shows the same capacity basis');
+ }
 });

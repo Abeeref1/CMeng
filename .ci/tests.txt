@@ -25,3 +25,5 @@ project-diagnosis
 round-one-shared
 v1-f01-page-figures-match-api
 t11-dashboard-on-demand-original-content
+resource-stated-capacity-programme-hours
+t06-start-and-completion-delay-days

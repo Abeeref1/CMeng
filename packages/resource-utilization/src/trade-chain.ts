@@ -47,7 +47,7 @@ export interface TradeChainRegisterCapacityRow {
   resourceName: string | null;
   weekStartIso: string;
   capacityHours: number;
-  authority: "approved_source" | "source_unconfirmed";
+  authority: "approved_source" | "stated_not_approved";
   sourceRef: string;
 }
 
@@ -404,7 +404,7 @@ function capacityBasis(
     const anchor = starts[0] ?? null;
     const authority = rows.every((row) => row.authority === "approved_source")
       ? "approved in the register"
-      : "stated in the register; approval not recorded";
+      : "stated in the register, not approved";
     return {
       source: "resource_register",
       label: "Resource register weekly available capacity (" + authority + ")",

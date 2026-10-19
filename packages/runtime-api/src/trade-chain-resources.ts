@@ -52,11 +52,14 @@ function calculate(state:ProjectRuntimeState):TradeChainResourcePosition{
   const forecast=cachedIndependentForecast(model,'project-version:'+state.version);
   const network=forecast?.complete?forecast.drivingNetwork??null:null;
   const weekly=canonicalResources(state);
+  // The shared register capacity rule (F16): approved capacity, or capacity
+  // stated by a register with no approval column (labelled stated, not
+  // approved). Capacity a register explicitly leaves unapproved is not used.
   const registerCapacity=weekly.points.flatMap(point=>{
-    const capacity=point.availableCapacity??point.sourceAvailableCapacity??null;
+    const capacity=point.utilizationCapacity??point.availableCapacity??null;
     if(capacity===null||!point.weekStartIso||!point.unit||!LABOUR_HOUR.test(point.unit)||point.resourceClass!=='labor')return [];
     return [{resourceId:point.resourceId,resourceName:point.resourceName,weekStartIso:point.weekStartIso,capacityHours:capacity,
-      authority:point.availableCapacity!==null?'approved_source' as const:'source_unconfirmed' as const,sourceRef:point.sourceRef}];
+      authority:point.availableCapacity!==null?'approved_source' as const:'stated_not_approved' as const,sourceRef:point.sourceRef}];
   });
   return buildTradeChainResourcePosition(model,resources,{
     groups,
