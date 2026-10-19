@@ -12,7 +12,10 @@ const fixture=()=>{
  const projectId='FIRST-FULL-DASHBOARD-'+(++serial);
  const state=runtimeProjects.getOrCreate(projectId);
  for(let revision=0;revision<2;revision++){
-  const model:any={projectId,source:'xer',sourceRevisionId:'REV-'+revision,dataDateIso:'2031-02-01',
+  // The baseline is data-dated before the update. With no adoption documents the
+  // current programme is the one schedule with the latest Data Date; two schedules
+  // tied on it are ambiguous and fail closed (no programme, so no diagnosis).
+  const model:any={projectId,source:'xer',sourceRevisionId:'REV-'+revision,dataDateIso:revision?'2031-02-01':'2031-01-01',
    activities:Array.from({length:41},(_,i)=>({
      projectId,activityId:'A'+i,nativeId:String(i),name:'Work '+i,
      activityType:i===0?'finish_milestone':'task',wbsId:'W',calendarId:'C',
