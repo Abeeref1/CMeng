@@ -246,8 +246,16 @@ function pageRoleLensContext(data){
     ['Submitted completion',facts.schedule?.submittedProgrammeCompletionIso,'date'],
     ['Critical activities',facts.schedule?.criticalActivityCount,''],
     ['Near-critical activities',facts.schedule?.nearCriticalActivityCount,''],
+    ['Negative-float activities',facts.schedule?.negativeFloatActivityCount,''],
+    ['Awarded EOT',facts.time?.awardedEotDays,'d'],
     ['Open actions',facts.actions?.openCount,'']
   ].filter(row=>row[1]).map(([label,field,unit])=>({label,value:value(field),unit,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'}));
+  // Contract values are held in the page facts per currency. Each currency is
+  // placed on its own row and never summed across currencies. No currency rows
+  // means the commercial position is not established, not zero positions.
+  const currencies=Array.isArray(facts.commercial?.currencies)&&facts.commercial.currencies.length?facts.commercial.currencies:null;
+  const contractValues=(currencies||[]).flatMap(row=>[['Original contract value',row.originalContractValue],['Current contract value',row.currentContractValue]]
+    .filter(([,field])=>field).map(([label,field])=>({label:label+' · '+row.currency,value:value(field),unit:row.currency,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'})));
   const diagnosis=root?.projectDiagnosis||data?.projectDiagnosis;
   const completion=root?.completionPosition||data?.completionPosition;
   const management=root?.managementContext||data?.managementContext;
@@ -257,11 +265,16 @@ function pageRoleLensContext(data){
   const progress=management?.crossModule?.progress?.progressBases||root?.progressBases;
   const forecast=completion?.independentFinishIso;
   if(forecast)metrics.push({label:'CMeng forecast / recalculation',value:forecast,unit:'date',basis:'Independent calculation and its stated qualifications',health:'See source basis'});
+  metrics.push(...contractValues);
+  // The separate overview summary can be empty before its action cache is
+  // warm. The page's own action register is the same canonical register.
+  const baseDecisions=Array.isArray(base.executive?.decisions)?base.executive.decisions:[];
+  const decisions=!baseDecisions.length&&Array.isArray(actions)?actions.slice(0,8).map(action=>({description:action.issue??null,accountableOwner:action.owner??null,accountableOwnerState:action.ownerState??null,accountableRole:action.accountableRole??null,dueDate:action.dueIso??null,sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,requiredAuthority:action.authority??null,dependencyParty:action.organisation??null,state:'open'})):null;
   return {...base,planning:{...base.planning,criticalCount:value(facts.schedule?.criticalActivityCount),nearCriticalCount:value(facts.schedule?.nearCriticalActivityCount),negativeFloatCount:value(facts.schedule?.negativeFloatActivityCount),...(network?{drivingNetworkState:network.state,drivers:(network.rows||[]).map(row=>({...row,wbs:row.wbs??row.wbsPath,calculatedFinishIso:row.calculatedFinishIso??row.finishIso,totalFloatHours:row.totalFloatHours??row.independentTotalFloatHours,totalFloatWorkingDays:row.totalFloatHours!=null?row.totalFloatWorkingDays:row.independentTotalFloatWorkingDays}))}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
     controls:{...base.controls,submittedCompletionIso:submitted,...(progress?{progress}:{}),...(completion?{forecastCompletionIso:forecast??null,scheduleVarianceDays:completion.differenceElapsedDays??null}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
     projectDirector:{...base.projectDirector,openActionCount:value(facts.actions?.openCount),...(Array.isArray(actions)?{actions}:{})},
     programDirector:{...base.programDirector,...(management?.schedule?.programmeStages?{programmeStages:management.schedule.programmeStages}:{}),...(interfaces?.rows?{interfaces:interfaces.rows}:{})},
-    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:facts.commercial?.currencies||[]}};
+    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:currencies,openActionCount:value(facts.actions?.openCount),...(decisions?{decisions}:{})}};
 }
 function experienceRoleLensContext(role,data){
   const context=pageRoleLensContext(data);
@@ -311,17 +324,19 @@ function experienceRoleLensContext(role,data){
       (!stages.length&&!interfaces.length?'<p>Cross-stage or confirmed interface evidence is not established for this project.</p>':'')+'</section>';
   }
   if(role==='executive'){
-    const e=context.executive||{},metrics=(e.metrics||[]).slice(0,6),decisions=(e.decisions||[]).slice(0,6);
+    // Every held management metric is placed; a fixed row cap hid contract values and the forecast.
+    const e=context.executive||{},metrics=e.metrics||[],decisions=(e.decisions||[]).slice(0,6);
     const metricRows=metrics.map(metric=>({label:metric.label,value:metric.value,unit:metric.unit,basis:metric.basis,health:metric.health}));
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Strategic commitments & intervention</h4><span>Executive / CEO</span></div>'+
       roleLensFacts([
         {label:'Contractual completion',value:e.contractualCompletionIso,unit:'date',basis:'Governed contract-time authority where established'},
         {label:'Submitted completion',value:e.submittedCompletionIso,unit:'date',basis:'Current adopted programme'},
         {label:'CMeng forecast / recalculation',value:e.forecastCompletionIso,unit:'date',basis:'Independent forecast authority and qualifications'},
-        {label:'Currency positions',value:Array.isArray(e.commercialByCurrency)?e.commercialByCurrency.length:null,basis:'Commercial positions remain separated by currency and tax basis'}
+        {label:'Currency positions',value:Array.isArray(e.commercialByCurrency)&&e.commercialByCurrency.length?e.commercialByCurrency.length:null,basis:'Commercial positions remain separated by currency and tax basis'}
       ])+
       roleLensTable('Priority management metrics',[['label','Metric'],['value','Value'],['unit','Unit'],['health','Health'],['basis','Basis']],metricRows)+
       roleLensTable('Decisions requiring ownership',[['description','Decision'],['accountableOwner','Owner'],['dueDate','Action due','date'],['sourceDueIso','Earliest source due','date'],['sourceOverdueDays','Source days overdue'],['requiredAuthority','Required authority'],['dependencyParty','Dependency'],['state','State']],decisions)+
+      (!decisions.length&&e.openActionCount!==undefined?'<p>'+escapeHtml(e.openActionCount>0?e.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':e.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+
       '</section>';
   }
   return '';
