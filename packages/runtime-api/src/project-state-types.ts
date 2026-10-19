@@ -280,7 +280,7 @@ export interface StoredEvidenceDocument {
    * display these receipts; reused steps are SHA-scoped. */
   semanticAiSteps?: Array<{
     sheetName:string; sourceHashSha256:string;
-    status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
+    status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'stopped_at_cap'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
     attempted:boolean; note:string;
   }>;
 

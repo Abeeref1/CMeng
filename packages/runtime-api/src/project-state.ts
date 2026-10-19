@@ -170,9 +170,11 @@ const sheetSemanticExcludedTypes=new Set([
 
 export async function enrichRegisterSheetSemantics(
   read:NonNullable<StoredEvidenceDocument['tabularRead']>,
-  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>}={},
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>;priorSteps?:StoredEvidenceDocument['semanticAiSteps']}={},
 ){
-  let aiCalls=0;
+  let aiCalls=0,stoppedAtCap=false;
+  // Resume: a paid call already made for this exact source sheet is never repeated.
+  const alreadyRead=new Set((options.priorSteps??[]).filter(step=>step.sourceHashSha256===read.sourceHashSha256&&step.attempted&&step.status==='unresolved').map(step=>step.sheetName));
   const configuredAiCalls=Number(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??8);
   const maxAiCalls=Number.isInteger(configuredAiCalls)?Math.max(0,Math.min(20,configuredAiCalls)):8;
   for(const sheet of read.sheets){
@@ -202,6 +204,12 @@ export async function enrichRegisterSheetSemantics(
     const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(sheet.rows,sheet.semantic.documentType,sheet.semantic.columnMeanings??[]);
     if(!needsSemanticReading){
       options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'not_required',attempted:false,note:'Deterministic source reading established the available column meanings.'});
+    }else if(alreadyRead.has(sheet.name)){
+      options.diagnostics?.push('Worksheet '+sheet.name+': AI already read this source and could not establish the remaining column meanings. Source values are retained.');
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'unresolved',attempted:true,note:'AI already read this sheet for this exact source; the result was not validated. No repeat paid call.'});
+    }else if(stoppedAtCap){
+      options.diagnostics?.push('Worksheet '+sheet.name+': AI reading stopped at the spending cap. Unresolved source columns remain available for review.');
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'stopped_at_cap',attempted:false,note:'AI spending cap reached before this sheet; no paid call was made. Reading resumes here when budget is available.'});
     }else if(options.resolver&&aiCalls<maxAiCalls){
       aiCalls++;
       try{
@@ -211,7 +219,14 @@ export async function enrichRegisterSheetSemantics(
         if(accepted)sheet.semantic=resolved!;
         else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
         options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:accepted?'validated':'unresolved',attempted:true,note:accepted?'AI reading passed independent structural and source-column validation.':'AI reading could not validate the remaining original columns.'});
-      }catch{
+      }catch(error){
+        if(error instanceof Error&&error.message==='MODEL_MONTHLY_BUDGET_EXHAUSTED'){
+          // The ledger refused the reservation before any provider request: no paid call was made.
+          stoppedAtCap=true;aiCalls--;
+          options.diagnostics?.push('Worksheet '+sheet.name+': AI reading stopped at the spending cap. Unresolved source columns remain available for review.');
+          options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'stopped_at_cap',attempted:false,note:'AI spending cap reached before this sheet; no paid call was made. Reading resumes here when budget is available.'});
+          continue;
+        }
         options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');
         options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'failed',attempted:true,note:'AI reading failed; original columns are preserved for review.'});
       }
@@ -4549,7 +4564,7 @@ export class RuntimeProjectStore {
     const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
     const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi===true,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,diagnostics:identification.diagnostics})
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi===true,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,priorSteps:priorSameSource?.semanticAiSteps,diagnostics:identification.diagnostics})
       :undefined;
     let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){
