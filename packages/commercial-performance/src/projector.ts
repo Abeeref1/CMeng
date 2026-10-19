@@ -585,7 +585,7 @@ function sourceFinding(
 
 export const SOURCE_EAC_PLAUSIBILITY_RULES = [
   "R1 below actual cost: a source EAC below actual cost to date (AC) implies a negative estimate to complete.",
-  "R2 outside independent range: a source EAC below the lower or above the higher of the two independent EVM forecasts, AC + (BAC - EV) (remaining work at budget rate) and BAC / CPI (current cost efficiency continues), is challenged for its basis.",
+  "R2 outside independent range (a query, not implausible): a source EAC below the lower or above the higher of the two independent EVM forecasts, AC + (BAC - EV) (remaining work at budget rate) and BAC / CPI (current cost efficiency continues), is queried for its basis; a contractor may foresee future overruns or recoveries.",
   "Values are compared in the same currency and tax basis at the minor unit (0.01). The source EAC is retained unchanged.",
 ];
 
@@ -606,24 +606,26 @@ export function sourceEacPlausibility(
     : null;
   const findings: SourceEacChallenge["findings"] = [];
   if (sourceEac !== null && ac !== null && minor(sourceEac) < minor(ac)) findings.push({
-    rule: "below_actual_cost", sourceEac, independentValue: ac,
+    rule: "below_actual_cost", severity: "implausible", sourceEac, independentValue: ac,
     statement: "Source EAC is below actual cost to date; the implied estimate to complete is negative.",
   });
   if (sourceEac !== null && independentRange !== null && (minor(sourceEac) < minor(independentRange.low) || minor(sourceEac) > minor(independentRange.high))) findings.push({
-    rule: "outside_independent_range", sourceEac,
+    rule: "outside_independent_range", severity: "query", sourceEac,
     independentValue: minor(sourceEac) < minor(independentRange.low) ? independentRange.low : independentRange.high,
     statement: minor(sourceEac) < minor(independentRange.low)
-      ? "Source EAC is below the lower independent EVM forecast."
-      : "Source EAC is above the higher independent EVM forecast.",
+      ? "Source EAC is below the independent range; explain the basis."
+      : "Source EAC is above the independent range; explain the basis.",
   });
   const assessable = sourceEac !== null && (ac !== null || independentRange !== null);
   return {
-    state: findings.length ? "challenge" : assessable ? "consistent" : "not_assessable",
+    state: findings.some(f => f.severity === "implausible") ? "challenge" : findings.length ? "query" : assessable ? "consistent" : "not_assessable",
     sourceEac, actualCost: ac, independentRange, findings,
     rules: [...SOURCE_EAC_PLAUSIBILITY_RULES],
-    consequence: findings.length
-      ? "The source EAC is challenged against the independent EVM calculation. It is shown unchanged beside the independent values and is not replaced."
-      : null,
+    consequence: findings.some(f => f.severity === "implausible")
+      ? "The source EAC is implausible against actual cost to date. It is shown unchanged beside the independent values and is not replaced."
+      : findings.length
+        ? "The source EAC is outside the independent EVM range and needs an explanation. It is shown unchanged beside the independent values and is not replaced."
+        : null,
     action: findings.length
       ? "Obtain the forecast basis for the source EAC (remaining scope, rates, risk and commitments) and confirm or correct it."
       : null,

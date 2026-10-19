@@ -4093,9 +4093,9 @@ function renderCommercialVisual(key,data){
             ["TCPI · BAC",findingValue(row.tcpiBudget),findingMeta(row.tcpiBudget)],
             ["TCPI · EAC",findingValue(row.tcpiForecast),findingMeta(row.tcpiForecast)]
           ])+
-          (row.sourceEacChallenge?.state==="challenge"
-            ?'<div class="notice warning"><b>Source EAC challenged.</b> '+escapeHtml(row.sourceEacChallenge.consequence||"")+'</div>'+
-              table(["Check","Source EAC","Independent value","Finding"],(row.sourceEacChallenge.findings||[]).map(f=>'<tr><td><b>'+escapeHtml(f.rule==="below_actual_cost"?"Below actual cost to date":"Outside independent EVM range")+'</b></td><td>'+escapeHtml(fmt(f.sourceEac)+" "+row.currency)+'</td><td>'+escapeHtml(f.rule==="below_actual_cost"?"AC "+fmt(f.independentValue)+" "+row.currency:"AC + (BAC - EV) "+fmt(row.sourceEacChallenge.independentRange?.acPlusRemainingBudget)+" / BAC / CPI "+fmt(row.sourceEacChallenge.independentRange?.bacOverCpi)+" "+row.currency)+'</td><td>'+escapeHtml(f.statement)+'</td></tr>'),"")+
+          (row.sourceEacChallenge?.state==="challenge"||row.sourceEacChallenge?.state==="query"
+            ?'<div class="notice warning"><b>'+(row.sourceEacChallenge.state==="challenge"?"Source EAC challenged.":"Source EAC query: outside the independent range, explain.")+'</b> '+escapeHtml(row.sourceEacChallenge.consequence||"")+'</div>'+
+              table(["Check","Source EAC","Independent value","Finding"],(row.sourceEacChallenge.findings||[]).map(f=>'<tr><td><b>'+escapeHtml(f.rule==="below_actual_cost"?"Below actual cost to date (implausible)":"Outside independent EVM range (query)")+'</b></td><td>'+escapeHtml(fmt(f.sourceEac)+" "+row.currency)+'</td><td>'+escapeHtml(f.rule==="below_actual_cost"?"AC "+fmt(f.independentValue)+" "+row.currency:"AC + (BAC - EV) "+fmt(row.sourceEacChallenge.independentRange?.acPlusRemainingBudget)+" / BAC / CPI "+fmt(row.sourceEacChallenge.independentRange?.bacOverCpi)+" "+row.currency)+'</td><td>'+escapeHtml(f.statement)+'</td></tr>'),"")+
               '<div class="notice info">'+escapeHtml((row.sourceEacChallenge.rules||[]).join(" "))+' '+escapeHtml(row.sourceEacChallenge.action||"")+'</div>'
             :"")+
           '<div class="commercial-visual-grid cost-control-secondary">'+scenarioVisual+varianceVisual+'</div>'+
@@ -4348,7 +4348,7 @@ function renderCommercialVisual(key,data){
       const stageCounts=vo.lifecycleStageCounts||{};
       const ageBands=vo.pendingAgeBands||{};
       const variationPopulationEstablished=knownCount(vo.recordCount);
-      const variationLifecycleCounts=[stageCounts.instruction,stageCounts.submitted,stageCounts.quoted,stageCounts.assessed,stageCounts.agreed,stageCounts.approved,stageCounts.rejected,stageCounts.unknown];
+      const variationLifecycleCounts=[stageCounts.instruction,stageCounts.submitted,stageCounts.quoted,stageCounts.assessed,stageCounts.agreed,stageCounts.approved,stageCounts.rejected,stageCounts.withdrawn,stageCounts.unknown];
       const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts.every(knownCount)&&vo.changeRegister?.state!=="not_established";
       const lifecycleVisual=renderVisualPanel(
         "Variation lifecycle distribution",
@@ -4361,6 +4361,7 @@ function renderCommercialVisual(key,data){
           {label:"Agreed",value:stageCounts.agreed,tone:"accent"},
           {label:"Approved",value:stageCounts.approved,tone:"success"},
           {label:"Rejected",value:stageCounts.rejected,tone:"danger"},
+          {label:"Withdrawn",value:stageCounts.withdrawn,tone:"graphite"},
           {label:"Unknown",value:stageCounts.unknown,tone:"neutral"}
         ],"items"):vo.changeRegister?.state==="not_established"
           ?'<div class="empty-visual">'+escapeHtml(vo.changeRegister.consequence||"Change register position not established.")+' Approved: '+escapeHtml(fmt(vo.changeRegister.stateCounts.approved))+'.</div>'
@@ -4455,7 +4456,7 @@ function renderCommercialVisual(key,data){
           ["Approved by Data Date",governedDisplayCount(variationPopulationEstablished,vo.approvedCount),"dated approval event"],["Future / undated records",fmt(vo.futureRecordCount??"Not established")+" / "+fmt(vo.undatedRecordCount??"Not established"),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
           ["Known pending",pendingTotalEstablished&&pendingCount===0?0:pendingCount>0?pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate"],
           ["Rejected",governedDisplayCount(variationPopulationEstablished,vo.rejectedCount),"closed without approval"],
-          ["Change register",vo.changeRegister?(vo.changeRegister.state==="not_established"||vo.changeRegister.state==="missing"?"Not established":["Submitted "+fmt(vo.changeRegister.stateCounts.submitted),"Under review "+fmt(vo.changeRegister.stateCounts.underReview),"Approved "+fmt(vo.changeRegister.stateCounts.approved),"Rejected "+fmt(vo.changeRegister.stateCounts.rejected),"Withdrawn "+fmt(vo.changeRegister.stateCounts.withdrawn)].concat(vo.changeRegister.stateCounts.unknown?["Unknown "+fmt(vo.changeRegister.stateCounts.unknown)]:[]).join(" · ")):"Not established",vo.changeRegister?.consequence||"every variation counted by state; approved is one state"],
+          ["Change register",vo.changeRegister?(vo.changeRegister.state==="not_established"||vo.changeRegister.state==="missing"?"Not established":(vo.changeRegister.stateCounts.instructed==null?[]:["Instructed "+fmt(vo.changeRegister.stateCounts.instructed)]).concat(["Submitted "+fmt(vo.changeRegister.stateCounts.submitted),"Under review "+fmt(vo.changeRegister.stateCounts.underReview),"Approved "+fmt(vo.changeRegister.stateCounts.approved),"Rejected "+fmt(vo.changeRegister.stateCounts.rejected),"Withdrawn "+fmt(vo.changeRegister.stateCounts.withdrawn)]).concat(vo.changeRegister.stateCounts.unknown?["Unknown "+fmt(vo.changeRegister.stateCounts.unknown)]:[]).join(" · ")):"Not established",vo.changeRegister?.consequence||(vo.changeRegister&&vo.changeRegister.stateCounts.instructed==null?"the source does not distinguish instructions, so they stay with submitted; approved is one state":"every variation counted by state; approved is one state")],
           ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
           ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
           ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
