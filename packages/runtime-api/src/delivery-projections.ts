@@ -15,7 +15,7 @@ import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/proj
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 
@@ -724,7 +724,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    authority:issueInterface?'source':source?'source':'calculated',sourceRefs:finding.sourceRefs
   };
  }).sort((a,b)=>(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||(a.requiredDate??'9999').localeCompare(b.requiredDate??'9999')):[];
- const hasRows=riskPage?(risk.state!=='missing'||useBoqCandidates):records.length>0||rows.length>0;const pending=records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state));
+ const hasRows=riskPage?(risk.state!=='missing'||useBoqCandidates):records.length>0||rows.length>0;const pending=deliveryAwaitingDecision(records,recordKind=>p.populations[recordKind]);
  const sourceDocs=p.documents.filter(d=>d.kind===kind);const unread=sourceDocs.some(d=>d.state==='submitted_not_interpreted'||d.state==='mapping_required'||d.state==='partial_page_reading');
  const sourceDomain=deliverySourceDomain(key);
  const sourceAvailability=sourceDomain?managementSourceInventory(state).domains.find(domain=>domain.domain===sourceDomain)??null:null;
