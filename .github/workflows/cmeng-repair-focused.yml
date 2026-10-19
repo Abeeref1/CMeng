@@ -55,6 +55,7 @@ jobs:
             dist/tests/detailed-claim-source-rule.test.js \
             dist/tests/sw15-delay-events-not-from-claims.test.js \
             dist/tests/f06-event-register-content-both-readers.test.js \
+            dist/tests/f06-claims-files-merge-notice-register.test.js \
             dist/tests/t12-eot-civil-day-authority-reference.test.js \
             dist/tests/t12-independent-commercial-calculators.test.js \
             dist/tests/t07-commercial-vs-independent.test.js \
