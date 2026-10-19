@@ -142,14 +142,14 @@ function readCompletionDecisionItem(state:ProjectRuntimeState):CompletionDecisio
     decision:valid?{choice:saved!.choice,...(saved!.enteredDateIso?{enteredDateIso:saved!.enteredDateIso}:{}),confirmedAt:saved!.confirmedAt}:null};
 }
 /** The decided completion date on any time basis (canonical or stored); idempotent. */
-export function applyCompletionDecision<T extends ContractTimeBasis|null|undefined>(state:ProjectRuntimeState,basis:T):T|ContractTimeBasis{
+export function applyCompletionDecision(state:ProjectRuntimeState,basis:ContractTimeBasis|null|undefined):ContractTimeBasis|null|undefined{
   const item=completionDecisionItem(state),decision=item?.decision;
   if(!item||!decision)return basis;
   const ref='user-confirmation:'+item.key+':'+item.fingerprint;
   if(basis?.sourceRefs?.includes(ref))return basis;
   const date=decision.choice==='enter_value'?decision.enteredDateIso!:decision.choice.slice(4);
   const chosen=item.candidates.find(c=>c.date===date);
-  const base=withoutCompletionSourceLabel(basis??undefined);
+  const base=withoutCompletionSourceLabel(basis);
   return {...(base??{}),
     contractualCompletionIso:date,contractualCompletionState:'candidate',completionReason:COMPLETION_DECISION_NOTE,
     officialApprovedEotDays:base?.officialApprovedEotDays??null,officialApprovedEotState:base?.officialApprovedEotState??'missing',

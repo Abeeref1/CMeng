@@ -26,9 +26,21 @@ const evidence=(projectId:string,name:string,familyKey:string,basisState:string)
 }) as any;
 const contract=(documentId:string,role:string,text:string)=>({documentId,role,
   result:{sections:[{heading:'Contract Data',text,startPage:3,sectionKey:'s1',sourceMode:'deterministic',sourceSpans:[]}]}}) as any;
-function fixture(store:RuntimeProjectStore,id:string,decisions?:unknown){
+// A real parsed programme (the action register reads the full schedule model).
+const xer=(project:string,date:string)=>new TextEncoder().encode(['ERMHDR\t23.12',
+  '%T\tPROJECT','%F\tproj_id\tproj_short_name\tdata_date','%R\t1\t'+project+'\t'+date,
+  '%T\tPROJWBS','%F\twbs_id\tproj_id\twbs_short_name','%R\t10\t1\tROOT',
+  '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\ttask_code\ttask_name\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct',
+  '%R\t100\t1\t10\tA100\tMain works\tTK_Active\t'+date+'\t2031-12-30\t'+date+'\t2031-12-30\t240\t160\t16\t35','%E'].join('\n'));
+async function programmeFixture(store:RuntimeProjectStore,id:string){
+  await store.ingestSchedule({projectId:id,bytes:xer(id,'2031-06-30'),mediaType:'text/plain',sourceFilename:'Current_Programme.xer',sourceRelativePath:'Schedules/Current_Programme.xer',
+    role:'update',roleConfirmed:true,label:'Current programme',uploadedAt:'2031-07-01T10:00:00Z',uploadIntent:'add_update'} as any);
+  store.adoptSchedule(id,store.get(id)!.schedules[0]!.revision.revisionId);
+  return fixture(store,id,undefined,false);
+}
+function fixture(store:RuntimeProjectStore,id:string,decisions?:unknown,withMinimalSchedule=true){
   const state=store.getOrCreate(id);
-  state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'schedule-hash',uploadedAt:'2031-07-01T00:00:00.000Z',
+  if(withMinimalSchedule)state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'schedule-hash',uploadedAt:'2031-07-01T00:00:00.000Z',
     revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2031-06-30',model:{projectId:id,source:'xer',sourceRevisionId:'U1',dataDateIso:'2031-06-30T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as any);
   const adopted=evidence(id,'contract','contract:main','active'),amendment=evidence(id,'amendment','contract:amendment-1','candidate');
   state.evidenceDocuments.push(adopted,amendment);
@@ -44,8 +56,8 @@ const decide=(store:RuntimeProjectStore,id:string,term:string,input:{choice:stri
   store.updateControls(id,contractFactDecisionPatch(state,item,input,[]));return store.get(id)!;
 };
 
-test('T04 a contract term conflict is shown in the decision place with both values, sources and effect; adopted value used until decided',()=>{
-  const store=new RuntimeProjectStore({durable:false}),state=fixture(store,'CF-A');
+test('T04 a contract term conflict is shown in the decision place with both values, sources and effect; adopted value used until decided',async()=>{
+  const store=new RuntimeProjectStore({durable:false}),state=await programmeFixture(store,'CF-A');
   const action=decisionAction(state,'retentionPercent');
   assert.ok(action,'the retention conflict has one decision in the decision place');
   assert.equal(action.target.kind,'review-contract-fact');
@@ -57,8 +69,8 @@ test('T04 a contract term conflict is shown in the decision place with both valu
   assert.ok(retention(state).sourceConflicts?.length,'the different unadopted value stays a named conflict');
 });
 
-test('T04 pick, type your own, change and undo each update every reader and survive a restart',()=>{
-  const store=new RuntimeProjectStore({durable:false});fixture(store,'CF-B');
+test('T04 pick, type your own, change and undo each update every reader and survive a restart',async()=>{
+  const store=new RuntimeProjectStore({durable:false});await programmeFixture(store,'CF-B');
   // Pick the unadopted value: used, labelled not formally adopted, user-confirmation reference.
   let state=decide(store,'CF-B','retentionPercent',{choice:'use:10|%'});
   let selected=retention(state);
