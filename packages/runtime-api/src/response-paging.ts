@@ -13,6 +13,9 @@ export interface ResponsePaging {
   source:string;pageSize:25;projectVersion:number|null;
   tables:PageTable[];additionalTables:number;responseBytes:number;
   sourcePreserved:true;
+  /** F61: set (additive) only when even the smallest paged projection is
+   * still larger than the screen budget, so an oversize page is never silent. */
+  overBudget?:true;budgetBytes?:number;
 }
 const token=(v:string)=>v.replace(/~/g,'~0').replace(/\//g,'~1');
 const allowedScreen=/^\/api\/projects\/[^/]+\/(?:overview|director-position|management-surfaces|management\/[^/]+|advanced\/[^/]+|(?:schedule|commercial|delivery)\/modules\/[^/]+|evidence\/documents|boq\/(?:page-review|numeric-review)|actions)$/;
@@ -69,7 +72,7 @@ function compactFactSnapshot(value:unknown,record:(entry:PageTable)=>void,rootPo
  // Fact values, states, units, qualifications and contract sections are not
  // table previews. Only long provenance/identity collections can be deferred.
  // A fixed rule keeps the same canonical facts on every page at every budget.
- const evidenceList=/(?:sourceRefs|sourceReferences|memberIds|memberActionIds|activityIds|relationshipIds|recordIds|documentIds|receiptIds|checkIds|affectedActivityIds|missingBaselineActivityIds|missingActualFinishActivityIds|unknownLagRelationshipIds|finishActivityIds)$/i;
+ const evidenceList=/(?:positiveLags|negativeLags|sourceRefs|sourceReferences|memberIds|memberActionIds|activityIds|relationshipIds|recordIds|documentIds|receiptIds|checkIds|affectedActivityIds|missingBaselineActivityIds|missingActualFinishActivityIds|unknownLagRelationshipIds|finishActivityIds)$/i;
  const seen=new Set<object>();
  const walk=(input:any,pointer:string,key:string):any=>{
   if(input===null||typeof input!=='object')return input;
@@ -254,6 +257,9 @@ export function pageProjectResponse(
  // Preserve the screen shape and the exact table pointers even when the
  // irreducible facts exceed the target. Dropping the entire module here made
  // populated registers appear empty and removed their record navigation.
+ // F61: the overrun is stated in the response, never silent.
+ const lastPaging=(smallestProjection as any)?.responsePaging as ResponsePaging|undefined;
+ if(smallestProjection!==body&&lastPaging&&lastPaging.responseBytes>maxBytes){lastPaging.overBudget=true;lastPaging.budgetBytes=maxBytes;}
  return smallestProjection;
 }
 export function recordDetailPage(root:unknown,pointer:string,offset:number,limit=25,filter?:{
