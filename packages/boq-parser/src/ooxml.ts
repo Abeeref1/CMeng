@@ -1,6 +1,7 @@
 import type JSZip from "jszip";
 import {jsZip} from "../../shared/src/lazy-jszip";
-import { XMLParser } from "fast-xml-parser";
+import type { XMLParser } from "fast-xml-parser";
+import { fastXmlParser } from "../../shared/src/lazy-xml-parser";
 
 import { detectAllBoqHeaders } from "./headers";
 import {
@@ -42,7 +43,9 @@ interface FastSheet {
   rowTexts: string[][];
 }
 
-const xml = new XMLParser({
+// T11: built on first workbook read (same options), not at worker start.
+let xmlParser: XMLParser | undefined;
+const xml = () => xmlParser ??= new (fastXmlParser().XMLParser)({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   trimValues: false,
@@ -128,13 +131,13 @@ async function xmlFile(
   if (!entry) {
     throw new Error("BOQ_OOXML_PART_MISSING:" + path);
   }
-  return xml.parse(await entry.async("string")) as Record<string, any>;
+  return xml().parse(await entry.async("string")) as Record<string, any>;
 }
 
 async function sharedStrings(zip: JSZip): Promise<string[]> {
   const entry = zip.file("xl/sharedStrings.xml");
   if (!entry) return [];
-  const parsed = xml.parse(await entry.async("string")) as any;
+  const parsed = xml().parse(await entry.async("string")) as any;
   return array(parsed?.sst?.si).map((item) => nodeText(item));
 }
 

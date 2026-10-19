@@ -1,4 +1,4 @@
-import { XMLParser } from "fast-xml-parser";
+import { fastXmlParser } from "../../shared/src/lazy-xml-parser";
 import { parseStrictNumeric } from "../../boq-parser/src/numeric";
 import {
   parseP6ApiDuration,
@@ -261,7 +261,7 @@ export function parsePrimaveraXml(bytes: Uint8Array): PrimaveraXmlResult {
       diagnostics.push("P6XML_UTF8_REPLACEMENT_CHARACTER_PRESENT");
     }
 
-    parsed = new XMLParser({
+    parsed = new (fastXmlParser().XMLParser)({
       ignoreAttributes: false,
       attributeNamePrefix: "@_",
       removeNSPrefix: true,

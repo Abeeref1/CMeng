@@ -5,6 +5,7 @@ import {pageProjectResponse,takeSerializedPage} from '../packages/runtime-api/sr
 import {analyzeEvidenceTable,inferTableSemanticRoute,prepareEvidenceRows} from '../packages/truth-kernel/src';
 import {excelJs} from '../packages/shared/src/lazy-exceljs';
 import {jsZip} from '../packages/shared/src/lazy-jszip';
+import {fastXmlParser} from '../packages/shared/src/lazy-xml-parser';
 
 // T11 (j8-final): work done on every page request or every project-worker
 // start was cut without changing any answer. Each check compares the new path
@@ -108,8 +109,8 @@ test('T11 a screen page is serialised once: the kept text equals serialising the
  assert.ok(kept>=4,'pages that fit their budget keep their text');
 });
 
-test('T11 ExcelJS, JSZip and the application page load on first use and are the same',async t=>{
- const loaded=()=>Object.keys(require.cache).filter(path=>/[\\/]node_modules[\\/](?:exceljs|jszip)[\\/]/.test(path));
+test('T11 ExcelJS, JSZip, fast-xml-parser and the application page load on first use and are the same',async t=>{
+ const loaded=()=>Object.keys(require.cache).filter(path=>/[\\/]node_modules[\\/](?:exceljs|jszip|fast-xml-parser)[\\/]/.test(path));
  const uiLoaded=()=>Object.keys(require.cache).some(path=>/[\\/]runtime-api[\\/]src[\\/]ui\.js$/.test(path));
  // The project server and state modules (what a project worker loads at start) do not load them.
  const {createCmengServer}=require('../packages/runtime-api/src/server');require('../packages/runtime-api/src/project-state');
@@ -124,5 +125,7 @@ test('T11 ExcelJS, JSZip and the application page load on first use and are the 
  assert.equal(typeof excelJs().Workbook,'function');
  assert.equal(excelJs().ValueType.Formula,require('exceljs').ValueType.Formula);
  assert.equal(jsZip(),require('jszip'));
+ assert.equal(fastXmlParser(),require('fast-xml-parser'));
+ assert.equal(fastXmlParser().XMLParser,require('fast-xml-parser').XMLParser);
  assert.equal(typeof jsZip().loadAsync,'function');
 });
