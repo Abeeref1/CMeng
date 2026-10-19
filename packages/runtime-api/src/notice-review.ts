@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {contractTermVersions,type ContractTermVersion} from './contract-term-versions';
 import type {ProjectRuntimeState} from './project-state-types';
-import {applyContractFactDecisions,contractFactDecisionItems} from './contract-fact-decisions';
+import {applyContractFactDecisions,contractFactDecisionItems,CONTRACT_FACT_DECISION_PREFIX} from './contract-fact-decisions';
 import {projectDataDate} from './canonical-time-claims';
 
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -47,7 +47,12 @@ export function noticeReviewInput(state:ProjectRuntimeState,input:{choice:string
 /** A reporting selection never edits the extracted terms or extends a source
  * interval. Unselected time intervals remain unknown, including any gap. */
 export function reportingContractTermVersions(state:ProjectRuntimeState):ContractTermVersion[]{
- return applyContractFactDecisions(state,noticeReviewedTermVersions(state),projectDataDate(state));
+ const versions=noticeReviewedTermVersions(state);
+ // Only a saved contract-fact decision needs the Data Date; without one the reviewed versions are
+ // returned unchanged, so states that hold no programme basis read exactly as before.
+ const saved=state.controls?.reviewDecisions;
+ if(!saved||!Object.keys(saved).some(key=>key.startsWith(CONTRACT_FACT_DECISION_PREFIX)))return versions;
+ return applyContractFactDecisions(state,versions,projectDataDate(state));
 }
 /** T04: the conflicts and unsure readings offered in the decision place (before any saved decision). */
 export function contractFactDecisionItemsForState(state:ProjectRuntimeState){
