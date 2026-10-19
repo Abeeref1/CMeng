@@ -60,3 +60,20 @@ test('F55 Accountability shows one block per owner (assigned owner, else account
   assert.match(html,/Procurement Manager · 3 records · overdue 1/);
   assert.equal((html.match(/Open all members/g)||[]).length,4,'every register group and its member button kept');
 });
+
+test('F30 a page links its missing-information items to the one shared list instead of repeating each one',()=>{
+  const missing=(field:string,summary:string)=>({kind:'missing_information',code:'MISSING_FIELD',field,summary,detail:'',action:'Upload the source field',owner:'Project evidence owner',moduleKeys:['pmo-analysis'],evidencePaths:[],sourceRefs:[],checkIds:[]});
+  const issues=[missing('contract.completionIso','Contract completion date'),missing('contract.completionIso','Contract completion date'),missing('position.dataDateIso','Data date'),
+    {kind:'data_quality',code:'SOURCE_QUALITY',summary:'Duplicate activity IDs',detail:'',action:'Correct the programme',owner:'Project evidence owner',moduleKeys:[],evidencePaths:[],sourceRefs:[],checkIds:[]}];
+  const html=runInNewContext(functions(['readerIssue','renderIssueAssessment','experienceDisclosure'])+';renderIssueAssessment({issues,counts:{}})',{
+    apiKeys:{},fmt:String,escapeHtml,humanizeKey:String,planningShortDate:String,issues,issueBadge:(x:any)=>'<span class="badge">'+x.primaryKind+'</span>',names:{},issueLabel:String,currentModuleResult:null
+  }) as string;
+  const main=html.replace(/<details[\s\S]*?<\/details>/g,'');
+  // Before: one "Information needed" row per finding (3 rows here, 342 across 29 pages in the review).
+  assert.equal((main.match(/<span class="badge">missing_information<\/span>/g)||[]).length,1,'one linked row, not one row per finding');
+  assert.match(main,/2 information items used by this page/,'counted once by raw field identity');
+  assert.match(main,/onclick="openProjectActions\(\)"/,'linked to the shared Actions and Data gaps list');
+  assert.match(html,/<summary>Items<\/summary>[^<]*Contract completion date[^<]*Data date/,'item names kept behind Items, each once');
+  assert.equal((html.match(/Contract completion date/g)||[]).length,1,'a repeated item is named once');
+  assert.match(main,/Duplicate activity IDs/,'other findings keep their own rows');
+});

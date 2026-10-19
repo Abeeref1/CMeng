@@ -167,15 +167,24 @@ export function prioritizeActions(rows:ManagementAction[],model:CanonicalSchedul
   // T06: the linked activity carrying the lowest float supplies its own calendar for working days.
   const linkedFloatActivityId=lowestLinkedFloat===null?null:linked.find(a=>(rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours)===lowestLinkedFloat)?.activityId??null;
   const drivingPath=drivingIds!==null&&row.affectedScope.some(id=>activities.has(id))?linked.some(a=>driving.has(a.activityId)):null;
-  return {...row,priorityBasis:{linkedFloatHours:lowestLinkedFloat,linkedFloatActivityId,linkedFloatCalendarIds:[...new Set(linked.filter(a=>(rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours)!==null).map(a=>a.calendarId??null))],floatAuthority,drivingPath,milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[]}};
+  return {...row,priorityBasis:{linkedFloatHours:lowestLinkedFloat,linkedFloatActivityId,linkedFloatCalendarIds:[...new Set(linked.filter(a=>(rankingFloatByActivityId?.has(a.activityId)?rankingFloatByActivityId.get(a.activityId)!:a.totalFloatHours)!==null).map(a=>a.calendarId??null))],floatAuthority,drivingPath,milestoneCount:row.affectedMilestones.length+linked.filter(a=>a.activityType==='start_milestone'||a.activityType==='finish_milestone').length,moneyAtRisk:row.moneyAtRisk??[],safety:safetyAction(row)}};
  }).sort((a,b)=>
   (a.priorityBasis.linkedFloatHours??Infinity)-(b.priorityBasis.linkedFloatHours??Infinity)||
   Number(b.priorityBasis.drivingPath)-Number(a.priorityBasis.drivingPath)||
   b.priorityBasis.milestoneCount-a.priorityBasis.milestoneCount||
   Number(b.priorityBasis.moneyAtRisk.some(m=>m.amount>0))-Number(a.priorityBasis.moneyAtRisk.some(m=>m.amount>0))||
   (a.priorityBasis.moneyAtRisk.length===1&&b.priorityBasis.moneyAtRisk.length===1&&a.priorityBasis.moneyAtRisk[0]!.currency===b.priorityBasis.moneyAtRisk[0]!.currency?b.priorityBasis.moneyAtRisk[0]!.amount-a.priorityBasis.moneyAtRisk[0]!.amount:0)||
+  // F51: consequence order is completion (float, driving path, milestones), then money, then safety.
+  Number(b.priorityBasis.safety)-Number(a.priorityBasis.safety)||
   severity[a.severity]-severity[b.severity]||
   (a.dueIso??'9999').localeCompare(b.dueIso??'9999')||a.actionId.localeCompare(b.actionId));
+}
+
+/** F51: a safety consequence (HSE, permit, incident or safety record) is read from
+ * the action's own register identity, never from its wording. */
+export function safetyAction(row:Pick<ManagementAction,'recordKey'|'owningModule'>):boolean{
+ const kind=String(row.recordKey??'').split('|')[0]!;
+ return /^(?:hse|safety|permit|incident)/i.test(kind)||/(?:^|-)(?:hse|safety|permit|incident)/i.test(String(row.owningModule??''));
 }
 
 /** Full-population action groups for register/owner presentation; never count paged rows. */
