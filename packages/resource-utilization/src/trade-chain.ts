@@ -593,6 +593,17 @@ export function buildTradeChainResourcePosition(
     );
   });
 
+  // One phasing per assignment, shared by every chain that reads it.
+  const phaseMemo = new Map<CanonicalResourceAssignment, ReturnType<typeof phase>>();
+  const phaseOnce = (assignment: CanonicalResourceAssignment, activity: CanonicalScheduleActivity) => {
+    let result = phaseMemo.get(assignment);
+    if (!result) {
+      result = phase(assignment, activity, schedule, dataDateMs);
+      phaseMemo.set(assignment, result);
+    }
+    return result;
+  };
+
   const chains: TradeChainRow[] = candidates.map((activities) => {
     const first = activities[0]!;
     const group = groupById.get(first.activityId)!;
@@ -645,7 +656,7 @@ export function buildTradeChainResourcePosition(
       if (remainingHours === null) reasons.push("REMAINING_HOURS_NOT_STATED_ON_SOME_ASSIGNMENTS:" + resourceId);
       const phased: PhasedAssignment[] = [];
       for (const assignment of own) {
-        const result = phase(assignment, activityById.get(assignment.activityId)!, schedule, dataDateMs);
+        const result = phaseOnce(assignment, activityById.get(assignment.activityId)!);
         if (result.phased) phased.push(result.phased);
         else reasons.push(result.reason!);
       }
@@ -656,7 +667,7 @@ export function buildTradeChainResourcePosition(
         if (openIds.has(assignment.activityId)) continue;
         const activity = activityById.get(assignment.activityId);
         if (!activity || activity.status === "completed") continue;
-        const result = phase(assignment, activity, schedule, dataDateMs);
+        const result = phaseOnce(assignment, activity);
         if (result.phased) other.push(result.phased);
         else otherKnown = false;
       }
