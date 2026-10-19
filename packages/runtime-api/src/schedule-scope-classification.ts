@@ -37,12 +37,12 @@ export interface ActivityScopeClassification {
 }
 export type SourceGroupBasis='activity_code'|'wbs_level'|'user_reviewed'|'name_match';
 export const NAME_MATCH_GROUP_SOURCE='Grouped by name match';
-const DISCIPLINE_CODE_TYPES=[/\bdiscipline\b/i,/\btrades?\b/i];
-const LOCATION_CODE_TYPES=[/\blocation\b/i,/\barea\b/i,/\bzone\b/i,/\bbuilding\b/i,/\btower\b/i,/\bplot\b/i,/\blevel\b/i,/\bfloor\b/i];
+export const DISCIPLINE_CODE_TYPES=[/\bdiscipline\b/i,/\btrades?\b/i];
+export const LOCATION_CODE_TYPES=[/\blocation\b/i,/\barea\b/i,/\bzone\b/i,/\bbuilding\b/i,/\btower\b/i,/\bplot\b/i,/\blevel\b/i,/\bfloor\b/i];
 /** F22: the programme's own Plot code. */
 const PLOT_CODE_TYPES=[/\bplot\b/i];
 /** First code type (in priority order) with exactly one value on the activity. */
-function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
+export function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
   const codes=activity.activityCodes??[];
   for(const type of types){
     const matching=codes.filter(code=>type.test(code.typeName));
