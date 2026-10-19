@@ -248,6 +248,8 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
     const text=normalizeHeader(rawHeader+' '+field);
     const kind=isRegisterDateHeader(field)||/(?:^| )(date|dated|issued|expiry|expired|closed|raised|deadline|as of|period end)(?: |$)/.test(text)?'date':
       /(?:^| )(days|day count|duration|working days|calendar days)(?: |$)/.test(text)?'days':
+      // A code, id or reference names a record (cost code, payment no); it is never a money amount.
+      /(?:^| )(code|id|no|number|ref|reference)$/.test(normalizeHeader(rawHeader))?'other':
       /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
     return {sourceHeader:rawHeader,canonicalHeader:field,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
       reason:mapped

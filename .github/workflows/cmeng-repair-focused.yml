@@ -111,6 +111,7 @@ jobs:
             dist/tests/t11-diagnosis-anomaly-full-source-parity.test.js \
             dist/tests/t02-boq-native-id-ambiguity.test.js \
             dist/tests/t06-programme-hand-checked.test.js \
+            dist/tests/t02-register-reading-truth.test.js \
             dist/tests/t05-management-state-render-contract.test.js \
             dist/tests/t05-counts-true-total-every-screen.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js

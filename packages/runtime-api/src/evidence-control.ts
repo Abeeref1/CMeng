@@ -1,6 +1,8 @@
 import {scenarioName,explicitScheduleDecision,submittedScheduleDecision,isScenarioRevision} from './schedule-authority';
 import { typedEvidenceRoleFromText } from "./typed-evidence-families";
 import {csv,prepareRegisterRows} from '../../truth-kernel/src';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import type {
   EvidenceBasisEffect,
   EvidenceBasisRecord,
@@ -413,6 +415,29 @@ function revisionHint(
   };
 }
 
+const reportDateHeader=/^(?:report(?:ing)?(?: period)? (?:date|end)|data date|status date|status as of|as of(?: date)?|period end(?: date)?|cut ?off date|valuation date)$/;
+const reportDateLabel=/(?:^|[^a-z])(report(?:ing)? date|data date|status date|as of|period end(?:ing)?|cut ?off date|valuation date)\s*[:=-]\s*(\d{4}-\d{2}-\d{2})(?!\d)/i;
+const isoDay=(value:string)=>{const m=/^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(value.trim());if(!m)return null;const d=new Date(Date.UTC(+m[1]!,+m[2]!-1,+m[3]!));return d.toISOString().slice(0,10)===m[1]+'-'+m[2]+'-'+m[3]?m[1]+'-'+m[2]+'-'+m[3]:null;};
+/** The single report date stated inside a snapshot: a report/data/status
+ * date column holding one value, or a labelled "Report Date: yyyy-mm-dd"
+ * line. Any disagreement inside the document, or no stated date, is
+ * unknown (null) and never guessed from the file name. */
+export function contentReportDate(document:StoredEvidenceDocument):string|null{
+  let sheets:string[][][]=[];
+  if(document.tabularRead?.sourceHashSha256===document.sourceHashSha256)sheets=document.tabularRead.sheets.map(sheet=>sheet.rows);
+  else if(/csv|text\/plain/i.test(document.mediaType+' '+(document.identification?.verifiedMediaType??''))){
+    try{const bytes=readFileSync(document.storedPath);if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)return null;sheets=[csv(bytes.toString(bytes[0]===0xff&&bytes[1]===0xfe?'utf16le':'utf8'))];}catch{return null;}
+  }
+  const found=new Set<string>();
+  for(const rows of sheets){
+    const table=prepareRegisterRows(rows,document.documentType);
+    table.headers.forEach((header,index)=>{if(!reportDateHeader.test(header))return;for(const row of table.rows){const raw=String(row[index]??'').trim();if(!raw)continue;const day=isoDay(raw);if(day)found.add(day);else found.add('unreadable:'+raw);}});
+    for(const row of rows.slice(0,Math.max(0,table.headerRow-1)))for(const value of row){const m=reportDateLabel.exec(value);if(m){const day=isoDay(m[2]!);if(day)found.add(day);}}
+  }
+  for(const segment of document.textSegments??[])for(const line of segment.text.split(/\r?\n/)){const m=reportDateLabel.exec(line);if(m){const day=isoDay(m[2]!);if(day)found.add(day);}}
+  return found.size===1&&!/^unreadable:/.test([...found][0]!)?[...found][0]!:null;
+}
+
 function snapshotComparison(
   current:
     StoredEvidenceDocument | null,
@@ -429,6 +454,17 @@ function snapshotComparison(
         "First established snapshot becomes active.",
     };
   }
+
+  // The report date written inside both documents outranks any revision or
+  // date guessed from file names. An older report never becomes current
+  // because its file name carries a higher revision number.
+  const beforeContent=contentReportDate(current),afterContent=contentReportDate(incoming);
+  if(beforeContent&&afterContent&&beforeContent!==afterContent)return {
+    promote:afterContent>beforeContent,
+    reason:afterContent>beforeContent
+      ?'Incoming snapshot has a later report date inside the document ('+afterContent+' after '+beforeContent+').'
+      :'Incoming snapshot has an earlier report date inside the document ('+afterContent+' before '+beforeContent+') and is retained as history. File names are not used to order it.',
+  };
 
   const before =
     revisionHint(current);
