@@ -40,11 +40,6 @@ interface ForwardState {
   earlyFinishMs: number | null;
 }
 
-interface BackwardState {
-  lateStartMs: number | null;
-  lateFinishMs: number | null;
-}
-
 interface EffectiveRelationship {
   relationshipId: string;
   predecessorActivityId: string;
@@ -210,36 +205,37 @@ function shiftByLag(
 
 function forwardConstraintStart(
   relation: EffectiveRelationship,
-  predecessor: ForwardState,
+  predecessorStartMs: number | null,
+  predecessorFinishMs: number | null,
   successorDurationHours: number,
   successorCalendar: WorkingCalendarResolution,
 ): number | null {
   switch (relation.type) {
     case "FS":
-      return predecessor.earlyFinishMs === null
+      return predecessorFinishMs === null
         ? null
         : shiftByLag(
             successorCalendar,
-            predecessor.earlyFinishMs,
+            predecessorFinishMs,
             relation.lagHours,
           );
     case "SS":
-      return predecessor.earlyStartMs === null
+      return predecessorStartMs === null
         ? null
         : shiftByLag(
             successorCalendar,
-            predecessor.earlyStartMs,
+            predecessorStartMs,
             relation.lagHours,
           );
     case "FF": {
       if (
-        predecessor.earlyFinishMs === null
+        predecessorFinishMs === null
       ) {
         return null;
       }
       const requiredFinish = shiftByLag(
         successorCalendar,
-        predecessor.earlyFinishMs,
+        predecessorFinishMs,
         relation.lagHours,
       );
       return subtractWorkingHours(
@@ -250,13 +246,13 @@ function forwardConstraintStart(
     }
     case "SF": {
       if (
-        predecessor.earlyStartMs === null
+        predecessorStartMs === null
       ) {
         return null;
       }
       const requiredFinish = shiftByLag(
         successorCalendar,
-        predecessor.earlyStartMs,
+        predecessorStartMs,
         relation.lagHours,
       );
       return subtractWorkingHours(
@@ -270,13 +266,14 @@ function forwardConstraintStart(
 
 function backwardConstraintFinish(
   relation: EffectiveRelationship,
-  successor: BackwardState,
+  successorLateStartMs: number | null,
+  successorLateFinishMs: number | null,
   predecessorDurationHours: number,
   predecessorCalendar: WorkingCalendarResolution,
   successorCalendar: WorkingCalendarResolution,
 ): {finish: number; start: number | null} | null {
   const endpoint = relation.type === 'FS' || relation.type === 'SS'
-    ? successor.lateStartMs : successor.lateFinishMs;
+    ? successorLateStartMs : successorLateFinishMs;
   if (endpoint === null) return null;
   // The reverse pass must invert the SAME lag calendar used forward. A
   // negative lag can admit every instant in a nonworking gap, up to its next
@@ -384,20 +381,33 @@ export function calculateCpm(
       config.requiredFinishIso,
     );
 
-  const contexts = new Map<
-    string,
-    ActivityContext
+  // Every per-activity table below is indexed by the activity's position in
+  // model.activities. Identifiers are resolved to these integer positions
+  // once, so the passes read plain arrays instead of string-keyed maps. The
+  // calculation, its order and every result are the same as the map version.
+  const activityCount = model.activities.length;
+  const contexts: ActivityContext[] = new Array(activityCount);
+  // One calendar identifier always resolves to the same calendar in this
+  // model. Resolve it once per identifier; the resolution is never mutated.
+  const calendarResolutions = new Map<
+    string | null,
+    WorkingCalendarResolution | null
   >();
 
-  for (const activity of model.activities) {
-    const calendar = resolveWorkingCalendar(
-      activity.calendarId,
-      model.calendars,
-      config.allowElapsedFallback,
-    );
+  for (let index = 0; index < activityCount; index += 1) {
+    const activity = model.activities[index]!;
+    let calendar = calendarResolutions.get(activity.calendarId);
+    if (calendar === undefined) {
+      calendar = resolveWorkingCalendar(
+        activity.calendarId,
+        model.calendars,
+        config.allowElapsedFallback,
+      );
+      calendarResolutions.set(activity.calendarId, calendar);
+    }
 
     if (!calendar) {
-      contexts.set(activity.activityId, {
+      contexts[index] = {
         activity,
         calendar: null,
         durationHours: null,
@@ -406,7 +416,7 @@ export function calculateCpm(
           ...activity.diagnostics,
           "CPM_ACTIVITY_CALENDAR_UNRESOLVED",
         ],
-      });
+      };
       continue;
     }
 
@@ -423,7 +433,7 @@ export function calculateCpm(
       ...duration.assumptions,
     );
 
-    contexts.set(activity.activityId, {
+    contexts[index] = {
       activity,
       calendar,
       durationHours: duration.hours,
@@ -432,7 +442,7 @@ export function calculateCpm(
         ...activity.diagnostics,
         ...duration.diagnostics,
       ],
-    });
+    };
   }
 
   const effectiveRelationships =
@@ -477,20 +487,27 @@ export function calculateCpm(
       );
     }
 
+    // With duplicate identifiers the last activity of an identifier owns
+    // that identifier's context, exactly as an identifier-keyed map does.
+    const contextById = new Map<string, ActivityContext>();
+    for (let index = 0; index < activityCount; index += 1) {
+      contextById.set(model.activities[index]!.activityId, contexts[index]!);
+    }
+
     const activities: CpmActivityResult[] =
       model.activities.map(
         (activity) => ({
           activityId: activity.activityId,
           calendarId: activity.calendarId,
           calendarMode:
-            contexts.get(activity.activityId)
+            contextById.get(activity.activityId)
               ?.calendar?.mode ??
             "elapsed_fallback",
           durationHours:
-            contexts.get(activity.activityId)
+            contextById.get(activity.activityId)
               ?.durationHours ?? null,
           durationMethod:
-            contexts.get(activity.activityId)
+            contextById.get(activity.activityId)
               ?.durationMethod ?? null,
           earlyStartIso: null,
           earlyFinishIso: null,
@@ -500,7 +517,7 @@ export function calculateCpm(
           critical: null,
           status: "unresolved",
           diagnostics: [
-            ...(contexts.get(
+            ...(contextById.get(
               activity.activityId,
             )?.diagnostics ?? []),
             "CPM_NETWORK_NOT_CALCULABLE",
@@ -544,28 +561,33 @@ export function calculateCpm(
     };
   }
 
-  const incoming = new Map<
-    string,
-    EffectiveRelationship[]
-  >();
-  const outgoing = new Map<
-    string,
-    EffectiveRelationship[]
-  >();
-
-  for (const id of graph.topologicalOrder) {
-    incoming.set(id, []);
-    outgoing.set(id, []);
+  // Here identifiers are unique and the topological order holds every
+  // activity exactly once (the graph is built from these same activities).
+  const topologicalIds = graph.topologicalOrder;
+  const indexById = new Map<string, number>();
+  for (let index = 0; index < activityCount; index += 1) {
+    indexById.set(model.activities[index]!.activityId, index);
+  }
+  const order = new Int32Array(topologicalIds.length);
+  for (let position = 0; position < topologicalIds.length; position += 1) {
+    const index = indexById.get(topologicalIds[position]!);
+    if (index === undefined) {
+      throw new Error("CPM topological order does not match the activity table");
+    }
+    order[position] = index;
   }
 
+  // Valid links, in source order, as integer endpoints. Incoming and
+  // outgoing lists keep that source order for every activity.
+  const linked: EffectiveRelationship[] = [];
+  const linkedPredecessor: number[] = [];
+  const linkedSuccessor: number[] = [];
   for (const relation of effectiveRelationships) {
+    const successorIndex = indexById.get(relation.successorActivityId);
+    const predecessorIndex = indexById.get(relation.predecessorActivityId);
     if (
-      !incoming.has(
-        relation.successorActivityId,
-      ) ||
-      !outgoing.has(
-        relation.predecessorActivityId,
-      )
+      successorIndex === undefined ||
+      predecessorIndex === undefined
     ) {
       diagnostics.push(
         "CPM_RELATIONSHIP_ENDPOINT_UNRESOLVED:" +
@@ -575,38 +597,62 @@ export function calculateCpm(
       );
       continue;
     }
-
-    incoming
-      .get(
-        relation.successorActivityId,
-      )!
-      .push(relation);
-    outgoing
-      .get(
-        relation.predecessorActivityId,
-      )!
-      .push(relation);
+    linked.push(relation);
+    linkedPredecessor.push(predecessorIndex);
+    linkedSuccessor.push(successorIndex);
+  }
+  const linkCount = linked.length;
+  const incomingStart = new Int32Array(activityCount + 1);
+  const outgoingStart = new Int32Array(activityCount + 1);
+  for (let link = 0; link < linkCount; link += 1) {
+    incomingStart[linkedSuccessor[link]! + 1]! += 1;
+    outgoingStart[linkedPredecessor[link]! + 1]! += 1;
+  }
+  let maxIncoming = 0;
+  for (let index = 0; index < activityCount; index += 1) {
+    maxIncoming = Math.max(maxIncoming, incomingStart[index + 1]!);
+    incomingStart[index + 1]! += incomingStart[index]!;
+    outgoingStart[index + 1]! += outgoingStart[index]!;
+  }
+  const incomingLinks = new Int32Array(linkCount);
+  const outgoingLinks = new Int32Array(linkCount);
+  {
+    const incomingFill = incomingStart.slice(0, activityCount);
+    const outgoingFill = outgoingStart.slice(0, activityCount);
+    for (let link = 0; link < linkCount; link += 1) {
+      incomingLinks[incomingFill[linkedSuccessor[link]!]!++] = link;
+      outgoingLinks[outgoingFill[linkedPredecessor[link]!]!++] = link;
+    }
   }
 
-  const forward = new Map<
-    string,
-    ForwardState
-  >();
-  const bindingPredecessors=new Map<string,EffectiveRelationship[]>();
+  // Forward state: 0 = not yet visited, 1 = visited with unresolved dates,
+  // 2 = visited with early start and finish.
+  const forwardState = new Uint8Array(activityCount);
+  const earlyStartMs = new Float64Array(activityCount);
+  const earlyFinishMs = new Float64Array(activityCount);
+  const forwardStartOf = (index: number): number | null =>
+    forwardState[index] === 2 ? earlyStartMs[index]! : null;
+  const forwardFinishOf = (index: number): number | null =>
+    forwardState[index] === 2 ? earlyFinishMs[index]! : null;
+  // Binding (driving) predecessor links of each activity, as link numbers.
+  // A later retrace appends a fresh list and repoints the activity to it.
+  const bindingStart = new Int32Array(activityCount);
+  const bindingCount = new Int32Array(activityCount);
+  const bindingLinks: number[] = [];
+  const candidateLink = new Int32Array(maxIncoming);
+  const candidateStart = new Float64Array(maxIncoming);
+  const candidateFinish = new Float64Array(maxIncoming);
+  const candidateHasFinish = new Uint8Array(maxIncoming);
 
-  for (const activityId of graph.topologicalOrder) {
-    const context =
-      contexts.get(activityId);
+  for (let position = 0; position < activityCount; position += 1) {
+    const index = order[position]!;
+    const context = contexts[index]!;
 
     if (
-      !context ||
       !context.calendar ||
       context.durationHours === null
     ) {
-      forward.set(activityId, {
-        earlyStartMs: null,
-        earlyFinishMs: null,
-      });
+      forwardState[index] = 1;
       continue;
     }
 
@@ -620,43 +666,56 @@ export function calculateCpm(
         );
 
       if (fixed) {
-        forward.set(activityId, fixed);
+        earlyStartMs[index] = fixed.earlyStartMs!;
+        earlyFinishMs[index] = fixed.earlyFinishMs!;
+        forwardState[index] = 2;
       } else {
         context.diagnostics.push(
           "CPM_COMPLETED_ACTIVITY_FINISH_UNRESOLVED",
         );
-        forward.set(activityId, {
-          earlyStartMs: null,
-          earlyFinishMs: null,
-        });
+        forwardState[index] = 1;
       }
       continue;
     }
 
-    const candidates: Array<{relation:EffectiveRelationship;start:number;finish:number|null}> = [];
+    const calendar = context.calendar;
+    const durationHours = context.durationHours;
+    let candidates = 0;
 
-    for (const relation of incoming.get(
-      activityId,
-    ) ?? []) {
-      const predecessor =
-        forward.get(
-          relation.predecessorActivityId,
-        );
+    for (
+      let slot = incomingStart[index]!;
+      slot < incomingStart[index + 1]!;
+      slot += 1
+    ) {
+      const link = incomingLinks[slot]!;
+      const relation = linked[link]!;
+      const predecessorIndex = linkedPredecessor[link]!;
 
-      if (!predecessor) continue;
+      if (forwardState[predecessorIndex] === 0) continue;
 
+      const predecessorStart = forwardStartOf(predecessorIndex);
+      const predecessorFinish = forwardFinishOf(predecessorIndex);
       const candidate =
         forwardConstraintStart(
           relation,
-          predecessor,
-          context.durationHours,
-          context.calendar,
+          predecessorStart,
+          predecessorFinish,
+          durationHours,
+          calendar,
         );
 
       if (candidate !== null) {
-        const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
-        candidates.push({relation,start:candidate,finish:finishAnchor===null?null:relation.lagHours===0?finishAnchor:
-          shiftByLag(context.calendar,finishAnchor,relation.lagHours)});
+        const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
+        candidateLink[candidates] = link;
+        candidateStart[candidates] = candidate;
+        if (finishAnchor === null) {
+          candidateHasFinish[candidates] = 0;
+        } else {
+          candidateHasFinish[candidates] = 1;
+          candidateFinish[candidates] = relation.lagHours===0?finishAnchor:
+            shiftByLag(calendar,finishAnchor,relation.lagHours);
+        }
+        candidates += 1;
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
@@ -667,50 +726,73 @@ export function calculateCpm(
 
     const sourceBounds=constraintsByActivity.get(context.activity)??noConstraints;
     context.diagnostics.push(...sourceBounds.diagnostics);
-    let startCandidate = candidates.reduce((latest,c)=>Math.max(latest,c.start),anchor);
+    let startCandidate = anchor;
+    for (let candidate = 0; candidate < candidates; candidate += 1) {
+      startCandidate = Math.max(startCandidate, candidateStart[candidate]!);
+    }
     let finishMinimum:number|null=null;
     for(const bound of sourceBounds.constraints){
       if(bound.date===null)continue;
       if(['start_on','start_after'].includes(bound.kind))startCandidate=Math.max(startCandidate,bound.date);
       if(['finish_on','finish_after'].includes(bound.kind)){
-        startCandidate=Math.max(startCandidate,subtractWorkingHours(context.calendar.calendar,bound.date,context.durationHours));
+        startCandidate=Math.max(startCandidate,subtractWorkingHours(calendar.calendar,bound.date,durationHours));
         finishMinimum=Math.max(finishMinimum??bound.date,bound.date);
       }
     }
 
     let earlyStart =
       addWorkingHours(
-        context.calendar.calendar,
+        calendar.calendar,
         startCandidate,
         0,
       );
     const workFinish =
       addWorkingHours(
-        context.calendar.calendar,
+        calendar.calendar,
         earlyStart,
-        context.durationHours,
+        durationHours,
       );
     // Subtracting work and adding it back can land on opposite sides of a
     // nonworking gap. Retain the actual FF/SF finish bound as well as its
     // translated start; the successor must never finish before that event.
-    let earlyFinish=candidates.reduce((finish,c)=>Math.max(finish,c.finish??finish),Math.max(workFinish,finishMinimum??workFinish));
+    let earlyFinish=Math.max(workFinish,finishMinimum??workFinish);
+    for (let candidate = 0; candidate < candidates; candidate += 1) {
+      if (candidateHasFinish[candidate] === 1) {
+        earlyFinish = Math.max(earlyFinish, candidateFinish[candidate]!);
+      }
+    }
     for(const bound of sourceBounds.constraints){
       if(bound.date===null)continue;
       if(bound.kind==='mandatory_start'){
-        earlyStart=bound.date;earlyFinish=addWorkingHours(context.calendar.calendar,earlyStart,context.durationHours);
+        earlyStart=bound.date;earlyFinish=addWorkingHours(calendar.calendar,earlyStart,durationHours);
       }else if(bound.kind==='mandatory_finish'){
-        earlyFinish=bound.date;earlyStart=subtractWorkingHours(context.calendar.calendar,earlyFinish,context.durationHours);
+        earlyFinish=bound.date;earlyStart=subtractWorkingHours(calendar.calendar,earlyFinish,durationHours);
       }
     }
-    if(earlyStart<startCandidate||candidates.some(c=>c.finish!==null&&earlyFinish<c.finish))context.diagnostics.push('CPM_MANDATORY_CONSTRAINT_OVERRIDES_LOGIC');
+    let finishOverridden = false;
+    for (let candidate = 0; candidate < candidates; candidate += 1) {
+      if (candidateHasFinish[candidate] === 1 && earlyFinish < candidateFinish[candidate]!) {
+        finishOverridden = true;
+        break;
+      }
+    }
+    if(earlyStart<startCandidate||finishOverridden)context.diagnostics.push('CPM_MANDATORY_CONSTRAINT_OVERRIDES_LOGIC');
 
-    forward.set(activityId, {
-      earlyStartMs: earlyStart,
-      earlyFinishMs: earlyFinish,
-    });
+    earlyStartMs[index] = earlyStart;
+    earlyFinishMs[index] = earlyFinish;
+    forwardState[index] = 2;
     // Calendar normalization may make several links bind at the same start.
     // Retain every tie instead of selecting an arbitrary single predecessor.
-    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1||c.finish!==null&&Math.abs(c.finish-earlyFinish)<1).map(c=>c.relation));
+    bindingStart[index] = bindingLinks.length;
+    for (let candidate = 0; candidate < candidates; candidate += 1) {
+      if (
+        Math.abs(addWorkingHours(calendar.calendar,candidateStart[candidate]!,0)-earlyStart)<1||
+        candidateHasFinish[candidate] === 1&&Math.abs(candidateFinish[candidate]!-earlyFinish)<1
+      ) {
+        bindingLinks.push(candidateLink[candidate]!);
+      }
+    }
+    bindingCount[index] = bindingLinks.length - bindingStart[index]!;
 
     if (
       context.activity.status ===
@@ -725,27 +807,48 @@ export function calculateCpm(
     }
   }
 
+  const maxForwardFinish = (): number | null => {
+    let known = false;
+    let latest = -Infinity;
+    for (let index = 0; index < activityCount; index += 1) {
+      if (forwardState[index] !== 2) continue;
+      known = true;
+      latest = Math.max(latest, earlyFinishMs[index]!);
+    }
+    return known ? latest : null;
+  };
+
   // ALAP consumes free float, not total float: move only as far as the
   // successors' early dates allow, so the project finish does not move.
   if(config.applySourceConstraints){
-    const alapIds=new Set([...constraintsByActivity].filter(([,bounds])=>bounds.constraints.some(c=>c.kind==='alap')).map(([a])=>a.activityId));
-    const networkFinish=alapIds.size?maxDefined([...forward.values()].map(row=>row.earlyFinishMs)):null;
+    const alap = new Uint8Array(activityCount);
+    let alapCount = 0;
+    for (let index = 0; index < activityCount; index += 1) {
+      const bounds = constraintsByActivity.get(model.activities[index]!);
+      if (bounds?.constraints.some(c=>c.kind==='alap')) {
+        alap[index] = 1;
+        alapCount += 1;
+      }
+    }
+    const networkFinish=alapCount?maxForwardFinish():null;
     let alapMoved=false;
-    for(let index=graph.topologicalOrder.length-1;alapIds.size&&index>=0;index--){
-      const activityId=graph.topologicalOrder[index]!;
-      if(!alapIds.has(activityId))continue;
-      const context=contexts.get(activityId),early=forward.get(activityId);
-      if(!context?.calendar||context.durationHours===null||context.activity.status==='completed'||early?.earlyStartMs==null||early.earlyFinishMs===null||networkFinish===null)continue;
+    for(let position=activityCount-1;alapCount&&position>=0;position--){
+      const index=order[position]!;
+      if(!alap[index])continue;
+      const context=contexts[index]!;
+      if(!context.calendar||context.durationHours===null||context.activity.status==='completed'||forwardState[index]!==2||networkFinish===null)continue;
       let finishBound=networkFinish;const startBounds:number[]=[];
-      for(const relation of outgoing.get(activityId)??[]){
-        const successor=forward.get(relation.successorActivityId),calendar=contexts.get(relation.successorActivityId)?.calendar;
-        if(!successor||!calendar)continue;
-        const bound=backwardConstraintFinish(relation,{lateStartMs:successor.earlyStartMs,lateFinishMs:successor.earlyFinishMs},context.durationHours,context.calendar,calendar);
+      for(let slot=outgoingStart[index]!;slot<outgoingStart[index+1]!;slot++){
+        const link=outgoingLinks[slot]!,relation=linked[link]!,successorIndex=linkedSuccessor[link]!;
+        const calendar=contexts[successorIndex]!.calendar;
+        if(!calendar)continue;
+        const bound=backwardConstraintFinish(relation,forwardStartOf(successorIndex),forwardFinishOf(successorIndex),context.durationHours,context.calendar,calendar);
         if(bound){finishBound=Math.min(finishBound,bound.finish);if(bound.start!==null)startBounds.push(bound.start);}
       }
       const start=Math.min(subtractWorkingHours(context.calendar.calendar,finishBound,context.durationHours),...startBounds);
-      if(start>early.earlyStartMs){
-        forward.set(activityId,{earlyStartMs:start,earlyFinishMs:addWorkingHours(context.calendar.calendar,start,context.durationHours)});
+      if(start>earlyStartMs[index]!){
+        earlyStartMs[index]=start;
+        earlyFinishMs[index]=addWorkingHours(context.calendar.calendar,start,context.durationHours);
         alapMoved=true;
       }
     }
@@ -754,61 +857,58 @@ export function calculateCpm(
     // Without an ALAP date movement the forward pass already has the exact
     // unfinished-activity ties. Completed activities bypass that pass's trace,
     // so retain their original fixed-date link inspection in either case.
-    const retraceIds=alapMoved?graph.topologicalOrder:model.activities.filter(a=>a.status==='completed').map(a=>a.activityId);
-    for(const activityId of retraceIds){
-      const context=contexts.get(activityId),early=forward.get(activityId);
-      if(!context?.calendar||context.durationHours===null||early?.earlyStartMs==null||early.earlyFinishMs===null)continue;
-      bindingPredecessors.set(activityId,(incoming.get(activityId)??[]).filter(relation=>{
-        const predecessor=forward.get(relation.predecessorActivityId);if(!predecessor)return false;
-        const start=forwardConstraintStart(relation,predecessor,context.durationHours!,context.calendar!);
-        const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
-        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(context.calendar!,finishAnchor,relation.lagHours);
-        return start!==null&&Math.abs(addWorkingHours(context.calendar!.calendar,start,0)-early.earlyStartMs!)<1||finish!==null&&Math.abs(finish-early.earlyFinishMs!)<1;
-      }));
+    const retrace=(index:number)=>{
+      const context=contexts[index]!;
+      if(!context.calendar||context.durationHours===null||forwardState[index]!==2)return;
+      const calendar=context.calendar,durationHours=context.durationHours;
+      const early={start:earlyStartMs[index]!,finish:earlyFinishMs[index]!};
+      bindingStart[index]=bindingLinks.length;
+      for(let slot=incomingStart[index]!;slot<incomingStart[index+1]!;slot++){
+        const link=incomingLinks[slot]!,relation=linked[link]!,predecessorIndex=linkedPredecessor[link]!;
+        if(forwardState[predecessorIndex]===0)continue;
+        const predecessorStart=forwardStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
+        const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar);
+        const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
+        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(calendar,finishAnchor,relation.lagHours);
+        if(start!==null&&Math.abs(addWorkingHours(calendar.calendar,start,0)-early.start)<1||finish!==null&&Math.abs(finish-early.finish)<1)bindingLinks.push(link);
+      }
+      bindingCount[index]=bindingLinks.length-bindingStart[index]!;
+    };
+    if(alapMoved){
+      for(let position=0;position<activityCount;position++)retrace(order[position]!);
+    }else{
+      for(let index=0;index<activityCount;index++)if(model.activities[index]!.status==='completed')retrace(index);
     }
   }
 
   const calculatedFinish =
-    maxDefined(
-      [...forward.values()].map(
-        (state) => state.earlyFinishMs,
-      ),
-    );
+    maxForwardFinish();
 
   const latePassFinish =
     requiredFinish ??
     calculatedFinish;
 
-  const backward = new Map<
-    string,
-    BackwardState
-  >();
+  // Backward state, with the same three states as the forward pass.
+  const backwardState = new Uint8Array(activityCount);
+  const lateStartMs = new Float64Array(activityCount);
+  const lateFinishMs = new Float64Array(activityCount);
 
   for (
-    let index =
-      graph.topologicalOrder.length - 1;
-    index >= 0;
-    index -= 1
+    let position =
+      activityCount - 1;
+    position >= 0;
+    position -= 1
   ) {
-    const activityId =
-      graph.topologicalOrder[index]!;
-    const context =
-      contexts.get(activityId);
-    const early =
-      forward.get(activityId);
+    const index = order[position]!;
+    const context = contexts[index]!;
 
     if (
-      !context ||
       !context.calendar ||
       context.durationHours === null ||
-      !early ||
-      early.earlyFinishMs === null ||
+      forwardState[index] !== 2 ||
       latePassFinish === null
     ) {
-      backward.set(activityId, {
-        lateStartMs: null,
-        lateFinishMs: null,
-      });
+      backwardState[index] = 1;
       continue;
     }
 
@@ -816,41 +916,46 @@ export function calculateCpm(
       context.activity.status ===
       "completed"
     ) {
-      backward.set(activityId, {
-        lateStartMs: null,
-        lateFinishMs: null,
-      });
+      backwardState[index] = 1;
       continue;
     }
 
-    const candidates: number[] = [];
-    const startBounds: number[] = [];
+    const calendar = context.calendar;
+    const durationHours = context.durationHours;
+    const earlyFinishOfActivity = earlyFinishMs[index]!;
+    let lateFinishCandidate = latePassFinish;
+    let startBound = Infinity;
+    let hasStartBound = false;
     const sourceBounds=(constraintsByActivity.get(context.activity)??noConstraints).constraints;
     for(const bound of sourceBounds){
       if(bound.date===null)continue;
       if(['start_on','start_before'].includes(bound.kind)){
-        startBounds.push(bound.date);candidates.push(addWorkingHours(context.calendar.calendar,bound.date,context.durationHours));
+        startBound=Math.min(startBound,bound.date);hasStartBound=true;
+        lateFinishCandidate=Math.min(lateFinishCandidate,addWorkingHours(calendar.calendar,bound.date,durationHours));
       }
-      if(['finish_on','finish_before'].includes(bound.kind))candidates.push(bound.date);
+      if(['finish_on','finish_before'].includes(bound.kind))lateFinishCandidate=Math.min(lateFinishCandidate,bound.date);
     }
 
-    for (const relation of outgoing.get(
-      activityId,
-    ) ?? []) {
-      const successor =
-        backward.get(
-          relation.successorActivityId,
-        );
+    for (
+      let slot = outgoingStart[index]!;
+      slot < outgoingStart[index + 1]!;
+      slot += 1
+    ) {
+      const link = outgoingLinks[slot]!;
+      const relation = linked[link]!;
+      const successorIndex = linkedSuccessor[link]!;
 
-      const successorCalendar=contexts.get(relation.successorActivityId)?.calendar;
-      if (!successor || !successorCalendar) continue;
+      const successorCalendar=contexts[successorIndex]!.calendar;
+      if (backwardState[successorIndex] === 0 || !successorCalendar) continue;
 
+      const successorKnown = backwardState[successorIndex] === 2;
       const candidate =
         backwardConstraintFinish(
           relation,
-          successor,
-          context.durationHours,
-          context.calendar,
+          successorKnown ? lateStartMs[successorIndex]! : null,
+          successorKnown ? lateFinishMs[successorIndex]! : null,
+          durationHours,
+          calendar,
           successorCalendar,
         );
 
@@ -862,13 +967,15 @@ export function calculateCpm(
         // finish constraint), deriving a work-finish from the start bound must
         // not pull late finish back to the prior closing boundary. Preserve the
         // held finish unless an explicit project/required finish is earlier.
-        if(candidate.start!==null&&early.earlyFinishMs!==null&&
-          early.earlyFinishMs<=latePassFinish&&finishBound<early.earlyFinishMs&&
-          workingHoursBetween(context.calendar.calendar,finishBound,early.earlyFinishMs)===0){
-          finishBound=early.earlyFinishMs;
+        if(candidate.start!==null&&
+          earlyFinishOfActivity<=latePassFinish&&finishBound<earlyFinishOfActivity&&
+          workingHoursBetween(calendar.calendar,finishBound,earlyFinishOfActivity)===0){
+          finishBound=earlyFinishOfActivity;
         }
-        candidates.push(finishBound);
-        if (candidate.start !== null) startBounds.push(candidate.start);
+        lateFinishCandidate=Math.min(lateFinishCandidate,finishBound);
+        if (candidate.start !== null) {
+          startBound=Math.min(startBound,candidate.start);hasStartBound=true;
+        }
       }
     }
 
@@ -876,72 +983,59 @@ export function calculateCpm(
     // predecessors of SS/SF links whose successors may finish before them.
     // Otherwise a long predecessor can receive positive float even though it
     // determines project completion, and disappear from the critical list.
-    const projectFinishBound = latePassFinish;
-    const lateFinishCandidate = candidates.reduce(
-      (latest,candidate)=>Math.min(latest,candidate),
-      projectFinishBound,
-    );
-
     const normalizedLateFinish =
       previousWorkingInstant(
-        context.calendar.calendar,
+        calendar.calendar,
         lateFinishCandidate,
       );
     // A relationship may hold completion to the next work opening without
     // adding working duration. Keep that valid endpoint when the late bound
     // permits it; never push it past an earlier required finish target.
-    let lateFinish=early.earlyFinishMs!==null&&early.earlyFinishMs<=lateFinishCandidate&&
-      early.earlyFinishMs>normalizedLateFinish&&workingHoursBetween(context.calendar.calendar,normalizedLateFinish,early.earlyFinishMs)===0
-      ?early.earlyFinishMs:normalizedLateFinish;
+    let lateFinish=earlyFinishOfActivity<=lateFinishCandidate&&
+      earlyFinishOfActivity>normalizedLateFinish&&workingHoursBetween(calendar.calendar,normalizedLateFinish,earlyFinishOfActivity)===0
+      ?earlyFinishOfActivity:normalizedLateFinish;
     const durationStart = subtractWorkingHours(
-        context.calendar.calendar,
+        calendar.calendar,
         lateFinish,
-        context.durationHours,
+        durationHours,
       );
-    let lateStart = startBounds.reduce((latest, bound) => Math.min(latest, bound), durationStart);
+    let lateStart = hasStartBound ? Math.min(durationStart, startBound) : durationStart;
     for(const bound of sourceBounds){
       if(bound.date===null)continue;
       if(bound.kind==='mandatory_start'){
-        lateStart=bound.date;lateFinish=addWorkingHours(context.calendar.calendar,lateStart,context.durationHours);
+        lateStart=bound.date;lateFinish=addWorkingHours(calendar.calendar,lateStart,durationHours);
       }else if(bound.kind==='mandatory_finish'){
-        lateFinish=bound.date;lateStart=subtractWorkingHours(context.calendar.calendar,lateFinish,context.durationHours);
+        lateFinish=bound.date;lateStart=subtractWorkingHours(calendar.calendar,lateFinish,durationHours);
       }
     }
 
-    backward.set(activityId, {
-      lateStartMs: lateStart,
-      lateFinishMs: lateFinish,
-    });
+    lateStartMs[index] = lateStart;
+    lateFinishMs[index] = lateFinish;
+    backwardState[index] = 2;
   }
 
-  const activities: CpmActivityResult[] =
-    model.activities.map((activity) => {
-      const context =
-        contexts.get(activity.activityId);
-      const early =
-        forward.get(activity.activityId);
-      const late =
-        backward.get(activity.activityId);
+  const unsupportedConstraint = /^CPM_CONSTRAINT_(TYPE_UNSUPPORTED|DATE_MISSING)/;
+  const activities: CpmActivityResult[] = new Array(activityCount);
+  for (let index = 0; index < activityCount; index += 1) {
+      const activity = model.activities[index]!;
+      const context = contexts[index]!;
 
       if (
-        !context ||
         !context.calendar ||
         context.durationHours === null ||
-        !early ||
-        early.earlyStartMs === null ||
-        early.earlyFinishMs === null ||
-        context.diagnostics.some(d=>/^CPM_CONSTRAINT_(TYPE_UNSUPPORTED|DATE_MISSING)/.test(d))
+        forwardState[index] !== 2 ||
+        context.diagnostics.some(d=>unsupportedConstraint.test(d))
       ) {
-        return {
+        activities[index] = {
           activityId: activity.activityId,
           calendarId: activity.calendarId,
           calendarMode:
-            context?.calendar?.mode ??
+            context.calendar?.mode ??
             "elapsed_fallback",
           durationHours:
-            context?.durationHours ?? null,
+            context.durationHours ?? null,
           durationMethod:
-            context?.durationMethod ?? null,
+            context.durationMethod ?? null,
           earlyStartIso: null,
           earlyFinishIso: null,
           lateStartIso: null,
@@ -950,17 +1044,21 @@ export function calculateCpm(
           critical: null,
           status: "unresolved" as const,
           diagnostics: [
-            ...(context?.diagnostics ?? []),
+            ...context.diagnostics,
             "CPM_ACTIVITY_UNRESOLVED",
           ],
         };
+        continue;
       }
+
+      const earlyStart = earlyStartMs[index]!;
+      const earlyFinish = earlyFinishMs[index]!;
 
       if (
         activity.status ===
         "completed"
       ) {
-        return {
+        activities[index] = {
           activityId: activity.activityId,
           calendarId: activity.calendarId,
           calendarMode:
@@ -971,11 +1069,11 @@ export function calculateCpm(
             context.durationMethod,
           earlyStartIso:
             isoInstant(
-              early.earlyStartMs,
+              earlyStart,
             ),
           earlyFinishIso:
             isoInstant(
-              early.earlyFinishMs,
+              earlyFinish,
             ),
           lateStartIso: null,
           lateFinishIso: null,
@@ -987,14 +1085,11 @@ export function calculateCpm(
             "CPM_COMPLETED_ACTIVITY_FLOAT_NOT_RECALCULATED",
           ],
         };
+        continue;
       }
 
-      if (
-        !late ||
-        late.lateStartMs === null ||
-        late.lateFinishMs === null
-      ) {
-        return {
+      if (backwardState[index] !== 2) {
+        activities[index] = {
           activityId: activity.activityId,
           calendarId: activity.calendarId,
           calendarMode:
@@ -1005,11 +1100,11 @@ export function calculateCpm(
             context.durationMethod,
           earlyStartIso:
             isoInstant(
-              early.earlyStartMs,
+              earlyStart,
             ),
           earlyFinishIso:
             isoInstant(
-              early.earlyFinishMs,
+              earlyFinish,
             ),
           lateStartIso: null,
           lateFinishIso: null,
@@ -1021,16 +1116,18 @@ export function calculateCpm(
             "CPM_LATE_PASS_UNRESOLVED",
           ],
         };
+        continue;
       }
 
+      const lateFinish = lateFinishMs[index]!;
       const totalFloatHours =
         workingHoursBetween(
           context.calendar.calendar,
-          early.earlyFinishMs,
-          late.lateFinishMs,
+          earlyFinish,
+          lateFinish,
         );
 
-      return {
+      activities[index] = {
         activityId: activity.activityId,
         calendarId: activity.calendarId,
         calendarMode:
@@ -1040,14 +1137,14 @@ export function calculateCpm(
         durationMethod:
           context.durationMethod,
         earlyStartIso:
-          isoInstant(early.earlyStartMs),
+          isoInstant(earlyStart),
         earlyFinishIso:
-          isoInstant(early.earlyFinishMs),
+          isoInstant(earlyFinish),
         lateStartIso:
-          isoInstant(late.lateStartMs),
+          isoInstant(lateStartMs[index]!),
         lateFinishIso:
           isoInstant(
-            late.lateFinishMs,
+            lateFinish,
           ),
         totalFloatHours: Number(
           totalFloatHours.toFixed(6),
@@ -1060,7 +1157,7 @@ export function calculateCpm(
           ...context.diagnostics,
         ],
       };
-    });
+  }
 
   const modes = new Set(
     activities
@@ -1105,14 +1202,28 @@ export function calculateCpm(
           activity.activityId,
       );
 
-  const drivingIds=new Set<string>(),drivingRelationships:EffectiveRelationship[]=[];
-  const finishActivityIds=graph.topologicalOrder.filter(id=>calculatedFinish!==null&&forward.get(id)?.earlyFinishMs===calculatedFinish);
-  const pending=[...finishActivityIds];
-  while(pending.length){const id=pending.pop()!;if(drivingIds.has(id))continue;drivingIds.add(id);
-    for(const relation of bindingPredecessors.get(id)??[]){drivingRelationships.push(relation);pending.push(relation.predecessorActivityId);}}
-  const drivingNetwork={activityIds:graph.topologicalOrder.filter(id=>drivingIds.has(id)),finishActivityIds,
+  const driving=new Uint8Array(activityCount),drivingRelationships:EffectiveRelationship[]=[];
+  const finishActivityIds:string[]=[];
+  for(let position=0;position<activityCount;position++){
+    const index=order[position]!;
+    if(calculatedFinish!==null&&forwardState[index]===2&&earlyFinishMs[index]===calculatedFinish)finishActivityIds.push(topologicalIds[position]!);
+  }
+  const pending=finishActivityIds.map(id=>indexById.get(id)!);
+  while(pending.length){const index=pending.pop()!;if(driving[index])continue;driving[index]=1;
+    for(let slot=bindingStart[index]!;slot<bindingStart[index]!+bindingCount[index]!;slot++){
+      const link=bindingLinks[slot]!;drivingRelationships.push(linked[link]!);pending.push(linkedPredecessor[link]!);}}
+  const drivingActivityIds:string[]=[];
+  const startReasons:Array<{activityId:string;reason:'fixed_actual_dates'|'reporting_anchor_or_calendar'}>=[];
+  for(let position=0;position<activityCount;position++){
+    const index=order[position]!;
+    if(!driving[index])continue;
+    const activityId=topologicalIds[position]!;
+    drivingActivityIds.push(activityId);
+    if(!bindingCount[index])startReasons.push({activityId,reason:contexts[index]!.activity.status==='completed'?'fixed_actual_dates' as const:'reporting_anchor_or_calendar' as const});
+  }
+  const drivingNetwork={activityIds:drivingActivityIds,finishActivityIds,
     relationships:drivingRelationships.map(({diagnostics,...relation})=>relation),
-    startReasons:graph.topologicalOrder.filter(id=>drivingIds.has(id)&&!(bindingPredecessors.get(id)?.length)).map(activityId=>({activityId,reason:contexts.get(activityId)?.activity.status==='completed'?'fixed_actual_dates' as const:'reporting_anchor_or_calendar' as const}))};
+    startReasons};
   return {
     drivingNetwork,
     activityPopulation:population.contract,
