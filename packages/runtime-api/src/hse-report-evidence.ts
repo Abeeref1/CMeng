@@ -43,9 +43,20 @@ export function parseHseStatisticsTable(text:string,hash:string,sourceRef:string
 }
 export function parseHseSummary(text:string,hash:string,sourceRef:string):HseReportSummary {
   const metrics:Record<string,number|null>={};const diagnostics:string[]=[];
+  // Native report wording uses both "Lost Time Injuries: 1" and the abbreviations "LTI 1" / "MTC" / "RWC";
+  // exposure is also written number-first ("831,000 man-hours"). Abbreviations and number-first values are read
+  // only within one line, so a column header or a date on the previous line ("2026-09-30\nMan hours") is never
+  // taken as a value. A rate denominator ("per 1,000,000 man-hours", "normalised to 200,000 man-hours") is never
+  // exposure, so a number-first value preceded by per/x/by/to/every/each, an operator or a date separator is excluded.
   const patterns:Record<string,string>={manHours:'(?:total\\s+)?man[ -]?hours',lostTimeInjuries:'lost[ -]time\\s+injur(?:y|ies)',medicalTreatmentCases:'medical\\s+treatment\\s+cases',restrictedWorkCases:'restricted[ -]work\\s+cases',firstAidCases:'first\\s+aid\\s+cases',nearMisses:'near\\s+misses',ltifr:'LTIFR',trir:'TRIR'};
+  const abbreviations:Record<string,string>={lostTimeInjuries:'LTIs?',medicalTreatmentCases:'MTCs?',restrictedWorkCases:'RWCs?'};
+  const numberFirst:Record<string,string>={manHours:'(?:safe[ \\t]+)?man[ -]?hours'};
+  const num='([0-9][0-9,]*(?:\\.[0-9]+)?)';
   for(const [key,pattern] of Object.entries(patterns)){
-    const values=[...text.matchAll(new RegExp('\\b'+pattern+'\\s*[:|]?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\b','gi'))].map(m=>Number(m[1]!.replaceAll(',','')));
+    const labelFirst=[...text.matchAll(new RegExp('\\b'+pattern+'\\s*[:|]?\\s*'+num+'\\b','gi'))];
+    const short=abbreviations[key]?[...text.matchAll(new RegExp('\\b'+abbreviations[key]+'[ \\t]*[:|]?[ \\t]*'+num+'\\b','g'))]:[];
+    const before=numberFirst[key]?[...text.matchAll(new RegExp('(?<!\\b(?:per|x|by|to|every|each)[ \\t]+)(?<![0-9,.×*\\/-][ \\t]*)(?<![0-9,.\\/-])'+num+'[ \\t]+(?:total[ \\t]+)?'+numberFirst[key]+'\\b','gi'))]:[];
+    const values=[...labelFirst,...short,...before].map(m=>Number(m[1]!.replaceAll(',','')));
     const unique=[...new Set(values)];metrics[key]=unique.length===1?unique[0]!:null;
     if(unique.length>1)diagnostics.push('HSE_SUMMARY_VALUE_CONFLICT:'+key);
   }
@@ -88,6 +99,24 @@ export async function refreshHseSummary(document:StoredEvidenceDocument):Promise
   const parser=new (await import('pdf-parse')).PDFParse({data:bytes as any});
   try{const parsed=await parser.getText();const ref='evidence-document:'+document.documentId+':native-pdf-summary';document.hseSummary={...(parseHseStatisticsTable(parsed.text,document.sourceHashSha256,ref)??parseHseSummary(parsed.text,document.sourceHashSha256,ref)),producerVersion:'hse-summary-v4',sourceTableRead:parsed.pages.every(p=>p.text.trim().length>0)};return true;}finally{await parser.destroy();}
 }
+const established=(s:HseReportSummary|undefined)=>!!s&&Object.values(s.metrics??{}).some(v=>v!==null&&v!==undefined);
+/** The HSE report's own wording is evidence. When the stored summary (for example a register-style table or an
+ * older extract) leaves report fields unread, read them from the same document's complete full text: a summary
+ * with no period or no values is replaced; otherwise only unread fields of the same period are filled. Stored
+ * evidence is never rewritten, values already read are never overwritten, and conflicting text stays unresolved. */
+function reportTextSummary(d:StoredEvidenceDocument,fullText:string|null):HseReportSummary|undefined{
+  const stored=d.hseSummary;
+  if(fullText===null||d.documentType!=='hse_report'||stored?.periods?.length)return stored;
+  const ref='evidence-document:'+d.documentId+':native-text-summary';
+  const text=parseHseSummary(fullText,d.sourceHashSha256,ref);
+  if(!established(text)||!text.periodEndIso)return stored;
+  if(!stored||!established(stored)||!stored.periodEndIso)return text;
+  if(stored.periodEndIso!==text.periodEndIso)return stored;
+  const filled=Object.keys(text.metrics).filter(k=>(stored.metrics[k]??null)===null&&text.metrics[k]!==null);
+  if(!filled.length)return stored;
+  const metrics={...stored.metrics};for(const k of filled)metrics[k]=text.metrics[k]!;
+  return {...stored,metrics,sourceRefs:[...new Set([...stored.sourceRefs,ref])]};
+}
 const cache=new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:ReturnType<typeof calculateHsePosition>}>();
 export function hseReportPosition(state:ProjectRuntimeState,dataDateIso:string|null){
   const c=cache.get(state);if(c?.version===state.version&&c.date===dataDateIso)return c.value;
@@ -98,8 +127,9 @@ function calculateHsePosition(state:ProjectRuntimeState,dataDateIso:string|null)
   const reports=state.evidenceDocuments.filter(d=>(d.hseSummary||d.documentType==='hse_report')&&['active','additive','candidate'].includes(d.basisState)).flatMap(d=>{
     const read=d.fullTextRead?.sourceHashSha256===d.sourceHashSha256?d.fullTextRead:null;
     const unread=read&&(!read.result.complete||read.result.failedPages>0||read.result.unresolvedPages>0);
-    const refreshed=read&&!unread?parseHseStatisticsTable(read.result.pages.map(p=>p.text).join('\n'),d.sourceHashSha256,'evidence-document:'+d.documentId+':native-pdf-summary'):null;
-    const summary=refreshed??d.hseSummary;if(!summary)return [];
+    const fullText=read&&!unread?read.result.pages.map(p=>p.text).join('\n'):null;
+    const refreshed=fullText!==null?parseHseStatisticsTable(fullText,d.sourceHashSha256,'evidence-document:'+d.documentId+':native-pdf-summary'):null;
+    const summary=refreshed??reportTextSummary(d,fullText);if(!summary)return [];
     return (summary.periods??[summary]).map(r=>({...r,sourceTableRead:unread?false:r.sourceTableRead}));
   });
   const eligible=reports.filter(r=>cutoff&&r.periodEndIso&&r.periodEndIso<=cutoff).sort((a,b)=>b.periodEndIso!.localeCompare(a.periodEndIso!));

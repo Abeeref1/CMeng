@@ -36,6 +36,9 @@ export interface WeeklyResourceCapacitySummary {
   diagnostics: string[];
 }
 const n = (row: SourceRow, ...names: string[]) => numberValue(cell(row, ...names));
+/** Recorded (actual) hours are supplied under several register headings; all mean hours used in the period. */
+const ACTUAL_HOURS_HEADERS = ['actual approved usage','actual hours','actual manhours','actual man-hours','actual man hours','actual labor hours','actual labour hours','recorded hours'];
+const hasActualColumn = (t: SourceTable) => ACTUAL_HOURS_HEADERS.some(h => has(t,h));
 const masterClass = (s: string): string => /^(labor|labour)$/i.test(s) ? 'labor' : /^(equipment|nonlabor|nonlabour)$/i.test(s) ? 'equipment' : /^(material|mat)$/i.test(s) ? 'material' : 'unknown';
 const unitClass = (unit: string): string => /^(labor_hour|labour_hour)$/i.test(unit) ? 'labor' : unit === 'equipment_hour' ? 'equipment' : 'unknown';
 function key(row: SourceRow): string { return [cell(row,'resource id'), dateValue(cell(row,'week start','period start')), cell(row,'unit','uom')].join('|'); }
@@ -58,8 +61,18 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
   const master = new Map(masterResources.map(r => [r.resourceId,r]));
   const weeklySchema = (t: SourceTable) => has(t,'resource id','available capacity','planned demand') && (has(t,'week start') || has(t,'period start'));
   const weekly = collectUnique(tables, weeklySchema, diagnostics);
-  const actualRows = collectUnique(tables, t => has(t,'resource id','week start','actual approved usage','source status') && !has(t,'available capacity'), diagnostics);
+  const actualRows = collectUnique(tables, t => has(t,'resource id','week start','source status') && hasActualColumn(t) && !has(t,'available capacity'), diagnostics);
   const actual = new Map(actualRows.filter(r => /^approved$/i.test(cell(r,'source status'))).map(r => [key(r),r]));
+  // Timesheet / man-hour registers: recorded hours by resource and week without an approval column.
+  // Used only when no approved or embedded weekly value exists, and qualified as unconfirmed source evidence.
+  const timesheet = new Map<string, SourceRow | null>();
+  for (const t of tables.filter(t => has(t,'resource id') && (has(t,'week start') || has(t,'period start')) && hasActualColumn(t) && !has(t,'available capacity') && !has(t,'source status')))
+    for (const row of t.rows) {
+      const k = [cell(row,'resource id'), dateValue(cell(row,'week start','period start'))].join('|');
+      const prior = timesheet.get(k);
+      if (prior === undefined) timesheet.set(k,row);
+      else if (prior !== null && n(prior,...ACTUAL_HOURS_HEADERS) !== n(row,...ACTUAL_HOURS_HEADERS)) { timesheet.set(k,null); diagnostics.push('CONFLICTING_TIMESHEET_HOURS:' + k); }
+    }
   const points: WeeklyResourceCapacityPoint[] = [];
   for (const r of weekly) {
     const id = cell(r,'resource id'), definition = master.get(id), unit = cell(r,'unit','uom') || definition?.unit || null;
@@ -70,10 +83,12 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
     const unitConflict = !!definition && definition.unit !== unit || expectedClass !== 'unknown' && resolvedClass !== expectedClass;
     if (unitConflict) diagnostics.push('RESOURCE_UNIT_CLASS_CONFLICT:' + id);
     const approved = actual.get(key(r));
-    const embeddedUsage = n(r,'actual approved usage');
+    const embeddedUsage = n(r,...ACTUAL_HOURS_HEADERS);
+    const sheet = approved || embeddedUsage !== null ? undefined : timesheet.get([id, dateValue(cell(r,'week start','period start'))].join('|'));
+    const sheetUnit = sheet ? cell(sheet,'unit','uom') : '';
     let usage: number | null = null;
     if (approved) {
-      const measured = n(approved,'actual approved usage');
+      const measured = n(approved,...ACTUAL_HOURS_HEADERS);
       if (embeddedUsage !== null && measured !== null && Math.abs(embeddedUsage - measured) > 0.000001) {
         diagnostics.push('ACTUAL_USAGE_RECONCILIATION_CONFLICT:' + key(r));
       } else {
@@ -86,6 +101,9 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       // "missing"; downstream views can label it as source-register evidence.
       usage = embeddedUsage;
       diagnostics.push('EMBEDDED_ACTUAL_USAGE_FROM_SOURCE_REGISTER_NOT_SEPARATELY_CONFIRMED:' + key(r));
+    } else if (sheet && (!sheetUnit || sheetUnit === unit)) {
+      usage = n(sheet,...ACTUAL_HOURS_HEADERS);
+      if (usage !== null) diagnostics.push('TIMESHEET_ACTUAL_HOURS_NOT_SEPARATELY_CONFIRMED:' + key(r));
     }
     const period = dateValue(cell(r,'week start','period start'));
     const cutoffDate = dataDateIso ? dateValue(dataDateIso) : null;
@@ -107,7 +125,7 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       actualApprovedUsage:valid && usage !== null && usage >= 0 ? usage : null,
       forecastDemand:valid ? n(r,'forecast demand') : null, unit,
       sourceRef:'evidence-document:' + r.receipt.documentId + ':' + r.receipt.locator,
-      receipts:[r.receipt, ...(approved ? [approved.receipt] : []), ...(definition ? [definition.receipt] : [])],
+      receipts:[r.receipt, ...(approved ? [approved.receipt] : []), ...(sheet ? [sheet.receipt] : []), ...(definition ? [definition.receipt] : [])],
     });
   }
   const comparable = points.filter(p => p.weekStartIso !== null && p.availableCapacity !== null && p.plannedDemand !== null);

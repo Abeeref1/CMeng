@@ -341,6 +341,15 @@ export function weeklyResourceCapacityEvidence(
           "approved usage",
           "actual usage",
           "actual demand",
+          // Recorded hours are supplied under these headings in resource,
+          // timesheet and man-hour registers; all mean hours used in the week.
+          "actual hours",
+          "actual manhours",
+          "actual man-hours",
+          "actual man hours",
+          "actual labor hours",
+          "actual labour hours",
+          "recorded hours",
         ],
       );
     const unitIndex =
