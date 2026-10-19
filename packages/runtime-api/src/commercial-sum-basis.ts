@@ -6,8 +6,10 @@
 
 export interface SumBasisInput{
   records:string|null|undefined;
-  currency:string|null|undefined;
-  taxBasis:string|null|undefined;
+  // Money sums pass currency and taxBasis (even when unknown); date, day and
+  // hour sums omit them, so no meaningless "currency" part is shown.
+  currency?:string|null|undefined;
+  taxBasis?:string|null|undefined;
   asOf?:string|null|undefined;
 }
 
@@ -17,8 +19,8 @@ const known=(value:unknown):string|null=>value===null||value===undefined||String
 export function sumBasisLabel(input:SumBasisInput):string{
   const known=(value:unknown):string|null=>value===null||value===undefined||String(value).trim()===''?null:String(value).trim();
   return 'Basis: '+(known(input.records)??'records not established')+
-    ' · currency '+(known(input.currency)??'not established')+
-    ' · tax basis '+(known(input.taxBasis)??'not established')+
+    ('currency' in input?' · currency '+(known(input.currency)??'not established'):'')+
+    ('taxBasis' in input?' · tax basis '+(known(input.taxBasis)??'not established'):'')+
     ' · as of '+(known(input.asOf)??'not established');
 }
 
@@ -105,7 +107,8 @@ export interface ContractTaxBasisFinding{value:StatedTaxBasis|null;state:'source
 
 const stated=(v:unknown):StatedTaxBasis|null=>v==='exclusive'||v==='inclusive'?v:null;
 
-export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currency:string,amount:number|null):ContractTaxBasisFinding{
+export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currency:string|null,amount:number|null):ContractTaxBasisFinding{
+  if(currency===null)return {value:null,state:'not_established',sourceRefs:[],reason:'Currency is not established.'};
   if(amount===null||!Number.isFinite(amount))return {value:null,state:'not_established',sourceRefs:[],reason:'Original contract value is not established.'};
   const matches=evidence.filter(e=>e.currency===currency&&typeof e.amount==='number'&&Math.abs(e.amount-amount)<=0.01&&stated(e.taxBasis)!==null);
   const bases=[...new Set(matches.map(e=>stated(e.taxBasis)!))];
@@ -116,7 +119,7 @@ export function contractTaxBasis(evidence:readonly ContractTaxEvidence[],currenc
 }
 
 export interface CertifiedRatioInput{
-  currency:string;
+  currency:string|null;
   certifiedGrossWork:number|null;
   certificateTaxBasis:string|null|undefined;
   originalContract:number|null;
@@ -164,4 +167,14 @@ export function registerAboveContractQueries(rows:readonly RegisterContractCheck
     return {currency:r.currency,register:r.register,excess,
       text:r.register+(r.sourceRecordCount!==null&&r.sourceRecordCount!==undefined?' ('+r.sourceRecordCount+' records)':'')+' totals '+money(r.registerTotal)+', above the current contract sum '+money(r.currentContractValue)+' by '+money(excess)+'; reconcile scope, duplicates, tax and currency before relying on it.'};
   });
+}
+
+// F27: a date addition (for example contract completion plus awarded EOT) states
+// the start date and the exact number of calendar days added, as the difference
+// between the two dates actually used. Unknown parts stay not established.
+export function dateAdditionBasisLabel(input:{label:string;startIso:string|null|undefined;resultIso:string|null|undefined;asOf?:string|null|undefined}):string{
+  const day=(v:string|null|undefined)=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v??''));return m?Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])):null;};
+  const a=day(input.startIso),b=day(input.resultIso);
+  const added=a===null||b===null?null:Math.round((b-a)/86_400_000);
+  return sumBasisLabel({records:input.label+' '+(a===null?'not established':String(input.startIso).slice(0,10))+' + '+(added===null?'awarded EOT days not established':added+' calendar days of awarded EOT'),asOf:input.asOf});
 }

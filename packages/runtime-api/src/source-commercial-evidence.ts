@@ -1,7 +1,7 @@
 import {cell,dateValue,numberValue,governedTables} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {contractValueBasisReview} from './source-basis-review';
-import {contractTaxBasis,likeForLikeCertifiedRatio,type ContractTaxEvidence} from './commercial-sum-basis';
+import {contractTaxBasis,likeForLikeCertifiedRatio,type CertifiedRatio,type ContractTaxEvidence} from './commercial-sum-basis';
 
 /** Match retained business references, not row positions or amounts. An ambiguous
  * certificate remains unlinked. This projection never writes a cash ledger. */
@@ -93,7 +93,7 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
     sourceRefs:(r.receipts??[]).map((x:any)=>'evidence-document:'+x.documentId+':'+x.locator)})),
  ];
  const originalContractTaxBases=(position.currencies??[]).map((c:any)=>({currency:c.currency,...contractTaxBasis(contractTaxEvidence,c.currency,c.originalContractValue?.value??null)}));
- const certifiedRatios=(position.certificateProfile?.groups??[]).map((group:any)=>{
+ const certifiedRatios:Array<{group:any;ratio:CertifiedRatio}>=(position.certificateProfile?.groups??[]).map((group:any)=>{
   const currency=(position.currencies??[]).find((c:any)=>c.currency===group.currency);
   const contractTax=originalContractTaxBases.find((c:any)=>c.currency===group.currency)??contractTaxBasis([],group.currency,null);
   return {group,ratio:likeForLikeCertifiedRatio({currency:group.currency,certifiedGrossWork:group.certifiedTotals?.grossWork??null,certificateTaxBasis:group.taxBasis,

@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSourceFile,ScriptTarget,isFunctionDeclaration} from 'typescript';
 
-import {contractTaxBasis,likeForLikeCertifiedRatio,registerAboveContractQueries} from '../packages/runtime-api/src/commercial-sum-basis';
+import {contractTaxBasis,dateAdditionBasisLabel,likeForLikeCertifiedRatio,registerAboveContractQueries,sumBasisLabel} from '../packages/runtime-api/src/commercial-sum-basis';
+import {assessEventNotice} from '../packages/delay-analysis-core/src/notices';
 import {sourceCommercialEvidence} from '../packages/runtime-api/src/source-commercial-evidence';
 import {buildRegisterChecks} from '../packages/runtime-api/src/project-decision-facts';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -114,4 +115,38 @@ test('F37: the Dashboard cost tile shows the like-for-like comparison, omission 
   assert.match(output,/not the original budget/);
   assert.match(output,/VO-011, VO-014/);
   assert.match(output,/292,500,000 SAR, above the current contract sum/);
+});
+
+// ---- F27: day, date and hour sums use the same shared basis label ----
+
+test('F27: non-money sums show records and date only; money sums keep currency and tax',()=>{
+  assert.equal(sumBasisLabel({records:'12 approved weekly usage periods',asOf:'2027-03-31'}),'Basis: 12 approved weekly usage periods · as of 2027-03-31');
+  assert.equal(sumBasisLabel({records:'x',currency:null,taxBasis:null,asOf:null}),'Basis: x · currency not established · tax basis not established · as of not established');
+});
+
+test('F27: a date addition states the start date and the exact days added',()=>{
+  assert.equal(dateAdditionBasisLabel({label:'contract completion',startIso:'2027-01-31',resultIso:'2027-09-21',asOf:'2026-08-31'}),
+    'Basis: contract completion 2027-01-31 + 233 calendar days of awarded EOT · as of 2026-08-31');
+  assert.equal(dateAdditionBasisLabel({label:'contract completion',startIso:null,resultIso:'2027-09-21',asOf:null}),
+    'Basis: contract completion not established + awarded EOT days not established · as of not established');
+});
+
+test('F27: elapsed notice days carry the dated trigger they count from',()=>{
+  const event:any={eventId:'CLM-003-EV',category:'late_access',startIso:'2026-01-01',awarenessIso:'2026-01-05'};
+  const rule:any={requirementId:'R-20.1',noticeKind:'claim_notice',eventCategories:[],noticePeriodDays:28,effectiveFromIso:null,effectiveToIso:null,triggerBasis:'awareness',state:'official',clauseIdentifiers:[],evidenceRefs:[]};
+  const notice:any={noticeId:'N-3',kind:'claim_notice',eventId:'CLM-003-EV',claimId:null,actualIssuedAt:'2026-02-18',actualReceivedAt:null,plannedAt:null,subject:null,clauseIdentifiers:[],evidenceRefs:[],diagnostics:[]};
+  const a=assessEventNotice(event,[notice],[rule]);
+  assert.equal(a.elapsedDays,44);
+  assert.equal(a.elapsedFromIso,'2026-01-05');
+  assert.equal(a.elapsedFromBasis,'awareness');
+  const b=assessEventNotice(event,[notice],[{...rule,triggerBasis:'event_start'}]);
+  assert.equal(b.elapsedDays,48);
+  assert.equal(b.elapsedFromIso,'2026-01-01');
+  assert.equal(b.elapsedFromBasis,'event_start');
+});
+
+test('F27: notice days, actual hours and commercial sums on the page go through the one shared label',()=>{
+  assert.equal((script.match(/sumBasisLabel\(\{records:"notice "/g)||[]).length,2,'both notice-day tables');
+  assert.match(script,/"Actual labor hours"[^\n]*sumBasisLabel\(\{records:weekly\?/);
+  assert.match(script,/function sumBasisLabel\(/);
 });
