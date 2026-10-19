@@ -111,7 +111,7 @@ export const COMPLETION_DECISION_NOTE='Chosen by the user in the decision place;
 export interface CompletionDecisionItem {key:string;dataDateIso:string|null;fingerprint:string;reason:'sources_disagree'|'unsure_reading';
   candidates:Array<{date:string;adopted:boolean;userConfirmed:boolean;documentIds:string[];sourceRefs:string[]}>;
   decision:{choice:string;enteredDateIso?:string;confirmedAt:string}|null;}
-const isoDate=(value:unknown)=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+const isoDate=(value:unknown)=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
 const completionCache=new WeakMap<ProjectRuntimeState,{version:number;value:CompletionDecisionItem|null}>();
 export function completionDecisionItem(state:ProjectRuntimeState):CompletionDecisionItem|null{
   const prior=completionCache.get(state);if(prior&&prior.version===state.version)return prior.value;
@@ -123,9 +123,12 @@ function readCompletionDecisionItem(state:ProjectRuntimeState):CompletionDecisio
   const stored=state.controls.contractTimeBasis;
   const held=completionHeldByAdoptedBasis(stored,position)?.length&&stored?.contractualCompletionIso?stored.contractualCompletionIso.slice(0,10):null;
   const relevant=position.candidates.filter(c=>!c.historical&&(c.role!=='amendment'||!c.effectiveFrom||!asOf||c.effectiveFrom<=asOf));
-  const latest=relevant.filter(c=>c.role==='amendment'&&c.effectiveFrom&&asOf).map(c=>c.effectiveFrom!).sort().at(-1);
-  // A base date replaced by an applicable dated amendment is not a competing value.
-  const offered=relevant.filter(c=>!latest||(c.role==='amendment'&&(!c.effectiveFrom||c.effectiveFrom===latest)));
+  // A base date replaced by an applicable dated amendment of the same standing
+  // (adopted by adopted, unadopted by unadopted) is not a competing value. An
+  // unadopted amendment never supersedes an adopted date: both are offered.
+  const latestFor=(unadopted:boolean)=>relevant.filter(c=>c.role==='amendment'&&c.effectiveFrom&&asOf&&Boolean(c.sourceAnalytical)===unadopted).map(c=>c.effectiveFrom!).sort().at(-1);
+  const latestAdopted=latestFor(false),latestUnadopted=latestFor(true);
+  const offered=relevant.filter(c=>{const latest=c.sourceAnalytical?latestUnadopted:latestAdopted;return !latest||(c.role==='amendment'&&(!c.effectiveFrom||c.effectiveFrom===latest));});
   const unsure=position.state==='conflicted'&&/applicability is unresolved/.test(position.reason??'');
   const dates=new Map<string,CompletionDecisionItem['candidates'][number]>();
   for(const c of offered){const row=dates.get(c.date)??{date:c.date,adopted:false,userConfirmed:false,documentIds:[],sourceRefs:[]};
