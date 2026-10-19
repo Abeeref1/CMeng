@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { hash } from "node:crypto";
 import {
   stableFingerprint,
 } from "../../analysis-runtime/src";
@@ -201,8 +201,10 @@ function candidateId(
   // Same bytes stableFingerprint hashes for this flat string record: its
   // normalizer sorts the keys (activityId < itemId < method) and leaves the
   // string values unchanged. Skip only that per-candidate re-normalization.
+  // One-shot SHA-256 of the same UTF-8 string: identical digest, without a
+  // Hash object per candidate (thousands per BOQ mapping pass).
   if (typeof itemId === "string" && typeof activityId === "string" && typeof method === "string")
-    return "qty-map-" + createHash("sha256").update(JSON.stringify({activityId, itemId, method})).digest("hex").slice(0, 20);
+    return "qty-map-" + hash("sha256", JSON.stringify({activityId, itemId, method}), "hex").slice(0, 20);
   return (
     "qty-map-" +
     stableFingerprint({
