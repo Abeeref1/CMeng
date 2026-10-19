@@ -358,7 +358,9 @@ test("certified demo exposes all 22 schedule modules plus 7 commercial modules, 
           'controls.overdueRfiCount.value','controls.openNcrCount.value',
         ];
         const firstClassFacts=(result.data as any).projectFacts;
-        const bundleFacts=(management as any)[field]?.projectFacts;
+        // F61: the bundle carries the shared facts once (top-level projectFacts) and each page points to them.
+        const bundlePage=(management as any)[field];
+        const bundleFacts=bundlePage?.projectFacts??(bundlePage?.projectFactsRef?(management as any).projectFacts:undefined);
         assert.ok(firstClassFacts,'Each first-class page must have its shared facts');
         assert.ok(bundleFacts,'Management transport must not erase shared facts as a paging side effect');
         for(const fact of invariantFacts)
