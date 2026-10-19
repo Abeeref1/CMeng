@@ -1091,16 +1091,19 @@ function finalize(
   };
 }
 
+/** Programme data-date columns, read by header text (not by column role). */
+function isDataDateHeader(label: string): boolean {
+  const key=label.toLowerCase().replace(/[_:\-]+/g," ").replace(/\s+/g," ").trim();
+  return ["data date","current data date","status date"].includes(key);
+}
+
 function activityDataDates(
   source: "csv" | "xlsx", sheet: string | null,
   rows: readonly (readonly string[])[], headers: ScheduleHeaderMapping[],
   activities: ScheduleActivityRow[],
 ): NonNullable<ScheduleTabularResult["dataDateValues"]> {
   const out: NonNullable<ScheduleTabularResult["dataDateValues"]> = [];
-  const dateHeaders=headers.map(header=>({row:header.row,columns:Object.entries(header.headers).filter(([,label])=>{
-    const key=label.toLowerCase().replace(/[_:\-]+/g," ").replace(/\s+/g," ").trim();
-    return ["data date","current data date","status date"].includes(key);
-  }).map(([column])=>Number(column))}));
+  const dateHeaders=headers.map(header=>({row:header.row,columns:Object.entries(header.headers).filter(([,label])=>isDataDateHeader(label)).map(([column])=>Number(column))}));
   if(!dateHeaders.some(header=>header.columns.length))return out;
   for (const activity of activities) {
     const origin = activity.locators.activity_id;
@@ -1127,7 +1130,8 @@ function programmeColumnAudit(
     const body = rows.slice(mapping.row, next ? next.row - 1 : rows.length);
     return Object.entries(mapping.headers).flatMap(([column, header]) => {
       if (!String(header ?? "").trim()) return [];
-      const role = mapping.roles[Number(column)] ?? "unknown";
+      const mappedRole = mapping.roles[Number(column)] ?? "unknown";
+      const role = mappedRole === "unknown" && isDataDateHeader(header) ? "data_date" : mappedRole;
       const sample = body.map((row) => String(row[Number(column)] ?? "").trim()).find(Boolean) ?? null;
       return [{table, ...sourceColumnAuditEntry(header, role, "other", role !== "unknown",
         "Read by the programme reader as " + role + ".", sample)}];

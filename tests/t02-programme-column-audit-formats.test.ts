@@ -42,6 +42,8 @@ test('T02 R1 CSV programme: unread columns are listed as unused with a sample; r
  assert.equal(entry(audit,'Activity ID')?.mappingState,'schema_recognized');
  assert.equal(entry(audit,'Cost Account')?.mappingState,'unused');
  assert.equal(entry(audit,'Cost Account')?.sample,'CA-310');
+ const dated=canonicalScheduleFromTabular(parseScheduleCsv(Buffer.from([header+',Data Date',...rows.map(r=>r+',2026-01-05')].join('\n'),'utf8')),{sourceRevisionId:'c2',projectId:'P1'});
+ assert.equal(entry(dated.sourceColumnAudit as Audit,'Data Date')?.mappingState,'schema_recognized','the data-date column is read by its header text and is not listed as unused');
 });
 
 test('T02 R1 xlsx programme: unread columns are listed per sheet as unused with a sample',async()=>{
