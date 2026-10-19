@@ -55,7 +55,7 @@ const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value
  * itself stays one finding. */
 const memberView=(issue:ControlIssue,member:ControlIssueMember):ControlIssue=>{
   const rest:ControlIssue={...issue};delete rest.field;
-  return {...rest,summary:member.summary,moduleKeys:member.moduleKeys,evidencePaths:member.evidencePaths,sourceRefs:member.sourceRefs,...(member.field!==undefined?{field:member.field}:{})};
+  return {...rest,summary:member.summary,...(member.detail!==undefined?{detail:member.detail}:{}),moduleKeys:member.moduleKeys,evidencePaths:member.evidencePaths,sourceRefs:member.sourceRefs,...(member.field!==undefined?{field:member.field}:{})};
 };
 export const actionFindingId=(issue:ControlIssue)=>identity([issue.kind,issue.code,controlIssueField(issue),
   [...issue.evidencePaths].sort(),[...issue.moduleKeys].sort(),[...issue.sourceRefs].sort()]);
