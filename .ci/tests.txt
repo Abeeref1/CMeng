@@ -19,8 +19,8 @@ delivery-authority
 detailed-claim-source-rule
 director-unknown-claim-count
 eot-reasonableness-runtime
-evidence-intake-governance
 evidence-intake
+evidence-intake-governance
 f06-claims-files-merge-notice-register
 f06-event-register-content-both-readers
 f13-f47-claim-register-time-bar
@@ -54,6 +54,8 @@ project-upload-continuity
 quarantined-claims-null-consistency
 r11-f10-one-owner-page-per-block
 r11-f45-progress-quantity-rules
+r12-certified-column-label
+r12-f34-time-for-completion-from-commencement
 recovery-eligibility-coverage
 register-date-review
 register-reader-release
@@ -72,6 +74,7 @@ sw15-delay-events-not-from-claims
 system-commercial-repair
 system-root-causes
 t02-cost-report-content-date-formats
+t02-p6-xml-calendar-working-time
 t04-commercial-registers-source-analysis
 t04-contract-fact-decisions
 t04-contract-terms-source-analysis
