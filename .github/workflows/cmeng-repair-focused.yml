@@ -48,6 +48,7 @@ jobs:
             dist/tests/t05-same-measure-every-page.test.js \
             dist/tests/t11-retained-calculation-only.test.js \
             dist/tests/t11-owner-page-publication.test.js \
+            dist/tests/t11-worker-compile-cache.test.js \
             dist/tests/t11-lookahead-cold-reuse-parity.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
             dist/tests/t11-progress-breakdown-float-source-parity.test.js \
