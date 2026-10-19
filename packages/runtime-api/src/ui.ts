@@ -2586,6 +2586,15 @@ function sourceWorkingDelay(row,key){
   return typeof working==='number'&&Number.isFinite(working)?sign(working)+fmt(working)+' working days (activity calendar) · '+sign(days)+fmt(days)+' elapsed days':
     'Working-day basis not established · '+sign(days)+fmt(days)+' elapsed days';
 }
+/** T06/N7: completion delay in working days of the completion calendar
+ * first, elapsed days second; an unknown calendar says so. */
+function completionDelayText(ld){
+  const days=ld?.delayDays,working=ld?.delayWorkingDays;
+  if(typeof days!=='number'||!Number.isFinite(days))return 'Not established';
+  const where=ld.delayWorkingDaysBasis==='completion_milestone_calendar'?'completion milestone calendar':ld.delayWorkingDaysBasis==='cpm_finish_activity_calendar'?'calendar of the CPM finish activity':'completion calendar';
+  return typeof working==='number'&&Number.isFinite(working)?fmt(working)+' working days ('+where+') · '+fmt(days)+' elapsed days':
+    'Working-day basis not established · '+fmt(days)+' elapsed days';
+}
 /** The same rule for any float-hours field and its server WorkingDays twin. */
 function sourceWorkingFloatField(row,key){
   const hours=row?.[key],lowest=row?.[key.replace(/Hours$/,'ActivityId')];
@@ -6146,6 +6155,7 @@ function renderDirector(d){
     ["Awarded EOT",c.officialApprovedEotDays===null||c.officialApprovedEotDays===undefined?"Not established":c.officialApprovedEotDays,"Dated awards through the reporting date"],
     ["Network calculation",s.independentCpmState==="established"?"Computed":"Unavailable","graph/calculation coverage only; source float and calendars require reconciliation"],
     ["Claims linked",c.claimCount===null||c.claimCount===undefined?"Not established":screenCountText(c.fullyLinkedClaimCount)+" / "+fmt(c.claimCount),"claim → event → activity"],
+    ["Completion delay vs adjusted completion",completionDelayText(d.ld),d.ld.delayDays===null||d.ld.delayDays===undefined?"needs a calculated programme finish and adjusted completion":"LD counted on calendar days (contract rate per day or week)"],
     ["LD Scenario",d.ld.cappedAmount===null||d.ld.cappedAmount===undefined?"Not established":fmt(d.ld.cappedAmount)+" "+(d.ld.currency||""),humanizeKey(d.ld.state)],
     ...(d.projectFacts?.commercial?.sectionalLd?[["Sectional LD (capped)",sectionalLdText(d.projectFacts.commercial.sectionalLd),d.projectFacts.commercial.sectionalLd.state==="calculated"?"sum of section scenarios":(d.projectFacts.commercial.sectionalLd.reason||"needs review")]]:[])
   ]);

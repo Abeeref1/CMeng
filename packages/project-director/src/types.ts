@@ -19,6 +19,9 @@ import type {
 import type {
   ContractLdTerms,
 } from "../../contract-commercial/src";
+import type {
+  CanonicalCalendar,
+} from "../../schedule-analysis-core/src";
 
 export interface MoneyValue {
   amount: number;
@@ -179,6 +182,16 @@ export interface OperationalRegisterReporting {
   undated: object[];
   diagnostics: string[];
 }
+export interface CompletionDelayCalendar {
+  activityId: string | null;
+  calendarId: string | null;
+  calendar: CanonicalCalendar | null;
+  basis:
+    | "completion_milestone_calendar"
+    | "cpm_finish_activity_calendar"
+    | "completion_calendar_not_established";
+}
+
 export interface DirectorPositionInput {
   generatedAt: string;
   projectId: string;
@@ -203,6 +216,10 @@ export interface DirectorPositionInput {
   permits: PermitRecord[];
   openRiskCount?: number | null;
   operationalReporting?: OperationalControlReporting;
+  /** T06/N7: the completion calendar for the completion delay in working
+   * days (the completion milestone, else the one shared calendar of the CPM
+   * finish activities). Absent or null calendar: working days not established. */
+  completionCalendar?: CompletionDelayCalendar;
   boardEvidence: BoardEvidenceRecord | null;
   evidenceAvailability?:
     DirectorEvidenceAvailability;
@@ -298,6 +315,14 @@ export interface ProjectDirectorPosition {
     delayBasis:
       | "official_adjusted_completion"
       | "unavailable";
+    /** T06/N7 (additive): the same completion delay in working days of the
+     * completion calendar; null when that calendar is not established. */
+    delayWorkingDays?: number | null;
+    delayWorkingDaysBasis?: string;
+    completionCalendarActivityId?: string | null;
+    completionCalendarId?: string | null;
+    /** The LD amount is counted on this time basis (stated, never assumed). */
+    ldTimeBasis?: "calendar_days_per_contract_rate";
     state:
       | "scenario_candidate"
       | "multi_scenario"
