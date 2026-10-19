@@ -44,3 +44,31 @@ test('a timesheet register supplies recorded hours when the weekly register has 
   assert.equal(get('R3').actualApprovedUsage,null,'no recorded hours stays unknown, never 0');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+// The Resources page says once, with the reason, that actual utilization is not established,
+// instead of printing "Not established" in the actual column of every resource row.
+import vm from 'node:vm';
+import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
+import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+function renderResources(p:Record<string,unknown>):string{
+ const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
+ const parsed=createSourceFile('cmeng-screen.js',script,ScriptTarget.Latest,true);
+ const names=['conditionalNotice','knownScreenCount','screenCountText','resourcePerHourNotAssessableNote','renderResourceVisual'];
+ const code=parsed.statements.filter(isFunctionDeclaration).filter(n=>names.includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
+ const text=(v:unknown)=>String(v??''),joinText=(...a:unknown[])=>a.filter(x=>typeof x==='string').join(' ');
+ return vm.runInNewContext(code+'\nrenderResourceVisual(p);',{p,projectionFor:(v:unknown)=>v,escapeHtml:text,fmt:text,humanizeKey:text,planningShortDate:text,resourceUnitLabel:text,
+  planningKpis:()=>'',planningRevisionLabel:text,issueBadge:()=>'',names:{},renderLineChart:()=>'',renderResourceBasisReview:()=>'',moduleBarList:()=>'',moduleEvidenceGate:()=>'',
+  experienceDisclosure:joinText,managementPanel:joinText,renderVisualPanel:joinText,visualSection:joinText}) as string;
+}
+test('Resources weekly detail: absent actual utilization is stated once with the reason, not per row',()=>{
+ const row=(id:string,actual:number|null)=>({resourceId:id,resourceName:id,resourceClass:'labor',unit:'labor_hour',periodCount:10,plannedPeriodCountToDataDate:0,actualPeriodCountToDataDate:actual===null?0:1,plannedUtilizationPercent:null,actualUtilizationPercent:actual});
+ const base={rows:[],perHourCapacityBasedResourceCount:0,capacityCoveragePercent:null};
+ const none=renderResources({...base,weeklyCapacityEvidence:{dataDateIso:'2031-01-31',weeklyTotals:[],actualPeriodCoveragePercent:0,resourceSummaries:[row('R1',null),row('R2',null),row('R3',null)]}});
+ assert.equal((none.match(/Actual utilization is not established\./g)??[]).length,1,'stated once');
+ assert.match(none,/No recorded \(actual\) hours on or before the Data Date were found in the resource, timesheet or man-hour registers\./);
+ assert.doesNotMatch(none,/<th>Actual utilization<\/th>/,'no per-row actual utilization column');
+ const unapproved=renderResources({...base,weeklyCapacityEvidence:{dataDateIso:'2031-01-31',weeklyTotals:[],actualPeriodCoveragePercent:50,resourceSummaries:[row('R1',null)]}});
+ assert.match(unapproved,/Recorded hours are supplied, but no approved available capacity exists/);
+ const some=renderResources({...base,weeklyCapacityEvidence:{dataDateIso:'2031-01-31',weeklyTotals:[],actualPeriodCoveragePercent:100,resourceSummaries:[row('R1',70),row('R2',null)]}});
+ assert.match(some,/<th>Actual utilization<\/th>/);assert.match(some,/70%/);assert.doesNotMatch(some,/Actual utilization is not established\./);
+});
