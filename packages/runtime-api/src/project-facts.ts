@@ -22,6 +22,9 @@ import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
+import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
+import {contractTimeDatesFrom} from './contract-time-reader';
+import {extractContractLdTerms} from '../../contract-commercial/src';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -74,6 +77,8 @@ export interface ProjectFactsSnapshot {
     contractualCompletionIso:ProjectFact<string>;
     awardedEotDays:ProjectFact<number>;
     extendedContractCompletionIso:ProjectFact<string>;
+    /** F33: the one date lateness and delay damages are measured against. */
+    governingContractCompletionIso?:ProjectFact<string>;
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
@@ -90,7 +95,7 @@ export interface ProjectFactsSnapshot {
     expiredPermitCount?:ProjectFact<number>;
   };
   claims:{
-    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;basis:string};
+    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -338,8 +343,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
           :'Contract completion plus reconciled official awarded EOT.',true);
   // Never call a project late against the original date when an award exists
   // but the extended date cannot yet be calculated.
-  const currentContractCompletion=extendedCompletion??(
-    officialAward!==null&&officialAward>0?null:commercial.timeExposure.contractualCompletion.value);
+  const currentContractCompletion=contractTimeDatesFrom(commercial.timeExposure).governingCompletionIso;
   const forecastGate=model&&independentForecast?buildForecastReconciliationGate({
     model,forecast:independentForecast,
     requiredFinishIso:currentContractCompletion
@@ -347,6 +351,14 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
     ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
+  // F33: one shared governing date (contract + awarded EOT; never the original
+  // date while an award exists but the extended date is unknown).
+  const governingCompletion=fact(currentContractCompletion,
+    extendedCompletion?'Contract completion including the awarded EOT; lateness and delay damages are measured against it.':'Contract completion; no awarded EOT is recorded.',
+    'calculated_with_stated_basis',currentContractCompletion!==null&&(extendedCompletion?commercial.timeExposure.officialAdjustedCompletion.state==='established':commercial.timeExposure.contractualCompletion.state==='established'));
+  const pendingScenario=pendingEotScenario({model,cpmPublishable:independentFinish!==null,governingCompletionIso:currentContractCompletion,
+    pendingCount:pendingClaims.length,pendingAssessedDays,ldTerms:scoped.contract?extractContractLdTerms(scoped.contract):null,
+    ...(scoped.controls?.contractValue?{contractValue:scoped.controls.contractValue}:{})});
 
   // T04: the shared source-analytical rule; wording read only from an
   // unadopted amendment is quoted with its label, never as adopted text.
@@ -462,6 +474,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         'Official awarded EOT through the project Data Date.',
       ),
       extendedContractCompletionIso:presentedExtension,
+      governingContractCompletionIso:governingCompletion,
     },
     controls:{
       expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)||row.permitStatus==='expired'&&row.affectsOpenWork===null?null:row.permitStatus==='expired'&&row.affectsOpenWork===true),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
@@ -505,7 +518,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     claims:{
       ...(reportedClaims?{pipeline:{rows:reportedClaims.rows.map(row=>({claimId:row.claimId,state:row.sourceStatus||row.state,claimedDays:row.claimedDays,assessedDays:row.assessedDays})),recordCount:reportedClaims.recordCount,claimedDays:reportedClaims.claimedDays.value,assessedDays:reportedClaims.assessedDays.value,
         pendingCount:pendingClaims.length,pendingAssessedDays,
-        pendingScenarioCompletionIso:extendedCompletion&&pendingAssessedDays!==null?new Date(Date.parse(extendedCompletion.slice(0,10))+pendingAssessedDays*86400000).toISOString().slice(0,10):null,
+        // F44: the CMeng CPM scenario; date arithmetic only as its labelled fallback.
+        pendingScenarioCompletionIso:pendingScenario?.scenarioContractCompletionIso??null,pendingEotScenario:pendingScenario,
         basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
       eventDateMissingCount:sourceCount(
         noticeGaps.eventDateMissing,

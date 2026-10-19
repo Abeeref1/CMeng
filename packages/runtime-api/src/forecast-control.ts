@@ -5,6 +5,7 @@ import {canonicalTimeClaims} from "./canonical-time-claims";
 import {isScenarioRevision} from "./schedule-authority";
 import {sourceProductivityForecastEvidence} from "./source-productivity-forecast";
 import {commercialPositionForState} from './commercial-runtime';
+import {contractTimeDatesFrom} from './contract-time-reader';
 
 export const FORECAST_TAXONOMY_LABELS = [
   "Contractual completion",
@@ -205,7 +206,9 @@ export function forecastControlForState(
   const time = canonicalTimeClaims(state);
   const contractTime=commercialPositionForState(state).timeExposure;
   const originalContractualCompletionIso=time.contractTimeBasis?.contractualCompletionIso??null;
-  const requiredFinishIso=contractTime.officialAdjustedCompletion.value??originalContractualCompletionIso;
+  // F33: the shared governing date (contract + awarded EOT); never the original
+  // date while an award exists but the extended date is not established.
+  const requiredFinishIso=contractTimeDatesFrom(contractTime).governingCompletionIso;
   const productivity = sourceProductivityForecastEvidence(state);
   const scenario = state.schedules
     .filter(item => isScenarioRevision(item))

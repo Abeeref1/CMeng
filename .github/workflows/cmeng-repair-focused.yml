@@ -108,6 +108,8 @@ jobs:
             dist/tests/t07-contract-time-original-and-completion-movement.test.js \
             dist/tests/f32-schedule-footer-awaiting-review.test.js \
             dist/tests/f33-negative-float-constraint.test.js \
+            dist/tests/f33-extended-completion-every-page.test.js \
+            dist/tests/f44-pending-eot-cpm-scenario.test.js \
             dist/tests/t04-inline-conflict-decisions.test.js \
             dist/tests/t04-restart-decision-persistence.test.js \
             dist/tests/t04-candidate-family-conflict-truth.test.js \
