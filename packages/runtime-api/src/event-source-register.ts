@@ -47,9 +47,9 @@ export function eventSourceCandidate(documentType: string | null | undefined, he
 }
 
 export function detectEventSourceTable(input: {
-  documentType?: string | null;
+  documentType?: string | null | undefined;
   headers: readonly string[];
-  rawHeaders?: readonly string[];
+  rawHeaders?: readonly string[] | undefined;
   rows: readonly (readonly string[])[];
 }): EventSourceColumns | null {
   const { headers, rows } = input;
