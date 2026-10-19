@@ -1,6 +1,7 @@
 import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
 import {attachProjectFloatWorkingDays} from './activity-float-reconciliation';
+import {presentMissingOwners} from './action-priority';
 import {boqPageReview} from './boq-page-review';
 import {readRequestBody as readBody, UploadTooLargeError, configuredUploadLimit} from './request-body';
 import {boqNumericReview,reviewableBoqs} from './boq-numeric-review';
@@ -385,7 +386,10 @@ function json(
   // days of that activity's own source calendar (never an invented 8-hour day).
   // The step runs inside paging, before the size budget is measured.
   const floatDays=projectMatch?(value:unknown)=>withFloatWorkingDays(decodeURIComponent(projectMatch[1]!),value):undefined;
-  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,floatDays):body);
+  // T09 A4: an owner known only as an accountable PMC role is sent as a missing
+  // owner (owner null, ownerState 'missing', accountableRole); keys are unchanged.
+  const present=projectMatch?(value:unknown)=>presentMissingOwners(floatDays!(value)):undefined;
+  const payload = JSON.stringify(screen?pageProjectResponse(body,requestUrl,undefined,present):projectMatch&&statusCode===200?presentMissingOwners(body):body);
   // The public gateway can only keep a version-safe result after this header
   // proves which project snapshot was used. Previously it was never sent, so
   // every visit after worker eviction repeated the complete analysis.

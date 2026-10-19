@@ -6,8 +6,9 @@ export const projectActionsScript=String.raw`
 ${ownerDisplayState.toString()}
 /** A missing owner is shown as missing, with its accountable role and the way to
  * set it: a named owner in the source register is always kept (pmcRoleOwner). */
-function ownerMissingHtml(owner){
+function ownerMissingHtml(owner,accountableRole=null){
  const state=ownerDisplayState(owner);
+ if(!state.named&&!state.role&&typeof accountableRole==='string'&&accountableRole.trim())state.role=accountableRole.trim();
  if(state.named)return escapeHtml(owner);
  return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' <button type="button" class="management-module-link" data-module="documents" data-set-owner>Name the owner in the source register</button>';
 }
@@ -153,9 +154,9 @@ function renderProjectActionList(){
   return '<article class="project-action '+(information?'action-information'+(a.target?.kind?.startsWith('review-')?' action-review-recorded':''):team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
-   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+ownerMissingHtml(a.owner)+'</p>'+records+
+   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+ownerMissingHtml(a.owner,a.accountableRole)+'</p>'+records+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
-   (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+row.owner)).join('; ')+'</p>':'')+
+   (a.missingFields?.length?'<p><b>Information needed:</b> '+a.missingFields.map(row=>escapeHtml(row.field+' · '+row.file+' · '+(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner))).join('; ')+'</p>':'')+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
    (a.correctionRecords?.length?'<div><b>Documents and locations to examine</b><p>'+a.correctionRecords.slice(0,3).map(row=>actionSourceLink(row)).join('; ')+'</p>'+(a.correctionRecords.length>3?'<details><summary>'+(actionListTotal(a.correctionRecords)===a.correctionRecords.length?'Open all '+fmt(a.correctionRecords.length)+' recorded locations':'Open '+actionShownOf(a.correctionRecords,'recorded locations'))+'</summary><p>'+a.correctionRecords.slice(3).map(row=>actionSourceLink(row)).join('; ')+'</p></details>':'')+'</div>':'')+
    (!information||a.target?.kind?.startsWith('review-')?actionResolutionHtml(a):'')+
