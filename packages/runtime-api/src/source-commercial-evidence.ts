@@ -1,5 +1,7 @@
 import {cell,dateValue,numberValue,governedTables} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
+import {contractValueBasisReview} from './source-basis-review';
+import {contractTaxBasis,likeForLikeCertifiedRatio,type CertifiedRatio,type ContractTaxEvidence} from './commercial-sum-basis';
 
 /** Match retained business references, not row positions or amounts. An ambiguous
  * certificate remains unlinked. This projection never writes a cash ledger. */
@@ -82,17 +84,33 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
  }
  const eligible=links.filter(r=>r.state!=='future'&&r.state!=='cutoff_missing'),linked=eligible.filter(r=>r.state==='linked').length;
  const advanceBonds=(ledger.bonds??state.controls?.bonds??[]).filter((r:any)=>/advance|mobilis|mobiliz/i.test([r.bondType,r.type,r.kind,r.name,r.description,r.bondId].join(' ')));
- const certifiedProgress=(position.certificateProfile?.groups??[]).flatMap((group:any)=>{
-  const contract=(position.currencies??[]).find((c:any)=>c.currency===group.currency)?.currentContractValue?.value;
-  const certified=group.certifiedTotals?.grossWork??null;
-  return typeof contract==='number'&&contract>0&&typeof certified==='number'?[{currency:group.currency,taxBasis:group.taxBasis,valuePercent:certified/contract*100,
-    certifiedWork:certified,contractValue:contract,basis:'Certified work divided by the same-currency current contract; financial certification, not measured physical completion',sourceRefs:group.sourceRefs??[]}]:[];
+ // F36: the tax basis of the original contract value is taken only from a source
+ // that states it for that same amount (contract text or the source cost ledger).
+ const contractTaxEvidence:ContractTaxEvidence[]=[
+  ...(Array.isArray(state.contractDocuments)&&state.contractDocuments.length&&(position.currencies??[]).some((c:any)=>typeof c.originalContractValue?.value==='number')
+   ?contractValueBasisReview(state).rows:[]).filter((r:any)=>r.label!=='Revised Contract Value').map((r:any)=>({currency:r.currency,amount:r.amount,taxBasis:r.taxBasis,sourceRefs:r.sourceRefs??[]})),
+  ...(ledger.costPosition??[]).filter((r:any)=>typeof r.values?.['original contract value']==='number').map((r:any)=>({currency:r.currency,amount:r.values['original contract value'],taxBasis:r.taxBasis,
+    sourceRefs:(r.receipts??[]).map((x:any)=>'evidence-document:'+x.documentId+':'+x.locator)})),
+ ];
+ const originalContractTaxBases=(position.currencies??[]).map((c:any)=>({currency:c.currency,...contractTaxBasis(contractTaxEvidence,c.currency,c.originalContractValue?.value??null)}));
+ const certifiedRatios:Array<{group:any;ratio:CertifiedRatio}>=(position.certificateProfile?.groups??[]).map((group:any)=>{
+  const currency=(position.currencies??[]).find((c:any)=>c.currency===group.currency);
+  const contractTax=originalContractTaxBases.find((c:any)=>c.currency===group.currency)??contractTaxBasis([],group.currency,null);
+  return {group,ratio:likeForLikeCertifiedRatio({currency:group.currency,certifiedGrossWork:group.certifiedTotals?.grossWork??null,certificateTaxBasis:group.taxBasis,
+   originalContract:currency?.originalContractValue?.value??null,contractTax,asOf:reportingDate,certificateCount:group.certifiedCount??null})};
  });
+ const certifiedProgress=certifiedRatios.filter(r=>r.ratio.state!=='not_established').map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,valuePercent:ratio.valuePercent,
+    certifiedWork:ratio.certifiedWork,contractValue:ratio.contractValue,contractValueBasis:'original_contract',state:ratio.state,query:ratio.state==='queried'?ratio.reason:null,
+    basis:ratio.basis,sourceRefs:group.sourceRefs??[]}));
+ const certifiedProgressNotEstablished=certifiedRatios.filter(r=>r.ratio.state==='not_established'&&r.ratio.certifiedWork!==null).map(({group,ratio})=>({currency:group.currency,taxBasis:group.taxBasis,
+    certifiedWork:ratio.certifiedWork,contractValue:ratio.contractValue,reason:ratio.reason,basis:ratio.basis}));
  return {paymentLinkage:{total:reportingDate?eligible.length:null,linked:reportingDate?linked:null,unlinked:reportingDate?eligible.length-linked:null,coveragePercent:reportingDate&&eligible.length?linked/eligible.length*100:null,rows:links,
    basis:'Dated actual-payment records linked by certificate business reference, date and currency. Unpaid applications are not actual receipts.'},
   heldEvidence:{advancePaymentBonds:{state:advanceBonds.length?'records_present':'not_in_source',count:advanceBonds.length,rows:advanceBonds,
     basis:'Instrument records already held; contractual required cover and current validity remain separate checks.'},
    certificates:{state:certificates.length?'records_present':'not_in_source',count:certificates.length,sourceRefs:certificates.flatMap(refs)},
-   certifiedProgress:{state:certifiedProgress.length?'calculated':'not_calculable',rows:certifiedProgress,
-    missingInputs:certifiedProgress.length?[]:certificates.length?['Comparable current contract value and dated gross certified work by currency']:['Dated issued certificates']}}};
+   certifiedProgress:{state:certifiedProgress.length?'calculated':'not_calculable',rows:certifiedProgress,notEstablished:certifiedProgressNotEstablished,
+    missingInputs:certifiedProgress.length?[]:certifiedProgressNotEstablished.length?[...new Set(certifiedProgressNotEstablished.map(r=>r.reason!))]:
+     certificates.length?['Comparable original contract value and dated gross certified work by currency on the same tax basis']:['Dated issued certificates']}},
+  originalContractTaxBases};
 }

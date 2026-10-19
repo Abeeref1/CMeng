@@ -271,5 +271,7 @@ export function accountabilityOwnerBlocks<G extends {key?:string|undefined;owner
     recordCount:list.reduce((n,g)=>n+(typeof g.count==='number'?g.count:0),0),
     knownOverdueRecordCount:list.reduce((n,g)=>n+(typeof g.knownOverdueRecordCount==='number'?g.knownOverdueRecordCount:0),0),
     overdueRecordCount:list.some(g=>g.overdueRecordCount==null)?null:list.reduce((n,g)=>n+(g.overdueRecordCount as number),0),
-    groups:list}));
+    // The block repeats only the group summary the page shows. Each group's
+    // member id list stays once, in ownerGroups (same response) and recordActions.
+    groups:list.map(group=>{const {memberActionIds:_members,...summary}=group as G&{memberActionIds?:unknown};return summary;})}));
 }

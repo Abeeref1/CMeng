@@ -7,6 +7,8 @@ export type ProgressBasisAuthority =
 
 export interface ProgressBasisValue {
   basis?: string;
+  /** F36: the value is shown but rests on a stated assumption to confirm (additive). */
+  query?: string;
   valuePercent: number | null;
   state: "established" | "missing";
   authority: ProgressBasisAuthority;
@@ -18,6 +20,7 @@ export interface ProgressBasisValue {
 
 export interface ExternalProgressEvidence {
   basis?: string;
+  query?: string;
   valuePercent: number;
   sourceRefs: string[];
   asOfIso?: string | null;
