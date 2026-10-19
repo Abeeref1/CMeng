@@ -410,7 +410,10 @@ function experienceRoleContent(key,data,primaryView,challengeHtml='',includeTech
   // canonical variance/forecast context and a concise visual preview. Director
   // and executive lenses lead with cross-domain decisions. Every lens retains
   // one unchanged full-detail disclosure, so presentation never changes facts.
-  const content=key==='pmo-analysis'?(role==='overall'?analysis:roleContext+analysis):role==='overall'?analysis
+  // F52: the Management Brief opens with its answer. A role lens's activity
+  // tables (for example every finish-driving activity with its float) follow the
+  // brief, collapsed; nothing is removed.
+  const content=key==='pmo-analysis'?(role==='overall'||!roleContext?analysis:analysis+experienceDisclosure('Role detail · '+roleViews[role].label,roleContext,'Activity tables for this role; same project facts')):role==='overall'?analysis
     :role==='planning'?roleContext+analysis
     :role==='controls'?roleContext+lensPreview.preview+experienceDisclosure('Detailed controls, charts and records',lensRest,'Same canonical page facts')
     :roleContext+(data.projectDiagnosis?renderProjectDiagnosis(data.projectDiagnosis):data.completionPosition?renderCompletionPosition(data.completionPosition):'')+lensPreview.preview+experienceDisclosure('All charts and records',lensRest,'Full details for this page');
