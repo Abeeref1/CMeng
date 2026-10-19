@@ -62,6 +62,7 @@ jobs:
             dist/tests/t11-source-completion-base-parity.test.js \
             dist/tests/t11-schedule-change-completion-reuse-parity.test.js \
             dist/tests/t11-revision-date-reuse.test.js \
+            dist/tests/t11-revision-compare-aligned-parity.test.js \
             dist/tests/consultant-response-paging.test.js \
             dist/tests/t05-governed-screen-counts.test.js \
             dist/tests/t05-mcp-programme-unknown-blockers.test.js \
