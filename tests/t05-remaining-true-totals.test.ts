@@ -84,3 +84,56 @@ test('T05/N1: completion position counts qualifications and difference rows by t
   assert.ok(!script.includes(`(limits.length?' · '+fmt(limits.length)+' qualifications':'')`));
   assert.ok(script.includes(`screenCountText(p.comparableActivityCount)+' comparable activities.`));
 });
+
+test('T05/N1 round 3: source decisions in the project diagnosis are not counted from a cut action preview',()=>{
+  const actions=Array.from({length:25},(_,i)=>({recordKey:(i<10?'review|':'team|')+i,issue:'I'+i,consequence:'c',owner:'O'}));
+  const data={projectDiagnosis:{actionRegister:{actions}}};
+  const result={key:'overview',data,responsePaging:{source:'/api/projects/P/overview',tables:[{pointer:'/data/projectDiagnosis/actionRegister/actions',total:90,shown:25,kind:'array'}]}};
+  const ctx={currentModuleResult:result,data,fmt:String,escapeHtml:String,readerText:String,actionDeadlineText:()=>'d',managementModuleLink:()=>''};
+  const html=runInNewContext(helpers()+'\n'+pick('renderProjectPrioritySummary')+';renderProjectPrioritySummary(data.projectDiagnosis.actionRegister)',ctx) as string;
+  assert.match(html,/10 source decisions among the 25 of 90 ranked actions received here/);
+  assert.doesNotMatch(html,/10 source decisions included in the ranked register/,'a preview subset is not the register count');
+  assert.match(html,/More ranked groups remain in Accountability/);
+  assert.doesNotMatch(html,/12 other ranked groups/,'15 team rows of a cut preview are not counted as the whole');
+  const whole={projectDiagnosis:{actionRegister:{actions:actions.slice(0,12)}}};
+  const html2=runInNewContext(helpers()+'\n'+pick('renderProjectPrioritySummary')+';renderProjectPrioritySummary(data.projectDiagnosis.actionRegister)',{...ctx,data:whole,currentModuleResult:{key:'overview',data:whole}}) as string;
+  assert.match(html2,/10 source decisions included in the ranked register/,'a whole list keeps its own count');
+});
+
+test('T05/N1 round 3: page counts and charts fed by cut lists read true totals or say Not established',()=>{
+  for(const site of [
+    `<b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b>`,
+    `Source figures to reconcile · '+screenCountText(conflictTotal)+'</h4>`,
+    `const conflictTotal=issueKindTotal(['source_conflict','data_quality'],sourceConflicts);`,
+    `<h4>Actions by accountable owner · '+(listTotal(ownerPositions)===null?'owner count not established ('`,
+    `<b>Confirmed dated cash-flow register</b><span>'+escapeHtml(screenCountText(listTotal(entries)))+' entries</span>`,
+    `' priority representatives from '+escapeHtml(screenCountText(listTotal(source)))+' open milestones.`,
+    `Showing '+fmt(items.length)+' of '+screenCountText(group?.valueCount??listTotal(items))+' groups.`,
+    `const finishPeriods=listTotal(riskRows)===riskRows.length?planningFinishPeriodBars(riskRows)`,
+    `bondTotal===(registers.bonds||[]).length`,
+    `contractSignalTotal===(contract.signals||[]).length?renderVisualBars(contractCategoryItems)`,
+  ])assert.ok(script.includes(site),site);
+  for(const old of [
+    `<b>Information needed · '+fmt(missing.length)+'</b>`,
+    `Source figures to reconcile · '+fmt(sourceConflicts.length)+'</h4>`,
+    `<h4>Actions by accountable owner · '+fmt(ownerPositions.length)+' owners</h4>`,
+    `escapeHtml(fmt(entries.length))+' entries</span>`,
+    `' priority representatives from '+escapeHtml(fmt(source.length))+' open milestones.`,
+    `const finishPeriods=planningFinishPeriodBars(riskRows);`,
+  ])assert.ok(!script.includes(old),'old preview count still present: '+old);
+});
+
+test('T05/N1 round 3: page issue counts use the per-kind server totals when the issue list is cut',()=>{
+  const body=script.slice(script.indexOf('const issueCounts=result.issueAssessment'),script.indexOf('const conflictTotal='));
+  const issues=Array.from({length:25},(_,i)=>({kind:i<20?'missing_information':'data_quality'}));
+  const result={key:'x',issueAssessment:{issues,counts:{missing_information:300,data_quality:40,source_conflict:2}},
+    responsePaging:{source:'/x',tables:[{pointer:'/issueAssessment/issues',total:342,shown:25,kind:'array'}]}};
+  const fn=runInNewContext(helpers()+'\n(function(result,issues){'+body+'return issueKindTotal;})',{}) as any;
+  const total=fn(result,issues);
+  assert.equal(total(['missing_information'],issues.filter(i=>i.kind==='missing_information')),300);
+  assert.equal(total(['source_conflict','data_quality'],issues.filter(i=>i.kind==='data_quality')),42);
+  const whole={key:'x',issueAssessment:{issues,counts:{missing_information:300}}};
+  assert.equal(fn(whole,issues)(['missing_information'],issues.filter(i=>i.kind==='missing_information')),20,'an uncut list keeps its own count');
+  const unknown={...result,issueAssessment:{issues,counts:{}}};
+  assert.equal(fn(unknown,issues)(['missing_information'],[]),null,'a cut list without server counts is unknown, not 0');
+});

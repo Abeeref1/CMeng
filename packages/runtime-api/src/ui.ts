@@ -833,7 +833,10 @@ function renderUniversalChallenge(challenge){
 function renderContractSourceContext(contract){
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
   const contractCategoryItems=[...contractCategoryCounts.entries()].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,tone:"accent"}));
-  const contractCategoryBars=renderVisualBars(contractCategoryItems);
+  // T05/N1: category counts are drawn only from the whole signal list.
+  const contractSignalTotal=contract?listTotal(contract.signals||[]):null;
+  const contractCategoryBars=!contract||contractSignalTotal===(contract.signals||[]).length?renderVisualBars(contractCategoryItems)
+    :'<div class="empty-visual">Topic counts: Not established. '+fmt((contract.signals||[]).length)+' of '+screenCountText(contractSignalTotal)+' source topic occurrences were received here.</div>';
   const contractSources=contract?.sourceDocuments?.length?'<div class="table-wrap"><table><thead><tr><th>Source document</th><th>Role / authority</th><th>Clauses</th><th>Topic occurrences</th><th>Notice-pattern matches</th><th>Initial-claim period read</th></tr></thead><tbody>'+contract.sourceDocuments.map(x=>'<tr><td>'+escapeHtml(x.sourceFilename)+'</td><td>'+escapeHtml(humanizeKey(x.role))+' / '+escapeHtml(humanizeKey(x.basisState))+'</td><td>'+escapeHtml(fmt(x.clauseCount))+'</td><td>'+escapeHtml(fmt(x.signalCount))+'</td><td>'+escapeHtml(fmt(x.noticeCandidateCount))+'</td><td>'+escapeHtml((x.initialClaimPeriods||[]).map(n=>fmt(n)+' days').join('; ')||'Not read')+'</td></tr>').join('')+'</tbody></table></div>':'';
   const signalGroups=new Map();
   for(const signal of contract?.signals||[]){const key=[signal.documentId,signal.category,signal.textSnippet].join('|');const group=signalGroups.get(key)||{...signal,occurrences:0};group.occurrences++;signalGroups.set(key,group);}
@@ -2273,7 +2276,7 @@ function planningMilestoneTimeline(p,contractCompletionIso=null){
     const count=source.filter(a=>a.managementPriority==='watch'&&a.varianceDays===r.varianceDays).length;
     const track=(bx!==null&&cx!==null?'<span class="date-span" style="left:'+Math.min(bx,cx)+'%;width:'+Math.abs(cx-bx)+'%"></span>':'')+(bx===null?'':'<span class="date-baseline" style="left:'+bx+'%"></span>')+(cx===null?'':'<span class="date-current" style="left:'+cx+'%"></span>');
     return '<div class="milestone-date-row"><div class="milestone-date-name"><b>'+escapeHtml(r.activityId)+' · '+escapeHtml(r.name||'')+'</b><span>'+escapeHtml(planningMilestoneCriticalityLabel(r))+' · '+escapeHtml(planningMilestoneDueLabel(r))+'</span><small>'+escapeHtml(r.wbsName||r.wbsId||'')+'</small>'+(r.managementPriority==='watch'&&count>1?'<small>Representative of '+escapeHtml(fmt(count))+' watch milestones with the same movement. This does not establish a common cause.</small>':'')+'</div><div>'+axis+'<div class="milestone-date-track">'+(contractDate===null?'':'<span class="date-contract" title="Contract including awarded EOT · '+escapeHtml(planningShortDate(contractCompletionIso))+'" style="position:absolute;top:-5px;bottom:-5px;border-left:2px dashed #b4483e;left:'+x(contractCompletionIso)+'%"></span>')+track+'</div><div class="milestone-date-values"><span>Baseline <b>'+escapeHtml(planningShortDate(r.baselineDateIso))+'</b></span><span>Current <b>'+escapeHtml(planningShortDate(r.currentDateIso))+'</b></span><span>Movement <b>'+escapeHtml(variance)+'</b></span><span>Float <b>'+escapeHtml(sourceWorkingFloat(r))+'</b></span></div></div></div>';
-  }).join('')+'</div><p class="muted">'+escapeHtml(fmt(rows.length))+' priority representatives from '+escapeHtml(fmt(source.length))+' open milestones. All milestone records remain below.</p>';
+  }).join('')+'</div><p class="muted">'+escapeHtml(fmt(rows.length))+' priority representatives from '+escapeHtml(screenCountText(listTotal(source)))+' open milestones. All milestone records remain below.</p>';
 }
 /** T06: why grouped float stays in hours when no single working-day length applies. */
 /** T06: a float threshold. Zero hours is zero working days on every calendar;
@@ -3170,7 +3173,7 @@ function renderScopeClassificationVisual(data){
     const items=group?.rows||[...values].map(([value,activityCount])=>({value,activityCount}));
     if(!items.length)return"";
     const rows=items.map(row=>'<tr><td>'+escapeHtml(row.value)+'</td><td>'+escapeHtml(fmt(row.activityCount))+'</td></tr>').join("");
-    return '<details class="source-scope"><summary>By '+escapeHtml(humanizeKey(key))+' · '+escapeHtml(fmt(group?.valueCount??items.length))+' values</summary><p>Counts use the complete classification population. Showing '+fmt(items.length)+' of '+fmt(group?.valueCount??items.length)+' groups.</p>'+sourcePopulationControl(items)+'<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+    return '<details class="source-scope"><summary>By '+escapeHtml(humanizeKey(key))+' · '+escapeHtml(screenCountText(group?.valueCount??listTotal(items)))+' values</summary><p>Counts use the complete classification population. Showing '+fmt(items.length)+' of '+screenCountText(group?.valueCount??listTotal(items))+' groups.</p>'+sourcePopulationControl(items)+'<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(humanizeKey(key))+'</th><th>Activities</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
   }).filter(Boolean).join("");
   const available=p.coverage.filter(row=>row.classified>0).length,missing=p.coverage.filter(row=>row.classified===0).length;
   return '<section class="planning-view scope-classification-view">'+planningKpis([
@@ -3501,7 +3504,10 @@ function renderNearCriticalVisual(data){
   const dominantFloat=[...exactFloatCounts.entries()].sort((a,b)=>b[1]-a[1])[0]||null;
   const floatConcentrationWarning=dominantFloat&&dominantFloat[1]>=25&&dominantFloat[1]/Math.max(1,riskRows.length)>=0.15?'<div class="notice info"><b>Concentrated submitted float values.</b> '+escapeHtml(fmt(dominantFloat[1]))+' activities share exactly '+escapeHtml(fmt(dominantFloat[0]))+' h total float. This is preserved from the submitted programme, not generated by CMeng. Review calendar/logic conventions if that concentration is unexpected.</div>':'';
   const histogram=planningFloatHistogram(riskRows,maxThreshold,p.floatHourHistogram);
-  const finishPeriods=planningFinishPeriodBars(riskRows);
+  // T05/N1: the finish-period bars count activities, so they are drawn only
+  // from the whole watchlist, never from the 25-row preview sent to the page.
+  const finishPeriods=listTotal(riskRows)===riskRows.length?planningFinishPeriodBars(riskRows)
+    :'<div class="empty-visual">Finish periods: Not established. '+fmt(riskRows.length)+' of '+screenCountText(p.floatRiskWatchlistCount??listTotal(Array.isArray(p.watchlistRows)?p.watchlistRows:p.rows||[]))+' watchlist activities were received here.</div>';
   const watch=[...riskRows].map(r=>({...r,varianceDays:planningDaysBetween(r.baselineFinishIso,r.currentFinishIso)})).sort((a,b)=>(statusRank[a.status]??2)-(statusRank[b.status]??2)||a.totalFloatHours-b.totalFloatHours||((b.varianceDays||0)-(a.varianceDays||0))).slice(0,150);
   const rows=watch.map(r=>{
     const classLabel=r.totalFloatHours===criticalThreshold?(criticalThreshold===0?"Zero-float boundary":"Critical boundary"):"Strict near-critical";
@@ -4201,7 +4207,7 @@ function renderCommercialVisual(key,data){
           ));
         }
         const register=entries.length
-          ? '<details class="cash-flow-register-detail"><summary><div><b>Confirmed dated cash-flow register</b><span>'+escapeHtml(fmt(entries.length))+' entries</span></div><small>Receipts, payments and document references</small></summary><div class="cash-flow-register-body">'+table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+'</div></details>'
+          ? '<details class="cash-flow-register-detail"><summary><div><b>Confirmed dated cash-flow register</b><span>'+escapeHtml(screenCountText(listTotal(entries)))+' entries</span></div><small>Receipts, payments and document references</small></summary><div class="cash-flow-register-body">'+table(["Date","Entry","Amount","Evidence state","Source"],entryRows,"No dated cash-flow entries are established.")+'</div></details>'
           : '';
         const diagnostics=(row.diagnostics||[]).length
           ? '<details class="cash-flow-trace"><summary><b>Calculation trace</b><span>'+escapeHtml(screenCountText(listTotal(row.diagnostics)))+' controls</span></summary><div>'+row.diagnostics.map(code=>'<div class="cash-trace-row">'+escapeHtml(humanizeKey(code))+'</div>').join("")+'</div></details>'
@@ -4620,10 +4626,15 @@ function renderCommercialVisual(key,data){
   }
   if(key==="contract-particulars-bonds"&&!contractControls){
     const bondStates=(registers.bonds||[]).reduce((map,row)=>{const state=humanizeKey(row.status||"unknown");map.set(state,(map.get(state)||0)+1);return map},new Map());
+    // T05/N1: the status split is drawn only from the whole securities register,
+    // never from a 25-row preview of it.
+    const bondTotal=listTotal(registers.bonds||[]);
     if(bondStates.size)registerVisual=renderVisualPanel(
       "Security status",
       "Performance, advance-payment and retention securities by status.",
-      renderDonutChart([...bondStates.entries()].map(([label,value])=>({label,value,tone:/active|valid/i.test(label)?"success":/expired|called/i.test(label)?"danger":"warning"})),"Securities")
+      bondTotal===(registers.bonds||[]).length
+        ?renderDonutChart([...bondStates.entries()].map(([label,value])=>({label,value,tone:/active|valid/i.test(label)?"success":/expired|called/i.test(label)?"danger":"warning"})),"Securities")
+        :'<div class="empty-visual">Security status split: Not established. '+fmt((registers.bonds||[]).length)+' of '+screenCountText(bondTotal)+' securities were received here; the full register is in the export.</div>'
     );
     const rows=(registers.bonds||[]).map(row=>'<tr><td><b>'+escapeHtml(row.bondId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(fmt(row.amount))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml(readerReference((row.sourceRefs||[]).join(", ")))+'</td></tr>');
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Security register</h4><p>Performance, advance-payment and retention securities remain distinct from cash balances.</p></div></div><div class="planning-panel-body">'+table(["Bond / guarantee","Type","Amount","Currency","Status","Expiry","Source"],rows,"No confirmed bond/security register is established.")+'</div></section>';
@@ -5443,7 +5454,7 @@ function renderAccountabilityVisual(data){
  const detail=(p.details||[]).map(accountabilityDetailRow).join('');
  const primary=actions.length?'<div class="table-wrap"><table><thead><tr><th>Priority</th><th>Issue & consequence</th><th>Affected scope</th><th>Accountable party</th><th>Due</th><th>Required action</th><th>Evidence</th><th>Place to fix</th></tr></thead><tbody>'+actionRows+'</tbody></table></div>':'<div class="notice info">No actionable ownership chain is established from the current open records.</div>';
  const ownerPositions=(p.rows||[]).filter(row=>row.dimension==='owner');
- const concentrationOwner=ownerPositions.length?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Actions by accountable owner · '+fmt(ownerPositions.length)+' owners</h4><p>Owner workload is the first decision. Record details remain accessible below.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Accountable party</th><th>Open records</th><th>Overdue</th><th>Domains</th><th>Linked activities</th></tr></thead><tbody>'+
+ const concentrationOwner=ownerPositions.length?'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Actions by accountable owner · '+(listTotal(ownerPositions)===null?'owner count not established ('+fmt(ownerPositions.length)+' listed)':fmt(listTotal(ownerPositions))+' owners')+'</h4><p>Owner workload is the first decision. Record details remain accessible below.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Accountable party</th><th>Open records</th><th>Overdue</th><th>Domains</th><th>Linked activities</th></tr></thead><tbody>'+
    ownerPositions.map(row=>'<tr><td><b>'+escapeHtml(row.value||pmcDisplayOwner('project controls'))+'</b></td><td>'+fmt(row.openIssueCount)+'</td><td>'+accountabilityCount(row.overdueCount,row.knownOverdueCount,'confirmed in retained records')+'</td><td>'+fmt(row.domainCount)+'</td><td>'+accountabilityCount(row.affectedActivityCount,row.knownLinkedActivityCount,'linked activities recorded')+'</td></tr>').join('')+'</tbody></table></div></div></section>':'';
  const concentration=rows?'<p>These groups contain identified source actions. Missing dates, incomplete domain populations and missing activity links leave totals unresolved; confirmed subsets remain visible.</p><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Open / pressure</th><th>Domains</th><th>Overdue</th><th>Open NCR</th><th>Overdue RFI</th><th>Procurement issues</th><th>Risk</th><th>Affected activities</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No supporting concentration roll-up is available.</p>';
  return '<section class="planning-view accountability-view"><div class="notice info"><h4>Who owns the current actions?</h4><p>'+escapeHtml(p.managementPosition)+'</p></div>'+accountabilityOwnerGroups(p)+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Top 10 accountability follow-ups · '+fmt(p.recordActionCount??p.actionCount??(currentModuleResult?.responsePaging?.tables||[]).find(t=>t.pointer==='/data/actions')?.total??actions.length)+' underlying record actions</h4><button class="btn small" onclick="openProjectActions()">Search all project actions</button><p>Ownership means responsibility for the current action; it does not by itself establish contractual delay liability.</p></div></div><div class="planning-panel-body">'+primary+'</div></section><details class="planning-panel"><summary>Actions by source register and accountable owner · '+fmt(ownerGroups.length)+' groups</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Register</th><th>Owner</th><th>Actions</th></tr></thead><tbody>'+ownerGroupRows+'</tbody></table></div></div></details><details class="planning-panel"><summary>Supporting workload concentration</summary><div class="planning-panel-body">'+concentration+'</div></details><details class="planning-panel"><summary>Drill back to underlying items · '+fmt(detailTotal)+' records</summary><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Dimension</th><th>Party / scope</th><th>Domain</th><th>Record</th><th>Issue</th><th>Due</th><th>Overdue</th><th>Activities</th><th>Evidence</th><th>Place to fix</th></tr></thead><tbody id="accountabilityDetailsBody">'+detail+'</tbody></table></div>'+(accountabilityDetailsView?'<div class="delivery-toolbar"><button class="btn small" id="accountabilityDetailsPrev" disabled onclick="accountabilityLoadDetails(accountabilityDetailsView.page-1)">Previous</button><span id="accountabilityDetailsCount">Records 1–'+fmt((p.details||[]).length)+' of '+fmt(detailTotal)+'</span><button class="btn small" id="accountabilityDetailsNext" '+((p.details||[]).length>=detailTotal?'disabled':'')+' onclick="accountabilityLoadDetails(accountabilityDetailsView.page+1)">Next</button></div>':'')+'<p>'+escapeHtml(p.basis||'')+'</p></div></details></section>';
@@ -5737,22 +5748,31 @@ function renderModuleResult(result){
   observeProjectDisplay();
   const issues=result.issueAssessment?.issues||result.data?.issueAssessment?.issues||[];
   const sourceConflicts=issues.filter(issue=>['source_conflict','data_quality'].includes(issue.kind));
+  // T05/N1: issues is a 25-row preview on large projects. Count each kind from
+  // the server's per-kind totals; a subset of a cut preview is never the total.
+  const issueCounts=result.issueAssessment?.counts||result.data?.issueAssessment?.counts||null;
+  const issueKindTotal=(kinds,items)=>{
+    if(responseListTotalIn(result,issues)===issues.length)return items.length;
+    const counts=kinds.map(kind=>issueCounts?.[kind]);
+    return counts.every(c=>typeof c==='number'&&Number.isFinite(c)&&c>=0)?Math.max(counts.reduce((a,b)=>a+b,0),items.length):null;
+  };
+  const conflictTotal=issueKindTotal(['source_conflict','data_quality'],sourceConflicts);
   if(sourceConflicts.length){
     // T04: the decision can be made HERE, beside the affected page, using the
     // same source-bound forms and persisted controls as Project Review. Do not
     // imply CMeng can auto-approve a contract or unverified source value.
     const records=[...new Set(sourceConflicts.flatMap(issue=>issue.sourceRefs||[]))];
     container.insertAdjacentHTML('beforeend',
-      '<section class="planning-panel source-decision-panel"><h4>Source figures to reconcile · '+fmt(sourceConflicts.length)+'</h4>'+
+      '<section class="planning-panel source-decision-panel"><h4>Source figures to reconcile · '+screenCountText(conflictTotal)+'</h4>'+
       '<p>Conflicting or unreadable records need source review. Clear source values remain available in analysis; official approval is separate.</p>'+
-      '<p>'+fmt(records.length)+' original source reference'+(records.length===1?'':'s')+' retained for comparison.</p>'+
+      '<p>'+fmt(records.length)+' original source reference'+(records.length===1?'':'s')+' retained for comparison'+(conflictTotal===sourceConflicts.length?'':' in the '+fmt(sourceConflicts.length)+' records listed here')+'.</p>'+
       '<button class="btn primary" type="button" data-review-conflict-inline>Review evidence and record a decision here</button></section>');
     const control=container.querySelector('[data-review-conflict-inline]');
     if(control)control.onclick=()=>openProjectActions(true);
   }
   const missing=issues.filter(issue=>issue.kind==='missing_information');
   if(missing.length){
-    container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+fmt(missing.length)+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
+    container.insertAdjacentHTML('beforeend','<div class="notice info"><b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
     container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
   }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
