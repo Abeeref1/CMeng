@@ -12,6 +12,7 @@ import {commercialCanonical} from './commercial-canonical';
 import {noticeReviewBasis} from './notice-review';
 import {operationalControlsAsOf} from './operational-reporting';
 import {commercialSourceReadConflicts} from './evidence-control-adapters';
+import {sourceAnalyticalCandidateIds} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
@@ -242,6 +243,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // the one source-bound document decision, naming the unadopted source.
   const commercialConflicts=commercialSourceReadConflicts(state);
   const fileOf=(id:string)=>state.evidenceDocuments.find(t=>t.documentId===id)?.sourceFilename??id;
+  // Clear, unique candidates the shared rule already uses in analysis.
+  const usedInAnalysis=sourceAnalyticalCandidateIds(state.evidenceDocuments);
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
     const saved=d.relationshipDecision;
@@ -250,7 +253,11 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       '; unadopted source '+d.sourceFilename+(c.against==='adopted'?'. The adopted value is kept until you decide.':'. Both readings are held until you decide.'));
     const decided=Boolean(saved&&saved.sourceHash&&saved.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash)));
     const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
-    if(!decided&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
+    // T04: no approval request for a clear fact. A unique, clearly read
+    // candidate that is already used in analysis (labelled not formally
+    // adopted) asks nothing unless it disagrees with a record (real conflict).
+    const clearFact=d.basisState==='candidate'&&usedInAnalysis.has(d.documentId)&&!saved&&!recordConflicts.length;
+    if(!decided&&!clearFact&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
       {
         const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
         const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
