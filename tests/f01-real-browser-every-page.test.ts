@@ -67,7 +67,7 @@ function rfiRegister(){
     // Raised from 50 to 20 days before the Data Date; answers are due 21 days
     // after issue, so some open RFIs are overdue at the Data Date and some are not.
     const open=i%3!==0,raised=shiftDate(DATA_DATE,-50+i*3),due=shiftDate(raised,21);
-    rows.push(['RFI-'+(301+i),'Design query '+(i+1),open?'Open':'Closed',raised,due,open?'':shiftDate(raised,9),'Design Manager','2005']);
+    rows.push(['RFI-'+(301+i),'Design query '+(i+1),open?'Open':'Closed',raised,due,open?'':shiftDate(raised,9),'Design Manager','ACT-'+(110+i)]);
   }
   return {headers,rows};
 }
@@ -182,7 +182,10 @@ async function launchChrome(binary:string,profile:string){
 
 // ---------- what the screen says: facts read from innerText by their on-screen label
 type Kind='date'|'count'|'money';
-type Reader={next?:RegExp;cell?:RegExp;inline?:RegExp};
+/** next: the label is a line and the value is the next line (a KPI card); cell: label and value are
+ * neighbouring table cells; column: the label is a column heading and the value is in the row below;
+ * inline: a sentence carrying the value. onlyOn limits a generic label to the page that uses it. */
+type Reader={next?:RegExp;cell?:RegExp;column?:RegExp;inline?:RegExp;onlyOn?:string[]};
 type FactRule={name:string;kind:Kind;expected:string|number;readers:Reader[];requiredOn:(surface:string)=>boolean};
 type Reading={fact:string;surface:string;raw:string;value:string|number|null;context:string};
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -205,6 +208,7 @@ function sameAsShown(kind:Kind,raw:string,shown:string|number,expected:string|nu
 function readFacts(surface:string,text:string,rules:FactRule[]){
   const lines=text.split('\n').map(l=>l.replace(/ /g,' ').trim()).filter(Boolean),out:Reading[]=[];
   for(const rule of rules)for(const reader of rule.readers){
+    if(reader.onlyOn&&!reader.onlyOn.includes(surface))continue;
     const add=(raw:string,context:string)=>{
       const value=UNKNOWN.test(raw.trim())?null:parseShown(rule.kind,raw);
       if(value===null&&!UNKNOWN.test(raw.trim()))return; // a label used as a heading, not a value
@@ -213,6 +217,8 @@ function readFacts(surface:string,text:string,rules:FactRule[]){
     lines.forEach((line,i)=>{
       if(reader.next&&reader.next.test(line)&&lines[i+1]!==undefined)add(lines[i+1]!,line+' | '+lines[i+1]);
       if(reader.cell){const cells=line.split('\t').map(c=>c.trim());cells.forEach((c,j)=>{if(reader.cell!.test(c)&&cells[j+1]!==undefined)add(cells[j+1]!,line);});}
+      if(reader.column&&line.includes('\t')&&lines[i+1]?.includes('\t')){const heads=line.split('\t').map(c=>c.trim()),cells=lines[i+1]!.split('\t').map(c=>c.trim());
+        heads.forEach((h,j)=>{if(reader.column!.test(h)&&cells[j]!==undefined)add(cells[j]!,line+' | '+lines[i+1]);});}
       if(reader.inline)for(const m of line.matchAll(reader.inline))add(m[1]!,line);
     });
   }
@@ -231,18 +237,24 @@ function factRules(key:ReturnType<typeof answerKey>):FactRule[]{
       {next:full('execution activities','programme activities','programme records')}],requiredOn:s=>modulePage(s)||s==='documents'},
     {name:'Project documents',kind:'count',expected:key.documentCount,readers:[{inline:/\b(\d+) project documents\b/g},{inline:/^(\d+) documents$/g}],
       requiredOn:s=>modulePage(s)||s==='documents'},
-    {name:'Open RFIs',kind:'count',expected:key.openRfis,readers:[{next:full('open rfis?'),inline:/\b(\d+) open RFIs?\b/gi}],requiredOn:on('master-dashboard')},
-    {name:'Overdue RFIs',kind:'count',expected:key.overdueRfis,readers:[{next:full('overdue rfis?'),inline:/\b(\d+) overdue RFIs?\b/gi}],
-      requiredOn:on('master-dashboard','director drawer')},
-    {name:'RFI register rows',kind:'count',expected:key.rfiRows,readers:[{next:full('design rows','design source rows')}],requiredOn:on('master-dashboard')},
+    {name:'Open RFIs',kind:'count',expected:key.openRfis,readers:[{next:full('open rfis?'),inline:/\b(\d+) open RFIs?\b/gi},
+      {next:full('open records'),onlyOn:['delivery-design']}],requiredOn:on('master-dashboard','delivery-design')},
+    {name:'Overdue RFIs',kind:'count',expected:key.overdueRfis,readers:[{next:full('overdue rfis?'),inline:/\b(\d+) overdue RFIs?\b/gi},
+      {next:full('overdue records'),onlyOn:['delivery-design']}],requiredOn:on('master-dashboard','director drawer','delivery-design')},
+    {name:'RFI register rows',kind:'count',expected:key.rfiRows,readers:[{next:full('design rows','design source rows')},
+      {next:full('current records','known source rows'),onlyOn:['delivery-design']}],requiredOn:on('master-dashboard','delivery-design')},
     {name:'Contract completion',kind:'date',expected:key.contractCompletion,
       readers:[{next:full('contractual completion','recorded contractual completion','original contractual completion','contract completion date'),
         cell:full('contractual completion','contract completion date','original contractual completion')}],requiredOn:on('master-dashboard','director drawer')},
     {name:'Dated certificates',kind:'count',expected:key.certificates,readers:[{next:full('dated certificates'),inline:/\bCertificate periods:\s*(\d+)/g}],requiredOn:on('payments')},
-    {name:'Gross certified',kind:'money',expected:key.certifiedGross,readers:[{next:full('gross certified','gross certified to date')}],requiredOn:on('payments')},
-    {name:'Net certified',kind:'money',expected:key.certifiedNet,readers:[{next:full('net certified','net certified to date')}],requiredOn:on('payments')},
-    {name:'Paid',kind:'money',expected:key.paid,readers:[{next:full('paid','paid to date')}],requiredOn:on('payments')},
-    {name:'Certified unpaid',kind:'money',expected:key.certifiedNet-key.paid,readers:[{next:full('certified unpaid')}],requiredOn:on('payments')},
+    {name:'Gross certified',kind:'money',expected:key.certifiedGross,readers:[{next:full('gross certified','gross certified to date','dated gross certification')}],
+      requiredOn:on('payments','commercial-overview','cash-flow')},
+    {name:'Net certified',kind:'money',expected:key.certifiedNet,readers:[{next:full('net certified','net certified to date'),
+      inline:/\bCertificate-period net through Data Date:\s*([\d,.]+\s*[kMB]?)/g}],requiredOn:on('payments')},
+    {name:'Paid',kind:'money',expected:key.paid,readers:[{next:full('paid','paid to date'),inline:/\bCash received:\s*([\d,.]+\s*[kMB]?)/g}],
+      requiredOn:on('payments','commercial-overview','cash-flow')},
+    {name:'Certified unpaid',kind:'money',expected:key.certifiedNet-key.paid,readers:[{next:full('certified unpaid'),column:full('certified unpaid')}],
+      requiredOn:on('payments','commercial-overview','cash-flow','master-dashboard')},
   ];
 }
 // The existing forbidden screen text of scripts/cmeng-all-project-screen-acceptance.mjs (INTERNAL_ID,

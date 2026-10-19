@@ -1133,12 +1133,16 @@ export function buildCommercialControlPosition(
         // certification event. Inferred per-certificate values remain qualified.
         const sourceBasisQualified=certified.some(p=>p.certificationDateBasis==='period_end_proxy'||p.certifiedAmountBasisEvidence==='inferred_per_certificate');
         const sourceBasisDiagnostics=sourceBasisQualified?["CERTIFICATION_DATED_BY_SOURCE_PERIOD_END_OR_PER_CERTIFICATE_BASIS_INFERRED"]:[];
-        const total=(fields:Array<'grossWork'|'variations'|'netCertifiedAmount'>)=>{
+        const total=(fields:Array<'grossWork'|'variations'|'grossCertifiedAmount'|'netCertifiedAmount'>)=>{
           const amounts=certified.flatMap(p=>fields.map(f=>p.amounts[f]));
           const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
           return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),sourceBasisQualified?"candidate":"established",refs,sourceBasisDiagnostics):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
         };
-        const sourceGrossCertified=total(['grossWork','variations']);
+        // F01: a certificate's own "Gross Certified" column is its gross figure; summing the net
+        // column under the gross label is wrong. Gross work plus variations is the reading only
+        // when a dated certificate does not state its gross. Unread values stay as before.
+        const statedGross=certified.length>0&&certified.every(p=>p.amounts.grossCertifiedAmount.value!==null);
+        const sourceGrossCertified=total(statedGross?['grossCertifiedAmount']:['grossWork','variations']);
         const sourceNetCertified=total(['netCertifiedAmount']);
         const sourceCertificateCount=compatible?moneyMetric(certified.length,sourceBasisQualified?"candidate":"established",refs,sourceBasisDiagnostics):unestablished("DATED_INTERIM_CERTIFICATION_COUNT_REQUIRED");
         // Source registers can supplement a governed control position, but a
