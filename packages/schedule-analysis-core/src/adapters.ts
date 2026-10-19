@@ -357,13 +357,14 @@ export function canonicalScheduleFromXer(
 /** WBS path (root to node, by WBS code, else name, else id) for each node.
  * A missing parent or a loop ends the path; nothing is guessed. Shared by
  * every programme format. */
-export function sourceWbsPaths(nodes: ReadonlyArray<{wbsId:string|null;parentWbsId:string|null;code:string|null;name:string|null}>): SourceWbsPath[] {
-  const byId=new Map(nodes.filter(node=>node.wbsId).map(node=>[node.wbsId!,node] as const));
+type SourceWbsNodeInput={wbsId:string|null;parentWbsId:string|null;code:string|null;name:string|null};
+export function sourceWbsPaths(nodes: ReadonlyArray<SourceWbsNodeInput>): SourceWbsPath[] {
+  const byId=new Map<string,SourceWbsNodeInput>(nodes.filter(node=>node.wbsId).map(node=>[node.wbsId!,node] as const));
   return [...byId.keys()].map(wbsId=>{
     const path:string[]=[],seen=new Set<string>();
     let current:string|null=wbsId;
     while(current&&byId.has(current)&&!seen.has(current)){
-      seen.add(current);const node=byId.get(current)!;
+      seen.add(current);const node:SourceWbsNodeInput=byId.get(current)!;
       path.unshift(node.code??node.name??current);
       current=node.parentWbsId;
     }
