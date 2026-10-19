@@ -9,6 +9,7 @@ function identityTokens(text:string):readonly string[]{
  if(text.length<=2048){if(stringTokens.size>=65536)stringTokens.clear();stringTokens.set(text,tokens);}
  return tokens;
 }
+const BASIS_LABELS:Record<string,string>={execution_control:'Execution activities',source_records:'Source activity records',unfinished_execution:'Remaining execution activities'};
 /** Select presentation aliases only for identities present in the response.
  * Source IDs and the full label catalogue remain in the original producer. */
 export function responseSourceLabels(catalogue:Record<string,string>|undefined,value:unknown):Record<string,string>{
@@ -23,9 +24,13 @@ export function responseSourceLabels(catalogue:Record<string,string>|undefined,v
   if(typeof input==='string'){strings.push(input);return;}
   if(!input||typeof input!=='object'||scanned.has(input))return;scanned.add(input);
   if(Array.isArray(input)){input.forEach(identify);return;}
-  const identities=[['populationId',input.name??input.populationName??({execution_control:'Execution activities',source_records:'Source activity records',unfinished_execution:'Remaining execution activities'} as Record<string,string>)[String(input.basis)]],['revisionId',input.label??input.revisionName??input.sourceFilename],['itemId',input.itemNumber],['quantityItemId',input.itemNumber]];
-  for(const[id,label]of identities)if(typeof input[id]==='string'&&typeof label==='string'&&label.trim())catalogue![input[id]]=label.trim();
-  for(const[key,child]of Object.entries(input))if(key!=='sourceLabels')identify(child);
+  // Same four identities, labels and order as before, without building them as arrays for every object.
+  const populationLabel=input.name??input.populationName??BASIS_LABELS[String(input.basis)],revisionLabel=input.label??input.revisionName??input.sourceFilename,itemLabel=input.itemNumber;
+  if(typeof input.populationId==='string'&&typeof populationLabel==='string'&&populationLabel.trim())catalogue![input.populationId]=populationLabel.trim();
+  if(typeof input.revisionId==='string'&&typeof revisionLabel==='string'&&revisionLabel.trim())catalogue![input.revisionId]=revisionLabel.trim();
+  if(typeof input.itemId==='string'&&typeof itemLabel==='string'&&itemLabel.trim())catalogue![input.itemId]=itemLabel.trim();
+  if(typeof input.quantityItemId==='string'&&typeof itemLabel==='string'&&itemLabel.trim())catalogue![input.quantityItemId]=itemLabel.trim();
+  for(const key in input)if(key!=='sourceLabels'&&Object.hasOwn(input,key))identify(input[key]);
  };
  identify(value);
  // A string or token selects the same aliases every time it is read (the
