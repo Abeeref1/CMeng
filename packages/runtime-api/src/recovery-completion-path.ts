@@ -8,6 +8,8 @@ import type {RecoveryScenario} from './recovery-acceleration';
 export interface RecoveryCpmChange {
   removeRelationshipIds:string[];
   addRelationships:Array<{predecessorActivityId:string;successorActivityId:string}>;
+  /** Remaining duration of each listed activity multiplied by the stated factor (crew or shift ratio). */
+  durationScale?:Array<{activityId:string;factor:number}>;
 }
 type ForecastView={complete:boolean;drivingNetwork?:{activityIds:string[]}|undefined;activities:Array<{activityId:string;independentTotalFloatHours:number|null}>};
 
@@ -22,10 +24,13 @@ function cpmFinish(model:CanonicalScheduleModel,change:RecoveryCpmChange|null):s
   try{
     let run=model;
     if(change){
+      const scale=new Map((change.durationScale??[]).map(row=>[row.activityId,row.factor]));
+      for(const [id,factor] of scale){const activity=model.activities.find(a=>a.activityId===id);
+        if(!activity||typeof activity.remainingDurationHours!=='number'||!Number.isFinite(factor)||factor<=0||factor>1)throw new Error('duration scale not applicable');}
       const removed=new Set(change.removeRelationshipIds);
       const template=model.relationships.find(r=>removed.has(r.relationshipId))??null;
       if(change.addRelationships.length&&!template)throw new Error('no relationship template');
-      run={...model,relationships:[...model.relationships.filter(r=>!removed.has(r.relationshipId)),
+      run={...model,activities:scale.size?model.activities.map(a=>scale.has(a.activityId)?{...a,remainingDurationHours:Number((a.remainingDurationHours!*scale.get(a.activityId)!).toFixed(6))}:a):model.activities,relationships:[...model.relationships.filter(r=>!removed.has(r.relationshipId)),
         ...change.addRelationships.map((link,index)=>({...template!,relationshipId:'recovery-scenario:'+index+':'+link.predecessorActivityId+'>'+link.successorActivityId,
           predecessorActivityId:link.predecessorActivityId,successorActivityId:link.successorActivityId,type:'FS' as const,lagHours:0,external:false,diagnostics:[]}))]};
     }
@@ -86,7 +91,7 @@ export function classifyRecoveryAgainstCompletion(
       const a=Date.parse(after),b=Date.parse(before);
       const hours=a<=b?workingHoursBetween(completionCalendar,a,b):-workingHoursBetween(completionCalendar,b,a);
       scenario.completionGainWorkingDays=Number((hours/completionCalendar.standardDayHours).toFixed(2));
-      scenario.completionGainBasis='CMeng CPM run with the scenario change ('+change.removeRelationshipIds.length+' link(s) removed, '+change.addRelationships.length+' added): project finish '+after.slice(0,10)+' against '+before.slice(0,10)+' unchanged, in completion milestone calendar working days.';
+      scenario.completionGainBasis='CMeng CPM run with the scenario change ('+change.removeRelationshipIds.length+' link(s) removed, '+change.addRelationships.length+' added'+(change.durationScale?.length?', remaining duration of '+change.durationScale.map(row=>row.activityId+' × '+Number(row.factor.toFixed(6))).slice(0,5).join(', '):'')+'): project finish '+after.slice(0,10)+' against '+before.slice(0,10)+' unchanged, in completion milestone calendar working days.';
     }catch{scenario.completionGainBasis='Not established: working time between the two CPM finishes could not be measured on the completion calendar.';}
   }
   return {recoveryOptionCount:scenarios.filter(s=>s.pathRole==='recovery_option').length,
