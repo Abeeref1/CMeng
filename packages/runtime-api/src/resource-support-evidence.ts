@@ -1,4 +1,4 @@
-import {csv as parseCsv,sourceCandidateHold,sourceCandidateHoldDiagnostic} from "../../truth-kernel/src";
+import {csv as parseCsv} from "../../truth-kernel/src";
 import {
   readFileSync,
 } from "node:fs";
@@ -66,20 +66,7 @@ export interface WeeklyResourceCapacitySummary {
     comparablePlannedRowCount: number;
     comparableActualRowCount: number;
   }>;
-  /** Present only when a candidate source disagrees with the adopted source
-   * for the same resource and week. The adopted value is the one used. */
-  basisDisagreements?: WeeklyResourceBasisDisagreement[];
   diagnostics: string[];
-}
-
-export interface WeeklyResourceBasisDisagreement {
-  resourceId: string;
-  weekStartIso: string | null;
-  field: "availableCapacity" | "plannedDemand" | "actualApprovedUsage" | "unit";
-  adoptedValue: number | string;
-  candidateValue: number | string;
-  adoptedSourceRef: string;
-  candidateSourceRef: string;
 }
 
 
@@ -196,16 +183,18 @@ export function weeklyResourceCapacityEvidence(
       : Number.NaN;
   let futureActualUsageWithheldCount =
     0;
-  // T04 one rule: a candidate resource file is used only when the shared
-  // candidate rule admits it (fully parsed, no review, unique in its family,
-  // no adopted document of that family). Adopted points are kept apart.
-  const candidateHold =
-    sourceCandidateHold(documents);
-  const adoptedPoints =
-    new Set<WeeklyResourceCapacityPoint>();
-  const isResourceCapacityFile = (
-    document: StoredEvidenceDocument,
-  ) =>
+
+  const candidates =
+    documents.filter(
+      (document) =>
+        (
+          document.basisState ===
+            "active" ||
+          document.basisState ===
+            "additive" ||
+          document.basisState ===
+            "candidate"
+        ) &&
         (
           document.documentType ===
             "resource_register" ||
@@ -220,44 +209,7 @@ export function weeklyResourceCapacityEvidence(
           document.mediaType +
             " " +
             document.sourceFilename,
-        );
-
-  const candidates =
-    documents.filter(
-      (document) => {
-        if (
-          document.basisState ===
-            "active" ||
-          document.basisState ===
-            "additive"
-        ) {
-          return isResourceCapacityFile(
-            document,
-          );
-        }
-        if (
-          document.basisState !==
-            "candidate" ||
-          !isResourceCapacityFile(
-            document,
-          )
-        ) {
-          return false;
-        }
-        const hold =
-          candidateHold(document);
-        if (hold) {
-          diagnostics.push(
-            "RESOURCE_SUPPORT_CANDIDATE_HELD:" +
-              sourceCandidateHoldDiagnostic(
-                document,
-                hold,
-              ),
-          );
-          return false;
-        }
-        return true;
-      },
+        ),
     );
 
   for (
@@ -410,7 +362,7 @@ export function weeklyResourceCapacityEvidence(
           1;
       }
 
-      const point: WeeklyResourceCapacityPoint = {
+      points.push({
         resourceId,
         resourceName:
           cell(
@@ -446,14 +398,7 @@ export function weeklyResourceCapacityEvidence(
           document.documentId +
           ":row:" +
           (rowIndex + 1),
-      };
-      points.push(point);
-      if (
-        document.basisState !==
-        "candidate"
-      ) {
-        adoptedPoints.add(point);
-      }
+      });
     }
   }
 
@@ -533,18 +478,11 @@ export function weeklyResourceCapacityEvidence(
   const evidencePoints:
     WeeklyResourceCapacityPoint[] =
     [];
-  const basisDisagreements:
-    WeeklyResourceBasisDisagreement[] =
-    [];
 
-  // Merge one set of points for a resource and week exactly as reported:
-  // one point per explicit unit, never across units.
-  const mergeBucket = (
-    bucket: WeeklyResourceCapacityPoint[],
-  ): {
-    points: WeeklyResourceCapacityPoint[];
-    unitConflict: boolean;
-  } => {
+  for (
+    const bucket of
+      rawByResourceWeek.values()
+  ) {
     const explicitUnits = [
       ...new Set(
         bucket
@@ -575,12 +513,17 @@ export function weeklyResourceCapacityEvidence(
           resolvedUnit,
         );
       }
-      return {
-        points: merged ? [merged] : [],
-        unitConflict: false,
-      };
+      if (merged) {
+        evidencePoints.push(
+          merged,
+        );
+      }
+      continue;
     }
 
+    diagnostics.push(
+      "RESOURCE_UNIT_CONFLICT_PRESERVED_WITHOUT_CROSS_UNIT_MERGE",
+    );
     const byExplicitUnit =
       new Map<
         string,
@@ -616,125 +559,9 @@ export function weeklyResourceCapacityEvidence(
       );
     }
 
-    return {
-      points: [
-        ...byExplicitUnit.values(),
-        ...unspecified,
-      ],
-      unitConflict: true,
-    };
-  };
-
-  for (
-    const rawBucket of
-      rawByResourceWeek.values()
-  ) {
-    // Adopted wins: when an adopted source covers this resource and week,
-    // candidate values are never merged into it. The combined candidate
-    // value is compared with the combined adopted value actually used, and
-    // a difference is shown as a disagreement.
-    const adopted =
-      mergeBucket(
-        rawBucket.filter((point) =>
-          adoptedPoints.has(point),
-        ),
-      );
-    const candidate =
-      mergeBucket(
-        rawBucket.filter(
-          (point) =>
-            !adoptedPoints.has(point),
-        ),
-      );
-    const used =
-      adopted.points.length > 0
-        ? adopted
-        : candidate;
-    if (
-      adopted.points.length > 0 &&
-      candidate.points.length > 0
-    ) {
-      const unitKey = (
-        point: WeeklyResourceCapacityPoint,
-      ) =>
-        point.unit
-          ?.trim()
-          .toUpperCase() ?? "";
-      for (const candidatePoint of candidate.points) {
-        const adoptedPoint =
-          adopted.points.length === 1 &&
-          candidate.points.length === 1
-            ? adopted.points[0]!
-            : adopted.points.find(
-                (point) =>
-                  unitKey(point) ===
-                  unitKey(candidatePoint),
-              );
-        if (!adoptedPoint) {
-          continue;
-        }
-        const fields = [
-          "availableCapacity",
-          "plannedDemand",
-          "actualApprovedUsage",
-          "unit",
-        ] as const;
-        for (const field of fields) {
-          const adoptedValue =
-            adoptedPoint[field];
-          const candidateValue =
-            candidatePoint[field];
-          if (
-            adoptedValue === null ||
-            adoptedValue === "" ||
-            candidateValue === null ||
-            candidateValue === "" ||
-            (
-              field === "unit"
-                ? String(candidateValue)
-                    .trim()
-                    .toUpperCase() ===
-                  String(adoptedValue)
-                    .trim()
-                    .toUpperCase()
-                : candidateValue ===
-                  adoptedValue
-            )
-          ) {
-            continue;
-          }
-          basisDisagreements.push({
-            resourceId:
-              adoptedPoint.resourceId,
-            weekStartIso:
-              adoptedPoint.weekStartIso,
-            field,
-            adoptedValue,
-            candidateValue,
-            adoptedSourceRef:
-              adoptedPoint.sourceRef,
-            candidateSourceRef:
-              candidatePoint.sourceRef,
-          });
-          diagnostics.push(
-            "RESOURCE_CANDIDATE_DISAGREES_WITH_ADOPTED:" +
-              adoptedPoint.resourceId +
-              ":" +
-              (adoptedPoint.weekStartIso ??
-                "undated") +
-              ":" +
-              field,
-          );
-        }
-      }
-    }
-    if (used.unitConflict) {
-      diagnostics.push(
-        "RESOURCE_UNIT_CONFLICT_PRESERVED_WITHOUT_CROSS_UNIT_MERGE",
-      );
-    }
     evidencePoints.push(
-      ...used.points,
+      ...byExplicitUnit.values(),
+      ...unspecified,
     );
   }
 
@@ -1134,9 +961,6 @@ export function weeklyResourceCapacityEvidence(
         ?.actualUtilizationPercent ??
       null,
     utilizationByUnit,
-    ...(basisDisagreements.length > 0
-      ? {basisDisagreements}
-      : {}),
     diagnostics: [
       ...diagnostics,
       ...(utilizationByUnit.length > 1
