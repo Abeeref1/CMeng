@@ -225,7 +225,7 @@ for(const s of ledger.sw)L.push('| '+[s.id,esc(s.description),esc(s.cause.cause)
 L.push('','Notes on linked repairs:','');
 for(const [id,a] of [...Object.entries(links.sw),...Object.entries(links.f),...Object.entries(links.s)])L.push('- **'+id+'**: '+a.what+' Not covered: '+a.notCovered);
 for(const [id,a] of Object.entries(links.relatedNotRepair))L.push('- **'+id+'** related, not a repair: '+a.commits.join(', ')+'. '+a.why);
-L.push('','How links were found: '+links.idMentionSearch+' '+links.round2Search+' A commit marked "per-fix history" is on v/history1 only; the same change is in squashed commit 413524f5 on this branch.');
+L.push('','How links were found: '+links.idMentionSearch+' '+links.round2Search+' '+(links.round3Search??'')+' A commit marked "per-fix history" is on v/history1 only; the same change is in squashed commit 413524f5 on this branch.');
 L.push('','Repairs saved with no SW row:','');
 for(const a of links.withoutSwRow)L.push('- Rule '+a.rule+': '+a.what+' Commits '+a.commits.join(', ')+' (saved, not live). Tests: '+a.tests.join(', ')+'. '+a.why);
 const fRef=f=>commitsCell(f.repairReference)+'; consultant root '+f.root+' step '+f.step;
@@ -243,6 +243,8 @@ L.push('## Projects (rule V2)','','| Project | Test marking | Basis |','| --- | 
 for(const p of ledger.projects)L.push('| '+[p.id,p.testMarking,p.basis].join(' | ')+' |');
 L.push('','The product has a saved test-project flag and a separate test list (commits 2f5fc187 and 445e678d, live). SW-55 and check V2 stay open: the verifier still saw test data in the live portfolio at b3c76d6, the owner has not marked the projects, and V2 is still to add. This board does not mark live projects; marking is the owner action on the live system.','');
 if(links.namedTestRun){const t=links.namedTestRun;L.push('## Named test run','','On '+t.when+', build '+t.build+': '+t.result+' ('+t.files.join(', ')+'). '+t.notRun+' A passing test proves only the case it names; it does not close the row.','');}
+if(links.independentTools){const t=links.independentTools;L.push('## Independent calculators (T12)','',t.what+' Commits '+t.commits.join(', ')+'. Tests: '+t.tests.join(', ')+'.','');}
+if(links.agentBranches){const a=links.agentBranches;L.push('## Saved on agent branches, not in this build','',a.note,'');for(const b of a.branches)L.push('- '+b.branch+': '+b.commits.map(c=>c.sha+' '+c.subject).join('; '));L.push('');}
 L.push('## Still open with no repair linked','');
 const stillOpen=[...ledger.sw,...ledger.f,...ledger.s].filter(x=>x.boardStatus==='open_no_repair_linked').map(x=>x.id);
 L.push('Rows: '+stillOpen.join(', ')+'. Plus '+ledger.abb.individualObservations.filter(a=>a.boardStatus==='open_no_repair_linked').length+' page findings.','');
