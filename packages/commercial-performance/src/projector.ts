@@ -1,4 +1,4 @@
-import { reportingScope } from "../../truth-kernel/src";
+import { conditionalNotice, reportingScope } from "../../truth-kernel/src";
 import type {
   CommercialFinding,
   CommercialFindingAuthority,
@@ -540,18 +540,22 @@ function sourceFinding(
   names: readonly string[],
   label: string,
   consequence: string,
+  // SW-46: what is true when the source value is absent. A consequence that states the
+  // value exists ("is retained", "uses source PV") is never printed for a missing value.
+  missingConsequence?: string,
 ): CommercialFinding<number> {
   const value =
     valueFor(
       snapshot,
       names,
     );
+  const stated=conditionalNotice(value!==null,consequence,missingConsequence??consequence);
   if (value === null) {
     return missing(
       "source_cost_snapshot:" +
         label,
       snapshot.asOf,
-      consequence,
+      stated,
       "Provide or map " +
         label.toUpperCase() +
         " for this reporting position.",
@@ -575,7 +579,7 @@ function sourceFinding(
         stateForSnapshot(
           snapshot,
         ),
-      consequence,
+      consequence:stated,
       action: null,
       diagnostics:
         snapshot.diagnostics,
@@ -927,6 +931,7 @@ function costControl(
         aliases.bac,
         "bac",
         "BAC establishes the current approved control budget basis.",
+        "BAC is not established, so the approved control budget basis is unknown.",
       );
     const pv =
       sourceFinding(
@@ -955,6 +960,7 @@ function costControl(
         aliases.eac,
         "eac",
         "Source EAC is retained separately from CMeng forecast scenarios.",
+        "Source EAC is not established in this cost snapshot.",
       );
     const sourceEtc =
       sourceFinding(
@@ -962,6 +968,7 @@ function costControl(
         aliases.etc,
         "etc",
         "Source ETC is retained as a submitted forecast basis.",
+        "Source ETC is not established in this cost snapshot.",
       );
     const sourceVac =
       sourceFinding(
@@ -969,6 +976,7 @@ function costControl(
         aliases.vac,
         "vac",
         "Source VAC is retained and reconciled against BAC minus source EAC.",
+        "Source VAC is not established in this cost snapshot, so there is no reported VAC to reconcile.",
       );
 
     const compatibleMoneyBasis =
@@ -1398,6 +1406,7 @@ function evmPerformance(
               aliases.pv,
               "pv",
               "PV is the source planned-value curve point.",
+              "Source PV is not established for this curve point.",
             );
           const ev =
             sourceFinding(
@@ -1405,6 +1414,7 @@ function evmPerformance(
               aliases.ev,
               "ev",
               "EV is the source earned-value curve point.",
+              "Source EV is not established for this curve point.",
             );
           const ac =
             sourceFinding(
@@ -1412,6 +1422,7 @@ function evmPerformance(
               aliases.ac,
               "ac",
               "AC is the source actual-cost curve point.",
+              "Source AC is not established for this curve point.",
             );
           const compatibleMoneyBasis =
             snapshot.taxBasis !==
@@ -3161,6 +3172,7 @@ function costScurve(
                 aliases.pv,
                 "pv",
                 "Planned cost curve uses source PV.",
+                "Source PV is not established, so the planned cost curve has no point here.",
               ),
             earnedValue:
               sourceFinding(
@@ -3182,6 +3194,7 @@ function costScurve(
                 aliases.eac,
                 "eac",
                 "Forecast cost remains the source EAC position.",
+                "Source EAC is not established, so no forecast cost is shown here.",
               ),
             remainingCost:
               calc(

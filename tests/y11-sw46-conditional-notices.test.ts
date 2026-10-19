@@ -11,6 +11,9 @@ import {conditionalNotice} from '../packages/runtime-api/src/conditional-notice'
 import {summarizeControlIssues,totalChecksRun} from '../packages/truth-kernel/src';
 import {assessModuleIssues} from '../packages/runtime-api/src/module-issues';
 import {documentReadReview} from '../packages/runtime-api/src/document-read-review';
+import {buildCommercialFoundation} from '../packages/commercial-foundation/src';
+import {buildCommercialPerformance} from '../packages/commercial-performance/src';
+import {deliveryCheckState} from '../packages/runtime-api/src/advanced-controls';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -168,4 +171,35 @@ test('SW-46 Document reading: "identification or structured extraction is availa
   assert.match(none.note!,/^No document identification, structured extraction or complete page-reading receipt is retained\. This does not establish/);
   const identified=documentReadReview({...bare,parserState:'identified',identification:{pageCount:3}},state);
   assert.equal(identified.note,'Document identification or structured extraction is available, but no matching complete page-reading receipt is retained. This does not establish that every page was read or that every fact was extracted.');
+});
+
+test('SW-46 Cost control: a missing source EAC, ETC or VAC is not described as retained or reconciled',()=>{
+  const foundation=buildCommercialFoundation({projectId:'SW46-COST',generatedAt:'2026-09-21T12:00:00.000Z',dataDateIso:'2026-08-31',contractValue:null,contractValueCandidates:[],
+    variations:[],contractTimeBasis:null,ldTerms:null,contractSections:[],amendments:[],costMetrics:[],payments:[]});
+  const snapshot=(values:Record<string,number>)=>({currency:'AED',taxBasis:'exclusive' as const,asOf:'2026-08-31',state:'official' as const,values,sourceRefs:['evidence-document:COST:row:2'],diagnostics:[]});
+  const build=(values:Record<string,number>)=>buildCommercialPerformance({projectId:'SW46-COST',generatedAt:'2026-09-21T12:00:00.000Z',dataDateIso:'2026-08-31',foundation,
+    costSnapshots:[snapshot(values)],costMetrics:[],payments:[]} as any).costControl.positions[0] as any;
+  const missing=build({bac:10_000_000,pv:5_000_000,ev:4_500_000,ac:4_800_000});
+  assert.equal(missing.sourceVac.value,null);
+  assert.equal(missing.sourceVac.consequence,'Source VAC is not established in this cost snapshot, so there is no reported VAC to reconcile.');
+  assert.equal(missing.sourceEtc.consequence,'Source ETC is not established in this cost snapshot.');
+  assert.equal(missing.sourceEac.consequence,'Source EAC is not established in this cost snapshot.');
+  for(const key of ['sourceVac','sourceEtc','sourceEac'])assert.doesNotMatch(missing[key].consequence,/is retained/);
+  const present=build({bac:10_000_000,pv:5_000_000,ev:4_500_000,ac:4_800_000,eac:11_000_000,etc:6_200_000,vac:-1_000_000});
+  assert.equal(present.sourceVac.consequence,'Source VAC is retained and reconciled against BAC minus source EAC.');
+  assert.equal(present.sourceEtc.consequence,'Source ETC is retained as a submitted forecast basis.');
+  assert.equal(present.sourceEac.consequence,'Source EAC is retained separately from CMeng forecast scenarios.');
+  const noBac=build({pv:5_000_000,ev:4_500_000,ac:4_800_000});
+  assert.equal(noBac.bac.consequence,'BAC is not established, so the approved control budget basis is unknown.');
+});
+
+test('SW-46 Final account: closeout and handover are "clear" only when records were checked',()=>{
+  const ready=(rows:unknown)=>({status:'ready',reason:null,data:rows===undefined?{}:{rows}});
+  assert.deepEqual(deliveryCheckState(ready([{id:'S1'}]),'closeout'),{state:'clear',detail:'Current closeout checks passed.'});
+  assert.deepEqual(deliveryCheckState(ready([]),'closeout'),{state:'unresolved',detail:'No closeout records were checked.'});
+  assert.deepEqual(deliveryCheckState(ready(undefined),'handover'),{state:'unresolved',detail:'Handover check coverage is not established.'});
+  assert.deepEqual(deliveryCheckState({status:'partial',reason:null,data:{rows:[]}},'handover'),{state:'open',detail:'Handover requires review.'});
+  assert.deepEqual(deliveryCheckState({status:'blocked',reason:'Not usable.',data:null},'closeout'),{state:'unresolved',detail:'Not usable.'});
+  // A page reason, when the page gives one, is kept as the detail; the state still needs checked records.
+  assert.deepEqual(deliveryCheckState({status:'ready',reason:'Page reason.',data:{rows:[]}},'closeout'),{state:'unresolved',detail:'Page reason.'});
 });
