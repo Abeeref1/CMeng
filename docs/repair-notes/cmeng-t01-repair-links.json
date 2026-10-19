@@ -12,13 +12,16 @@
       "commits": [
         "0fcebe4e",
         "3634d35b",
-        "413524f5"
+        "413524f5",
+        "f47ed2f3",
+        "ffd57dc0"
       ],
       "tests": [
         "tests/t05-counts-true-total-every-screen.test.ts",
-        "tests/project-actions.test.ts"
+        "tests/project-actions.test.ts",
+        "tests/t05-remaining-true-totals.test.ts"
       ],
-      "what": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05).",
+      "what": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05). Round 2: true totals for action lists, top-5 late ranking and dashboard actions (T05/N1).",
       "notCovered": "N1 guard not re-run on all 23 projects; not live."
     },
     "SW-07": {
@@ -26,12 +29,14 @@
         "d19a0d58",
         "85c8324b",
         "071ea238",
-        "413524f5"
+        "413524f5",
+        "9e44e026"
       ],
       "tests": [
-        "tests/t11-dashboard-on-demand-original-content.test.ts"
+        "tests/t11-dashboard-on-demand-original-content.test.ts",
+        "tests/t05-same-measure-every-page.test.ts"
       ],
-      "what": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7).",
+      "what": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7). Round 2: claim, event and float measures equal on every page (N4).",
       "notCovered": "Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked."
     },
     "SW-36": {
@@ -51,13 +56,15 @@
         "fb318c1a",
         "6ffa8bea",
         "7f2f7429",
-        "413524f5"
+        "413524f5",
+        "3b421deb"
       ],
       "tests": [
         "tests/t10-no-code-names-on-screen.test.ts",
-        "tests/t10-diagnostic-heading-meaning.test.ts"
+        "tests/t10-diagnostic-heading-meaning.test.ts",
+        "tests/t10-wording-rules.test.ts"
       ],
-      "what": "One shared field-label module for browser, server issue headings, report preview and downloads; internal field names and codes are not shown as headings, columns, labels or values (T10).",
+      "what": "One shared field-label module for browser, server issue headings, report preview and downloads; internal field names and codes are not shown as headings, columns, labels or values (T10). Round 2: shared field label reads codes, units and joined names in plain words (W1/W4).",
       "notCovered": "W1, W2, W3, W8 not re-run on all 23 projects; not live."
     },
     "SW-54": {
@@ -71,14 +78,23 @@
         "cd9aa73b",
         "e2ecb802",
         "a145497b",
-        "413524f5"
+        "413524f5",
+        "8994245b",
+        "c487cd37",
+        "e833b9c7",
+        "697d0833",
+        "88a6e429",
+        "1762b984"
       ],
       "tests": [
         "tests/t11-retained-calculation-only.test.ts",
         "tests/t11-lookahead-cold-reuse-parity.test.ts",
-        "tests/t11-dashboard-on-demand-original-content.test.ts"
+        "tests/t11-dashboard-on-demand-original-content.test.ts",
+        "tests/t11-owner-page-publication.test.ts",
+        "tests/t11-cpm-engine-differential.test.ts",
+        "tests/t11-revision-compare-aligned-parity.test.ts"
       ],
-      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics.",
+      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics. Round 2: owner pages published off the foreground turn; CPM engine on typed arrays with identical results; cheaper revision compare and readiness.",
       "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
     },
     "SW-13": {
@@ -101,6 +117,203 @@
       ],
       "what": "Explicit, saved test-project flag and a separate test portfolio (commit subjects name F59). These commits are inside live release b3c76d6.",
       "notCovered": "The verifier still saw test data in the live portfolio at b3c76d6 (cause table status: Seen again), so existing projects are not yet marked; check V2 is still to add."
+    },
+    "SW-04": {
+      "commits": [
+        "9e44e026"
+      ],
+      "tests": [
+        "tests/t05-same-measure-every-page.test.ts"
+      ],
+      "what": "delay-claims shows unknown claim and event counts as unknown, never 0 (N2).",
+      "notCovered": null
+    },
+    "SW-06": {
+      "commits": [
+        "83a98c55",
+        "ffc6bc30"
+      ],
+      "tests": [
+        "tests/t02-register-reading-truth.test.ts"
+      ],
+      "what": "cost code is no longer read as a money amount (T02).",
+      "notCovered": "Only the cost-code case. BOQ item 1.0001 shown as 1, WBS id instead of name and finished-task dates are not covered."
+    },
+    "SW-09": {
+      "commits": [
+        "8ba1a7f5"
+      ],
+      "tests": [
+        "tests/t02-programme-reading-truth.test.ts"
+      ],
+      "what": "XER links whose rows carry no project ID attach by the unique task_id; ambiguous ends are never guessed (R4).",
+      "notCovered": "R4 guard and the independent reader not re-run on all 23 projects."
+    },
+    "SW-10": {
+      "commits": [
+        "8ba1a7f5"
+      ],
+      "tests": [
+        "tests/t02-programme-reading-truth.test.ts"
+      ],
+      "what": "duplicate activity IDs reported with source lines and never matched by a link.",
+      "notCovered": "Independent reader not re-run."
+    },
+    "SW-11": {
+      "commits": [
+        "5c81f67c",
+        "ffc6bc30"
+      ],
+      "tests": [
+        "tests/t02-register-reading-truth.test.ts"
+      ],
+      "what": "a file whose name says another type than its content is queued for review; content decides the type (R2).",
+      "notCovered": "R2 guard not re-run on all 23 projects."
+    },
+    "SW-12": {
+      "commits": [
+        "ffc6bc30"
+      ],
+      "tests": [
+        "tests/t02-register-reading-truth.test.ts"
+      ],
+      "what": "cost and register snapshots ordered by the report date inside the document, not the file name.",
+      "notCovered": "A report with no internal date keeps the old rule."
+    },
+    "SW-16": {
+      "commits": [
+        "8ba1a7f5",
+        "ec3673c5"
+      ],
+      "tests": [
+        "tests/t02-programme-reading-truth.test.ts",
+        "tests/t06-programme-hand-checked.test.ts"
+      ],
+      "what": "activity type read from XER task_type and from the Activity Type column of schedule sheets; missing type stays unknown.",
+      "notCovered": "S1 guard not re-run."
+    },
+    "SW-19": {
+      "commits": [
+        "ce20efc2"
+      ],
+      "tests": [
+        "tests/t08-ncr-unclear-and-need-date.test.ts"
+      ],
+      "what": "unclear NCR status is its own state with a reason, never open or closed (T08).",
+      "notCovered": "Independent reader not re-run."
+    },
+    "SW-20": {
+      "commits": [
+        "2df7f3df"
+      ],
+      "tests": [
+        "tests/t04-contract-terms-source-analysis.test.ts"
+      ],
+      "what": "notice periods read from a unique clearly read contract are used, labelled not formally adopted; an adopted rule is never shortened (T04).",
+      "notCovered": "Only the hold part of the cause (rule held but not used). The notice calculator has not checked the dates."
+    },
+    "SW-39": {
+      "commits": [
+        "ddedd70b"
+      ],
+      "tests": [
+        "tests/t09-actions-navigation.test.ts"
+      ],
+      "what": "module links never point back to the page that is open (A2).",
+      "notCovered": "A3 (one action in one place) and the repeated groups on 4 pages are not covered."
+    },
+    "SW-40": {
+      "commits": [
+        "ddedd70b"
+      ],
+      "tests": [
+        "tests/t09-actions-navigation.test.ts"
+      ],
+      "what": "buttons ignore a target that is not a registered page; every static button target is a registered page (A1).",
+      "notCovered": "A1 guard not re-run."
+    },
+    "SW-41": {
+      "commits": [
+        "7141811f",
+        "2f8c88c0"
+      ],
+      "tests": [
+        "tests/t09-actions-navigation.test.ts"
+      ],
+      "what": "opening a page from any button writes its own address and Back restores it (A5).",
+      "notCovered": "A5 check is still to add to the guard."
+    },
+    "SW-47": {
+      "commits": [
+        "428cf1dd"
+      ],
+      "tests": [
+        "tests/t10-look-sort-empty-access.test.ts"
+      ],
+      "what": "a chart whose values are all zero shows the reason and the values (S3).",
+      "notCovered": "Missing plan curves, heatmap, timeline and X3 are not covered."
+    },
+    "SW-48": {
+      "commits": [
+        "428cf1dd"
+      ],
+      "tests": [
+        "tests/t10-look-sort-empty-access.test.ts"
+      ],
+      "what": "every table header sorts by keyboard; filter lists with only All are switched off and say so (L5).",
+      "notCovered": "L5 check is still to add to the guard."
+    },
+    "SW-49": {
+      "commits": [
+        "f8161902"
+      ],
+      "tests": [
+        "tests/t10-downloads-match-screen.test.ts"
+      ],
+      "what": "module downloads carry reader words, units, data date and scope (X1).",
+      "notCovered": "Generate report and PDF outputs not covered; X1 still to add."
+    },
+    "SW-50": {
+      "commits": [
+        "f8161902"
+      ],
+      "tests": [
+        "tests/t10-downloads-match-screen.test.ts"
+      ],
+      "what": "every figure on the page is in report.json with the same value and full table population (X2).",
+      "notCovered": "X2 still to add to the guard."
+    },
+    "SW-51": {
+      "commits": [
+        "428cf1dd"
+      ],
+      "tests": [
+        "tests/t10-look-sort-empty-access.test.ts"
+      ],
+      "what": "text colour tokens reach WCAG AA 4.5:1 on panel colours and focus is visible (L6).",
+      "notCovered": "Full accessibility scan (L6) still to add."
+    },
+    "SW-56": {
+      "commits": [
+        "2de09398",
+        "756b7178",
+        "01d76392"
+      ],
+      "tests": [
+        "tests/t03-ai-reading-controls.test.ts"
+      ],
+      "what": "explicit references before AI, cost shown before AI is on, resumable AI reading with a spending cap, R5 reading statement, AI-read roles left for review (T03).",
+      "notCovered": "No controlled real AI test has been run; AI still needs owner permission."
+    },
+    "SW-57": {
+      "commits": [
+        "8ba1a7f5"
+      ],
+      "tests": [
+        "tests/t02-programme-reading-truth.test.ts"
+      ],
+      "what": "PROJECT.scd_end_date read as the scheduled project finish, kept apart from plan_end_date; a multi-project data date conflict stays unknown.",
+      "notCovered": "Not shown or reconciled on the pages yet as far as the commit says; independent reader not re-run."
     }
   },
   "withoutSwRow": [
@@ -112,14 +325,43 @@
         "1cf01767",
         "55f6e36b",
         "42231c15",
-        "413524f5"
+        "413524f5",
+        "313fe7d8",
+        "bb348873",
+        "bb027e2d",
+        "24c1554f"
       ],
       "tests": [
         "tests/t06-float-days-every-remaining-place.test.ts",
-        "tests/management-brief-acceptance.test.ts"
+        "tests/management-brief-acceptance.test.ts",
+        "tests/t06-durations-and-buckets-days.test.ts",
+        "tests/batch-c-near-critical-visibility.test.ts",
+        "tests/xer-calendar-recovery.test.ts"
       ],
       "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06).",
       "why": "No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect."
+    },
+    {
+      "rule": "A4",
+      "commits": [
+        "ddedd70b"
+      ],
+      "tests": [
+        "tests/t09-actions-navigation.test.ts"
+      ],
+      "what": "Missing owners shown as missing with a way to set them; stored owner and keys unchanged.",
+      "why": "A4 is not assigned to any SW row in the plan; linked to consultant item F12."
+    },
+    {
+      "rule": "identity (brief rule)",
+      "commits": [
+        "85cf0aa6"
+      ],
+      "tests": [
+        "tests/t10-identity-independent-of-wording.test.ts"
+      ],
+      "what": "Issue keys, groups, de-duplication and finding ids use raw machine data, never display labels.",
+      "why": "Guards the T10 label work (SW-45) against changing record identity; no SW row of its own."
     }
   ],
   "fOverlaps": {
@@ -253,17 +495,45 @@
         "08667e87"
       ],
       "why": "Speed work that indexes calendar identity and keeps first-match behaviour unchanged, so it does not repair silent duplicate matching."
+    },
+    "SW-21": {
+      "commits": [
+        "e6a1c480"
+      ],
+      "why": "Candidate variation registers now reach the variation position, but the cause (approved list treated as the full change register) is not addressed."
+    },
+    "SW-22": {
+      "commits": [
+        "fda72dcb"
+      ],
+      "why": "Completion date read from a unique candidate contract; the cause (extended date sought only in determinations) is not addressed."
+    },
+    "SW-38": {
+      "commits": [
+        "616ec8b8",
+        "85f740b9"
+      ],
+      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
+    },
+    "SW-37": {
+      "commits": [
+        "616ec8b8",
+        "85f740b9"
+      ],
+      "why": "Commit 616ec8b8 (test t04-one-rule-inputs-banners) was reverted by 85f740b9 pending review fixes; nothing for this item is in the code."
     }
   },
   "f": {
     "F12": {
       "commits": [
-        "4eb29dd1"
+        "4eb29dd1",
+        "ddedd70b"
       ],
       "tests": [
-        "tests/lookahead-procurement-linked-readiness.test.ts"
+        "tests/lookahead-procurement-linked-readiness.test.ts",
+        "tests/t09-actions-navigation.test.ts"
       ],
-      "what": "Keeps source owner authority in procurement readiness; commit subject names F12.",
+      "what": "Keeps source owner authority in procurement readiness; commit subject names F12. Round 2: an owner given only as a PMC role shows as missing with a way to set it; a named owner from the register is kept (A4).",
       "notCovered": "Owners from every register not covered."
     },
     "F28": {
@@ -298,6 +568,47 @@
       ],
       "what": "Saved test-project flag and separate test portfolio (live).",
       "notCovered": "Existing projects not yet marked; V2 still to add."
+    },
+    "F25": {
+      "commits": [
+        "e6a1c480"
+      ],
+      "tests": [
+        "tests/t04-commercial-registers-source-analysis.test.ts"
+      ],
+      "what": "clear unadopted commercial registers are used at once with the label Read from source; not formally adopted (T04).",
+      "notCovered": "Only commercial registers; other register families not checked here."
+    },
+    "F39": {
+      "commits": [
+        "7597c612",
+        "a42a6be5"
+      ],
+      "tests": [
+        "tests/t06-programme-hand-checked.test.ts"
+      ],
+      "what": "completed work excluded from remaining duration and remaining resource figures (T06).",
+      "notCovered": "RFIs and NCRs on finished work as close-out, and finished areas not blocked, are not covered."
+    },
+    "F57": {
+      "commits": [
+        "428cf1dd"
+      ],
+      "tests": [
+        "tests/t10-look-sort-empty-access.test.ts"
+      ],
+      "what": "an empty table says why it is empty in one line (S2).",
+      "notCovered": "One plain status word list on every page is not covered."
+    },
+    "F58": {
+      "commits": [
+        "83a98c55"
+      ],
+      "tests": [
+        "tests/t02-register-reading-truth.test.ts"
+      ],
+      "what": "delivery document receipts list the columns no calculation uses (R1).",
+      "notCovered": "Per-file view of mapped columns on the Documents page not checked here."
     }
   },
   "s": {
@@ -328,5 +639,48 @@
       "notCovered": "Plan of 13 Oct still lists S45 open."
     }
   },
-  "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence."
+  "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence.",
+  "round2Search": "Round 2 (v/int2): every commit in 413524f5..v/int2 was read with its body and the test files it changed. Links are made only where the commit names the SW item or its guard rule and a test file names the same case.",
+  "countsBeforeRound2": {
+    "commit": "b4ce3bf9",
+    "open_no_repair_linked": 160,
+    "open_root_not_repaired": 182,
+    "open_root_repair_saved_not_live": 347,
+    "repair_saved_not_live_named_test": 9,
+    "repair_live_no_named_test": 3,
+    "repair_live_named_test_not_certified": 4,
+    "originally_correct_watch": 62
+  },
+  "stillOpenNotes": {
+    "SW-17": "The test file t08-ncr-unclear-and-need-date has only SW-19 cases; no test or commit covers the procurement need date.",
+    "SW-37": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
+    "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
+    "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
+    "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
+    "F": "No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles."
+  },
+  "namedTestRun": {
+    "when": "2026-10-19 09:20 +04",
+    "build": "v/int2 at bb027e2d (dist built from v/int2; this branch differs only in docs and scripts)",
+    "command": "node --test --test-concurrency=1 on 15 files",
+    "files": [
+      "t02-register-reading-truth",
+      "t02-programme-reading-truth",
+      "t06-programme-hand-checked",
+      "t08-ncr-unclear-and-need-date",
+      "t04-contract-terms-source-analysis",
+      "t04-commercial-registers-source-analysis",
+      "t09-actions-navigation",
+      "t10-look-sort-empty-access",
+      "t10-downloads-match-screen",
+      "t03-ai-reading-controls",
+      "t05-remaining-true-totals",
+      "t05-same-measure-every-page",
+      "t10-wording-rules",
+      "t11-owner-page-publication",
+      "t11-revision-compare-aligned-parity"
+    ],
+    "result": "79 tests, 79 pass, 0 fail",
+    "notRun": "t11-cpm-engine-differential and the round-1 test files were not re-run in this pass."
+  }
 }
