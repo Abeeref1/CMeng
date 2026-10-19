@@ -11,3 +11,5 @@ t10-combined-request-keeps-every-original
 module-issue-classification
 system-root-causes
 management-population-counts
+v1-f01-page-figures-match-api
+project-fact-consumers
