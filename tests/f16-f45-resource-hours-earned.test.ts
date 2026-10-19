@@ -103,7 +103,7 @@ async function uploadProject(register:string|null,options:{assignments?:boolean}
 }
 const lookAhead=(id:string)=>{const d=moduleForProject(id,'lookahead-schedule').data as any;return d?.result?.projectionKey==='lookahead_schedule'?d.result:d;};
 const rowOf=(p:any,activityId:string)=>(p.forwardWindowRows??p.rows).find((r:any)=>r.activityId===activityId);
-const withoutRefs=(value:any)=>JSON.parse(JSON.stringify(value,(k,v)=>k==='sourceRef'||k==='sourceRefs'?undefined:v));
+const withoutRefs=(value:any)=>JSON.parse(JSON.stringify(value,(k,v)=>/^(?:sourceRef|sourceRefs|registerSourceRefs)$/.test(k)?undefined:v));
 const text=(v:unknown)=>String(v??'');
 
 test('F16 Resources: recorded hours by trade and week are read from the REEM register heading; the blank Data-Date week stays not recorded',async()=>{
@@ -145,24 +145,25 @@ test('F16 Resources: recorded hours by trade and week are read from the REEM reg
 test('F16 Look-Ahead: the resources column gives each activity its trade hours in the window and the latest recorded hours, from the shared reader',async()=>{
  const id=await uploadProject(weekRowsRegister());
  const p=lookAhead(id);
- const hours=(activityId:string)=>withoutRefs(rowOf(p,activityId).resourceHours);
- assert.deepEqual(hours('A-110'),[{resourceId:'R1',trade:'Mason',matchedRegisterResourceId:'LAB-001',unit:'hr',activityRemainingHours:200,tradePlannedHoursInWindow:100,windowWeekCount:6,
-  plannedReason:null,latestRecordedWeekIso:'2026-08-30',latestRecordedHours:160,state:'recorded',reason:null}]);
- for(const a of ['A-120','A-130'])assert.deepEqual(hours(a),[{resourceId:'R2',trade:'Plasterer',matchedRegisterResourceId:'LAB-002',unit:'hr',activityRemainingHours:300,tradePlannedHoursInWindow:600,windowWeekCount:6,
-  plannedReason:null,latestRecordedWeekIso:'2026-08-30',latestRecordedHours:20,state:'recorded',reason:null}]);
- const painter=hours('A-140')[0];
- assert.deepEqual([painter.trade,painter.activityRemainingHours,painter.tradePlannedHoursInWindow,painter.latestRecordedHours,painter.state],['Painter',120,null,null,'not_recorded']);
- assert.equal(painter.reason,'No weekly resource register record matches this trade by resource ID or a unique trade name.');
- assert.equal(painter.plannedReason,painter.reason);
- assert.deepEqual(rowOf(p,'A-150').resourceHours,[]);
- assert.equal(rowOf(p,'A-150').resourceHoursReason,'The programme assigns no labour resource to this activity.');
- assert.ok(rowOf(p,'A-110').resourceHours[0].sourceRefs[0].includes(':row:'),'the recorded week is cited');
- // Trades panel: the programme hour unit and the register labour-hour unit are both hours.
- const mason=p.sourceResourceTrades.find((t:any)=>t.trade==='Mason');
- assert.deepEqual([mason.capacityUnitsComparable,mason.registerPeriodCount,mason.registerPlannedDemand,mason.registerAvailableCapacity,mason.registerActualToDate,mason.registerLatestRecorded.hours],[true,6,100,1080,null,160]);
+ // Each look-ahead activity names its trades and its own remaining programme hours.
+ assert.deepEqual(rowOf(p,'A-110').resourceHours,[{resourceId:'R1',trade:'Mason',activityRemainingHours:200}]);
+ for(const a of ['A-120','A-130'])assert.deepEqual(rowOf(p,a).resourceHours,[{resourceId:'R2',trade:'Plasterer',activityRemainingHours:300}]);
+ assert.deepEqual(rowOf(p,'A-140').resourceHours,[{resourceId:'R3',trade:'Painter',activityRemainingHours:120}]);
+ assert.equal(rowOf(p,'A-150').resourceHours,undefined,'no labour assignment: nothing per row');
+ assert.equal(p.resourceHoursNoAssignmentReason,'The programme assigns no labour resource to this activity.');
+ // Each trade states once its planned register hours in the window and its latest recorded week, or why not.
+ const trade=(name:string)=>p.sourceResourceTrades.find((t:any)=>t.trade===name);
+ const figures=(name:string)=>{const t=trade(name);return [t.matchedRegisterResourceId,t.capacityUnitsComparable,t.registerPeriodCount,t.registerPlannedDemand,t.registerAvailableCapacity,t.registerActualToDate,
+  t.registerLatestRecorded&&[t.registerLatestRecorded.weekStartIso,t.registerLatestRecorded.hours],t.registerPlannedReason,t.registerActualReason];};
+ // The programme hour unit and the register labour-hour unit are both hours.
+ assert.deepEqual(figures('Mason'),['LAB-001',true,6,100,1080,null,['2026-08-30',160],null,null]);
+ assert.deepEqual(figures('Plasterer'),['LAB-002',true,6,600,960,null,['2026-08-30',20],null,null]);
+ const none='No weekly resource register record matches this trade by resource ID or a unique trade name.';
+ assert.deepEqual(figures('Painter'),[null,false,0,null,null,null,null,none,none]);
+ assert.ok(trade('Mason').registerLatestRecorded.sourceRef.includes(':row:'),'the recorded week is cited');
  // The same figures as the Resources page (one shared reader).
  const tw=(moduleForProject(id,'resource-utilization').data as any).actualHoursByTradeWeek;
- assert.equal(tw.trades.find((t:any)=>t.resourceId==='LAB-001').latestRecorded.hours,rowOf(p,'A-110').resourceHours[0].latestRecordedHours);
+ assert.equal(tw.trades.find((t:any)=>t.resourceId==='LAB-001').latestRecorded.hours,trade('Mason').registerLatestRecorded.hours);
  // The page shows them in the Resources column.
  const ctx={p,currentModuleResult:null,responsePopulationRoot:null,responsePopulationIndex:new WeakMap(),responseRowPopulationIndex:new WeakMap(),
   projectionFor:(v:unknown)=>v,escapeHtml:text,fmt:text,planningShortDate:text,humanizeKey:text,planningStateLabel:text,
@@ -184,9 +185,10 @@ test('F16 a week-column register (one column per week, measure on each row) give
  const wide=trades(columnsId);
  assert.equal(wide.recordedHours,470);
  assert.deepEqual(wide,trades(rowsId));
- const hours=(id:string)=>['A-110','A-120','A-140','A-150'].map(a=>withoutRefs(rowOf(lookAhead(id),a).resourceHours));
+ const hours=(id:string)=>{const p=lookAhead(id);return {rows:['A-110','A-120','A-140','A-150'].map(a=>rowOf(p,a).resourceHours??null),trades:withoutRefs(p.sourceResourceTrades)};};
+ assert.equal(hours(columnsId).trades.find((t:any)=>t.trade==='Mason').registerPlannedDemand,100);
  assert.deepEqual(hours(columnsId),hours(rowsId));
- assert.ok(rowOf(lookAhead(columnsId),'A-110').resourceHours[0].sourceRefs[0].includes(':column:'),'the cell is cited by row and week column');
+ assert.ok(lookAhead(columnsId).sourceResourceTrades.find((t:any)=>t.trade==='Mason').registerLatestRecorded.sourceRef.includes(':column:'),'the cell is cited by row and week column');
 });
 
 function stored(dir:string,id:string,body:string){

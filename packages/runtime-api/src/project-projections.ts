@@ -7824,28 +7824,21 @@ function resolveProjectModuleCandidate(
             :'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.'):
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
-    // F16: the Look-Ahead resources column. For each look-ahead activity: its trades, the
-    // activity's own remaining hours, the trade's planned register hours in the window and
-    // the latest recorded register hours, or "not recorded" with the reason.
-    const trades=new Map<string,any>((output.sourceResourceTrades as any[]).map(t=>[t.resourceId,t]));
-    const hoursFor=(activityId:string)=>[...(activityRemaining.get(activityId)??new Map<string,number|null>())].map(([resourceId,remaining])=>{
-      const t=trades.get(resourceId);
-      return {resourceId,trade:t?.trade??resourceId,matchedRegisterResourceId:t?.matchedRegisterResourceId??null,unit:t?.unit??null,
-        activityRemainingHours:remaining,tradePlannedHoursInWindow:t?.registerPlannedDemand??null,windowWeekCount:t?.registerPeriodCount??0,
-        plannedReason:t?.registerPlannedReason??null,
-        latestRecordedWeekIso:t?.registerLatestRecorded?.weekStartIso??null,latestRecordedHours:t?.registerLatestRecorded?.hours??null,
-        state:t?.registerLatestRecorded?'recorded':'not_recorded',reason:t?.registerActualReason??null,
-        sourceRefs:t?.registerLatestRecorded?[t.registerLatestRecorded.sourceRef]:[]};
-    });
+    // F16: the Look-Ahead resources column. Each look-ahead activity with labour assignments
+    // names its trades and its own remaining programme hours; the trade's planned register
+    // hours in the window and its latest recorded week (or "not recorded" with the reason)
+    // are stated once per trade in sourceResourceTrades, so rows stay light at any scale.
+    const tradeNames=new Map<string,string>([...groups.values()].map(g=>[g.resourceId,g.trade]));
     for(const list of ['rows','forwardWindowRows','overdueBacklogRows','backlogRows','missedStartRows']){
       if(!Array.isArray(output[list]))continue;
       output[list]=output[list].map((row:any)=>{
-        if(!ids.has(row.activityId))return row;
-        const resourceHours=hoursFor(row.activityId);
-        return {...row,resourceHours,resourceHoursReason:resourceHours.length?null:'The programme assigns no labour resource to this activity.'};
+        const own=ids.has(row.activityId)?activityRemaining.get(row.activityId):undefined;
+        if(!own)return row;
+        return {...row,resourceHours:[...own].map(([resourceId,remaining])=>({resourceId,trade:tradeNames.get(resourceId)??resourceId,activityRemainingHours:remaining}))};
       });
     }
-    output.resourceHoursBasis='Trade planned hours: register planned demand for weeks starting in the look-ahead window. Latest recorded hours: the latest register week on or before the Data Date with recorded hours. Both from the shared weekly resource reader; the activity\'s own remaining hours are from its programme labour assignments.';
+    output.resourceHoursBasis='Per trade (sourceResourceTrades): planned hours are the register planned demand for weeks starting in the look-ahead window; latest recorded hours are the latest register week on or before the Data Date with recorded hours, both from the shared weekly resource reader. Per activity (resourceHours): its own remaining hours from its programme labour assignments.';
+    output.resourceHoursNoAssignmentReason='The programme assigns no labour resource to this activity.';
   }
   if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
