@@ -272,13 +272,17 @@ A finding with two roots appears under both; overlaps are kept, never forced to 
 
 The product has a saved test-project flag and a separate test list (commits 2f5fc187 and 445e678d, live). SW-55 and check V2 stay open: the verifier still saw test data in the live portfolio at b3c76d6, the owner has not marked the projects, and V2 is still to add. This board does not mark live projects; marking is the owner action on the live system.
 
+## Named test run
+
+On 2026-10-19 09:20 +04, build v/int2 at bb027e2d (dist built from v/int2; this branch differs only in docs and scripts): 79 tests, 79 pass, 0 fail (t02-register-reading-truth, t02-programme-reading-truth, t06-programme-hand-checked, t08-ncr-unclear-and-need-date, t04-contract-terms-source-analysis, t04-commercial-registers-source-analysis, t09-actions-navigation, t10-look-sort-empty-access, t10-downloads-match-screen, t03-ai-reading-controls, t05-remaining-true-totals, t05-same-measure-every-page, t10-wording-rules, t11-owner-page-publication, t11-revision-compare-aligned-parity). t11-cpm-engine-differential and the round-1 test files were not re-run in this pass. A passing test proves only the case it names; it does not close the row.
+
 ## Still open with no repair linked
 
 Rows: SW-03, SW-05, SW-08, SW-14, SW-15, SW-17, SW-18, SW-21, SW-22, SW-23, SW-24, SW-25, SW-26, SW-27, SW-28, SW-29, SW-30, SW-31, SW-32, SW-33, SW-34, SW-35, SW-37, SW-38, SW-42, SW-43, SW-44, SW-46, SW-52, SW-53, F01, F02, F03, F04, F06, F07, F08, F09, F10, F11, F13, F14, F15, F16, F18, F19, F20, F21, F22, F23, F24, F26, F27, F29, F30, F31, F32, F34, F35, F36, F37, F38, F40, F42, F44, F45, F46, F47, F48, F49, F50, F51, F54, F55, F60, F61, S06, S07, S17, S21, S32. Plus 57 page findings.
 
 - SW-17: The test file t08-ncr-unclear-and-need-date has only SW-19 cases; no test or commit covers the procurement need date.
-- SW-37: Reverted with 616ec8b8; see related.
-- SW-38: Reverted with 616ec8b8; see related.
+- SW-37: Commit 616ec8b8 was reverted by 85f740b9; see related.
+- SW-38: Commit 616ec8b8 was reverted by 85f740b9; see related.
 - ABB: 57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.
 - S: S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.
 - F: No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles.

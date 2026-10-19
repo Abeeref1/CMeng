@@ -653,10 +653,34 @@
   },
   "stillOpenNotes": {
     "SW-17": "The test file t08-ncr-unclear-and-need-date has only SW-19 cases; no test or commit covers the procurement need date.",
-    "SW-37": "Reverted with 616ec8b8; see related.",
-    "SW-38": "Reverted with 616ec8b8; see related.",
+    "SW-37": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
+    "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
     "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
     "F": "No commit or test on v/int2 names these consultant items, and no SW overlap with a repair is evident from the titles."
+  },
+  "namedTestRun": {
+    "when": "2026-10-19 09:20 +04",
+    "build": "v/int2 at bb027e2d (dist built from v/int2; this branch differs only in docs and scripts)",
+    "command": "node --test --test-concurrency=1 on 15 files",
+    "files": [
+      "t02-register-reading-truth",
+      "t02-programme-reading-truth",
+      "t06-programme-hand-checked",
+      "t08-ncr-unclear-and-need-date",
+      "t04-contract-terms-source-analysis",
+      "t04-commercial-registers-source-analysis",
+      "t09-actions-navigation",
+      "t10-look-sort-empty-access",
+      "t10-downloads-match-screen",
+      "t03-ai-reading-controls",
+      "t05-remaining-true-totals",
+      "t05-same-measure-every-page",
+      "t10-wording-rules",
+      "t11-owner-page-publication",
+      "t11-revision-compare-aligned-parity"
+    ],
+    "result": "79 tests, 79 pass, 0 fail",
+    "notRun": "t11-cpm-engine-differential and the round-1 test files were not re-run in this pass."
   }
 }

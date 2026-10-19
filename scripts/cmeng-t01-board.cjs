@@ -242,6 +242,7 @@ L.push('| originally correct | '+ledger.abb.historicalPasses+' | not needed | or
 L.push('## Projects (rule V2)','','| Project | Test marking | Basis |','| --- | --- | --- |');
 for(const p of ledger.projects)L.push('| '+[p.id,p.testMarking,p.basis].join(' | ')+' |');
 L.push('','The product has a saved test-project flag and a separate test list (commits 2f5fc187 and 445e678d, live). SW-55 and check V2 stay open: the verifier still saw test data in the live portfolio at b3c76d6, the owner has not marked the projects, and V2 is still to add. This board does not mark live projects; marking is the owner action on the live system.','');
+if(links.namedTestRun){const t=links.namedTestRun;L.push('## Named test run','','On '+t.when+', build '+t.build+': '+t.result+' ('+t.files.join(', ')+'). '+t.notRun+' A passing test proves only the case it names; it does not close the row.','');}
 L.push('## Still open with no repair linked','');
 const stillOpen=[...ledger.sw,...ledger.f,...ledger.s].filter(x=>x.boardStatus==='open_no_repair_linked').map(x=>x.id);
 L.push('Rows: '+stillOpen.join(', ')+'. Plus '+ledger.abb.individualObservations.filter(a=>a.boardStatus==='open_no_repair_linked').length+' page findings.','');
