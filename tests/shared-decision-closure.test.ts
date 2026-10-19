@@ -52,7 +52,13 @@ test('Currency-qualified certificate values and alternate instrument columns rem
  const ledger=commercialCanonical(state),p:any=commercialPositionForState(state);
  assert.equal(ledger.bonds?.length,1);assert.equal(ledger.insurances?.length,1,'combined security insurance remains present and is not a bond');assert.equal(ledger.bonds[0]!.kind,'advance_payment');assert.equal(ledger.payments[0]!.amounts.netCertifiedAmount.value,100);assert.equal(ledger.payments[0]!.amounts.netCertifiedAmount.currency,'QAR');
  assert.equal(p.heldEvidence.advancePaymentBonds.count,1);assert.equal(p.heldEvidence.certificates.count,2,'application excluded');assert.equal(p.paymentLinkage.coveragePercent,100);
+ // F36: certified work / contract is like for like only when a source states the contract value's tax basis.
+ // The contract value above states none, so the certified percentage is not established (it was 30% before).
+ assert.equal(sourceProgressEvidence(state).certified?.valuePercent??null,null,'unstated contract tax basis: certified progress is not established');
+ assert.match(p.heldEvidence.certifiedProgress.notEstablished[0].reason,/No source states the tax basis of the original contract value/);
+ csv('cost_evm_report','Metric,Value,Unit,Status,As Of,VAT Basis\nOriginal Contract Value,1000,QAR,Approved,2026-08-31,exclusive');
  const progress=sourceProgressEvidence(state).certified!;assert.equal(progress.valuePercent,30);assert.equal(progress.asOfIso,'2026-08-31');
+ assert.match(progress.basis,/original contract value on the same tax basis/);
 });
 
 test('Commercial Brief reads current EAC and CPI from the same period and retains values under paging',t=>{
