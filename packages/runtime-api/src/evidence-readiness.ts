@@ -120,6 +120,8 @@ function readinessState(
       .toLowerCase()
       .trim();
 
+  // SW-18: "Not applicable" is its own state, never known-ready or blocked.
+  if(/^(not applicable|n\/a|na)$/.test(value))return "not_applicable";
   if (
     /\b(approved|accepted|closed|complete|completed|delivered|installed|issued|answered|released)\b/.test(
       value,
@@ -413,14 +415,17 @@ export function deriveReadinessFromCsv(
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
       const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status,leadReviewTime:valueAt(row,leadReviewIndex)});
-      if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
+      if(timing.notApplicable){state='not_applicable';scopeNote='Source status: not applicable; excluded from known and blocked readiness';}
+      else if(timing.openStatusDeliveredConflict){state='unknown';diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote='Source status "'+status+'" conflicts with an actual delivery dated on or before the Data Date. Review the source receipt and dates';}
+      else if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
       else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
       else if(timing.overdueUndelivered){state='blocked';scopeNote='Assessed need date ('+timing.needDateBasis+') '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
-      else if(timing.forecastLate){state='blocked';scopeNote='Forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis;}
+      // SW-18: a forecast date is not a blocker; only a passed need date on an undelivered package is.
+      else if(timing.forecastLate){state='unknown';diagnostics.push('PROCUREMENT_FORECAST_AFTER_NEED');scopeNote='At risk: forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis+'; a forecast date alone is not a confirmed blocker';}
       else {state='unknown';scopeNote=timing.needDate?'No date-based delivery blocker is established; physical readiness still requires delivery evidence.':'The selected need date is not established; confirm the missing programme link or register date.';}
       if(timing.deliveryDateConflict){diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote+='; the completed status conflicts with a delivery date after the reporting date. Review the source receipt and dates.';}
       const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
-      if(procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
+      if(!timing.notApplicable&&procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }
 
     if(sourceStatus.conflicted){

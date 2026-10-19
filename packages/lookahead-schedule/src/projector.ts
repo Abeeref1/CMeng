@@ -173,11 +173,14 @@ export function readinessForActivity(
       };
     });
 
-  let blockedCount = 0, unknownCount = 0, readyCount = 0;
+  // SW-18: "not applicable" is its own state. It is not counted as ready
+  // (known) or blocked; it is counted separately.
+  let blockedCount = 0, unknownCount = 0, readyCount = 0, notApplicableCount = 0;
   for (const dimension of dimensions) {
     if (dimension.state === "blocked") blockedCount++;
     else if (dimension.state === "unknown") unknownCount++;
-    else if (dimension.state === "ready" || dimension.state === "not_applicable") readyCount++;
+    else if (dimension.state === "ready") readyCount++;
+    else if (dimension.state === "not_applicable") notApplicableCount++;
   }
 
   return {
@@ -190,6 +193,7 @@ export function readinessForActivity(
     readyCount,
     blockedCount,
     unknownCount,
+    notApplicableCount,
     dimensions,
   };
 }

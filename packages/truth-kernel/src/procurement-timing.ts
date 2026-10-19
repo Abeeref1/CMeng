@@ -40,14 +40,21 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const status=typeof input.status==='string'?input.status.trim():'';
  const terminal=/^(delivered|accepted|installed|closed|complete|completed)$/i.test(status);
  // Missing, disputed or unverified statuses are not proof of non-delivery.
- const indeterminateStatus=/^(?:unknown|not known|not established|not verified|unverified|n\/a|na|tbd|tbc|unclear|disputed|undetermined)$/i.test(status);
+ const indeterminateStatus=/^(?:unknown|not known|not established|not verified|unverified|tbd|tbc|unclear|disputed|undetermined)$/i.test(status);
+ // SW-18: "Not applicable" is its own state. It is neither known delivered nor
+ // known undelivered, so no date can turn it into an overdue or late blocker.
+ const notApplicable=/^(?:not applicable|n\/a|na)$/i.test(status);
+ // SW-18: an explicit not-yet-delivered status with an actual delivery dated on
+ // or before the reporting date contradicts that date; raise it for review.
+ const openStatus=/^(?:pending|open|not delivered|undelivered|awaiting delivery|not started|planned|scheduled|ordered|on order|in production|manufacturing|in manufacture|fabrication|in fabrication|in transit|shipped|dispatched)$/i.test(status);
+ const openStatusDeliveredConflict=!!cutoff&&openStatus&&!!actualDelivery&&actualDelivery<=cutoff;
  // The status is evidence of completion, not proof of an actual delivery date or on-time delivery.
  // A recorded future actual date takes precedence over a stale completed-status label.
  const deliveredStatusOnly=!!cutoff&&terminal&&!actualDelivery;
  const deliveryDateConflict=!!cutoff&&terminal&&(!!actualDelivery&&actualDelivery>cutoff||!actualDelivery&&!!forecastDelivery&&forecastDelivery>cutoff);
- const knownUndelivered=!!cutoff&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!status&&!terminal&&!indeterminateStatus);
+ const knownUndelivered=!!cutoff&&!notApplicable&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!status&&!terminal&&!indeterminateStatus);
  const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;
  const headroomCalendarDays=needDate&&forecastDelivery?(Date.parse(needDate)-Date.parse(forecastDelivery))/86400000:null;
- const forecastLate=!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
- return {programmeStartDate,leadReview,programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,headroomCalendarDays,forecastLate};
+ const forecastLate=!notApplicable&&!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
+ return {programmeStartDate,leadReview,programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,openStatusDeliveredConflict,notApplicable,overdueUndelivered,headroomCalendarDays,forecastLate};
 }
