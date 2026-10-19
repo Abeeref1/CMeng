@@ -98,6 +98,7 @@ jobs:
             dist/tests/t04-contract-terms-source-analysis.test.js \
             dist/tests/t04-missing-value-inputs.test.js \
             dist/tests/t07-contract-time-original-and-completion-movement.test.js \
+            dist/tests/f32-schedule-footer-awaiting-review.test.js \
             dist/tests/t04-inline-conflict-decisions.test.js \
             dist/tests/t04-restart-decision-persistence.test.js \
             dist/tests/t04-candidate-family-conflict-truth.test.js \

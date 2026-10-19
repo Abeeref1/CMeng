@@ -33,7 +33,12 @@ export function scheduleAuthorityReview(state:ProjectRuntimeState){
   const formalBaseline=!!revision&&['baseline','revised_baseline'].includes(revision.role)&&!!revision.approvalReference?.trim();
   const submittedCurrent=validDecision&&(decision?.method==='submitted_update'||decision?.method==='legacy_retained');
   const authority=!validDecision?'none':formalBaseline&&decision?.method==='explicit'?'official':'submitted';
-  return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,
+  // F32: one shared rule for "a schedule is really awaiting review". A re-upload
+  // of the adopted programme (same revision and source hash) and an upload older
+  // than the adopted Data Date are retained for review but are not new schedules.
+  const currentId=revision?.revision.revisionId??null,currentHash=revision?.sourceHashSha256??null;
+  const awaitingReviewSchedules=pendingSchedules.filter(p=>!(p.revisionId===currentId&&p.sourceHashSha256===currentHash)&&p.dateRelationship!=='earlier');
+  return {projectId:state.projectId,currentRevisionId:revision?.revision.revisionId??null,dataDateIso,pendingSchedules,awaitingReviewSchedules,
     documentId:document?.documentId??null,sourceHashSha256:document?.sourceHashSha256??null,
     state:!revision?'missing':isScenarioRevision(revision)?'invalid':validDecision&&decision?.method==='explicit'?'established':submittedCurrent?'submitted_current':'pending_review',
     method:validDecision?decision?.method:null,authority,
