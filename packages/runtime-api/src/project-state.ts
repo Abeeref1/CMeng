@@ -578,6 +578,23 @@ function serializeProject(
   };
 }
 
+/** SW-52 / V1: the project version changes only when source data or a user
+ * decision changes. A background migration or startup synchronisation that
+ * re-saves the same content keeps the version. Fields that record the save
+ * itself (version, schema marker, rerun receipt) and migration receipt codes in
+ * diagnostics are bookkeeping, not content. Same serializer as the snapshot. */
+const SAVE_BOOKKEEPING_FIELDS=new Set(["version","sourceIntegrationVersion","lastRerunReceipt"]);
+const MIGRATION_RECEIPT_CODE=/^[A-Z0-9_]+_(?:MIGRATION|REFRESH)_V\d+$/;
+function projectContentFingerprint(state:ProjectRuntimeState):string{
+  const root=serializeProject(state);
+  const text=JSON.stringify(root,function(this:unknown,key:string,value:unknown){
+    if(this===root&&SAVE_BOOKKEEPING_FIELDS.has(key))return undefined;
+    if(key==="diagnostics"&&Array.isArray(value))return value.filter(code=>!(typeof code==="string"&&MIGRATION_RECEIPT_CODE.test(code)));
+    return value;
+  });
+  return createHash("sha256").update(text??"").digest("hex");
+}
+
 function specialistIdentification(
   input: {
     mediaType: string;
@@ -1496,6 +1513,7 @@ export class RuntimeProjectStore {
             serialized,
           );
         if(restoreSourcePaths(state,this.dataDir))restoredStateChanged=true;
+        const contentBeforeMigration=projectContentFingerprint(state);
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         let controlBasisMigrated = false;
@@ -1693,9 +1711,14 @@ export class RuntimeProjectStore {
           restoredStateChanged=true;
           state.sourceIntegrationVersion =
             "canonical-source-v7";
-          state.version += 1;
-          this.staleFinalizedBoardPublications(state);
-          state.lastRerunReceipt = null;
+          // SW-52: the marker upgrade is saved, but a migration that leaves
+          // the content unchanged keeps the version, the board publications
+          // and the rerun receipt (previously every marker upgrade bumped it).
+          if(projectContentFingerprint(state)!==contentBeforeMigration){
+            state.version += 1;
+            this.staleFinalizedBoardPublications(state);
+            state.lastRerunReceipt = null;
+          }
         }
         const priorDelay=state.controls.delayClaims,priorTime=state.controls.contractTimeBasis,priorHistory=state.delayEventHistory.length;
         synchronizeCanonicalTimeClaims(state, true);
@@ -2650,6 +2673,7 @@ export class RuntimeProjectStore {
           .digest("hex");
 
       let projectChanged = false;
+      const contentBeforeRefresh=projectContentFingerprint(state);
 
       const documents =
         state.evidenceDocuments.filter(
@@ -3480,12 +3504,15 @@ export class RuntimeProjectStore {
       }
 
       if (projectChanged) {
+        // SW-52: a refresh that re-saves the same content keeps the version.
+        if(projectContentFingerprint(state)!==contentBeforeRefresh){
         state.version += 1;
         this.staleFinalizedBoardPublications(
           state,
         );
         state.lastRerunReceipt =
           null;
+        }
         synchronizeCanonicalTimeClaims(
           state,
           true,
@@ -3539,6 +3566,7 @@ export class RuntimeProjectStore {
 
     for (const state of this.projects.values()) {
       let projectChanged = false;
+      const contentBeforeRefresh=projectContentFingerprint(state);
       let projectReadyForV5 = true;
       const basisDocuments =
         state.evidenceDocuments.filter(
@@ -3932,12 +3960,15 @@ export class RuntimeProjectStore {
       }
 
       if (projectChanged) {
+        // SW-52: a refresh that re-saves the same content keeps the version.
+        if(projectContentFingerprint(state)!==contentBeforeRefresh){
         state.version += 1;
         this.staleFinalizedBoardPublications(
           state,
         );
         state.lastRerunReceipt =
           null;
+        }
         synchronizeCanonicalTimeClaims(
           state,
           true,

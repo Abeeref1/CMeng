@@ -641,11 +641,39 @@ function renderRoleContent(key,data,primaryView,challengeHtml="",includeTechnica
 }
 
 function setBusy(text){el("globalStatus").innerHTML=text?'<span class="spinner"></span> '+text:"";}
+/** SW-53: a deployment restarts CMeng (a volume prevents a zero-downtime switch).
+ * A read that meets the restart (502/503/504 or no connection) waits briefly and
+ * is sent again, with a plain notice, instead of leaving a broken page. Only GET
+ * and HEAD are repeated: a save is never sent twice. The total wait stays inside
+ * the 60-second request limit, after which the existing message applies. */
+const RESTART_RETRY_DELAYS_MS=[1000,2000,3000,4000,5000,5000,5000,5000,5000,5000];
+const RESTART_NOTICE="CMeng is restarting, retrying";
+function restartRetryable(method,status){return (method==="GET"||method==="HEAD")&&(status===0||status===502||status===503||status===504);}
+function showRestartNotice(active){
+  let node=null;try{node=el("globalStatus");}catch{}if(!node)return;
+  if(active){node.dataset.restartNotice="1";node.textContent=RESTART_NOTICE+"…";}
+  else if(node.dataset.restartNotice){delete node.dataset.restartNotice;node.textContent="";}
+}
+async function fetchThroughRestart(path,init){
+  const method=String(init.method||"GET").toUpperCase();
+  for(let attempt=0;;attempt++){
+    let response=null,failure=null;
+    try{response=await fetch(path,init);}catch(error){if(init.signal?.aborted){showRestartNotice(false);throw error;}failure=error;}
+    if(attempt<RESTART_RETRY_DELAYS_MS.length&&restartRetryable(method,response?response.status:0)){
+      showRestartNotice(true);
+      await new Promise(resolve=>setTimeout(resolve,RESTART_RETRY_DELAYS_MS[attempt]));
+      continue;
+    }
+    showRestartNotice(false);
+    if(failure)throw failure;
+    return response;
+  }
+}
 async function api(path,opts={}){
   const sourceProject=typeof project==='function'?project():null,sourceSeq=projectRequestSeq;
   const controller=(!opts.method||opts.method==="GET")&&typeof AbortController!=="undefined"?new AbortController():null;
   const timeout=controller?setTimeout(()=>controller.abort(),60000):null;
-  try{const r=await fetch(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");if(opts.method&&!["GET","HEAD"].includes(opts.method)&&path.startsWith("/api/projects/"+encodeURIComponent(project())+"/")&&!path.includes("/intelligence/")&&typeof loadProjectActions==="function"){setTimeout(()=>{if(overview)void loadProjectActions();},0);}if(data.sourceLabels&&project()===sourceProject&&sourceSeq===projectRequestSeq&&path.startsWith('/api/projects/'+encodeURIComponent(sourceProject)+'/')&&currentModuleResult?.data){currentModuleResult.data.sourceLabels={...currentModuleResult.data.sourceLabels,...data.sourceLabels};}return data;}
+  try{const r=await fetchThroughRestart(path,{...opts,...(controller?{signal:controller.signal}:{})});let data=null;try{data=await r.json()}catch{}if(!r.ok){const e=new Error(data?.message||data?.reason||data?.error||("HTTP "+r.status));e.data=data;e.status=r.status;throw e}if(data===null)throw new Error("The service returned an incomplete response. Please try again.");if(opts.method&&!["GET","HEAD"].includes(opts.method)&&path.startsWith("/api/projects/"+encodeURIComponent(project())+"/")&&!path.includes("/intelligence/")&&typeof loadProjectActions==="function"){setTimeout(()=>{if(overview)void loadProjectActions();},0);}if(data.sourceLabels&&project()===sourceProject&&sourceSeq===projectRequestSeq&&path.startsWith('/api/projects/'+encodeURIComponent(sourceProject)+'/')&&currentModuleResult?.data){currentModuleResult.data.sourceLabels={...currentModuleResult.data.sourceLabels,...data.sourceLabels};}return data;}
   catch(error){if(controller?.signal.aborted)throw new Error("The connection took too long. Your documents remain saved. Try opening the project again.");throw error;}
   finally{if(timeout!==null)clearTimeout(timeout);}
 }
