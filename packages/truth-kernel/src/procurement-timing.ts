@@ -1,5 +1,19 @@
 /** One date-based package position for delivery, actions and workfront readiness. */
-export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDate:string|null;sourceRequiredOnSite:string|null;forecastDelivery:string|null;actualDelivery:string|null;status:string;governingDate?:'programme'|'register'|null}){
+/** SW-17: register columns that state how long before the linked activity start
+ * the package must be on site (review / inspection / site lead time). A bare
+ * "lead time" column is NOT read: it normally states the supplier's
+ * order-to-delivery period, which gives a latest order date, not a need date. */
+export const PROCUREMENT_LEAD_REVIEW_HEADERS=['lead/review time','lead review time','review time','review period','review days','site lead time','lead time before start','required lead time before start'];
+/** The record's stated lead/review time in calendar days. Blank is not stated
+ * (no default is applied). A value that is not a whole number of calendar days
+ * (for example working days or free text) is unreadable: it is never converted. */
+export function statedLeadReviewDays(raw:string|null|undefined):{state:'not_stated'|'stated'|'unreadable';days:number|null;raw:string}{
+ const text=typeof raw==='string'?raw.trim():'';
+ if(!text)return {state:'not_stated',days:null,raw:''};
+ const match=/^(\d{1,4})(?:\s*(?:calendar\s+)?(?:days?|d))?$/i.exec(text);
+ return match?{state:'stated',days:Number(match[1]),raw:text}:{state:'unreadable',days:null,raw:text};
+}
+export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDate:string|null;sourceRequiredOnSite:string|null;forecastDelivery:string|null;actualDelivery:string|null;status:string;governingDate?:'programme'|'register'|null;leadReviewTime?:string|null}){
  // Validate an actual Gregorian source day before date sorting or overdue
  // arithmetic. Date.parse alone can silently normalize 2032-02-30 to March.
  const day=(value:string|null):string|null=>{
@@ -12,9 +26,16 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
   const millis=Date.parse(iso+'T00:00:00Z');
   return Number.isFinite(millis)&&new Date(millis).toISOString().slice(0,10)===iso?iso:null;
  };
- const cutoff=day(input.dataDateIso),programmeNeedDate=day(input.programmeNeedDate),sourceRequiredOnSite=day(input.sourceRequiredOnSite),forecastDelivery=day(input.forecastDelivery),actualDelivery=day(input.actualDelivery);
+ // SW-17: programmeNeedDate input is the linked activity start in the current
+ // programme. The need date is that start less the record's stated lead/review
+ // time; with no stated time it is the start itself (no fixed default). A
+ // stated but unreadable time leaves the programme need date not established.
+ const leadReview=statedLeadReviewDays(input.leadReviewTime),programmeStartDate=day(input.programmeNeedDate);
+ const programmeNeedDate=!programmeStartDate||leadReview.state==='unreadable'?null:leadReview.days?new Date(Date.parse(programmeStartDate+'T00:00:00Z')-leadReview.days*86400000).toISOString().slice(0,10):programmeStartDate;
+ const leadNote=leadReview.days?' (linked activity start '+programmeStartDate+' less the stated '+leadReview.days+' calendar-day lead/review time)':'';
+ const cutoff=day(input.dataDateIso),sourceRequiredOnSite=day(input.sourceRequiredOnSite),forecastDelivery=day(input.forecastDelivery),actualDelivery=day(input.actualDelivery);
  const needDate=input.governingDate==='programme'?programmeNeedDate:input.governingDate==='register'?sourceRequiredOnSite:[programmeNeedDate,sourceRequiredOnSite].filter((value):value is string=>!!value).sort()[0]??null;
- const needDateBasis=input.governingDate==='programme'?'the confirmed programme need date':input.governingDate==='register'?'the confirmed register required-on-site date':!needDate?'need date not established':needDate===sourceRequiredOnSite?'the required-on-site date from the register (screening)':'the linked programme need date (screening)';
+ const needDateBasis=input.governingDate==='programme'?'the confirmed programme need date'+leadNote:input.governingDate==='register'?'the confirmed register required-on-site date':!needDate?'need date not established':needDate===sourceRequiredOnSite?'the required-on-site date from the register (screening)':'the linked programme need date (screening)'+leadNote;
  const deliveredAtDataDate=!!actualDelivery&&!!cutoff&&actualDelivery<=cutoff;
  const status=typeof input.status==='string'?input.status.trim():'';
  const terminal=/^(delivered|accepted|installed|closed|complete|completed)$/i.test(status);
@@ -28,5 +49,5 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;
  const headroomCalendarDays=needDate&&forecastDelivery?(Date.parse(needDate)-Date.parse(forecastDelivery))/86400000:null;
  const forecastLate=!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
- return {programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,headroomCalendarDays,forecastLate};
+ return {programmeStartDate,leadReview,programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,headroomCalendarDays,forecastLate};
 }

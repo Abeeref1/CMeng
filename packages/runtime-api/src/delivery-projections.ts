@@ -4,7 +4,7 @@ import {projectScopeClassification,locationReviewSummary} from './location-revie
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {cachedIndependentForecast} from './forecast-cache';
-import {procurementTiming,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
+import {procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
 import {hseReportPosition} from './hse-report-evidence';
 import {deliveryNumericIssues} from './delivery-validation';
@@ -153,7 +153,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const unfinishedDrivingLink=drivingIds&&linkedActivities.length&&linkedActivities.every(Boolean)?r.links.activityIds.some(id=>drivingIds.has(id)&&activities.get(id)?.status!=='completed'):null;
   const programmeNeedDate=linkedActivities.length&&linkedActivities.every(a=>a?.currentStartIso)?linkedActivities.map(a=>a!.currentStartIso!.slice(0,10)).sort()[0]!:null;
   const forecastDelivery=date(r,'forecast delivery','forecast delivery date','delivery forecast date'),sourceRequiredOnSite=date(r,'required on site','required on site date');
-  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status')});
+  const {needDate,needDateBasis,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,overdueUndelivered,forecastLate,headroomCalendarDays:headroom}=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate,sourceRequiredOnSite,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),status:field(r,'status'),leadReviewTime:field(r,...PROCUREMENT_LEAD_REVIEW_HEADERS)});
   if(forecastLate&&headroom!==null&&!registerCleanup)add('DELIVERY_AFTER_PROGRAMME_NEED',r,'Forecast delivery is '+(-headroom)+' calendar days after '+needDateBasis.toLowerCase()+'.','Review procurement and programme consequences; this does not establish delay entitlement.');
   if(overdueUndelivered&&!registerCleanup)add('PACKAGE_REQUIRED_DATE_MISSED',r,'The assessed need date ('+needDateBasis+', '+needDate+') has passed and delivery is not recorded at the reporting date.','Obtain the actual delivery or recovery date and protect the linked installation work.');
   if(deliveryDateConflict)add('PROCUREMENT_DELIVERY_DATE_CONFLICT',r,'Source completion status conflicts with a delivery date after the reporting date.','Review the reported status and delivery dates against the receipt; save the corrected record without inventing an actual delivery date.');

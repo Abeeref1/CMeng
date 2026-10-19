@@ -96,6 +96,8 @@ export interface NcrRecord {
   ncrId: string;
   severity: "critical" | "major" | "minor" | "unknown";
   status: "open" | "closed" | "unknown";
+  /** SW-19: why the status is unclear at the Data Date (null when open or closed). */
+  statusReason?: string | null;
   raisedIso?: string | null;
   closedIso?: string | null;
   statusAsOfIso?: string | null;

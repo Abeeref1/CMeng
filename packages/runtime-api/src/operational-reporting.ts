@@ -20,7 +20,10 @@ export function ncrStatusFromSource(raw:string):{status:NcrRecord['status'];reas
   if(/^(open|active|in progress|overdue)$/.test(value))return {status:'open',reason:null};
   return {status:'unknown',reason:value?'Source status "'+String(raw).trim()+'" is not a clear open or closed status':'Source status is blank'};
 }
-const ncrStatus=(raw:string):NcrRecord['status']=>ncrStatusFromSource(raw).status;
+const ncrRowStatus=(source:{value:string;conflicted:boolean;observed:{field:string;raw:string}[]})=>{
+  const mapped=ncrStatusFromSource(source.value);
+  return {status:mapped.status,statusReason:source.conflicted?'Conflicting source status columns: '+source.observed.map(entry=>entry.field+'='+entry.raw).join('; '):mapped.reason};
+};
 const rfiStatus=(raw:string):RfiRecord['status']=>/^(closed|complete|completed)$/.test(norm(raw))?'closed':/^(answered|responded)$/.test(norm(raw))?'answered':/^(open|active|pending|overdue)$/.test(norm(raw))?'open':'unknown';
 
 /** The register's own business-status column takes part in every NCR/RFI/risk
@@ -77,17 +80,21 @@ export function sourceAnalyticalCandidateIds(documents:readonly StoredEvidenceDo
 /** Reconstruct lifecycle status from actual dates. A future closure never closes
  * an earlier reporting position; an undated final status never backdates itself.
  * Original source rows and excluded IDs are retained for inspection. */
-function scope<T extends Lifecycle & {status:string}>(rows:T[],name:string,id:(row:T)=>string,date:string|null,hasSource:boolean,diagnostics:string[],sourceOnly=false) {
+function scope<T extends Lifecycle & {status:string;statusReason?:string|null}>(rows:T[],name:string,id:(row:T)=>string,date:string|null,hasSource:boolean,diagnostics:string[],sourceOnly=false,explain=false) {
   const cutoff=dateValue(date??'');
   const partition=partitionAsOf(rows,{name,entity:name,dataDateIso:date,dateBasis:'raised date, with dated closure/response and explicit status snapshot',id,date:r=>r.raisedIso??r.statusAsOfIso});
   const current=partition.asOf.map(row=>{
     const closed=dateValue(row.closedIso??''),raised=dateValue(row.raisedIso??'');
-    let status=row.status;
-    if(closed&&raised&&closed<raised){status='unknown';diagnostics.push('CLOSURE_BEFORE_RAISED_DATE:'+id(row));}
+    let status=row.status,reason:string|null=null;
+    if(closed&&raised&&closed<raised){status='unknown';reason='Closure date '+closed+' is before the raised date '+raised;diagnostics.push('CLOSURE_BEFORE_RAISED_DATE:'+id(row));}
     // SW-19: a closure date on or before the Data Date never turns an unclear source status into closed.
     else if(closed&&cutoff)status=closed<=cutoff?(row.status==='unknown'?'unknown':row.status==='answered'?'answered':'closed'):'open';
-    else if(row.status!=='open'&&(!row.statusAsOfIso||!cutoff||row.statusAsOfIso>cutoff))status='unknown';
-    return {...row,status};
+    else if(row.status!=='open'&&(!row.statusAsOfIso||!cutoff||row.statusAsOfIso>cutoff)){
+      if(row.status!=='unknown')reason=!cutoff?'The Data Date is not established':'Source status "'+row.status+'" has no closure or status-as-of date on or before the Data Date';
+      status='unknown';
+    }
+    if(status==='unknown'&&!reason)reason=row.statusReason??'Source status is not a clear open or closed status';
+    return explain?{...row,status,statusReason:status==='unknown'?reason:null}:{...row,status};
   });
   const unknownStatusCount=current.filter(r=>r.status==='unknown').length;
   return {...partition,current,sourceRows:rows,sourceRecordCount:rows.length,currentRecordCount:current.length,
@@ -110,7 +117,7 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
   const manual=<T extends {sourceRefs:string[]}>(items:T[]|undefined,type:string)=>(items??[]).filter(r=>!derived(r)||docIds(type).size===0);
   const ncrs:NcrRecord[]=[...manual(state.controls.ncrs,'quality_ncr_register'),...rows('quality_ncr_register').map(row=>({
     ncrId:cell(row,'ncr id'),severity:(/^(critical)$/.test(norm(cell(row,'severity')))?'critical':/^(major|high)$/.test(norm(cell(row,'severity')))?'major':/^(minor|low)$/.test(norm(cell(row,'severity')))?'minor':'unknown') as NcrRecord['severity'],
-    status:ncrStatus(sourceStatusFor(row,'ncr',diagnostics).value),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
+    ...ncrRowStatus(sourceStatusFor(row,'ncr',diagnostics)),dueIso:dateValue(cell(row,'due date','required close date')),...responsibility(row),...dates(row),sourceRefs:refs(row)}))];
   const rfis:RfiRecord[]=[...manual(state.controls.rfis,'rfi_register'),...rows('rfi_register').map(row=>({rfiId:cell(row,'rfi id'),
     status:rfiStatus(sourceStatusFor(row,'rfi',diagnostics).value),...responsibility(row),dueIso:dateValue(cell(row,'required response','due date')),...dates(row),sourceRefs:refs(row)}))];
   const riskBasis=riskReviewBasis(state);
@@ -128,7 +135,11 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     if(new Set(ids).size!==ids.length)ds.push('DUPLICATE_RECORD_ID');
     return ds;
   };
-  const quality=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId),sourceOnly('quality_ncr_register'));
+  const qualityScope=scope(ncrs,'NCR register',r=>r.ncrId,date,tablesOf('quality_ncr_register').length>0||ncrs.length>0,prepare(ncrs,'quality_ncr_register',r=>r.ncrId),sourceOnly('quality_ncr_register'),true);
+  // SW-19: unclear NCRs are their own state, listed with the reason; never open or closed.
+  const unclearStatusRecords=qualityScope.current.filter(r=>r.status==='unknown').map(r=>({ncrId:r.ncrId,reason:r.statusReason??'Source status is not a clear open or closed status',sourceRefs:r.sourceRefs}));
+  const quality={...qualityScope,unclearStatusRecords,
+    unclearStatusSummary:unclearStatusRecords.length?unclearStatusRecords.length+' current NCR(s) have an unclear status and are counted neither open nor closed: '+unclearStatusRecords.map(r=>r.ncrId+' ('+r.reason+')').join('; '):null};
   const rfi=scope(rfis,'RFI register',r=>r.rfiId,date,tablesOf('rfi_register').length>0||rfis.length>0,prepare(rfis,'rfi_register',r=>r.rfiId),sourceOnly('rfi_register'));
   const riskSnapshotDate=dateValue(riskBasis.snapshot?.asOfIso??'');
   const suppliedDateRefs=new Set(rows('risk_register').filter(row=>cell(row,'raised date','opened date','issue date','identified date')||cell(row,'status as of','status date','snapshot date','as of date','last reviewed')).flatMap(refs));
@@ -191,6 +202,8 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     overdueNcrCount:quality.current.filter(r=>r.status==='open'&&dueBefore(dateValue(date??''),r.dueIso)).length,
     openCriticalMajorNcrCount:quality.current.filter(r=>r.status==='open'&&['critical','major'].includes(r.severity)).length,
     uncertainCriticalMajorNcrCount:quality.current.filter(r=>r.status==='unknown'&&r.severity!=='minor'||r.status==='open'&&r.severity==='unknown').length,
+    unclearNcrCount:unclearStatusRecords.length,
+    closedNcrCount:quality.current.filter(r=>r.status==='closed').length,
   },counts:{
     openNcrCount:quality.complete?quality.current.filter(r=>r.status==='open').length:null,
     overdueNcrCount:quality.complete&&ncrDueKnown&&!!dateValue(date??'')?
