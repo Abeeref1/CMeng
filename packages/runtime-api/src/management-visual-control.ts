@@ -4,6 +4,7 @@ import {managementSourceInventory} from './management-source-inventory';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectManagementContext} from './management-context';
 import {deliveryPosition} from './delivery-projections';
+import {costHeadlineComparison} from './commercial-sum-basis';
 import {bestAvailableFact,managementFactView,type ManagementFactView,type PopulationAuthority} from '../../truth-kernel/src';
 
 const data=(modules:Map<string,ModuleRuntimeResult>,key:string):any=>{
@@ -203,8 +204,14 @@ export function managementVisualControl(
     const scenarios=(row.eacScenarios??[]).filter(s=>findingValue(s.value)!==null);
     const source=scenarios.find(s=>s.method==='source_reported')??null;
     const calculated=scenarios.find(s=>s.method!=='source_reported')??null;
-    const contractValue=commercial.currencies.find(c=>c.currency===row.currency)?.currentContractValue.value??null;
+    const contractRow=commercial.currencies.find(c=>c.currency===row.currency)??null;
+    const contractValue=contractRow?.currentContractValue.value??null;
     const selectedEac=source?findingValue(source.value):calculated?findingValue(calculated.value):null;
+    // One shared like-for-like rule: EAC against the current approved contract,
+    // with omission-labelled variations queried rather than taken as savings.
+    const comparison=costHeadlineComparison({eac:selectedEac,eacBasis:source?'source_reported':calculated?'cmeng_scenario':null,
+      currentContract:contractRow?.currentContractValue,approvedVariation:contractRow?.approvedVariationAmount as any,
+      currency:row.currency,taxBasis:row.taxBasis,asOf:managementContext.dataDateIso});
     return {
       currency:row.currency,taxBasis:row.taxBasis,
       bac:findingValue(row.bac),pv:findingValue(row.pv),ev:findingValue(row.ev),ac:findingValue(row.ac),
@@ -215,7 +222,9 @@ export function managementVisualControl(
       forecastMethodState:row.forecastMethodState,
       currentContractValue:contractValue,
       eacAboveCurrentContract:selectedEac===null||contractValue===null?null:selectedEac-contractValue,
-      currentContractComparisonBasis:'Arithmetic comparison only. Confirm that the EAC covers the approved variation scope and uses the same tax basis before treating the difference as headroom or overrun.',
+      currentContractComparisonBasis:comparison.basis+' Confirm that the EAC covers the approved variation scope and uses the same tax basis before treating the difference as headroom or overrun.',
+      eacComparisonState:comparison.state,
+      eacComparisonQueries:comparison.queries,
     };
   });
 

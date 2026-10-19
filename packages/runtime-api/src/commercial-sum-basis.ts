@@ -13,7 +13,9 @@ export interface SumBasisInput{
 
 const known=(value:unknown):string|null=>value===null||value===undefined||String(value).trim()===''?null:String(value).trim();
 
+// Self-contained: the browser script embeds this function with toString().
 export function sumBasisLabel(input:SumBasisInput):string{
+  const known=(value:unknown):string|null=>value===null||value===undefined||String(value).trim()===''?null:String(value).trim();
   return 'Basis: '+(known(input.records)??'records not established')+
     ' · currency '+(known(input.currency)??'not established')+
     ' · tax basis '+(known(input.taxBasis)??'not established')+

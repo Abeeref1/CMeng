@@ -3,10 +3,66 @@ import assert from 'node:assert/strict';
 
 import {costHeadlineComparison,paymentDueBasisLabel,sumBasisLabel} from '../packages/runtime-api/src/commercial-sum-basis';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {managementVisualControl} from '../packages/runtime-api/src/management-visual-control';
+import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {buildCommercialFoundation,type CommercialFoundationInput} from '../packages/commercial-foundation/src';
 import {buildCommercialPerformance,type CommercialPerformanceInput} from '../packages/commercial-performance/src';
 
 const fact=(value:number|null,state='established',diagnostics:string[]=[])=>({value,state,diagnostics});
+
+function commercialFixture(variationDiagnostics:string[],variationState:string){
+  return {
+    currencies:[{
+      currency:'SAR',
+      originalContractValue:fact(210_000_000),
+      currentContractValue:fact(221_780_000),
+      approvedVariationAmount:fact(11_780_000,variationState,variationDiagnostics),
+      pendingVariationAmount:fact(0),
+      certifiedUnpaidAmount:fact(null,'missing'),
+      retentionDeductedAmount:fact(null,'missing'),
+      paidAmount:fact(null,'missing'),
+    }],
+    performance:{costControl:{positions:[{
+      currency:'SAR',taxBasis:'excluding VAT',
+      bac:fact(210_000_000),pv:fact(null),ev:fact(null),ac:fact(null),spi:fact(null),cpi:fact(null),cv:fact(null),sv:fact(null),
+      sourceEac:fact(218_410_000),calculatedVac:fact(-8_410_000),forecastMethodState:'established',
+      eacScenarios:[{method:'source_reported',value:fact(218_410_000)}],
+    }]}},
+    claimsNotices:{noticeTimelinessCounts:{timely:null,late:null,not_issued:null}},
+  } as any;
+}
+
+// Module map as in tests/pmc-visual-control-room.test.ts.
+function modules(){
+  const ids=['A0','A1'];
+  return new Map<string,any>([
+    ['activity-analytics',{data:{rows:ids.map(activityId=>({activityId,name:activityId,wbsPath:'One workfront',status:'not_started',currentFinishIso:'2031-06-01',totalFloatHours:0}))}}],
+    ['independent-forecast',{data:{drivingNetwork:{activityIds:ids,finishActivityIds:ids},activities:ids.map((activityId,i)=>({activityId,independentEarlyFinishIso:'2031-04-01',finishVarianceDays:i}))}}],
+    ['milestones',{data:{rows:[{activityId:ids[0],status:'not_started'},{activityId:ids.at(-1),status:'not_started'}]}}],
+  ]);
+}
+
+test('F37: cost headline compares EAC with the current approved contract, not the original budget',()=>{
+  const visual=managementVisualControl(runtimeProjects.getOrCreate('W3-F37-LIKE-FOR-LIKE'),modules(),commercialFixture([],'established'));
+  const cost=(visual.commercial.cost as any[])[0];
+  // 218.41M EAC is 3.37M below the 221.78M current contract, although it is 8.41M above the original budget.
+  assert.equal(cost.eacAboveCurrentContract,-3_370_000);
+  assert.equal(cost.eacComparisonState,'established');
+  assert.match(cost.currentContractComparisonBasis,/current approved contract \(original contract plus approved variations\), not the original budget/);
+  assert.match(cost.currentContractComparisonBasis,/currency SAR · tax basis excluding VAT/);
+  assert.deepEqual(cost.eacComparisonQueries,[]);
+});
+
+test('F37: omission-labelled variations are queried, not taken as savings',()=>{
+  const visual=managementVisualControl(runtimeProjects.getOrCreate('W3-F37-OMISSION-QUERY'),modules(),
+    commercialFixture(['OMISSION_SIGN_REVIEW:VO-011','OMISSION_SIGN_REVIEW:VO-014','OMISSION_SIGN_REVIEW:VO-011'],'candidate'));
+  const cost=(visual.commercial.cost as any[])[0];
+  assert.equal(cost.eacAboveCurrentContract,-3_370_000,'the arithmetic is kept; only its authority changes');
+  assert.equal(cost.eacComparisonState,'queried');
+  assert.equal(cost.eacComparisonQueries.length,1);
+  assert.match(cost.eacComparisonQueries[0],/^2 omission-labelled approved variations \(VO-011, VO-014\)/);
+  assert.match(cost.eacComparisonQueries[0],/before treating any as a saving/);
+});
 
 test('F37: unknown current contract leaves the comparison not established',()=>{
   const r=costHeadlineComparison({eac:218_410_000,eacBasis:'source_reported',currentContract:fact(null,'missing'),approvedVariation:null,currency:'SAR',taxBasis:'excluding VAT'});
@@ -252,3 +308,18 @@ function input():
     ],
   };
 }
+
+test('F27: commercial money sums on the page carry the one shared basis label',()=>{
+  const html=cmengUatHtml();
+  assert.match(html,/function sumBasisLabel\(/);
+  const pick=(name:string)=>html.match(new RegExp('function '+name+'\\([\\s\\S]*?\\n}\\n'))![0];
+  const render=new Function('fmt','escapeHtml','planningShortDate','commercialSourceState',
+    pick('sumBasisLabel')+pick('commercialMetricHtml')+'; return commercialMetricHtml;')(
+    (v:any)=>String(v),(v:any)=>String(v??''),(v:any)=>String(v),()=>'Established');
+  assert.match(render({value:9_899_013,state:'established',sourceRefs:['a','b','c']},'SAR','2027-03-31'),
+    /Basis: 3 source records · currency SAR · tax basis not established · as of 2027-03-31/);
+  assert.match(render({value:0,state:'established',sourceRefs:[]},'SAR',null),
+    /Basis: records not established · currency SAR · tax basis not established · as of not established/);
+  assert.doesNotMatch(render({value:12,state:'established',sourceRefs:['a']},'',null),/Basis:/,'counts are not money sums');
+  assert.doesNotMatch(render({value:null,state:'missing_information',sourceRefs:[]},'SAR','2027-03-31'),/Basis:/,'unknown stays not established without a fabricated basis');
+});
