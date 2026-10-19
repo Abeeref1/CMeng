@@ -36,13 +36,16 @@ export function plotCrewScenarios(model:CanonicalScheduleModel,plots?:ReadonlyMa
    release.set(a.activityId,ready);
   }
   let baseFinish:number|null=null,parallelFinish:number|null=null;
+  // The same two-crew assignment, as FS links inside each crew, so CPM can run it.
+  const crewOrder:[string[],string[]]=[[],[]];
   if(valid){try{
    let one=Date.parse(model.dataDateIso);const two=[one,one];
    for(const a of chain){const calendar=resolveWorkingCalendar(a.calendarId,model.calendars,false)!.calendar;
     one=addWorkingHours(calendar,Math.max(one,release.get(a.activityId)!),a.remainingDurationHours!);
-    const crew=two[0]!<=two[1]!?0:1;two[crew]=addWorkingHours(calendar,Math.max(two[crew]!,release.get(a.activityId)!),a.remainingDurationHours!);
+    const crew=two[0]!<=two[1]!?0:1;two[crew]=addWorkingHours(calendar,Math.max(two[crew]!,release.get(a.activityId)!),a.remainingDurationHours!);crewOrder[crew].push(a.activityId);
    }baseFinish=one;parallelFinish=Math.max(...two);
   }catch{valid=false;}}
+  const cpmChange=valid&&baseFinish!==null?{removeRelationshipIds:[...removed],addRelationships:crewOrder.flatMap(ids=>ids.slice(1).map((id,i)=>({predecessorActivityId:ids[i]!,successorActivityId:id})))}:null;
   const days=valid&&baseFinish!==null&&parallelFinish!==null?Math.max(0,Number(((baseFinish-parallelFinish)/86400000).toFixed(2))):null;
   scenarios.push({scenarioId:'plot-crews:'+start.a.activityId,type:'additional_crew',state:days===null?'option_requires_assumption':'calculated',subject:start.work+' · '+chain.length+' plots',affectedActivities:[...ids],affectedPackages:[],
    assumption:'Assume these cross-plot FS links represent one shared crew, and add a second equivalent crew: '+removed.join(', ')+'. Preserve each task duration and source calendar; external predecessor finish dates remain release limits.',
@@ -52,7 +55,7 @@ export function plotCrewScenarios(model:CanonicalScheduleModel,plots?:ReadonlyMa
    targetPosition:parallelFinish===null?'Review unresolved constraints, calendars or external relationships before quantifying the option.':'Two-crew local finish '+new Date(parallelFinish).toISOString().slice(0,10)+'.',possibleDaysRecovered:days,
    effectBasis:'Conditional local chain sensitivity. Confirm that the listed links are crew dependencies, not physical prerequisites. Project completion gain requires a full approved network scenario.',
    additionalResources:'One additional equivalent crew with matching plant, supervision and access.',estimatedCost:null,currency:null,costBasis:'No crew rate or acceleration premium has been assumed.',implementationDate:model.dataDateIso,
-   constraints:['Both plots must have usable workfronts and materials.','All listed cross-plot links require engineering review before changing programme logic.'],risks:['Shared access, supply or specialist resources can prevent parallel work.'],diminishingReturn:'The result applies to two equivalent crews only; further crews are not extrapolated.',authority:'scenario'});
+   constraints:['Both plots must have usable workfronts and materials.','All listed cross-plot links require engineering review before changing programme logic.'],risks:['Shared access, supply or specialist resources can prevent parallel work.'],diminishingReturn:'The result applies to two equivalent crews only; further crews are not extrapolated.',authority:'scenario',cpmChange});
  }
  return scenarios;
 }
