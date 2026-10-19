@@ -109,7 +109,7 @@ test('F45 progress by area: Villa Type B is its own row with installed %, instal
  const wbsRow=breakdown.dimensionViews.find((v:any)=>v.dimension==='wbs').rows.find((row:any)=>row.groupLabel==='Villa Type B');
  assert.equal(wbsRow.physicalMeasuredPercent,villa.physicalProgressPercent,'the WBS row shows the Villa Type B measured %');
  // The Progress page shows the same area rows separately (summary; detail on Progress Breakdown).
- const progress:any=moduleForProject(id,'progress-report').data.measuredProgressByArea;
+ const progress:any=(moduleForProject(id,'progress-report').data as any).measuredProgressByArea;
  assert.ok(progress,'Progress page carries progress by area');
  const row=progress.rows.find((a:any)=>a.area==='Villa Type B');
  assert.equal(row.installedValue,villa.installedValue);assert.equal(row.installedPercent,villa.installedPercent);assert.equal(row.certifiedValue,null);
@@ -200,7 +200,7 @@ test('F45 installed value against certified gross work: same currency and tax ba
  assert.equal(aed.lumpSumQueryItemCount,5,'queried lump-sum items inside the installed value are counted');
  const page:any=moduleForProject(id,'quantity-scurve').data;
  assert.deepEqual(page.decisionAnalysis.quantities.installedVsCertified,q.installedVsCertified,'Quantities page shows the shared comparison');
- const progress:any=moduleForProject(id,'progress-report').data.measuredProgressByArea;
+ const progress:any=(moduleForProject(id,'progress-report').data as any).measuredProgressByArea;
  assert.deepEqual(progress.installedVsCertified,q.installedVsCertified,'Progress page shows the same comparison');
  // The shared like-for-like rule.
  const side=(value:number|null,currency:string|null,taxBasis:string|null)=>({value,currency,taxBasis,records:'r'});
