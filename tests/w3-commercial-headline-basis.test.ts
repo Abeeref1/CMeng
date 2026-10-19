@@ -308,3 +308,18 @@ function input():
     ],
   };
 }
+
+test('F27: commercial money sums on the page carry the one shared basis label',()=>{
+  const html=cmengUatHtml();
+  assert.match(html,/function sumBasisLabel\(/);
+  const pick=(name:string)=>html.match(new RegExp('function '+name+'\\([\\s\\S]*?\\n}\\n'))![0];
+  const render=new Function('fmt','escapeHtml','planningShortDate','commercialSourceState',
+    pick('sumBasisLabel')+pick('commercialMetricHtml')+'; return commercialMetricHtml;')(
+    (v:any)=>String(v),(v:any)=>String(v??''),(v:any)=>String(v),()=>'Established');
+  assert.match(render({value:9_899_013,state:'established',sourceRefs:['a','b','c']},'SAR','2027-03-31'),
+    /Basis: 3 source records · currency SAR · tax basis not established · as of 2027-03-31/);
+  assert.match(render({value:0,state:'established',sourceRefs:[]},'SAR',null),
+    /Basis: records not established · currency SAR · tax basis not established · as of not established/);
+  assert.doesNotMatch(render({value:12,state:'established',sourceRefs:['a']},'',null),/Basis:/,'counts are not money sums');
+  assert.doesNotMatch(render({value:null,state:'missing_information',sourceRefs:[]},'SAR','2027-03-31'),/Basis:/,'unknown stays not established without a fabricated basis');
+});

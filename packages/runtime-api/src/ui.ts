@@ -24,7 +24,7 @@ import {systemReviewScript,systemReviewStyles} from './ui-system-review';
 import {projectActionsScript,projectActionsStyles} from './ui-project-actions';
 import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-review';
 import {basisReviewScript} from './ui-basis-review';
-import {paymentDueBasisLabel} from './commercial-sum-basis';
+import {paymentDueBasisLabel,sumBasisLabel} from './commercial-sum-basis';
 import { experienceStyles, experienceScript } from './ui-experience';
 
 export function cmengUatHtml(): string {
@@ -539,6 +539,7 @@ const project=()=>el("projectId").value.trim();
 ${managementValueState.toString()}
 ${conditionalNotice.toString()}
 ${paymentDueBasisLabel.toString()}
+${sumBasisLabel.toString()}
 ${managementNumber.toString()}
 ${managementDate.toString()}
 ${managementValue.toString()}
@@ -3761,13 +3762,18 @@ function renderNoticesClaimsVisual(data){
   const eventRows=table(["Event","Event start","Notice date","Required days","Elapsed days","Assessment"],p.events.map(e=>[e.eventId,planningShortDate(e.eventStartIso),planningShortDate(e.noticeIssuedAt),fmt(e.requiredNoticeDays),fmt(e.elapsedNoticeDays),humanizeKey(e.noticeTimeliness)]));
   return '<section class="planning-view notices-view">'+summary+integrityWarning+notAssessableNotice+evidenceChainHtml+(populationEstablished?'<details class="source-scope"><summary>Review '+fmt(responseListPopulation(p.events).total)+' notice assessments</summary><p>Showing '+fmt(p.events.length)+' of '+fmt(responseListPopulation(p.events).total)+' assessments.</p>'+eventRows+sourcePopulationControl(p.events,'Browse all notice assessments')+'</details>':'')+'</section>';
 }
-function commercialMetricHtml(metric,currency=""){
+function commercialMetricHtml(metric,currency="",asOf=null){
   if(!metric)return'<span class="muted">Not established</span>';
   const state=commercialSourceState(metric);
   const value=metric.value===null||metric.value===undefined
     ? "Not established"
     : (typeof metric.value==="number"?fmt(metric.value)+(currency?" "+currency:""):planningShortDate(metric.value));
-  return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>';
+  // F27: every displayed money sum states its basis through the one shared label.
+  const refs=Array.isArray(metric.sourceRefs)?metric.sourceRefs.length:0;
+  const basis=currency&&typeof metric.value==="number"
+    ? '<br><span class="muted">'+escapeHtml(sumBasisLabel({records:refs?fmt(refs)+" source record"+(refs===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}))+'</span>'
+    : "";
+  return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>'+basis;
 }
 function commercialRegisterCoverage(rows,label){
   return '<p class="source-population">Showing '+fmt(rows.length)+' of '+fmt(responseListPopulation(rows).total)+' records.</p>'+sourcePopulationControl(rows,label);
@@ -3876,7 +3882,7 @@ function renderCommercialVisual(key,data){
   const chartFields=chartFieldsByKey[key]||chartFieldsByKey["commercial-overview"];
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
-        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency)+'</strong></div>').join("");
+        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(label)+'</span><strong>'+commercialMetricHtml(row[field],["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency,data?.reportingContract?.dataDateIso||null)+'</strong></div>').join("");
         return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
