@@ -138,7 +138,8 @@ jobs:
             dist/tests/t05-reporting-contract-not-cut.test.js \
             dist/tests/t05-progress-workfront-null-display.test.js \
             dist/tests/z2-attribution-w8.test.js \
-            dist/tests/t11-platform-paging-version-restart.test.js
+            dist/tests/t11-platform-paging-version-restart.test.js \
+            dist/tests/t05-role-views-page-facts-shown.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements
