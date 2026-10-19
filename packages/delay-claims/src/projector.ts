@@ -48,6 +48,8 @@ export function buildDelayClaimsProjection(
   input: {
     generatedAt: string;
     producerVersion: string;
+    /** false when no contractor claim/event population is established; population counts are then unknown (null), never 0. */
+    populationEstablished?: boolean;
   },
 ): DelayClaimsProjection {
   const noticeByEvent = new Map(
@@ -372,7 +374,7 @@ export function buildDelayClaimsProjection(
     }
   }
 
-  return {
+  const projection: DelayClaimsProjection = {
     schemaVersion: "1.0",
     projectionKey: "delay_claims",
     generatedAt: input.generatedAt,
@@ -466,4 +468,9 @@ export function buildDelayClaimsProjection(
       "DELAY_WINDOW_MOVEMENT_IS_NOT_CONTRACTUAL_CAUSATION_OR_ENTITLEMENT",
     ],
   };
+  if(input.populationEstablished===false)for(const key of DELAY_CLAIM_POPULATION_COUNT_KEYS)projection[key]=null;
+  return projection;
 }
+
+/** Counts that describe the contractor event/claim population (not the CMeng schedule windows). */
+export const DELAY_CLAIM_POPULATION_COUNT_KEYS = ["eventCount", "claimCount", "claimLinkedEventCount", "activityLinkedEventCount", "windowLinkedEventCount", "noticeLinkedEventCount", "determinationLinkedEventCount", "fullDeterminationChainEventCount", "determinationChainIncompleteEventCount", "activityEvidenceInsufficientEventCount", "activityCorrespondenceAcceptedCount", "activityCorrespondenceCandidateCount", "activityCorrespondenceAmbiguousCount", "activityCorrespondenceUnresolvedCount"] as const;

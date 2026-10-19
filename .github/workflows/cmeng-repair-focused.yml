@@ -41,6 +41,7 @@ jobs:
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-dashboard-first-source-cover.test.js \
             dist/tests/t11-dashboard-on-demand-original-content.test.js \
+            dist/tests/t05-same-measure-every-page.test.js \
             dist/tests/t11-retained-calculation-only.test.js \
             dist/tests/t11-lookahead-cold-reuse-parity.test.js \
             dist/tests/t11-shared-criticality-pass.test.js \
