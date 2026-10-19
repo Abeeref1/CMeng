@@ -1,4 +1,4 @@
-import {csv as parseCsv} from "../../truth-kernel/src";
+import {csv as parseCsv,sourceCandidateHold,sourceCandidateHoldDiagnostic} from "../../truth-kernel/src";
 import {
   readFileSync,
 } from "node:fs";
@@ -66,7 +66,20 @@ export interface WeeklyResourceCapacitySummary {
     comparablePlannedRowCount: number;
     comparableActualRowCount: number;
   }>;
+  /** Present only when a candidate source disagrees with the adopted source
+   * for the same resource and week. The adopted value is the one used. */
+  basisDisagreements?: WeeklyResourceBasisDisagreement[];
   diagnostics: string[];
+}
+
+export interface WeeklyResourceBasisDisagreement {
+  resourceId: string;
+  weekStartIso: string | null;
+  field: "availableCapacity" | "plannedDemand" | "actualApprovedUsage" | "unit";
+  adoptedValue: number | string;
+  candidateValue: number | string;
+  adoptedSourceRef: string;
+  candidateSourceRef: string;
 }
 
 
@@ -183,18 +196,16 @@ export function weeklyResourceCapacityEvidence(
       : Number.NaN;
   let futureActualUsageWithheldCount =
     0;
-
-  const candidates =
-    documents.filter(
-      (document) =>
-        (
-          document.basisState ===
-            "active" ||
-          document.basisState ===
-            "additive" ||
-          document.basisState ===
-            "candidate"
-        ) &&
+  // T04 one rule: a candidate resource file is used only when the shared
+  // candidate rule admits it (fully parsed, no review, unique in its family,
+  // no adopted document of that family). Adopted points are kept apart.
+  const candidateHold =
+    sourceCandidateHold(documents);
+  const adoptedPoints =
+    new Set<WeeklyResourceCapacityPoint>();
+  const isResourceCapacityFile = (
+    document: StoredEvidenceDocument,
+  ) =>
         (
           document.documentType ===
             "resource_register" ||
@@ -209,7 +220,44 @@ export function weeklyResourceCapacityEvidence(
           document.mediaType +
             " " +
             document.sourceFilename,
-        ),
+        );
+
+  const candidates =
+    documents.filter(
+      (document) => {
+        if (
+          document.basisState ===
+            "active" ||
+          document.basisState ===
+            "additive"
+        ) {
+          return isResourceCapacityFile(
+            document,
+          );
+        }
+        if (
+          document.basisState !==
+            "candidate" ||
+          !isResourceCapacityFile(
+            document,
+          )
+        ) {
+          return false;
+        }
+        const hold =
+          candidateHold(document);
+        if (hold) {
+          diagnostics.push(
+            "RESOURCE_SUPPORT_CANDIDATE_HELD:" +
+              sourceCandidateHoldDiagnostic(
+                document,
+                hold,
+              ),
+          );
+          return false;
+        }
+        return true;
+      },
     );
 
   for (
@@ -362,7 +410,7 @@ export function weeklyResourceCapacityEvidence(
           1;
       }
 
-      points.push({
+      const point: WeeklyResourceCapacityPoint = {
         resourceId,
         resourceName:
           cell(
@@ -398,7 +446,14 @@ export function weeklyResourceCapacityEvidence(
           document.documentId +
           ":row:" +
           (rowIndex + 1),
-      });
+      };
+      points.push(point);
+      if (
+        document.basisState !==
+        "candidate"
+      ) {
+        adoptedPoints.add(point);
+      }
     }
   }
 
@@ -478,11 +533,97 @@ export function weeklyResourceCapacityEvidence(
   const evidencePoints:
     WeeklyResourceCapacityPoint[] =
     [];
+  const basisDisagreements:
+    WeeklyResourceBasisDisagreement[] =
+    [];
 
   for (
-    const bucket of
+    const rawBucket of
       rawByResourceWeek.values()
   ) {
+    // Adopted wins: when an adopted source covers this resource and week,
+    // candidate values are never merged into it. A differing candidate
+    // value is shown as a disagreement instead.
+    const adoptedBucket =
+      rawBucket.filter((point) =>
+        adoptedPoints.has(point),
+      );
+    const candidateBucket =
+      rawBucket.filter(
+        (point) =>
+          !adoptedPoints.has(point),
+      );
+    const bucket =
+      adoptedBucket.length > 0
+        ? adoptedBucket
+        : candidateBucket;
+    if (
+      adoptedBucket.length > 0 &&
+      candidateBucket.length > 0
+    ) {
+      const fields = [
+        "availableCapacity",
+        "plannedDemand",
+        "actualApprovedUsage",
+        "unit",
+      ] as const;
+      for (const field of fields) {
+        const adopted =
+          adoptedBucket.find(
+            (point) =>
+              point[field] !== null &&
+              point[field] !== "",
+          );
+        if (!adopted) {
+          continue;
+        }
+        const adoptedValue =
+          adopted[field]!;
+        for (const candidate of candidateBucket) {
+          const candidateValue =
+            candidate[field];
+          if (
+            candidateValue === null ||
+            candidateValue === "" ||
+            (
+              field === "unit"
+                ? String(candidateValue)
+                    .trim()
+                    .toUpperCase() ===
+                  String(adoptedValue)
+                    .trim()
+                    .toUpperCase()
+                : candidateValue ===
+                  adoptedValue
+            )
+          ) {
+            continue;
+          }
+          basisDisagreements.push({
+            resourceId:
+              adopted.resourceId,
+            weekStartIso:
+              adopted.weekStartIso,
+            field,
+            adoptedValue,
+            candidateValue,
+            adoptedSourceRef:
+              adopted.sourceRef,
+            candidateSourceRef:
+              candidate.sourceRef,
+          });
+          diagnostics.push(
+            "RESOURCE_CANDIDATE_DISAGREES_WITH_ADOPTED:" +
+              adopted.resourceId +
+              ":" +
+              (adopted.weekStartIso ??
+                "undated") +
+              ":" +
+              field,
+          );
+        }
+      }
+    }
     const explicitUnits = [
       ...new Set(
         bucket
@@ -961,6 +1102,9 @@ export function weeklyResourceCapacityEvidence(
         ?.actualUtilizationPercent ??
       null,
     utilizationByUnit,
+    ...(basisDisagreements.length > 0
+      ? {basisDisagreements}
+      : {}),
     diagnostics: [
       ...diagnostics,
       ...(utilizationByUnit.length > 1
