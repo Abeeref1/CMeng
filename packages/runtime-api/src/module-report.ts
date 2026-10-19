@@ -660,7 +660,9 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   const dataDate=(data as any)?.reportingContract?.dataDateIso??(data as any)?.dataDateIso??null;
   const authorityState=result.status==='ready'?'established':result.status==='partial'?'partial':'unavailable';
   const sections:AuthorityResult[]=[];
-  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v))).slice(0,1000);
+  // T10 X2: Generate report carries every figure the page shows. The former
+  // .slice(0,1000) silently dropped every figure after the first 1,000.
+  const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v)));
   const metricTraces=metricRows.map(([key])=>{
     const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);
     return {id:'module:metric:'+key,authorityId:'summary',projectId,module:moduleKey,path:key,sourceRefs:[],dataDate:contract?.dataDateIso??dataDate,basis:reportMetricBasis(contract),exclusions:contract?.excludedCount?['Reporting population excludes '+String(contract.excludedCount)+' record(s); see '+String(contract.exclusionsRef??'the reporting contract')+'.']:[],state};
