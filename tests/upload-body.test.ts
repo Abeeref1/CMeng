@@ -7,8 +7,8 @@ import {configuredUploadLimit,DEFAULT_MAX_UPLOAD_BYTES,readRequestBody,UploadToo
 function incoming(chunks:Buffer[],length?:number){
   return Object.assign(Readable.from(chunks),{headers:length===undefined?{}:{'content-length':String(length)}}) as unknown as IncomingMessage;
 }
-test('upload ceiling is 200 MB, remains configurable, and invalid limits cannot disable it',()=>{
-  assert.equal(DEFAULT_MAX_UPLOAD_BYTES,200*1024*1024);
+test('upload ceiling is 512 MB, remains configurable, and invalid limits cannot disable it',()=>{
+  assert.equal(DEFAULT_MAX_UPLOAD_BYTES,512*1024*1024);
   assert.equal(configuredUploadLimit(''),DEFAULT_MAX_UPLOAD_BYTES);
   assert.equal(configuredUploadLimit(String(75*1024*1024)),75*1024*1024);
   for(const value of ['NaN','bad','-1','0','1.5','50MB','Infinity'])assert.throws(()=>configuredUploadLimit(value));
@@ -18,13 +18,13 @@ test('declared oversized file is rejected before reading with its size and an ac
   const req=Object.assign(stream,{headers:{'content-length':String(DEFAULT_MAX_UPLOAD_BYTES+1)}}) as unknown as IncomingMessage;
   await assert.rejects(()=>readRequestBody(req,undefined,DEFAULT_MAX_UPLOAD_BYTES),(e:unknown)=>{
     assert.ok(e instanceof UploadTooLargeError);assert.equal(e.statusCode,413);assert.equal(e.code,'UPLOAD_TOO_LARGE');
-    assert.equal(e.limitBytes,DEFAULT_MAX_UPLOAD_BYTES);assert.match(e.message,/200 MB upload limit/);assert.match(e.message,/not been imported/);return true;
+    assert.equal(e.limitBytes,DEFAULT_MAX_UPLOAD_BYTES);assert.match(e.message,/512 MB upload limit/);assert.match(e.message,/not been imported/);return true;
   });
   // Rejected input is drained without accumulating an upload buffer.
   assert.ok(pulls<=1);
 });
-test('exact 200 MB boundary is accepted without changing bytes; chunked byte 200 MB + 1 is rejected',async()=>{
-  const block=Buffer.alloc(1024*1024,0x41),chunks=Array(200).fill(block);
+test('exact 512 MB boundary is accepted without changing bytes; chunked byte 512 MB + 1 is rejected',async()=>{
+  const block=Buffer.alloc(1024*1024,0x41),chunks=Array(512).fill(block);
   let received=0;const bytes=await readRequestBody(incoming(chunks,DEFAULT_MAX_UPLOAD_BYTES),(n)=>received=n,DEFAULT_MAX_UPLOAD_BYTES);
   assert.equal(bytes.length,DEFAULT_MAX_UPLOAD_BYTES);assert.equal(received,DEFAULT_MAX_UPLOAD_BYTES);assert.equal(bytes[0],0x41);assert.equal(bytes.at(-1),0x41);
   await assert.rejects(()=>readRequestBody(incoming([...chunks,Buffer.from('x')]),undefined,DEFAULT_MAX_UPLOAD_BYTES),UploadTooLargeError);

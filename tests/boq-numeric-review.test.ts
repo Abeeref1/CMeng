@@ -8,6 +8,7 @@ import type {AddressInfo} from 'node:net';
 import {createCanvas} from '@napi-rs/canvas';
 import {PDFDocument} from 'pdf-lib';
 import ExcelJS from 'exceljs';
+import {fieldKeyColumn,worksheetWithFieldKeys} from './workbook-field-keys';
 import {ingestBoq,quarantineUnconfirmedBoqNumerics} from '../packages/boq-ingestion/src';
 import {RuntimeProjectStore,runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {applyBoqNumericReviews,boqNumericReview,type BoqNumericReviewInput} from '../packages/runtime-api/src/boq-numeric-review';
@@ -170,8 +171,8 @@ test('HTTP batch review updates Ask, JSON and Excel consistently and serves the 
  invalidateProject(projectId);const module=moduleForProject(projectId,'challenge-contract'),json=JSON.parse(buildModuleJsonDownload(projectId,'challenge-contract',module).toString());
  assert.deepEqual(json.result.data.suppliedBoq.rows.map((r:any)=>r.quantity),source.truth);
  const book=new ExcelJS.Workbook();await book.xlsx.load(await buildModuleWorkbook(projectId,'challenge-contract',module) as any);
- const sheet=book.worksheets.find(s=>Array.from(s.getRow(1).values as any[]).includes('numericConfirmation.decisionId'));assert.ok(sheet);
- const headers=sheet.getRow(1).values as any[],col=headers.indexOf('quantity');assert.deepEqual(source.truth.map((_,i)=>sheet.getRow(i+2).getCell(col).value),source.truth);
+ const sheet=worksheetWithFieldKeys(book,['numericConfirmation.decisionId']);assert.ok(sheet);
+ const col=fieldKeyColumn(book,sheet.name,'quantity');assert.ok(col>0);assert.deepEqual(source.truth.map((_,i)=>sheet.getRow(i+2).getCell(col).value),source.truth);
  const actions=projectActions(state,{issues:[]} as any);assert.ok(!actions.actions.some(a=>a.id==='boq-numeric-review'));
  assert.ok(state.boq!.canonicalItems.every(i=>i.quantity===null));
  assert.ok(state.boqNumericReviews!.every(d=>d.confirmedBy!=='cmeng-runtime'),'HTTP records the calling session, not a forged actor from the payload');
