@@ -345,6 +345,290 @@
       ],
       "what": "need date is the linked activity start less the stated lead/review time; not stated stays the start with no default (T08).",
       "notCovered": "Independent reader not re-run on the 23 projects."
+    },
+    "SW-03": {
+      "commits": [
+        "1f92b796"
+      ],
+      "tests": [
+        "tests/t11-platform-paging-version-restart.test.ts"
+      ],
+      "what": "Round 6: A register too large for the response sends its first page with the true total and a next-page pointer, never an empty stub.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-05": {
+      "commits": [
+        "8ee92f64"
+      ],
+      "tests": [
+        "tests/t05-role-views-page-facts-shown.test.ts"
+      ],
+      "what": "Round 6: Role views read the decisions and counts the page already holds; no-currency shows Not established, not 0.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-08": {
+      "commits": [
+        "8ee92f64"
+      ],
+      "tests": [
+        "tests/t05-role-views-page-facts-shown.test.ts"
+      ],
+      "what": "Round 6: Held contract values per currency, awarded EOT days and negative-float count are placed; the six-row cap no longer drops held rows.",
+      "notCovered": "Decision rows come from the page only where it carries projectDiagnosis.actionRegister."
+    },
+    "SW-14": {
+      "commits": [
+        "e31bd373"
+      ],
+      "tests": [
+        "tests/sw14-document-reading-state.test.ts"
+      ],
+      "what": "Round 6: Every document has a reading state, reason, reader and timing on the documents page and the overview, with the unread count.",
+      "notCovered": "A cached page can show Queued while a PDF is being read; the final state shows once saved."
+    },
+    "SW-15": {
+      "commits": [
+        "b08d17d9"
+      ],
+      "tests": [
+        "tests/sw15-delay-events-not-from-claims.test.ts"
+      ],
+      "what": "Round 6: Claims register rows no longer make delay events; event counts are null with a reason until an event source exists. Claims are unchanged.",
+      "notCovered": "Event start and end dates on the notices page rows still come from claim rows; the events-by-data-date partition still lists them."
+    },
+    "SW-18": {
+      "commits": [
+        "2ce5313a"
+      ],
+      "tests": [
+        "tests/t08-sw18-readiness-rules.test.ts"
+      ],
+      "what": "Round 6: Not applicable is its own readiness state; a future date alone is not a blocker; open status with a dated actual delivery is raised as a conflict.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-21": {
+      "commits": [
+        "b58020ed"
+      ],
+      "tests": [
+        "tests/t07-commercial-position-checks.test.ts"
+      ],
+      "what": "Round 6: Change register counted by state; an approved-only list is not established as the full register.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-22": {
+      "commits": [
+        "0c94e0d3"
+      ],
+      "tests": [
+        "tests/t07-contract-time-original-and-completion-movement.test.ts"
+      ],
+      "what": "Round 6: Original completion read from the contract and amendments that restate it, under the T04 source rule; extended date kept separate.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-23": {
+      "commits": [
+        "0c94e0d3"
+      ],
+      "tests": [
+        "tests/t07-contract-time-original-and-completion-movement.test.ts"
+      ],
+      "what": "Round 6: Window movement is completion movement, not the largest single-activity shift (kept on its own field).",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-24": {
+      "commits": [
+        "658d32a5"
+      ],
+      "tests": [
+        "tests/t06-recovery-completion-path.test.ts"
+      ],
+      "what": "Round 6: Recovery options are only actions on the path to completion, each with a CMeng CPM completion gain in working days or Not established; other late items are late work.",
+      "notCovered": "Crew and shift options have no CPM change model, so their completion gain is Not established."
+    },
+    "SW-25": {
+      "commits": [
+        "264cb8e8"
+      ],
+      "tests": [
+        "tests/t06-float-trend-share-of-unfinished.test.ts"
+      ],
+      "what": "Round 6: Float trend points carry the unfinished population and the share; direction and wording use the share.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-26": {
+      "commits": [
+        "8b139f2c"
+      ],
+      "tests": [
+        "tests/t05-filters-match-kpis.test.ts"
+      ],
+      "what": "Round 6: Filters with a KPI label count the KPI population on screen and in reports, through one shared rule.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-27": {
+      "commits": [
+        "e054695d"
+      ],
+      "tests": [
+        "tests/sw27-group-totals-known-members.test.ts"
+      ],
+      "what": "Round 6: Group totals use known members with the unknown count beside them; unmatched activities are a counted Not grouped bucket.",
+      "notCovered": "Keyword list not extended (needs an agreed list); WBS areas are offered through location review after confirmation."
+    },
+    "SW-28": {
+      "commits": [
+        "913f9ecb"
+      ],
+      "tests": [
+        "tests/sw28-planned-progress-stated-calendar-basis.test.ts"
+      ],
+      "what": "Round 6: Planned progress uses the calendar stated hours per day and days per week when it has no work pattern; never an 8-hour default.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-29": {
+      "commits": [
+        "b8320949",
+        "d2d5789a"
+      ],
+      "tests": [
+        "tests/z2-attribution-w8.test.ts"
+      ],
+      "what": "Round 6: A calculation that did not complete says so; it names missing inputs only when inputs are truly missing (incl. Monte Carlo zero-success runs).",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-30": {
+      "commits": [
+        "b8320949"
+      ],
+      "tests": [
+        "tests/z2-attribution-w8.test.ts"
+      ],
+      "what": "Round 6: Counts from the submitted programme float are labelled submitted, not independent.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-31": {
+      "commits": [
+        "b58020ed"
+      ],
+      "tests": [
+        "tests/t07-commercial-position-checks.test.ts"
+      ],
+      "what": "Round 6: Implausible source EAC (below actual cost, or outside the independent EVM range) is challenged beside the source value.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-33": {
+      "commits": [
+        "55298d86"
+      ],
+      "tests": [
+        "tests/t08-delivery-supplied-register-first.test.ts"
+      ],
+      "what": "Round 6: Handover readiness uses the asset register when no handover records exist; programme names only as labelled fallback.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-34": {
+      "commits": [
+        "55298d86"
+      ],
+      "tests": [
+        "tests/t08-delivery-supplied-register-first.test.ts"
+      ],
+      "what": "Round 6: Generated package pairs are listed as candidates and not counted in interface linkage figures.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-35": {
+      "commits": [
+        "2ce5313a"
+      ],
+      "tests": [
+        "tests/t08-sw35-hse-rates.test.ts"
+      ],
+      "what": "Round 6: HSE page shows the recalculated rates and their reconciliation; period totals are used when incident rows are missing.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-37": {
+      "commits": [
+        "ca24362b",
+        "6eb94da8"
+      ],
+      "tests": [
+        "tests/t04-missing-value-inputs.test.ts"
+      ],
+      "what": "Round 6: Missing contract value with currency and approved EOT days get one shared validated inline input; never overwrite an adopted value.",
+      "notCovered": "Data date is not an input (it comes from the programme file)."
+    },
+    "SW-38": {
+      "commits": [
+        "14b21990",
+        "48484d95"
+      ],
+      "tests": [
+        "tests/w10-delivery-banner-shared-decision.test.ts"
+      ],
+      "what": "Round 6: Delivery banners, awaiting counts and readiness read one shared pending rule; the known-rows tile shows the confirmed count.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-42": {
+      "commits": [
+        "ded6020a"
+      ],
+      "tests": [
+        "tests/procurement-linked-work-closeout.test.ts"
+      ],
+      "what": "Round 6: Packages on finished work stay listed and counted in a Linked work complete close-out group; groups add up to the page total.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-43": {
+      "commits": [
+        "75f0a422",
+        "a2031606"
+      ],
+      "tests": [
+        "tests/t10-answer-first-generic-layout.test.ts"
+      ],
+      "what": "Round 6: Every module page opens with its verdict; action buttons and the extended completion notice follow it.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-44": {
+      "commits": [
+        "75f0a422"
+      ],
+      "tests": [
+        "tests/t10-answer-first-generic-layout.test.ts"
+      ],
+      "what": "Round 6: The generic field view keeps every field, prints each figure once and collapses the rest behind Details.",
+      "notCovered": "The summary box and the figure cards on purpose-built pages still repeat some figures; role-view preview charts repeat in the detail panel."
+    },
+    "SW-46": {
+      "commits": [
+        "7de4845d"
+      ],
+      "tests": [
+        "tests/y11-sw46-conditional-notices.test.ts"
+      ],
+      "what": "Round 6: Five fixed sentences print only when their data supports them, through one shared conditional-notice helper.",
+      "notCovered": "Not a full sweep of every fixed sentence; canonical-resource-runtime still turns a missing assignment count into 0."
+    },
+    "SW-52": {
+      "commits": [
+        "1f92b796"
+      ],
+      "tests": [
+        "tests/t11-platform-paging-version-restart.test.ts"
+      ],
+      "what": "Round 6: The project version changes only when saved content changes, not on migrations or background refreshes.",
+      "notCovered": "Not live until deployed."
+    },
+    "SW-53": {
+      "commits": [
+        "1f92b796"
+      ],
+      "tests": [
+        "tests/t11-platform-paging-version-restart.test.ts"
+      ],
+      "what": "Round 6: Page reads retry through a restart with a plain retrying message; saves are not resent.",
+      "notCovered": "Zero-downtime switch is not possible on Railway with an attached volume."
     }
   },
   "withoutSwRow": [
