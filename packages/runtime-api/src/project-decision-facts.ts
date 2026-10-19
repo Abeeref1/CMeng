@@ -467,7 +467,8 @@ export function buildRegisterChecks(commercial:any,_ledger:any,quantities:any,pr
   const contract=valueOf(currency.currentContractValue);
   if(contract===null||contract<=0)continue;
   const series:Array<{name:string;total:number|null;refs:string[];count:number|null}>=[
-   {name:'Gross issued certificates',total:valueOf(currency.grossCertifiedAmount),refs:currency.grossCertifiedAmount?.sourceRefs??[],count:null},
+   // R12: a certified figure from a net or unlabelled column carries its shared label, never "gross".
+   {name:currency.grossCertifiedAmountColumn&&currency.grossCertifiedAmountColumn!=='gross'&&currency.grossCertifiedAmountLabel?'Issued certificates · '+currency.grossCertifiedAmountLabel:'Gross issued certificates',total:valueOf(currency.grossCertifiedAmount),refs:currency.grossCertifiedAmount?.sourceRefs??[],count:null},
    {name:'Net issued certificates',total:valueOf(currency.netCertifiedAmount),refs:currency.netCertifiedAmount?.sourceRefs??[],count:null},
    {name:'Paid receipts',total:valueOf(currency.paidAmount),refs:currency.paidAmount?.sourceRefs??[],count:null},
    {name:'Pending variations',total:valueOf(currency.pendingVariationAmount),refs:currency.pendingVariationAmount?.sourceRefs??[],count:null},

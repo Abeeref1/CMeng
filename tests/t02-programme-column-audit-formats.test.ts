@@ -100,7 +100,7 @@ test('T02 R1 P6 XML: Project, WBS, Calendar and Relationship fields are listed; 
     <PredecessorActivityObjectId>1000</PredecessorActivityObjectId><SuccessorActivityObjectId>1001</SuccessorActivityObjectId><Type>Finish to Start</Type><Lag>0</Lag><Comments>Crane needed</Comments></Relationship>
    <ResourceAssignment><ObjectId>9000</ObjectId><ActivityObjectId>1000</ActivityObjectId><ResourceObjectId>300</ResourceObjectId><CostAccountObjectId>700</CostAccountObjectId><PlannedUnits>16</PlannedUnits></ResourceAssignment>
   </Project>
-  <Calendar><ObjectId>500</ObjectId><Name>5 Day</Name><HoursPerDay>8</HoursPerDay></Calendar>
+  <Calendar><ObjectId>500</ObjectId><Name>5 Day</Name><HoursPerDay>8</HoursPerDay><Type>Global</Type></Calendar>
   <Resource><ObjectId>300</ObjectId><Id>EXC</Id><Name>Excavator crew</Name></Resource>
   <CostAccount><ObjectId>700</ObjectId><Id>CA-310</Id><Name>Earthworks</Name></CostAccount>
  </APIBusinessObjects>`;
@@ -114,7 +114,12 @@ test('T02 R1 P6 XML: Project, WBS, Calendar and Relationship fields are listed; 
  assert.equal(at('WBS','Code')?.mappingState,'schema_recognized');
  assert.equal(at('WBS','Sequence')?.mappingState,'unused');
  assert.equal(at('Calendar','ObjectId')?.mappingState,'schema_recognized');
- assert.equal(at('Calendar','HoursPerDay')?.mappingState,'unused');
+ // Round 12: calendar working time and HoursPerDay are now read (shared P6
+ // calendar model), so the unused-with-sample check moved to the still-unread
+ // Calendar Type field. Both checks are kept.
+ assert.equal(at('Calendar','HoursPerDay')?.mappingState,'schema_recognized');
+ assert.equal(at('Calendar','Type')?.mappingState,'unused');
+ assert.equal(at('Calendar','Type')?.sample,'Global');
  assert.equal(at('Relationship','Type')?.mappingState,'schema_recognized');
  assert.equal(at('Relationship','Comments')?.mappingState,'unused');
  assert.equal(at('Relationship','Comments')?.sample,'Crane needed');

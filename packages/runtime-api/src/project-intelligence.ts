@@ -368,7 +368,8 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     for (const [i,c] of (d?.position?.currencies ?? []).entries()) {
       if (/variation/.test(q)) add(key+'.position.currencies['+i+'].approvedVariationAmount.value','Source aggregate approved variations · '+c.currency+' · separate authority, reconcile with dated approvals',c.approvedVariationAmount?.value,{...context,authority:'source',state:c.approvedVariationAmount?.state,unit:c.currency});
       if (/retention/.test(q)) add(key+'.position.currencies['+i+'].retentionHeldAmount.value','Retention held balance · '+c.currency,c.retentionHeldAmount?.value,{...context,state:c.retentionHeldAmount?.state,unit:c.currency});
-      if (/payment|certificate/.test(q)) for (const field of ['certifiedAmount','paidAmount'] as const) add(key+'.position.currencies['+i+'].'+field+'.value',factLabel(field)+' · dated events · '+c.currency,c[field]?.value,{...context,state:c[field]?.state,unit:c.currency});
+      // R12: the certified figure is grossCertifiedAmount under its shared column label ("certifiedAmount" is not a position field).
+      if (/payment|certificate/.test(q)) for (const field of ['grossCertifiedAmount','paidAmount'] as const) add(key+'.position.currencies['+i+'].'+field+'.value',(field==='grossCertifiedAmount'?String(c.grossCertifiedAmountLabel??'Gross certified'):factLabel(field))+' · dated events · '+c.currency,c[field]?.value,{...context,state:c[field]?.state,unit:c.currency});
     }
   }
   if (/critical|float/.test(q)) {

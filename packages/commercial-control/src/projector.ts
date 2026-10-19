@@ -14,8 +14,30 @@ import type {
   CommercialMoneyPosition,
   CommercialModuleProjection,
 } from "./types";
+import type { CertifiedAmountColumn, InvoiceRecord } from "../../project-director/src";
 
 const DAY_MS = 86_400_000;
+
+/** R12: the one label of the certified figure, by the register column it came
+ * from. A net or unlabelled column is never presented as gross. */
+export const CERTIFIED_AMOUNT_LABELS: Readonly<Record<CertifiedAmountColumn, string>> = {
+  gross: "Gross certified",
+  net: "Certified (net; gross not stated)",
+  unstated: "Certified (gross or net not stated)",
+};
+/** No certified amount read: the page names the measure it needs (gross). */
+export function certifiedAmountLabel(column: CertifiedAmountColumn | null | undefined): string {
+  return CERTIFIED_AMOUNT_LABELS[column ?? "gross"];
+}
+/** Gross only when every summed amount came from a gross column, net only when
+ * every one came from a net column; mixed, unlabelled or stored before the
+ * column was recorded is not stated. */
+export function certifiedAmountColumnOf(rows: readonly Pick<InvoiceRecord, "certifiedAmountColumn">[]): CertifiedAmountColumn | null {
+  if (!rows.length) return null;
+  if (rows.every((row) => row.certifiedAmountColumn === "gross")) return "gross";
+  if (rows.every((row) => row.certifiedAmountColumn === "net")) return "net";
+  return "unstated";
+}
 
 function uniq(values: string[]): string[] {
   return [...new Set(values)].sort();
@@ -1125,6 +1147,9 @@ export function buildCommercialControlPosition(
 
   // A source summary is not a commitment ledger. Reuse explicit period/currency facts
   // without adding variation values twice or conflating net certification and cash receipts.
+  // R12: currencies whose certified figure is the source gross (a Gross Certified
+  // column, or gross work plus variations) rather than the certificate reader's amount.
+  const sourceGrossCurrencies=new Set<string>();
   if(input.sourceLedger){
     const ledger=input.sourceLedger;
     for(const position of positions){
@@ -1171,6 +1196,7 @@ export function buildCommercialControlPosition(
         // weaker/missing source interpretation must never erase a value that was
         // explicitly governed through the control layer.
         if(sourceGrossCertified.value!==null){
+          sourceGrossCurrencies.add(position.currency);
           const legacy=position.grossCertifiedAmount.value;
           position.grossCertifiedAmount={...sourceGrossCertified,diagnostics:[
             ...sourceGrossCertified.diagnostics,
@@ -1192,6 +1218,16 @@ export function buildCommercialControlPosition(
         }
       }
     }
+  }
+
+  // R12: label the certified figure by the column it came from. The figure is
+  // unchanged; only its label and basis field are set, once, for every page.
+  for(const position of positions){
+    const certifiedRows=input.invoices.filter(row=>row.currency.trim().toUpperCase()===position.currency&&row.certifiedAmount!==null);
+    const column:CertifiedAmountColumn|null=position.grossCertifiedAmount.value===null?null
+      :sourceGrossCurrencies.has(position.currency)?"gross":certifiedAmountColumnOf(certifiedRows);
+    position.grossCertifiedAmountColumn=column;
+    position.grossCertifiedAmountLabel=certifiedAmountLabel(column);
   }
 
   // A parsed register without the requested field is different from unread evidence.
@@ -2157,6 +2193,8 @@ export function buildCommercialModuleProjection(
             grossCertifiedAmount:
               row
                 .grossCertifiedAmount,
+            grossCertifiedAmountColumn: row.grossCertifiedAmountColumn ?? null,
+            grossCertifiedAmountLabel: row.grossCertifiedAmountLabel ?? certifiedAmountLabel(null),
             paidAmount:
               row.paidAmount,
             certifiedUnpaidAmount:

@@ -42,7 +42,7 @@ const groupDocuments:Record<string,{documentType:string;uploadMode:'schedule'|'e
 
 export function missingFieldSupply(groupKey:string,issue:Pick<ControlIssue,'kind'|'field'|'evidencePaths'|'summary'|'code'>,openInputs:ReadonlySet<MissingValueInputKind>):MissingFieldSupply{
   const input=missingValueInputKind(issue as ControlIssue);
-  if(input&&openInputs.has(input))return {type:'input',kind:input,label:input==='contract-value'?'Enter the contract value and currency':'Enter the approved EOT days'};
+  if(input&&openInputs.has(input))return {type:'input',kind:input,label:input==='contract-value'?'Enter the contract value and currency':input==='commencement-date'?'Enter the Commencement Date':'Enter the approved EOT days'};
   if(groupKey==='contract-completion')return {type:'input',kind:'contract-completion',label:'Confirm the contractual completion date'};
   const document=groupDocuments[groupKey]??{documentType:'Source document that records this field',uploadMode:'evidence' as const};
   const field=rawFieldLabel(issue.field)??(issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase());

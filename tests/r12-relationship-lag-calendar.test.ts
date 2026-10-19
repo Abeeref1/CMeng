@@ -25,11 +25,12 @@ const relationshipLagCalendarSummary = (scheduleCpm as any).relationshipLagCalen
 // R12: P6 measures relationship lag on the calendar the project option
 // "Calendar for scheduling Relationship Lag" states (XER PROJECT field
 // sched_calendar_on_relationship_lag: rcal_Predecessor, rcal_Successor,
-// rcal_24Hour, rcal_ProjDefault). CMeng always used the successor calendar.
-// One XER, uploaded through the real upload path four times (once per
-// option) and once without the field; every CMeng CPM date equals the
-// independent solver (tools/independent/cpm-solver.cjs, rule 4b) and the hand
-// calculation below.
+// rcal_24Hour, rcal_ProjDefault; P6 XML Project.RelationshipLagCalendar).
+// CMeng always used the successor calendar. One programme, as XER and as P6
+// XML (calendars read from the XML StandardWorkWeek), uploaded through the
+// real upload path four times per format (once per option) and once without
+// the option; every CMeng CPM date equals the independent solver
+// (tools/independent/cpm-solver.cjs, rule 4b) and the hand calculation below.
 //
 // Hand calculation. All calendars work 08:00-16:00 (8 h a day):
 //   C5 Mon-Fri, C7 every day, C6 Mon-Sat (project default calendar,
@@ -82,6 +83,36 @@ function xer(option: Rule | null) {
     '%E'].join('\n'));
 }
 
+// The same programme as P6 XML, with the same three calendars read from each
+// Calendar's StandardWorkWeek (P6 writes a period's Finish as its last minute:
+// 08:00:00 to 15:59:00 is 08:00-16:00; a non-working day has a nil WorkTime).
+// Durations and lags carry the reader's unit-suffixed form (40h), so the file
+// states hours whatever plain-number convention the reader applies.
+const XML_OPTION: Record<Rule, string> = {rcal_Successor: 'Successor Activity Calendar', rcal_Predecessor: 'Predecessor Activity Calendar',
+  rcal_24Hour: '24 Hour Calendar', rcal_ProjDefault: 'Project Default Calendar'};
+function xml(option: Rule | null) {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const calendar = (id: string, name: string, workDays: number[]) => '<Calendar><BaseCalendarObjectId xsi:nil="true"/><HoursPerDay>8</HoursPerDay><HoursPerWeek>' + 8 * workDays.length + '</HoursPerWeek>' +
+    '<Name>' + name + '</Name><ObjectId>' + id + '</ObjectId><Type>Global</Type><StandardWorkWeek>' +
+    days.map((day, d) => '<StandardWorkHours><DayOfWeek>' + day + '</DayOfWeek>' + (workDays.includes(d)
+      ? '<WorkTime><Start>08:00:00</Start><Finish>15:59:00</Finish></WorkTime>' : '<WorkTime xsi:nil="true"/>') + '</StandardWorkHours>').join('') +
+    '</StandardWorkWeek><HolidayOrExceptions/></Calendar>';
+  const activity = (oid: string, cal: string, id: string, hours: number) => '<Activity><ProjectObjectId>1</ProjectObjectId><ObjectId>' + oid + '</ObjectId><Id>' + id + '</Id>' +
+    '<Name>Activity ' + id + '</Name><WBSObjectId>70</WBSObjectId><CalendarObjectId>' + cal + '</CalendarObjectId><Type>Task Dependent</Type><Status>Not Started</Status>' +
+    '<PlannedStartDate>2027-01-04T08:00:00</PlannedStartDate><PlannedFinishDate>2027-01-20T16:00:00</PlannedFinishDate><StartDate>2027-01-04T08:00:00</StartDate>' +
+    '<FinishDate>2027-01-20T16:00:00</FinishDate><PlannedDuration>' + hours + 'h</PlannedDuration><RemainingDuration>' + hours + 'h</RemainingDuration><PhysicalPercentComplete>0</PhysicalPercentComplete></Activity>';
+  const link = (pred: string, succ: string, type: string, lag: number) => '<Relationship><PredecessorProjectObjectId>1</PredecessorProjectObjectId><SuccessorProjectObjectId>1</SuccessorProjectObjectId>' +
+    '<PredecessorActivityObjectId>' + pred + '</PredecessorActivityObjectId><SuccessorActivityObjectId>' + succ + '</SuccessorActivityObjectId><Type>' + type + '</Type><Lag>' + lag + 'h</Lag></Relationship>';
+  return Buffer.from('<?xml version="1.0" encoding="UTF-8"?>\n<APIBusinessObjects xmlns="http://xmlns.oracle.com/Primavera/P6/V1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
+    calendar('C5', 'Mon-Fri 8h', [1, 2, 3, 4, 5]) + calendar('C7', 'Seven day 8h', [0, 1, 2, 3, 4, 5, 6]) + calendar('C6', 'Mon-Sat 8h', [1, 2, 3, 4, 5, 6]) +
+    '<Project><ActivityDefaultCalendarObjectId>C6</ActivityDefaultCalendarObjectId><DataDate>2027-01-04T08:00:00</DataDate><Id>LAGCAL</Id><Name>Lag calendar project</Name><ObjectId>1</ObjectId>' +
+    (option ? '<RelationshipLagCalendar>' + XML_OPTION[option] + '</RelationshipLagCalendar>' : '') +
+    '<WBS><Code>LAGCAL</Code><Name>Lag calendar project</Name><ObjectId>70</ObjectId><ParentObjectId>1</ParentObjectId><ProjectObjectId>1</ProjectObjectId></WBS>' +
+    activity('101', 'C5', 'A', 40) + activity('102', 'C7', 'P', 8) + activity('103', 'C7', 'B', 16) + activity('104', 'C5', 'D', 8) +
+    link('101', '103', 'Finish to Start', 16) + link('102', '103', 'Finish to Start', 16) + link('103', '104', 'Start to Start', 8) +
+    '</Project></APIBusinessObjects>', 'utf8');
+}
+
 const C5 = {id: 'C5', workDays: [1, 2, 3, 4, 5], startHour: 8, hoursPerDay: 8, holidays: [] as string[]};
 const C7 = {id: 'C7', workDays: [0, 1, 2, 3, 4, 5, 6], startHour: 8, hoursPerDay: 8, holidays: [] as string[]};
 const C6 = {id: 'C6', workDays: [1, 2, 3, 4, 5, 6], startHour: 8, hoursPerDay: 8, holidays: [] as string[]};
@@ -108,28 +139,34 @@ const HAND: Record<string, {finish: string; rows: Record<string, Row>; rule: str
     basis: 'lag calendar stated in the programme: project default calendar (C6)',
     rows: {A, P: [at(4, 8), at(4, 16), at(8, 8), at(8, 16), 32], B: [at(12, 8), at(13, 16), at(12, 8), at(13, 16), 0], D: [at(13, 8), at(13, 16), at(13, 8), at(13, 16), 0]}},
 };
-const RUNS: Array<{option: Rule | null; key: keyof typeof HAND; solverRule: Parameters<typeof independent>[0]}> = [
+type Format = 'xer' | 'xml';
+const OPTIONS: Array<{option: Rule | null; key: keyof typeof HAND; solverRule: Parameters<typeof independent>[0]}> = [
   {option: 'rcal_Successor', key: 'successor', solverRule: 'successor'},
   {option: 'rcal_Predecessor', key: 'predecessor', solverRule: 'predecessor'},
   {option: 'rcal_24Hour', key: '24_hour', solverRule: '24_hour'},
   {option: 'rcal_ProjDefault', key: 'project_default', solverRule: 'project_default'},
   {option: null, key: 'successor', solverRule: undefined},
 ];
+const RUNS = (['xer', 'xml'] as Format[]).flatMap(format => OPTIONS.map(run => ({...run, format})));
 
-async function upload(option: Rule | null) {
+async function upload(format: Format, option: Rule | null) {
   // Project IDs are held in upper case by the runtime.
-  const projectId = ('R12-LAGCAL-' + (option ?? 'NOT-STATED') + '-' + process.pid).toUpperCase().replace(/_/g, '-');
+  const projectId = ('R12-LAGCAL-' + format + '-' + (option ?? 'NOT-STATED') + '-' + process.pid).toUpperCase().replace(/_/g, '-');
   runtimeProjects.getOrCreate(projectId);
-  await runtimeProjects.ingestSchedule({projectId, sourceFilename: 'LAGCAL programme ' + (option ?? 'no option') + '.xer', bytes: xer(option), mediaType: 'text/plain',
+  await runtimeProjects.ingestSchedule({projectId, sourceFilename: 'LAGCAL programme ' + (option ?? 'no option') + '.' + format,
+    bytes: format === 'xer' ? xer(option) : xml(option), mediaType: format === 'xer' ? 'text/plain' : 'application/xml',
     uploadedAt: '2027-01-04T09:00:00Z', role: 'update', uploadIntent: 'replace_current_basis'});
   return projectId;
 }
 
 for (const run of RUNS) {
-  test('R12 lag calendar ' + (run.option ?? 'not stated') + ': uploaded XER, CMeng CPM dates = independent solver = hand calculation', async () => {
-    const projectId = await upload(run.option);
+  test('R12 lag calendar ' + run.format.toUpperCase() + ' ' + (run.option ?? 'not stated') + ': uploaded programme, CMeng CPM dates = independent solver = hand calculation', async () => {
+    const projectId = await upload(run.format, run.option);
     const state = runtimeProjects.get(projectId)!;
     const model: any = projectControlSchedule(reportingState(state))!.revision.model;
+    assert.equal(model.source, run.format === 'xer' ? 'xer' : 'primavera_xml');
+    if (run.format === 'xml') assert.deepEqual(model.calendars.map((c: any) => [c.calendarId, c.semanticComplete, c.weeklyWorkMinutes.join(',')]),
+      [['C5', true, '0,480,480,480,480,480,0'], ['C7', true, '480,480,480,480,480,480,480'], ['C6', true, '0,480,480,480,480,480,480']], 'real P6 XML calendars: ' + JSON.stringify(model.diagnostics));
     const hand = HAND[run.key]!;
     // 1. The defect: every CMeng CPM date and float = the hand calculation.
     const cpm = cpmOf(model, {durationBasis: 'remaining', applySourceConstraints: true});
@@ -148,7 +185,8 @@ for (const run of RUNS) {
     assert.equal(ind.projectFinish, hand.finish, 'solver finish = hand');
     assert.equal(ind.lagCalendarRule, run.solverRule === '24_hour' ? '24_hour_continuous_both_passes' : (run.solverRule ?? 'successor') + '_calendar_both_passes');
     // 3. The reader keeps the stated option and the project default calendar.
-    if (run.option) assert.deepEqual(model.relationshipLagCalendar, {rule: run.key, sourceValue: run.option, projectDefaultCalendarId: 'C6', sourceRef: 'XER PROJECT.sched_calendar_on_relationship_lag'});
+    if (run.option) assert.deepEqual(model.relationshipLagCalendar, {rule: run.key, sourceValue: run.format === 'xer' ? run.option : XML_OPTION[run.option], projectDefaultCalendarId: 'C6',
+      sourceRef: run.format === 'xer' ? 'XER PROJECT.sched_calendar_on_relationship_lag' : 'P6 XML Project.RelationshipLagCalendar'});
     else assert.equal(model.relationshipLagCalendar, undefined, 'file without the field: nothing stated');
     assert.equal(cpm.relationshipLagCalendarMethod, hand.method);
     assert.deepEqual(cpm.assumptions, [], 'a stated (or not stated) option adds no assumption');
@@ -156,7 +194,7 @@ for (const run of RUNS) {
     // The forecast page of the uploaded project carries the same CPM dates and the basis.
     const page = moduleForProject(projectId, 'independent-forecast').data as any;
     assert.equal(page.independentForecastCompletionIso, hand.finish);
-    assert.deepEqual(page.relationshipLagCalendar, {rule: hand.rule, stated: run.option !== null, sourceValue: run.option,
+    assert.deepEqual(page.relationshipLagCalendar, {rule: hand.rule, stated: run.option !== null, sourceValue: run.option === null ? null : run.format === 'xer' ? run.option : XML_OPTION[run.option],
       projectDefaultCalendarId: run.key === 'project_default' ? 'C6' : null, basis: run.option ? hand.basis : LAG_CALENDAR_NOT_STATED_BASIS});
     for (const [id, row] of Object.entries(hand.rows)) {
       const r = page.activities.find((a: {activityId: string}) => a.activityId === id);

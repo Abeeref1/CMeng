@@ -31,6 +31,7 @@ import {earnedHoursForState} from './earned-hours';
 import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
 import {contractTimeDatesFrom} from './contract-time-reader';
 import {extractContractLdTerms} from '../../contract-commercial/src';
+import {certifiedAmountLabel} from '../../commercial-control/src';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -88,6 +89,9 @@ export interface ProjectFactsSnapshot {
     extendedContractCompletionIso:ProjectFact<string>;
     /** F33: the one date lateness and delay damages are measured against. */
     governingContractCompletionIso?:ProjectFact<string>;
+    /** F34: the Works Time for Completion is stated as a period: the basis of the
+     * date (Commencement Date + the period) or the reason it stays unknown. */
+    completionPeriod?:{label:string|null;reason:string|null;commencementIso:string|null};
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
@@ -130,6 +134,10 @@ export interface ProjectFactsSnapshot {
       approvedVariationAmount:ProjectFact<number>;
       pendingVariationAmount:ProjectFact<number>;
       grossCertifiedAmount:ProjectFact<number>;
+      /** R12 (additive): the register column the certified figure came from (null: none read). */
+      grossCertifiedAmountColumn?:'gross'|'net'|'unstated'|null;
+      /** R12 (additive): the shared label of the certified figure. */
+      grossCertifiedAmountLabel?:string;
       netCertifiedAmount:ProjectFact<number>;
       paidAmount:ProjectFact<number>;
       interimCertificateCount:ProjectFact<number>;
@@ -154,6 +162,12 @@ export interface ProjectFactsSnapshot {
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+/** R12: the stated basis of the certified figure follows the register column it came from. */
+const CERTIFIED_FIGURE_BASIS={
+  gross:'Dated gross certification before retention and advance deductions; applications excluded.',
+  net:'Dated certified amounts from a net certified column (after deductions); the gross certified amount is not stated in the source. Applications excluded.',
+  unstated:'Dated certified amounts from a column that does not say gross or net; the source does not state which. Applications excluded.',
+} as const;
 
 /** F20: the brief and every page read one dated cash series; this is its summary per currency. */
 function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|undefined,currency:string){
@@ -314,6 +328,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const extendedCompletion=commercial.timeExposure.officialAdjustedCompletion.value;
   const officialAward=commercial.timeExposure.approvedEotDays.value;
   const contractTime=canonicalTimeClaims(scoped).contractTimeBasis;
+  // F34: the period basis applies only to the date every page reads (or to its absence).
+  const statedPeriod=contractTime?.contractualCompletionPeriod??null;
+  const completionPeriod=statedPeriod&&(statedPeriod.label?contractTime!.contractualCompletionIso===commercial.timeExposure.contractualCompletion.value:commercial.timeExposure.contractualCompletion.value===null)?statedPeriod:null;
   // An adjustment identical to the original completion is not an extension.
   // Some source amendments echo the original date while a separate dated EOT
   // award exists. Retain both facts and present the calendared comparison
@@ -428,7 +445,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
       {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
         criticality:{config,thresholdMethod:controlBasis.nearCriticalThresholdMethod,headlineFloatBasis:floatBasis},previousRevision}),
-    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
+    contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,currentContractCompletion),
     schedule:{
       floatBasis,
       criticalityLabel:governedCriticality.floatLabel,
@@ -492,10 +509,13 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       contractualCompletionIso:commercialFact(
         commercial.timeExposure.contractualCompletion,
         // T04: every page, report and Ask answer reading this fact shows the label.
-        contractTime?.contractualCompletionSourceUse==='qualified_source_read'
+        (contractTime?.contractualCompletionSourceUse==='qualified_source_read'
           ?'Canonical contract-time position used by every consumer. '+(contractTime.contractualCompletionSourceNote??'Read from source; not formally adopted.')
-          :'Canonical contract-time position used by every consumer.',
+          :'Canonical contract-time position used by every consumer.')+
+        // F34: a date computed from the Commencement Date and a stated period states that basis; an unknown date states why.
+        (completionPeriod?.label?' Basis: '+completionPeriod.label+'.':completionPeriod?.reason?' '+completionPeriod.reason:''),
       ),
+      ...(completionPeriod?{completionPeriod}:{}),
       awardedEotDays:commercialFact(
         commercial.timeExposure.approvedEotDays,
         'Official awarded EOT through the project Data Date.',
@@ -623,7 +643,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         forecastEac:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.forecastEac??{value:null,state:'missing',sourceRefs:[]},'Latest source EAC in its reporting period, currency and tax basis.');})(),
         cpi:(()=>{const rows=projectDecisionFacts(state).commercialSummary.filter((p:any)=>p.currency===row.currency);const r=rows.length===1?rows[0]:null;return commercialFact(r?.cpi??{value:null,state:'missing',sourceRefs:[]},'EV / AC from the same reporting period, currency and tax basis.');})(),
         pendingVariationAmount:commercialFact(row.pendingVariationAmount,'Dated pending variations in this currency; zero only for a readable register with no pending or unknown stages.'),
-        grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,'Dated gross certification before retention and advance deductions; applications excluded.'),
+        grossCertifiedAmount:commercialFact(row.grossCertifiedAmount,CERTIFIED_FIGURE_BASIS[row.grossCertifiedAmountColumn??'gross']),
+        grossCertifiedAmountColumn:row.grossCertifiedAmountColumn??null,
+        grossCertifiedAmountLabel:row.grossCertifiedAmountLabel??certifiedAmountLabel(null),
         netCertifiedAmount:row.netCertifiedAmount?commercialFact(row.netCertifiedAmount,'Dated net certification after deductions; applications excluded.'):fact<number>(null,'Net certification is missing.'),
         paidAmount:commercialFact(row.paidAmount,'Evidenced cash receipts through the Data Date.'),
         interimCertificateCount:commercialFact(row.interimCertificateCount,'Certificates issued through the Data Date; applications excluded.'),

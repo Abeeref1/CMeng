@@ -18,6 +18,7 @@ import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
 import {missingValueInputKind,missingValueInputGroup,openMissingValueInputs} from './missing-value-inputs';
+import {commencementDatePosition,COMMENCEMENT_NOT_STATED} from './contract-time-reader';
 import {missingFieldSupply,type MissingFieldSupply} from './missing-field-supply';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
@@ -586,6 +587,17 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     (saved?information:actions).push(item);
   }
 
+  // F34: the contract states a Time for Completion as a period counted from the
+  // Commencement Date and no source states that date: the user can enter it.
+  if(openInputs.has('commencement-date')){
+    const commencement=commencementDatePosition(state);
+    actions.push({id:'matter:commencement-date-entry',category:'confirmation',title:'Enter the Commencement Date',owner:'Contracts Manager',recordCount:commencement.candidates.length,
+      reason:'The contract states the Time for Completion as a period counted from the Commencement Date, but '+(commencement.reason??COMMENCEMENT_NOT_STATED)+'. The Works and section completion dates stay unknown until it is established.',
+      ...(commencement.candidates.length?{evidenceSummary:commencement.candidates.map(c=>c.dateIso+' · '+(c.kind==='engineer_notice'?'Engineer\'s notice':'contract')+' · '+c.sourceRef)}:{}),
+      resolution:{kind:'confirm',requiresUserAction:true,instruction:'Enter the Commencement Date stated in the Engineer\'s notice of commencement or agreed for the contract. It is saved as your confirmation and every completion date counted from it shows that basis.',
+        completionRule:'This action closes when a Commencement Date is saved, or when a source establishes it.'},
+      target:{type:'inline',kind:'commencement-date',label:'Save Commencement Date'}});
+  }
   const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
   const programme=projectControlSchedule(state),model=programme?.revision.model;
   const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));

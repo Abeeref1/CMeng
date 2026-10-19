@@ -1,8 +1,11 @@
 import {
+  assessP6Calendars,
   parseXerDateStrict,
+  statedConversionHours,
   verifyXerCalendars,
   xerBaselineProjects,
   type P6CalendarDataResult,
+  type XerCalendarIntegrity,
   type XerParseResult,
   type XerRow,
 } from "../../xer-parser/src";
@@ -768,6 +771,58 @@ function canonicalScheduleFromXerRead(
     const data=reconcileCalendarWithP6Dates(calendar,taskRows);
     return data?[[calendar.calendarId,data] as const]:[];
   }));
+  const {calendars,calendarDiagnostics}=canonicalCalendarsFromP6(calendarIntegrity,reconciledP6Calendars,"xer","CALENDAR:");
+
+  // P6 project option "Calendar for scheduling Relationship Lag" and the
+  // project default calendar it may name (PROJECT.clndr_id).
+  // The default calendar is read only when the option is stated.
+  const lagCalendarValues=projectRows.map(row=>xerField(row,"sched_calendar_on_relationship_lag"));
+  const lagCalendar=statedLagCalendar(lagCalendarValues,
+    lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],"XER PROJECT.sched_calendar_on_relationship_lag");
+  return {
+    projectId,
+    source: "xer",
+    sourceRevisionId: input.sourceRevisionId,
+    ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
+    declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
+    // PROJECT.scd_end_date is the finish P6 computed at the last schedule
+    // run. It is held apart from the declared (plan_end_date) finish and
+    // from any activity-derived or independent CPM finish.
+    scheduledProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"scd_end_date")):null,
+    dataDateIso: xerDataDate.iso,
+    activities,
+    relationships,
+    wbs,
+    calendars,
+    ...sourceLookups(sourceWbsPaths(wbs.map(node=>({wbsId:node.wbsId,parentWbsId:node.parentWbsId,code:node.code??null,name:node.name}))),resourceSources.resources,resourceSources.costAccounts),
+    diagnostics: [
+      ...result.diagnostics.map(
+        (diagnostic) =>
+          diagnostic.code +
+          ":" +
+          diagnostic.message,
+      ),
+      ...calendarDiagnostics,
+      ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
+      ...xerDataDate.diagnostics,
+      ...lagCalendar.diagnostics,
+      ...duplicateActivityIdDiagnostics,
+      ...baselines.diagnostics,
+      ...baselineTasks.diagnostics,
+    ],
+  };
+}
+
+/** P6 calendars (XER CALENDAR rows or P6 XML Calendar elements, assessed by
+ * the shared assessP6Calendars) into the canonical calendar model: base
+ * calendar inheritance, calendar diagnostics, weekly working intervals and
+ * exceptions. One rule for every P6 format. */
+export function canonicalCalendarsFromP6(
+  calendarIntegrity: XerCalendarIntegrity,
+  reconciledP6Calendars: ReadonlyMap<string, P6CalendarDataResult>,
+  source: "xer" | "primavera_xml",
+  locatorPrefix: string,
+): {calendars: CanonicalCalendar[]; calendarDiagnostics: string[]} {
   const calendarById =
     new Map(
       calendarIntegrity.calendars.map(
@@ -1094,8 +1149,8 @@ function canonicalScheduleFromXerRead(
             ) / 60,
           sourceRefs: [
             sourceRef(
-              "xer",
-              "CALENDAR:" +
+              source,
+              locatorPrefix +
                 calendar.calendarId,
             ),
             ...(
@@ -1104,8 +1159,8 @@ function canonicalScheduleFromXerRead(
             ).map(
               (baseId) =>
                 sourceRef(
-                  "xer",
-                  "CALENDAR:" +
+                  source,
+                  locatorPrefix +
                     baseId,
                 ),
             ),
@@ -1113,45 +1168,7 @@ function canonicalScheduleFromXerRead(
         };
       },
     );
-
-  // P6 project option "Calendar for scheduling Relationship Lag" and the
-  // project default calendar it may name (PROJECT.clndr_id).
-  // The default calendar is read only when the option is stated.
-  const lagCalendarValues=projectRows.map(row=>xerField(row,"sched_calendar_on_relationship_lag"));
-  const lagCalendar=statedLagCalendar(lagCalendarValues,
-    lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],"XER PROJECT.sched_calendar_on_relationship_lag");
-  return {
-    projectId,
-    source: "xer",
-    sourceRevisionId: input.sourceRevisionId,
-    ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
-    declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
-    // PROJECT.scd_end_date is the finish P6 computed at the last schedule
-    // run. It is held apart from the declared (plan_end_date) finish and
-    // from any activity-derived or independent CPM finish.
-    scheduledProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"scd_end_date")):null,
-    dataDateIso: xerDataDate.iso,
-    activities,
-    relationships,
-    wbs,
-    calendars,
-    ...sourceLookups(sourceWbsPaths(wbs.map(node=>({wbsId:node.wbsId,parentWbsId:node.parentWbsId,code:node.code??null,name:node.name}))),resourceSources.resources,resourceSources.costAccounts),
-    diagnostics: [
-      ...result.diagnostics.map(
-        (diagnostic) =>
-          diagnostic.code +
-          ":" +
-          diagnostic.message,
-      ),
-      ...calendarDiagnostics,
-      ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
-      ...xerDataDate.diagnostics,
-      ...lagCalendar.diagnostics,
-      ...duplicateActivityIdDiagnostics,
-      ...baselines.diagnostics,
-      ...baselineTasks.diagnostics,
-    ],
-  };
+  return {calendars,calendarDiagnostics};
 }
 
 /** Baseline TASK rows by activity ID (task_code) within each chosen baseline.
@@ -1273,6 +1290,32 @@ function canonicalScheduleFromPrimaveraXmlRead(
     }
   }
 
+  // Calendar working time in the shared P6 calendar model: the same
+  // assessment, base-calendar inheritance and canonical calendar as XER.
+  const calendarIntegrity=assessP6Calendars((result.calendars??[]).flatMap(calendar=>{
+    if(!calendar.objectId)return [];
+    const conversionDiagnostics:string[]=[];
+    return [{calendarId:calendar.objectId,baseCalendarId:calendar.baseCalendarObjectId,name:calendar.name,
+      definitionPresent:calendar.data!==null,data:calendar.data,
+      conversionDayHours:statedConversionHours([{key:'HoursPerDay',raw:calendar.hoursPerDayRaw}],conversionDiagnostics),
+      conversionWeekHours:statedConversionHours([{key:'HoursPerWeek',raw:calendar.hoursPerWeekRaw}],conversionDiagnostics),
+      conversionDiagnostics}];
+  }));
+  // P6 XML states no P6-dated reconciliation input; stated working time only.
+  const {calendars,calendarDiagnostics}=canonicalCalendarsFromP6(calendarIntegrity,new Map(),"primavera_xml","Calendar:");
+  // An activity without CalendarObjectId takes its project's stated default
+  // activity calendar (Project.ActivityDefaultCalendarObjectId), only when
+  // that calendar is in the file; the link is labelled on the activity.
+  const calendarIds=new Set(calendars.map(calendar=>calendar.calendarId));
+  const projectDefaultCalendar=new Map<string|null,string|null>();
+  for(const project of result.projects){
+    const id=project.activityDefaultCalendarObjectId??null;
+    projectDefaultCalendar.set(project.objectId,id&&calendarIds.has(id)?id:null);
+  }
+  const defaultCalendarFor=(projectObjectId:string|null):string|null=>
+    projectObjectId!==null&&projectDefaultCalendar.has(projectObjectId)?projectDefaultCalendar.get(projectObjectId)!
+      :result.projects.length===1?projectDefaultCalendar.get(result.projects[0]!.objectId)??null:null;
+
   const activities: CanonicalScheduleActivity[] =
     result.activities.flatMap((activity) => {
       if (!activity.id) return [];
@@ -1307,7 +1350,7 @@ function canonicalScheduleFromPrimaveraXmlRead(
           name: activity.name,
           wbsId: activity.wbsObjectId,
           calendarId:
-            activity.calendarObjectId,
+            activity.calendarObjectId??defaultCalendarFor(activity.projectObjectId),
           activityType: type.type,
           status: normalizeActivityStatus(
             rawField(activity.raw, [
@@ -1401,6 +1444,9 @@ function canonicalScheduleFromPrimaveraXmlRead(
           ],
           diagnostics: [
             ...activity.diagnostics,
+            ...(!activity.calendarObjectId&&defaultCalendarFor(activity.projectObjectId)
+              ? ["P6XML_ACTIVITY_CALENDAR_FROM_PROJECT_DEFAULT:"+defaultCalendarFor(activity.projectObjectId)]
+              : []),
             ...(type.inferredFromZeroDuration
               ? [
                   "SCHEDULE_ACTIVITY_TYPE_INFERRED_ZERO_DURATION",
@@ -1475,7 +1521,9 @@ function canonicalScheduleFromPrimaveraXmlRead(
     activities,
     relationships,
     wbs: [],
-    calendars: [],
-    diagnostics: [...result.diagnostics,...lagCalendar.diagnostics],
+    calendars,
+    diagnostics: [...result.diagnostics,...calendarDiagnostics,
+      ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
+      ...lagCalendar.diagnostics],
   };
 }

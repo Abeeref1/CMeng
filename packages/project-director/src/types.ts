@@ -43,10 +43,18 @@ export interface VariationRecord extends MoneyValue, SourceAnalyticalLabel {
   state: "pending" | "approved" | "rejected";
 }
 
+/** R12: which register column a certified amount was read from: a Gross
+ * Certified column, a Net Certified / Net Payable column, or a plain Certified
+ * Amount column that names neither. */
+export type CertifiedAmountColumn = "gross" | "net" | "unstated";
+
 export interface InvoiceRecord extends SourceAnalyticalLabel {
   invoiceId: string;
   currency: string;
   certifiedAmount: number | null;
+  /** R12 (additive): the column certifiedAmount came from. Records stored
+   * before this field existed lack it and are read as "unstated". */
+  certifiedAmountColumn?: CertifiedAmountColumn;
   paidAmount: number | null;
   certificateDateIso?: string | null;
   paymentDateIso?: string | null;

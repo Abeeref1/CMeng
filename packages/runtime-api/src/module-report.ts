@@ -247,6 +247,30 @@ function styleHeader(
 
 // Columns the report itself adds to nested tables (see report-tables.ts).
 const nestedColumnLabels:Record<string,string>={parentPointer:'Parent record location',sourcePointer:'Record location',parentReference:'Parent record'};
+/** R12: a field whose display label its own record states (the certified figure is
+ * labelled by the register column it came from, never "gross" for a net column).
+ * The column key is unchanged; only the reader heading uses the record's label. */
+const RECORD_FIELD_LABELS:Record<string,string>={grossCertifiedAmount:'grossCertifiedAmountLabel'};
+function recordFieldHeadings(records:Iterable<unknown>):Map<string,string>{
+  const labels=new Map<string,Set<string>>();
+  for(const entry of records){
+    const record=(entry&&typeof entry==='object'&&'record' in (entry as any)&&'sourcePointer' in (entry as any)?(entry as any).record:entry) as any;
+    if(!record||typeof record!=='object')continue;
+    for(const [field,labelField] of Object.entries(RECORD_FIELD_LABELS)){
+      const text=record[labelField];
+      if(field in record&&typeof text==='string'&&text.trim()){const set=labels.get(field)??new Set<string>();set.add(text.trim());labels.set(field,set);}
+    }
+  }
+  return new Map([...labels].map(([field,set])=>[field,[...set].join(' / ')]));
+}
+/** Heading of one flat column key: a record-stated field label replaces the field name. */
+function columnHeading(key:string,stated:Map<string,string>,fallback:(key:string)=>string):string{
+  // Nested rows are written as {record:{...}}; their field keys start with "record.".
+  const parts=key.split('.'),at=parts[0]==='record'&&stated.has(parts[1]??'')?1:0,own=stated.get(parts[at]??'');
+  if(!own)return fallback(key);
+  const rest=parts.slice(at+1).join('.');
+  return (at?'Record · ':'')+(rest?own+' · '+readablePathLabel(rest).replace(/^[A-Z](?![A-Z])/,c=>c.toLowerCase()):own);
+}
 const EXCEL_DATA_ROWS=1_048_575; // One header plus data must fit a worksheet.
 function flatArrayRow(row:unknown):Record<string,FlatValue> {
  if(!(row&&typeof row==='object'&&!Array.isArray(row)))return {value:primitiveValue(row)};
@@ -280,7 +304,8 @@ async function addArraySheet(
   // T10 X1 (W1): one heading per column, never two alike ('dataDate' and
   // 'dataDateIso' both read 'Data date'); each column's field key is kept on
   // the field-key sheet so the data stays machine-readable.
-  const headings=uniqueHeadings(headers.map(key=>nestedColumnLabels[key]??(readablePathLabel(key)||key)));
+  const stated=recordFieldHeadings(reportArrayRows(section));
+  const headings=uniqueHeadings(headers.map(key=>nestedColumnLabels[key]??columnHeading(key,stated,key=>readablePathLabel(key)||key)));
   const open=()=>{
     const name=worksheetName(base,usedNames);
     const sheet=workbook.addWorksheet(name,{views:[{state:'frozen',ySplit:1}]});
@@ -640,10 +665,10 @@ export function preparedModuleResult(result:ModuleRuntimeResult,view?:ModuleRepo
   if(!view?.filters||!Object.values(view.filters).some(Boolean))return result;
   return {...result,data:applyModuleFilters(result.data,view.filters) as any};
 }
-function analysisColumns(rows:Record<string,FlatValue>[]):Column[]{
+function analysisColumns(rows:Record<string,FlatValue>[],stated:Map<string,string>=new Map()):Column[]{
   const keys:string[]=[];const seen=new Set<string>();for(const row of rows)for(const key of Object.keys(row))if(!seen.has(key)){seen.add(key);keys.push(key);}
   return keys.map(key=>{const values=rows.map(r=>r[key]).filter(v=>v!==null),sample=values[0];const type:Column['type']=typeof sample==='number'?'number':typeof sample==='boolean'?'boolean':typeof sample==='string'&&/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(sample)?'date':'text';
-    return {key,label:readableFieldLabel(key),type,unit:null,aggregate:'none',dimension:type==='text'};});
+    return {key,label:columnHeading(key,stated,readableFieldLabel),type,unit:null,aggregate:'none',dimension:type==='text'};});
 }
 function reportEvidenceState(value:unknown,fallback:EvidenceState):EvidenceState{
   const state=String(value??'').toLowerCase();
@@ -704,7 +729,7 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
     metrics:metricRows.map(([key,value],i)=>{const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);return {id:'module.'+key,label:readablePathLabel(key),value:value as Cell,unit:contract?.unit??null,state,classification:['source','submitted','official'].includes(String(contract?.authority))?'project_fact':'calculated_intelligence',traceId:'module:metric:'+key,basis:reportMetricBasis(contract)};}),
     tables:[],charts:[],findings:[],traces:[{id:'module:summary',authorityId:'summary',projectId,module:moduleKey,path:'data',sourceRefs:[],dataDate,basis:'Canonical ModuleRuntimeResult; presentation does not recalculate Project facts.',exclusions:[],state:authorityState},...metricTraces]});
-  arrays.forEach((section,index)=>{const flatRows=Array.from(reportArrayRows(section),flatArrayRow),columns=analysisColumns(flatRows),tableId='module-table-'+index;
+  arrays.forEach((section,index)=>{const flatRows=Array.from(reportArrayRows(section),flatArrayRow),columns=analysisColumns(flatRows,recordFieldHeadings(reportArrayRows(section))),tableId='module-table-'+index;
     const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
     const charts:AnalysisChart[]=!section.nested&&category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:readablePathLabel(section.path),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+readablePathLabel(section.path)+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
     sections.push({authorityId:'table-'+index,title:readablePathLabel(section.path),state:authorityState,explanation:'Same retained module population at '+readablePathLabel(section.path)+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+readablePathLabel(section.path)+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
