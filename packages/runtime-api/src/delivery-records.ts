@@ -1,7 +1,7 @@
 import {boqItemContinuity} from './boq-item-continuity';
 import {createHash,randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {sourceTables,cell,canonicalHeader,registerDate,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
+import {sourceTables,cell,canonicalHeader,registerDate,sourceCandidateHold,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
 import {deliveryKinds,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
@@ -107,8 +107,18 @@ export function deliveryRecords(state:ProjectRuntimeState){
  if(!continuity){continuity=new Map<string,string>();const currentBoq=resolveBoqSource(state,'').boq;if(currentBoq){const currentItems=currentBoq.canonicalItems.map(i=>({...i,id:i.itemId}));for(const previous of state.boqRevisions)for(const [oldId,newId]of boqItemContinuity(previous.canonicalItems.map(i=>({...i,id:i.itemId})),currentItems))continuity.set(oldId,newId);}boqContinuityCache.set(state,{version:state.version,mapping:continuity});}
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
  for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
+ // T04 one rule: an unreviewed record read from a candidate document becomes
+ // current only when the shared candidate rule admits that document (fully
+ // parsed, no review needed, the only candidate of its family, no adopted
+ // document of that family). Otherwise it stays a candidate awaiting a choice.
+ const candidateHold=sourceCandidateHold(state.evidenceDocuments);
+ const documentById=new Map(state.evidenceDocuments.map(d=>[d.documentId,d]));
  for(const r of records){
   const decision=latest.get(r.recordId);
+  if(r.state==='extracted_candidate'&&!decision){
+   const held=[...new Set(r.receipts.map(receipt=>{const d=documentById.get(receipt.documentId);return d?candidateHold(d):null;}).filter(Boolean))];
+   if(held.length)r.diagnostics.push('Source document is a candidate held for review ('+held.join(', ')+'). Not used as current until the source is chosen or adopted.');
+  }
   if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical')));}
   r.links={...emptyLinks(),...r.links};
   if(r.links.boqItemIds.some(id=>continuity!.has(id)&&continuity!.get(id)!==id))r.diagnostics.push('BOQ links carried to the active revision by unique item number, section, description and unit.');

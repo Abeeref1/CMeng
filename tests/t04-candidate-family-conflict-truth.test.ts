@@ -9,9 +9,13 @@ import {sourceTables,governedTables} from '../packages/truth-kernel/src';
 function file(dir:string,id:string,amount:number,family:string,state:'candidate'|'active'|'additive'|'superseded'='candidate'){
  const bytes=Buffer.from('invoice id,amount,currency,status\n'+id+','+amount+',SAR,open\n');
  const storedPath=join(dir,id+'.csv');writeFileSync(storedPath,bytes);
+ // A stored document always records its parser and review state; a stored
+ // candidate with no parserState cannot exist, so the fixture states the
+ // clean, fully parsed reading these tests describe.
  return {documentId:id,sourceHashSha256:createHash('sha256').update(bytes).digest('hex'),
   storedPath,sourceFilename:id+'.csv',mediaType:'text/csv',basisState:state,
-  linkedArtifactId:null,uploadedAt:'2031-04-01',familyKey:family,documentType:'payment_register'} as any;
+  linkedArtifactId:null,uploadedAt:'2031-04-01',familyKey:family,documentType:'payment_register',
+  parserState:'parsed',identification:{needsReview:false},lineage:{needsReview:false},supersededByDocumentId:null} as any;
 }
 test('T04 two conflicting candidate revisions of one source family are never silently combined as current numbers',()=>{
  const dir=mkdtempSync(join(tmpdir(),'t04-source-family-'));
