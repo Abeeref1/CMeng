@@ -121,7 +121,7 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope,plan?:Analysis
   if(intelligence.longLead.length)b.table('long-lead-candidates','Candidate long-lead items',intelligence.longLead,'Professional long-lead screening of actual BOQ scope. Priority is advisory; confirmed supplier lead time and latest order date require Project/supplier evidence.',{...overrides,packageCandidate:{label:'Candidate package',dimension:true},procurementPriority:{label:'Professional priority',dimension:true},amount:{unit:'row currency'}});
   const drivers=intelligence.topCostDrivers.flatMap(group=>group.items.map((row,index)=>({rank:index+1,...row})));
   if(drivers.length)b.table('top-cost-drivers','Top cost drivers by currency',drivers,'Top 20 readable BOQ line amounts within each currency. No exchange rate is assumed across currencies.',{...overrides,rank:{type:'number'},amount:{unit:'row currency'},discipline:{dimension:true},zone:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true}});
-  if(intelligence.risks.length)b.table('candidate-risks','BOQ-derived candidate management risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
+  if(intelligence.risks.length)b.table('candidate-risks','Candidates from BOQ wording, not risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
   if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ items are readable. CMeng has also classified the scope it can support from the BOQ itself: '+intelligence.coverage.discipline+' discipline-classified items, '+intelligence.coverage.location+' location-classified items, '+intelligence.packages.length+' candidate packages and '+intelligence.longLead.length+' candidate long-lead items. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This BOQ source is awaiting confirmation.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
@@ -150,7 +150,8 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
         :key==='construction-locations'
           ?p.records.filter(r=>['workfront','location'].includes(r.kind)&&!['superseded','scenario'].includes(r.state)).length
           :0;
-  const useBoqCandidates=governedRows.length===0&&candidateRows.length>0&&relevantSourceRecords===0;
+  // SW-32: Ask follows the Delivery Risks rule; BOQ wording never becomes the risk list, counts or position.
+  const useBoqCandidates=key!=='delivery-risks'&&governedRows.length===0&&candidateRows.length>0&&relevantSourceRecords===0;
   const state=useBoqCandidates?'candidate':evidenceState(result.status);
   const explanation=useBoqCandidates?'No current confirmed '+title.toLowerCase()+' register is available, so CMeng is showing useful scope intelligence derived from the BOQ. Candidate classifications are clearly separated from actual supplier/status records.':result.reason??'';
   const b=new AuthorityBuilder(id,title,key,scope,state,explanation);

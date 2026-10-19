@@ -147,7 +147,7 @@ test('Delivery follows the latest submitted programme while undated updates rema
 test('BOQ-only projects expose scope, procurement, long-lead, material and risk intelligence before specialist registers exist',async t=>{
  const f=await fixture(t);
  await f.upload('BOQ.csv','Item No,Description,Unit,Quantity,Rate,Amount,Currency\n1,Tower A Zone 2 Level 05 Electrical Switchgear,No.,2,1000000,2000000,AED\n2,Tower A Zone 2 Level 05 Fire Alarm Panel,No.,4,10000,40000,AED');
- const keys=['procurement-packages','long-lead','material-tracking','construction-discipline','construction-locations','delivery-risks'];
+ const keys=['procurement-packages','long-lead','material-tracking','construction-discipline','construction-locations'];
  for(const key of keys){
   const r=deliveryModule(f.state,key),data=r.data as any;
   assert.ok(data.rows.length>0,key+' should answer from the useful Project information already available');
@@ -158,8 +158,10 @@ test('BOQ-only projects expose scope, procurement, long-lead, material and risk 
  assert.ok(packages.some((r:any)=>/Switchgear/.test(r.system)&&r.procurementPriority==='Critical'));
  const material=(deliveryModule(f.state,'material-tracking').data as any).rows;
  assert.ok(material.some((r:any)=>/Tower A/.test(r.location)&&/Zone 2/.test(r.location)&&/05/.test(r.location)));
- const risks=(deliveryModule(f.state,'delivery-risks').data as any).rows;
- assert.ok(risks.some((r:any)=>r.category==='procurement'&&r.probability==='Not established'));
+ // SW-32: BOQ wording is never the risk list; it stays in the labelled candidate list, never counted.
+ const riskPage=deliveryModule(f.state,'delivery-risks'),risks=riskPage.data as any;
+ assert.equal(risks.rows.length,0);assert.equal(riskPage.status,'blocked');assert.match(String(riskPage.reason),/No risk register read/);
+ assert.ok(risks.derivedRiskCandidates.some((r:any)=>r.category==='procurement'&&r.probability==='Not established'&&r.candidateGroup==='Candidates from BOQ wording, not risks'));
 });
 
 test('register imports remain candidates but clean source facts are immediately visible with authority kept separate',async t=>{
