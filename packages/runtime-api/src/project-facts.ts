@@ -22,6 +22,10 @@ import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {dateAdditionBasisLabel} from './commercial-sum-basis';
+import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
+import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
+import {contractTimeDatesFrom} from './contract-time-reader';
+import {extractContractLdTerms} from '../../contract-commercial/src';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -45,6 +49,9 @@ export interface ProjectFactsSnapshot {
   projectVersion:number;
   dataDateIso:string|null;
   programmeQuality?:ReturnType<typeof pmcScheduleRules>;
+  /** F46: repeated trade chains, their remaining assigned hours, stated capacity,
+   * shortfall and completion effect (one shared calculation with the Resources page). */
+  resources?:{tradeChains:ReturnType<typeof tradeChainFacts>};
   contractSections?:ReturnType<typeof projectContractSections>;
   actions:{openCount:ProjectFact<number>;recordCount:ProjectFact<number>;reviewCount:ProjectFact<number>};
   schedule:{
@@ -71,6 +78,8 @@ export interface ProjectFactsSnapshot {
     contractualCompletionIso:ProjectFact<string>;
     awardedEotDays:ProjectFact<number>;
     extendedContractCompletionIso:ProjectFact<string>;
+    /** F33: the one date lateness and delay damages are measured against. */
+    governingContractCompletionIso?:ProjectFact<string>;
     submittedDaysAfterExtendedCompletion?:ProjectFact<number>;
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
@@ -87,7 +96,7 @@ export interface ProjectFactsSnapshot {
     expiredPermitCount?:ProjectFact<number>;
   };
   claims:{
-    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;basis:string};
+    pipeline?:{rows?:Array<{claimId:string;state:string;claimedDays:number|null;assessedDays:number|null}>;recordCount:number;claimedDays:number|null;assessedDays:number|null;pendingCount:number;pendingAssessedDays:number|null;pendingScenarioCompletionIso:string|null;pendingEotScenario?:PendingEotScenario|null;basis:string};
     eventDateMissingCount:ProjectFact<number>;
     noticeDateMissingCount:ProjectFact<number>;
     noticeRequirementMissingCount:ProjectFact<number>;
@@ -123,11 +132,36 @@ export interface ProjectFactsSnapshot {
       certifiedUnpaidAmount:ProjectFact<number>;
       advanceBalance:ProjectFact<number>;
       activeBondAmount:ProjectFact<number>;
+      /** F20: summary of the shared dated cash series (commercial position datedCashSeries). */
+      cashSeries?:{
+        periodCount:number;latestActualPeriod:string|null;
+        latestPeriod:{period:string;certified:number|null;paid:number|null;sourceRefs:string[]}|null;
+        certifiedToDate:number|null;paidToDate:number|null;
+        forecastBasis:string;forecastBasisLabel:string;forecastReason:string|null;
+        nextForecastPeriod:string|null;nextForecast:{forecastIncome:number|null;forecastExpenditure:number|null}|null;
+        forecastIncomeTotal:number|null;forecastExpenditureTotal:number|null;
+      };
     }>;
   };
 }
 
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+
+/** F20: the brief and every page read one dated cash series; this is its summary per currency. */
+function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|undefined,currency:string){
+  const row=series?.currencies.find(c=>c.currency===currency);
+  if(!row)return {};
+  const actual=row.periods.filter(p=>p.certified!==null||p.paid!==null);
+  const latest=actual.at(-1)??null,next=row.nextForecastPeriod?row.periods.find(p=>p.period===row.nextForecastPeriod)??null:null;
+  return {cashSeries:{
+    periodCount:row.periods.length,latestActualPeriod:row.latestActualPeriod,
+    latestPeriod:latest?{period:latest.period,certified:latest.certified,paid:latest.paid,sourceRefs:latest.sourceRefs.slice(0,10)}:null,
+    certifiedToDate:row.certifiedToDate,paidToDate:row.paidToDate,
+    forecastBasis:row.forecastBasis,forecastBasisLabel:row.forecastBasisLabel,forecastReason:row.forecastReason,
+    nextForecastPeriod:row.nextForecastPeriod,nextForecast:next?{forecastIncome:next.forecastIncome,forecastExpenditure:next.forecastExpenditure}:null,
+    forecastIncomeTotal:row.forecastIncomeTotal,forecastExpenditureTotal:row.forecastExpenditureTotal,
+  }};
+}
 
 function fact<T>(
   value:T|null,
@@ -315,8 +349,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         (commercial.timeExposure.officialAdjustedCompletion.value!==null?extensionBasis(commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value,'contract completion'):''),true);
   // Never call a project late against the original date when an award exists
   // but the extended date cannot yet be calculated.
-  const currentContractCompletion=extendedCompletion??(
-    officialAward!==null&&officialAward>0?null:commercial.timeExposure.contractualCompletion.value);
+  const currentContractCompletion=contractTimeDatesFrom(commercial.timeExposure).governingCompletionIso;
   const forecastGate=model&&independentForecast?buildForecastReconciliationGate({
     model,forecast:independentForecast,
     requiredFinishIso:currentContractCompletion
@@ -324,6 +357,14 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
     ?independentForecast?.independentForecastCompletionIso??null:null;
   const calendarDifference=(finish:string|null|undefined,target:string|null)=>finish&&target?(Date.parse(finish.slice(0,10))-Date.parse(target.slice(0,10)))/86400000:null;
+  // F33: one shared governing date (contract + awarded EOT; never the original
+  // date while an award exists but the extended date is unknown).
+  const governingCompletion=fact(currentContractCompletion,
+    extendedCompletion?'Contract completion including the awarded EOT; lateness and delay damages are measured against it.':'Contract completion; no awarded EOT is recorded.',
+    'calculated_with_stated_basis',currentContractCompletion!==null&&(extendedCompletion?commercial.timeExposure.officialAdjustedCompletion.state==='established':commercial.timeExposure.contractualCompletion.state==='established'));
+  const pendingScenario=pendingEotScenario({model,cpmPublishable:independentFinish!==null,governingCompletionIso:currentContractCompletion,
+    pendingCount:pendingClaims.length,pendingAssessedDays,ldTerms:scoped.contract?extractContractLdTerms(scoped.contract):null,
+    ...(scoped.controls?.contractValue?{contractValue:scoped.controls.contractValue}:{})});
 
   // T04: the shared source-analytical rule; wording read only from an
   // unadopted amendment is quoted with its label, never as adopted text.
@@ -363,7 +404,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     projectVersion:state.version,
     dataDateIso,
     actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
-    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value),
+    resources:{tradeChains:tradeChainFacts(tradeChainResourcesForState(scoped))},
+    programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
+      {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null}),
     contractSections:projectContractSections(scoped,commercial.timeExposure.contractualCompletion.value,commercial.timeExposure.officialAdjustedCompletion.value),
     schedule:{
       floatBasis,
@@ -437,6 +480,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         'Official awarded EOT through the project Data Date.',
       ),
       extendedContractCompletionIso:presentedExtension,
+      governingContractCompletionIso:governingCompletion,
     },
     controls:{
       expiredPermitCount:aggregateFact(aggregateCount(permitRows.length?permitRows:null,row=>['not_established','validity_not_established'].includes(row.permitStatus)||row.permitStatus==='expired'&&row.affectsOpenWork===null?null:row.permitStatus==='expired'&&row.affectsOpenWork===true),'Supplied permits whose validity ends before the project Data Date; valid-from and valid-to fields are used without inventing an issue date.'),
@@ -480,7 +524,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     claims:{
       ...(reportedClaims?{pipeline:{rows:reportedClaims.rows.map(row=>({claimId:row.claimId,state:row.sourceStatus||row.state,claimedDays:row.claimedDays,assessedDays:row.assessedDays})),recordCount:reportedClaims.recordCount,claimedDays:reportedClaims.claimedDays.value,assessedDays:reportedClaims.assessedDays.value,
         pendingCount:pendingClaims.length,pendingAssessedDays,
-        pendingScenarioCompletionIso:extendedCompletion&&pendingAssessedDays!==null?new Date(Date.parse(extendedCompletion.slice(0,10))+pendingAssessedDays*86400000).toISOString().slice(0,10):null,
+        // F44: the CMeng CPM scenario; date arithmetic only as its labelled fallback.
+        pendingScenarioCompletionIso:pendingScenario?.scenarioContractCompletionIso??null,pendingEotScenario:pendingScenario,
         basis:'From the supplied register for claim identities evidenced by the Data Date; unconfirmed assessments are not awards. The date scenario assumes every pending assessed day is awarded in addition, with no overlap or duplicate days.'}}:{}),
       eventDateMissingCount:sourceCount(
         noticeGaps.eventDateMissing,
@@ -592,6 +637,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
           row.activeBondAmount,
           'Valid active security amounts only; currencies remain separate.',
         ),
+        ...cashSeriesSummary(commercial.datedCashSeries,row.currency),
       })),
     },
   };
@@ -613,6 +659,8 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const briefCommercialPosition=key==='pmo-analysis'?{currencies:decisions.commercialSummary}:undefined;
   const relevant=['quantity-scurve','quantity-progress','pmo-analysis','schedule-analytics','material-tracking','challenge-contract','delivery-control'];
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
+  // F46: the Resources page shows the same trade-chain calculation as the project facts.
+  const tradeChains=key==='resource-utilization'?tradeChainResourcesForState(scoped):undefined;
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
@@ -620,5 +668,5 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

@@ -64,3 +64,56 @@ test('F51 ranking by consequence: completion first, then money, then safety, the
   assert.equal(safetyAction({recordKey:'risk|K1',owningModule:'delivery-risks'}),false);
   assert.equal(safetyAction({recordKey:'review|x',owningModule:'hse-performance'}),true);
 });
+
+test('F51 activities linked by programme logic are one action per causal chain; every member is listed and reachable',()=>{
+  const state=runtimeProjects.getOrCreate('W9-CHAIN-'+randomUUID());
+  const model:CanonicalScheduleModel={projectId:state.projectId,source:'xer',sourceRevisionId:'CURRENT',dataDateIso:'2031-04-15',activities:[],relationships:[],calendars:[],wbs:[],diagnostics:[]};
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'test',uploadedAt:'2031-04-15',revision:{revisionId:'CURRENT',label:'Current',sequence:1,effectiveAt:'2031-04-15',model}} as ProjectRuntimeState['schedules'][number]);
+  const activity=(id:string,float:number)=>({projectId:state.projectId,activityId:id,nativeId:id,name:'Work '+id,wbsId:null,calendarId:null,activityType:'task',status:'not_started',baselineStartIso:null,baselineFinishIso:null,currentStartIso:'2031-05-01',currentFinishIso:'2031-05-10',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,originalDurationHours:8,remainingDurationHours:8,totalFloatHours:float,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]} as any);
+  model.activities.push(activity('A',-16),activity('B',-8),activity('C',-24),activity('D',-4));
+  const link=(p:string,s:string)=>({relationshipId:p+'-'+s,predecessorActivityId:p,successorActivityId:s,type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]} as any);
+  model.relationships.push(link('A','B'),link('B','C'));
+  state.version++;
+  const p=crossDomainAccountability(state);
+  const chain=p.recordActions.find(a=>a.recordKey?.startsWith('schedule-chain|'))!;
+  // Before: A, B and C were three separate activity actions inside one owner-wide programme group.
+  assert.ok(chain,'one chain action for the linked activities');
+  assert.equal(p.recordActions.filter(a=>a.recordKey?.startsWith('schedule-chain|')).length,1);
+  assert.deepEqual([...chain.memberActionIds!].sort(),['accountability:schedule|A','accountability:schedule|B','accountability:schedule|C']);
+  for(const id of ['A','B','C'])assert.ok(chain.affectedScope.includes(id),'member '+id+' listed in scope');
+  assert.ok(p.recordActions.some(a=>a.actionId==='accountability:schedule|D'),'the unlinked activity keeps its own action');
+  const chainAction=p.actions.find(a=>a.memberActionIds?.includes('accountability:schedule|A'))!;
+  assert.ok(chainAction,'the chain is its own top-level action');
+  assert.match(chainAction.issue,/Recover linked programme work · 3 activities: A, B, C$/);
+  const group=p.ownerGroups.find(g=>g.groupId===chainAction.actionId)!;
+  assert.equal(group.count,3,'the chain counts its three activities');
+  assert.ok(!p.actions.find(a=>a!==chainAction&&a.affectedScope.includes('A')),'a chain member is not repeated in another action');
+  const reachable=new Set(p.ownerGroups.flatMap(g=>g.sourceActionIds));
+  for(const id of ['A','B','C','D'])assert.ok(reachable.has('accountability:schedule|'+id),'activity '+id+' reachable from its group');
+});
+
+test('F30 each missing field is listed once by raw field identity with the control that supplies it',async()=>{
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const state=runtimeProjects.getOrCreate('W9-GAPS-'+randomUUID());
+  const gap=(moduleKey:string,field:string,summary:string,paths:string[])=>({kind:'missing_information' as const,code:'MISSING_SOURCE_VALUE',field,summary,detail:'',action:'Provide the field.',owner:'Project evidence owner' as const,moduleKeys:[moduleKey],evidencePaths:paths,sourceRefs:[],checkIds:[]});
+  const issues=[
+    gap('delivery-risks','risk.ownerName','Risk owner',['risk.ownerName']),
+    gap('hse-performance','hse.exposureHours','HSE exposure hours',['hse.exposureHours']),
+    gap('cost-forecast','commercial.contractValue','Contract value',['commercial.contractValue']),
+  ];
+  const result=projectActions(state,summarizeControlIssues(issues));
+  const rows=[...result.actions,...result.information].flatMap(a=>(a.missingFields??[]).map(row=>({...row,matter:a.id,target:a.target})));
+  const ids=rows.map(r=>r.fieldIdentity);
+  assert.equal(new Set(ids).size,ids.length,'each raw field listed once across the list');
+  // Before: 'Information needed' rows carried no control (only field · file · owner).
+  for(const row of rows)assert.ok(row.supply,'gap '+row.field+' has a control');
+  const risk=rows.find(r=>/owner/.test(r.fieldIdentity!))!;
+  assert.equal(risk.supply!.type,'upload');
+  assert.match((risk.supply as any).documentType,/Risk register/);assert.match((risk.supply as any).field,/owner name/);
+  const hse=rows.find(r=>/exposure/.test(r.fieldIdentity!))!;
+  assert.match((hse.supply as any).documentType,/HSE register/);assert.match((hse.supply as any).uploadHint,/exposure hours column or field/);
+  const value=rows.find(r=>/contractValue/i.test(r.fieldIdentity!))!;
+  assert.deepEqual({type:value.supply!.type,kind:(value.supply as any).kind},{type:'input',kind:'contract-value'},'a typable value is entered inline');
+  assert.equal((value.target as any).kind,'contract-value','the inline input is in the same matter');
+});

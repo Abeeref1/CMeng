@@ -147,6 +147,6 @@ test('F27: elapsed notice days carry the dated trigger they count from',()=>{
 
 test('F27: notice days, actual hours and commercial sums on the page go through the one shared label',()=>{
   assert.equal((script.match(/sumBasisLabel\(\{records:"notice "/g)||[]).length,2,'both notice-day tables');
-  assert.match(script,/"Actual labor hours"[^\n]*sumBasisLabel\(\{records:weekly\?/);
+  assert.match(script,/"Actual labor hours"[^\n]*sumBasisLabel\(\{records:p\.actualHoursBasis==="programme_recorded"\?"programme-recorded \(P6 actual hours\)[^\n]*:weekly\?/);
   assert.match(script,/function sumBasisLabel\(/);
 });

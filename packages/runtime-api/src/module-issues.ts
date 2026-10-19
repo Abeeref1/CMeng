@@ -1,4 +1,4 @@
-import { summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
+import { conditionalNotice, summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
@@ -68,7 +68,11 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     'Identify the comparable submitted value and its date, population and authority, or explicitly mark this comparison not applicable.','challenge');
   const noticeInputsMissing=result.key==='notices-claims'&&integrity?.state==='verified_for_checked_metrics'&&d.noticeEventDateMissingCount>0;
   if(noticeInputsMissing)add('missing_information','NOTICE_TRIGGER_DATES_MISSING','Event dates are needed for notice assessment',
-    d.noticeEventDateMissingCount+' events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
+    // SW-46: "passed the listed checks" only when this module's listed checks actually ran.
+    d.noticeEventDateMissingCount+' events have no event/awareness date. '+conditionalNotice(Array.isArray(integrity?.checks)?integrity.checks.length>0:null,
+      'Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
+      'No listed calculation check is recorded for this module, so population, claimed-day retention and timing arithmetic are not verified.',
+      'The listed calculation checks for this module are not established, so population, claimed-day retention and timing arithmetic are not verified.'),
     'Supply the dated event/awareness evidence and dated claim assessments, then assess each applicable contract rule.','events.eventStartIso');
   const unavailableItems=advisoryDefaultChallenge?[]:challengeItems.filter((i:any)=>i.reconciliationState==='independent_unavailable');
   const classifiedUnavailable=unavailableItems.filter((i:any)=>i.independent?.diagnostics?.some((s:string)=>s.startsWith('COMPARISON_INPUT_REQUIRED:')||s==='SOURCE_AUTHORITY_ONLY'));

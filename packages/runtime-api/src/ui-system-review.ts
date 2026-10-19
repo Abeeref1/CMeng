@@ -129,13 +129,32 @@ function renderRegisterContractQueries(data){
  return '<section class="planning-panel attention"><h4>Contract sum versus source register totals — query required</h4>'+
   '<p>One currency at a time. These source figures exceed the recorded current contract and require reconciliation of scope, duplicates, reporting period and contract authority. CMeng does not silently reduce the source amount or treat the comparison as proof of invalid records.</p>'+table+'</section>';
 }
+// F44: the pending EOT scenario as the CMeng CPM gives it; the date-only
+// sentence appears only as the labelled fallback.
+function renderPendingEotScenario(p){
+  const s=p.pendingEotScenario;
+  if(!s)return p.pendingScenarioCompletionIso?'<p>If all pending assessed days are awarded without overlap, the contract completion moves to <b>'+escapeHtml(planningShortDate(p.pendingScenarioCompletionIso))+'</b> (date arithmetic only).</p>':'';
+  if(s.method==='unavailable')return '<p><b>Pending EOT scenario not established.</b> Missing: '+escapeHtml((s.missingInputs||[]).join('; '))+'.</p>';
+  const date='<b>'+escapeHtml(planningShortDate(s.scenarioContractCompletionIso))+'</b>';
+  if(s.method!=='cmeng_cpm')return '<p>If all pending assessed days are awarded without overlap, the contract completion moves to '+date+'. Date arithmetic only: the CMeng CPM forecast is not publishable, so no lateness or delay-damages effect is given.</p>';
+  const late=d=>typeof d!=='number'?'not established':d>0?fmt(d)+' days late':d<0?fmt(Math.abs(d))+' days early':'on the date';
+  const ld=s.delayDamages||{},money=v=>escapeHtml(String(ld.currency||''))+' '+fmt(v);
+  const ldText=ld.state==='calculated'?' Delay damages: '+money(ld.currentAmount)+' now, '+money(ld.scenarioAmount)+' in the scenario, a reduction of '+money(ld.effectAmount)+'.':' Delay damages effect not calculated: the contract rate, cap or contract value is not established.';
+  return '<p><b>Pending EOT scenario (CMeng CPM).</b> If all pending assessed days are awarded without overlap, the contract completion moves to '+date+'. The CMeng CPM finish '+escapeHtml(planningShortDate(s.cpmCompletionIso))+' is then '+late(s.scenarioDaysLate)+(typeof s.completionFloatHoursAgainstScenario==='number'?' (completion float '+fmt(s.completionFloatHoursAgainstScenario)+' h)':'')+', against '+late(s.currentDaysLate)+' on '+escapeHtml(planningShortDate(s.governingCompletionIso))+' today.'+ldText+'</p>';
+}
+/** F61: a paged claim list states its true total and opens the remaining claims. */
+function claimPipelinePaging(rows){
+  const population=typeof responseListPopulation==='function'?responseListPopulation(rows):null;
+  if(!population||!(population.total>rows.length))return '';
+  return '<p class="source-population">Showing '+fmt(rows.length)+' of '+fmt(population.total)+' claims.</p>'+(typeof sourcePopulationControl==='function'?sourcePopulationControl(rows,'Browse all claims'):'');
+}
 function renderClaimPipeline(data){
   const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
   return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
     ['Claims',p.recordCount,'Identities evidenced by the Data Date'],['Claimed days',p.claimedDays,'From register'],
     ['Assessed days',p.assessedDays,'Register assessments; includes unconfirmed decisions'],['Awarded EOT',facts.time.awardedEotDays.value,'Dated awards'],
     ['Pending claims',p.pendingCount,'Submitted or under review'],['Pending assessed days',p.pendingAssessedDays,'Scenario input; not awarded']
-  ])+(p.pendingScenarioCompletionIso?'<p>If all pending assessed days are awarded without overlap, completion moves to <b>'+escapeHtml(planningShortDate(p.pendingScenarioCompletionIso))+'</b>.</p>':'')+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div></details>':'')+'</section>';
+  ])+renderPendingEotScenario(p)+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div>'+claimPipelinePaging(p.rows)+'</details>':'')+'</section>';
 }
 function uniqueReportingPopulations(populations){
   const groups=new Map();
@@ -281,6 +300,6 @@ function renderDashboardScheduleExceptions(data){
 function renderDashboardTrend(data){
   const rows=data.trend?.points||data.trend?.rows||data.trend?.revisions||[];
   if(!rows.length)return managementPanel('Completion trend','Dated revision history','<p>At least two dated revisions are needed to establish a trend.</p>');
-  return managementPanel('How submitted completion changed','Revision dates and submitted finish dates; calendar recalculation is a separate comparison.',planningDateTrend(rows.map(r=>({...r,dateIso:r.dataDateIso||r.dateIso})),[{key:'sourceForecastCompletionIso',label:'Submitted completion',color:'#4276aa'}]));
+  return managementPanel('How submitted completion changed','Revision dates and submitted finish dates; calendar recalculation is a separate comparison.',planningDateTrend(rows.map(r=>({...r,dateIso:r.dataDateIso||r.dateIso})),[{key:'sourceForecastCompletionIso',label:'Submitted completion',color:'#4276aa'}],contractTimeLines(data)));
 }
 `;

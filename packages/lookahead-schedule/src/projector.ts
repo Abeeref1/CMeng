@@ -11,6 +11,8 @@ import {
 } from "../../schedule-analysis-core/src";
 import type {
   LookAheadActivityRow,
+  DrivingActivityBlocker,
+  DrivingActivityBlockers,
   LookAheadProjection,
   ReadinessDimension,
   ReadinessDimensionKey,
@@ -343,6 +345,50 @@ const readinessAction:Record<ReadinessDimensionKey,string>={
   access:'Resolve site/access/logistics readiness before the affected activities are released.',
 };
 
+/**
+ * F42: one shared rule naming the blockers on each driving activity in the
+ * look-ahead (forward window and overdue backlog). Blockers are:
+ * incomplete predecessors (status not completed, from the programme logic),
+ * readiness dimensions with no source evidence (missing readiness items), and
+ * linked source records still open (state blocked), with their due dates.
+ * Null driving flags (no driving path) give no rows: unknown, not "none".
+ */
+export function drivingActivityBlockers(
+  rows: readonly LookAheadActivityRow[],
+  forwardWindowIds: ReadonlySet<string>,
+  activityById: ReadonlyMap<string, CanonicalScheduleActivity>,
+): DrivingActivityBlockers {
+  const out: DrivingActivityBlocker[] = [];
+  for (const row of rows) {
+    if (row.drivingPath !== true) continue;
+    const incompletePredecessors = row.predecessorIds.flatMap((id) => {
+      const pred = activityById.get(id);
+      if (pred?.status === "completed") return [];
+      return [{ activityId: id, name: pred?.name ?? null, status: pred ? pred.status : "not_in_programme" as const,
+        finishIso: pred ? pred.forecastFinishIso ?? pred.currentFinishIso ?? null : null }];
+    });
+    const dims = row.readiness.dimensions.filter((dim) => dim.key !== "predecessor");
+    const missingReadiness = dims.filter((dim) => dim.state === "unknown").map((dim) => ({ dimension: dim.key, note: dim.note }));
+    const openItems = dims.filter((dim) => dim.state === "blocked").flatMap((dim) => {
+      const records = (dim.records ?? []).filter((record) => record.state === "blocked");
+      return records.length
+        ? records.map((record) => ({ dimension: dim.key, recordId: record.recordId, documentType: record.documentType, dueIso: record.dueIso,
+            owner: record.owner ?? null, note: record.note, sourceRefs: [...record.sourceRefs] }))
+        : [{ dimension: dim.key, recordId: null, documentType: dim.key, dueIso: null, owner: null, note: dim.note ?? "Blocked in the source evidence", sourceRefs: [...dim.sourceRefs] }];
+    });
+    out.push({ activityId: row.activityId, name: row.name, startIso: row.startIso, finishIso: row.finishIso, totalFloatHours: row.totalFloatHours,
+      inForwardWindow: forwardWindowIds.has(row.activityId), incompletePredecessors, missingReadiness, openItems,
+      blockerCount: incompletePredecessors.length + missingReadiness.length + openItems.length });
+  }
+  return {
+    basis: "independent_driving_path",
+    formula: "For each look-ahead activity on the driving path: blockers = predecessors not completed + readiness dimensions with no source evidence + linked source records still open (with due date); blocked when blockers > 0",
+    drivingActivityCount: out.length,
+    blockedDrivingActivityCount: out.filter((row) => row.blockerCount > 0).length,
+    rows: out,
+  };
+}
+
 export function buildLookAheadProjection(
   model: CanonicalScheduleModel,
   input: {
@@ -618,6 +664,7 @@ export function buildLookAheadProjection(
     missedStartCount: overdueBacklogRows.filter(row => row.missedPlannedStart).length,
     evidenceGapActivityCount: forwardWindowRows.filter(row => row.readiness.unknownCount > 0).length,
     blockedWithEvidenceGapCount: forwardWindowRows.filter(row => row.readiness.state === "blocked" && row.readiness.unknownCount > 0).length,
+    ...(drivingIds?{drivingBlockers:drivingActivityBlockers(rows,new Set(forwardWindowRows.map(row=>row.activityId)),activityById)}:{}),
     blockerOccurrenceCount: forwardWindowRows.reduce((sum, row) => sum + row.readiness.blockedCount, 0),
     blockerTypes: summarizeReadinessBlockers(forwardWindowRows),
     readinessCoverage: READINESS_KEYS.map(key => {

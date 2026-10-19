@@ -1,10 +1,12 @@
-import { cell, has, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
+import { canonicalHeader, cell, has, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { StoredEvidenceDocument } from './project-state-types';
 export interface WeeklyResourceCapacityPoint {
   resourceId: string; resourceName: string | null; weekStartIso: string | null;
   resourceClass: string; availableCapacity: number | null; plannedDemand: number | null;
   actualApprovedUsage: number | null; forecastDemand: number | null;
-  sourceAvailableCapacity?:number|null;capacityAuthority?:'approved_source'|'source_unconfirmed';
+  sourceAvailableCapacity?:number|null;capacityAuthority?:'approved_source'|'source_unconfirmed'|'stated_not_approved';
+  /** Capacity used for utilization ratios: approved capacity, or capacity stated by a register that has no approval column (labelled stated, not approved). Overload and gap verdicts use availableCapacity (approved only). */
+  utilizationCapacity?:number|null;
   unit: string | null; sourceRef: string; receipts: SourceReceipt[];
 }
 export interface ResourceMasterRecord {
@@ -21,7 +23,7 @@ export interface WeeklyResourceCapacitySummary {
   masterResources: ResourceMasterRecord[]; approvedActualUsageRowCount: number;
   assignmentTimephaseRowCount: number; monthlySummaryRowCount: number;
   dataDateIso: string | null; plannedAverageToDataDate: number | null; actualAverageToDataDate: number | null;
-  resourceSummaries: Array<{ resourceId: string; resourceName: string | null; resourceClass: string; unit: string | null; periodCount: number; plannedPeriodCountToDataDate: number; actualPeriodCountToDataDate: number; plannedOverloadOccurrences: number; actualOverloadOccurrencesToDataDate: number; plannedUtilizationPercent: number | null; actualUtilizationPercent: number | null; peakPlannedPercent?:number|null;peakActualPercentToDataDate?:number|null;worstActualWeekIso?:string|null }>;
+  resourceSummaries: Array<{ resourceId: string; resourceName: string | null; resourceClass: string; unit: string | null; periodCount: number; plannedPeriodCountToDataDate: number; actualPeriodCountToDataDate: number; plannedOverloadOccurrences: number; actualOverloadOccurrencesToDataDate: number; plannedUtilizationPercent: number | null; actualUtilizationPercent: number | null; capacityBasis?:'approved_source'|'stated_not_approved'|'mixed'|'not_established'; peakPlannedPercent?:number|null;peakActualPercentToDataDate?:number|null;worstActualWeekIso?:string|null }>;
   futureCapacityPeaks?:Array<{resourceId:string;resourceName:string|null;unit:string|null;weekStartIso:string|null;required:number;available:number;gap:number;sourceRef:string}>;
   reconciliation: Array<{ metric: string; reported: number | null; computed: number | null; state: 'matched' | 'conflicted' | 'unresolved'; receipt: SourceReceipt }>;
   aggregationMethod?: string;
@@ -33,12 +35,20 @@ export interface WeeklyResourceCapacitySummary {
     planned: {comparableCount:number;exceededCount:number;resourceCount:number};
     actual: {comparableCount:number;exceededCount:number;resourceCount:number};
   };
+  utilizationCapacityBasis?:'approved_source'|'stated_not_approved'|'mixed'|'not_established';
   diagnostics: string[];
 }
 const n = (row: SourceRow, ...names: string[]) => numberValue(cell(row, ...names));
 /** Recorded (actual) hours are supplied under several register headings; all mean hours used in the period. */
 const ACTUAL_HOURS_HEADERS = ['actual approved usage','actual hours','actual manhours','actual man-hours','actual man hours','actual labor hours','actual labour hours','recorded hours'];
 const hasActualColumn = (t: SourceTable) => ACTUAL_HOURS_HEADERS.some(h => has(t,h));
+const CAPACITY_APPROVAL_HEADERS = ['capacity approval','approval status','available capacity approval','capacity authority'];
+const approvalKeys = () => CAPACITY_APPROVAL_HEADERS.map(h => canonicalHeader(h));
+const uc = (p: WeeklyResourceCapacityPoint): number | null => p.utilizationCapacity ?? null;
+function capacityBasisOf(rows: WeeklyResourceCapacityPoint[]): 'approved_source'|'stated_not_approved'|'mixed'|'not_established' {
+  const used = rows.filter(p => uc(p) !== null), stated = used.filter(p => p.capacityAuthority === 'stated_not_approved').length;
+  return !used.length ? 'not_established' : !stated ? 'approved_source' : stated === used.length ? 'stated_not_approved' : 'mixed';
+}
 const masterClass = (s: string): string => /^(labor|labour)$/i.test(s) ? 'labor' : /^(equipment|nonlabor|nonlabour)$/i.test(s) ? 'equipment' : /^(material|mat)$/i.test(s) ? 'material' : 'unknown';
 const unitClass = (unit: string): string => /^(labor_hour|labour_hour)$/i.test(unit) ? 'labor' : unit === 'equipment_hour' ? 'equipment' : 'unknown';
 function key(row: SourceRow): string { return [cell(row,'resource id'), dateValue(cell(row,'week start','period start')), cell(row,'unit','uom')].join('|'); }
@@ -112,15 +122,19 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       usage = null;
     }
     const capacity = n(r,'available capacity'), demand = n(r,'planned demand');
-    const capacityApproved=/^(approved|confirmed|authorised|authorized)$/i.test(
-      cell(r,'capacity approval','approval status','available capacity approval','capacity authority'));
+    const capacityApproved=/^(approved|confirmed|authorised|authorized)$/i.test(cell(r,...CAPACITY_APPROVAL_HEADERS));
+    // A register with no approval column states capacity without an approval process: use it for utilization,
+    // labelled stated, not approved. A register that has an approval column and does not say approved keeps it out.
+    const approvalColumn = approvalKeys().some(k => Object.prototype.hasOwnProperty.call(r.cells, k));
     const valid = !unitConflict && unit !== null && resolvedClass !== 'unknown';
+    const statedCapacity = valid && capacity !== null && capacity >= 0 ? capacity : null;
     // Unclassified resources remain visible, but never join a comparable aggregate.
     points.push({ resourceId:id, resourceName:definition?.name ?? (cell(r,'resource name') || null),
       resourceClass:resolvedClass, weekStartIso:dateValue(cell(r,'week start','period start')),
-      sourceAvailableCapacity:valid && capacity !== null && capacity >= 0 ? capacity : null,
-      capacityAuthority:capacityApproved?'approved_source':'source_unconfirmed',
-      availableCapacity:valid && capacityApproved && capacity !== null && capacity >= 0 ? capacity : null,
+      sourceAvailableCapacity:statedCapacity,
+      capacityAuthority:capacityApproved?'approved_source':!approvalColumn&&statedCapacity!==null?'stated_not_approved':'source_unconfirmed',
+      availableCapacity:capacityApproved ? statedCapacity : null,
+      utilizationCapacity:capacityApproved || !approvalColumn ? statedCapacity : null,
       plannedDemand:valid && demand !== null && demand >= 0 ? demand : null,
       actualApprovedUsage:valid && usage !== null && usage >= 0 ? usage : null,
       forecastDemand:valid ? n(r,'forecast demand') : null, unit,
@@ -138,7 +152,7 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
   const cutoff = dataDateIso ? dateValue(dataDateIso) : null;
   const toDate = cutoff ? points.filter(p=>p.weekStartIso!==null && p.weekStartIso<=cutoff) : [];
   const mean = (rows: WeeklyResourceCapacityPoint[], field:'plannedDemand'|'actualApprovedUsage') => {
-    const rates = rows.map(p=>ratio(p[field],p.availableCapacity)).filter((v):v is number=>v!==null);
+    const rates = rows.map(p=>ratio(p[field],uc(p))).filter((v):v is number=>v!==null);
     return rates.length ? round(rates.reduce((a,b)=>a+b,0)/rates.length*100) : null;
   };
   if (!cutoff && points.length) diagnostics.push('RESOURCE_DATA_DATE_NOT_ESTABLISHED_AVERAGES_WITHHELD');
@@ -169,16 +183,18 @@ export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenc
       return peak?[{resourceId:peak.resourceId,resourceName:peak.resourceName,unit:peak.unit,weekStartIso:peak.weekStartIso,required:peak.plannedDemand!,available:peak.availableCapacity!,gap:Math.max(0,peak.plannedDemand!-peak.availableCapacity!),sourceRef:peak.sourceRef}]:[];
     }),
     resourceSummaries:[...byResource.values()].map(rows=>({ resourceId:rows[0]!.resourceId,resourceName:rows[0]!.resourceName,resourceClass:rows[0]!.resourceClass,unit:rows[0]!.unit,periodCount:rows.length,
-      ...(()=>{const ranked=(key:'plannedDemand'|'actualApprovedUsage',dated:boolean)=>rows.filter(r=>r.availableCapacity!==null&&r.availableCapacity>0&&r[key]!==null&&(!dated||Boolean(cutoff&&r.weekStartIso&&r.weekStartIso<=cutoff))).sort((a,b)=>b[key]!/b.availableCapacity!-a[key]!/a.availableCapacity!);const plan=ranked('plannedDemand',false)[0],actual=ranked('actualApprovedUsage',true)[0];return {peakPlannedPercent:plan?plan.plannedDemand!/plan.availableCapacity!*100:null,peakActualPercentToDataDate:actual?actual.actualApprovedUsage!/actual.availableCapacity!*100:null,worstActualWeekIso:actual?.weekStartIso??null};})(),
-      plannedPeriodCountToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.plannedDemand!==null&&p.availableCapacity!==null&&p.availableCapacity>0).length,
-      actualPeriodCountToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.actualApprovedUsage!==null&&p.availableCapacity!==null&&p.availableCapacity>0).length,
+      ...(()=>{const ranked=(key:'plannedDemand'|'actualApprovedUsage',dated:boolean)=>rows.filter(r=>uc(r)!==null&&uc(r)!>0&&r[key]!==null&&(!dated||Boolean(cutoff&&r.weekStartIso&&r.weekStartIso<=cutoff))).sort((a,b)=>b[key]!/uc(b)!-a[key]!/uc(a)!);const plan=ranked('plannedDemand',false)[0],actual=ranked('actualApprovedUsage',true)[0];return {peakPlannedPercent:plan?plan.plannedDemand!/uc(plan)!*100:null,peakActualPercentToDataDate:actual?actual.actualApprovedUsage!/uc(actual)!*100:null,worstActualWeekIso:actual?.weekStartIso??null};})(),
+      capacityBasis:capacityBasisOf(rows),
+      plannedPeriodCountToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.plannedDemand!==null&&uc(p)!==null&&uc(p)!>0).length,
+      actualPeriodCountToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.actualApprovedUsage!==null&&uc(p)!==null&&uc(p)!>0).length,
       plannedOverloadOccurrences: rows.filter(p=>p.plannedDemand!==null&&p.availableCapacity!==null&&p.plannedDemand>p.availableCapacity).length,
       actualOverloadOccurrencesToDataDate: rows.filter(p=>cutoff&&p.weekStartIso&&p.weekStartIso<=cutoff&&p.actualApprovedUsage!==null&&p.availableCapacity!==null&&p.actualApprovedUsage>p.availableCapacity).length,
       plannedUtilizationPercent:mean(cutoff?rows.filter(p=>p.weekStartIso!==null && p.weekStartIso<=cutoff):[],'plannedDemand'),actualUtilizationPercent:mean(cutoff?rows.filter(p=>p.weekStartIso!==null && p.weekStartIso<=cutoff):[],'actualApprovedUsage') })),
-    aggregationMethod: "Arithmetic mean of individual known resource-week demand/capacity ratios; positive capacity required. Periods are included by source week start on or before the Data Date. Ratios are not a ratio of mixed-unit totals.",
+    aggregationMethod: "Arithmetic mean of individual known resource-week demand/capacity ratios; positive capacity required. Periods are included by source week start on or before the Data Date. Ratios are not a ratio of mixed-unit totals. Capacity stated by a register without an approval column is used for utilization and labelled stated, not approved; overload and gap verdicts use approved capacity only.",
+    utilizationCapacityBasis: capacityBasisOf(toDate),
     overloadPeriods: { planned: "full_source_horizon", actual: "through_data_date" },
-    plannedComparablePeriodsToDataDate: toDate.filter(p=>p.availableCapacity!==null&&p.availableCapacity>0&&p.plannedDemand!==null).length,
-    actualComparablePeriodsToDataDate: toDate.filter(p=>p.availableCapacity!==null&&p.availableCapacity>0&&p.actualApprovedUsage!==null).length,
+    plannedComparablePeriodsToDataDate: toDate.filter(p=>uc(p)!==null&&uc(p)!>0&&p.plannedDemand!==null).length,
+    actualComparablePeriodsToDataDate: toDate.filter(p=>uc(p)!==null&&uc(p)!>0&&p.actualApprovedUsage!==null).length,
     actualPeriodCoveragePercent: toDate.length ? round(toDate.filter(p=>p.actualApprovedUsage!==null).length/toDate.length*100) : null,
     capacityChecksToDataDate: {
       dateBasis:'Source week start on or before the Data Date; known capacity and usage/demand; each resource-week counted once.',

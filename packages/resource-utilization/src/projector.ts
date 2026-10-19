@@ -342,7 +342,7 @@ function peakRate(
   };
 }
 
-function effectiveCapacity(
+export function effectiveCapacity(
   resource: CanonicalResource,
   dataDateIso: string | null,
 ): {

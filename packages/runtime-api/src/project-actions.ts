@@ -18,6 +18,7 @@ import {deliveryCurrentRecord} from './delivery-records';
 import {pmcRoleOwner} from './action-priority';
 import {contractCompletionPosition} from './contract-completion';
 import {missingValueInputKind,missingValueInputGroup,openMissingValueInputs} from './missing-value-inputs';
+import {missingFieldSupply,type MissingFieldSupply} from './missing-field-supply';
 import {boqPageReviewPendingCount} from './boq-page-review';
 import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
@@ -44,7 +45,7 @@ export interface ProjectAction {
   target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewInputType?:'date';reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string;documentId?:string;sourceHash?:string}>;
-  missingFields?:Array<{field:string;file:string;owner:string}>;
+  missingFields?:Array<{field:string;file:string;owner:string;fieldIdentity?:string;headings?:string[];supply?:MissingFieldSupply}>;
   evidenceSummary?:string[];reviewFingerprint?:string;reviewSourceRefs?:string[];
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
@@ -268,10 +269,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // One choosable decision per commercial record whose adopted value differs
   // from an unadopted source: keep adopted, use the source value, type your
   // own; change or undo later. Saved in reviewDecisions (kept after restart).
+  // T04: a saved decision (category information) goes to the information list.
+  // The register publishes only open decisions as actions; confirm-review also
+  // searches the information list, so change and undo stay reachable.
+  const savedContractDecisions:ProjectAction[]=[];
   for(const key of [...new Set(commercialConflicts.filter(c=>c.against==='adopted'&&c.decisionKey).map(c=>c.decisionKey!))]){
     const group=commercialConflicts.filter(c=>c.decisionKey===key),first=group[0]!,saved=first.decision??null;
     const label=first.kind.replace(/([A-Z])/g,' $1').toLowerCase();
-    actions.push({id:'matter:'+key,category:saved?'information':'confirmation',title:'Choose the '+label+' value for '+first.recordId,owner:'Commercial Manager',recordCount:group.length,
+    (saved?savedContractDecisions:actions).push({id:'matter:'+key,category:saved?'information':'confirmation',title:'Choose the '+label+' value for '+first.recordId,owner:'Commercial Manager',recordCount:group.length,
       reason:'The adopted record ('+first.againstDocumentIds.map(fileOf).join('; ')+') differs from '+group.map(c=>fileOf(c.documentId)).join('; ')+', a source that is not formally adopted. The adopted value is used until you decide.',
       evidenceSummary:[...group.map(c=>'Unadopted source: '+fileOf(c.documentId)),...(saved?['Saved decision: '+saved+(first.enteredValue!=null?' ('+first.enteredValue+')':'')]:[])],
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Keep the adopted value, use the value read from the unadopted source, or enter your own'+(first.numericField?' '+first.numericField:'')+'. You can change or undo this later.',completionRule:'The choice is saved, kept after restart and updates every page.'},
@@ -283,8 +288,6 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // T04: contract terms whose read values disagree, or whose reading is unsure,
   // are decided here with both values, their sources and the effect: pick a
   // read value, enter your own, change or undo. One shared reader applies it.
-  // Saved contract decisions go to the information list, where change and undo stay reachable.
-  const savedContractDecisions:ProjectAction[]=[];
   {
     // T04 (a): the contractual completion date, same decision place and controls.
     const item=completionDecisionItem(state);
@@ -397,6 +400,10 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     (saved?information:actions).push(item);
   }
   const riskValidation=operationalControlsAsOf(state,projectControlSchedule(state)?.revision.model.dataDateIso??null).risk.validation;
+  // F30: each missing field is listed once across the whole list, by its raw
+  // field identity, with the control that supplies it. A later matter that
+  // concerns the same field keeps the finding but does not list it again.
+  const listedGapFields=new Set<string>();
   for(const {group,issues} of groups.values()){
     // Once a contractual completion date has been explicitly governed, stale
     // missing-only findings must not recreate the same confirmation action.
@@ -426,13 +433,18 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       const file=sourceFiles.join(', ')||(group.key==='programme-information'?'Current programme':group.title+' source register or document');
       // Every distinct affected field of a combined request stays listed.
       const missingFields=missing?subset.filter(issue=>issue.kind==='missing_information').flatMap(issue=>(issue.members?.map(member=>memberView(issue,member))??[issue])
-        .filter((member,index,all)=>all.findIndex(other=>other.summary===member.summary)===index)).map(issue=>{
+        .filter((member,index,all)=>all.findIndex(other=>controlIssueField(other)===controlIssueField(member))===index))
+        .filter(member=>{const id=controlIssueField(member);if(listedGapFields.has(id))return false;listedGapFields.add(id);return true;}).map(issue=>{
+        // Every heading under which this one raw field was requested stays on its single entry.
+        const id=controlIssueField(issue);
+        const headings=[...new Set(subset.filter(i=>i.kind==='missing_information').flatMap(i=>i.members?.map(m=>memberView(i,m))??[i]).filter(m=>controlIssueField(m)===id).map(m=>m.summary?.trim()).filter((h):h is string=>!!h))];
         const subject=[controlIssueField(issue),...(issue.evidencePaths??[])].join(' ');
         const advance=/advance.?payment.?bond|advance.?payment.?security/i.test(subject)&&heldAdvanceBonds.length>0;
         const certified=/certified.?progress/i.test(subject)&&heldCertificates.length>0;
         return {field:advance?'Advance-payment bond is held; confirm only the contractual requirement not stated in its source':
           certified?'Dated certificates are held; the comparable certified-progress denominator or area allocation is not established':
-          issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file:advance?heldAdvanceBonds.map(b=>b.bondId).join('; '):file,owner};
+          issue.summary?.trim()||issue.code.replaceAll('_',' ').toLowerCase(),file:advance?heldAdvanceBonds.map(b=>b.bondId).join('; '):file,owner,
+          fieldIdentity:id,...(headings.length>1?{headings}:{}),supply:missingFieldSupply(group.key,issue,openInputs)};
       }):undefined;
       const item:ProjectAction={id:'matter:'+group.key+suffix,...resolution,title:group.title,reason:group.note,
         recordCount:refs.length,requestCount:subset.length,owner,...(missingFields?{missingFields}:{}),findings:subset,findingIds:subset.map(actionFindingId),affectedPages:pages,

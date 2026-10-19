@@ -59,7 +59,10 @@ test('a combined request is counted once, in one matter, and that matter holds e
   for(const issue of [resource,contract]){
     for(const page of issue.moduleKeys)assert.ok(home.affectedPages?.includes(page),'page '+page+' kept');
     for(const ref of issue.sourceRefs)assert.ok(home.findings![0]!.sourceRefs.includes(ref),'source reference '+ref+' kept');
-    assert.ok(home.missingFields?.some(m=>m.field===issue.summary),'affected field '+issue.summary+' kept');
+    // F30: one raw field is one listed item. Both originals request the same raw field
+    // under two headings; listing it twice was the defect. Each heading stays on the one entry.
+    assert.ok(home.missingFields?.some(m=>(m.headings??[m.field]).includes(issue.summary)),'affected field '+issue.summary+' kept');
+    assert.equal(home.missingFields?.length,1,'the one raw field is listed once');
     assert.ok(home.findings![0]!.members?.some(m=>m.id===controlIssueMemberId(issue)&&m.action===issue.action),'original and its action kept');
   }
   assert.equal(home.recordCount,new Set([...resource.sourceRefs,...contract.sourceRefs]).size,'every source record of both originals is counted once');

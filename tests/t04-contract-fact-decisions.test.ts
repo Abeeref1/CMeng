@@ -8,6 +8,8 @@ import {contractFactDecisionPatch,completionDecisionItem,completionDecisionPatch
 import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 import {reportingTimeBasis,contractValueReview,reportingContractValue,contractValueEntryInput} from '../packages/runtime-api/src/source-review-decisions';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
+import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
+import {assessEventNotice} from '../packages/delay-analysis-core/src/notices';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
@@ -252,4 +254,34 @@ test('T04 confirm-review refuses a stale version and a contract decision that is
   assert.equal(stale.status,409);assert.match((await stale.json() as any).message,/changed/);
   const notOpen=await post('/api/projects/ROUTE-CF/actions/confirm-review',{expectedVersion:version,actionId:'matter:contract-fact:contractualCompletion',sourceFingerprint:'x',choice:'use:2031-12-31'});
   assert.equal(notOpen.status,409,'no decision is saved when the conflict is not open');
+});
+
+// (2) The claim notice deadline uses the decided notice period in its interval.
+test('T04 the claim notice deadline uses the decided notice period; other dates and undo keep the source rule',()=>{
+  const store=new RuntimeProjectStore({durable:false}),state=store.getOrCreate('CF-ND');
+  state.schedules.push({role:'update',format:'xer',sourceFilename:'current.xer',sourceHashSha256:'schedule-hash',uploadedAt:'2031-07-01T00:00:00.000Z',
+    revision:{revisionId:'U1',label:'Current',sequence:1,effectiveAt:'2031-06-30',model:{projectId:'CF-ND',source:'xer',sourceRevisionId:'U1',dataDateIso:'2031-06-30T08:00:00',activities:[],relationships:[],wbs:[],calendars:[],diagnostics:[]}}} as any);
+  const adopted=evidence('CF-ND','contract','contract:main','active'),amendment=evidence('CF-ND','amendment','contract:amendment-1','candidate');
+  state.evidenceDocuments.push(adopted,amendment);
+  (state.contractDocuments as any[]).push(contract(adopted.documentId,'main','Notice period: 28 days from the event date'),
+    contract(amendment.documentId,'amendment','Effective date: 2031-03-01\nNotice period: 14 days from the event date'));
+  const event=(startIso:string)=>({eventId:'EV-'+startIso,category:'employer_risk',startIso,awarenessIso:null,endIso:null}) as any;
+  const required=(s:any,date:string)=>assessEventNotice(event(date),[],contractNoticeRules(s)).requiredNoticeDays;
+  assert.equal(required(state,'2031-06-01'),28,'adopted notice period applies until decided');
+  const decideNotice=(input:{choice:string;enteredValue?:unknown})=>{
+    const s=store.get('CF-ND')!,item=contractFactDecisionItemsForState(s).find(i=>i.term==='noticePeriodDays')!;
+    store.updateControls('CF-ND',contractFactDecisionPatch(s,item,input,[]));return store.get('CF-ND')!;
+  };
+  let s=decideNotice({choice:'use:14|days'});
+  assert.equal(required(s,'2031-06-01'),14,'the deadline uses the decided period');
+  assert.equal(required(s,'2031-02-01'),28,'dates before the decided interval keep the adopted provision');
+  const decidedRule=contractNoticeRules(s).find(r=>r.noticePeriodDays===14)!;
+  assert.equal(decidedRule.state,'candidate','never shown as formally adopted');
+  assert.match(decidedRule.reviewReference??'',/^user-confirmation:contract-fact:noticePeriodDays:/);
+  assert.ok(contractNoticeRules(s).every(r=>!(r.sourceConflicts??[]).some(c=>c.includes(':14 days:'))),'the decided period is no longer an open conflict');
+  s=decideNotice({choice:'enter_value',enteredValue:'21'});
+  assert.equal(required(s,'2031-06-01'),21,'a typed period drives the deadline');
+  s=decideNotice({choice:'undo'});
+  assert.equal(required(s,'2031-06-01'),28,'undo restores the source rule');
+  assert.ok(contractNoticeRules(s).every(r=>!r.requirementId.startsWith('user-decision:')));
 });
