@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {buildCommercialFoundation} from '../packages/commercial-foundation/src';
 import {buildCommercialPerformance} from '../packages/commercial-performance/src';
+import {buildContractControls} from '../packages/commercial-contract-controls/src';
 import {assessEventNotice, type CanonicalDelayEvent, type CanonicalNoticeRecord, type NoticeRequirement} from '../packages/delay-analysis-core/src';
 
 // T07 judged against the T12 independent calculators (tools/independent, plain JS,
@@ -158,4 +159,39 @@ test('T07 notices: working-day rule is a stated basis difference; CMeng withhold
   assert.equal(cm.elapsedDays, null);
   assert.equal(nd.noticeDeadline({triggerIso: '2026-03-05', issuedIso: '2026-03-12', rule: {periodDays: 5, dayBasis: 'working'}}).timeliness, 'day_basis_unknown');
   assert.equal(nd.noticeDeadline({triggerIso: '2026-03-05', issuedIso: '2026-03-12', rule: {periodDays: 5, dayBasis: 'working', weekendDays: [5, 6]}}).timeliness, 'timely');
+});
+
+test('T07 sectional LD: CMeng section scenarios equal the ledger (rate x delay, capped per section)', () => {
+  const missing = () => ({value: null, basis: {asOfDate: dataDateIso, method: 'test', sourceRefs: []}, coverage: {known: 0, total: 1, percent: 0},
+    authority: 'missing' as const, submitted: null, independent: null, gap: null, consequence: null, action: null, state: 'missing' as const, diagnostics: []});
+  const sec = (sectionId: string, rate: number, rateBasis: string, capAmount: number | null, due: string, extended: string | null, programme: string) =>
+    ({sectionId, label: sectionId, rate, rateBasis, currency: 'AED', capAmount, capPercent: null, contractCompletionIso: due,
+      extendedCompletionIso: extended, programmeCompletionIso: programme, milestoneId: null, sourceRefs: [sectionId]});
+  const sections = [
+    sec('S1', 1000, 'fixed_amount_per_day', 20000, '2026-06-30', null, '2026-07-30'),       // 30 d late, cap bites
+    sec('S2', 3500, 'fixed_amount_per_week', 100000, '2026-06-30', '2026-07-05', '2026-07-15'), // EOT-extended due date, 10 d at 500/d
+    sec('S3', 800, 'fixed_amount_per_day', 1000, '2026-06-30', null, '2026-06-25'),        // early: no LD
+    sec('S4', 500, 'fixed_amount_per_day', null, '2026-06-30', null, '2026-07-10'),        // cap not read
+  ];
+  const p = buildContractControls({projectId: 'T07-LD', generatedAt, dataDateIso, variations: [], siteInstructions: [], obligations: [],
+    contractClauses: [], bonds: [], insurances: [], retentions: [], existingRetentions: [], paymentRetentions: [],
+    retentionPercent: missing(), retentionCapPercent: missing(), performanceBondRequirement: missing(), advancePaymentBondRequirement: missing(),
+    insuranceRequirementCount: 0, ldTerms: null, contractValues: [], sectionTerms: sections,
+    ldTime: {contractualCompletionIso: null, contractualCompletionState: 'missing', programmeCompletionIso: null, programmeCompletionMethod: 'none',
+      programmeSourceRefs: [], awardedEotDays: null, awardedEotState: 'missing', awardedOverlapResolution: 'unresolved', eotSourceRefs: []}});
+  const cm = p.liquidatedDamages.sectionScenarios;
+  const ind = ledger.sectionalLd({overallCap: null, sections: sections.map(s => ({id: s.sectionId,
+    ratePerDay: s.rateBasis === 'fixed_amount_per_week' ? s.rate / 7 : s.rate,
+    delayDays: nd.civilDaysBetween(s.extendedCompletionIso ?? s.contractCompletionIso, s.programmeCompletionIso), capValue: s.capAmount}))});
+  for (const [i, row] of cm.entries()) {
+    const want = ind.rows[i];
+    assert.equal(row.lateDays, Math.max(0, nd.civilDaysBetween(sections[i]!.extendedCompletionIso ?? sections[i]!.contractCompletionIso, sections[i]!.programmeCompletionIso)), 'late days ' + row.sectionId);
+    assert.equal(row.uncappedExposure, want.raw, 'uncapped ' + row.sectionId);
+    if (sections[i]!.capAmount !== null) assert.equal(row.cappedExposure, want.capped, 'capped ' + row.sectionId);
+  }
+  // Basis difference: a section cap that was not read stays unknown in CMeng (no
+  // capped figure); the ledger treats a missing cap as "no cap". CMeng also never
+  // adds sections into a whole-project figure, so no overall cap is applied.
+  assert.equal(cm[3]!.cappedExposure, null);
+  assert.equal(ind.rows[3].capped, 5000);
 });
