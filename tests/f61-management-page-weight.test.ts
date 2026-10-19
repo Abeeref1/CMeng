@@ -14,7 +14,8 @@ import {pageProjectResponse,jsonPointer,PROJECT_SCREEN_MAX_BYTES} from '../packa
 // project facts once instead of once per page.
 const N=8900,ITEMS=896;
 function scaleProject(){
- const id='F61-SCALE-'+randomUUID(),state=runtimeProjects.getOrCreate(id);
+ // Project codes are upper case; the schedule must name the same project.
+ const state=runtimeProjects.getOrCreate('F61-SCALE-'+randomUUID().slice(0,8).toUpperCase()),id=state.projectId;
  const activities=Array.from({length:N},(_,i)=>({projectId:id,activityId:'A'+i,nativeId:String(i),name:'Installation Zone '+Math.floor(i/100),wbsId:'W'+Math.floor(i/100),calendarId:'C',activityType:'task',status:'not_started',
   baselineStartIso:'2031-01-01',baselineFinishIso:'2031-12-01',currentStartIso:'2031-01-01',currentFinishIso:'2031-12-01',actualStartIso:null,actualFinishIso:null,forecastStartIso:null,forecastFinishIso:null,
   originalDurationHours:8000,remainingDurationHours:8000,totalFloatHours:i%13,freeFloatHours:null,percentComplete:0,sourceRefs:[],diagnostics:[]}));
