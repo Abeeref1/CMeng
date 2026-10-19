@@ -102,10 +102,10 @@ test('F07 shared prerequisites: the project facts state the four inputs counted 
  assert.deepEqual(d.disciplines.map((r:any)=>[r.value,r.activityCount,r.activityCodeActivityCount,r.nameRuleActivityCount]),
   [['Civil',2,0,2],['ELEC',1,1,0],['Electrical',1,0,1]],'Civil from the WBS name, ELEC from the Discipline code, Electrical from "switchgear"; the milestone matches none');
  const c=inputs.cpmCoverage;
- assert.equal(c.publishable,false,'the CMeng CPM finish (19 Sep) differs from the submitted finish (22 Sep): not publishable');
- assert.ok(c.holdReasons.length>0,'the reason it is not publishable is stated');
- assert.equal(c.calculatedActivityCount+c.unresolvedActivityCount,c.activityCount);
- assert.notEqual(c.state,'established');
+ assert.deepEqual([c.state,c.activityCount,c.calculatedActivityCount,c.unresolvedActivityCount,c.coveragePercent,c.calculationComplete,c.publishable],
+  ['partial',5,5,0,100,true,false],'all 5 activities calculate; the CMeng finish (19 Sep) differs from the submitted finish (22 Sep), so it is held');
+ assert.equal(c.holdReasons.length,1,'every reconciliation check passes; only the finish difference holds it: '+JSON.stringify(c.holdReasons));
+ assert.match(c.holdReasons[0],/^Calendar or finish difference held/);
 });
 
 test('F07 shared prerequisites: every page that shows or gates on these inputs carries the project facts status',async()=>{
@@ -129,14 +129,17 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
  const areas=breakdown.decisionAnalysis.areas as any[],sum=(f:string)=>areas.reduce((n,a)=>n+a[f],0);
  const breakdownItems=sum('itemCount'),breakdownMeasured=sum('measuredItemCount');
  // Page against page first (what each screen states), then each page against the facts.
- const installedShown={quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),challenge:prerequisite('remaining_quantities').established,
-  breakdown:breakdownMeasured>0,delivery:tracking.mappedCount>0,facts:confirmed(inputs?.installedQuantities?.state)};
- assert.equal(new Set(Object.values(installedShown)).size,1,'installed quantities confirmed on one page are confirmed on all: '+JSON.stringify(installedShown));
- const boqShown={challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0,facts:confirmed(inputs?.quantities?.state)};
- assert.equal(new Set(Object.values(boqShown)).size,1,'BOQ quantities confirmed on one page are confirmed on all: '+JSON.stringify(boqShown));
  const independentDays=facts.time.independentDaysAfterCurrentContract?.value;
- assert.equal(forecast.forecastReconciliationGate.publishable,independentDays!==null&&independentDays!==undefined,
-  'the Completion Forecast publishes the CMeng finish only when the Dashboard does');
+ const shown:Record<string,Record<string,boolean>>={
+  'installed quantities':{quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),challenge:prerequisite('remaining_quantities').established,
+   breakdown:breakdownMeasured>0,delivery:tracking.mappedCount>0},
+  'BOQ quantities':{challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0},
+  'CMeng CPM publishable':{completionForecast:forecast.forecastReconciliationGate.publishable===true,dashboard:independentDays!==null&&independentDays!==undefined},
+ };
+ const conflicts=Object.entries(shown).filter(([,pages])=>new Set(Object.values(pages)).size>1).map(([input,pages])=>input+': '+JSON.stringify(pages));
+ assert.deepEqual(conflicts,[],'an input confirmed on one page is confirmed on all');
+ assert.equal(shown['installed quantities']!.quantities,confirmed(inputs.installedQuantities.state),'and as in the facts');
+ assert.equal(shown['BOQ quantities']!.challenge,confirmed(inputs.quantities.state));
  // Installed quantities and BOQ quantities against the facts.
  assert.equal(quantity.installedQuantityStatus.measuredItemCount,inputs.installedQuantities.measuredItemCount,'Quantities measured items = facts');
  assert.equal(quantity.installedQuantityStatus.boqItemCount,inputs.quantities.boqItemCount);
