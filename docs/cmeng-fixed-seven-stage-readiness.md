@@ -163,3 +163,7 @@ requires no known material wrong-answer defect, false authoritative zero, silent
 evidence loss, project-specific product logic or unexplained screen/report
 mismatch, with repeated fresh-blind success and independent final acceptance.
 It is not defined by a percentage of tests passing.
+
+### Access decision (owner)
+
+By the owner's final decision (CMeng Repair Plan, 13 Oct 2026, rule 9), CMeng has no sign-in, no user accounts and no role control. This replaces the authentication and RBAC item in Stage 7. Projects stay isolated from each other. Role views are views only and show the same facts for the same scope and date. Stage 7 still certifies project isolation without sign-in.

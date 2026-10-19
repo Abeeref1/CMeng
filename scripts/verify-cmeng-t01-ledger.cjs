@@ -204,9 +204,71 @@ for(const item of all){
   assert.ok(item.independentVerification.status==='certified'&&item.ownerReceipt,
    'independent evidence and owner receipt required before closure for '+item.id);
 }
+// T01 board: every row has a repair reference and a verification method.
+const {existsSync}=require('node:fs');
+const METHOD_KINDS=new Set(['guard_rule','independent_reader','independent_calculator','expert_review']);
+const REPAIR_STATES=new Set(['commits','via_proposed_sw_root','none_yet','not_applicable_originally_correct']);
+const LIVE_STATES=new Set(['live','partly_live','saved_not_live','no_repair']);
+const COMMIT_LIVE=new Set(['live','saved_not_live']);
+const BOARD_STATUSES=new Set(['open_no_repair_linked','open_root_not_repaired','open_root_repair_saved_not_live',
+ 'open_root_repair_live','repair_saved_not_live_no_named_test','repair_saved_not_live_named_test',
+ 'repair_live_no_named_test','repair_live_named_test_not_certified','originally_correct_watch']);
+assert.ok(ledger.board&&ledger.board.liveRelease==='b3c76d6','board records live release b3c76d6');
+assert.equal(ledger.board.startingPoint.checksRun,43401);
+assert.equal(ledger.board.startingPoint.checksFailing,11822);
+const boardCounts={};
+for(const item of all){
+ const r=item.repairReference,v=item.verificationMethod;
+ assert.ok(r&&REPAIR_STATES.has(r.state),'repair reference for '+item.id);
+ assert.ok(LIVE_STATES.has(r.liveState),'live state for '+item.id);
+ assert.ok(Array.isArray(r.commits),'commit list for '+item.id);
+ for(const c of r.commits){
+  assert.match(c.sha,/^[0-9a-f]{8}$/,'commit hash on '+item.id);
+  assert.ok(COMMIT_LIVE.has(c.liveState),'commit '+c.sha+' resolved in repository and marked live or saved_not_live on '+item.id);
+ }
+ if(r.state==='commits'){
+  assert.ok(r.commits.length>0,'commit repair reference needs a hash: '+item.id);
+  assert.deepEqual(r.commits.map(c=>c.sha).sort(),[...new Set((item.implementation.sourceCommits??[]).map(x=>x.slice(0,8)))].sort(),
+   'repair reference equals implementation commits: '+item.id);
+ }
+ if(r.state==='none_yet'){
+  assert.equal(r.commits.length,0);
+  assert.ok(r.plannedTasks.length>0||r.plannedConsultantRoot,'open row names its planned task or consultant root: '+item.id);
+ }
+ if(r.state==='via_proposed_sw_root')assert.ok(r.swRootIds.length>0&&r.swRootIds.every(id=>ledger.sw.some(x=>x.id===id)),'overlap roots exist: '+item.id);
+ if(r.state==='not_applicable_originally_correct')assert.equal(item.historicalVerdict,'Originally correct');
+ const liveCount=r.commits.filter(c=>c.liveState==='live').length;
+ assert.equal(r.liveState,!r.commits.length?'no_repair':liveCount===r.commits.length?'live':liveCount?'partly_live':'saved_not_live',
+  'live state follows its commits (saved, not live after b3c76d6): '+item.id);
+ assert.ok(v&&Array.isArray(v.kinds)&&v.kinds.length>0&&v.kinds.every(k=>METHOD_KINDS.has(k)),'verification method for '+item.id);
+ assert.ok(typeof v.detail==='string'&&v.detail.length>0,'verification detail for '+item.id);
+ if(v.kinds.includes('guard_rule'))assert.ok(v.guardRules.length>0,'guard method names its rule: '+item.id);
+ for(const t of v.namedTests)assert.ok(existsSync(join(root,t)),'named test exists: '+t+' on '+item.id);
+ assert.deepEqual(v.namedTests,item.implementation.regressionFiles??[],'named tests equal regression files: '+item.id);
+ assert.ok(BOARD_STATUSES.has(item.boardStatus),'board status for '+item.id);
+ assert.ok(!/fixed|closed|accepted|(?<!not_)certified$/.test(item.boardStatus),'no row may be called fixed or closed on the board: '+item.id);
+ if(/(?<!no_)named_test/.test(item.boardStatus))assert.ok(v.namedTests.length>0,'named-test status needs a named test: '+item.id);
+ if(/^repair_saved_not_live/.test(item.boardStatus))assert.ok(['saved_not_live','partly_live'].includes(r.liveState));
+ if(/^repair_live/.test(item.boardStatus))assert.equal(r.liveState,'live');
+ const g=item.id.startsWith('SW-')?'SW':/^F\d\d$/.test(item.id)?'F':/^S\d\d$/.test(item.id)?'S':'ABB';
+ boardCounts[g]??={};boardCounts[g][item.boardStatus]=(boardCounts[g][item.boardStatus]??0)+1;
+}
+assert.deepEqual(boardCounts,ledger.board.statusCounts,'board counts match rows');
+for(const sw of ledger.sw)assert.ok(sw.cause&&sw.cause.cause,'cause recorded for '+sw.id);
+assert.equal(ledger.projects.length,23,'all 23 projects on the board (rule V2)');
+for(const p of ledger.projects)assert.ok(['test_by_own_name','not_established'].includes(p.testMarking),'test marking for '+p.id);
+const boardText=text('docs/repair-notes/CMeng_T01_Board.md');
+for(const [g,c] of Object.entries(boardCounts)){
+ const rows=Object.values(c).reduce((a,b)=>a+b,0);
+ assert.ok(boardText.includes('| '+g+' | '+rows+' | '),'board page shows '+g+' row count');
+}
+for(const item of [...ledger.sw,...ledger.f,...ledger.s])assert.ok(boardText.includes('| '+item.id+' | '),'board page lists '+item.id);
+const agents=text('AGENTS.md');
+assert.ok(agents.includes('docs/repair-notes/CMeng_Repair_Plan.md')&&agents.includes('docs/repair-notes/CMeng_T01_Board.md'),'AGENTS.md points to the plan and the board');
+assert.match(text('docs/cmeng-fixed-seven-stage-readiness.md'),/Access decision \(owner\)[\s\S]*no sign-in, no user accounts and no role control/i,'no-sign-in decision recorded in the seven-stage document');
 const open=all.filter(x=>x.ownerAcceptance!=='accepted').length;
 console.log('CMENG_T01_TRACEABILITY_CHECK=PASS original_items='+all.length+
   ' sw='+ledger.sw.length+' f='+ledger.f.length+' consultant_findings='+defectIds.size+
   ' s='+ledger.s.length+' abb_source_rows='+ledger.abb.individualObservations.length+
   ' abb_problem='+verdictCounts.Problem+' abb_originally_correct='+verdictCounts['Originally correct']+
-  ' owner_acceptance_outstanding='+open);
+  ' owner_acceptance_outstanding='+open+' board='+JSON.stringify(boardCounts));
