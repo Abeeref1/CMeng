@@ -19,11 +19,12 @@ function updateActionIndicator(){
 // T05/N1: lists inside each action (findings, evidence, recorded locations,
 // affected pages) are cut to 25 by the transport. Count the retained total.
 function actionListTotal(list){
- const own=responseListTotalIn(typeof projectActionState==='undefined'?null:projectActionState?.data,list);
+ if(!Array.isArray(list))return null;
+ const own=typeof responseListTotalIn==='function'?responseListTotalIn(typeof projectActionState==='undefined'?null:projectActionState?.data,list):list.length;
  if(own===null||own!==list.length)return own;
- const current=listTotal(list);return current===null?null:Math.max(current,own);
+ const current=typeof listTotal==='function'?listTotal(list):own;return current===null?null:Math.max(current,own);
 }
-function actionShownOf(list,noun){const total=actionListTotal(list);return total===list.length?fmt(total)+' '+noun:fmt(list.length)+' of '+screenCountText(total)+' '+noun;}
+function actionShownOf(list,noun){const total=actionListTotal(list);return total===list.length?fmt(total)+' '+noun:fmt(list.length)+' of '+(total===null?'Not established':fmt(total))+' '+noun;}
 function resetProjectActions(){projectActionRequest++;projectActionState=null;projectActionSearch='';projectActionFilter='all';projectActionPage=0;projectDataGapsPage=0;updateActionIndicator();}
 async function loadProjectActions(){
  if(!overview)return;
