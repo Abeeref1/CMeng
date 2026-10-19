@@ -1,6 +1,7 @@
 import {
   parseXerDateStrict,
   verifyXerCalendars,
+  xerBaselineProjects,
   type P6CalendarDataResult,
   type XerParseResult,
   type XerRow,
@@ -394,10 +395,17 @@ function canonicalScheduleFromXerRead(
   },
 ): CanonicalScheduleModel {
   const resourceSources=xerResourceSources(result);
-  const projectRows = xerRows(result, "PROJECT");
-  const taskRows = xerRows(result, "TASK");
-  const predRows = xerRows(result, "TASKPRED");
-  const wbsRows = xerRows(result, "PROJWBS");
+  // F22: a P6 export can carry the project baseline as its own PROJECT with
+  // its own TASK / PROJWBS / TASKPRED rows. Those rows are the baseline, not
+  // current work: they never become current activities, links or WBS, and
+  // they never take part in the current data date.
+  const baselines = xerBaselineProjects(result);
+  const currentScope = (row: XerRow) => { const id = xerField(row, "proj_id"); return !id || !baselines.baselineIds.has(id); };
+  const projectRows = xerRows(result, "PROJECT").filter(currentScope);
+  const taskRows = xerRows(result, "TASK").filter(currentScope);
+  const predRows = xerRows(result, "TASKPRED").filter(currentScope);
+  const wbsRows = xerRows(result, "PROJWBS").filter(currentScope);
+  const baselineTasks = xerBaselineTasks(xerRows(result, "TASK"), baselines);
   // Activity codes: TASKACTV assigns an ACTVCODE value of an ACTVTYPE code type.
   // Read only exact ID joins; an unresolved assignment is not guessed.
   const codeTypeNames = new Map<string, string>(), codeValues = new Map<string, XerRow>();
@@ -491,6 +499,7 @@ function canonicalScheduleFromXerRead(
         xerField(row, "task_type"),
         originalDurationHours,
       );
+      const baseline = baselineTasks.forTask(xerField(row, "proj_id") ?? (projectIds.size === 1 ? [...projectIds][0]! : null), activityId);
 
       return [
         {
@@ -514,13 +523,24 @@ function canonicalScheduleFromXerRead(
             pct,
             actualFinishIso,
           ),
-          baselineStartIso: xerDate(
-            xerField(row, "target_start_date"),
-          ),
-          baselineFinishIso: xerDate(
-            xerField(row, "target_end_date"),
-          ),
-          baselineDateBasis: "xer_target_dates" as const,
+          ...(baseline.state === "baseline_project"
+            ? {
+                // The baseline project's own dates for this activity: its
+                // actual date once recorded there, else its planned date.
+                // An activity absent from the baseline has no baseline date.
+                baselineStartIso: baseline.row ? xerDate(firstXerField(baseline.row, ["act_start_date", "target_start_date"])) : null,
+                baselineFinishIso: baseline.row ? xerDate(firstXerField(baseline.row, ["act_end_date", "target_end_date"])) : null,
+                baselineDateBasis: "source_declared_baseline" as const,
+              }
+            : {
+                baselineStartIso: xerDate(
+                  xerField(row, "target_start_date"),
+                ),
+                baselineFinishIso: xerDate(
+                  xerField(row, "target_end_date"),
+                ),
+                baselineDateBasis: "xer_target_dates" as const,
+              }),
           currentStartIso: xerDate(
             firstXerField(row, [
               "early_start_date",
@@ -580,9 +600,11 @@ function canonicalScheduleFromXerRead(
               "xer",
               "TASK:line:" + row.line,
             ),
+            ...(baseline.row ? [sourceRef("xer", "BASELINE:" + baseline.baselineProjectId + ":TASK:line:" + baseline.row.line)] : []),
           ],
           diagnostics: [
             ...row.diagnosticCodes,
+            ...(baseline.state === "baseline_project" && !baseline.row ? ["XER_ACTIVITY_NOT_IN_BASELINE_PROJECT:" + baseline.baselineProjectId] : []),
             ...(type.inferredFromZeroDuration
               ? [
                   "SCHEDULE_ACTIVITY_TYPE_INFERRED_ZERO_DURATION",
@@ -1091,7 +1113,34 @@ function canonicalScheduleFromXerRead(
       ...calendarIntegrity.calendars.flatMap(c=>c.conversionDiagnostics.map(d=>'CALENDAR_CONVERSION_REVIEW:'+c.calendarId+':'+d)),
       ...xerDataDate.diagnostics,
       ...duplicateActivityIdDiagnostics,
+      ...baselines.diagnostics,
+      ...baselineTasks.diagnostics,
     ],
+  };
+}
+
+/** Baseline TASK rows by activity ID (task_code) within each chosen baseline.
+ * An activity ID repeated inside one baseline is not matched by guess. */
+function xerBaselineTasks(allTaskRows: XerRow[], baselines: ReturnType<typeof xerBaselineProjects>) {
+  const byBaseline = new Map<string, Map<string, XerRow[]>>();
+  const wanted = new Set(baselines.chosen.values());
+  for (const row of allTaskRows) {
+    const projectId = xerField(row, "proj_id"), code = xerField(row, "task_code");
+    if (!projectId || !code || !wanted.has(projectId)) continue;
+    const tasks = byBaseline.get(projectId) ?? new Map<string, XerRow[]>();
+    tasks.set(code, [...(tasks.get(code) ?? []), row]);
+    byBaseline.set(projectId, tasks);
+  }
+  const diagnostics: string[] = [];
+  for (const [baselineId, tasks] of byBaseline) for (const [code, rows] of tasks) if (rows.length > 1) diagnostics.push("XER_BASELINE_DUPLICATE_ACTIVITY_ID:" + baselineId + ":" + code);
+  return {
+    diagnostics,
+    forTask(projectId: string | null, activityId: string): {state: "baseline_project" | "target_dates"; baselineProjectId: string | null; row: XerRow | null} {
+      const baselineProjectId = projectId ? baselines.chosen.get(projectId) ?? null : null;
+      if (!baselineProjectId) return {state: "target_dates", baselineProjectId: null, row: null};
+      const rows = byBaseline.get(baselineProjectId)?.get(activityId) ?? [];
+      return {state: "baseline_project", baselineProjectId, row: rows.length === 1 ? rows[0]! : null};
+    },
   };
 }
 

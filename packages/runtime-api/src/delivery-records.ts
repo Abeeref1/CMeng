@@ -9,6 +9,7 @@ import {deliverySourceTables} from './delivery-sources';
 import {auditContext} from './audit-context';
 import {projectControlSchedule} from './canonical-time-claims';
 import {resolveBoqSource} from './boq-source';
+import {boqReferenceResolver} from './boq-scope-mapping';
 import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryFields} from '../../delivery-core/src/fields';
 import {assetValueMapping} from './delivery-value-mapping';
@@ -84,7 +85,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
    }
 
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
-   const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id'));
+   const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id','boq item','boq items','boq ref','boq reference','boq item ref','boq item reference'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
    if(k!=='supplier')links.supplierIds=split(cell(row,'supplier id','subcontractor id'));
    if(k!=='location')links.locationIds=split(cell(row,'location id'));
@@ -135,7 +136,19 @@ export function deliveryRecords(state:ProjectRuntimeState){
  // record of the required kind. Raw cells/receipts and reviewed links remain
  // intact; a missing or ambiguous target stays unresolved.
  const currentById=new Map(records.filter(deliveryCurrentRecord).map(r=>[r.recordId,r]));
+ // F21: registers cite BOQ items by BOQ item ID or, usually, by BOQ item
+ // number. The shared resolver links an exact ID or an item number carried
+ // by exactly one current BOQ item; a repeated number stays unlinked with its
+ // candidate items listed. Reviewed links are never rewritten.
+ const resolveBoq=boqReferenceResolver(resolveBoqSource(state,'').quantities?.items??[]);
  for(const r of records)if(r.state==='extracted_candidate'&&!latest.has(r.recordId)){
+  if(r.links.boqItemIds.length){
+   const resolved=r.links.boqItemIds.map(resolveBoq);
+   r.links.boqItemIds=[...new Set(resolved.map(x=>x.itemId??x.reference))];
+   // Kept beside the links (not as a record diagnostic): an unresolved BOQ
+   // reference leaves that item unmapped; it does not hold the whole record.
+   if(resolved.some(x=>x.state!=='exact_item_id'))r.boqReferences=resolved;
+  }
   for(const [link,kind] of [['packageIds','package'],['supplierIds','supplier'],['locationIds','location'],['assetIds','asset']] as const){
    r.links[link]=[...new Set(r.links[link].map(value=>{
     if(currentById.get(value)?.kind===kind)return value;

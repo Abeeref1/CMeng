@@ -3,6 +3,8 @@ import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
 import {boqProgrammeLinks} from './boq-programme-links';
+import {boqItemSourceRows,reconcileScope,type ScopeAssignment} from './boq-scope-mapping';
+import {governedTables,cell as sourceCell} from '../../truth-kernel/src';
 import {cachedIndependentForecast} from './forecast-cache';
 import {procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS,canonicalHeader,registerDate,numberValue,sumKnown,establishedPopulationCount,populationAuthority,type PopulationAuthority} from '../../truth-kernel/src';
 import {deliveryHsePosition,deliveryEvidenceMetrics} from './delivery-intelligence';
@@ -343,7 +345,34 @@ function buildDelivery(state:ProjectRuntimeState){
   return {recordId:'boq-item:'+item.quantityItemId,reference:item.itemNumber??item.quantityItemId,description:item.description,unit:item.unit,required:item.contractQuantity,ordered:null,delivered:null,accepted:null,installed,remainingToInstall:difference(item.contractQuantity,installed),authority:'From BOQ and dated measurement register',basis:'Item quantities are usable independently of procurement allocation. Ordered, delivered and accepted quantities need dated package evidence.'};
  });
  for(const [itemId,packages] of packagesByItem){const item=items.get(itemId);const allocated=sumKnown(packages.map(p=>p.links.boqAllocations.find(a=>a.boqItemId===itemId)?.quantity??null));if(item?.contractQuantity!==null&&item?.contractQuantity!==undefined&&allocated!==null&&allocated>item.contractQuantity)add('SCOPE_ALLOCATIONS_ABOVE_BOQ',null,'Package allocations exceed BOQ item '+itemId+'.','Review the governed split quantities.');}
- const mapped=new Set(byKind('package').flatMap(p=>p.links.boqItemIds));
+ // F21 shared BOQ-to-package rule. Explicit references only: the package
+ // register's cited BOQ items (resolved in Delivery records) and the BOQ
+ // row's own package code naming exactly one current package. An item cited
+ // for more than one package, or matching an ambiguous reference, is counted
+ // once in the unmapped part with its candidate packages listed.
+ const packageKey=(v:string)=>v.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+ const packagesByReference=new Map<string,DeliveryRecord[]>();
+ for(const p of byKind('package'))if(p.reference){const k=packageKey(p.reference);packagesByReference.set(k,[...(packagesByReference.get(k)??[]),p]);}
+ const boqHash=boq.boq?.sourceHashSha256??null;
+ const boqSourceRows=controlledBoq&&boqHash?boqItemSourceRows(governedTables((state.evidenceDocuments??[]).filter(d=>d.sourceHashSha256===boqHash),[]),boqHash,quantities?.items??[]):new Map<string,import('../../truth-kernel/src').SourceRow[]>();
+ const itemPackages=new Map<string,Set<string>>(),itemPackageCandidates=new Map<string,Set<string>>();
+ const addTo=(target:Map<string,Set<string>>,itemId:string,value:string)=>{const set=target.get(itemId)??new Set<string>();set.add(value);target.set(itemId,set);};
+ for(const [itemId,list] of packagesByItem)if(items.has(itemId))for(const p of list)addTo(itemPackages,itemId,p.recordId);
+ for(const [itemId,rows] of boqSourceRows)for(const code of new Set<string>(rows.flatMap(r=>sourceCell(r,'package id','package','package code','work package').split(/[;|]/).map(x=>x.trim()).filter(Boolean)))){
+  const matches=packagesByReference.get(packageKey(code))??[];
+  if(matches.length===1)addTo(itemPackages,itemId,matches[0]!.recordId);
+  else addTo(itemPackageCandidates,itemId,code+(matches.length?' (several current packages share this reference)':' (no current package with this reference)'));
+ }
+ for(const p of byKind('package'))for(const ref of p.boqReferences??[])if(ref.state==='ambiguous')for(const itemId of ref.candidates)addTo(itemPackageCandidates,itemId,(p.reference??p.recordId)+' cites '+ref.reference+' ('+ref.candidates.length+' BOQ items carry this number)');
+ const packageLabel=(id:string)=>byId.get(id)?.reference??id;
+ const packageAssignment=(itemId:string):ScopeAssignment=>{
+  const ids=[...(itemPackages.get(itemId)??[])];
+  if(ids.length===1)return {group:ids[0]!,state:'explicit',basis:'Package register or BOQ row names this package',candidates:[packageLabel(ids[0]!)]};
+  if(ids.length>1)return {group:null,state:'ambiguous',basis:'Cited for more than one package; counted once here, not split by guess',candidates:ids.map(packageLabel)};
+  const candidates=[...(itemPackageCandidates.get(itemId)??[])];
+  return candidates.length?{group:null,state:'ambiguous',basis:'Package reference does not resolve to one package and one BOQ item',candidates}:{group:null,state:'unmapped',basis:'No package register or BOQ package reference',candidates:[]};
+ };
+ const mapped=new Set(itemPackages.keys());
  const activityByItem=new Map<string,string[]>();for(const a of quantities?.allocations??[]){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
  mark('material_and_scope');
  // A candidate-only BOQ has no adopted value or mapping authority in Delivery's
@@ -355,7 +384,7 @@ function buildDelivery(state:ProjectRuntimeState){
  mark('boq_to_programme_links');
  for(const row of sharedBoqLinks?.rows??[])if(row.activityIds.length)activityByItem.set(row.itemId,[...new Set([...(activityByItem.get(row.itemId)??[]),...row.activityIds])]);
  const workfrontsByItem=new Map<string,DeliveryRecord[]>();for(const r of byKind('workfront'))for(const id of r.links.boqItemIds){const rows=workfrontsByItem.get(id)??[];rows.push(r);workfrontsByItem.set(id,rows);}
- const boqRows=(controlledBoq?supplied.rows:[]).map(i=>{const packages=packagesByItem.get(i.itemId)??[],workfronts=workfrontsByItem.get(i.itemId)??[],scope=[...packages,...workfronts];return {...i,
+ const boqRows=(controlledBoq?supplied.rows:[]).map(i=>{const packages=[...(itemPackages.get(i.itemId)??[])].map(id=>byId.get(id)).filter((p):p is DeliveryRecord=>!!p),workfronts=workfrontsByItem.get(i.itemId)??[],scope=[...packages,...workfronts];return {...i,
   procurementPackageIds:packages.map(p=>p.recordId),workfrontIds:workfronts.map(p=>p.recordId),
   programmeActivityIds:[...new Set([...(activityByItem.get(i.itemId)??[]),...scope.flatMap(r=>r.links.activityIds)])],
   disciplines:[...new Set(scope.map(r=>field(r,'discipline')).filter(Boolean))],locationIds:[...new Set(scope.flatMap(r=>r.links.locationIds))],
@@ -375,7 +404,9 @@ function buildDelivery(state:ProjectRuntimeState){
  const mappings=[['programme','programmeActivityIds'],['procurement','procurementPackageIds'],['workfront','workfrontIds'],['location','locationIds']] as const;
  const mappingCoverage=[...mappings.map(([dimension,key])=>{const count=boqRows.filter(r=>r[key].length>0).length;return {dimension,mappedCount:controlledBoq?count:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(count,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r[key].length).map(r=>r.itemId)};}),{dimension:'quantity tracking',mappedCount:controlledBoq?boqRows.filter(r=>r.quantityTrackingEstablished).length:null,totalCount:controlledBoq?boqRows.length:null,percent:controlledBoq?pct(boqRows.filter(r=>r.quantityTrackingEstablished).length,boqRows.length):null,unmappedItemIds:boqRows.filter(r=>!r.quantityTrackingEstablished).map(r=>r.itemId)}];
  const quantityPopulations=boqRows.map(row=>({unit:row.unit,requiredQuantity:row.quantity,itemCount:1,itemIds:[row.itemId],description:row.description,basis:'Individual BOQ item; shared units alone do not establish compatible scope.',quantityReview:/^(ls|l\.?s\.?|lump\s*sum)$/i.test(row.unit??'')&&row.quantity!==null&&row.quantity!==1?'Lump-sum quantity differs from one; check the item basis.':null}));
- const boqIntelligence={valueByDiscipline:dimensionValues('disciplines'),valueByLocation:dimensionValues('locationIds'),valueByWorkfront:dimensionValues('workfrontIds'),topPackages:dimensionValues('procurementPackageIds').sort((a,b)=>a.currency.localeCompare(b.currency)||(b.value??-Infinity)-(a.value??-Infinity)),quantityPopulations,mappingCoverage,source:boq.selection,itemCount:controlledBoq?boqRows.length:null,mappedItemCount:controlledBoq?boqRows.filter(r=>mapped.has(r.itemId)).length:null,
+ const packageReconciliation=controlledBoq?(()=>{const result=reconcileScope(boqRows.map(r=>({itemId:r.itemId,itemNumber:r.itemNumber,currency:r.currency,value:r.amount})),r=>packageAssignment(r.itemId),'Not mapped to a package');
+  return {...result,groups:result.groups.map(g=>({...g,packageId:g.group,reference:packageLabel(g.group),description:byId.get(g.group)?.description??null}))};})():null;
+ const boqIntelligence={packageReconciliation,valueByDiscipline:dimensionValues('disciplines'),valueByLocation:dimensionValues('locationIds'),valueByWorkfront:dimensionValues('workfrontIds'),topPackages:dimensionValues('procurementPackageIds').sort((a,b)=>a.currency.localeCompare(b.currency)||(b.value??-Infinity)-(a.value??-Infinity)),quantityPopulations,mappingCoverage,source:boq.selection,itemCount:controlledBoq?boqRows.length:null,mappedItemCount:controlledBoq?boqRows.filter(r=>mapped.has(r.itemId)).length:null,
   procurementMappingPercent:controlledBoq?pct(boqRows.filter(r=>mapped.has(r.itemId)).length,boqRows.length):null,currencies:currencyGroups,
   topCostDrivers:currencyGroups.map(g=>({currency:g.currency,items:boqRows.filter(r=>r.currency===g.currency&&r.amount!==null).sort((a,b)=>b.amount!-a.amount!).slice(0,20)})),rows:boqRows};
  const events:Array<{recordId:string;kind:string;stage:string;series:string;dateIso:string;value:number;unit:string;authority:string}>=[];
