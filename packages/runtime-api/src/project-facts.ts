@@ -1,4 +1,6 @@
 import {projectDecisionFacts,decisionAnalysisForModule} from './project-decision-facts';
+import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus} from './project-input-status';
+import {canonicalResources} from './canonical-resource-runtime';
 import {bindMeasuredAreasToWbs} from './progress-breakdown-source-area';
 import {boqProgrammeLinks} from './boq-programme-links';
 import {managementValueState,type ManagementValueState} from './management-values';
@@ -46,6 +48,9 @@ export interface ProjectFactsSnapshot {
   programmeQuality?:ReturnType<typeof pmcScheduleRules>;
   contractSections?:ReturnType<typeof projectContractSections>;
   actions:{openCount:ProjectFact<number>;recordCount:ProjectFact<number>;reviewCount:ProjectFact<number>};
+  /** F07: the one shared status of the inputs pages depend on (calendars,
+   * resource capacity, risk owners). Every page reads these same rules. */
+  inputs?:ProjectInputStatus;
   schedule:{
     dataDateIso:ProjectFact<string>;
     submittedProgrammeCompletionIso:ProjectFact<string>;
@@ -590,8 +595,25 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
   };
 
+  value.inputs=projectInputStatus(state);
   cache.set(state,{version:state.version,value});
   return value;
+}
+
+export interface ProjectInputStatus {
+  calendar:CalendarInputStatus;
+  capacity:CapacityInputStatus;
+  riskOwners:RiskOwnerInputStatus;
+}
+/** F07: shared input status for a project, from the same rules the pages use. */
+export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{
+  state=reportingState(state);
+  return {
+    calendar:calendarInputStatus(projectControlSchedule(state)?.revision.model),
+    capacity:capacityInputStatus(canonicalResources(state)),
+    // No supplied risk rows: owner coverage is unknown, never 0 of 0.
+    riskOwners:(rows=>riskOwnerInputStatus(rows.length?rows:null))(operationalReporting(state).risk.sourceRows),
+  };
 }
 
 export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntimeResult):ModuleRuntimeResult{

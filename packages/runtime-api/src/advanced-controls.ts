@@ -1,4 +1,5 @@
 import type {ModuleRuntimeResult,ProjectRuntimeState} from './project-state-types';
+import {riskOwner} from './project-input-status';
 import {commercialPerformanceForState} from './commercial-performance-runtime';
 import {commercialCanonical} from './commercial-canonical';
 import {commercialContractControlsForState} from './commercial-contract-controls-runtime';
@@ -108,7 +109,7 @@ export function riskRegisterForState(state:ProjectRuntimeState):ModuleRuntimeRes
   const reporting=operationalReporting(state),risk=reporting.risk,score=new Map((risk.validation?.scoreRows??[]).map((r:any)=>[r.riskId,r]));
   const sourceRatings=new Map(risk.sourceRows.map(row=>[row.riskId,row.rating]));
   const rows=(risk.current??[]).map((r:any)=>{const s:any=score.get(r.riskId);const inconsistent=(risk.validation?.ratingInconsistencyGroups??[]).some((g:any)=>g.riskIds?.includes(r.riskId));return {
-    riskId:r.riskId,subject:r.subject??null,category:r.category??null,status:r.status,owner:r.owner??null,dueIso:r.dueIso??null,linkedActivityId:r.linkedActivityId??null,
+    riskId:r.riskId,subject:r.subject??null,category:r.category??null,status:r.status,owner:riskOwner(r.owner),sourceOwner:r.owner??null,dueIso:r.dueIso??null,linkedActivityId:r.linkedActivityId??null,
     probability:s?.probability??null,impact:s?.impact??null,calculatedScore:s?.score??null,suppliedRating:sourceRatings.get(r.riskId)??s?.rating??null,reportingRating:r.rating??null,
     ratingCheck:inconsistent?(risk.validation.diagnostics.includes('RISK_RATING_SCORE_CONFLICT')?'conflict':'source difference retained; reporting treatment confirmed'):'not contradicted by equal-score check',sourceRefs:(r.sourceRefs??[]).join('; ')
   };});
