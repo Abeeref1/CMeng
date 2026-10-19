@@ -142,13 +142,19 @@ function renderPendingEotScenario(p){
   const ldText=ld.state==='calculated'?' Delay damages: '+money(ld.currentAmount)+' now, '+money(ld.scenarioAmount)+' in the scenario, a reduction of '+money(ld.effectAmount)+'.':' Delay damages effect not calculated: the contract rate, cap or contract value is not established.';
   return '<p><b>Pending EOT scenario (CMeng CPM).</b> If all pending assessed days are awarded without overlap, the contract completion moves to '+date+'. The CMeng CPM finish '+escapeHtml(planningShortDate(s.cpmCompletionIso))+' is then '+late(s.scenarioDaysLate)+(typeof s.completionFloatHoursAgainstScenario==='number'?' (completion float '+fmt(s.completionFloatHoursAgainstScenario)+' h)':'')+', against '+late(s.currentDaysLate)+' on '+escapeHtml(planningShortDate(s.governingCompletionIso))+' today.'+ldText+'</p>';
 }
+/** F61: a paged claim list states its true total and opens the remaining claims. */
+function claimPipelinePaging(rows){
+  const population=typeof responseListPopulation==='function'?responseListPopulation(rows):null;
+  if(!population||!(population.total>rows.length))return '';
+  return '<p class="source-population">Showing '+fmt(rows.length)+' of '+fmt(population.total)+' claims.</p>'+(typeof sourcePopulationControl==='function'?sourcePopulationControl(rows,'Browse all claims'):'');
+}
 function renderClaimPipeline(data){
   const facts=data?.projectFacts,p=facts?.claims?.pipeline;if(!p)return '';
   return '<section class="planning-panel"><h4>Claim register and pending EOT</h4>'+planningKpis([
     ['Claims',p.recordCount,'Identities evidenced by the Data Date'],['Claimed days',p.claimedDays,'From register'],
     ['Assessed days',p.assessedDays,'Register assessments; includes unconfirmed decisions'],['Awarded EOT',facts.time.awardedEotDays.value,'Dated awards'],
     ['Pending claims',p.pendingCount,'Submitted or under review'],['Pending assessed days',p.pendingAssessedDays,'Scenario input; not awarded']
-  ])+renderPendingEotScenario(p)+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div></details>':'')+'</section>';
+  ])+renderPendingEotScenario(p)+'<small>'+escapeHtml(p.basis)+'</small>'+((p.rows||[]).length?'<details><summary>Claimed days, assessed days and register status by claim</summary><div class="table-wrap"><table><thead><tr><th>Claim</th><th>Register status</th><th>Claimed days</th><th>Assessed days</th></tr></thead><tbody>'+p.rows.map(row=>'<tr><td>'+escapeHtml(row.claimId)+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+fmt(row.claimedDays)+'</td><td>'+fmt(row.assessedDays)+'</td></tr>').join('')+'</tbody></table></div>'+claimPipelinePaging(p.rows)+'</details>':'')+'</section>';
 }
 function uniqueReportingPopulations(populations){
   const groups=new Map();

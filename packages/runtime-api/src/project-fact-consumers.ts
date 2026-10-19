@@ -107,7 +107,19 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
       for(const field of Object.keys(group).filter(k=>k!=='currency'))bind('commercial.currencies.'+factIndex+'.'+field,[base+'.'+index+'.'+field+'.value']);
     });
   }
-  return {...data,projectFacts:facts,projectFactBindings:bindings} as T & {projectFacts:ProjectFactsSnapshot;projectFactBindings:ProjectFactBinding[]};
+  return {...withLinkedClaimFigures(data,facts),projectFacts:facts,projectFactBindings:bindings} as T & {projectFacts:ProjectFactsSnapshot;projectFactBindings:ProjectFactBinding[]};
+}
+
+/** F61: each event row that links claims carries the canonical figures of those
+ * claims (the same rows as projectFacts.claims.pipeline.rows), so a page shows
+ * them without receiving the complete claim list, which is paged on large
+ * projects. Additive field; event identity and order are unchanged. */
+export function withLinkedClaimFigures<T extends ObjectValue>(data:T,facts:ProjectFactsSnapshot):T{
+  const rows=facts.claims?.pipeline?.rows,events=(data as any)?.events;
+  if(!Array.isArray(rows)||!rows.length||!Array.isArray(events)||!events.some((e:any)=>Array.isArray(e?.linkedClaimIds)&&e.linkedClaimIds.length))return data;
+  const byId=new Map(rows.map(row=>[row.claimId,row]));
+  return {...data,events:events.map((e:any)=>Array.isArray(e?.linkedClaimIds)&&e.linkedClaimIds.length
+    ?{...e,linkedClaimFigures:e.linkedClaimIds.map((id:string)=>byId.get(id)).filter((row:unknown)=>row!==undefined)}:e)};
 }
 
 /** Checks the fields consumed by renderers, not just an attached snapshot. */

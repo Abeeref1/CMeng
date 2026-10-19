@@ -250,7 +250,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       topPriority:priority};
   });
   const owned=actions.filter(action=>action.owner).length,unassigned=actions.length-owned;
-  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActions,ownerGroups,recordActionCount:recordActions.length,
+  return {schemaVersion:'1.0',projectionKey:'cross_domain_accountability',projectId:state.projectId,projectVersion:state.version,dataDateIso,rows,details,actions,recordActions,ownerGroups,ownerBlocks:accountabilityOwnerBlocks(ownerGroups),recordActionCount:recordActions.length,
     managementPosition:recordActions.length
       ?recordActions.length+' underlying control records are organised into '+actions.length+' accountable owner/register action groups; '+owned+' groups have an accountable role'+(unassigned?' and '+unassigned+' still need ownership.':'.')
       :'No actionable ownership chain is established from the current open/overdue records.',
@@ -258,4 +258,18 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
 }
 export function accountabilityModule(state:ProjectRuntimeState):ModuleRuntimeResult{
   const data=crossDomainAccountability(state);return {key:'cross-domain-accountability',status:data.actions.length||data.rows.length?'partial':'blocked',reason:data.managementPosition,dependencies:data.actions.length||data.rows.length?[]:['dated open records with owner/contractor/scope information'],data};
+}
+
+/** F61: one summary per accountable owner (assigned owner, else accountable
+ * role: the first part of the stable group key), computed from ALL register
+ * groups on the server. A paged owner list therefore never shows a partial
+ * owner total. Each block keeps its register groups unchanged (additive). */
+export function accountabilityOwnerBlocks<G extends {key?:string|undefined;owner?:string|null|undefined;count?:number|null|undefined;overdueRecordCount?:number|null|undefined;knownOverdueRecordCount?:number|null|undefined}>(groups:readonly G[]){
+  const owners=new Map<string,G[]>();
+  for(const group of groups){const id=String(group.key??group.owner??'').split('|')[0]!.trim().toLowerCase();const list=owners.get(id)??[];list.push(group);owners.set(id,list);}
+  return [...owners.entries()].map(([ownerKey,list])=>({ownerKey,owner:list[0]!.owner??null,groupCount:list.length,
+    recordCount:list.reduce((n,g)=>n+(typeof g.count==='number'?g.count:0),0),
+    knownOverdueRecordCount:list.reduce((n,g)=>n+(typeof g.knownOverdueRecordCount==='number'?g.knownOverdueRecordCount:0),0),
+    overdueRecordCount:list.some(g=>g.overdueRecordCount==null)?null:list.reduce((n,g)=>n+(g.overdueRecordCount as number),0),
+    groups:list}));
 }
