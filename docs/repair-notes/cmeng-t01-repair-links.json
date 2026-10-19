@@ -1,0 +1,332 @@
+{
+  "schema": "cmeng-t01-repair-links-v1",
+  "note": "Hand-kept list of repair commits linked to original SW items, read from commit subjects and the test files each commit changed. A link is a repair reference, not proof of closure. Commits listed here are saved, not live, unless git shows them inside the live release.",
+  "liveRelease": "b3c76d6",
+  "liveReleaseFull": "b3c76d6ca6b2dfb2c98ae195270c7b81feb1602e",
+  "repairBranches": {
+    "fixer": "fix/cmeng-resume-t11-20261016 at bd851ecc",
+    "combined": "v/v2base at 413524f5 (one squashed commit on bd851ecc; per-fix commits on v/history1)"
+  },
+  "sw": {
+    "SW-01": {
+      "commits": [
+        "0fcebe4e",
+        "3634d35b",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t05-counts-true-total-every-screen.test.ts",
+        "tests/project-actions.test.ts"
+      ],
+      "what": "Screen counts, captions and 'Showing X of Y' read the true source total, not the 25/12/4/1 preview (T05).",
+      "notCovered": "N1 guard not re-run on all 23 projects; not live."
+    },
+    "SW-07": {
+      "commits": [
+        "d19a0d58",
+        "85c8324b",
+        "071ea238",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t11-dashboard-on-demand-original-content.test.ts"
+      ],
+      "what": "Dashboard reads the one shared full calculation, so Dashboard open actions equal the full calculation (9, not 7).",
+      "notCovered": "Covers the Dashboard against the full calculation only; N4/S4 not re-run; other page pairs not checked."
+    },
+    "SW-36": {
+      "commits": [
+        "be3851ee",
+        "1066c47c",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t04-clear-source-analysis-all-families.test.ts"
+      ],
+      "what": "Clearly read unique candidate values used in more analysis families, labelled 'read from source; not formally adopted'; an adopted value is never erased by a candidate; disagreements shown (T04, part of the hold).",
+      "notCovered": "The pick / type your own / undo control required by C1 is not part of these commits."
+    },
+    "SW-45": {
+      "commits": [
+        "fb318c1a",
+        "6ffa8bea",
+        "7f2f7429",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t10-no-code-names-on-screen.test.ts",
+        "tests/t10-diagnostic-heading-meaning.test.ts"
+      ],
+      "what": "One shared field-label module for browser, server issue headings, report preview and downloads; internal field names and codes are not shown as headings, columns, labels or values (T10).",
+      "notCovered": "W1, W2, W3, W8 not re-run on all 23 projects; not live."
+    },
+    "SW-54": {
+      "commits": [
+        "85c8324b",
+        "e4ac2948",
+        "1d17175e",
+        "8b718627",
+        "c0ebd7f3",
+        "ad2a8588",
+        "cd9aa73b",
+        "e2ecb802",
+        "a145497b",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t11-retained-calculation-only.test.ts",
+        "tests/t11-lookahead-cold-reuse-parity.test.ts",
+        "tests/t11-dashboard-on-demand-original-content.test.ts"
+      ],
+      "what": "Speed work (T11): finished owner pages kept when a worker is recycled, Dashboard single calculation, byte-identical speed work in look-ahead, readiness, analytics.",
+      "notCovered": "The 5-second gate with 4 cold projects at once is not proven by these tests."
+    },
+    "SW-13": {
+      "commits": [
+        "e7a4f6db"
+      ],
+      "tests": [
+        "tests/t02-eastern-digit-source-reader.test.ts"
+      ],
+      "what": "Eastern Arabic source numerals read in the shared financial and register parser (T02); commit subject names SW-13.",
+      "notCovered": "Only numeral reading; ignored and unmapped register columns (R1) are not covered."
+    },
+    "SW-55": {
+      "commits": [
+        "2f5fc187",
+        "445e678d"
+      ],
+      "tests": [
+        "tests/project-gateway-preservation.test.ts"
+      ],
+      "what": "Explicit, saved test-project flag and a separate test portfolio (commit subjects name F59). These commits are inside live release b3c76d6.",
+      "notCovered": "The verifier still saw test data in the live portfolio at b3c76d6 (cause table status: Seen again), so existing projects are not yet marked; check V2 is still to add."
+    }
+  },
+  "withoutSwRow": [
+    {
+      "rule": "N7",
+      "commits": [
+        "fce008d1",
+        "ae15b20c",
+        "1cf01767",
+        "55f6e36b",
+        "42231c15",
+        "413524f5"
+      ],
+      "tests": [
+        "tests/t06-float-days-every-remaining-place.test.ts",
+        "tests/management-brief-acceptance.test.ts"
+      ],
+      "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06).",
+      "why": "No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect."
+    }
+  ],
+  "fOverlaps": {
+    "F05": [
+      "SW-39"
+    ],
+    "F17": [
+      "SW-11"
+    ],
+    "F33": [
+      "SW-22"
+    ],
+    "F41": [
+      "SW-25"
+    ],
+    "F43": [
+      "SW-24"
+    ],
+    "F52": [
+      "SW-43"
+    ],
+    "F53": [
+      "SW-45"
+    ],
+    "F59": [
+      "SW-55"
+    ]
+  },
+  "fOverlapBasis": "Proposed by matching the consultant item title to the SW defect title. Unverified; a reviewer confirms or removes each link. Nothing is deleted.",
+  "fRootVerification": {
+    "R1": {
+      "kinds": [
+        "guard_rule",
+        "expert_review"
+      ],
+      "rules": [
+        "N4",
+        "N5"
+      ],
+      "detail": "Shared facts: same measure, same value on every page and role view; then stage challenge."
+    },
+    "R2": {
+      "kinds": [
+        "guard_rule",
+        "expert_review"
+      ],
+      "rules": [
+        "C1",
+        "C2",
+        "W10"
+      ],
+      "detail": "Hold and candidate values (T04 rules); then stage challenge."
+    },
+    "R3": {
+      "kinds": [
+        "guard_rule",
+        "expert_review"
+      ],
+      "rules": [
+        "A3",
+        "A4"
+      ],
+      "detail": "Every gap has a named route; then stage challenge."
+    },
+    "R4": {
+      "kinds": [
+        "independent_reader"
+      ],
+      "rules": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "detail": "Register and file reading checked by the independent reader from the source files."
+    },
+    "R5": {
+      "kinds": [
+        "independent_calculator",
+        "expert_review"
+      ],
+      "rules": [],
+      "detail": "Engineering rule: independent calculators (CPM solver, EVM workbook, commercial ledger, notice calculator, delivery state tables) and the stage challenge, not the guard (plan, 'All 57 system defects')."
+    },
+    "R6": {
+      "kinds": [
+        "guard_rule",
+        "expert_review"
+      ],
+      "rules": [
+        "A3"
+      ],
+      "detail": "One action per chain; then stage challenge."
+    },
+    "R7": {
+      "kinds": [
+        "guard_rule",
+        "expert_review"
+      ],
+      "rules": [
+        "W1",
+        "W2",
+        "W5",
+        "W8",
+        "L1",
+        "L3"
+      ],
+      "detail": "Wording and look rules; then stage challenge."
+    },
+    "R8": {
+      "kinds": [
+        "guard_rule"
+      ],
+      "rules": [
+        "P2",
+        "N10"
+      ],
+      "detail": "Loading and page weight rules."
+    },
+    "R9": {
+      "kinds": [
+        "expert_review"
+      ],
+      "rules": [],
+      "detail": "Test method item: reviewed by the verifier against the consultant's expected check."
+    }
+  },
+  "fRootBasis": "Method chosen from the consultant item's root group (R1 to R9) and the plan's task rules; the consultant's own expected check is kept word for word beside it.",
+  "relatedNotRepair": {
+    "SW-10": {
+      "commits": [
+        "08667e87"
+      ],
+      "why": "Speed work that indexes calendar identity and keeps first-match behaviour unchanged, so it does not repair silent duplicate matching."
+    }
+  },
+  "f": {
+    "F12": {
+      "commits": [
+        "4eb29dd1"
+      ],
+      "tests": [
+        "tests/lookahead-procurement-linked-readiness.test.ts"
+      ],
+      "what": "Keeps source owner authority in procurement readiness; commit subject names F12.",
+      "notCovered": "Owners from every register not covered."
+    },
+    "F28": {
+      "commits": [
+        "cb7443bf"
+      ],
+      "tests": [
+        "tests/system-root-causes.test.ts",
+        "tests/ui-management-experience.test.ts"
+      ],
+      "what": "Explicit-approval decision gates (live). Commit subject names F28.",
+      "notCovered": "Plan T04 (13 Oct) still requires ending the hold: no approval request for clear facts. Not certified."
+    },
+    "F56": {
+      "commits": [
+        "cb7443bf"
+      ],
+      "tests": [
+        "tests/system-root-causes.test.ts",
+        "tests/ui-management-experience.test.ts"
+      ],
+      "what": "Managerial day precision (live). Commit subject names F56.",
+      "notCovered": "Guard N6 still failed on 21 projects at b3c76d6."
+    },
+    "F59": {
+      "commits": [
+        "2f5fc187",
+        "445e678d"
+      ],
+      "tests": [
+        "tests/project-gateway-preservation.test.ts"
+      ],
+      "what": "Saved test-project flag and separate test portfolio (live).",
+      "notCovered": "Existing projects not yet marked; V2 still to add."
+    }
+  },
+  "s": {
+    "S02": {
+      "commits": [
+        "f0450972",
+        "10849379"
+      ],
+      "tests": [],
+      "what": "Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02.",
+      "notCovered": "Plan of 13 Oct still lists S02 open; Accountability 5 to 18 s at b3c76d6."
+    },
+    "S35": {
+      "commits": [
+        "63262572",
+        "b21deb6d"
+      ],
+      "tests": [],
+      "what": "Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35.",
+      "notCovered": "Plan of 13 Oct still lists S35 open."
+    },
+    "S45": {
+      "commits": [
+        "e2c247ed"
+      ],
+      "tests": [],
+      "what": "Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50.",
+      "notCovered": "Plan of 13 Oct still lists S45 open."
+    }
+  },
+  "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence."
+}

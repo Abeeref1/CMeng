@@ -1,0 +1,514 @@
+[
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-01",
+  "Page size counted as the total",
+  "Tiles, headers, captions and filters say 25 or 50 where the list holds 240, 600, 2,000 or 9,500. Charts and matrices are drawn from the first 25 rows.",
+  "The server sends the first 25 rows of each list plus the real total; screens count or chart the 25.",
+  "Critical",
+  "Seen again (35 of 57 pages)"
+ ],
+ [
+  "SW-02",
+  "Register paging skips rows",
+  "A register shows rows 1 to 25 of each 50; rows 26 to 50 of every page can never be reached.",
+  "The page asks for 50 rows, receives 25, and Next moves on by 50.",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-03",
+  "Very large results become an empty page",
+  "A page shows 41 words and a raw key as its title, although its result was calculated.",
+  "A result too large for the response is replaced by a stub.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-04",
+  "Unknown shown as 0, No or clear",
+  "Near-critical 0, overdue milestones 0 in green, timely and late notices 0, \"Driving path: No\", \"Outside driving path\", \"Unknown readiness 0\", \"No known blocker\" for registers never supplied",
+  "An empty or not-calculable value is printed as the \"known\" count (0) or a false flag.",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-05",
+  "Role views blank",
+  "Executive, Project Director, Program Director, Planning and Project Controls views say confirmed dates are \"Not established\", show \"Currency positions 0\" and \"no management action\".",
+  "The role views read a separate role summary that is left empty, not the confirmed facts the page already holds.",
+  "Critical",
+  "Seen again (every page with views)"
+ ],
+ [
+  "SW-06",
+  "Wrong values in columns",
+  "BOQ item 1.0001 shown as \"1\"; WBS id instead of WBS name; finished tasks show the planned finish; float in hours with no note",
+  "Generic number formatter and wrong field bindings",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-07",
+  "Pages contradict each other while the check says Pass",
+  "The same measure shows different values on different pages next to \"Cross-module consistency: Pass\".",
+  "The consistency check compares stored facts, not what each screen shows.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-08",
+  "Key figures held but not shown",
+  "Margin to contract date, claimed vs granted days, progress since last update, first aid and near misses",
+  "The page does not place figures it already has.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-09",
+  "Programme links do not attach",
+  "All relationships read, but 0 attach; every activity is isolated; no CPM, driving path, near-critical or forecast. Pages tell the planner to correct the contractor's file.",
+  "Confirmed in code (release b3c76d6): activities are keyed by project id plus task id, but link rows that carry no project id are keyed with an empty one (\"native:::100001\"), so none match. A source check found 12,665 of 12,669 relationships valid (2 missing predecessors, 2 self-links).",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-10",
+  "Duplicate activity ids matched silently",
+  "One duplicate creates a false removed activity, duration change and float change, while \"Ambiguous identities: 0\"",
+  "Duplicates are not treated as ambiguous.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-11",
+  "Files filed by file-name guess and never queued for review",
+  "A cost report is filed as a programme update and set aside, so EAC, CPI and actual cost show \"not in source\"; other registers are given the wrong type.",
+  "Low-confidence guesses (0.38) are accepted; the \"needs review\" flag is set but the review queue flag is not. Source check: the misfiled report states certified to date, actual cost, cost to complete, EAC and a \"Forecast Overrun\" line of SAR 240,000,000; none is shown.",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-12",
+  "Superseded cost file used as current",
+  "Cost pages cite a file marked \"do not use as current\" as the active cost basis.",
+  "A newer candidate file is not applied, so the old one stays active.",
+  "Critical",
+  "Not re-checked today"
+ ],
+ [
+  "SW-13",
+  "Register columns ignored or not mapped",
+  "Submittal package column, asset criticality and location, asset Yes/No status flags, BOQ cost code (filled, but unique per item and matching no WBS or activity code, so not a link key), BOQ currency in the column name, claim status \"Accepted\"",
+  "Fixed column-name and value lists miss them.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-14",
+  "Uploaded documents left unread",
+  "Scanned PDFs stay \"OCR pending\" for weeks; letters, minutes, HSE reports and tenders stay \"identified\" only, with no progress or failure shown.",
+  "Reading is deferred with no status to the user.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-15",
+  "Delay events made from the claims register",
+  "Claims, events and notices are the same rows shown as three populations; event dates missing on all.",
+  "The claims register is used as the event register.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-16",
+  "Activity type unknown for every activity",
+  "Milestones 0, BEI not calculated, LOE and summaries cannot be excluded.",
+  "Source check: the programme file has no activity-type column and no zero-duration activities, so it truly has no milestones. The defect is the display (0 overdue in green, see SW-04) and no way to mark key dates.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-57",
+  "Project-level programme dates not read",
+  "\"Submitted completion\" is the latest activity finish. The programme's own project end date is never read or shown, so the two are not reconciled (source check: the project end date moved Dec 31, 2028, then Feb 15, 2029, then May 15, 2029 across three updates, while the latest activity finish moved Dec 28, 2028, then Jan 1, then Jan 2, 2029; CMeng shows neither project end date nor asks which is the intended completion).",
+  "From the programme's project table only the project name and last recalculation date are read (confirmed in code).",
+  "High",
+  "New, cause confirmed in code"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-17",
+  "Procurement need date",
+  "\"Required on site\" shows a different date from the register's; \"date has passed\" when no register date has passed; three different late counts on three pages",
+  "The earlier of the register and programme dates is used under the register's label; the overdue check reads an empty due-date field.",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-18",
+  "Readiness rules",
+  "Logic gate 100% with no links; passed dates shown as \"confirmed blocking prerequisite\"; delivered packages with future forecast counted ready and plotted as future deliveries",
+  "\"Not applicable\" counted as known; dates treated as blockers; status vs forecast conflicts not raised",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-19",
+  "NCRs with unclear status counted as open",
+  "Open NCRs about 7 times the real number",
+  "\"Status unclear\" added to open; closure-before-raised records given a wrong reason",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-20",
+  "Fixed default periods instead of contract rules",
+  "Detailed-claim lateness on a fixed 42 days while the extracted contract rule is 84 days",
+  "Defaults used although the contract rule is held",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-21",
+  "Variation position",
+  "\"Pending variations 0 \u00b7 Confirmed\" from an approved-only list; explained cut-off differences raised as conflicts",
+  "The approved list is treated as the full change register.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-22",
+  "Contract time",
+  "An amendment's revised completion date labelled \"Original\"; awarded EOT \"Not in source\" while the amendment table says incorporated; a constrained finish shown as the forecast",
+  "The extended date is sought only in determinations. Source check: the main contract states \"Original Completion 31 December 2028\" on page 1 and the amendment states it again; CMeng records the original date as missing.",
+  "Critical",
+  "Seen again (constraint case not re-checked)"
+ ],
+ [
+  "SW-23",
+  "EOT windows",
+  "Window movement 9 and 16 days on one page, 4 and 1 on another; concurrency \"Reviewed\" in green when nothing was tested",
+  "Largest single-activity shift used instead of completion movement",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-24",
+  "Recovery options",
+  "\"Days recovered\" measured against need dates already in the past (for example 640 days)",
+  "Lateness relabelled as recovery, not tied to completion",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-25",
+  "Float trend",
+  "Critical and negative-float counts fall between updates, which reads as improvement while the critical share is flat",
+  "Raw counts plotted over a shrinking unfinished population",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-26",
+  "Filters vs KPIs",
+  "Critical filter 5,081 vs KPI 3,974 on the same page",
+  "Filters include completed activities; KPIs do not.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-27",
+  "Grouping",
+  "Discipline or location progress blank; 38% unclassified; all activities in one \"Unclassified\" location",
+  "One unknown activity blanks a group; keyword list incomplete; WBS areas never offered as locations",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-28",
+  "No planned progress without calendars",
+  "No plan line or progress gap at all, even for work planned wholly before or after the data date",
+  "Planned work is spread only through calendars. Source check: the calendar table gives hours per day (10, 10 and 24) in a field named \"hours_per_day\", and the calendar names give days per week (6D, 5D, 7D); neither is read.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-29",
+  "Failed recalculation shown as the user's input problem",
+  "\"Correct the missing inputs\" while inputs pass; driving and probability figures still shown",
+  "The failure is attributed to inputs.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-30",
+  "Contractor figures called independent checks",
+  "\"CMeng independent check\" shows the contractor's own percent complete; the claims register is not used as the submitted position.",
+  "Comparison labels",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-31",
+  "Implausible source EAC not challenged",
+  "EAC far below budget with CPI below 1, shown as \"arithmetic checked\"",
+  "No plausibility check",
+  "High",
+  "Not re-checked today"
+ ],
+ [
+  "SW-32",
+  "Delivery risks from the wrong source",
+  "\"1 candidate risk, no register\" while a 600-row register is loaded; undated rows all excluded",
+  "The page is built from BOQ wording; the register sits aside.",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-33",
+  "Handover readiness ignores the asset register",
+  "Programme tasks only; register status not used or reconciled",
+  "Fallback to programme names",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-34",
+  "Interface candidates from package pairs",
+  "Thousands of \"calculated links\" with no parties or dates",
+  "Generated pairs",
+  "Medium",
+  "Not seen today"
+ ],
+ [
+  "SW-35",
+  "HSE rates",
+  "TRIR shown without warning although CMeng found it does not reconcile; monthly table \"Not established\" under filled cards; unit \"per source basis hours\"",
+  "Reconciliation result not displayed; no fallback to period totals",
+  "Medium",
+  "Seen again"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-36",
+  "Held values never offered to confirm or choose",
+  "Contract value and currency \"Needs review\" with no button; file type; register EOT days vs amendment; register vs programme need dates; undated risks; rating vs score; near-critical threshold; milestones; locations; TRIR. The Actions panel says \"0 decisions\" and the suggestions inbox is empty.",
+  "Candidates are not routed into any review queue. Source conflicts now have no action at all (earlier they were sent to re-upload).",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-37",
+  "No input fields",
+  "No place for working days, hours per day, crews, productivity rates or the near-critical threshold",
+  "Not built",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-38",
+  "Stale confirmation banner",
+  "\"Records still await confirmation\" above \"Confirmed 2,000\"",
+  "The banner reads per-record review state.",
+  "Medium",
+  "Seen again"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-39",
+  "Action loop",
+  "\"View all 11 project actions\" opens a panel with \"0 decisions\", which points to Accountability, which points back. The same action groups are repeated on 4 pages. Due dates are the oldest record date with no overdue age; escalation applies to one register only; every owner is \"individual not designated\".",
+  "The panel was narrowed but the buttons were not changed.",
+  "High",
+  "Partly fixed (action titles now plain)"
+ ],
+ [
+  "SW-40",
+  "Buttons to wrong or empty places",
+  "\"Risk and HSE review\" opens Command Center; \"Review scope links\" opens an empty stub; anchors to sections that are not rendered; matching panel opens empty",
+  "Hard-wired targets",
+  "Medium",
+  "Seen again"
+ ],
+ [
+  "SW-41",
+  "No page addresses",
+  "The URL never changes; browser Back leaves the app; the Actions panel stays open across pages; Escape does not close it.",
+  "Single-address app",
+  "Medium",
+  "Not re-checked today"
+ ],
+ [
+  "SW-42",
+  "Packages linked to finished work disappear",
+  "They are in no action group anywhere.",
+  "No close-out group for procurement",
+  "High",
+  "Seen again"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-43",
+  "No answer on the first screen",
+  "Blank first screens, or money and dates only from screen 2",
+  "Layout order",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-44",
+  "Very long, repeated pages",
+  "Up to 96 screens opened; tabs 97% identical; \"Additional source records\" raw groups on every page, including empty ones",
+  "Generic renderers print every field.",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-45",
+  "Developer language",
+  "Raw keys, codes, JSON field names, internal notes and \"\u00b7\" chains on screen and in Actions",
+  "No translation layer",
+  "High",
+  "Partly fixed (action titles)"
+ ],
+ [
+  "SW-46",
+  "Fixed notices that state false facts",
+  "\"The XER contains resource assignments\" (0 exist); \"readable calendars are available\" (missing); \"planned hours may exist\"; \"gate passed\" on an empty list",
+  "Fixed sentences not checked against data",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-47",
+  "Charts",
+  "No plan curves, risk heatmap or completion timeline; S-curve draws carried-forward points as observations; one curve at a time",
+  "Chart design",
+  "High",
+  "Seen again"
+ ],
+ [
+  "SW-48",
+  "Filters and sorting",
+  "No scope filters; registers in id order with no sort",
+  "Not built",
+  "Medium",
+  "Seen again"
+ ],
+ [
+  "SW-49",
+  "Downloads and Generate report are raw dumps",
+  "64,000-word field dumps; PDFs of key paths; Excel of internal arrays",
+  "Export renders the data object, not a report",
+  "Critical",
+  "Seen again"
+ ],
+ [
+  "SW-50",
+  "Screen figures missing from export",
+  "KPI values shown on screen are not in the export.",
+  "Separate producers",
+  "High",
+  "Not re-checked today"
+ ],
+ [
+  "SW-51",
+  "Contrast and keyboard access",
+  "WCAG contrast failures; scroll areas not reachable by keyboard",
+  "Styling",
+  "Medium",
+  "Not re-checked today"
+ ],
+ [
+  "ID",
+  "Defect",
+  "What the user sees",
+  "Cause",
+  "Severity",
+  "Status"
+ ],
+ [
+  "SW-52",
+  "Versions change with no new source",
+  "\"Background project update\" versions on days with no upload",
+  "Background migrations",
+  "Medium",
+  "Not re-checked today"
+ ],
+ [
+  "SW-53",
+  "Pages fail during deployments",
+  "Cold opens of 17 to 22 s and \"Unable to load\" during releases",
+  "No zero-downtime switch",
+  "High",
+  "Not re-checked today"
+ ],
+ [
+  "SW-54",
+  "Speed",
+  "One page above 5 s cold during a background update; most pages 0.6 to 4 s",
+  "Background work on open",
+  "High",
+  "Not re-checked today"
+ ],
+ [
+  "SW-55",
+  "Test data listed as live projects",
+  "Generated projects shown in the live portfolio",
+  "Listing",
+  "Medium",
+  "Seen again"
+ ],
+ [
+  "SW-56",
+  "AI set-up",
+  "AI is configured but never used to read. When a fixed reading rule misses a field or file, nothing else reads it and the data is dropped silently. Source check: calendar hours in a field named \"hours_per_day\" and days per week in names like \"6D-10H\"; the cost report typed from its file name; \"Original Completion\" on contract page 1; asset, submittal and claim-status columns. Also: no monthly budget cap; BOQ link AI runs one item per press after owner activation; claims matching AI not configured; pages never say AI is off",
+  "Configuration and design",
+  "High",
+  "Seen again"
+ ]
+]
