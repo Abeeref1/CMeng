@@ -114,6 +114,7 @@ jobs:
             dist/tests/t06-float-days-every-remaining-place.test.js \
             dist/tests/t06-durations-and-buckets-days.test.js \
             dist/tests/t06-lag-working-days.test.js \
+            dist/tests/t06-delay-working-days.test.js \
             dist/tests/t06-float-trend-share-of-unfinished.test.js \
             dist/tests/t10-diagnostic-heading-meaning.test.js \
             dist/tests/t10-primary-source-detail-collapsed.test.js \

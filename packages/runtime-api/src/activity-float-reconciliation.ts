@@ -1,4 +1,4 @@
-import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
+import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,finishVarianceBetween,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -64,6 +64,44 @@ export function lagHoursText(hours:number|null|undefined,dayHours:number|null|un
  return days===null?'lag working days not established (successor calendar hours per day not read) · '+hours+' h'
   :'lag '+Number(days.toFixed(2))+' working days (successor calendar) · '+hours+' h';
 }
+
+/** T06/N7: a delay between two source dates of one activity, in working days
+ * of that activity's own source calendar: working hours between the two
+ * instants on the calendar (workingHoursBetween, via the shared
+ * finishVarianceBetween) divided by that calendar's working-day length.
+ * Cached per programme and calendar/date pair, so screens over thousands of
+ * rows pay the calendar walk once. Unknown activity, missing date, or a
+ * missing, incomplete or unread calendar stays null with its basis. */
+export const DELAY_DAYS_BASIS='source_activity_calendar';
+const delayCache=new WeakMap<CanonicalScheduleModel,Map<string,{calendarDays:number|null;workingDays:number|null;basis:string}>>();
+export function delayWorkingDays(model:CanonicalScheduleModel,activityId:unknown,fromIso:string|null|undefined,toIso:string|null|undefined){
+ const {calendarById,activityById}=sourceCalendarWorkingDays(model);
+ const activity=typeof activityId==='string'?activityById.get(activityId):undefined;
+ if(!activity)return {calendarDays:null,workingDays:null,basis:'activity_not_in_programme'};
+ if(!fromIso||!toIso)return {calendarDays:null,workingDays:null,basis:'dates_not_established'};
+ let cache=delayCache.get(model);if(!cache){cache=new Map();delayCache.set(model,cache);}
+ const key=String(activity.calendarId)+'|'+fromIso+'|'+toIso;
+ const known=cache.get(key);if(known)return known;
+ const fromMs=Date.parse(fromIso),toMs=Date.parse(toIso);
+ let result:{calendarDays:number|null;workingDays:number|null;basis:string};
+ if(!Number.isFinite(fromMs)||!Number.isFinite(toMs))result={calendarDays:null,workingDays:null,basis:'dates_not_established'};
+ else{
+  const calendar=activity.calendarId===null?undefined:calendarById.get(activity.calendarId);
+  let variance:{calendarDays:number;workingDays:number|null};
+  try{variance=finishVarianceBetween(fromMs,toMs,calendar);}catch{variance={calendarDays:(toMs-fromMs)/86_400_000,workingDays:null};}
+  result={calendarDays:Number(variance.calendarDays.toFixed(6)),workingDays:variance.workingDays,
+   basis:variance.workingDays===null?'calendar_working_day_not_established':DELAY_DAYS_BASIS};
+ }
+ cache.set(key,result);return result;
+}
+/** The same finish pair the activity analytics use: actual finish when
+ * completed, otherwise forecast or current finish, against baseline finish. */
+function sourceFinishPair(activity:CanonicalScheduleModel['activities'][number]){
+ const to=activity.status==='completed'&&activity.actualFinishIso?activity.actualFinishIso:(activity.forecastFinishIso??activity.currentFinishIso);
+ return [activity.baselineFinishIso,to] as const;
+}
+// Finish slippage fields in elapsed calendar days, keyed to one activity.
+const DELAY_FIELDS=['finishVarianceDays','varianceDays'] as const;
 
 /** Submitted classifications remain source assertions. Every comparison retains
  * the activity identity and both answers; an aggregate count cannot clear a row. */
@@ -252,6 +290,22 @@ export function attachFloatWorkingDays<T>(data:T,model:CanonicalScheduleModel|nu
    }
    if(durationConverted&&!('durationDaysBasis' in value))
     set('durationDaysBasis',durationDayHours===null?'calendar_working_day_not_established':'source_activity_calendar');
+  }
+  // T06/N7: finish slippage in elapsed days carries working days of the
+  // activity's own calendar (finishVarianceWorkingDays + finishVarianceDaysBasis).
+  // Converted only when the source date pair reproduces the row's elapsed
+  // days, so a value from another date pair is never relabelled.
+  if(own){
+   const activity=activityById.get(value.activityId)!;
+   for(const field of DELAY_FIELDS){
+    const days=value[field],workingKey=field.replace(/Days$/,'WorkingDays'),basisKey=field.replace(/Days$/,'DaysBasis');
+    if(typeof days!=='number'||!Number.isFinite(days)||workingKey in value)continue;
+    const [fromIso,toIso]=sourceFinishPair(activity);
+    const delay=delayWorkingDays(model,activity.activityId,fromIso,toIso);
+    const matched=delay.calendarDays!==null&&Math.abs(delay.calendarDays-days)<1e-5;
+    set(workingKey,matched?delay.workingDays:null);
+    if(!(basisKey in value))set(basisKey,matched?delay.basis:'source_date_pair_not_matched');
+   }
   }
   // T06/N7: a relationship row's lag carries working days of its successor
   // calendar beside the hours (lagWorkingDays + lagDaysBasis). Only rows that
