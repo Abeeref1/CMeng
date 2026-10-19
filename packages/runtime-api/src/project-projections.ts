@@ -91,7 +91,9 @@ import { sourceProductivityForecastEvidence } from "./source-productivity-foreca
 import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
 import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
-import { canonicalResourceModule } from "./canonical-resource-runtime";
+import { canonicalResourceModule, canonicalResources } from "./canonical-resource-runtime";
+import { registerHourUnit } from "./resource-trade-week-hours";
+import { resourceLaborHourEligible } from "../../schedule-resource-core/src";
 import { createHash } from "node:crypto";
 import {
   scheduleProgress,
@@ -7724,24 +7726,28 @@ function resolveProjectModuleCandidate(
     const value=result.data as any,output=value?.result?.projectionKey==='lookahead_schedule'?value.result:value;
     const ids=new Set<string>(((output.forwardWindowRows??output.rows??[]) as Array<{activityId:string}>).map(x=>x.activityId));
     const master=new Map((resource?.resources??[]).map(x=>[x.resourceId,x]));
-    const groups=new Map<string,{resourceId:string;trade:string;unit:string|null;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    const groups=new Map<string,{resourceId:string;trade:string;unit:string|null;laborHours:boolean;activityIds:Set<string>;count:number;known:number;remaining:number}>();
+    // F16: each look-ahead activity's own remaining labour hours per resource (null when not stated).
+    const activityRemaining=new Map<string,Map<string,number|null>>();
     for(const row of resource?.assignments??[]){
       if(!ids.has(row.activityId)||row.resourceType!=='labor'||!row.resourceId)continue;
-      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{resourceId:row.resourceId,trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,activityIds:new Set<string>(),count:0,known:0,remaining:0};
+      const r=master.get(row.resourceId),g=groups.get(row.resourceId)??{resourceId:row.resourceId,trade:r?.name??r?.shortName??row.resourceId,unit:r?.unitAbbreviation??r?.unitName??null,laborHours:r?resourceLaborHourEligible(r):false,activityIds:new Set<string>(),count:0,known:0,remaining:0};
       g.activityIds.add(row.activityId);g.count++;
-      if(typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)){g.remaining+=row.remainingUnits;g.known++;}
+      const units=typeof row.remainingUnits==='number'&&Number.isFinite(row.remainingUnits)?row.remainingUnits:null;
+      if(units!==null){g.remaining+=units;g.known++;}
       groups.set(row.resourceId,g);
+      const own=activityRemaining.get(row.activityId)??new Map<string,number|null>();
+      const prior=own.get(row.resourceId);
+      own.set(row.resourceId,prior===undefined?units:prior===null||units===null?null:prior+units);
+      activityRemaining.set(row.activityId,own);
     }
     // S-20: exact resource-ID linkage only. A shared trade name alone is
     // insufficient evidence of the same crew, resource or approved capacity.
     // T04: shared source-analytical rule; a unique fully read candidate is
     // used and labelled (registerEvidenceState 'candidate'), never adopted.
-    const resourceDocs=analyticalOperationalDocuments(state.evidenceDocuments).filter(doc=>
-      /resource|manpower|labou?r|crew|capacity|time.?phas/i.test(
-        [doc.sourceFilename,doc.documentType].join(' ')));
-    const dated=groups.size&&resourceDocs.length
-      ?weeklyResourceCapacityEvidence(resourceDocs,{dataDateIso:model.dataDateIso})
-      :null;
+    // F16: the register is read by the shared canonical resource reader, the same
+    // register points as the Resources page and the Man-hour S-curve.
+    const dated=groups.size?canonicalResources(state):null;
     const weeksById=new Map<string,NonNullable<typeof dated>['points']>();
     const normalizeTrade=(name:string)=>String(name??'').normalize('NFKC').toLowerCase()
       .replace(/\b(labour|labor)\b/g,'labour').replace(/\b(electricians)\b/g,'electrician')
@@ -7759,9 +7765,10 @@ function resolveProjectModuleCandidate(
       }
     }
     const dataDate=model.dataDateIso?.slice(0,10)??null;
-    const endDate=dataDate&&Number.isFinite(Date.parse(dataDate))?
-      new Date(Date.parse(dataDate)+42*86400000).toISOString().slice(0,10):null;
-    const sumKnown=(rows:NonNullable<typeof dated>['points'],key:'availableCapacity'|'plannedDemand'|'actualApprovedUsage')=>
+    const windowEnd=typeof output.windowEndIso==='string'&&Number.isFinite(Date.parse(output.windowEndIso))?output.windowEndIso.slice(0,10):null;
+    const endDate=windowEnd??(dataDate&&Number.isFinite(Date.parse(dataDate))?
+      new Date(Date.parse(dataDate)+42*86400000).toISOString().slice(0,10):null);
+    const sumKnown=(rows:NonNullable<typeof dated>['points'],key:'availableCapacity'|'sourceAvailableCapacity'|'plannedDemand'|'actualApprovedUsage')=>
       rows.length&&rows.every(row=>typeof row[key]==='number'&&Number.isFinite(row[key]))
         ?rows.reduce((total,row)=>total+(row[key]??0),0):null;
     output.sourceResourceTrades=[...groups.values()].map(g=>{
@@ -7777,7 +7784,8 @@ function resolveProjectModuleCandidate(
         return !a||!b||normalize(a)===normalize(b);
       };
       const identityMatches=matchingId?weeksById.get(matchingId)??[]:[];
-      const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit));
+      // Both sides stated in hours (a programme labour-hour resource and a register labour-hour row) are comparable.
+      const matching=identityMatches.filter(p=>unitsComparable(g.unit,p.unit)||(g.laborHours&&p.resourceClass==='labor'&&registerHourUnit(p.unit)));
       // Label only a trade whose figures actually came from an unadopted source.
       const fromUnadopted=identityMatches.some(p=>((p as any).receipts??[]).some((r:any)=>r.basisState==='candidate'));
       const matchBasis=sourceMatch.length?'Exact source resource ID':
@@ -7787,6 +7795,12 @@ function resolveProjectModuleCandidate(
       const forward=matching.filter(p=>p.weekStartIso&&dataDate&&endDate
         &&p.weekStartIso.slice(0,10)>=dataDate&&p.weekStartIso.slice(0,10)<=endDate);
       const history=matching.filter(p=>p.weekStartIso&&dataDate&&p.weekStartIso.slice(0,10)<=dataDate);
+      const latest=[...history].filter(p=>p.actualApprovedUsage!==null).sort((a,b)=>String(a.weekStartIso).localeCompare(String(b.weekStartIso))).at(-1);
+      const unmatchedReason=!dated||dated.state==='not_found'?'No weekly resource register is read.':
+        possibleNames.size>1&&!sourceMatch.length?'The trade name matches more than one register resource; hours are not taken until the register IDs are reconciled.':
+        !identityMatches.length?'No weekly resource register record matches this trade by resource ID or a unique trade name.':
+        !matching.length?'The register states this trade in '+[...new Set(identityMatches.map(p=>p.unit??'no unit'))].join(', ')+', not in the programme unit ('+(g.unit??'not stated')+'); hours are not compared.':null;
+      const plannedInWindow=sumKnown(forward,'plannedDemand');
       return {resourceId:g.resourceId,trade:g.trade,unit:g.unit,activityIds:[...g.activityIds],
         remainingUnits:g.known===g.count?g.remaining:null,
         registerLinkedByExactId:sourceMatch.length>0,
@@ -7796,8 +7810,11 @@ function resolveProjectModuleCandidate(
         matchedRegisterResourceId:identityMatches.length?matchingId:null,
         registerPeriodCount:forward.length,
         registerPlannedDemand:sumKnown(forward,'plannedDemand'),
-        registerAvailableCapacity:sumKnown(forward,'availableCapacity'),
+        registerAvailableCapacity:sumKnown(forward,'sourceAvailableCapacity'),
         registerActualToDate:sumKnown(history,'actualApprovedUsage'),
+        registerLatestRecorded:latest?{weekStartIso:latest.weekStartIso!,hours:latest.actualApprovedUsage!,sourceRef:latest.sourceRef}:null,
+        registerActualReason:latest?null:unmatchedReason??(!dataDate?'The Data Date is not established.':'The register states no recorded hours for this trade on or before the Data Date ('+dataDate+').'),
+        registerPlannedReason:plannedInWindow!==null?null:unmatchedReason??(!forward.length?'The register has no week for this trade starting in the look-ahead window.':'Planned demand is missing for '+forward.filter(p=>p.plannedDemand===null).length+' of '+forward.length+' window weeks.'),
         registerEvidenceState:dated?.state??'not_found',
         ...(fromUnadopted?{registerSourceUse:SOURCE_ANALYTICAL_USE,registerSourceNote:'Capacity read from source; not formally adopted'}:{}),
         registerSourceRefs:[...new Set(identityMatches.map(row=>row.sourceRef))].slice(0,12),
@@ -7807,6 +7824,28 @@ function resolveProjectModuleCandidate(
             :'. Source weekly planned demand, approved capacity where established and actual usage are separate; no crew overload verdict without approved comparable capacity.'):
           matchBasis+'. Submitted P6 labor demand is not an approved crew limit.'};
     });
+    // F16: the Look-Ahead resources column. For each look-ahead activity: its trades, the
+    // activity's own remaining hours, the trade's planned register hours in the window and
+    // the latest recorded register hours, or "not recorded" with the reason.
+    const trades=new Map<string,any>((output.sourceResourceTrades as any[]).map(t=>[t.resourceId,t]));
+    const hoursFor=(activityId:string)=>[...(activityRemaining.get(activityId)??new Map<string,number|null>())].map(([resourceId,remaining])=>{
+      const t=trades.get(resourceId);
+      return {resourceId,trade:t?.trade??resourceId,matchedRegisterResourceId:t?.matchedRegisterResourceId??null,unit:t?.unit??null,
+        activityRemainingHours:remaining,tradePlannedHoursInWindow:t?.registerPlannedDemand??null,windowWeekCount:t?.registerPeriodCount??0,
+        plannedReason:t?.registerPlannedReason??null,
+        latestRecordedWeekIso:t?.registerLatestRecorded?.weekStartIso??null,latestRecordedHours:t?.registerLatestRecorded?.hours??null,
+        state:t?.registerLatestRecorded?'recorded':'not_recorded',reason:t?.registerActualReason??null,
+        sourceRefs:t?.registerLatestRecorded?[t.registerLatestRecorded.sourceRef]:[]};
+    });
+    for(const list of ['rows','forwardWindowRows','overdueBacklogRows','backlogRows','missedStartRows']){
+      if(!Array.isArray(output[list]))continue;
+      output[list]=output[list].map((row:any)=>{
+        if(!ids.has(row.activityId))return row;
+        const resourceHours=hoursFor(row.activityId);
+        return {...row,resourceHours,resourceHoursReason:resourceHours.length?null:'The programme assigns no labour resource to this activity.'};
+      });
+    }
+    output.resourceHoursBasis='Trade planned hours: register planned demand for weeks starting in the look-ahead window. Latest recorded hours: the latest register week on or before the Data Date with recorded hours. Both from the shared weekly resource reader; the activity\'s own remaining hours are from its programme labour assignments.';
   }
   if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {

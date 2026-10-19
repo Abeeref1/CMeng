@@ -1,5 +1,6 @@
 import { canonicalHeader, cell, has, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { StoredEvidenceDocument } from './project-state-types';
+import { weeklyResourceLayoutTable } from './resource-weekly-layout';
 export interface WeeklyResourceCapacityPoint {
   resourceId: string; resourceName: string | null; weekStartIso: string | null;
   resourceClass: string; availableCapacity: number | null; plannedDemand: number | null;
@@ -62,7 +63,8 @@ function collectUnique(tables: SourceTable[], predicate: (t: SourceTable) => boo
   return [...byKey.entries()].filter(([k]) => !conflicted.has(k)).map(([,r]) => r);
 }
 export function weeklyResourceCapacityEvidence(documents: readonly StoredEvidenceDocument[], dataDateIso: string | null = null): WeeklyResourceCapacitySummary {
-  const diagnostics: string[] = [], tables = governedTables(documents, diagnostics);
+  // F16: a week-column register (one column per week) is read as week rows by the shared layout rule.
+  const diagnostics: string[] = [], tables = governedTables(documents, diagnostics).map(t => weeklyResourceLayoutTable(t, diagnostics));
   const masterTables = tables.filter(t => has(t,'resource id','utilization applicable','class','unit'));
   const masterResources: ResourceMasterRecord[] = masterTables.flatMap(t => t.rows.map(r => ({
     resourceId: cell(r,'resource id'), resourceUid: cell(r,'resource uid'), name: cell(r,'resource name'),

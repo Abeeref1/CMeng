@@ -22,6 +22,7 @@ import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL
 import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
+import {earnedHoursForState} from './earned-hours';
 import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario';
 import {contractTimeDatesFrom} from './contract-time-reader';
 import {extractContractLdTerms} from '../../contract-commercial/src';
@@ -655,6 +656,8 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   const linked=relevant.includes(key)?decisions.boqLinkage:undefined;
   // F46: the Resources page shows the same trade-chain calculation as the project facts.
   const tradeChains=key==='resource-utilization'?tradeChainResourcesForState(scoped):undefined;
+  // F45: earned hours (budgeted hours x % complete) against hours spent, one shared calculation for both pages.
+  const earnedHours=key==='manhour-scurve'||key==='resource-utilization'?earnedHoursForState(scoped):undefined;
   const decisionAnalysis=decisionAnalysisForModule(scoped,key,bound);
   // The primary WBS management table and the measured-area panel consume
   // one authoritative source value, only for unique exact-name associations.
@@ -662,5 +665,5 @@ export function attachProjectFacts(state:ProjectRuntimeState,result:ModuleRuntim
   // The fast worker path and the direct route share the same bound action
   // position, including the explanation sent before transport paging.
   const reason=key==='cross-domain-accountability'&&typeof bound.managementPosition==='string'?bound.managementPosition:result.reason;
-  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(tradeChains?{tradeChains}:{}),sourceLabels:projectSourceLabels(scoped)}};
+  return {...result,reason,data:{...shown,completionMilestoneConstraints,...(briefCommercialPosition?{briefCommercialPosition}:{}),...(linked?{boqProgrammeLinks:linked}:{}),...(decisionAnalysis?{decisionAnalysis}:{}),...(tradeChains?{tradeChains}:{}),...(earnedHours?{earnedHours}:{}),sourceLabels:projectSourceLabels(scoped)}};
 }

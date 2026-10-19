@@ -238,7 +238,7 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
    periodProgressPercent:period!==null&&contract!==null&&contract>0?100*period/contract:null,
    actualRatePerCalendarDay:period!==null&&periodDays!==null&&periodDays>0?period/periodDays:null,
    requiredRatePerCalendarDay:remaining!==null&&remainingDays!==null&&remainingDays>0?remaining/remainingDays:null,
-   remainingQuantity:remaining,targetFinishIso:target,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
+   remainingQuantity:remaining,targetFinishIso:target,budgetHoursPerUnit:hpu,earnedHours:installed!==null&&hpu!==null?installed*hpu:null,
    periodEarnedHours:period!==null&&hpu!==null?period*hpu:null,actualHours,
    productivityPerActualHour:period!==null&&actualHours!==null&&actualHours>0?period/actualHours:null,
    installedValue,certifiedValue,installedAgainstCertified:installedValue!==null&&certifiedValue!==null?installedValue-certifiedValue:null,
