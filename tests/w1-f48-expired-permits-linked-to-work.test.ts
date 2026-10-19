@@ -30,7 +30,7 @@ test('F48 expired permits link to open or finished work by single register match
   'workfront,WF-2,Roof works,Zone B,,ACT-DONE\n'+
   'workfront,WF-3,Tank entry north,Zone C,,ACT-C1\n'+
   'workfront,WF-4,Tank entry south,Zone C,,ACT-C2\n');
- const position=deliveryPosition(state),rows=position.permitRows,row=(ref:string)=>rows.find(r=>r.reference===ref)!;
+ const position=deliveryPosition(state),rows:any[]=position.permitRows,row=(ref:string)=>rows.find(r=>r.reference===ref)!;
  assert.equal(rows.length,5);
  assert.ok(rows.every(r=>r.permitStatus==='expired'));
  // By permit reference: exactly one workfront cites P-REF, and its work is open.

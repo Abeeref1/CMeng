@@ -26,13 +26,13 @@ test('F15 risk register: score ranking, Closed column, Last Reviewed and stale r
  const upload=(name:string,content:string,mediaType='text/csv',uploadIntent?:'replace_current_basis')=>store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(content),mediaType,sourceFilename:name,uploadedAt:'2031-09-01',...(uploadIntent?{uploadIntent}:{})});
  await upload('Current.xer',programme,'text/plain','replace_current_basis');
  await upload('Risk.csv',risks);
- const source=new Map(operationalReporting(state).risk.sourceRows.map(r=>[r.riskId,r]));
+ const source=new Map<string,any>(operationalReporting(state).risk.sourceRows.map(r=>[r.riskId,r]));
  assert.equal(source.get('R3')!.status,'closed','Closed column Yes closes a risk with a blank status');
  assert.equal(source.get('R6')!.status,'unknown','Open status contradicted by Closed Yes is neither open nor closed');
  assert.equal(source.get('R1')!.status,'open','Closed column No keeps the stated open status');
  assert.equal(source.get('R1')!.lastReviewedIso,'2031-08-20');
  assert.equal(source.get('R5')!.reviewIntervalDays,7);
- const rows=deliveryPosition(state).riskSourceRows;
+ const rows:any[]=deliveryPosition(state).riskSourceRows;
  assert.deepEqual(rows.map(r=>r.riskId),['R2','R3','R4','R1','R6','R5'],'ranked by score, highest first; unscored last');
  assert.deepEqual(rows.map(r=>r.scoreRank),[1,2,3,4,5,null]);
  const row=(id:string)=>rows.find(r=>r.riskId===id)!;
