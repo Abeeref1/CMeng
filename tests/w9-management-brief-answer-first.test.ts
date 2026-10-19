@@ -77,3 +77,17 @@ test('F30 a page links its missing-information items to the one shared list inst
   assert.equal((html.match(/Contract completion date/g)||[]).length,1,'a repeated item is named once');
   assert.match(main,/Duplicate activity IDs/,'other findings keep their own rows');
 });
+
+test('F30 the shared list shows each gap once with its upload or inline control',()=>{
+  const a={id:'matter:risks',target:{type:'inline',kind:'contract-value'},missingFields:[
+    {field:'Risk owner',file:'Risk register',owner:'Risk Manager',fieldIdentity:'risk.ownerName',supply:{type:'upload',documentType:'Risk register',field:'owner name',label:'Upload: Risk register',uploadHint:'Risk register with the owner name column or field',uploadMode:'evidence'}},
+    {field:'Contract value',file:'Contract',owner:'Commercial Manager',fieldIdentity:'commercial.contractValue',supply:{type:'input',kind:'contract-value',label:'Enter the contract value and currency'}}]};
+  const html=runInNewContext(functions(['actionGapsHtml'])+';actionGapsHtml(a)',{a,fmt:String,escapeHtml,programmePurposeOptions:()=>''}) as string;
+  assert.equal((html.match(/Information needed/g)||[]).length,1,'one heading for the matter');
+  assert.match(html,/Information needed · 2 fields/);
+  assert.match(html,/Risk owner · Risk register · Risk Manager/);
+  assert.match(html,/Risk register with the owner name column or field<input type="file" class="gap-upload-file"/,'upload names the document type and the field');
+  assert.match(html,/data-resolve-gap-upload="matter:risks" data-gap-index="0">Upload: Risk register</);
+  assert.match(html,/Supplied here: Enter the contract value and currency \(below\)/,'typable value points to the inline input of this matter');
+  assert.doesNotMatch(html,/class="action-upload-file"/,'gap controls never take over the matter upload');
+});

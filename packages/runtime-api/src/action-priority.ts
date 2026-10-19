@@ -128,6 +128,8 @@ export function consolidateScheduleChains(rows:ManagementAction[],model:Canonica
   const scope=[...new Set(group.flatMap(row=>row.affectedScope))],ids=scope.filter(id=>activityIds.has(id)).sort(),first=group[0]!,key='schedule-chain|'+ids[0];
   group.forEach(row=>removed.add(row.actionId));
   replacements.set(first.actionId,{...first,actionId:key,recordKey:key,
+   // F51: every member activity action of the chain stays listed and reachable.
+   memberActionIds:group.map(row=>row.actionId),
    issue:'Recover linked programme work · '+ids.length+' activities',affectedScope:scope,
    affectedMilestones:[...new Set(group.flatMap(row=>row.affectedMilestones))],
    requiredAction:'Agree one recovery plan covering the '+ids.length+' linked activities; confirm resources, sequencing and the forecast finish.',
