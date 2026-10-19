@@ -103,6 +103,7 @@ jobs:
             dist/tests/t04-contract-terms-source-analysis.test.js \
             dist/tests/t04-missing-value-inputs.test.js \
             dist/tests/t04-contract-fact-decisions.test.js \
+            dist/tests/t04-contract-decisions-e2e.test.js \
             dist/tests/t07-contract-time-original-and-completion-movement.test.js \
             dist/tests/f32-schedule-footer-awaiting-review.test.js \
             dist/tests/f33-negative-float-constraint.test.js \
