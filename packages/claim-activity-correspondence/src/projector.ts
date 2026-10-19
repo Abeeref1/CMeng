@@ -56,6 +56,8 @@ interface IndexedActivity {
 
 interface ClaimActivityScheduleIndex {
   naturalOrder: number[];
+  /** Position of each indexed activity in naturalOrder (in-memory index only). */
+  naturalRank: Uint32Array;
   scheduleRevisionId: string;
   wbsById: Map<string, CanonicalWbsNode>;
   activityById: Map<string, CanonicalScheduleActivity>;
@@ -211,8 +213,12 @@ function scheduleIndex(
     }
   });
 
+  const naturalOrder=indexed.map((_,i)=>i).sort((a,b)=>naturalCompare(indexed[a]!.activity.activityId,indexed[b]!.activity.activityId));
+  const naturalRank=new Uint32Array(indexed.length);
+  naturalOrder.forEach((i,rank)=>{naturalRank[i]=rank;});
   const value = {
-    naturalOrder:indexed.map((_,i)=>i).sort((a,b)=>naturalCompare(indexed[a]!.activity.activityId,indexed[b]!.activity.activityId)),
+    naturalOrder,
+    naturalRank,
     scheduleRevisionId: schedule.sourceRevisionId,
     wbsById,
     activityById,
@@ -247,11 +253,15 @@ function prefilterIndexedActivities(
 
   // Accumulate the exact former overlap score from the inverted index. Stable
   // natural order within score buckets preserves the same top 96 candidates.
-  const scores=new Uint32Array(index.indexed.length);
-  for(const token of queryTokens)for(const i of index.byToken.get(token)??[])scores[i]!+=1;
-  for(const code of queryCodes)for(const i of index.byCode.get(code)??[])scores[i]!+=4;
+  // T11: visit only the activities that scored, in the same natural order as
+  // a full pass over naturalOrder that skips zero scores (one claim no longer
+  // walks every activity of the programme).
+  const scores=new Uint32Array(index.indexed.length),scored:number[]=[];
+  for(const token of queryTokens)for(const i of index.byToken.get(token)??[]){if(!scores[i])scored.push(i);scores[i]!+=1;}
+  for(const code of queryCodes)for(const i of index.byCode.get(code)??[]){if(!scores[i])scored.push(i);scores[i]!+=4;}
+  scored.sort((a,b)=>index.naturalRank[a]!-index.naturalRank[b]!);
   const buckets=new Map<number,IndexedActivity[]>();let rawCandidateCount=0;
-  for(const i of index.naturalOrder){const score=scores[i]!;if(!score)continue;rawCandidateCount++;
+  for(const i of scored){const score=scores[i]!;if(!score)continue;rawCandidateCount++;
     const bucket=buckets.get(score)??[];if(bucket.length<96)bucket.push(index.indexed[i]!);buckets.set(score,bucket);}
   const items=[...buckets.keys()].sort((a,b)=>b-a).flatMap(score=>buckets.get(score)!).slice(0,96);
 

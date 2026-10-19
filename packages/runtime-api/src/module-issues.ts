@@ -8,6 +8,21 @@ import {scopeRegisterDateReview} from './register-date-review';
 
 type Consistency = Pick<CrossModuleCertification,'state'|'failedCheckIds'|'checkCount'> & Partial<Pick<CrossModuleCertification,'checks'>>;
 
+// T11: an issue heading's reader label for one path segment depends only on
+// the segment text (readablePathLabel and readableFieldLabel are pure). Large
+// registers repeat the same few segments on thousands of rows, so each segment
+// is labelled once instead of re-running the label rules for every finding.
+const segmentLabels=new Map<string,string>();
+function segmentReaderLabel(segment:string):string{
+  let label=segmentLabels.get(segment);
+  if(label===undefined){
+    label=readablePathLabel(segment)||readableFieldLabel(segment.replace(/\[[^\]]*\]/g,''));
+    if(segmentLabels.size>=8192)segmentLabels.clear();
+    segmentLabels.set(segment,label);
+  }
+  return label;
+}
+
 /** Classification uses evidence states and failed checks, never a project name,
  * desired result, record count or traffic-light colour. */
 export type IssueScanContext={eligibility:WeakMap<object,boolean>};
@@ -216,7 +231,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     const rawField=path.replace(/\[\*\]/g,'').split('.').slice(-2).join('.')+(typeof value.topic==='string'?'|'+value.topic:'');
     const firstFinding=issues.length;
     // T10: issue headings use the shared reader label for each path segment.
-    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segment=>readablePathLabel(segment)||readableFieldLabel(segment.replace(/\[[^\]]*\]/g,''))).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
+    const field=path.replace(/\[\*\]/g,'').split('.').slice(-2).map(segmentReaderLabel).join(' · ')+(typeof value.topic==='string'?' · '+value.topic:'');
     const conflict=diagnostics.filter(s=>/(?:^|_)(CONFLICT|CONFLICTING|CONFLICTED)(?:_|:|$)/.test(s)&&!(variationGroups.length&&s===variationConflictCode));
     const invalid=diagnostics.filter(s=>/(?:^|_)(INVALID|MALFORMED|DUPLICATE|AMBIGUOUS|BROKEN|MISMATCH)(?:_|:|$)|CLOSURE_BEFORE_RAISED_DATE/.test(s));
     const missingInput=diagnostics.filter(s=>s!=='SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'&&/REQUIRED|NOT_A_RECONCILED|IS_NOT_GROSS|UNKNOWN_PAID_AMOUNT|NOT_DERIVED_FROM|SOURCE_AMOUNT_EVENT_DATE_NOT_ESTABLISHED/.test(s));
