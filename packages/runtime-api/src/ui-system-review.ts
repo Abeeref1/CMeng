@@ -271,7 +271,7 @@ function renderDashboardExceptions(data){
 }
 function renderDashboardScheduleExceptions(data){
   const p=data.scheduleExceptions;if(!p)return managementPanel('Activities needing attention','Schedule status','<p>Adopt a programme in Documents to see missed starts, overdue finishes and critical activities.</p>',true);
-  const count=key=>{const c=p.counts?.[key];return c?.value??(c?.knownCount!=null?c.knownCount+' known; total unconfirmed':'Not established');};
+  const count=key=>{const c=p.counts?.[key];return c?.value!=null&&!(c.unresolvedCount>0)?c.value:(c?.knownCount!=null?c.knownCount+' known; total unconfirmed':'Not established');};
   const rows=p.rows||[];
   const kpis=planningKpis([['Should have started',count('missedStart'),'not started before the Data Date','warning'],['Finish overdue',count('overdueFinish'),'unfinished after the forecast finish','danger'],['Programme critical activities',count('critical'),'source float; see the separate calculated path','warning']]);
   const table=rows.length?basisTable(['Activity','Work','What needs attention','Planned start','Forecast finish','Progress','Float'],rows.slice(0,50).map(r=>[r.activityId,r.name,r.delayStatus,planningShortDate(r.currentStartIso),planningShortDate(r.currentFinishIso),r.percentComplete==null?'Not established':fmt(r.percentComplete)+'%',r.totalFloatHours==null?'Not established':sourceWorkingFloat(r)])):'<p>No confirmed missed starts or overdue finishes were found. Review any missing dates or status before treating the programme as clear.</p>';
