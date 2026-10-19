@@ -853,7 +853,8 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   // An explicit user confirmation from Actions required is a governed reporting
   // authority when no stronger contract/amendment source has replaced it. Keep it
   // in the canonical time position so every page reads the same confirmed date.
-  const confirmedManualBasis=state.controls.contractTimeBasis?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:'))
+  // Approved EOT days entered by the user (C2) are held the same way.
+  const confirmedManualBasis=state.controls.contractTimeBasis?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:')||ref.startsWith('user-confirmation:approved-eot-days:'))
     ? state.controls.contractTimeBasis
     : null;
   let contractTimeBasis:ContractTimeBasis|null=confirmedManualBasis?{...confirmedManualBasis,sourceRefs:[...confirmedManualBasis.sourceRefs]}:null;
