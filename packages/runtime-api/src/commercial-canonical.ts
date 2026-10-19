@@ -1,4 +1,4 @@
-import {canonicalHeader,selectCostMetricRows,securityStatusAtDataDate} from '../../truth-kernel/src';
+import {canonicalHeader,selectCostMetricRows,securityStatusAtDataDate,securityInstrumentKind} from '../../truth-kernel/src';
 import { partitionAsOf } from "../../truth-kernel/src";
 import { cell, has, norm, numberValue, dateValue, governedTables, sumKnown, ratio, round, type SourceReceipt, type SourceRow, type FactState, reportingScope } from '../../truth-kernel/src';
 import { reconcilePaymentEvidence } from './payment-reconciliation';
@@ -230,11 +230,12 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  for(const t of bondTables)for(const r of t.rows){
   const instrument=cell(r,'bond type','type'),bondId=cell(r,'bond id');
   if(!bondId||!instrument)continue;
-  if(/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+bondId))continue;
+  const instrumentKind=securityInstrumentKind(instrument,bondId);
+  if(instrumentKind==='insurance')continue;
   const expiryIso=dateValue(cell(r,'expiry date','expiration date','valid until'));
   const rawStatus=cell(r,'status');
   const status:BondRecord['status']=securityStatusAtDataDate({status:rawStatus,expiryIso,releaseIso:dateValue(cell(r,'release date','released on','return date'))},dataDateIso);
-  const kind:BondRecord['kind']=/performance/i.test(instrument)?'performance':/advance/i.test(instrument)?'advance_payment':/retention/i.test(instrument)?'retention':'other';
+  const kind:BondRecord['kind']=instrumentKind;
   const value=moneyFromHeader(r,amountHeader(t.headers,'bond amount','guarantee amount','amount'),'security face value',inheritedCurrency,dataDateIso);
   bonds.push({bondId,kind,status,expiryIso,amount:value.value,currency:value.currency??'',sourceRefs:['evidence-document:'+r.receipt.documentId+':'+r.receipt.locator]});
  }
@@ -407,7 +408,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
   }
   if(has(t,'bond id','status')&&(has(t,'bond type')||has(t,'type'))&&!has(t,'policy id'))for(const r of t.rows){
    const instrument=cell(r,'bond type','type');
-   if(!/insurance|contractor.?s all risks|\bcar\b|policy/i.test(instrument+' '+cell(r,'bond id')))continue;
+   if(securityInstrumentKind(instrument,cell(r,'bond id'))!=='insurance')continue;
    const coverageHeader=amountHeader(t.headers,'coverage amount','insured amount','policy limit','bond amount','guarantee amount','amount');
    const inceptionDate=dateValue(cell(r,'inception date','start date','effective date','valid from'));
    const expiryDate=dateValue(cell(r,'expiry date','expiration date','valid until'));

@@ -46,3 +46,36 @@ export function addStatedPeriodIso(startIso:string|null|undefined,count:number|n
  else return null;
  return end.toISOString().slice(0,10);
 }
+
+/** F18: one shared reading of a security register's instrument type. The
+ * Instrument / Bond Type column decides first, by full words or the standard
+ * whole-token abbreviations (APG, PB, PBG, RMG, CAR, EAR ...). Only when that
+ * column names no specific type (e.g. "Bank Guarantee") is the leading token of
+ * the instrument's own reference read, and only when it is one of the same exact
+ * abbreviations. Anything else stays 'other'; nothing is guessed. */
+export type SecurityInstrumentKind='performance'|'advance_payment'|'retention'|'insurance'|'other';
+const INSURANCE_WORDS=/insurance|contractor.?s? all risks?|erection all risks?|third.party liability|professional indemnity|workm[ae]n.?s compensation|\bpolicy\b/i;
+const ABBREVIATIONS:Record<string,SecurityInstrumentKind>={
+ apg:'advance_payment',apb:'advance_payment',apbg:'advance_payment',
+ pb:'performance',pbg:'performance',pg:'performance',
+ rmg:'retention',rg:'retention',
+ car:'insurance',ear:'insurance',tpl:'insurance',pi:'insurance',wc:'insurance',
+};
+function kindFromWords(text:string):SecurityInstrumentKind|null{
+ if(INSURANCE_WORDS.test(text))return 'insurance';
+ if(/\badvance\b/i.test(text))return 'advance_payment';
+ if(/\bperformance\b/i.test(text))return 'performance';
+ if(/\bretention\b/i.test(text))return 'retention';
+ return null;
+}
+function kindFromTokens(text:string):SecurityInstrumentKind|null{
+ const kinds=new Set((text.toLowerCase().match(/[a-z]+/g)??[]).map(t=>ABBREVIATIONS[t]).filter((k):k is SecurityInstrumentKind=>!!k));
+ return kinds.size===1?[...kinds][0]!:null;
+}
+export function securityInstrumentKind(instrument:string,reference=''):SecurityInstrumentKind{
+ const stated=(instrument??'').trim();
+ const fromColumn=kindFromWords(stated)??kindFromTokens(stated);
+ if(fromColumn)return fromColumn;
+ const lead=((reference??'').trim().toLowerCase().match(/^[a-z]+/)??[''])[0]!;
+ return ABBREVIATIONS[lead]??'other';
+}
