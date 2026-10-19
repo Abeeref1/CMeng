@@ -34,6 +34,8 @@ export interface ActivityVarianceTrend {
     sequence: number;
     finishVarianceDays: number | null;
     totalFloatHours: number | null;
+    totalFloatWorkingDays?: number | null;
+    floatDaysBasis?: string;
   }>;
   worseningFinishVarianceDays: number | null;
 }

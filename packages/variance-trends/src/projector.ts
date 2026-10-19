@@ -2,6 +2,7 @@ import {naturalCompare} from '../../shared/src/natural-order';
 import { parseScheduleTime } from "../../schedule-analysis-core/src";
 import {
   analyzeSchedule,
+  calendarWorkingDayHours,
   numericDistribution,
   type CanonicalScheduleActivity,
   type ScheduleAnalysisConfig,
@@ -190,6 +191,21 @@ export function buildVarianceTrendsProjection(
       // activity history and every aggregate consume this same measured value.
       // Missing dates remain null and never enter a numerical denominator.
       const controlledValues: number[] = [];
+      // T06: each revision's float converts with that revision's own source
+      // calendar (first calendar ID wins); unknown or completed stays null.
+      const revisionCalendars=new Map<string,(typeof revision.model.calendars)[number]>();
+      for(const calendar of revision.model.calendars)if(!revisionCalendars.has(calendar.calendarId))revisionCalendars.set(calendar.calendarId,calendar);
+      const revisionDayHours=new Map<string|null,number|null>();
+      const floatDays=(activity:CanonicalScheduleActivity)=>{
+        const hours=activity.totalFloatHours;
+        if(typeof hours!=='number'||!Number.isFinite(hours))return {};
+        if(activity.status==='completed')return {totalFloatWorkingDays:null,floatDaysBasis:'not_applicable_completed'};
+        const id=activity.calendarId??null;
+        if(!revisionDayHours.has(id))revisionDayHours.set(id,calendarWorkingDayHours(id===null?null:revisionCalendars.get(id)??null));
+        const dayHours=revisionDayHours.get(id)!;
+        return dayHours!==null&&dayHours>0?{totalFloatWorkingDays:Number((hours/dayHours).toFixed(6))}
+          :{totalFloatWorkingDays:null,floatDaysBasis:'calendar_working_day_not_established'};
+      };
       for (const activity of revision.model.activities) {
         const measuredVariance = controlledVarianceDays(activity);
         if (measuredVariance !== null) controlledValues.push(measuredVariance);
@@ -208,6 +224,7 @@ export function buildVarianceTrendsProjection(
           finishVarianceDays: measuredVariance,
           totalFloatHours:
             activity.totalFloatHours,
+          ...floatDays(activity),
         });
         activitySeries.set(
           activity.activityId,
