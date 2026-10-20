@@ -1908,6 +1908,28 @@ const rules:
   },
 ];
 
+/** Content signals that a document is a letter or notice. Read from the head of
+ * the document only (title and letter header), so a contract or register that
+ * mentions a notice in its body is not read as a letter. */
+export function letterFormSignals(text:string):Array<{label:string;pattern:RegExp;weight:number}>{
+  const lines=text.split(/\r?\n/).map(line=>normalizeText(line)).filter(Boolean);
+  // The title is the first one or two lines; the letter header is the first lines.
+  const title=lines.slice(0,2).map(line=>line.slice(0,120)).join(' '),head=lines.slice(0,12).join(' ').slice(0,1200);
+  const signals:Array<{label:string;pattern:RegExp;weight:number}>=[];
+  const noticeTitle=/\b(?:notice\s+of\s+(?:commencement|claim|delay|dispute|dissatisfaction|extension|variation|suspension|termination|default)|engineer['’]?s\s+(?:instruction|notice))\b/i;
+  if(noticeTitle.test(title))signals.push({label:'notice title',pattern:noticeTitle,weight:6});
+  const fields=[
+    /\b(?:to|addressee|attention|attn)\s*:/i,
+    /\bfrom\s*:/i,
+    /\bdated?\s*:/i,
+    /\b(?:subject|re)\s*:/i,
+    /\b(?:our\s+|your\s+|letter\s+)?ref(?:erence)?\.?(?:\s+no\.?)?\s*:/i,
+  ].map(pattern=>pattern.test(head));
+  const [to,from,,subject]=fields;
+  if(fields.filter(Boolean).length>=3&&to&&(from||subject))signals.push({label:'letter header (addressee, sender, date, subject)',pattern:/\bto\s*:/i,weight:6});
+  return signals;
+}
+
 function classifyText(
   text: string,
   mediaType: string,
@@ -2091,16 +2113,19 @@ function classifyText(
     signals:['Financial instrument identity, beneficiary or issuer, and security terms found in content'],
   };
 
+  // A letter or notice is known by its form, not its file name: a notice
+  // title at the head, or the addressee, sender, date and subject header.
+  const letterForm=/csv|spreadsheetml|ms-excel/i.test(mediaType)?[]:letterFormSignals(text);
   const scored =
     rules.map(
       (rule) => {
         const matched =
-          rule.signals.filter(
+          [...rule.signals.filter(
             (signal) =>
               signal.pattern.test(
                 normalized,
               ),
-          );
+          ),...(rule.documentType==='letters_notices'?letterForm:[])];
         return {
           rule,
           score:
