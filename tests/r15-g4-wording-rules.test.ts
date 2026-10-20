@@ -23,7 +23,8 @@ test('W4: one count helper makes figures and nouns agree, including units after 
  assert.equal(countText(3,'group of records','groups of records'),'3 groups of records');
  assert.deepEqual([countUnit(1,'items'),countUnit(2,'items'),countUnit(1,'scope items'),countUnit(1,'calendar days'),countUnit(1,'USD'),countUnit(1,'%'),countUnit(null,'records')],
   ['item','items','scope item','calendar day','USD','%','records']);
- const bars=runInNewContext('renderVisualBars([{label:"Open",value:1},{label:"Overdue",value:0},{label:"Complete",value:2}],"items")',{escapeHtml}) as string;
+ // renderVisualBars feature-detects the shared count helper (typeof), so the test names it to run the real one.
+ const bars=runInNewContext('countUnit;renderVisualBars([{label:"Open",value:1},{label:"Overdue",value:0},{label:"Complete",value:2}],"items")',{escapeHtml}) as string;
  assert.match(bars,/>1 item</);assert.match(bars,/>0 items</);assert.match(bars,/>2 items</);
  assert.doesNotMatch(bars,/\b1 items\b/,'before: "Open 1 items"');
  const populations=Object.fromEntries(Array.from({length:3},(_,n)=>[n,{populationId:'P'+n,name:'Register '+n,entity:'record',denominator:2,sourceCount:3,exclusions:[{reason:'after_data_date'}],dateBasis:'Actual date'}]));
