@@ -26,9 +26,13 @@ test('A4: an owner assigned only as a PMC role is shown as missing, with its rol
     const html=ownerMissingHtml(owner);
     assert.match(html,/data-owner-missing>Owner not set</,String(owner));
     assert.doesNotMatch(html,/not designated|Suggested/i,String(owner));
-    // The control opens the project documents, where a named owner in the source register is kept.
+    // Without a page registry (no owning page can be set) the control falls back to the project documents.
     assert.match(html,/<button[^>]*class="management-module-link"[^>]*data-module="documents"/);
   }
+  // A1: with the page registry, the control opens Actions and data gaps, where the owner is set.
+  runInContext('var moduleRegistry=[{key:"source-quality"}];var names={"source-quality":"Actions required"};',ctx);
+  assert.match(ownerMissingHtml(assigned),/<button[^>]*data-module="source-quality"[^>]*>Set the owner in Actions required</);
+  assert.match(runInContext('ownerMissingHtml(null,null,"documents")',ctx) as string,/data-module="documents"/,'a document source with no register page keeps the document library');
   assert.match(ownerMissingHtml(assigned),/Accountable role: PMC Risk Manager/);
   assert.equal(ownerMissingHtml('Jane Smith'),'Jane Smith','a named source owner is shown unchanged');
 });
