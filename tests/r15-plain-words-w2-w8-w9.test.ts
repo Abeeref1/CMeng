@@ -34,8 +34,9 @@ test('W2: an upload session is named without its session id; a named user keeps 
 
 test('W2/W8: shared labels never print population, Not derivable or session identity words',()=>{
  const humanize=runInNewContext('('+/function humanizeKey\(key\)\{[\s\S]*?\n\}/.exec(html)![0]+')') as (key:string)=>string;
- for(const [key,label] of [['not_derivable','Cannot be worked out from the current records'],['session_identity_unverified','Name not recorded'],
-  ['population','Record set'],['populationState','Record set state'],['populationId','Record set ID'],['sourcePopulation','Source record set']]){
+ const cases:[string,string][]=[['not_derivable','Cannot be worked out from the current records'],['session_identity_unverified','Name not recorded'],
+  ['population','Record set'],['populationState','Record set state'],['populationId','Record set ID'],['sourcePopulation','Source record set']];
+ for(const [key,label] of cases){
   assert.equal(readableFieldLabel(key),label,key);
   assert.equal(humanize(key),label,'browser '+key);
  }
