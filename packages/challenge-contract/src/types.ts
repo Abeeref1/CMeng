@@ -44,7 +44,7 @@ export interface ChallengeContractProjection {
   projectionKey: "challenge_contract";
   generatedAt: string;
   producerVersion: string;
-  sourceType: "pdf" | "docx";
+  sourceType: "pdf" | "docx" | "text";
   physicalComplete: boolean;
   semanticComplete: boolean;
   sectionCount: number;
