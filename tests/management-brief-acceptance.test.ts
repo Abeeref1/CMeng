@@ -110,7 +110,8 @@ test('Manager gets decisions separately from a short, accountable team follow-up
  assert.match(html,/Open Project Review/);
  assert.match(html,/data-module="cross-domain-accountability"/);
  assert.match(html,/Highest-ranked delegated follow-ups/);
- assert.match(html,/1 other ranked groups/); // four team groups with three shown leaves one
+ // W4: count and noun agree (the old assertion pinned the wrong plural '1 other ranked groups').
+ assert.match(html,/1 other ranked group remains/); // four team groups with three shown leaves one
  assert.doesNotMatch(html,/same ranking as Command Center|11 project actions/);
  assert.equal((html.match(/Action due/g)||[]).length,2,'explicit action deadlines retain their deadline label');
  assert.doesNotMatch(html,/Earliest reported due/);

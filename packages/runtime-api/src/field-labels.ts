@@ -24,7 +24,7 @@ export function readableFieldLabel(key: unknown): string {
   const fieldLabels: Record<string, string> = {
     reviewPeriodCalendarDays: 'Review period (calendar days)',
     reviewPeriodKnownCount: 'Records with a review period',
-    passRatePercent: 'Pass rate',
+    passRatePercent: 'Pass rate %',
     pendingRecordCount: 'Records pending',
     knownRecordCount: 'Records with a known status',
     unknownOutcomeCount: 'Outcome not recorded',
