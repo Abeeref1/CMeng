@@ -184,6 +184,53 @@ function pageDetailGroup(list,title,blocks,log){
 }
 function pageLoadsOnOpen(node){return node.hasAttribute('ontoggle')||Object.keys(node.dataset||{}).some(key=>/lazy/i.test(key));}
 function pageClosedTotal(container){return Array.from(container.querySelectorAll('details')).filter(d=>!d.open).length;}
+// S1 and the first-screen rule: a line that says why one of the page's own figures
+// is not established ("Future receipts not established: ...") stays open with the
+// answer. A short panel that carries such a line stays whole; a long one keeps its
+// heading and the reason lines open, and its other parts go to More detail under
+// the panel's name.
+const PAGE_UNKNOWN_LEAD=/\b(?:not established|cannot (?:yet )?be (?:calculated|priced)|not calculable|not assessable)\b[.:]?$/i;
+const PAGE_UNKNOWN_SENTENCE=/^[^.:]{3,90}\b(?:not established|cannot (?:yet )?be (?:calculated|priced))\b[.:]/i;
+const PAGE_REASON_FOLLOW=/^(?:Missing|Needs|Source inputs required|Provide|Upload|Confirm)\b/i;
+const PAGE_REASON_PANEL_MAX_PX=300;
+function pageUnknownReasons(node){
+ const lines=[];
+ const add=line=>{
+  if(lines.includes(line))return;
+  lines.push(line);
+  for(let next=line.nextElementSibling;next&&next.tagName==='P'&&PAGE_REASON_FOLLOW.test(String(next.textContent||'').trim());next=next.nextElementSibling)if(!lines.includes(next))lines.push(next);
+ };
+ // A tile's own reason is part of its tile row; the verdict and the reading box always stay.
+ const outside=el=>!el.closest('td,th,summary,.position-verdict,.experience-management-reading,'+PAGE_TILE);
+ for(const lead of Array.from(node.querySelectorAll('b,strong'))){
+  if(!pageNodeShown(lead)||!outside(lead)||!PAGE_UNKNOWN_LEAD.test(String(lead.textContent||'').trim()))continue;
+  let line=lead.parentElement;
+  while(line&&line!==node&&!/^(?:P|DIV|LI|SECTION|ARTICLE)$/.test(line.tagName))line=line.parentElement;
+  add(line||node);
+ }
+ for(const line of Array.from(node.querySelectorAll('p')))if(pageNodeShown(line)&&outside(line)&&PAGE_UNKNOWN_SENTENCE.test(String(line.textContent||'').trim()))add(line);
+ if(node.tagName==='P'&&PAGE_UNKNOWN_SENTENCE.test(String(node.textContent||'').trim()))add(node);
+ return lines;
+}
+// The parts of a long panel: its headings and reason lines stay; every other part
+// keeps the panel's own place in the answer order (or goes to More detail under
+// the panel's own name, in its panel's style).
+function pageSplitReasonBlock(block,lines,rank){
+ const parts=[],title=pageBlockTitle(block.node);
+ const walk=(parent,chain)=>{
+  for(const child of Array.from(parent.children)){
+   if(['STYLE','SCRIPT','TEMPLATE','LINK'].includes(child.tagName))continue;
+   if(!String(child.textContent||'').trim()&&!child.querySelector('svg,canvas,img,table'))continue;
+   const holds=lines.some(line=>child===line||child.contains(line)),height=pageBlockHeight(child);
+   // A short part that holds a reason (a card, a notice) stays whole.
+   if(holds&&!lines.includes(child)&&height>PAGE_REASON_PANEL_MAX_PX&&child.children.length&&!/^(?:DETAILS|TABLE|UL|OL)$/.test(child.tagName)){walk(child,chain.concat(child));continue;}
+   const stays=holds||child.matches('h1,h2,h3,h4,h5,header,.planning-panel-head,.management-panel-head');
+   parts.push({node:child,chain,rank:stays?0:rank>0?rank:-1,height,titleHint:title});
+  }
+ };
+ walk(block.node,block.chain.concat(block.node));
+ return parts;
+}
 const PAGE_LINKED_TITLE='Shown on other pages';
 function pagePlanGroups(moved,limit){
  const groups=[];
@@ -195,10 +242,12 @@ function pagePlanGroups(moved,limit){
    else{linked={titles:[PAGE_LINKED_TITLE],blocks:[block],height:block.height,closed:true,linked:true};groups.push(linked);}
    continue;
   }
-  const title=pageBlockTitle(block.node),last=groups[groups.length-1];
+  const own=block.titleHint&&block.node.tagName!=='DETAILS'?'':pageBlockTitle(block.node),title=own||block.titleHint||'',last=groups[groups.length-1];
+  // The moved parts of one panel stay together under the panel's name.
+  if(block.titleHint&&last&&last.hint===block.titleHint&&block.node.tagName!=='DETAILS'){last.blocks.push(block);last.height+=block.height;continue;}
   // A block without its own heading (a note, a line, a tile row) joins the group before it.
   if(!title&&last&&block.node.tagName!=='DETAILS'&&!last.closed){last.blocks.push(block);last.height+=block.height;continue;}
-  groups.push({titles:[title],blocks:[block],height:block.height,closed:block.node.tagName==='DETAILS'});
+  groups.push({titles:[title],blocks:[block],height:block.height,closed:block.node.tagName==='DETAILS',hint:block.node.tagName==='DETAILS'?null:block.titleHint||null});
  }
  if(groups.length>1&&!groups[0].titles[0]&&!groups[0].closed&&!groups[1].closed){const first=groups.shift();groups[0].blocks.unshift(...first.blocks);groups[0].height+=first.height;}
  // The smallest neighbouring groups are merged until the page holds the limit.
@@ -218,8 +267,14 @@ function arrangePageDetail(container){
  if(container.scrollHeight<=limitHeight&&pageClosedTotal(container)<=PAGE_MAX_CLOSED_SECTIONS)return null;
  const blocks=pageBlocks(container);
  if(blocks.length<2)return null;
- const seen={};
- const ranked=blocks.map(block=>({...block,rank:pageAnswerRank(block.node,seen),height:pageBlockHeight(block.node)}));
+ const seen={},ranked=[];
+ for(const block of blocks){
+  const rank=pageAnswerRank(block.node,seen),height=pageBlockHeight(block.node);
+  const lines=rank===0||block.node.tagName==='DETAILS'?[]:pageUnknownReasons(block.node);
+  if(!lines.length)ranked.push({...block,rank,height});
+  else if(height<=PAGE_REASON_PANEL_MAX_PX||lines.includes(block.node))ranked.push({...block,rank:0,height});
+  else ranked.push(...pageSplitReasonBlock(block,lines,rank));
+ }
  const frame=72,row=56,heading=72;
  const plan=keep=>{
   const moved=ranked.filter(block=>!keep.has(block));
@@ -239,7 +294,14 @@ function arrangePageDetail(container){
   optional.splice(optional.indexOf(drop),1);keep.delete(drop);
  };
  let chosen=plan(keep);
- while(chosen.height>budget&&optional.length){dropOptional();chosen=plan(keep);}
+ const dropped=[];
+ while(chosen.height>budget&&optional.length){const before=new Set(optional);dropOptional();dropped.push(...[...before].filter(block=>!optional.includes(block)));chosen=plan(keep);}
+ // A smaller part of the answer dropped on the way comes back when the first
+ // screens still hold it (short page actions are not brought back).
+ for(const block of [...dropped].filter(block=>block.rank<6).sort((a,b)=>a.rank-b.rank||a.height-b.height)){
+  keep.add(block);const trial=plan(keep);
+  if(trial.height<=budget){optional.push(block);chosen=trial;}else keep.delete(block);
+ }
  // Draw the More detail area at the end of the page, then measure: while the
  // first screens still run past 3 screens, put the page back and try again
  // without the least important optional block.

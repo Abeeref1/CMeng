@@ -222,6 +222,7 @@ jobs:
             dist/tests/f61-adversarial-list-paging.test.js \
             dist/tests/t11-issue-summary-fold-parity.test.js \
             dist/tests/r15-g4-wording-rules.test.js \
+            dist/tests/r15-c2-states.test.js \
             dist/tests/t11-large-register-cold-dashboard.test.js \
             dist/tests/t11-request-path-parity.test.js
       - name: Assert original owner guard integrity and comparator

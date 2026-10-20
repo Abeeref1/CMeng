@@ -107,7 +107,7 @@ test('F13/F47: claims page shows responsibility, awareness, determination and th
   assert.match(html,/Claim responsibility, awareness, determination and detailed-claim time bar · 3 claims/);
   assert.match(html,/<td>C1<\/td><td>employer \(Employer\)<\/td><td>2026-01-05<\/td><td>Engineer determined 12 days · 2026-04-01<\/td><td>2026-02-10<\/td><td>36 \/ 42 d<\/td><td>On time<\/td>/);
   assert.match(html,/<td>C2<\/td><td>contractor \(Contractor\)<\/td><td>2026-02-03<\/td><td>Not stated<\/td><td>2026-05-30<\/td><td>116 \/ 42 d<\/td><td>Late<\/td>/);
-  assert.match(html,/<td>C3<\/td><td>neutral \(Neutral event\)<\/td><td>Not stated<\/td><td>Not stated<\/td><td>Not recorded<\/td><td>Not established<\/td><td>Not established<\/td>/);
+  assert.match(html,/<td>C3<\/td><td>neutral \(Neutral event\)<\/td><td>Not stated<\/td><td>Not stated<\/td><td>Not stated<\/td><td>Not established<\/td><td>Not established<\/td>/);
   // Same table on the notices and EOT pages (inside their claims disclosure).
   for(const key of ['notices-claims','eot-assessment'])assert.match(String(runInNewContext("renderClaimsReporting(r,'"+key+"')",ctx)),/detailed-claim time bar · 3 claims/);
 });
