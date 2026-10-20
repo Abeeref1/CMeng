@@ -12,6 +12,15 @@ export function explicitDate(raw:string):string|null {
   const monthFirst=/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/.exec(raw.trim());
   return dateValue(monthFirst?monthFirst[2]+' '+monthFirst[1]+' '+monthFirst[3]:raw);
 }
+/** r14: a date or period stated for a named Section, Sectional Completion,
+ * Portion or Milestone is a section value only, never a Works (whole contract)
+ * candidate. One rule for the completion-date reader and the Time for
+ * Completion reader. */
+const SECTION_SCOPE=/\b(?:Sections?\s+\w|Sectional\b|Portions?\b|Milestones?\b)/i;
+export function namesSectionScope(text:string):boolean{return SECTION_SCOPE.test(text);}
+/** The words right after a stated date or period that give it to a Section ("... for Section 1"). */
+export const SECTION_SCOPE_FOLLOWS=/^\s*[,(]?\s*(?:for|of|in\s+respect\s+of)\s+(?:the\s+|each\s+|a\s+|any\s+)?(?:Sections?|Sectional|Portions?|Milestones?)\b/i;
+export const SECTION_ONLY_COMPLETION_REASON='Only Section completion dates are stated in the applicable contract records; a Section date is never used as the Works completion date, so the Works completion date stays unknown.';
 export interface CompletionCandidate {date:string;documentId:string;role:string;effectiveFrom:string|null;sourceRef:string;historical?:boolean;sourceVerified?:boolean;sourceAnalytical?:boolean;
   /** F34: the date is Commencement Date + a stated Time for Completion; this is its basis label. */
   periodBasis?:string;}
@@ -23,6 +32,7 @@ export interface CompletionPeriodRead {label:string|null;reason:string|null;comm
 export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string|null,includeCandidates=false) {
   const candidates:CompletionCandidate[]=[];
   const periodReads:PeriodCompletion[]=[];
+  let sectionScoped=0;
   // T04: the shared source-analytical rule. includeCandidates keeps the existing
   // amendment read that labels every candidate amendment as 'candidate'.
   const sources=contractSourceAnalysis(state);
@@ -38,8 +48,16 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
     const label='(?:(?:revised|amended|contractual|contract|original|current)\\s+)*(?:date\\s+(?:for|of)\\s+completion|completion\\s+date|time\\s+for\\s+completion|(?:contractual|original|revised|amended|current)\\s+completion)';
     const pattern=new RegExp('\\b'+label+'\\s*(?:(?:shall\\s+be|is|on)\\s*)?[:|=\\t]?\\s*('+dateToken+')','gi');
     for(const section of sections){
-      const text=[section.heading??'',section.text].join('\n');
+      const heading=section.heading??'';
+      const text=[heading,section.text].join('\n');
       for(const match of text.matchAll(pattern)){
+        // r14: a line that names a Section / Sectional Completion / Portion /
+        // Milestone states a section value, never the Works. A parsed heading
+        // leads the first line of its text (the parser can cut "Section 1" off it).
+        const at=match.index??0,lineStart=text.lastIndexOf('\n',at-1)+1;
+        const leading=heading&&lineStart===heading.length+1?heading.split('\n').at(-1)+' ':'';
+        const prefix=(leading+text.slice(lineStart,at)).split(/[.;]\s+/).at(-1)!;
+        if(namesSectionScope(prefix)||SECTION_SCOPE_FOLLOWS.test(text.slice(at+match[0].length))){sectionScoped+=1;continue;}
         // In an explicitly labelled Original / As amended table the second
         // adjacent date replaces the first. Do not treat the historical cell
         // as a competing current assertion or use an amendment's effective date.
@@ -81,7 +99,7 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
   const undated=changes.some(c=>!c.effectiveFrom||!asOf);
   const conflict=values.length>1||undated;
   const periodReason=periodReads.find(read=>read.reason)?.reason??null;
-  const reason=undated?'Completion amendment applicability is unresolved: effective date or reporting date is missing.':values.length>1?'Conflicting completion dates are stated in the applicable contract records.':values.length===0?(periodReason??'No explicit completion-date line was recognised in the applicable contract data or terms.'):null;
+  const reason=undated?'Completion amendment applicability is unresolved: effective date or reporting date is missing.':values.length>1?'Conflicting completion dates are stated in the applicable contract records.':values.length===0?(periodReason??(sectionScoped?SECTION_ONLY_COMPLETION_REASON:'No explicit completion-date line was recognised in the applicable contract data or terms.')):null;
   const value=conflict?null:values[0]??null;
   // F34: the basis label when the date is Commencement Date + the stated period.
   const periodLabels=[...new Set(selected.filter(c=>c.date===value).map(c=>c.periodBasis??''))];
