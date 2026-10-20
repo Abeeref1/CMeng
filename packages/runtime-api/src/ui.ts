@@ -6505,7 +6505,11 @@ function renderModuleResultBody(result){
   const readWarnings=(data.registerReadIssues||[]).map(r=>'<p>'+escapeHtml(r.filename)+': '+escapeHtml(r.message)+'</p>').join('');
   const progressBreakdown=result.key==='progress-breakdown';
   const supporting=progressBreakdown?'':result.key==='source-quality'?experienceDisclosure("Evidence limits and supporting information",readWarnings+basisHtml+sourceBasis,"Dates, records and calculation qualifications"):'<p class="module-evidence-link">'+escapeHtml(moduleName)+' evidence and qualifications · '+managementModuleLink('source-quality','Open the shared source review')+'</p>'+(result.key==='notices-claims'?renderClaimsReporting(data.claimsReporting,result.key)+((data.contractNoticeReview?.treatment||new Set((data.contractNoticeReview?.sourceTerms||[]).map(t=>t.value+'|'+t.unit)).size>1||data.contractNoticeReview?.sourceTerms?.some(t=>t.applicability==='unresolved'))?'<p>Original notice provisions and saved source choices are available in Project Review. <button class="btn" onclick="openProjectActions()">Review notice provisions</button></p>':''):'');
-  const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,userReason);
+  // W5: the page reason already stated under "What needs attention" is not printed
+  // again in the supporting details of the same page.
+  const statedReview=!managementSurface&&result.key!=='pmo-analysis'&&typeof experienceBrief==='function'?(experienceBrief(result.key,data)||{}).review:null;
+  const readinessReason=userReason&&statedReview&&String(userReason).trim()===String(statedReview).trim()?'':userReason;
+  const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,readinessReason);
   // SW-43: every page opens with its answer (the page verdict: state, finding and
   // next step) before tables and evidence, not only the management surfaces.
   // Source review and Progress Breakdown keep their own answer-first layout.

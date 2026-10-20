@@ -2,7 +2,7 @@ import {boqItemContinuity} from './boq-item-continuity';
 import {createHash,randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {sourceTables,cell,canonicalHeader,registerDate,sourceCandidateHold,type SourceRow,type SourceReceipt} from '../../truth-kernel/src';
-import {deliveryKinds,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
+import {deliveryKinds,deliveryLabels,kindIdentities,emptyLinks,type DeliveryRecord,type DeliveryKind,type DeliveryFields,type DeliveryLinks,type DeliveryStateStore} from '../../delivery-core/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
 import {deliveryAuthorityCatalog} from './delivery-authorities';
 import {deliverySourceTables} from './delivery-sources';
@@ -170,6 +170,9 @@ export function deliveryRecords(state:ProjectRuntimeState){
  return value;
 }
 export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
+/** A3: the population instruction names its own register, so each register page
+ * states its own action (one shared sentence for every register read as one action). */
+export function deliveryPopulationBasis(kind:DeliveryKind){return 'Confirm that all applicable records in the '+deliveryLabels[kind]+' register have been captured before relying on a percentage.';}
 /** Shared source-bound population authority. Callers may provide indexed scope
  * rows; reading them here must not reclassify source facts as reviewed facts. */
 export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null,scope:DeliveryRecord[],documents:DeliveryDocumentReceipt[],decision:DeliveryStateStore['populations'][number]|undefined){
@@ -178,7 +181,7 @@ export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null
  const unread=documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
  const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
  return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
-  recordIds:rows.map(r=>r.recordId),basis:decision?.note??'Confirm that all applicable records have been captured before relying on a percentage.',confirmedAt:decision?.recordedAt??null};
+  recordIds:rows.map(r=>r.recordId),basis:decision?.note??deliveryPopulationBasis(kind),confirmedAt:decision?.recordedAt??null};
 }
 /** W10: the one rule for what still waits for a decision on a Delivery page.
  * A record waits when it needs its own decision (working, conflicted, stale, or

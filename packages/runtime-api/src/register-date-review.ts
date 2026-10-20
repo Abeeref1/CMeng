@@ -1,3 +1,4 @@
+import {countText} from './count-text';
 import {cell,dateValue,sourceTables,type SourceTable} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 
@@ -59,8 +60,8 @@ export function reviewRegisterDates(tables:SourceTable[]){
  return {rows,likelyMappingFault,releaseReady:!likelyMappingFault,affectedRegisterCount:independent(failed),
   mappingFailureRegisterCount:independent(columnFailures),sourceDateGapRegisterCount:independent(valueFailures),
   message:likelyMappingFault?
-    independent(columnFailures)+' register families have date columns that CMeng could not match. CMeng must check the reader before requesting replacement files.':
-    failed.length?failed.length+' register file(s) need date review; missing source dates remain evidence gaps and are not treated as reader faults.':
+    countText(independent(columnFailures),'register family','register families')+' '+(independent(columnFailures)===1?'has':'have')+' date columns that CMeng could not match. CMeng must check the reader before requesting replacement files.':
+    failed.length?countText(failed.length,'register file')+' '+(failed.length===1?'needs':'need')+' date review; missing source dates remain evidence gaps and are not treated as reader faults.':
     'Register dates were read; review individual gaps below.'};
 }
 
@@ -92,8 +93,8 @@ export function scopeRegisterDateReview(review: ReturnType<typeof reviewRegister
   return {...review, rows, likelyMappingFault, releaseReady: !likelyMappingFault,
     affectedRegisterCount: count(failed), mappingFailureRegisterCount: count(mapping),
     sourceDateGapRegisterCount: count(failed.filter(row => row.state !== 'column_not_found')),
-    message: likelyMappingFault ? count(mapping)+' required register families have date columns that CMeng could not match. Check the reader for these sources.'
-      : failed.length ? failed.length+' required register file(s) need date review.' : 'No date-reading fault affects this module\'s register dependencies.'};
+    message: likelyMappingFault ? countText(count(mapping),'required register family','required register families')+' '+(count(mapping)===1?'has':'have')+' date columns that CMeng could not match. Check the reader for these sources.'
+      : failed.length ? countText(failed.length,'required register file')+' '+(failed.length===1?'needs':'need')+' date review.' : 'No date-reading fault affects this module\'s register dependencies.'};
 }
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:ReturnType<typeof reviewRegisterDates>}>();
 export function registerDateReview(state:ProjectRuntimeState){

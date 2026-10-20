@@ -1,3 +1,4 @@
+r15-g4-wording-rules
 ui-management-experience
 universal-reporting-contract
 t05-same-measure-every-page
@@ -78,3 +79,12 @@ t10-wording-rules
 t10-downloads-match-screen
 module-issue-classification
 t11-module-issues-walk-parity
+register-date-review
+register-reader-release
+t02-register-date-all-columns-truth
+link-candidate-runtime
+t03-ai-error-states
+t04-one-rule-inputs-banners
+t02-register-reading-truth
+hour-one-shared
+project-diagnosis

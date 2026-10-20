@@ -20,7 +20,7 @@ import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/proj
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,kindIdentities,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryPopulationBasis,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 
@@ -157,7 +157,7 @@ function buildDelivery(state:ProjectRuntimeState){
  for(const r of records)if(['conflicted','stale'].includes(r.state))add('RECORD_'+r.state.toUpperCase(),r,r.description??r.reference??r.recordId,'Review the retained source and select the governed revision.');
  for(const r of governed){
   for(const [label,linked,available] of [['Activity',r.links.activityIds,activities],['BOQ',r.links.boqItemIds,items],['Package',r.links.packageIds,byId],['Supplier',r.links.supplierIds,byId],['Location',r.links.locationIds,byId],['Asset',r.links.assetIds,byId],['Record',r.links.recordIds,byId]] as const)
-   if(linked.some(id=>!available.has(id)))add('STALE_RELATIONSHIP',r,label+' relationship no longer resolves to the current authority.','Review this relationship against the current project records.');
+   if(linked.some(id=>!available.has(id)))add('STALE_RELATIONSHIP',r,label+' relationship no longer resolves to the current authority.','Review this '+label.toLowerCase()+' link of the '+deliveryLabels[r.kind]+' record against the current project records.');
  }
  const milestone=(r:DeliveryRecord,stage:string)=>{const keys=milestoneFieldKeys(stage);return {stage,
   planned:registerDate(keyedField(r,keys.planned)),
@@ -177,7 +177,7 @@ function buildDelivery(state:ProjectRuntimeState){
     ?population('gate',r.recordId)
     :{kind:'gate' as const,scopeId:r.recordId,state:'not_established' as const,denominator:null,
       knownRecordCount:0,pendingRecordCount:0,recordIds:[] as string[],
-      basis:'Confirm that all applicable records have been captured before relying on a percentage.',
+      basis:deliveryPopulationBasis('gate'),
       confirmedAt:null};
   const rows=gates.map(g=>{
    const applicable=field(g,'applicable').toLowerCase(),raw=field(g,'outcome','status').toLowerCase();
@@ -878,7 +878,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const sourceAvailability=sourceDomain?managementSourceInventory(state).domains.find(domain=>domain.domain===sourceDomain)??null:null;
  const sourceEvidenceAvailable=riskPage?riskUnknownReason==='Risk register uploaded but not read':Boolean(sourceAvailability?.documentCount);
  const usable=hasRows||sourceEvidenceAvailable;
- let managementPosition=useBoqCandidates?(key==='long-lead'?'CMeng has identified '+rows.length+' qualified long-lead scope candidate'+(rows.length===1?'':'s')+' from BOQ and/or controlled schedule/WBS intelligence. These candidates remain separate from confirmed procurement status, supplier dates and lateness.':'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':'')):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':pending.length?null:findings.length?findings.length+' delivery exceptions require attention.':'Current confirmed records are available against the programme Data Date.';
+ let managementPosition=useBoqCandidates?(key==='long-lead'?'CMeng has identified '+rows.length+' qualified long-lead scope candidate'+(rows.length===1?'':'s')+' from BOQ and/or controlled schedule/WBS intelligence. These candidates remain separate from confirmed procurement status, supplier dates and lateness.':'CMeng has identified '+rows.length+' useful '+title.toLowerCase()+' candidate'+(rows.length===1?'':'s')+' from the BOQ. Scope, quantities, values and professional classifications are shown now; actual supplier/status dates remain separate until supplied.'+(relevantSourceRecords?' '+relevantSourceRecords+' supplied specialist record'+(relevantSourceRecords===1?' is':'s are')+' also awaiting review and may improve this position.':'')):!hasRows&&sourceEvidenceAvailable?(sourceAvailability?.readableRowCount!==null?sourceAvailability!.readableRowCount+' source row(s) are available from '+sourceAvailability!.documentCount+' '+sourceAvailability!.label.toLowerCase()+' document(s). The governed Delivery population and dependent dates/mappings are not yet established; the source evidence remains visible.':sourceAvailability!.documentCount+' relevant source document(s) are available. The governed Delivery population is not yet established, so CMeng shows the supplied evidence without inventing lifecycle status or schedule impact.'):!hasRows?unread?'Source files are retained but their records could not yet be read reliably. Other Project information remains available.':'No current '+title.toLowerCase()+' information is available from the Project records.':!p.dataDateIso?'The records are available, but a reporting programme would add the dated Delivery position.':null;
  const metric=(label:string,value:number|null,unit='records',basis='Governed records at the programme Data Date')=>({label,value,unit,state:value===null?'unavailable':'calculated',basis});
  const establishedCurrentCount=establishedPopulationCount(summary.currentCount,populationAuthority),establishedOpenCount=establishedPopulationCount(summary.openCount,populationAuthority),establishedOverdueCount=establishedPopulationCount(summary.overdueCount,populationAuthority);
  const sourceCountBasis=populationAuthority.state==='established'?'Confirmed applicable population':'From supplied register, not yet confirmed as the complete applicable population';
@@ -931,8 +931,8 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
   else if(key==='handover-readiness')managementPosition=p.handover.readinessPercent===null?'Handover readiness is unresolved. Confirm the complete requirement population and dated verification/acceptance evidence.':p.handover.readinessPercent+'% of the confirmed current requirement population is verified and accepted.';
   else if(key==='delivery-hse')managementPosition=p.hsePosition.explanation;
   else if(key==='delivery-weather')managementPosition='Recorded site events and working impacts are shown separately. These records do not establish delay causation or EOT entitlement.';
-  else if(!findings.length&&population.state!=='established'&&key!=='delivery-risks')managementPosition='Reviewed records are shown below. Confirm the complete applicable population before relying on totals or percentages.';
-  else if(!findings.length&&summary.currentCount!==null)managementPosition=summary.currentCount+' current reviewed records; '+(summary.openCount===null?'open position unresolved':summary.openCount+' remain open')+'. '+(summary.overdueCount===null?'Overdue position is unresolved.':summary.overdueCount+' overdue at the programme Data Date.');
+  else if(!findings.length&&population.state!=='established'&&key!=='delivery-risks')managementPosition=null;
+  else if(!findings.length&&summary.currentCount!==null)managementPosition=title+': '+countText(summary.currentCount,'current reviewed record')+'; '+(summary.openCount===null?'open position unresolved':summary.openCount+' remain open')+'. '+(summary.overdueCount===null?'Overdue position is unresolved.':summary.overdueCount+' overdue at the programme Data Date.');
  }
  if(assetRegisterRows&&p.handover.readinessPercent===null)managementPosition=rows.length+' assets from the supplied asset register are shown with their reported flags and dated milestones. Handover readiness needs the confirmed handover requirement population and dated acceptance evidence.';
  if(riskPage)managementPosition=riskUnknownReason?(riskUnknownReason==='Risk register uploaded but not read'?'Risk register uploaded but not read: '+riskSourceDocumentCount+' risk source document(s) produced no risk records. ':'No risk register read. ')+'No confirmed Project Risk Register is available, so the risk population, counts and position are unknown. Candidates from BOQ wording are listed separately and are not risks.':!p.dataDateIso?'Risk records are available; a reporting programme would add the dated risk position.':risk.sourceRecordCount+' risk records are supplied: '+risk.currentRecordCount+' current, '+risk.futureRecordCount+' after the Data Date and '+risk.undatedRecordCount+' without a reporting date. '+(risk.unknownStatusCount?risk.unknownStatusCount+' current risk statuses need dated evidence. ':'')+(risk.validation.state==='conflicted'?'Supplied risk ratings conflict. ':'')+(pending.length?pending.length+' linked Delivery records still need confirmation.':'');
@@ -983,11 +983,16 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(p.evidenceMetrics[kind])extras.evidenceMetrics=p.evidenceMetrics[kind];
  if(procurementRegisterMetrics&&metrics===procurementRegisterMetrics)extras.metricsScope='procurement_register';
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
- // W6: a register still awaiting confirmation is stated with this page's own
- // figures (the first figures of the page), so each page answers its own question.
+ // W6: a page whose records are read states its position with its own title and
+ // its own first figures, so each page answers its own question (no shared line).
  if(managementPosition===null){
   const shown=(m:{label:string;value:number|null;unit:string})=>m.label+' '+(m.value===null?'not established':(Math.round(m.value*100)/100).toLocaleString('en-US',{maximumFractionDigits:2})+(m.unit==='%'?'%':''));
-  managementPosition=title+': '+metrics.slice(0,3).map(shown).join(' · ')+'. '+countText(pending.length,'supplied record')+' '+(pending.length===1?'is':'are')+' in use; confirm the register is complete before percentages are shown.';
+  const note=pending.length?countText(pending.length,'supplied record')+' '+(pending.length===1?'is':'are')+' in use, awaiting confirmation that the register is complete before percentages are shown.'
+   :findings.length?countText(findings.length,'delivery exception')+' '+(findings.length===1?'requires':'require')+' attention.'
+   :hasRows&&p.dataDateIso&&population.state!=='established'&&key!=='delivery-risks'?'Reviewed records are shown below. Confirm the register is complete before relying on totals or percentages.'
+   :'Confirmed records at the programme Data Date.';
+  const figures=metrics.slice(0,3).map(shown).join(' · ');
+  managementPosition=title+': '+(figures?figures+'. ':'')+note;
  }
  return deliveryExportResult(state,{key,status:!usable?'blocked':ready?'ready':'partial',reason:managementPosition,dependencies:useBoqCandidates?['readable BOQ scope']:['controlled programme','applicable Delivery records'],scheduleAuthorityReview:p.scheduleAuthorityReview,
   data:{projectionKey:'delivery',empty:!usable,

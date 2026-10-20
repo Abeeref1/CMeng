@@ -2,7 +2,7 @@ export const linkCandidateScript=String.raw`
 function linkCandidateEntry(key){
  const kind=['payments','commercial-overview'].includes(key)?'payment_certificate':['pmo-analysis','quantity-scurve','challenge-contract'].includes(key)?'boq_activity':null;
  if(!kind)return '';
- return '<details class="planning-panel" id="link-candidate-review"><summary>Review '+(kind==='boq_activity'?'BOQ-to-activity':'payment-to-certificate')+' link proposals</summary><p>Review the suggested relationship against your existing uploaded records. Confirming a link does not change quantities, payment amounts or approved project values.</p><button type="button" class="btn small" onclick="loadLinkCandidates(&quot;'+kind+'&quot;)">Open source matching</button><div id="link-candidate-content"></div></details>';
+ return '<details class="planning-panel" id="link-candidate-review"><summary>Review '+(kind==='boq_activity'?'BOQ-to-activity':'payment-to-certificate')+' link proposals</summary><p>Review each suggested '+(kind==='boq_activity'?'BOQ item to programme activity':'payment to certificate')+' link against your uploaded records. Confirming a link does not change quantities, payment amounts or approved project values.</p><button type="button" class="btn small" onclick="loadLinkCandidates(&quot;'+kind+'&quot;)">Open source matching</button><div id="link-candidate-content"></div></details>';
 }
 let linkCandidateReviewState=null;
 async function loadLinkCandidates(kind,offset=0,sourceOffset=0){
