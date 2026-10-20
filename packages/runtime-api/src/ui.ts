@@ -4127,8 +4127,9 @@ function renderCommercialLedgerVisual(data,scoped=false){
   const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
   const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
   // L3: a record's source receipts are listed in its own row (document · location ·
-  // revision or hash · basis) instead of a collapsed table per row. Every receipt stays.
-  const evidence=list=>{const refs=(list||[]).filter(Boolean);return '<div class="row-evidence"><small>Source evidence ('+refs.length+')</small>'+refs.map(r=>'<small>'+escapeHtml([r.documentId,r.locator,r.revision||r.sourceHash,r.basisState].filter(v=>v!==null&&v!==undefined&&v!=='').join(' · '))+'</small>').join('')+'</div>';};
+  // revision or hash · basis; receipts separated by ";") instead of a collapsed
+  // table per row. Every receipt stays.
+  const evidence=list=>{const refs=(list||[]).filter(Boolean);return '<span class="row-evidence"><b>Source evidence ('+refs.length+')</b>'+(refs.length?': ':'')+refs.map(r=>escapeHtml([r.documentId,r.locator,r.revision||r.sourceHash,r.basisState].filter(v=>v!==null&&v!==undefined&&v!=='').join(' · '))).join('; ')+'</span>';};
   const panel=(title,description,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
   let content="";
   if(key==="commercial-cost-position"){

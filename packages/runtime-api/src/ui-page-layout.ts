@@ -16,7 +16,7 @@ export const pageLayoutStyles=String.raw`
 .page-detail-groups>details>summary::-webkit-details-marker{display:none}.page-detail-groups>details>summary:before{content:'+';font-size:17px;font-weight:400}.page-detail-groups>details[open]>summary:before{content:'−'}
 .page-detail-groups>details>summary span{font-size:12px;color:#61738a;font-weight:400;margin-left:auto}
 .page-detail-body{padding:16px}.page-detail-body>*:last-child{margin-bottom:0}.page-detail-body .page-detail-title-shown{display:none}
-.row-evidence small{display:block;font-size:12px;line-height:1.45;color:#526479;overflow-wrap:anywhere}.row-evidence small:first-child{font-weight:650;color:#3d5570}
+.row-evidence{display:block;font-size:12px;line-height:1.45;color:#526479;overflow-wrap:anywhere}.row-evidence b{font-weight:650;color:#3d5570}
 @media(max-width:900px){.page-detail-groups{grid-template-columns:1fr}}
 @media print{.page-detail-groups{display:block}}
 `;
@@ -161,7 +161,9 @@ function pageDetailGroup(list,title,blocks,log){
   for(const block of blocks){
    const heading=pageBlockHeading(block.node);
    const whole=heading.el?String(heading.el.textContent||'').replace(/\s+/g,' ').trim().replace(/\s*[:·]\s*$/,''):'';
-   if(heading.el&&heading.el!==block.node&&heading.el.tagName!=='SUMMARY'&&heading.text&&whole===title){heading.el.classList.add('page-detail-title-shown');log.push(()=>heading.el.classList.remove('page-detail-title-shown'));}
+   // A nested section's summary line may be the one said: its section opens with the group.
+   const nestedLoads=heading.el?.tagName==='SUMMARY'&&pageLoadsOnOpen(heading.el.parentElement);
+   if(heading.el&&heading.el!==block.node&&!nestedLoads&&heading.text&&whole===title){heading.el.classList.add('page-detail-title-shown');log.push(()=>heading.el.classList.remove('page-detail-title-shown'));}
   }
   pageFillGroup(body,blocks,log);
   list.appendChild(details);
