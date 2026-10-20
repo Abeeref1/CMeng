@@ -73,16 +73,18 @@ test('R14: a BOQ whose own number column is headed "BOQ Item No" still reads its
 const claimsA='Claim ID,Event ID,Event,Notice Date,Submitted Date,Days Claimed,Status\n'+
  'CLM-01,EV-01,Late site access,2031-03-05,2031-03-20,10,Submitted\n'+
  'CLM-02,EV-02,Design change,2031-04-12,2031-04-30,8,Submitted';
+// A separate EOT register (no event title column, so it is a different register
+// from the claims register, not a revision of it; as in the F06 case).
 // CLM-01: the later file states a different Notice Date (one query on notice date).
 // CLM-02: the later file states a different Submitted Date (one query on submitted date).
-const claimsB='Claim ID,Event ID,Event,Notice Date,Submitted Date,Days Claimed,Status\n'+
- 'CLM-01,EV-01,Late site access,2031-03-07,2031-03-20,10,Submitted\n'+
- 'CLM-02,EV-02,Design change,2031-04-12,2031-05-02,8,Submitted';
+const claimsB='Claim ID,Event ID,Notice Date,Submitted Date,Days Claimed,Status\n'+
+ 'CLM-01,EV-01,2031-03-07,2031-03-20,10,Submitted\n'+
+ 'CLM-02,EV-02,2031-04-12,2031-05-02,8,Submitted';
 
 test('R14: a claims register stating both dates keeps both; a conflict on either date between two files is a query',async t=>{
  const {state,upload}=await store(t,'R14-CLAIM-TWO-DATES');
  await upload('Claims_Register.csv',claimsA);
- await upload('EOT_Register.csv',claimsB,{uploadIntent:'add_update'});
+ await upload('EOT_Register.csv',claimsB);
  for(const name of ['Claims_Register.csv','EOT_Register.csv']){
   const stored=state.evidenceDocuments.find((d:any)=>d.sourceFilename===name) as any;
   assert.ok(stored&&['active','additive'].includes(stored.basisState),name+' is part of the current basis ('+stored?.basisState+', '+stored?.documentType+', '+stored?.familyKey+', '+stored?.logicalDocumentKey+')');
