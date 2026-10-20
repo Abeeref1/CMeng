@@ -51,6 +51,11 @@ export interface EvidenceDocument {
 }
 export interface SourceRow { cells: Readonly<Record<string, string>>; receipt: SourceReceipt }
 export interface SourceTable { headers: string[]; rows: SourceRow[]; document: EvidenceDocument; intelligence: EvidenceTableIntelligence; recognition?: {headerRow:number;readRowCount:number;recognized:boolean;unknown:string[]}; }
+/** R1 R3: a one-column sheet that is not a table (a cover or title sheet).
+ * Its text lines are read as text; it holds no register columns to recognise. */
+export function sourceTitleSheet(table:SourceTable):boolean{
+  return table.recognition?.recognized===false&&!!table.intelligence&&table.intelligence.columns.length<=1&&table.intelligence.structurallyReadable===false;
+}
 export interface Fact<T> {
   value: T | null; state: FactState; receipts: SourceReceipt[];
   diagnostics: string[]; method: string; coverage: { known: number; total: number };

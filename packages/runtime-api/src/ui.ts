@@ -227,6 +227,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 .milestone-date-legend b{color:#a94438}
 .recovery-basis-list{list-style:none;padding:0;display:grid;gap:14px}.recovery-basis-list li{scroll-margin-top:80px;border:1px solid var(--line);border-radius:8px;padding:12px}.recovery-basis-list dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:5px 12px;margin-bottom:0}.recovery-basis-list dt{font-weight:650}.recovery-basis-list dd{margin:0;overflow-wrap:anywhere}
 .decision-panel .table-wrap .decision-inputs{min-width:280px;white-space:normal}
+.actions.decision-pager{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
 .table-wrap{overflow:auto!important} .table-wrap th{white-space:normal;min-width:85px} .table-wrap td{word-break:normal!important;overflow-wrap:normal!important;min-width:85px}
 .currency-card:only-child{grid-column:1/-1}
 @media(max-width:850px){.milestone-date-row{grid-template-columns:1fr}.module-bar-row,.visual-bar-row,.waterfall-row{grid-template-columns:minmax(0,1fr) minmax(55px,1fr) auto!important}}
@@ -886,6 +887,17 @@ function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
   const show=v=>v===null||v===undefined?"Not established":typeof v==="string"?humanizeIsoText(v):fmt(v);
   const withUnit=(v,u)=>show(v)+(u?" "+u:"");
+  // N8: a gap between two counts is a signed difference, never a negative
+  // count. It is said in words, e.g. "38 fewer activities than submitted".
+  // Durations, dates and percentages keep their signed value and unit.
+  const countGapNouns={activities:"activity",milestones:"milestone",relationships:"relationship",people:"person",records:"record",items:"item",packages:"package"};
+  const gapWords=(v,u,reference)=>{
+    const noun=countGapNouns[String(u||"")];
+    if(typeof v!=="number"||!Number.isFinite(v)||!noun)return withUnit(v,u);
+    if(v===0)return "No difference from "+reference;
+    const size=Math.abs(v);
+    return fmt(size)+" "+(v<0?"fewer":"more")+" "+(size===1?noun:u)+" than "+reference;
+  };
   const conflictPanel=(item)=>{
     const sub=item.submitted||{};
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
@@ -895,7 +907,7 @@ function renderUniversalChallenge(challenge){
     const candidateCards=comparisons.map((candidate,index)=>{
       const score=assessed.find(x=>String(x.value)===String(candidate.submittedValue)&&String(x.unit||"")===String(candidate.submittedUnit||""))||assessed[index]||{};
       const sources=(candidate.sourceRefs||score.sourceRefs||[]).join(", ")||"Programme records retained";
-      const gap=candidate.comparable===false?"Not directly comparable":withUnit(candidate.gapValue,candidate.gapUnit);
+      const gap=candidate.comparable===false?"Not directly comparable":gapWords(candidate.gapValue,candidate.gapUnit,"this position");
       const evidenceScore=score.evidenceScore===undefined?"—":fmt(score.evidenceScore);
       const recommendationScore=score.recommendationScore===undefined?"—":fmt(score.recommendationScore);
       return '<div class="candidate-card '+(score.recommended?"recommended":"")+'">'+
@@ -924,7 +936,7 @@ function renderUniversalChallenge(challenge){
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
     const conflicted=sub.state==="conflicted"||comparisons.length>1;
     const submittedText=sub.state==="not_submitted"?"Not provided":conflicted?"Contradictory · "+Math.max(comparisons.length,sub.alternatives?.length||0)+" candidates":withUnit(sub.value,sub.unit);
-    const gapText=conflicted?"Parallel calculations below":withUnit(gap.value,gap.unit);
+    const gapText=conflicted?"Parallel calculations below":gapWords(gap.value,gap.unit,"submitted");
     const main='<tr>'+
       '<td><b>'+escapeHtml(item.label||item.metric)+'</b><br><span class="muted">'+escapeHtml(challengeValueFromSubmission(ind)?"Submitted basis":item.evidenceState?humanizeKey(item.evidenceState):"")+'</span></td>'+
       '<td>'+escapeHtml(submittedText)+(sub.note?'<br><span class="muted">'+escapeHtml(sub.note)+'</span>':'')+'</td>'+
@@ -6785,7 +6797,12 @@ async function loadEvidence(){
       const readingBadge=documentReadingBadge(d.readingStatus);
       const aiSteps=d.semanticAiSteps||[];
       const aiReceipt=aiSteps.length?'<details><summary>AI reading · '+fmt(aiSteps.length)+' source steps</summary>'+aiSteps.map(step=>'<p><b>'+escapeHtml(step.sheetName||'CSV')+': '+escapeHtml(humanizeKey(step.status))+'</b> · '+escapeHtml(step.attempted?'AI attempted':'No new paid AI call')+'<br>'+escapeHtml(step.note||'')+'</p>').join('')+'</details>':'';
-      const columnReceipt=(d.columnUsage||[]).length?'<details><summary>Columns read and mapped</summary>'+(d.columnUsage||[]).map(t=>'<p><b>Table '+escapeHtml(t.table)+' · header row '+escapeHtml(t.headerRow)+'</b></p><p>Mapped: '+escapeHtml((t.mappedColumns||[]).join(', ')||'None')+'</p><p>Unmapped, retained for review: '+escapeHtml((t.ignoredColumns||[]).join(', ')||'None')+'</p>').join('')+'</details>':'';
+      // R1: each table lists the columns read and the columns not used; each
+      // reason is said once for the document, with the columns it covers.
+      const columnUsage=d.columnUsage||[],notUsedReasons=new Map();
+      columnUsage.forEach(t=>(t.notUsedColumns||[]).forEach(c=>{const columns=notUsedReasons.get(c.reason)||[];if(!columns.includes(c.column))columns.push(c.column);notUsedReasons.set(c.reason,columns);}));
+      const columnReceipt=columnUsage.length?'<details><summary>Columns read and not used</summary>'+columnUsage.map(t=>'<p><b>Table '+escapeHtml(t.table)+' · header row '+escapeHtml(t.headerRow)+'</b></p><p>Read: '+escapeHtml((t.mappedColumns||[]).join(', ')||'None')+'</p><p>Not used: '+escapeHtml((t.notUsedColumns||[]).map(c=>c.column).join(', ')||'None')+'</p>').join('')+
+        (notUsedReasons.size?'<p><b>Why these columns are not used</b></p><ul>'+[...notUsedReasons].map(([reason,columns])=>'<li>'+escapeHtml(columns.join(', '))+': '+escapeHtml(reason)+'</li>').join('')+'</ul>':'')+'</details>':'';
       const checked=selectedEvidenceDocuments.has(d.documentId)?" checked":"";
       const adopt=d.category==="schedule"&&d.linkedArtifactId&&!["recovery","scenario"].includes(d.scheduleRole)&&!(d.basisState==="active"&&d.scheduleAdoption?.method==="explicit")?'<button class="btn small adopt-programme" data-revision="'+escapeHtml(d.linkedArtifactId)+'">'+(['baseline','revised_baseline'].includes(d.scheduleRole)?'Adopt as baseline':d.basisState==='active'?'Confirm current selection':'Adopt as current')+'</button>':"";
       return '<tr><td class="select-col"><input type="checkbox" class="evidence-select" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'"'+checked+'></td><td class="document-file" title="'+escapeHtml(full)+'"><b>'+escapeHtml(d.sourceFilename)+'</b><span class="muted">'+escapeHtml(full)+'</span></td><td class="document-updated" title="'+escapeHtml(d.uploadedAt||"")+'"><b>'+escapeHtml(formatDocumentTime(d.uploadedAt))+'</b><small>'+escapeHtml(d.uploadedAt?formatDocumentTime(d.uploadedAt):"—")+'</small></td><td><b>'+escapeHtml(humanizeKey(d.classificationReview?.category||d.category))+'</b><br>'+escapeHtml(humanizeKey(d.classificationReview?.documentType||d.documentType))+(d.classificationReview?.reviewRequired?'<br><span class="badge partial">Stored as '+escapeHtml(humanizeKey(d.documentType))+' · mapping review required</span>':'')+title+'</td><td class="document-position"><span class="badge '+positionClass+'">'+escapeHtml(position)+'</span>'+(d.sourceAnalyticalUse==="qualified_source_read"?'<br><small>Readable source records are used with qualifications; completeness and contractual approval remain separate.</small>':'')+'</td><td>'+escapeHtml(humanizeKey(d.lineage?.effect||"unknown"))+(d.lineage?.replacesEntireBasis?'<br><span class="badge partial">replaces current document</span>':d.lineage?.appliesAsDelta?'<br><span class="badge">additional record</span>':'')+'</td><td>'+escapeHtml(confidence)+(i.needsReview&&!d.classificationReview?.headerClassified?'<br><span class="badge partial">review</span>':'')+'</td><td>'+escapeHtml(humanizeKey(method))+'</td><td>'+escapeHtml(conflict)+'</td><td title="'+escapeHtml(readNote)+'">'+readingBadge+'<b>'+escapeHtml(readLabel)+'</b><br><span class="muted">'+escapeHtml(readNote)+'</span>'+columnReceipt+aiReceipt+'</td><td>'+escapeHtml(d.scheduleRole?humanizeKey(d.scheduleRole):"—")+'</td><td>'+escapeHtml(mapping)+'</td><td>'+adopt+(d.category==='schedule'&&!d.scheduleAdoption&&!['active','superseded'].includes(d.basisState)?'<button class="btn small programme-purpose" data-document-id="'+escapeHtml(d.documentId)+'">Review programme purpose</button>':'')+(d.category!=='schedule'?'<button class="btn small document-relationship" data-document-id="'+escapeHtml(d.documentId)+'">Review relationship</button>':'')+'<button class="document-delete document-delete-single" data-document-id="'+escapeHtml(d.documentId)+'" data-filename="'+escapeHtml(d.sourceFilename)+'">Delete</button></td></tr>';

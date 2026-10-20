@@ -247,7 +247,11 @@ function pageRoleLensContext(data){
   if(!facts)return base;
   const value=field=>field?.value??null;
   const submitted=value(facts.schedule?.submittedProgrammeCompletionIso);
-  const currentContract=value(facts.time?.extendedContractCompletionIso)||value(facts.time?.contractualCompletionIso);
+  // N5: the executive "Contractual completion" is the same governing contract
+  // date the overall view and the server role summary show. The date with
+  // awarded EOT is a separate fact with its own label, never put in its place.
+  const contractual=value(facts.time?.contractualCompletionIso);
+  const extended=value(facts.time?.extendedContractCompletionIso);
   const metrics=[
     ['Recorded contractual completion',facts.time?.contractualCompletionIso,'date'],
     ['Current contract completion',value(facts.time?.extendedContractCompletionIso)!==null?facts.time.extendedContractCompletionIso:facts.time?.contractualCompletionIso,'date'],
@@ -282,7 +286,7 @@ function pageRoleLensContext(data){
     controls:{...base.controls,submittedCompletionIso:submitted,...(progress?{progress}:{}),...(completion?{forecastCompletionIso:forecast??null,scheduleVarianceDays:completion.differenceElapsedDays??null}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
     projectDirector:{...base.projectDirector,openActionCount:value(facts.actions?.openCount),...(Array.isArray(actions)?{actions}:{})},
     programDirector:{...base.programDirector,...(management?.schedule?.programmeStages?{programmeStages:management.schedule.programmeStages}:{}),...(interfaces?.rows?{interfaces:interfaces.rows}:{})},
-    executive:{...base.executive,contractualCompletionIso:currentContract,submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:currencies,openActionCount:value(facts.actions?.openCount),...(decisions?{decisions}:{})}};
+    executive:{...base.executive,contractualCompletionIso:contractual,...(extended!==null&&extended!==contractual?{currentContractCompletionIso:extended}:{}),submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:currencies,openActionCount:value(facts.actions?.openCount),...(decisions?{decisions}:{})}};
 }
 function experienceRoleLensContext(role,data){
   const context=pageRoleLensContext(data);
@@ -338,6 +342,7 @@ function experienceRoleLensContext(role,data){
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Strategic commitments & intervention</h4><span>Executive / CEO</span></div>'+
       roleLensFacts([
         {label:'Contractual completion',value:e.contractualCompletionIso,unit:'date',basis:'Governed contract-time authority where established'},
+        {label:'Contract including awarded EOT',value:e.currentContractCompletionIso,unit:'date',basis:'Contractual completion plus reconciled awarded EOT'},
         {label:'Submitted completion',value:e.submittedCompletionIso,unit:'date',basis:'Current adopted programme'},
         {label:'CMeng forecast / recalculation',value:e.forecastCompletionIso,unit:'date',basis:'Independent forecast authority and qualifications'},
         {label:'Currency positions',value:Array.isArray(e.commercialByCurrency)&&e.commercialByCurrency.length?e.commercialByCurrency.length:null,basis:'Commercial positions remain separated by currency and tax basis'}

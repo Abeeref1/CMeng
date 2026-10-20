@@ -926,6 +926,16 @@ const rules:
         weight: 5,
       },
       {
+        // R2: a document whose own title, at its head, is "Construction
+        // Contract" (or Main / Works Contract) is a contract by content. A
+        // title naming an amendment, appendix, variation or a reference is not.
+        label:
+          "contract title",
+        pattern:
+          /^\W{0,3}(?:main\s+works|main|construction|works)\s+contract\b(?!\s*(?:no\b|number|ref|reference|data|appendix|amendment|variation|addendum))/i,
+        weight: 4,
+      },
+      {
         label:
           "conditions of contract",
         pattern:
@@ -2202,6 +2212,14 @@ function classifyText(
   };
 }
 
+/** R2: one rule for "the file name and the content name the same type". A
+ * content-read programme file (XER, XML, tabular schedule) is a schedule file;
+ * its role as baseline, update or recovery comes from upload metadata, so a
+ * name saying "update" agrees with content saying "schedule file". */
+export function sameIdentifiedDocumentType(named:string,detected:string):boolean{
+  return named===detected||(detected==='schedule_file'&&/^schedule_(?:baseline|update|recovery)$/.test(named));
+}
+
 /** Correct a legacy display classification from retained content, without promoting
  * the document, replacing its evidence family, or changing any official facts. */
 export function documentClassificationForReview(document: StoredEvidenceDocument, tableRows?:readonly string[][]) {
@@ -2235,7 +2253,7 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
   };
   const text = [document.identification?.detectedTitle ?? "", ...(document.assertions??[]).map(a => a.sourceText)].join("\n");
   const detected = classifyText(text, document.mediaType);
-  const compatibleScheduleRole=detected?.documentType==='schedule_file'&&/^schedule_(baseline|update|recovery)$/.test(document.documentType);
+  const compatibleScheduleRole=!!detected&&detected.documentType!==document.documentType&&sameIdentifiedDocumentType(document.documentType,detected.documentType);
   const changed = detected && detected.confidence >= 0.9 && detected.documentType !== document.documentType&&!compatibleScheduleRole;
   return { documentType: changed ? detected.documentType : document.documentType,
     category: changed ? detected.category : document.category,
@@ -2508,7 +2526,20 @@ export async function identifyEvidenceDocument(
     declaredCategory !==
       detectedCategory;
 
+  // R2: when the file name and the content name the same type, the file is
+  // clear. The name and content catalogues can file one type under different
+  // categories (a bond register under contract security or under cost); that
+  // catalogue difference is not a conflict in the file.
+  const namedTypeAgrees =
+    filenameHintDocumentType !==
+      "supporting_document" &&
+    sameIdentifiedDocumentType(
+      filenameHintDocumentType,
+      detectedDocumentType,
+    );
+
   const filenameConflict =
+    !namedTypeAgrees &&
     filenameHintCategory !==
       "other" &&
     filenameHintCategory !==
@@ -2517,8 +2548,7 @@ export async function identifyEvidenceDocument(
   const typeConflict =
     filenameHintDocumentType !==
       "supporting_document" &&
-    filenameHintDocumentType !==
-      detectedDocumentType;
+    !namedTypeAgrees;
 
   const classificationConflict =
     declaredConflict ||

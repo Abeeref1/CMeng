@@ -27,6 +27,10 @@ test('SW-05 executive role view uses the page action register and facts, not the
   assert.match(html,/Project Director/);
   // Confirmed dates come from the page facts.
   assert.match(html,/Contractual completion<\/span><strong>[^<]*2031/);
+  // N5: the executive tile shows the governing contract date (Oct 1), the same
+  // as the overall view, and the date with awarded EOT under its own label.
+  assert.match(html,/Contractual completion<\/span><strong>[^<]*Oct[^<]*1, 2031/);
+  assert.match(html,/Contract including awarded EOT<\/span><strong>[^<]*Nov[^<]*1, 2031/);
   // No currency rows is an unestablished commercial position, never "0 positions".
   assert.match(html,/Currency positions<\/span><strong class="unavailable">Not established/);
   assert.doesNotMatch(html,/Currency positions<\/span><strong>0</);

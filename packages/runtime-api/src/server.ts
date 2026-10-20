@@ -118,6 +118,9 @@ import {
 import {
   governedTables,
   sourceTables,
+  sourceTitleSheet,
+  unusedColumnReason,
+  TITLE_SHEET_COLUMN_REASON,
 } from "../../truth-kernel/src";
 import {
   projectScheduleControlBasis,
@@ -430,16 +433,21 @@ export function projectDocumentRegister(projectId:string){
               schemaByDocument.get(
                 document.documentId,
               )?.headers ?? [],
+            // R1: every source column is read (by the shared register schema or
+            // the shared reader that owns the table) or listed as not used,
+            // with the plain reason shown on the document's reading record.
             columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
-              const ignored=new Set(table.recognition?.unknown??[]);
+              const unused=new Set(table.recognition?.unknown??[]);
               const physical=table.intelligence.columns.map(column=>column.rawHeader);
+              const titleSheet=sourceTitleSheet(table);
               return {
                 table:index+1,
                 headerRow:table.recognition?.headerRow??table.intelligence.headerRow,
-                mappedColumns:physical.filter(header=>header&&!ignored.has(header)),
-                ignoredColumns:physical.filter(header=>!header||ignored.has(header)),
+                mappedColumns:titleSheet?[]:physical.filter(header=>header&&!unused.has(header)),
+                notUsedColumns:physical.filter(header=>titleSheet||!header||unused.has(header))
+                  .map(header=>({column:header||'(blank heading)',reason:titleSheet?TITLE_SHEET_COLUMN_REASON:unusedColumnReason(header)})),
                 canonicalColumns:[...table.headers],
-                recognitionState:table.recognition?.recognized===true?'recognized':'review_required',
+                recognitionState:titleSheet?'title_sheet':table.recognition?.recognized===true?'recognized':'review_required',
               };
             }),
           })),
