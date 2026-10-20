@@ -6,7 +6,7 @@ import {configuredUploadLimit} from './request-body';
 import {createServer,request,type IncomingMessage,type ServerResponse} from 'node:http';
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
-import {mkdir,statfs} from 'node:fs/promises';
+import {mkdir,statfs,stat} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
 import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry} from './registry';
 import {normalizeProjectCode} from './project-identity';
@@ -28,6 +28,12 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   await clearDerivedReadCaches(root,calculationRelease());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
+  // Background warm-up order: most recently used projects first. The project
+  // directory changes whenever its stored results or sources are written, so it
+  // is the durable last-use signal across restarts; foreground opens update it.
+  const lastUsedAt=new Map<string,number>();
+  for(const id of catalog.keys())lastUsedAt.set(id,(await stat(projectDirectory(root,id)).catch(()=>null))?.mtimeMs??0);
+  const recentFirst=<T extends {projectId:string}>(entries:T[])=>entries.sort((a,b)=>(lastUsedAt.get(b.projectId)??0)-(lastUsedAt.get(a.projectId)??0));
   const documentRegisters=new Map<string,{version:number;documents:Record<string,any>}>();
   const auditSecret=await retainedAuditSessionKey(root);
   const externalWorkerKey=randomBytes(32).toString('hex');
@@ -277,9 +283,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // Do not let one project monopolize all its pages while another project
     // still needs its first Accountability and Master Dashboard calculations.
     if([...catalog.values()].some(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!summaryFailures.has(e.projectId)))return;
-    const next=pendingSecondaryWarmups.entries().next().value as [string,number]|undefined;
+    const next=recentFirst([...pendingSecondaryWarmups].map(([projectId,version])=>({projectId,version})))[0];
     if(!next)return;
-    const [id,version]=next;pendingSecondaryWarmups.delete(id);
+    const {projectId:id,version}=next;pendingSecondaryWarmups.delete(id);
     if(catalog.get(id)?.metadata?.version!==version||(updating.get(id)??0)>0)return;
     secondaryWarmupActive=true;
     void warmProjectPages(id,version,'secondary')
@@ -452,7 +458,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}
       // A browser request takes priority over background project warm-up.
       // Retained analyses of unchanged versions stay available from the volume.
-      lastForegroundProjectRequestAt=Date.now();
+      lastForegroundProjectRequestAt=Date.now();lastUsedAt.set(id,lastForegroundProjectRequestAt);
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       // A completed calculation may already have reached the browser while its
       // durable Overview snapshot is still being published. Never return the
@@ -507,9 +513,13 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // first Overview, making a light read take more than five seconds.
     if(activeForegroundRequests>0||Date.now()-lastForegroundProjectRequestAt<1500)return;
     for(const [key,value] of progress)if(value.updatedAt&&Date.now()-Date.parse(value.updatedAt)>6*60*60*1000)progress.delete(key);
-    if(closing||activeSummaryWarmups>=maxSummaryWarmups)return;
+    // Every background lane counts against one budget (summaries and the page
+    // warm-up chain together), so at least one worker always stays free for a
+    // user request when maxWorkers>1: a user never waits behind warm-up work.
+    const backgroundLanes=activeSummaryWarmups+(scheduledWarmups.size?1:0)+(secondaryWarmupActive?1:0);
+    if(closing||backgroundLanes>=maxSummaryWarmups)return;
     const idleLane=[...lanes.values()].some(l=>l.pending===0&&Date.now()-l.lastUsed>8000);
-    const entry=[...catalog.values()].find(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!updating.get(e.projectId)&&!summaryJobs.has(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
+    const entry=recentFirst([...catalog.values()]).find(e=>!e.metadata?.demo&&e.summaryRelease!==calculationRelease()&&!updating.get(e.projectId)&&!summaryJobs.has(e.projectId)&&Date.now()-(summaryAttempts.get(e.projectId)??0)>60000&&
       (lanes.has(e.projectId)||lanes.size<maxWorkers||idleLane));
     if(!entry){scheduleSecondaryWarmup();return;}
     activeSummaryWarmups++;
@@ -520,7 +530,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // no imported records are altered, and this avoids making the first browser
   // request pay for loading/parsing a full project snapshot. Remaining workers
   // and calculation-versioned pages warm incrementally without blocking health.
-  const firstProject=[...catalog.values()].find(e=>e.metadata&&!e.metadata.demo)?.projectId;
+  const firstProject=recentFirst([...catalog.values()]).find(e=>e.metadata&&!e.metadata.demo)?.projectId;
   const firstVersion=firstProject?catalog.get(firstProject)?.metadata?.version:undefined;
   const retainedFirstViews=firstProject&&firstVersion!==undefined&&
     await reads(firstProject).get(calculationRelease(),firstVersion,'/api/projects/'+encodeURIComponent(firstProject)+'/overview')&&
