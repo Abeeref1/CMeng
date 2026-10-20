@@ -3427,20 +3427,20 @@ function renderVarianceTrendVisual(data){
   const p=projectionFor(data,"variance_trends");
   if(!Array.isArray(p.points))return"";
   const availability=data?.featureAvailability||p.featureAvailability||null;
+  // S1 (g3): an unknown movement tile says why: no confirmed baseline, no activity
+  // matched to it, or a finish date missing (shared unknown-reason helper).
+  const movementWhy=(point,measure)=>typeof baselineMovementReason==="function"?baselineMovementReason(data?.baselineComparison,point,measure):"";
   if(availability&&availability.state!=="active"){
     const latest=p.points.at(-1)||null;
     return '<section class="planning-view variance-view"><div class="notice info"><b>Variance Trend is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable controlled revisions are required.")+'</p></div>'+(latest?planningKpis([
       ["Current revision",latest.sequence??1,"current controlled programme"],
       ["Records finishing after baseline",latest.lateActivityCount??"Not established","current comparison position"],
-      ["Project finish vs baseline",latest.projectCompletionVarianceDays==null?"Not established":fmt(latest.projectCompletionVarianceDays)+" d","current position; not a trend","",baselineMovementReason(data.baselineComparison,latest,"project_finish")]
-    ],{reason:baselineMovementReason(data.baselineComparison,latest)}):"")+'<p>Use Programme Changes for a specific revision-to-revision comparison and Revision History for chronology.</p></section>';
+      ["Project finish vs baseline",latest.projectCompletionVarianceDays==null?"Not established":fmt(latest.projectCompletionVarianceDays)+" d","current position; not a trend","",movementWhy(latest,"project_finish")]
+    ],{reason:movementWhy(latest)}):"")+'<p>Use Programme Changes for a specific revision-to-revision comparison and Revision History for chronology.</p></section>';
   }
   const labels=p.revisionLabels||{};
   const points=p.points.map(x=>({...x,dateIso:x.dataDateIso||("R"+x.sequence)}));
   const latest=p.points.at(-1)||{};
-  // S1 (g3): an unknown movement tile says why: no confirmed baseline, no activity
-  // matched to it, or a finish date missing (shared unknown-reason helper).
-  const movementWhy=(measure)=>typeof baselineMovementReason==="function"?baselineMovementReason(data.baselineComparison,latest,measure):"";
   const averageMovement=planningSignedBars(p.points.map(x=>({label:shortRevision(x.revisionId,labels),value:typeof x.averageFinishVarianceDays==="number"?x.averageFinishVarianceDays:null})),"days");
   const projectMovement=planningSignedBars(p.points.map(x=>({label:shortRevision(x.revisionId,labels),value:typeof x.projectCompletionVarianceDays==="number"?x.projectCompletionVarianceDays:null})),"days");
   const pressure=renderFloatPressureTrend(points,p.floatTrend);
@@ -3449,10 +3449,10 @@ function renderVarianceTrendVisual(data){
   return '<section class="planning-view variance-view">'+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Finish movement by revision</h4><p>Signed movement from the controlled baseline across completed and open source records. Left means earlier, right means later.</p></div></div><div class="planning-panel-body"><div class="nested-title">Average activity finish movement</div>'+averageMovement+'<div class="nested-title" style="margin-top:16px">Project finish movement</div>'+projectMovement+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Float pressure trend</h4><p>Float indicators for execution activities by revision. Negative float overlaps criticality; these lines are not additive.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div>'+planningKpis([
     ["Revisions",p.revisionCount,"controlled"],
     ["Delayed open activities",data.projectFacts?.schedule?.delayedOpenActivityCount?.value??"Missing","current project fact; completed work excluded"],
-    ["Latest avg movement",latest.averageFinishVarianceDays==null?"Not established":fmt(latest.averageFinishVarianceDays)+" d","vs controlled baseline",latest.averageFinishVarianceDays>0?"warning":"",movementWhy()],
-    ["Latest max activity movement",latest.maximumDelayDays==null?"Not established":fmt(latest.maximumDelayDays)+" d","activity level",latest.maximumDelayDays>0?"danger":"",movementWhy()],
-    ["Records finishing after baseline",latest.lateActivityCount,"completed and open source records",latest.lateActivityCount?"danger":"",movementWhy()],
-    ["Project finish movement",latest.projectCompletionVarianceDays==null?"Not established":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":"",movementWhy("project_finish")]
+    ["Latest avg movement",latest.averageFinishVarianceDays==null?"Not established":fmt(latest.averageFinishVarianceDays)+" d","vs controlled baseline",latest.averageFinishVarianceDays>0?"warning":"",movementWhy(latest)],
+    ["Latest max activity movement",latest.maximumDelayDays==null?"Not established":fmt(latest.maximumDelayDays)+" d","activity level",latest.maximumDelayDays>0?"danger":"",movementWhy(latest)],
+    ["Records finishing after baseline",latest.lateActivityCount,"completed and open source records",latest.lateActivityCount?"danger":"",movementWhy(latest)],
+    ["Project finish movement",latest.projectCompletionVarianceDays==null?"Not established":fmt(latest.projectCompletionVarianceDays)+" d","vs controlled baseline",latest.projectCompletionVarianceDays>0?"danger":"",movementWhy(latest,"project_finish")]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision values</h4><p>Exact values supporting the trend. Source activity finish movements use the shared activity matching; unknown baseline and ambiguous identity remain visible.</p></div></div><div class="planning-panel-body"><div class="revision-value-grid">'+cards+'</div>'+distributionSummary(latest.movementDistribution)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Revision detail</h4></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Seq</th><th>Revision</th><th>Data date</th><th>Avg vs baseline d</th><th>Max movement d</th><th>Late</th><th>Early</th><th>On time</th><th>Neg. float</th><th>Critical</th><th>Project finish vs baseline d</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></section></section>';
 }
 function commercialCapabilityValue(value,unit=""){
