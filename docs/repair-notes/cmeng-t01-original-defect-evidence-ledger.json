@@ -11189,11 +11189,28 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "f0450972",
-          "10849379"
+          "10849379",
+          "24518780",
+          "356182b5",
+          "2b81744f",
+          "cb4b2b80",
+          "78b259cb",
+          "9fd46e92",
+          "06186cf5",
+          "00719c98",
+          "ea1ce878",
+          "7cd91c1d",
+          "c9141255",
+          "c553713a",
+          "3ff942b9",
+          "c09ce64e",
+          "fe0264fa",
+          "ce59c048",
+          "56370c94"
         ],
         "regressionFiles": [],
-        "repairNotes": "Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02.",
-        "notCovered": "Plan of 13 Oct still lists S02 open; Accountability 5 to 18 s at b3c76d6."
+        "repairNotes": "Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02. Round 14: 19 commits on this branch name S02 with or without the hyphen (S-02); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11217,13 +11234,132 @@
             "liveState": "live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "24518780",
+            "subject": "S-02: capture precise lookahead bottlenecks in unchanged 5-second operations acceptance",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "356182b5",
+            "subject": "S-02: instrument source-wide look-ahead stages for real cold benchmark diagnosis",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "2b81744f",
+            "subject": "S-02: reuse parsed schedule dates in predecessor checks and skip empty milestone graphs",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "cb4b2b80",
+            "subject": "S-02: prevent portfolio refresh from occupying workers ahead of foreground cold views",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "78b259cb",
+            "subject": "S-02: prime first project worker and warm Accountability across portfolio before secondary pages",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9fd46e92",
+            "subject": "S-02 S-06: no cold full-domain recalculation or worker-order-dependent facts in Overview",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "06186cf5",
+            "subject": "S-02: content-addressed calculation version and parallel nonblocking portfolio warming",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "00719c98",
+            "subject": "S-06 S-02: reuse coherent bounded source-version module result for screens and report exports",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "ea1ce878",
+            "subject": "S-02 gate four concurrent Accountability projects under unchanged 5s target",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "7cd91c1d",
+            "subject": "S-02 keep full visual-control populations with single-pass grouping",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "c9141255",
+            "subject": "S-02 cache and index revision duration reviews",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "c553713a",
+            "subject": "S-02 avoid rescanning issue-free flat Activity Review rows",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "3ff942b9",
+            "subject": "S-02 reuse canonical Challenge Contract in management resolution",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "c09ce64e",
+            "subject": "S-02 S-07 keep Accountability project-scoped and remove duplicate review dependency",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "fe0264fa",
+            "subject": "S-02 wire bounded concurrent project workspaces into shared gateway with explicit operator switch",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "ce59c048",
+            "subject": "S-02 bounded opt-in multi-project worker lanes; preserve default CPU and memory safeguards",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "56370c94",
+            "subject": "S-02 warm every advertised control page per release/version; S-46 separate test projects from portfolio",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
           "T01"
         ],
         "liveState": "live",
-        "note": "Linked because the commit subject names this S-item. The S-item definition is not in the repository, so coverage cannot be judged."
+        "note": "Linked because commit subjects name this S-item (as S02 or S-02). Definition as read from the commit subjects, not the original S-item text: cold page speed: Accountability, look-ahead and control pages within the unchanged 5-second target; portfolio refresh and worker warming never delay foreground cold views; bounded opt-in multi-project worker lanes. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11234,15 +11370,30 @@
         "namedTests": [],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "repair_live_no_named_test"
+      "boardStatus": "repair_live_no_named_test",
+      "definitionFromCommitSubjects": "cold page speed: Accountability, look-ahead and control pages within the unchanged 5-second target; portfolio refresh and worker warming never delay foreground cold views; bounded opt-in multi-project worker lanes."
     },
     {
       "id": "S06",
       "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "eb513d28",
+          "cc2367a4",
+          "fbd2b7b9",
+          "9fd46e92",
+          "9df41bb1",
+          "ad183400",
+          "00719c98",
+          "0c330178"
+        ],
+        "regressionFiles": [
+          "tests/project-gateway-preservation.test.ts",
+          "tests/reporting-contract-export.test.ts"
+        ],
+        "repairNotes": "Round 14: 8 commits on this branch name S06 with or without the hyphen (S-06); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11251,13 +11402,70 @@
       "ownerAcceptance": "not_accepted",
       "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "eb513d28",
+            "subject": "S-06: stop adopted-baseline Overview statuses changing because a specialist page was opened",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "cc2367a4",
+            "subject": "S-06: use supported audit event lookup for stable reporting revision timestamps",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "fbd2b7b9",
+            "subject": "S-06: stable source-version calculation timestamps and reuse finished governed statuses in Overview",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9fd46e92",
+            "subject": "S-02 S-06: no cold full-domain recalculation or worker-order-dependent facts in Overview",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9df41bb1",
+            "subject": "S-06 regression: same project overview unchanged by order of specialist page reads",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "ad183400",
+            "subject": "S-06: make overview source-version deterministic independent of worker warm order",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "00719c98",
+            "subject": "S-06 S-02: reuse coherent bounded source-version module result for screens and report exports",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "0c330178",
+            "subject": "S-06 prove screen and JSON report consume one canonical result",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T01"
         ],
-        "liveState": "no_repair",
-        "note": "S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied."
+        "liveState": "live",
+        "note": "Linked because commit subjects name this S-item (as S06 or S-06). Definition as read from the commit subjects, not the original S-item text: stable overview statuses independent of specialist page reads and worker warm order; screen and JSON report read one canonical source-version result. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11265,18 +11473,31 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/project-gateway-preservation.test.ts",
+          "tests/reporting-contract-export.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "stable overview statuses independent of specialist page reads and worker warm order; screen and JSON report read one canonical source-version result."
     },
     {
       "id": "S07",
       "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "683b165f",
+          "656676fb",
+          "332d23f2",
+          "c09ce64e"
+        ],
+        "regressionFiles": [
+          "tests/shared-decision-closure.test.ts"
+        ],
+        "repairNotes": "Round 14: 4 commits on this branch name S07 with or without the hyphen (S-07); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11285,13 +11506,42 @@
       "ownerAcceptance": "not_accepted",
       "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "683b165f",
+            "subject": "S-07 S-45: concise decision tables, one missing-column notice and collapsed calculation basis",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "656676fb",
+            "subject": "S-07 restore canonical action register on Accountability",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "332d23f2",
+            "subject": "S-07 lock one-home ownership for decision blocks",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "c09ce64e",
+            "subject": "S-02 S-07 keep Accountability project-scoped and remove duplicate review dependency",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T01"
         ],
-        "liveState": "no_repair",
-        "note": "S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied."
+        "liveState": "live",
+        "note": "Linked because commit subjects name this S-item (as S07 or S-07). Definition as read from the commit subjects, not the original S-item text: one-home ownership for decision blocks; canonical action register on Accountability, kept project-scoped; concise decision tables. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11299,18 +11549,35 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/shared-decision-closure.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "one-home ownership for decision blocks; canonical action register on Accountability, kept project-scoped; concise decision tables."
     },
     {
       "id": "S17",
       "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "f60855dd",
+          "19019de3",
+          "fbf5a1c9",
+          "dff799e5",
+          "d1a0cb23",
+          "9be9ec85",
+          "07da032b",
+          "7c54954e"
+        ],
+        "regressionFiles": [
+          "tests/link-candidate-core.test.ts",
+          "tests/wbs-source-separator-links.test.ts"
+        ],
+        "repairNotes": "Round 14: 8 commits on this branch name S17 with or without the hyphen (S-17); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11319,13 +11586,70 @@
       "ownerAcceptance": "not_accepted",
       "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "f60855dd",
+            "subject": "S-17 S-21 regression: 1,000 compatible candidates remain reachable beyond the first AI window",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "19019de3",
+            "subject": "S-17 S-21: allow all BOQ/payment sources and ranked targets to be reviewed without a hidden first-50 or first-20 ceiling",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "fbf5a1c9",
+            "subject": "S-17 S-21: enumerate every source and ranked-target window with truthful review coverage",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "dff799e5",
+            "subject": "S-17 S-21: paginate every eligible target without silently discarding activity and certificate candidates",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "d1a0cb23",
+            "subject": "Fix strict TypeScript index narrowing in S-17 separator alias regression test",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9be9ec85",
+            "subject": "S-17 regression: exact separator WBS matches, unique-only scope and explicit ambiguity containment",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "07da032b",
+            "subject": "S-17 recognize unique punctuation-equivalent source WBS codes without fuzzy assignments or hiding unresolved items",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "7c54954e",
+            "subject": "S-15 persist proposed BOQ activity candidates without changing governed allocations; S-17 retain source WBS suggestions",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T01"
         ],
-        "liveState": "no_repair",
-        "note": "S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied."
+        "liveState": "live",
+        "note": "Linked because commit subjects name this S-item (as S17 or S-17). Definition as read from the commit subjects, not the original S-item text: every BOQ / payment source and ranked target window reviewable without a hidden first-50 or first-20 cap; source WBS codes matched exactly (punctuation-equivalent, unique only) with ambiguity contained. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11333,18 +11657,33 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/link-candidate-core.test.ts",
+          "tests/wbs-source-separator-links.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "every BOQ / payment source and ranked target window reviewable without a hidden first-50 or first-20 cap; source WBS codes matched exactly (punctuation-equivalent, unique only) with ambiguity contained."
     },
     {
       "id": "S21",
       "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "f60855dd",
+          "19019de3",
+          "fbf5a1c9",
+          "dff799e5",
+          "ad7a223b"
+        ],
+        "regressionFiles": [
+          "tests/link-candidate-core.test.ts",
+          "tests/link-candidate-runtime.test.ts"
+        ],
+        "repairNotes": "Round 14: 5 commits on this branch name S21 with or without the hyphen (S-21); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11353,13 +11692,49 @@
       "ownerAcceptance": "not_accepted",
       "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "f60855dd",
+            "subject": "S-17 S-21 regression: 1,000 compatible candidates remain reachable beyond the first AI window",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "19019de3",
+            "subject": "S-17 S-21: allow all BOQ/payment sources and ranked targets to be reviewed without a hidden first-50 or first-20 ceiling",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "fbf5a1c9",
+            "subject": "S-17 S-21: enumerate every source and ranked-target window with truthful review coverage",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "dff799e5",
+            "subject": "S-17 S-21: paginate every eligible target without silently discarding activity and certificate candidates",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "ad7a223b",
+            "subject": "S-21 prove reviewed payment certificate links feed coverage without changing money",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T01"
         ],
-        "liveState": "no_repair",
-        "note": "S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied."
+        "liveState": "live",
+        "note": "Linked because commit subjects name this S-item (as S21 or S-21). Definition as read from the commit subjects, not the original S-item text: every payment / BOQ source and ranked target window reviewable without hidden caps; reviewed payment certificate links feed coverage without changing money. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11367,18 +11742,35 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/link-candidate-core.test.ts",
+          "tests/link-candidate-runtime.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "every payment / BOQ source and ranked target window reviewable without hidden caps; reviewed payment certificate links feed coverage without changing money."
     },
     {
       "id": "S32",
       "sourceId": "docs/repair-notes/CMeng_Repair_Plan.md",
       "implementation": {
-        "status": "not_reconciled",
-        "sourceCommits": [],
-        "regressionFiles": []
+        "status": "partial_source_repair_saved",
+        "sourceCommits": [
+          "00afd3e7",
+          "096e61ca",
+          "23f15c72",
+          "8760f718",
+          "124f6d71",
+          "582bba38",
+          "13ebce5f",
+          "5c5ac0f8"
+        ],
+        "regressionFiles": [
+          "tests/shared-decision-closure.test.ts"
+        ],
+        "repairNotes": "Round 14: 8 commits on this branch name S32 with or without the hyphen (S-32); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11387,13 +11779,70 @@
       "ownerAcceptance": "not_accepted",
       "description": "Exact original S-item definition to be linked to authoritative source; no inferred closure",
       "repairReference": {
-        "state": "none_yet",
-        "commits": [],
+        "state": "commits",
+        "commits": [
+          {
+            "sha": "00afd3e7",
+            "subject": "S-32: state source-supported item certification without misleading wording",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "096e61ca",
+            "subject": "S-32 use a real priced BOQ in progress certification regression",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "23f15c72",
+            "subject": "S-32 reject cross-currency item certification",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "8760f718",
+            "subject": "S-32 pass item currency into certification reconciliation",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "124f6d71",
+            "subject": "S-32 verify source-backed progress and item certification measures",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "582bba38",
+            "subject": "S-32 show period earned hours and item installed-versus-certified values",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "13ebce5f",
+            "subject": "S-32 reconcile installed and certified value only on explicit BOQ item evidence",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "5c5ac0f8",
+            "subject": "S-32 add source-qualified item certification helper",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          }
+        ],
         "plannedTasks": [
           "T01"
         ],
-        "liveState": "no_repair",
-        "note": "S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied."
+        "liveState": "live",
+        "note": "Linked because commit subjects name this S-item (as S32 or S-32). Definition as read from the commit subjects, not the original S-item text: item certification currency and non-apportionment rules: source-qualified item certification, no cross-currency certification, installed-versus-certified only on explicit BOQ item evidence. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11401,10 +11850,13 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/shared-decision-closure.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "open_no_repair_linked"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "item certification currency and non-apportionment rules: source-qualified item certification, no cross-currency certification, installed-versus-certified only on explicit BOQ item evidence."
     },
     {
       "id": "S35",
@@ -11413,11 +11865,26 @@
         "status": "partial_source_repair_saved",
         "sourceCommits": [
           "63262572",
-          "b21deb6d"
+          "b21deb6d",
+          "92269238",
+          "e8d7b8f4",
+          "1fd7c847",
+          "93f4450d",
+          "9c03bac0",
+          "677938fe",
+          "1a482410",
+          "938003a8",
+          "66a0e33b",
+          "df3ed065",
+          "b592f703",
+          "534a20d9"
         ],
-        "regressionFiles": [],
-        "repairNotes": "Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35.",
-        "notCovered": "Plan of 13 Oct still lists S35 open."
+        "regressionFiles": [
+          "tests/register-contract-reconciliation.test.ts",
+          "tests/shared-decision-closure.test.ts"
+        ],
+        "repairNotes": "Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35. Round 14: 14 commits on this branch name S35 with or without the hyphen (S-35); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11441,13 +11908,97 @@
             "liveState": "live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "92269238",
+            "subject": "S-35: compare current procurement register package values with same-currency contract on qualified source scope",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "e8d7b8f4",
+            "subject": "S-35: exercise real composed register reconciliation renderer and preserve source assertions",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "1fd7c847",
+            "subject": "S-35 make decision renderer dependency-safe without changing assertions",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "93f4450d",
+            "subject": "S-34 S-35 lock payment due authority and contract-total query rules",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "9c03bac0",
+            "subject": "Fix shared decision renderer isolated context without weakening S-35",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "677938fe",
+            "subject": "Correct regression script evaluation syntax for S-35 live-source review tests",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "1a482410",
+            "subject": "S-35 test source-faithful all-register comparisons, retained exceptions and live decision table",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "938003a8",
+            "subject": "S-35 show checked source register totals, their contract comparison basis and exceptions instead of an unexplained empty table",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "66a0e33b",
+            "subject": "S-35 retain every same-currency register-to-contract comparison, not only exceptions; preserve the original exception results",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "df3ed065",
+            "subject": "S-35 query any source register aggregate above confirmed same-currency current contract without changing source facts",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "b592f703",
+            "subject": "S-35 do not classify late source records tied only to completed work as current blockers; preserve register cleanup and raw dates",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "534a20d9",
+            "subject": "S-28 classify late packages on driving work as conditional blockers; S-35/S-36 separate completed and open work permits",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
           "T01"
         ],
         "liveState": "live",
-        "note": "Linked because the commit subject names this S-item. The S-item definition is not in the repository, so coverage cannot be judged."
+        "note": "Linked because commit subjects name this S-item (as S35 or S-35). Definition as read from the commit subjects, not the original S-item text: source register totals compared with the same-currency current contract on qualified scope; every comparison retained and every excess queried; late records tied only to completed work are not current blockers. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11455,10 +12006,14 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/register-contract-reconciliation.test.ts",
+          "tests/shared-decision-closure.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "repair_live_no_named_test"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "source register totals compared with the same-currency current contract on qualified scope; every comparison retained and every excess queried; late records tied only to completed work are not current blockers."
     },
     {
       "id": "S45",
@@ -11466,11 +12021,18 @@
       "implementation": {
         "status": "partial_source_repair_saved",
         "sourceCommits": [
-          "e2c247ed"
+          "e2c247ed",
+          "683b165f",
+          "36b62750",
+          "46456fe7",
+          "21549b1c",
+          "257ad38a"
         ],
-        "regressionFiles": [],
-        "repairNotes": "Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50.",
-        "notCovered": "Plan of 13 Oct still lists S45 open."
+        "regressionFiles": [
+          "tests/ui-management-experience.test.ts"
+        ],
+        "repairNotes": "Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50. Round 14: 6 commits on this branch name S45 with or without the hyphen (S-45); linked with the test files they changed.",
+        "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged."
       },
       "independentVerification": {
         "status": "not_certified",
@@ -11487,13 +12049,48 @@
             "liveState": "live",
             "onBranch": true,
             "history": "on this branch"
+          },
+          {
+            "sha": "683b165f",
+            "subject": "S-07 S-45: concise decision tables, one missing-column notice and collapsed calculation basis",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "36b62750",
+            "subject": "S-45 test reader-facing module labels",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "46456fe7",
+            "subject": "S-45 translate module keys to reader-facing page names",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "21549b1c",
+            "subject": "S-41 S-43 S-45 S-50 share typed scalar display for management highlights",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
+          },
+          {
+            "sha": "257ad38a",
+            "subject": "S-40 S-43 S-45 use shared value presenter for project-diagnosis rows",
+            "liveState": "live",
+            "onBranch": true,
+            "history": "on this branch"
           }
         ],
         "plannedTasks": [
           "T01"
         ],
         "liveState": "live",
-        "note": "Linked because the commit subject names this S-item. The S-item definition is not in the repository, so coverage cannot be judged."
+        "note": "Linked because commit subjects name this S-item (as S45 or S-45). Definition as read from the commit subjects, not the original S-item text: reader-facing wording: module keys shown as page names, concise decision tables, one missing-column notice, shared value presenter. The original S-item text is not in the repository, so coverage against it cannot be judged."
       },
       "verificationMethod": {
         "kinds": [
@@ -11501,10 +12098,13 @@
         ],
         "guardRules": [],
         "tools": [],
-        "namedTests": [],
+        "namedTests": [
+          "tests/ui-management-experience.test.ts"
+        ],
         "detail": "Verifier review against the original S-item definition once supplied."
       },
-      "boardStatus": "repair_live_no_named_test"
+      "boardStatus": "repair_live_named_test_not_certified",
+      "definitionFromCommitSubjects": "reader-facing wording: module keys shown as page names, concise decision tables, one missing-column notice, shared value presenter."
     }
   ],
   "abb": {
@@ -75230,8 +75830,8 @@
         "repair_live_named_test_not_certified": 2
       },
       "S": {
-        "repair_live_no_named_test": 3,
-        "open_no_repair_linked": 5
+        "repair_live_no_named_test": 1,
+        "repair_live_named_test_not_certified": 7
       },
       "ABB": {
         "open_root_repair_saved_not_live": 522,
