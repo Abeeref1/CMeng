@@ -6187,7 +6187,8 @@ function candidateOwnerModule(item){
  if(own&&(own==='documents'||moduleRegistry.some(m=>m.key===own)))return own;
  const register=deliveryRegisterOwners[String(item?.type||'')];
  if(register&&moduleRegistry.some(m=>m.key===register))return register;
- return ownerSetRoute(null);
+ const actions=blockOwnerEntry('review-items')?.owner;
+ return actions&&moduleRegistry.some(m=>m.key===actions)?actions:'documents';
 }
 function applyPmcDisplayOwners(root,defaultDomain){
  if(!root||typeof root.querySelectorAll!=='function')return;
