@@ -113,7 +113,23 @@ export function baselineReason(comparison:unknown):string{
   return c&&(c.state==='established'||c.state==='confirmed'||c.state==='adopted')?'':'Needs a confirmed baseline programme';
 }
 
+/** Why a movement against the controlled baseline is unknown, read from the
+ * baseline state and the revision's own comparison counts: no confirmed baseline,
+ * no activity of the revision matched to a baseline activity, or (for the project
+ * finish) a finish date missing on one side. Empty when the movement is not
+ * unknown for one of these reasons. */
+export function baselineMovementReason(comparison:unknown,point?:unknown,measure?:unknown):string{
+  const base=baselineReason(comparison);
+  if(base)return base;
+  const p=point&&typeof point==='object'?point as Record<string,unknown>:null;
+  if(!p)return '';
+  if(measure==='project_finish')return p.forecastCompletionIso?'Needs a finish date in the baseline programme':'Needs a submitted finish date in this revision';
+  if(p.comparableActivities!==0)return '';
+  const total=typeof p.sourceActivityCount==='number'&&Number.isFinite(p.sourceActivityCount)&&p.sourceActivityCount>0?p.sourceActivityCount:null;
+  return 'Needs activities matched to the baseline'+(total!==null?' (0 of '+total+' matched)':'');
+}
+
 /** Browser source for every helper above. */
 export function unknownReasonSource():string{
-  return [unknownScreenValue,unknownReasonText,unknownFactReason,unknownTileNote,unknownWithUnit,noneWhenZeroGap,registerScopeReason,evidenceStateReason,delayPopulationReason,programmeRevisionReason,baselineReason].map(fn=>fn.toString()).join('\n')+'\n';
+  return [unknownScreenValue,unknownReasonText,unknownFactReason,unknownTileNote,unknownWithUnit,noneWhenZeroGap,registerScopeReason,evidenceStateReason,delayPopulationReason,programmeRevisionReason,baselineReason,baselineMovementReason].map(fn=>fn.toString()).join('\n')+'\n';
 }
