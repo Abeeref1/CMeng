@@ -19,6 +19,19 @@
 export function readableFieldLabel(key: unknown): string {
   const raw = String(key ?? '').trim();
   if (!raw) return '';
+  // W1: one shared map of people's labels for count and rate fields that the
+  // generic key/value views show. Used on screen and in downloads.
+  const fieldLabels: Record<string, string> = {
+    reviewPeriodCalendarDays: 'Review period (calendar days)',
+    reviewPeriodKnownCount: 'Records with a review period',
+    passRatePercent: 'Pass rate',
+    pendingRecordCount: 'Records pending',
+    knownRecordCount: 'Records with a known status',
+    unknownOutcomeCount: 'Outcome not recorded',
+    unknownStatusCount: 'Status not recorded',
+    knownOverdueCount: 'Overdue records',
+  };
+  if (Object.prototype.hasOwnProperty.call(fieldLabels, raw)) return fieldLabels[raw] as string;
   // Field-name shapes. Every segment starts with a letter, so IDs such as
   // act_1001 or ASSET_17 are not codes. camelCase needs a lower-case run of at
   // least two letters, so units such as kVA, kWh, kN and kPa are not codes.

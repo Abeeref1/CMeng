@@ -43,7 +43,7 @@ function sharedReportingContext(state:ProjectRuntimeState){
       basePopulations[basis]=activityPopulation(model,basis).reporting;
     basePopulations.relationships=populationContract({
       name:'Source relationship records',entity:'relationship',dataDateIso,
-      dateBasis:'current governed programme snapshot',sourceRevisionId:model.sourceRevisionId,authority:'source',
+      dateBasis:'current programme',sourceRevisionId:model.sourceRevisionId,authority:'source',
       sourceCount:model.relationships.length,
       memberIds:model.relationships.map((r,i)=>String(r.relationshipId??[r.predecessorActivityId,r.successorActivityId,r.type,r.lagHours,i].join(':'))),
       exclusions:[]
@@ -138,7 +138,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   if(['project-director','board-report','management-surfaces','pmo-analysis','lookahead-schedule'].includes(result.key)) {
     populations.ncrs=operations.quality.population;populations.rfis=operations.rfi.population;populations.risks=operations.risk.population;
   }
-  const register=(key:string,name:string,entity:string,rows:readonly any[],id:(r:any,i:number)=>string,dateBasis='current governed programme snapshot',authority:ReportingAuthority='source')=>{
+  const register=(key:string,name:string,entity:string,rows:readonly any[],id:(r:any,i:number)=>string,dateBasis='current programme',authority:ReportingAuthority='source')=>{
     populations[key]=populationContract({name,entity,dataDateIso,dateBasis,sourceRevisionId:model?.sourceRevisionId??null,authority,sourceCount:rows.length,memberIds:rows.map(id),exclusions:[]});
   };
   if(data.movementAnalysis?.population)populations.baseline_comparable=data.movementAnalysis.population;

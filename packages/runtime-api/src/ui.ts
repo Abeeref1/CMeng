@@ -2625,7 +2625,7 @@ function renderPmoVisual(data){
   '</div>';
   const health='<div class="management-health-grid">'+[
     ["Programme",[
-      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution population",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??null],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not established"]
+      ["Source activities",p.schedule.sourceActivityCount??p.schedule.activityCount],["Execution activities",p.schedule.executableActivityCount??p.schedule.activityCount],["Excluded",p.schedule.excludedActivityCount??null],["Relationships",p.schedule.relationshipCount],["Logic density",p.schedule.logicDensity],["Network calculation",p.schedule.independentCpmState==="established"?"Computed; source float unverified":"Not established"]
     ]],
     ["Progress",[
       ["Weighted progress",p.progress.durationWeightedProgressPercent===null?"—":fmt(p.progress.durationWeightedProgressPercent)+"%"],["Schedule progress-field coverage",p.progress.progressCoveragePercent===null?"—":fmt(p.progress.progressCoveragePercent)+"%"],["Completed",p.progress.completedCount],["In progress",p.progress.inProgressCount]
@@ -5093,7 +5093,7 @@ function renderCommercialVisual(key,data){
   const ledger=position.sourceLedger;
   let ledgerDetail="";
   const ledgerIssues=ledger?(ledger.costPosition||[]).flatMap(row=>row.diagnostics||[]).filter(issue=>/CONFLICT|UNRESOLVED/.test(issue)):[];
-  const temporalScope=["variations-change","cash-flow"].includes(key)?experienceDisclosure("Full reporting scope",renderCommercialTemporalPosition(ledger),"Dated, future and undated populations"):"";
+  const temporalScope=["variations-change","cash-flow"].includes(key)?experienceDisclosure("Full reporting scope",renderCommercialTemporalPosition(ledger),"Dated, future and undated records"):"";
   const temporalWarning=renderCommercialExceptions(position,key,data);
   if(ledger){
     const section=(moduleKey,rows,summary={})=>renderCommercialLedgerVisual({projectionKey:"commercial_canonical",moduleKey,rows,summary,registerScope:ledger.registerScopes?.[{"commercial-payment-register":"payments","commercial-variations":"variations","commercial-cost-register":"costMetrics"}[moduleKey]],dataDateIso:ledger.dataDateIso,diagnostics:ledger.diagnostics});
@@ -5422,7 +5422,7 @@ function renderPmcControlRoom(data){
    ["Source claim rows retained",retainedClaimRows],
    ["Current governed claims","Not established"],
    ["Current governed delay events","Not established"],
-   ["Source population","Quarantined from management truth"],
+   ["Source records","Quarantined from management truth"],
    ["Supporting documents",pmcFirst(claims.sourceDocumentCount,claimsSource?.documentCount)]
  ]:[
    ["Current events",currentEvents],
@@ -6091,7 +6091,7 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const scopeHtml=renderClaimsReporting(data?.claimsReporting);
   const contract=data?.reportingContract;
   const populations=contract?uniqueReportingPopulations(Object.values(contract.populations||{})).map(p=>[p.populationId,p]):[];
-  const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting populations · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Population</th><th>Included / source</th><th>Excluded</th><th>Date basis</th><th>Authority</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(humanizeKey(p.name))+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(responseListPopulation(p.exclusions||[]).total)+sourcePopulationControl(p.exclusions||[],'Browse excluded records')+'</td><td>'+escapeHtml(humanizeKey(p.dateBasis))+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
+  const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting record groups · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Record group</th><th>Records included / in source</th><th>Excluded</th><th>Date basis</th><th>Authority</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(humanizeKey(p.name))+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(responseListPopulation(p.exclusions||[]).total)+sourcePopulationControl(p.exclusions||[],'Browse excluded records')+'</td><td>'+escapeHtml(humanizeKey(p.dateBasis))+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
   const baselineHeadline=data?.baselineComparison?.state==='unresolved'&&['schedule_analytics','activity_analytics','milestones','near_critical','progress_report','progress_scurve','variance_trends','lookahead_schedule','challenge_contract'].includes(root.projectionKey)?'<p class="source-scope-summary">Baseline comparisons unresolved: no confirmed baseline.</p>':'';
   const completion=contract?.completionAuthority;
   const completionHeadline=completion&&!completion.governedContractualFinish&&['master_dashboard','command_center','pmo_analysis','independent_forecast','eot_assessment','notices_claims','milestones','commercial_claims_notices','contract_particulars_bonds','challenge_contract'].includes(root.projectionKey)?'<div class="notice warn"><b>Contract completion: unresolved.</b> '+escapeHtml(completion.reason||completion.explanation)+'</div>':'';
