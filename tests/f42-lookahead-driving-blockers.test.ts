@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import type {CanonicalCalendar, CanonicalScheduleActivity, CanonicalScheduleModel} from '../packages/schedule-analysis-core/src';
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
@@ -55,7 +56,7 @@ function renderLookAhead(p: ReturnType<typeof buildLookAheadProjection>): string
   const text = (value: unknown) => String(value ?? '');
   const scope: Record<string, unknown> = {
     currentModuleResult: null, responsePopulationRoot: null, responsePopulationIndex: new WeakMap(), responseRowPopulationIndex: new WeakMap(),
-    p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, planningShortDate: text, humanizeKey: text, planningStateLabel: text,
+    p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, countUnit, planningShortDate: text, humanizeKey: text, planningStateLabel: text,
     planningKpis: () => '', experienceDisclosure: () => '', moduleBarList: () => '', planningLookAheadTimeline: () => '',
     planningStatusBand: () => '', planningLookAheadBlockers: () => '',
     managementPanel: (title: string, description: string, content: string) => '<section><h4>' + title + '</h4>' + description + content + '</section>',

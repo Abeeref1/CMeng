@@ -22,7 +22,7 @@ import {deliveryModule,deliveryDashboard,deliveryExportResult,isDeliveryPage,del
 import {deliveryRecords,deliveryCurrentRecord} from './delivery-records';
 import {interfaceModule,interfaceIntelligence} from './interface-intelligence';
 import {accountabilityModule,crossDomainAccountability} from './accountability-intelligence';
-import {projectActions,actionSourceCorrectionRecord,type ProjectAction} from './project-actions';
+import {projectActions,actionSourceCorrectionRecord,candidateDocumentReviewPages,type ProjectAction} from './project-actions';
 import {recoveryAccelerationModule} from './recovery-acceleration';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {quantityMappingForState} from "./quantity-mapping-runtime";
@@ -8430,6 +8430,9 @@ export function managementSurfacesForProject(
     });
   }
 
+  // A1: each candidate goes to the page where it is reviewed and approved; the
+  // document library only when no page asks for that decision.
+  const candidateReviewPages=candidateDocumentReviewPages(state);
   const candidates = [
     ...state.evidenceDocuments
       .filter(
@@ -8452,7 +8455,7 @@ export function managementSurfacesForProject(
             document.documentId,
           status:
             "pending_review" as const,
-          owningModule: "documents",
+          owningModule: candidateReviewPages.get(document.documentId) ?? "documents",
         }),
       ),
     ...terms.clauses

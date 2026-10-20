@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import {buildNegativeFloatConstraint} from '../packages/runtime-api/src/project-decision-facts';
 import {decisionFactsScript} from '../packages/runtime-api/src/ui-decision-facts';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
@@ -11,7 +12,7 @@ const act=(activityId:string,totalFloatHours:number|null,sourceConstraints:any[]
 // N7: the float is shown with the shared float-days helper of the assembled page script.
 const page=cmengUatHtml(),shared=(name:string)=>{const start=page.indexOf('function '+name+'(');assert.ok(start>0,name);return page.slice(start,page.indexOf('\n}',start)+2);};
 const show=(analysis:any)=>String(runInNewContext(shared('sourceWorkingFloat')+'\n'+shared('sourceWorkingFloatField')+'\n'+decisionFactsScript+'\nrenderDecisionAnalysis("pmo-analysis",{decisionAnalysis:analysis});',{
-  escapeHtml:(s:unknown)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),readerText:(s:unknown)=>String(s),planningShortDate:(s:string)=>s.slice(0,10),fmt:(v:unknown)=>String(v),analysis}));
+  escapeHtml:(s:unknown)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'),readerText:(s:unknown)=>String(s),planningShortDate:(s:string)=>s.slice(0,10),fmt:(v:unknown)=>String(v),countUnit,analysis}));
 
 test('F33 the late-date constraint at the most negative float is named with activity, type and date',()=>{
   const result=buildNegativeFloatConstraint({activities:[act('FIRE',-88),act('HANDOVER-B',-88,[{type:'CS_MEOB',dateIso:'2036-09-12T17:00:00'}]),act('OTHER',40,[{type:'CS_MEOB',dateIso:'2036-12-01'}]),act('DONE',-200,[],'completed')]})!;

@@ -1,4 +1,5 @@
 import {programmeTaskReviewBasis} from './programme-task-review';
+import {countText} from './count-text';
 import {handoverSourceComparison} from './handover-source-review';
 import {locationReviewBasis} from './location-review';
 import {scheduleScopeClassification} from './schedule-scope-classification';
@@ -228,6 +229,37 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
   }
   return items;
 }
+/** Whether an uploaded document asks the user how it updates the project (the
+ * "Confirm how this document updates the project" decision in Actions required). */
+function documentDecisionAsked(state:ProjectRuntimeState,d:ProjectRuntimeState['evidenceDocuments'][number],usedInAnalysis:ReadonlySet<string>,hasRecordConflict:()=>boolean):boolean{
+  if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))return false;
+  const saved=d.relationshipDecision;
+  const decided=Boolean(saved&&saved.sourceHash&&saved.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash)));
+  const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
+  // T04: no approval request for a clear fact. A unique, clearly read
+  // candidate that is already used in analysis (labelled not formally
+  // adopted) asks nothing unless it disagrees with a record (real conflict).
+  const clearFact=d.basisState==='candidate'&&usedInAnalysis.has(d.documentId)&&!saved&&!hasRecordConflict();
+  return !decided&&!clearFact&&(d.basisState==='candidate'||Boolean(d.lineage?.needsReview&&!explicitReplacement)||Boolean(saved));
+}
+/** A1: the page where each uploaded candidate document is reviewed and approved.
+ * A schedule is confirmed (or replaced) and any other document's relationship is
+ * chosen in the shared Actions required list; a clear candidate that analysis
+ * already uses asks no decision there and is reached only in the document library. */
+export const ACTIONS_REVIEW_PAGE='source-quality';
+export function candidateDocumentReviewPages(state:ProjectRuntimeState):Map<string,string>{
+  const pages=new Map<string,string>();
+  const candidates=state.evidenceDocuments.filter(d=>d.basisState==='candidate');
+  if(!candidates.length)return pages;
+  for(const action of programmeActions(state))if(action.target.documentId)pages.set(action.target.documentId,ACTIONS_REVIEW_PAGE);
+  const usedInAnalysis=sourceAnalyticalCandidateIds(state.evidenceDocuments);
+  let conflicts:ReturnType<typeof commercialSourceReadConflicts>|null=null;
+  for(const d of candidates){
+    if(pages.has(d.documentId))continue;
+    if(documentDecisionAsked(state,d,usedInAnalysis,()=>(conflicts??=commercialSourceReadConflicts(state)).some(c=>c.documentId===d.documentId)))pages.set(d.documentId,ACTIONS_REVIEW_PAGE);
+  }
+  return pages;
+}
 export function projectActions(state:ProjectRuntimeState,assessment:ControlIssueAssessment,context:{completionPosition?:unknown}={}){
   const actions=programmeActions(state);
   const classificationInformation:ProjectAction[]=[];
@@ -250,7 +282,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   const numericReview=boqNumericReview(state);
   if(numericReview.pendingCount)actions.push({id:'boq-numeric-review',category:'review',title:'Review BOQ readings together',
-    reason:numericReview.pendingCount+' item readings remain to check across '+numericReview.sources.filter(s=>s.pendingCount).length+' source(s). '+numericReview.automaticCount+' native rows need no numeric confirmation; '+numericReview.confirmedCount+' reviewed rows are already saved.',
+    reason:countText(numericReview.pendingCount,'item reading remains','item readings remain')+' to check across '+countText(numericReview.sources.filter(s=>s.pendingCount).length,'source')+'. '+countText(numericReview.automaticCount,'native row needs','native rows need')+' no numeric confirmation; '+countText(numericReview.confirmedCount,'reviewed row is','reviewed rows are')+' already saved.',
     recordCount:numericReview.pendingCount,resolution:{kind:'choose',requiresUserAction:true,
       instruction:'Open one review, check the source and save the reviewed rows together. Each decision is reused in quantities, reports and Ask.',
       completionRule:'Only unresolved readings remain in this action; accepted readings are not requested again.'},
@@ -321,17 +353,10 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   }
   for(const d of state.evidenceDocuments){
     if(d.category==='schedule'||!['candidate','active','additive'].includes(d.basisState))continue;
-    const saved=d.relationshipDecision;
     const recordConflicts=commercialConflicts.filter(c=>c.documentId===d.documentId).map(c=>(c.against==='adopted'?'Differs from adopted ':'Differs from another unadopted source for ')+
       c.kind.replace(/([A-Z])/g,' $1').toLowerCase()+' record '+c.recordId+(c.againstDocumentIds.length?' ('+c.againstDocumentIds.map(fileOf).join('; ')+')':'')+
       '; unadopted source '+d.sourceFilename+(c.against==='adopted'?'. The adopted value is kept until you decide.':'. Both readings are held until you decide.'));
-    const decided=Boolean(saved&&saved.sourceHash&&saved.sourceHash===d.sourceHashSha256&&(!saved.targetDocumentId||state.evidenceDocuments.some(t=>t.documentId===saved.targetDocumentId&&t.sourceHashSha256===saved.targetSourceHash)));
-    const explicitReplacement=d.uploadIntent==='replace_current_basis'&&d.basisState==='active';
-    // T04: no approval request for a clear fact. A unique, clearly read
-    // candidate that is already used in analysis (labelled not formally
-    // adopted) asks nothing unless it disagrees with a record (real conflict).
-    const clearFact=d.basisState==='candidate'&&usedInAnalysis.has(d.documentId)&&!saved&&!recordConflicts.length;
-    if(!decided&&!clearFact&&(d.basisState==='candidate'||d.lineage?.needsReview&&!explicitReplacement||Boolean(saved))){
+    if(documentDecisionAsked(state,d,usedInAnalysis,()=>recordConflicts.length>0)){
       {
         const targets=state.evidenceDocuments.filter(t=>t.documentId!==d.documentId&&['active','additive'].includes(t.basisState));
         const sameFamily=targets.filter(t=>t.familyKey===d.familyKey);
@@ -358,7 +383,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const kind of deliveryKinds){const records=delivery.records.filter(r=>r.kind===kind&&!['superseded','scenario'].includes(r.state));if(!records.length)continue;
     const pending=records.filter(r=>!deliveryCurrentRecord(r)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
     if(pending.length){/* Candidate/stale Delivery rows remain supporting information; no page-loop action is created. */}
-    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm the complete '+deliveryLabels[kind].toLowerCase()+' register',reason:records.length+' usable source record(s) are available. Confirm only if these are all the applicable records, so percentages can be reported.',recordCount:records.length,
+    else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm the complete '+deliveryLabels[kind]+' register',reason:countText(records.length,'usable source record is','usable source records are')+' available. Confirm only if these are all the applicable records, so percentages can be reported.',recordCount:records.length,
       resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm here that the register is complete. If it is not complete, do nothing; CMeng will keep percentages unconfirmed.',completionRule:'The action closes as soon as the register is confirmed complete.'},
       target:{type:'delivery',kind,moduleKey,population:true,label:'Confirm complete register'}});
   }

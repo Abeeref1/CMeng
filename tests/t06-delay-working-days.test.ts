@@ -55,7 +55,8 @@ test('T06 activity and near-critical screens show slippage in working days first
   assert.match(html,/function sourceWorkingDelay\(row,key\)/);
   assert.match(html,/sourceWorkingDelay\(a,"finishVarianceDays"\)/);
   assert.match(html,/sourceWorkingDelay\(r,"varianceDays"\)/);
-  assert.match(html,/' working days \(activity calendar\) · '/);
+  // W4: the unit agrees with the figure through the shared countUnit ("1 working day").
+  assert.match(html,/countUnit\(working,'working days'\)\+' \(activity calendar\) · '/);
 });
 
 test('T06 working-day slippage on 8,900 activities stays fast (cached calendar walk)',()=>{

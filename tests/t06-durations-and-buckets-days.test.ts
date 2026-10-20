@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildNearCriticalProjection} from '../packages/near-critical-analysis/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 
 // T06 / N7: grouped float (work-package lowest float, float histogram buckets,
 // float distribution) is shown in working days only when every float-bearing
@@ -83,12 +84,12 @@ test('T06 screens: float buckets, float summary and thresholds show working days
   assert.ok(!html.includes("distributionSummary(p.floatDistribution,'hours','Unfinished execution activity float values')"),'float summary in hours only remains');
   assert.ok(html.includes("floatDistributionSummary(p,'Unfinished execution activity float values')"));
   assert.ok(html.includes('floatBucketDaysNote(sourceHistogram?.daysBasis)'),'histogram states its day basis');
-  assert.ok(html.includes('" working days · "'),'histogram buckets show working days first');
+  assert.ok(html.includes('" "+countUnit(g.lowerWorkingDays,"working days")')&&html.includes('fmt(g.upperWorkingDays)+" working days")+" · "'),'histogram buckets show working days first (W4: "1 working day")');
   assert.ok(!html.includes("Critical ≤ '+escapeHtml(screenSignedNumberText(p.criticalFloatThresholdHours))+' h"),'critical threshold in hours only remains');
   assert.ok(!html.includes("Critical = TF ≤ '+escapeHtml(fmt(criticalThreshold))+' h"),'critical threshold in hours only remains');
   assert.ok(!html.includes('"TF > "+fmt(criticalThreshold)+" h and ≤ "'),'critical threshold in hours only remains');
   assert.ok(!html.includes('<th>Previous float h</th><th>Float erosion h</th>'),'between-revision float headers in hours remain');
-  assert.ok(html.includes('" working days (previous revision calendar) · "'),'previous float shows its own revision working days');
+  assert.ok(html.includes('countUnit(r.previousTotalFloatWorkingDays,"working days")+" (previous revision calendar) · "'),'previous float shows its own revision working days');
   assert.ok(html.includes("sourceWorkingFloatField(r,'nearCriticalThresholdHours')"),'per-activity near-critical limit uses the shared helper');
   assert.ok(!html.includes("fmt(r.nearCriticalThresholdHours)+' h'"),'per-activity near-critical limit in hours only remains');
   assert.ok(!html.includes('sourceWorkingFloat({submittedTotalFloatHours:group.lowestFloatHours,submittedTotalFloatWorkingDays:group.lowestFloatWorkingDays})'),'group float ignores the mixed-calendar basis');
@@ -174,10 +175,10 @@ test('T06 screens: remaining duration and revision float shift in working days; 
   assert.ok(!html.includes('fmt(row.remainingDurationHours)+" h"'),'remaining duration in hours only remains');
   assert.ok(html.includes('sourceWorkingDuration(row,"remainingDurationHours")'));
   assert.ok(!html.includes('planningSignedBars(floatMoves,"hours lost")'),'float movement bars in hours only remain');
-  assert.ok(html.includes('" working days (each revision\'s calendar) · "'),'float shift row shows each revision working days');
+  assert.ok(html.includes('countUnit(a.floatShiftWorkingDays,"working days")+" (each revision\'s calendar) · "'),'float shift row shows each revision working days');
   assert.ok(!html.includes('remain visible without calendar conversion'),'stale subtitle remains');
   const start=html.indexOf('function sourceWorkingDuration('),end=html.indexOf('\nfunction ',start+10);
-  const sourceWorkingDuration=new Function('fmt','return '+html.slice(start,end))(String);
+  const sourceWorkingDuration=new Function('fmt','countUnit','return '+html.slice(start,end))(String,countUnit);
   assert.equal(sourceWorkingDuration({remainingDurationHours:40,remainingDurationWorkingDays:5},'remainingDurationHours'),'5 working days · 40 original h');
   assert.equal(sourceWorkingDuration({remainingDurationHours:40,remainingDurationWorkingDays:null},'remainingDurationHours'),'Working-day basis not established · 40 original h');
 });

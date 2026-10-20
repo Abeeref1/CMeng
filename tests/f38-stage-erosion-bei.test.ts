@@ -13,6 +13,7 @@ import {projectScheduleControlBasis} from '../packages/runtime-api/src/schedule-
 import {pmcScheduleRules} from '../packages/runtime-api/src/pmc-schedule-rules';
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import {attachProjectFloatWorkingDays} from '../packages/runtime-api/src/activity-float-reconciliation';
 process.env.CMENG_OCR_ENABLED = '0';
 type Inputs = Parameters<typeof pmcScheduleRules>[3];
@@ -115,7 +116,7 @@ function render(names: string[], call: string, q: unknown): string {
   assert.equal(functions.length, names.length, 'page functions present: ' + names.join(', '));
   const text = (value: unknown) => String(value ?? '');
   return vm.runInNewContext(functions.map(f => f.getText(source)).join('\n') + ';' + call, {
-    q, escapeHtml: text, fmt: text, planningShortDate: text, experienceRecordCount: (rows: unknown[]) => String(rows.length), listTotal: (rows: unknown[]) => rows.length,
+    q, escapeHtml: text, fmt: text, countUnit, planningShortDate: text, experienceRecordCount: (rows: unknown[]) => String(rows.length), listTotal: (rows: unknown[]) => rows.length,
     planningKpis: (rows: unknown[][]) => rows.map(r => '<kpi>' + r[0] + '=' + r[1] + '|' + r[2] + '</kpi>').join(''), basisTable: () => '',
   }) as string;
 }
@@ -133,7 +134,7 @@ function renderNearCriticalPage(projectFacts: unknown): string {
     nearCriticalThresholdAuthority: 'cmeng_screening_policy', ...(projectFacts ? {projectFacts} : {})};
   const text = (value: unknown) => String(value ?? '');
   return vm.runInNewContext(helpers + '\n' + script.slice(start, end) + ';renderNearCriticalVisual(p);', {
-    shortRevision: (value: unknown) => value ? 'Previous programme' : 'No comparison programme', p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, planningShortDate: text,
+    shortRevision: (value: unknown) => value ? 'Previous programme' : 'No comparison programme', p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, countUnit, planningShortDate: text,
     planningStateLabel: text, planningDaysBetween: () => null, planningKpis: () => '', planningFloatHistogram: () => '', planningFinishPeriodBars: () => '', distributionSummary: () => '',
   }) as string;
 }
