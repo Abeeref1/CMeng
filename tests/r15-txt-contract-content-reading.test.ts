@@ -107,12 +107,12 @@ async function request(base:string,path:string,init?:RequestInit){
 async function evidenceUpload(base:string,projectId:string,filename:string,mediaType:string,bytes:Buffer){
  const response=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/evidence/uploads',{method:'POST',
   headers:{'content-type':mediaType,'x-source-filename-encoded':encodeURIComponent(filename),'x-source-relative-path-encoded':encodeURIComponent(filename),
-   'x-upload-intent':'add_update','x-upload-id':projectId+'-'+filename},body:bytes});
+   'x-upload-intent':'add_update','x-upload-id':projectId+'-'+filename},body:new Uint8Array(bytes)});
  assert.equal(response.status,201,filename+' upload failed: '+response.text.slice(0,500));
 }
 async function contractUpload(base:string,projectId:string,filename:string,mediaType:string,role:string,bytes:Buffer){
  const response=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/contract/uploads',{method:'POST',
-  headers:{'content-type':mediaType,'x-source-filename-encoded':encodeURIComponent(filename),'x-source-relative-path-encoded':encodeURIComponent(filename),'x-contract-role':role},body:bytes});
+  headers:{'content-type':mediaType,'x-source-filename-encoded':encodeURIComponent(filename),'x-source-relative-path-encoded':encodeURIComponent(filename),'x-contract-role':role},body:new Uint8Array(bytes)});
  assert.equal(response.status,201,filename+' contract upload failed: '+response.text.slice(0,500));
  return response.body;
 }
