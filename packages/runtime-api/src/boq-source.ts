@@ -86,7 +86,7 @@ function withRetainedCostCodes(model:CanonicalQuantityProgressModel|null,documen
  if(!cached||cached.hash!==document.sourceHashSha256||cached.confirmations!==document.tableConfirmations||cached.read!==document.tabularRead||cached.semantic!==document.csvSemantic){
   const codes=new Map<string,Set<string>>();
   for(const table of sourceTables([document],[]))for(const row of table.rows){
-   const id=cell(row,'item no','item number','boq item','boq item id').trim();
+   const id=cell(row,'item no','boq item no','item number','boq item','boq item id').trim();
    const code=cell(row,'cost code','cbs code','cbs id').trim();
    if(!id||!code)continue;
    const values=codes.get(id)??new Set<string>();values.add(code);codes.set(id,values);

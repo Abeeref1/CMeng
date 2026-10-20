@@ -28,7 +28,7 @@ function computeDeliveryFeasibility(state:ProjectRuntimeState) {
     if(rate===null||rate<=0)continue;
     const dateRaw=cell(row,'As Of','Data Date','Effective Date'),date=dateValue(dateRaw);
     if(dateRaw&&(!date||!cutoff||date>cutoff))continue;
-    const suppliedId=cell(row,'Quantity Item ID','BOQ Item ID','BOQ Item','Item Number','Item No'),activityId=cell(row,'Activity ID','Activity Code'),unit=cell(row,'Unit','UOM');
+    const suppliedId=cell(row,'Quantity Item ID','BOQ Item ID','BOQ Item','BOQ Item No','Item Number','Item No'),activityId=cell(row,'Activity ID','Activity Code'),unit=cell(row,'Unit','UOM');
     const ids=items.has(suppliedId)?[suppliedId]:itemNumbers.get(suppliedId)??[];
     if(ids.length!==1||!activityId||!unit)continue;
     rates.push({quantityItemId:ids[0]!,activityId,unit,laborHoursPerUnit:rate,sourceRefs:['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator]});

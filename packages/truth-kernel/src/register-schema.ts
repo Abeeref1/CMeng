@@ -108,7 +108,9 @@ const groups:Record<string,string[]>={
   'effective date':['date effective','effective from','effective from date'],
   'release date':['date released','release issued date'],
   'measurement date':['measured date','date measured','measurement as of','تاريخ القياس'],
-  'item no':['item number','boq item number','boq item no','رقم البند'],
+  'item no':['item number','رقم البند'],
+  // A BOQ-qualified number cites a BOQ item; it is never a register's own row number.
+  'boq item no':['boq item number','boq ref no','boq reference no','boq item ref no','boq item reference no'],
   'cumulative installed qty':['cumulative installed quantity','installed quantity to date','cumulative measured quantity'],
   'pv':['planned value','bcws'],
   'ev':['earned value','bcwp'],

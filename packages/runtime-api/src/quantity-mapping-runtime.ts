@@ -58,7 +58,7 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     const sectionName=(s:string|null|undefined)=>String(s??'').normalize('NFKC').trim().replace(/&/g,' and ').replace(/^(?:section\s+)?\d+(?:\.\d+)*[.)\s:–—-]+/i,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');
     const normalized=(s:string|null|undefined)=>String(s??'').normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
     const rows=tables.flatMap(t=>t.rows),byItem=new Map<string,typeof rows>();
-    for(const row of rows){const key=normalized(cell(row,'item no','item number','boq item','boq item id'));if(!key)continue;const group=byItem.get(key)??[];group.push(row);byItem.set(key,group);}
+    for(const row of rows){const key=normalized(cell(row,'item no','boq item no','item number','boq item','boq item id'));if(!key)continue;const group=byItem.get(key)??[];group.push(row);byItem.set(key,group);}
     const wbs=new Map(schedule.wbs.map(w=>[w.wbsId,w]));
     const activitiesByWbs=new Map<string,string[]>();
     // The cycle-safe ancestor walk depends only on the start WBS; walk it once

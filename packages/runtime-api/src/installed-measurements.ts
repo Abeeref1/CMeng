@@ -24,7 +24,7 @@ export function withInstalledMeasurements(state:ProjectRuntimeState,model:Canoni
     // F45: item numbers can repeat per BOQ bill. A row that states its BOQ
     // section resolves a repeated number to the one item of that section;
     // otherwise the row stays unresolved (nothing is chosen by order).
-    const sameNumber=items.get(norm(cell(row,'item no'))+'|'+norm(cell(row,'unit')))??[];
+    const sameNumber=items.get(norm(cell(row,'item no','boq item no'))+'|'+norm(cell(row,'unit')))??[];
     const section=norm(cell(row,'section','boq section','bill section'));
     const matches=sameNumber.length>1&&section?sameNumber.filter(item=>norm(item.section??'')===section):sameNumber;
     if(date&&dataDateIso&&date>dataDateIso.slice(0,10))futureRowCount++;

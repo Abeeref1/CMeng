@@ -106,7 +106,7 @@ export function boqItemSourceRows(tables:import('../../truth-kernel/src').Source
  for(const table of tables){
   if(table.document.sourceHashSha256!==boqHash)continue;
   for(const row of table.rows){
-   const number=key(cellOf(row,'item no','item number','boq item','boq item id'));if(!number)continue;
+   const number=key(cellOf(row,'item no','boq item no','item number','boq item','boq item id'));if(!number)continue;
    const sameNumber=byNumber.get(number)??[],section=key(cellOf(row,'section','boq section','bill section'));
    const matches=section?sameNumber.filter(item=>key(String(item.section??''))===section):sameNumber.length===1?sameNumber:[];
    if(matches.length!==1)continue;
