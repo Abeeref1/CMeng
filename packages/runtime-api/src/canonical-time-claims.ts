@@ -614,6 +614,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const issued=registerIssued??correspondenceIssued;
     if(registerIssued&&correspondenceIssued&&registerIssued!==correspondenceIssued)diagnostics.push('NOTICE_DATE_CONFLICT:'+claimId+':'+sourceLetter);
     claims.push({claimId,title,state:claimStatus(cell(r,'status')),eventIds:[eventId],submittedAt:dateValue(cell(r,'submitted date','submission date')),
+      // F06: the register's Notice Date and Submitted Date are separate source
+      // fields (each merged and queried by the shared rule above); additive.
+      noticeDate:registerIssued,submittedDate:dateValue(cell(r,'submitted date')),
       claimedDays:n(r,'days claimed','claimed days'),claimedAmount:n(r,'claimed amount'),assessedDays:n(r,'source granted days','days granted'),assessedDaysState:n(r,'source granted days','days granted')===null?'missing':'candidate',
       assessedAmount:null,assessedAmountState:'missing',clauseIdentifiers,evidenceRefs,diagnostics:['REGISTER_ASSESSMENT_IS_NOT_ENGINEER_DETERMINATION',
         ...(mergedCells?['SAME_IDENTITY_MERGED_FROM_SOURCE_FILES:'+entries.length,...mergedCells.conflictFields.map(field=>'SOURCE_FILE_VALUES_CONFLICT:'+field)]:[])]});

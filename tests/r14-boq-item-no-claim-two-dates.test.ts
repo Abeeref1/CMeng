@@ -82,11 +82,17 @@ const claimsB='Claim ID,Event ID,Event,Notice Date,Submitted Date,Days Claimed,S
 test('R14: a claims register stating both dates keeps both; a conflict on either date between two files is a query',async t=>{
  const {state,upload}=await store(t,'R14-CLAIM-TWO-DATES');
  await upload('Claims_Register.csv',claimsA);
- await upload('EOT_Register.csv',claimsB);
+ await upload('EOT_Register.csv',claimsB,{uploadIntent:'add_update'});
+ for(const name of ['Claims_Register.csv','EOT_Register.csv']){
+  const stored=state.evidenceDocuments.find((d:any)=>d.sourceFilename===name) as any;
+  assert.ok(stored&&['active','additive'].includes(stored.basisState),name+' is part of the current basis ('+stored?.basisState+')');
+ }
  const facts:any=projectFactsForState(state);
  const queries=facts.claims.pipeline.sourceRecordQueries.map((q:any)=>[q.recordId,q.field,q.values.map((v:any)=>v.value),q.usedValue]);
  assert.deepEqual(queries.sort(),[
   ['CLM-01','notice date',['2031-03-05','2031-03-07'],'2031-03-07'],
   ['CLM-02','submitted date',['2031-04-30','2031-05-02'],'2031-05-02'],
  ],JSON.stringify(queries));
+ const rows=facts.claims.pipeline.rows.map((r:any)=>r.claimId).sort();
+ assert.deepEqual(rows,['CLM-01','CLM-02'],'one claim per id across both files');
 });
