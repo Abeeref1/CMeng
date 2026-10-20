@@ -90,11 +90,16 @@ test('R14: a claims register stating both dates keeps both; a conflict on either
   assert.ok(stored&&['active','additive'].includes(stored.basisState),name+' is part of the current basis ('+stored?.basisState+', '+stored?.documentType+', '+stored?.familyKey+', '+stored?.logicalDocumentKey+')');
  }
  const facts:any=projectFactsForState(state);
- const queries=facts.claims.pipeline.sourceRecordQueries.map((q:any)=>[q.recordId,q.field,q.values.map((v:any)=>v.value),q.usedValue]);
+ const all=facts.claims.pipeline.sourceRecordQueries??[];
+ const queries=all.map((q:any)=>[q.recordId,q.field,q.usedValue]);
  assert.deepEqual(queries.sort(),[
-  ['CLM-01','notice date',['2031-03-05','2031-03-07'],'2031-03-07'],
-  ['CLM-02','submitted date',['2031-04-30','2031-05-02'],'2031-05-02'],
+  ['CLM-01','notice date','2031-03-07'],
+  ['CLM-02','submitted date','2031-05-02'],
  ],JSON.stringify({queries,documents:state.evidenceDocuments.map((d:any)=>[d.sourceFilename,d.documentType,d.basisState,d.logicalDocumentKey])}));
+ // Both stated values are kept in each query (later file used).
+ const question=(id:string)=>all.find((q:any)=>q.recordId===id).question;
+ assert.match(question('CLM-01'),/2031-03-05 in Claims_Register\.csv and 2031-03-07 in EOT_Register\.csv/);
+ assert.match(question('CLM-02'),/2031-04-30 in Claims_Register\.csv and 2031-05-02 in EOT_Register\.csv/);
  const rows=facts.claims.pipeline.rows.map((r:any)=>r.claimId).sort();
  assert.deepEqual(rows,['CLM-01','CLM-02'],'one claim per id across both files');
 });
