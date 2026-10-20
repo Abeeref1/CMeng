@@ -7,8 +7,10 @@
  * of a moved panel merge into its More detail group, so each group opens with
  * one click and shows its whole content. A page that already fits (3 screens,
  * 15 collapsed sections) keeps its layout. Opened detail stays short
- * (compactPageDetail): long tables show 25 rows at a time and blocks of the same
- * kind share one selector; every row and block stays reachable on the page. */
+ * (compactPageDetail): long tables show 25 rows at a time, blocks of the same
+ * kind share one selector, and a More detail that would still pass 20 screens or 15
+ * tables when opened is read on detail pages; every row, block and group stays on
+ * the page. */
 export const pageLayoutStyles=String.raw`
 .page-more-detail{margin:24px 0 0;padding-top:14px;border-top:1px solid #dce4ee}.page-more-detail>h4{margin:0 0 10px;font-size:15px;color:#294766}
 .page-detail-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
@@ -19,12 +21,17 @@ export const pageLayoutStyles=String.raw`
 .page-detail-groups>details>summary span{font-size:12px;color:#61738a;font-weight:400;margin-left:auto}
 .page-detail-body{padding:16px}.page-detail-body>*:last-child{margin-bottom:0}.page-detail-body .page-detail-title-shown{display:none}
 .row-evidence{display:block;font-size:12px;line-height:1.45;color:#526479;overflow-wrap:anywhere}.row-evidence b{font-weight:650;color:#3d5570}
-.table-row-paged,.page-kind-hidden{display:none!important}
+.table-row-paged,.page-kind-hidden,.page-detail-off{display:none!important}
+.page-detail-pager{margin:0 0 12px;padding:10px 12px;border:1px solid #dce4ee;border-radius:8px;background:#f9fbfd;font-size:12.5px;color:#294766}
+.page-detail-pager-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.page-detail-pager-bar [role="status"]{font-weight:650}
+.page-detail-index{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}.page-detail-index li{display:flex;flex-wrap:wrap;gap:3px 12px;align-items:baseline}
+.page-detail-index li>span{font-weight:650;min-width:52px;color:#61738a}.page-detail-index li[aria-current="true"]>span{color:#16324f}
+.page-detail-index button{all:unset;cursor:pointer;color:#1f5fa8;text-decoration:underline;text-underline-offset:2px}
 .table-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 14px;font-size:12px;color:#526479}
 .page-kind-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 12px;font-size:13px;color:#294766}.page-kind-pick>b{font-weight:650;margin-right:2px}.page-kind-pick select{max-width:min(100%,640px)}.page-kind-pick span{font-size:12px;color:#61738a}
 .page-kind-option{border:1px solid #cfdbe8;background:#fff;color:#294766;border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;line-height:1.3;cursor:pointer;text-align:left}.page-kind-option[aria-pressed="true"]{background:#e8f0f9;border-color:#7d9cc0;font-weight:650}
 @media(max-width:900px){.page-detail-groups{grid-template-columns:1fr}}
-@media print{.page-detail-groups{display:block}.table-row-paged{display:table-row!important}.page-kind-hidden{display:block!important}.table-pager,.page-kind-pick{display:none!important}}
+@media print{.page-detail-groups{display:block}.table-row-paged{display:table-row!important}.page-kind-hidden,.page-detail-off{display:block!important}.table-pager,.page-kind-pick,.page-detail-pager{display:none!important}}
 `;
 export const pageLayoutScript=String.raw`
 const PAGE_SCREEN_PX=700;
@@ -466,6 +473,108 @@ function pageJoinSameKind(root){
  visit(root);
  return joined;
 }
+// (3) When the opened More detail would still pass 20 screens or 15 tables, its
+// groups are read on detail pages, in their own order ("Detail page 1 of N",
+// Previous / Next). A list on every detail page names every group and the page that
+// holds it, and "Show all detail pages" shows them together. Every group stays in the
+// page and in print; a link to a block opens the detail page that holds it.
+const PAGE_OPEN_MAX_PX=20*PAGE_SCREEN_PX;
+const PAGE_OPEN_MAX_TABLES=15;
+// Room kept on each detail page for its controls, and a margin under the limit for
+// content a section fills in after it is measured.
+const PAGE_DETAIL_PAGER_PX=260;
+const PAGE_OPEN_TARGET_PX=PAGE_OPEN_MAX_PX-280;
+function pageShownNode(node){return typeof node.checkVisibility==='function'?node.checkVisibility():node.offsetParent!==null;}
+function pageVisibleTables(root){return Array.from(root.querySelectorAll('table')).filter(pageShownNode).length;}
+// Measures the page as a reader sees it with every section opened, then closes again
+// what it opened (a section that loads its content when opened is left as it is).
+function pageOpenedMeasure(container,measure){
+ const opened=[];
+ for(let round=0;round<4;round++){
+  let more=false;
+  for(const section of Array.from(container.querySelectorAll('details')))if(!section.open&&!pageLoadsOnOpen(section)&&pageShownNode(section)){section.open=true;opened.push(section);more=true;}
+  if(!more)break;
+ }
+ try{return measure();}finally{for(let i=opened.length-1;i>=0;i--)opened[i].open=false;}
+}
+function pageSplitGroups(sizes,heightBudget,tableBudget){
+ const pages=[];let page=[],height=0,tables=0;
+ sizes.forEach((size,index)=>{
+  const add=(page.length?8:0)+size.height;
+  if(page.length&&(height+add>heightBudget||tables+size.tables>tableBudget)){pages.push(page);page=[];height=0;tables=0;}
+  height+=(page.length?8:0)+size.height;tables+=size.tables;page.push(index);
+ });
+ if(page.length)pages.push(page);
+ return pages;
+}
+function pageSummaryTitle(details){
+ const summary=details.querySelector(':scope>summary');if(!summary)return '';
+ return Array.from(summary.childNodes).map(child=>String(child.textContent||'').replace(/\s+/g,' ').trim()).find(Boolean)||'';
+}
+function pageDrawDetailPages(area,list,groups,plan){
+ const nav=document.createElement('nav');nav.className='page-detail-pager';nav.setAttribute('data-detail-pager','');nav.setAttribute('aria-label','Detail pages');
+ const bar=document.createElement('div');bar.className='page-detail-pager-bar';
+ const status=document.createElement('span');status.setAttribute('role','status');
+ const control=(text,onclick)=>{const b=document.createElement('button');b.type='button';b.className='btn small';b.textContent=text;b.onclick=onclick;return b;};
+ let current=0,all=false;
+ const previous=control('Previous detail page',()=>{show(current-1);area.scrollIntoView?.({block:'start'});});
+ const next=control('Next detail page',()=>{show(current+1);area.scrollIntoView?.({block:'start'});});
+ const every=control('Show all detail pages',()=>{if(all)show(current);else showAll();});
+ bar.append(previous,status,next,every);nav.appendChild(bar);
+ const index=document.createElement('ol');index.className='page-detail-index';
+ const lines=plan.map((members,page)=>{
+  const line=document.createElement('li');const name=document.createElement('span');name.textContent='Page '+pageCount(page+1);line.appendChild(name);
+  members.forEach(at=>{const group=groups[at];const b=document.createElement('button');b.type='button';b.textContent=pageSummaryTitle(group)||'Further information';
+   b.onclick=()=>{if(!all)show(page);group.open=true;group.scrollIntoView?.({block:'start'});};line.appendChild(b);});
+  index.appendChild(line);return line;
+ });
+ nav.appendChild(index);
+ list.parentNode.insertBefore(nav,list);
+ plan.forEach((members,page)=>members.forEach(at=>{groups[at].__detailPage=page;groups[at].__showDetailPage=()=>{if(!all)show(page);};}));
+ function show(page){
+  all=false;current=Math.max(0,Math.min(page,plan.length-1));
+  groups.forEach(group=>group.classList.toggle('page-detail-off',group.__detailPage!==current));
+  status.textContent='Detail page '+pageCount(current+1)+' of '+pageCount(plan.length);
+  previous.disabled=current===0;next.disabled=current===plan.length-1;every.textContent='Show all detail pages';
+  lines.forEach((line,i)=>line.setAttribute('aria-current',i===current?'true':'false'));
+ }
+ function showAll(){
+  all=true;groups.forEach(group=>group.classList.remove('page-detail-off'));
+  status.textContent='All '+pageCount(plan.length)+' detail pages shown';
+  previous.disabled=true;next.disabled=true;every.textContent='Show one detail page at a time';
+  lines.forEach(line=>line.setAttribute('aria-current','false'));
+ }
+ show(0);
+ return {show,remove(){nav.remove();groups.forEach(group=>{group.classList.remove('page-detail-off');delete group.__detailPage;delete group.__showDetailPage;});}};
+}
+function pageDetailPages(container){
+ const area=Array.from(container.children||[]).find(node=>node.classList?.contains('page-more-detail'));
+ const list=area?.querySelector(':scope>.page-detail-groups');
+ const groups=list?Array.from(list.children).filter(node=>node.tagName==='DETAILS'):[];
+ if(groups.length<2||typeof container.getBoundingClientRect!=='function')return null;
+ const sizes=pageOpenedMeasure(container,()=>({total:container.scrollHeight,tables:pageVisibleTables(container),list:list.getBoundingClientRect().height,
+  groups:groups.map(group=>({height:pageBlockHeight(group),tables:pageVisibleTables(group)}))}));
+ if(sizes.total<=PAGE_OPEN_MAX_PX&&sizes.tables<=PAGE_OPEN_MAX_TABLES)return null;
+ const base={height:sizes.total-sizes.list,tables:sizes.tables-sizes.groups.reduce((sum,group)=>sum+group.tables,0)};
+ let room=PAGE_DETAIL_PAGER_PX,tableRoom=0;
+ for(let attempt=0;attempt<4;attempt++){
+  const plan=pageSplitGroups(sizes.groups,PAGE_OPEN_TARGET_PX-base.height-room,PAGE_OPEN_MAX_TABLES-base.tables-tableRoom);
+  if(plan.length<2)return null;
+  const drawn=pageDrawDetailPages(area,list,groups,plan);
+  // Each detail page is opened and measured; a page still over the limit is split again.
+  let over=0,overTables=0;
+  plan.forEach((members,page)=>{
+   if(members.length<2)return;
+   drawn.show(page);
+   const opened=pageOpenedMeasure(container,()=>({total:container.scrollHeight,tables:pageVisibleTables(container)}));
+   over=Math.max(over,opened.total-PAGE_OPEN_TARGET_PX);overTables=Math.max(overTables,opened.tables-PAGE_OPEN_MAX_TABLES);
+  });
+  drawn.show(0);
+  if(over<=0&&overTables<=0||attempt===3)return {pages:plan.length};
+  drawn.remove();room+=Math.max(0,over)+40;tableRoom+=Math.max(0,overTables);
+ }
+ return null;
+}
 function compactPageDetail(container){
  if(!container?.querySelectorAll||typeof document==='undefined'||typeof document.createElement!=='function')return null;
  const roots=Array.from(container.querySelectorAll('.page-detail-group'));
@@ -473,12 +582,24 @@ function compactPageDetail(container){
  let joined=0,paged=0;
  for(const root of roots)joined+=pageJoinSameKind(root);
  for(const table of Array.from(container.querySelectorAll('table')))if(pageTablePager(table))paged++;
- return {joined,paged};
+ const pages=pageDetailPages(container);
+ // A link to a section of the page (#id) first opens the detail page that holds it.
+ if(!document.__pageDetailLinks&&typeof document.addEventListener==='function'){
+  document.__pageDetailLinks=true;
+  document.addEventListener('click',event=>{
+   const link=event.target?.closest?.('a[href^="#"]');if(!link)return;
+   let id='';try{id=decodeURIComponent(link.getAttribute('href').slice(1));}catch{}
+   const target=id&&document.getElementById(id);if(target)openPageDetailFor(target);
+  },true);
+ }
+ if(pages&&typeof location!=='undefined'&&location.hash.length>1){let id='';try{id=decodeURIComponent(location.hash.slice(1));}catch{}const target=id&&document.getElementById(id);if(target&&container.contains(target))openPageDetailFor(target);}
+ return {joined,paged,pages:pages?.pages||1};
 }
-// A link to a block inside More detail opens the group that holds it, chooses the
-// block when it shares a selector, and turns its table to the row's 25.
+// A link to a block inside More detail opens the detail page and the group that hold
+// it, chooses the block when it shares a selector, and turns its table to the row's 25.
 function openPageDetailFor(node){
  for(let parent=node;parent;parent=parent.parentElement){
+  if(parent.__showDetailPage&&parent.classList.contains('page-detail-off'))parent.__showDetailPage();
   if(parent.__pageKindShow&&parent.classList.contains('page-kind-hidden'))parent.__pageKindShow();
   if(parent.tagName==='TR'&&parent.classList.contains('table-row-paged'))parent.closest('table')?.__pageShowRow?.(parent);
   if(parent.tagName==='DETAILS'&&!parent.open)parent.open=true;

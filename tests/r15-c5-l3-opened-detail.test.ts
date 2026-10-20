@@ -7,7 +7,7 @@ import {createServer} from 'node:net';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {runInNewContext} from 'node:vm';
-import {generateCommercialFeatureBlindProject} from './blind-project-generator';
+import {generateCommercialFeatureBlindProject,generateDelayFeatureBlindProject,generateDeliveryFeatureBlindProject} from './blind-project-generator';
 import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 
 // R15 c5-l3 (guard L3: no page with more than 15 tables or over 20 screens when every
@@ -19,12 +19,19 @@ import {deliveryScript} from '../packages/runtime-api/src/ui-delivery';
 //     selector: one block is shown, every other one is one click away, every name is on screen;
 // (c) the first screen is unchanged: no pager or selector is visible before a section opens;
 // (d) the opened Payments, Cost Outlook and Contract pages hold no more than 15 tables;
-// (e) an empty delivery record set says "None in this set." with nothing to open.
-// The real built server, a commercial blind project uploaded through the real upload route
-// and a real headless Chrome over the DevTools Protocol (the same plumbing as F01).
+// (e) an empty delivery record set says "None in this set." with nothing to open;
+// (f) a More detail that would still pass the limit is read on detail pages: on the
+//     Dashboard of each blind kind (commercial, delay, delivery) every detail page, opened,
+//     is at most 20 screens and 15 tables, the list names every group on every page, each
+//     group is on exactly one page, the text of all pages together equals the text of the
+//     unpaged detail, a deep link opens the page that holds it, and print shows every group.
+// The real built server, blind projects uploaded through the real upload route and a real
+// headless Chrome over the DevTools Protocol (the same plumbing as F01).
 
 const SERVER=join(__dirname,'../packages/runtime-api/src/project-gateway.js');
 const PROJECT_ID='R15-C5-L3-OPENED';
+const KINDS:[string,(seed:string,index?:number)=>Promise<{documents:{filename:string;mediaType:string;bytes:Uint8Array}[]}>][]=[
+  [PROJECT_ID,generateCommercialFeatureBlindProject],['R15-C5-L3-DELAY',generateDelayFeatureBlindProject],['R15-C5-L3-DELIVERY',generateDeliveryFeatureBlindProject]];
 const PAGE_TIMEOUT_MS=120_000;
 const PAGES=['payments','cost-forecast','contract-particulars-bonds','master-dashboard'];
 const TABLE_LIMITED=new Set(['payments','cost-forecast','contract-particulars-bonds']);
@@ -108,6 +115,9 @@ const READ_PAGE=String.raw`(async()=>{
   for(let round=0;round<4;round++){root.querySelectorAll('details:not([open])').forEach(d=>{d.open=true;});await new Promise(r=>setTimeout(r,300));}
   result.tables=[...root.querySelectorAll('table')].filter(shown).length;
   result.height=root.scrollHeight;
+  // Selectors and pagers are checked on every group: detail pages, if any, are shown together.
+  const every=[...root.querySelectorAll('[data-detail-pager] .page-detail-pager-bar button')].find(b=>b.textContent==='Show all detail pages');
+  if(every){every.click();for(let round=0;round<4;round++){root.querySelectorAll('details:not([open])').forEach(d=>{d.open=true;});await new Promise(r=>setTimeout(r,300));}}
   // (b) one selector per set of blocks of the same kind.
   for(const pick of root.querySelectorAll('[data-page-kind-pick]')){
     const members=[];
@@ -148,7 +158,55 @@ const READ_PAGE=String.raw`(async()=>{
   return result;
 })()`;
 
-test('L3: opened detail pages long tables by 25 rows and shows blocks of the same kind with one selector, keeping every row and block',{timeout:1_200_000},async t=>{
+// (f) Runs in the page: walks every detail page of More detail, opened as the guard opens it.
+const READ_DETAIL_PAGES=String.raw`(async()=>{
+  const root=document.getElementById('moduleContent'),shown=e=>!!(e&&(typeof e.checkVisibility==='function'?e.checkVisibility():e.offsetParent));
+  const out={problems:[],pages:[],groups:0};const fail=text=>out.problems.push(text);
+  const openAll=async()=>{for(let round=0;round<4;round++){root.querySelectorAll('details:not([open])').forEach(d=>{d.open=true;});await new Promise(r=>setTimeout(r,300));}};
+  const measure=()=>({height:root.scrollHeight,tables:[...root.querySelectorAll('table')].filter(shown).length});
+  const list=root.querySelector('.page-more-detail>.page-detail-groups');
+  const groups=list?[...list.children].filter(node=>node.tagName==='DETAILS'):[];out.groups=groups.length;
+  const nav=root.querySelector('[data-detail-pager]');
+  if(!nav){await openAll();out.pages.push(measure());return out;}
+  if(!nav.closest('.page-more-detail'))fail('the detail-page control is not inside More detail');
+  const title=group=>[...group.querySelector(':scope>summary').childNodes].map(n=>String(n.textContent||'').replace(/\s+/g,' ').trim()).find(Boolean)||'Further information';
+  const status=nav.querySelector('[role="status"]'),buttons=[...nav.querySelectorAll('.page-detail-pager-bar button')];
+  const [previous,next,every]=buttons,lines=[...nav.querySelectorAll('.page-detail-index li')],count=lines.length;
+  const named=()=>[...nav.querySelectorAll('.page-detail-index button')];
+  if(named().map(b=>b.textContent).join('\n')!==groups.map(title).join('\n'))fail('the list does not name every group in order');
+  while(!previous.disabled)previous.click();
+  const seen=new Map(),texts=[];
+  for(let page=0;page<count;page++){
+    if(status.textContent!=='Detail page '+(page+1)+' of '+count)fail('page '+(page+1)+' says "'+status.textContent+'"');
+    if(!shown(nav)||!named().every(shown)||named().length!==groups.length)fail('page '+(page+1)+' does not name every group');
+    await openAll();
+    const size=measure();out.pages.push(size);
+    if(size.height>14000)fail('detail page '+(page+1)+' is '+(size.height/700).toFixed(1)+' screens opened');
+    if(size.tables>15)fail('detail page '+(page+1)+' holds '+size.tables+' tables opened');
+    const visible=groups.filter(shown);if(!visible.length)fail('detail page '+(page+1)+' shows no group');
+    visible.forEach(group=>seen.set(group,(seen.get(group)||0)+1));
+    texts.push(visible.map(group=>group.innerText).join('\n'));
+    if(page<count-1){if(next.disabled)fail('Next is off on page '+(page+1));next.click();}
+  }
+  if(!next.disabled)fail('Next is on at the last page');
+  groups.forEach(group=>{if(seen.get(group)!==1)fail('"'+title(group)+'" is on '+(seen.get(group)||0)+' detail pages');});
+  every.click();await openAll();
+  if(groups.filter(shown).length!==groups.length)fail('Show all detail pages shows '+groups.filter(shown).length+' of '+groups.length+' groups');
+  const unpaged=groups.map(group=>group.innerText).join('\n'),paged=texts.join('\n');
+  if(paged!==unpaged){let at=0;while(at<paged.length&&paged[at]===unpaged[at])at++;fail('the pages together differ from the unpaged detail at '+at+': "'+paged.slice(at,at+80)+'" / "'+unpaged.slice(at,at+80)+'"');}
+  out.textLength=unpaged.length;
+  // A deep link to a block of the last group opens the detail page that holds it.
+  every.click();while(!previous.disabled)previous.click();
+  const last=groups[groups.length-1],target=last.querySelector('.page-detail-body > *, p, table')||last;
+  if(shown(target))fail('the last group is already shown on detail page 1');
+  openPageDetailFor(target);
+  if(!shown(target))fail('a link to a block of the last group does not open its detail page');
+  if(status.textContent!=='Detail page '+count+' of '+count)fail('the link opened "'+status.textContent+'"');
+  while(!previous.disabled)previous.click();
+  return out;
+})()`;
+
+test('L3: opened detail pages long tables by 25 rows, shows blocks of the same kind with one selector and reads a long More detail on detail pages, keeping every row, block and group',{timeout:1_200_000},async t=>{
   const binary=chromeBinary();
   if(!binary){
     if(process.env.CI)assert.fail('This test needs a Chrome/Chromium binary: set CHROME_PATH, or install /usr/bin/google-chrome.');
@@ -170,15 +228,17 @@ test('L3: opened detail pages long tables by 25 rows and shows blocks of the sam
       if(Date.now()>deadline)assert.fail('server did not answer /health within 60 s: '+serverLog.slice(-3000));
       await new Promise(r=>setTimeout(r,300));
     }
-    // A commercial blind project through the real upload route (the guard's commercial cohort).
-    const project=await generateCommercialFeatureBlindProject('CMENG-R15-C5-L3-OPENED-DETAIL',0);
-    const created=await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:PROJECT_ID,testProject:true})});
-    assert.equal(created.status,201,'project creation failed: '+await created.text());
-    for(const [index,document] of project.documents.entries()){
-      const uploaded=await fetch(base+'/api/projects/'+encodeURIComponent(PROJECT_ID)+'/evidence/uploads',{method:'POST',
-        headers:{'content-type':document.mediaType,'x-source-filename-encoded':encodeURIComponent(document.filename),'x-source-relative-path-encoded':encodeURIComponent(document.filename),
-          'x-upload-intent':'add_update','x-upload-id':'C5-L3-'+index},body:Buffer.from(document.bytes),signal:AbortSignal.timeout(180_000)});
-      assert.equal(uploaded.status,201,document.filename+' upload failed: '+(await uploaded.text()).slice(0,800));
+    // The guard's three blind kinds (commercial, delay, delivery) through the real upload route.
+    for(const [projectId,generate] of KINDS){
+      const project=await generate('CMENG-R15-C5-L3-OPENED-DETAIL',0);
+      const created=await fetch(base+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId,testProject:true})});
+      assert.equal(created.status,201,'project creation failed: '+await created.text());
+      for(const [index,document] of project.documents.entries()){
+        const uploaded=await fetch(base+'/api/projects/'+encodeURIComponent(projectId)+'/evidence/uploads',{method:'POST',
+          headers:{'content-type':document.mediaType,'x-source-filename-encoded':encodeURIComponent(document.filename),'x-source-relative-path-encoded':encodeURIComponent(document.filename),
+            'x-upload-intent':'add_update','x-upload-id':'C5-L3-'+projectId+'-'+index},body:Buffer.from(document.bytes),signal:AbortSignal.timeout(180_000)});
+        assert.equal(uploaded.status,201,document.filename+' upload failed: '+(await uploaded.text()).slice(0,800));
+      }
     }
     const launched=await launchChrome(binary,join(root,'chrome-profile'));chrome=launched.child;
     cdp=await Cdp.connect(launched.url);
@@ -195,16 +255,34 @@ test('L3: opened detail pages long tables by 25 rows and shows blocks of the sam
     const ready=(module:string)=>'typeof currentModuleResult!=="undefined"&&currentModuleResult?.key==='+JSON.stringify(module)+
       '&&document.getElementById("moduleBadge").textContent!=="Updating"&&document.getElementById("moduleBadge").textContent!=="Calculating"&&'+
       '!document.getElementById("projectModulePanel").hidden&&!document.querySelector("#moduleContent .view-state-bar .spinner")';
-    const failures:string[]=[];let picks=0,pagers=0;
-    const names=new Set<string>();
-    for(const module of PAGES){
-      await send('Page.navigate',{url:base+'/?view=project&project='+encodeURIComponent(PROJECT_ID)+'&module='+encodeURIComponent(module)});
+    const open=async(projectId:string,module:string)=>{
+      await send('Page.navigate',{url:base+'/?view=project&project='+encodeURIComponent(projectId)+'&module='+encodeURIComponent(module)});
       const until=Date.now()+PAGE_TIMEOUT_MS;
       while(!(await evaluate('(()=>{try{return !!('+ready(module)+')}catch{return false}})()',10_000).catch(()=>false))){
         if(Date.now()>until)assert.fail(module+' did not finish rendering within '+PAGE_TIMEOUT_MS/1000+' s');
         await new Promise(r=>setTimeout(r,300));
       }
       await new Promise(r=>setTimeout(r,800));
+    };
+    const failures:string[]=[];let picks=0,pagers=0,detailPaged=0;
+    const names=new Set<string>();
+    // (f) every detail page of the Dashboard of each blind kind.
+    for(const [projectId] of KINDS){
+      await open(projectId,'master-dashboard');
+      const read=await evaluate(READ_DETAIL_PAGES) as {problems:string[];pages:{height:number;tables:number}[];groups:number;textLength?:number};
+      console.log('L3 detail pages '+projectId+' master-dashboard: '+read.groups+' groups on '+read.pages.length+' detail pages: '+read.pages.map(p=>(p.height/700).toFixed(1)+' screens, '+p.tables+' tables').join(' ; '));
+      for(const problem of read.problems)failures.push(projectId+' master-dashboard: '+problem);
+      if(read.pages.length===1&&(read.pages[0]!.height>14000||read.pages[0]!.tables>15))failures.push(projectId+' master-dashboard: one page of '+(read.pages[0]!.height/700).toFixed(1)+' screens and '+read.pages[0]!.tables+' tables opened');
+      if(read.pages.length>1)detailPaged++;
+      // Print shows every group; the detail-page control is not printed.
+      await send('Emulation.setEmulatedMedia',{media:'print'});
+      const printed=await evaluate('(()=>{const groups=[...document.querySelectorAll("#moduleContent .page-more-detail>.page-detail-groups>details")];const nav=document.querySelector("[data-detail-pager]");return {groups:groups.length,shown:groups.filter(g=>g.checkVisibility()).length,nav:!!(nav&&nav.checkVisibility())};})()') as {groups:number;shown:number;nav:boolean};
+      await send('Emulation.setEmulatedMedia',{media:''});
+      if(printed.shown!==printed.groups)failures.push(projectId+' master-dashboard: print shows '+printed.shown+' of '+printed.groups+' groups');
+      if(printed.nav)failures.push(projectId+' master-dashboard: the detail-page control is printed');
+    }
+    for(const module of PAGES){
+      await open(PROJECT_ID,module);
       const read=await evaluate(READ_PAGE) as {key:string;problems:string[];picks:string[][];pagers:{rows:number;status:string}[];defaultVisible:number;tables:number;height:number};
       console.log('L3 '+module+': '+read.tables+' tables, '+(read.height/700).toFixed(1)+' screens opened; selectors: '+read.picks.map(p=>p.join(' | ')).join(' ; ')+'; pagers: '+read.pagers.map(p=>p.status).join(' ; '));
       for(const problem of read.problems)failures.push(module+': '+problem);
@@ -220,6 +298,7 @@ test('L3: opened detail pages long tables by 25 rows and shows blocks of the sam
     assert.ok([...names].some(name=>/^payments: Reporting record groups · \d+ defined groups$/.test(name)),'the two lists of record groups share one selector');
     assert.ok(pagers>=1,'a long table in collapsed detail pages by 25 rows');
     assert.ok(picks>=4,'blocks of the same kind share selectors ('+picks+')');
+    assert.ok(detailPaged>=1,'the Dashboard of at least one blind kind is read on detail pages');
   }finally{
     if(cdp){await cdp.send('Browser.close',{},undefined,5000).catch(()=>{});cdp.close();}
     await stop(chrome);await stop(server);
