@@ -41,7 +41,7 @@ test('T06 remaining places: float hours tied to an activity also carry its own c
   assert.equal(out.groups[2].lowestFloatWorkingDays,null,'mixed calendar day lengths never give one group day value');
   assert.equal(out.groups[2].lowestFloatDaysBasis,'mixed_calendar_day_lengths');
   assert.equal(out.actions[0].priorityBasis.linkedFloatWorkingDays,0,'valid zero stays zero');
-  assert.equal((reconciliation as any).floatHoursText(-8,8),'-1 working days (activity calendar)');
+  assert.equal((reconciliation as any).floatHoursText(-8,8),'-1 working day (activity calendar)');
   assert.equal((reconciliation as any).floatHoursText(-8,24),'-0.33 working days (activity calendar)','narrative shows two decimals');
   assert.equal((reconciliation as any).floatHoursText(-8,null),'working days not established (calendar hours per day not read)');
 });

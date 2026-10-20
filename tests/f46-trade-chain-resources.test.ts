@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -156,7 +157,7 @@ function renderPanel(tc:unknown):string{
  const names=['tradeChainReason','renderTradeChainPanel'];
  const code=parsed.statements.filter(isFunctionDeclaration).filter(n=>names.includes(n.name?.text??'')).map(n=>n.getText(parsed)).join('\n');
  const text=(v:unknown)=>String(v??'');
- return vm.runInNewContext(code+'\nrenderTradeChainPanel(tc);',{tc,escapeHtml:text,fmt:text,planningShortDate:(v:unknown)=>String(v??'').slice(0,10),
+ return vm.runInNewContext(code+'\nrenderTradeChainPanel(tc);',{tc,escapeHtml:text,fmt:text,countUnit,planningShortDate:(v:unknown)=>String(v??'').slice(0,10),
   managementPanel:(title:string,description:string,body:string)=>title+' | '+description+' | '+body}) as string;
 }
 

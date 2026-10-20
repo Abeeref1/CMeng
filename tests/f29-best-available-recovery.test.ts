@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
@@ -77,7 +78,7 @@ function browserFunctions(names:string[]){
  return {script,code:found.map(n=>n.getText(parsed)).join('\n')};
 }
 const text=(v:unknown)=>String(v??'');
-const context={escapeHtml:text,fmt:text,humanizeKey:(v:unknown)=>String(v??'').replace(/_/g,' '),planningShortDate:(v:unknown)=>String(v??'').slice(0,10),
+const context={escapeHtml:text,fmt:text,countUnit,humanizeKey:(v:unknown)=>String(v??'').replace(/_/g,' '),planningShortDate:(v:unknown)=>String(v??'').slice(0,10),
  managementPanel:(title:string,description:string,body:string)=>title+' | '+description+' | '+body};
 
 test('F29 a plaster chain with partial crew data still gives a crew candidate with its basis and the inputs that limit it',async()=>{

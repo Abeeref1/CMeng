@@ -1,3 +1,4 @@
+import {countUnit} from './count-text';
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import {activityNearCriticalThresholdHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
 import {addWorkingHours,parseScheduleInstant,resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src/calendar';
@@ -212,7 +213,7 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
    // the hour thresholds stay in the stored fields above.
    critical:'critical = total float of '+(config.criticalFloatThresholdHours===0?'0 working days or less':'the critical threshold of the project schedule control basis or less')+' on the CMeng CPM',
    nearCritical:'near-critical = more than '+(config.criticalFloatThresholdHours===0?'0':'the critical threshold')+' and up to '+(workingDayRule
-    ?config.nearCriticalWorkingDays+' working days of each activity calendar'
+    ?config.nearCriticalWorkingDays+' '+countUnit(config.nearCriticalWorkingDays,'working days')+' of each activity calendar'
     :'the near-critical threshold of the project schedule control basis, in working days of each activity calendar')+' ('+thresholdLabel(rule!.thresholdMethod)+')',
    formula:PROGRAMME_QUALITY_FORMULAS.criticality}
   :{state:'not_established' as const,reason:'The project criticality rule was not supplied to this calculation.',formula:PROGRAMME_QUALITY_FORMULAS.criticality};

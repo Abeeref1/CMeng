@@ -1,3 +1,4 @@
+import {countUnit} from './count-text';
 import {projectScopeClassification} from './location-review';
 
 import {refreshResourceSourceFields} from './resource-source-refresh';
@@ -263,7 +264,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
             ? 'supporting_basis_incomplete'
             : 'checked_no_eligible_basis';
   const managementPosition=max
-    ? 'The strongest CPM-calculated recovery option is '+max.subject+': in the CMeng CPM run the project finish moves '+max.completionGainWorkingDays+' working days earlier under the stated scenario assumptions. This is not an approved Project plan.'+lateWorkNote
+    ? 'The strongest CPM-calculated recovery option is '+max.subject+': in the CMeng CPM run the project finish moves '+max.completionGainWorkingDays+' '+countUnit(max.completionGainWorkingDays,'working days')+' earlier under the stated scenario assumptions. This is not an approved Project plan.'+lateWorkNote
     : recoveryOptions.length
       ? 'Recovery options on the path to completion exist, but their completion gain is not established by a CMeng CPM run without additional assumptions.'+(unresolvedChecks.length?' '+unresolvedChecks.length+' linked feasibility check(s) need a quantified working-time, productivity or resource basis.':'')+(unlinkedFeasibilityRowCount?' '+unlinkedFeasibilityRowCount+' source item(s) still need activity links before their feasibility can be checked.':!feasibilityPopulationComplete?' Activity feasibility coverage is not established.':'')+lateWorkNote
     : scenarios.length

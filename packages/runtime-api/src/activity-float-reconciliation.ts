@@ -1,3 +1,4 @@
+import {countUnit} from './count-text';
 import {isExecutionActivity,sourceFloatCriticality,calendarWorkingDayHours,finishVarianceBetween,type CanonicalScheduleModel,type ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
 import {parseScheduleInstant} from '../../schedule-cpm/src/calendar';
 import {relationshipLagCalendarBasis} from '../../schedule-cpm/src/lag-calendar';
@@ -44,7 +45,7 @@ export function floatHoursText(hours:number,dayHours:number|null|undefined):stri
  const days=floatHoursToWorkingDays(hours,dayHours);
  // Display only: two decimals as on the screen tables; stored values keep full precision.
  // N7: working days with the day type on screen; hours stay in the stored fields.
- return days===null?'working days not established (calendar hours per day not read)':Number(days.toFixed(2))+' working days (activity calendar)';
+ return days===null?'working days not established (calendar hours per day not read)':Number(days.toFixed(2))+' '+countUnit(Number(days.toFixed(2)),'working days')+' (activity calendar)';
 }
 
 /** T06/N7: relationship lag is shown in working days of the calendar the
@@ -78,7 +79,7 @@ export function lagHoursText(hours:number|null|undefined,dayHours:number|null|un
  const days=floatHoursToWorkingDays(hours,dayHours);
  // N7: working days on screen; the source hours stay as the audit, in the shared "original h" form.
  return days===null?'lag working days not established ('+calendarLabel+' hours per day not read) · '+hours+' original h'
-  :'lag '+Number(days.toFixed(2))+' working days ('+calendarLabel+') · '+hours+' original h';
+  :'lag '+Number(days.toFixed(2))+' '+countUnit(Number(days.toFixed(2)),'working days')+' ('+calendarLabel+') · '+hours+' original h';
 }
 
 /** T06/N7: a delay between two source dates of one activity, in working days

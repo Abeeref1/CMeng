@@ -1,3 +1,4 @@
+import {countUnit} from './count-text';
 import {activityPopulation,sourceFloatCriticality,sourceFloatInFloatRiskWatchlist,calendarWorkingDayHours} from '../../schedule-analysis-core/src';
 import {projectControlSchedule} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
@@ -31,7 +32,7 @@ function build(state:ProjectRuntimeState){
   const percent=(count:number)=>activities.length&&unknown===0?Math.round(count/activities.length*1000)/10:null;
   const nearPercent=percent(near),watchPercent=percent(watch);
   const authority=basis.nearCriticalThresholdMethod==='cmeng_policy_default'?'cmeng_screening_policy':basis.state==='official'?'project_evidenced_threshold':'threshold_requires_review';
-  const threshold=config.nearCriticalWorkingDays!=null?config.nearCriticalWorkingDays+' working days on each activity calendar':config.nearCriticalFloatThresholdHours+' hours';
+  const threshold=config.nearCriticalWorkingDays!=null?config.nearCriticalWorkingDays+' '+countUnit(config.nearCriticalWorkingDays,'working days')+' on each activity calendar':config.nearCriticalFloatThresholdHours+' '+countUnit(config.nearCriticalFloatThresholdHours,'hours');
   const distribution=new Map<number,number>();let unknownWorkingDays=0;
   const hoursById=new Map<string|null,number|null>();
   for(const {activity} of rows){
