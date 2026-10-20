@@ -19,10 +19,17 @@ function decisionDisplay(value,key){
  if(typeof value==='boolean')return value?'Yes':'No';
  if(/Iso$/.test(key))return planningShortDate(value);
  if(key==='state'||key==='detailedClaimState'||key==='dueDateCheck'){
-  const labels={already_critical:'Already critical at the Data Date',comparison_missing:'Previous comparable float not recorded',no_positive_erosion:'No positive float erosion',erosion_scenario:'Continuing-erosion scenario',notice_date_missing:'Event notice date missing',within_period:'Within the stated period',late:'Submitted after the stated period',overdue_no_submission:'Due date passed; submission not recorded',submission_not_recorded:'Submission not recorded',application_not_certified:'Application — not certified',due_basis_missing:'Contract due-date basis missing',payment_not_recorded:'Actual payment not recorded',paid_late:'Paid after the contract due date',paid_within_period:'Paid within the contract period',register_matches_contract_period:'Register due date = certificate date + contract period',register_differs_from_contract_period:'Register due date differs from certificate date + contract period: check the contract trigger',contract_period_only:'Certificate date + contract period',contract_period_not_established:'Register due date; contract period date not established',not_established:'Due date not established'};
-  return labels[value]||readerText(value);
+  const labels={already_critical:'Already critical at the Data Date',comparison_missing:'Previous comparable float not recorded',no_positive_erosion:'No positive float erosion',erosion_scenario:'Continuing-erosion scenario',notice_date_missing:'Event notice date missing',within_period:'Within the stated period',late:'Submitted after the stated period',overdue_no_submission:'Due date passed; submission not recorded',submission_not_recorded:'Submission not recorded',application_not_certified:'Application — not certified',due_basis_missing:'Contract due-date basis missing',payment_not_recorded:'Actual payment not recorded',paid_late:'Paid after the contract due date',paid_within_period:'Paid within the contract period',within_qualified_contract_comparison:'Within the contract sum (qualified comparison)',provisional_scope_comparison:'Provisional scope comparison',query_required:'Above the contract sum · query required',register_matches_contract_period:'Register due date = certificate date + contract period',register_differs_from_contract_period:'Register due date differs from certificate date + contract period: check the contract trigger',contract_period_only:'Certificate date + contract period',contract_period_not_established:'Register due date; contract period date not established',not_established:'Due date not established'};
+  return labels[value]||decisionWords(value,key);
  }
- return readerText(value);
+ return decisionWords(value,key);
+}
+// W1: a code value ('within_qualified_contract_comparison', a contract state 'established') is said in
+// the page's shared words; any other text is shown as recorded.
+function decisionWords(value,key){
+ const text=String(value);
+ const code=typeof isReaderCodeValue==='function'&&isReaderCodeValue(text)||/State$/.test(String(key))&&/^[a-z]+$/.test(text);
+ return code&&typeof humanizeKey==='function'?humanizeKey(text):readerText(value);
 }
 function decisionPointer(root,pointer){let value=root;for(const k of pointer.split('/').slice(1))value=value?.[k.replace(/~1/g,'/').replace(/~0/g,'~')];return value;}
 function decisionNumber(value){return typeof managementNumber==='function'?managementNumber(value):String(value);}
@@ -78,12 +85,19 @@ function renderMeasuredAreaProgress(m){
   (typeof managementModuleLink==='function'?managementModuleLink(m.detailModule||'progress-breakdown','Area detail with plan and float')+managementModuleLink(m.quantityModule||'quantity-scurve','Item quantities, rates and lump-sum queries'):'');
 }
 function decisionPanel(title,basis,kind,rows,pointer,total){return '<section class="planning-panel decision-panel"><div class="planning-panel-head"><h4>'+escapeHtml(title)+'</h4></div><div class="planning-panel-body" id="decision-'+kind+'">'+decisionTable(kind,rows,pointer,total)+'</div><details class="module-basis"><summary>Calculation basis</summary><p>'+escapeHtml(basis)+'</p></details></section>';}
+// W1: a basis method code ('source_cost_snapshot:eac') is said in words ('EAC basis: Source cost snapshot · EAC').
+function decisionBasisText(basis){
+ const method=typeof basis==='string'?basis:typeof basis?.method==='string'?basis.method:null;
+ if(!method)return 'Source-reported EAC, not a determination';
+ if(!/^[a-z][a-z0-9_]*(?::[a-z0-9_]+)*$/.test(method))return method;
+ return 'EAC basis: '+method.split(':').map(part=>typeof humanizeKey==='function'?humanizeKey(part):part.replace(/_/g,' ')).join(' · ');
+}
 function renderManagementCommercialFacts(data){
  const rows=data.briefCommercialPosition?.currencies??data.decisionAnalysis?.commercialSummary??data.projectFacts?.commercial?.currencies??[];
  if(!rows.length)return '<section class="planning-panel"><h4>Cost and certified cash position</h4><p>No dated cost/certification currency position has been established. Missing: a dated EAC or earned-value cost record and issued certificates with linked payment evidence. No zero is inferred.</p>'+managementModuleLink('cost-forecast','Review cost records')+'</section>';
  return '<section class="planning-panel"><h4>Commercial position · source period and currency retained</h4>'+rows.map(r=>'<h5>'+escapeHtml(r.currency)+(r.taxBasis?' · '+escapeHtml(humanizeKey(r.taxBasis))+' tax basis':'')+(r.asOf?' · '+escapeHtml(planningShortDate(r.asOf)):'')+'</h5>'+planningKpis([
   ['Current contract',r.currentContractValue,r.currency],['EAC · source reported',r.forecastEac,r.currency],['CPI',r.cpi,'Same period and money basis'],['Certified unpaid',r.certifiedUnpaidAmount,r.currency+' · issued certificates less linked cash']
- ])+(r.eacScenarios?.length?basisTable(['EAC scenario','Amount','Qualification'],r.eacScenarios.map(x=>[x.methodology??x.key??'Cost scenario',managementValue(x.value,r.currency),'Calculated scenario, not the source EAC'])):'')+'<p>'+escapeHtml(r.forecastEac?.basis?.method??r.forecastEac?.basis??'Source-reported EAC, not a determination')+'</p>').join('')+managementModuleLink('cost-forecast','Review cost and CPI evidence')+'</section>';
+ ])+(r.eacScenarios?.length?basisTable(['EAC scenario','Amount','Qualification'],r.eacScenarios.map(x=>[x.methodology??x.key??'Cost scenario',managementValue(x.value,r.currency),'Calculated scenario, not the source EAC'])):'')+'<p>'+escapeHtml(decisionBasisText(r.forecastEac?.basis))+'</p>').join('')+managementModuleLink('cost-forecast','Review cost and CPI evidence')+'</section>';
 }
 function renderDecisionAnalysis(key,data){
  const a=data?.decisionAnalysis;if(!a)return '';

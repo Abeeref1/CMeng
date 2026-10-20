@@ -4,7 +4,9 @@ import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-cor
 import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
 import {countTextSource} from './count-text';
-export function deliveryScript():string{return `${managementNumber.toString()}\n${countTextSource()}${managementDate.toString()}\nconst deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
+import {readableFieldLabel} from './field-labels';
+export function deliveryScript():string{return `${managementNumber.toString()}\n${countTextSource()}${managementDate.toString()}\nconst deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};
+const deliveryReadableLabel=${readableFieldLabel.toString()};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryBatchContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
@@ -16,6 +18,10 @@ function deliveryValue(v){
  if(typeof v==='object')return v.state?deliveryLabel(v.state):v.description||'Open detail';
  const s=String(v),match=s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/);
  if(match){const at=new Date(match[1]+'T00:00:00Z');if(Number.isFinite(at.getTime())&&at.toISOString().slice(0,10)===match[1])return managementDate(match[1]);}
+ // W1: a code value ('withhold_from_as_of', 'submittal_throughput|submission|actual') is said in
+ // words. IDs such as act_1001 or NCR-950 are kept as recorded by the shared label.
+ if(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$|^[a-z]{2,}(?:[A-Z][a-z0-9]+)+$/.test(s))return deliveryCodeWords(s);
+ if(/^[a-z][a-z0-9_]*(?:\|[a-z][a-z0-9_]*)+$/.test(s))return s.split('|').map(deliveryCodeWords).join(' · ');
  if(typeof readerText==='function')return readerText(s);
  if(typeof humanizeIsoText==='function')return humanizeIsoText(s);
  // Delivery can render independently in a specialist/report context. Do not
@@ -27,7 +33,12 @@ function deliveryValue(v){
  });
 }
 const deliveryText=v=>escapeHtml(deliveryValue(v));
-const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:deliveryUnknownText,conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||String(s).replace(/Iso$/,'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]/g,' ').replace(/^./,x=>x.toUpperCase());
+const deliveryLabel=s=>({riskId:'Risk ID',recordId:'Record ID',linkedActivityId:'Linked activity',dueIso:'Due date',raisedIso:'Raised date',closedIso:'Closed date',statusAsOfIso:'Status as of',sourceRefs:'Source references',source_evidence:'Source evidence',extracted_candidate:'From register, not yet confirmed',working:'Working record',governed:'Reviewed record',verified:'Verified record',verification_required:'Verification required',not_established:deliveryUnknownText,conflicted:'Conflicting evidence',stale:'Source changed',at_risk:'At risk',po:'PO',rfq:'RFQ',fat:'FAT',sat:'SAT'})[s]||deliveryReaderWords(s);
+// W1: a field name or code is said in the shared reader words (field-labels.ts), never as a
+// Title Case or camelCase key. Plain text keeps its words; only the first letter is raised.
+function deliveryReaderWords(s){const out=deliveryReadableLabel(s);return /^[a-z]+(?:\s|$)/.test(out)?out.charAt(0).toUpperCase()+out.slice(1):out;}
+// A code value uses the page's shared code words when the page has them (one code, one label).
+function deliveryCodeWords(s){return typeof humanizeKey==='function'?humanizeKey(s):deliveryReaderWords(s);}
 const deliveryRowState=r=>r.state||r.currentStatus||r.permitStatus||r.readinessState||r.status||r.scope||r.linkedWorkGroup;
 function deliveryTable(id,title,rows,columns){
  rows=Array.isArray(rows)?rows:[];
