@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {parsePdfDocument,legiblePdfPageEvidence,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
-import {sourceTables,type SourceTable} from '../../truth-kernel/src';
+import {sourceTables,sourceTitleSheet,type SourceTable} from '../../truth-kernel/src';
+import {countText} from './count-text';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
 import {conditionalNotice} from './conditional-notice';
 
@@ -62,19 +63,27 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
       note:`${readPages} of ${receipt.totalPages} pages read: ${receipt.nativePages} native, ${receipt.ocrPages} OCR; ${receipt.ocrFailedPages} OCR failures. ${receipt.unresolvedAnchorCount} referenced identities remain unresolved. Reading does not confirm notice or award contents.`,
       method:receipt.ocrPages?'Native text / OCR':'Native text',pageCount:receipt.totalPages,readPageCount:readPages,complete};
   }
-  if(document.hseSummary?.sourceHashSha256===hash){
+  const tables=(Array.isArray(sourceTables)?sourceTables:sourceTables?[sourceTables]:[]).filter(table=>
+    table.document.sourceHashSha256===hash&&table.document.documentId===document.documentId);
+  // R3: HSE figures taken from a register sheet are one use of that table; the
+  // file's reading record is its tables. Report figures stand alone only when
+  // no source table was read (a text report).
+  if(document.hseSummary?.sourceHashSha256===hash&&!tables.length){
     const known=Object.values(document.hseSummary.metrics).filter(v=>v!==null).length;
     return {state:known?'read':'partial',label:known?'Report figures read':'Report figures need review',note:`${known} report figures extracted. Reporting period, rate basis and incident status are assessed separately.`,method:'Native text',pageCount:null,readPageCount:null,complete:false};
   }
-  const tables=(Array.isArray(sourceTables)?sourceTables:sourceTables?[sourceTables]:[]).filter(table=>
-    table.document.sourceHashSha256===hash&&table.document.documentId===document.documentId);
   if(tables.length>1){
-    const unresolved=tables.filter(table=>table.recognition?.recognized===false);
-    const rows=tables.reduce((sum,table)=>sum+(table.recognition?.recognized===false?table.recognition.readRowCount:table.rows.length),0);
-    const fields=new Set(tables.flatMap(table=>table.headers)).size;
+    // A cover or title sheet holds text, not register columns: its text is read.
+    const titleSheets=tables.filter(sourceTitleSheet);
+    const registers=tables.filter(table=>!sourceTitleSheet(table));
+    const unresolved=registers.filter(table=>table.recognition?.recognized===false);
+    const rows=registers.reduce((sum,table)=>sum+(table.recognition?.recognized===false?table.recognition.readRowCount:table.rows.length),0);
+    const fields=new Set(registers.flatMap(table=>table.headers)).size;
     const complete=document.parserState==='parsed'&&unresolved.length===0;
+    // Say which part is not read: the tables whose columns are not recognised, by name.
+    const unresolvedText=unresolved.length?countText(unresolved.length,'table')+(unresolved.length===1?' has':' have')+' columns not recognised: '+unresolved.map(table=>(table.recognition?.unknown??[]).join(', ')||table.headers.join(', ')).join('; ')+'.':'All tables are recognised.';
     return {state:complete?'read':'partial',label:complete?'Source rows read':'Source tables need review',
-      note:`${rows} rows and ${fields} distinct fields read across ${tables.length} parsed tables. ${unresolved.length} tables have unrecognised columns. Field completeness, validation, mapping and adoption are checked separately.`,
+      note:`${countText(rows,'row')} and ${countText(fields,'distinct field')} read across ${countText(registers.length,'parsed table')}.${titleSheets.length?' '+countText(titleSheets.length,'cover sheet')+' read as text.':''} ${unresolvedText} Field completeness, validation, mapping and adoption are checked separately.`,
       method:'Tabular content',pageCount:null,readPageCount:null,complete};
   }
   const table=tables[0];

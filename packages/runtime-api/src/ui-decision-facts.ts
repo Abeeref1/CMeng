@@ -44,10 +44,14 @@ function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
  const missing=visible.some(row=>cols.some(([,key])=>row[key]===null||row[key]===undefined));
  const cellClass=key=>key==='missingInputs'?' class="decision-inputs"':'';
  const body=visible.map(row=>'<tr>'+cols.map(([label,key])=>'<td'+cellClass(key)+'>'+escapeHtml(row[key]===null||row[key]===undefined?'—':key==='currentFloatHours'||key==='previousFloatHours'?sourceWorkingFloatField(row,key):decisionDisplay(row[key],key))+'</td>').join('')+'</tr>').join('');
- const navigation=at>0||hasMore?'<div class="actions">'+
+ // N1: the shown range and the full total sit with the browse control under
+ // the table, as on the other paged lists, so a 25-row page is never read as
+ // the whole list.
+ const navigation=at>0||hasMore?'<div class="actions decision-pager">'+
   '<button class="btn small" '+(at===0?'disabled ':'')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+Math.max(0,at-25)+')">Previous records</button>'+
-  '<button class="btn small" '+(hasMore?'':'disabled ')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+(at+25)+')">Next records</button></div>':'';
- return '<p class="decision-population">'+escapeHtml(caption)+'</p>'+(missing?'<p class="hint">— means not established for that record. Missing inputs are listed in the row.</p>':'')+'<div class="table-wrap"><table><thead><tr>'+cols.map(([label,key])=>'<th'+cellClass(key)+'>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable records were found in this source.</td></tr>')+'</tbody></table></div>'+navigation;
+  '<span class="decision-population" role="status">'+escapeHtml(caption)+'</span>'+
+  '<button class="btn small" '+(hasMore?'':'disabled ')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+(at+25)+')">Next records</button></div>':'<p class="decision-population">'+escapeHtml(caption)+'</p>';
+ return (missing?'<p class="hint">— means not established for that record. Missing inputs are listed in the row.</p>':'')+'<div class="table-wrap"><table><thead><tr>'+cols.map(([label,key])=>'<th'+cellClass(key)+'>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable records were found in this source.</td></tr>')+'</tbody></table></div>'+navigation;
 }
 async function loadDecisionPage(kind,pointer,offset){
  const owner=project(),seq=projectRequestSeq,result=currentModuleResult,target=el('decision-'+kind);if(!result||!target)return;

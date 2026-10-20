@@ -595,7 +595,10 @@ test('role views use page facts even when the overview summary has no calculated
  const result=runInNewContext(functions(['pageRoleLensContext','findProjectionRoot'])+';pageRoleLensContext(data)',{data,overview:{roleLensContext:{planning:{criticalCount:null},executive:{contractualCompletionIso:null}}}});
  assert.equal(result.planning.criticalCount,147);
  assert.equal(result.planning.nearCriticalCount,null);
- assert.equal(result.executive.contractualCompletionIso,'2031-11-01');
+ // N5: the executive contractual completion is the governing contract date the
+ // overall view shows; the date with awarded EOT is kept as its own fact.
+ assert.equal(result.executive.contractualCompletionIso,'2031-10-01');
+ assert.equal(result.executive.currentContractCompletionIso,'2031-11-01');
  assert.equal(result.controls.submittedCompletionIso,'2031-11-15');
  assert.equal(result.executive.metrics.find((m:any)=>m.label==='Open actions').value,32);
 });

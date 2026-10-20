@@ -35,7 +35,7 @@ test('multi-table receipts retain unrecognised rows and exclude stale or other-d
   const document={documentId:'D',sourceHashSha256:'H',parserState:'identified'} as any;
   const table=(id:string,hash:string,count:number,recognized:boolean):SourceTable=>({document:{documentId:id,sourceHashSha256:hash},headers:['Column'],rows:Array.from({length:count},()=>({cells:{Column:'x'}})),recognition:{recognized,readRowCount:count,headerRow:1,unknown:[]}} as unknown as SourceTable);
   const receipt=documentReadReview(document,state,[table('D','H',2,true),table('D','H',4,false),table('D','stale',99,true),table('other','H',50,true)]);
-  assert.equal(receipt.state,'partial');assert.match(receipt.note!,/6 rows/);assert.match(receipt.note!,/1 tables have unrecognised/);assert.equal(receipt.complete,false);
+  assert.equal(receipt.state,'partial');assert.match(receipt.note!,/6 rows/);assert.match(receipt.note!,/1 table has columns not recognised: Column\./);assert.equal(receipt.complete,false);
 });
 
 test('Ask resolves explicit named reporting dates while rejecting invalid or conflicting cutoffs',()=>{

@@ -1,4 +1,7 @@
 /** Shared semantic headers for register ingestion. Unknown columns are retained. */
+import {deliveryFields} from '../../delivery-core/src/fields';
+import {deliveryKinds,kindIdentities,type DeliveryKind} from '../../delivery-core/src/types';
+import {deliveryDocumentKinds,deliveryReaderColumns} from '../../delivery-core/src/reader-columns';
 // A CPU profile over 51,700 source rows showed that the same 40–200 column
 // names are normalised millions of times across lookups. Cache their exact
 // semantic result, but bound memory for user-supplied arbitrary column names.
@@ -212,11 +215,93 @@ export function isRegisterDateHeader(value:string):boolean {
 /** Shared unused-column report entry for every source table (registers and
  * programme files): a column is either read into a field or listed as unused
  * with its name, and its values are retained, never treated as zero. */
-export function sourceColumnAuditEntry<K extends string>(sourceHeader:string,canonicalHeader:string,kind:K,mapped:boolean,readReason:string,sample?:string|null){
+export function sourceColumnAuditEntry<K extends string>(sourceHeader:string,canonicalHeader:string,kind:K,mapped:boolean,readReason:string,sample?:string|null,unusedReason?:string){
   return {sourceHeader,canonicalHeader,kind,mappingState:mapped?'schema_recognized' as const:'unused' as const,
     reason:mapped?readReason
-      :'No canonical calculation consumes this source header. The source column and its values remain retained and must not be silently treated as zero.',
+      :unusedReason??'No canonical calculation consumes this source header. The source column and its values remain retained and must not be silently treated as zero.',
     ...(sample!==undefined?{sample}:{})};
+}
+
+/** R1: why a register column is not used, in plain words, for the document's
+ * reading record. A placeholder heading (Extra_0, Misc 1, X2, a blank heading)
+ * has no field meaning; a comment or note column is free text; any other
+ * column is one no CMeng reader uses for this kind of register. */
+export function unusedColumnReason(rawHeader:string):string{
+  const name=normalizeHeader(rawHeader??'');
+  if(!name||/^(?:extra|misc|miscellaneous|unnamed|untitled|blank|column|col|field)(?: ?\d+)?$|^x ?\d+$|^unlabelled column \d+$/.test(name))
+    return 'Placeholder heading with no field meaning. Its values are kept in the source file and not used in any figure.';
+  if(/^(?:comments?|notes?|remarks?|memo|ملاحظات|ملاحظة|تعليق|تعليقات)(?: ?\d+)?$/u.test(name))
+    return 'Free-text comment. It is kept in the source file and not used in any figure.';
+  return 'No CMeng reader uses this column for this kind of register. Its values are kept in the source file and never treated as zero.';
+}
+
+/** Cover-sheet title reason: a one-column sheet that is not a table. */
+export const TITLE_SHEET_COLUMN_REASON='Cover sheet title. The sheet holds no register columns; all of its text is read.';
+
+// R1: the shared specialist readers read more columns than the recognition
+// schema above lists. Each reader is named with the columns it reads and the
+// table shape it reads, so a column it reads is never reported as unused, and
+// a column is counted as read only for the kind of register that reader owns.
+const BOND_READER_COLUMNS=['bond id','bond type','type','expiry date','expiration date','valid until','status','release date','released on','return date',
+  'bond amount','guarantee amount','amount','currency','coverage amount','insured amount','policy limit','inception date','start date','effective date','valid from'];
+const VARIATION_READER_COLUMNS=['variation id','description','variation description','approval date','status','authority','instruction id','site instruction id','si id',
+  'instruction date','site instruction date','si date','submitted date','submission date','quotation date','quote date','assessment date','assessed date','agreed date',
+  'schedule impact days','time impact days','eot days','claim id','payment id','certificate no','ipc','activity ids','activity id','schedule activity ids',
+  'clause','clause identifiers','clause references','approved amount','agreed amount','assessed amount','claimed amount','submitted amount','currency'];
+const COST_READER_COLUMNS=['as of','period end','date','pv','ev','ac','bac','eac','etc','sv','cv','currency','unit','status','cbs','cbs id','cost code',
+  'cbs description','cost code description','description','parent cbs','parent cbs id','parent cost code','wbs','wbs id','wbs code','metric','value',
+  'amount basis','value basis','series basis','cash basis','counterparty','vendor','subcontractor','boq item','boq item id','boq line','payment id','certificate no','ipc'];
+const CLAIMS_READER_COLUMNS=['claim id','claim no','claim number','event id','delay event id','event no','event number','related event id','event reference',
+  'event','event title','title','description','event start','start date','delay start','from date','event end','end date','delay end','to date',
+  'responsibility','responsible party','delay responsibility','category','event category','delay type','impact days','delay days','event days',
+  'activity id','activity ids','schedule activity','notice date','submitted date','days claimed','claimed days','days granted','granted days','determined days',
+  'approved eot days','claimed amount','amount claimed','claim amount','submitted amount','assessed amount','determined amount','approved amount','amount assessed',
+  'amount awarded','status','determination status','clause','clause reference','determination id','determination no','engineer determination',
+  'day basis','eot day basis','calendar working','currency'];
+type ReaderIndex={commercial:Array<{label:string;columns:Set<string>;reads:(keys:ReadonlySet<string>,documentType:string)=>boolean}>;
+  delivery:Map<DeliveryKind,{identities:string[];signature:string[];columns:Set<string>}>;recordType:string};
+let readerIndex:ReaderIndex|null=null;
+function registerReaders():ReaderIndex{
+  if(readerIndex)return readerIndex;
+  const keys=(names:readonly string[])=>new Set(names.map(name=>canonicalHeader(name)));
+  const k=(name:string)=>canonicalHeader(name);
+  readerIndex={
+    commercial:[
+      {label:'bond register reader',columns:keys(BOND_READER_COLUMNS),reads:h=>h.has(k('bond id'))&&(h.has(k('bond type'))||h.has(k('type')))},
+      {label:'variation register reader',columns:keys(VARIATION_READER_COLUMNS),reads:h=>h.has(k('variation id'))&&h.has(k('status'))},
+      {label:'cost report reader',columns:keys(COST_READER_COLUMNS),reads:(h,type)=>type==='cost_evm_report'||['pv','ev','ac'].every(n=>h.has(k(n)))||h.has(k('metric'))&&h.has(k('as of'))},
+      {label:'claims register reader',columns:keys(CLAIMS_READER_COLUMNS),reads:(h,type)=>type==='delay_eot_claims_register'},
+    ],
+    delivery:new Map(deliveryKinds.map(kind=>[kind,{identities:kindIdentities[kind].map(k),signature:deliveryFields[kind].map(k),columns:keys(deliveryReaderColumns(kind))}] as const)),
+    recordType:k('delivery record type'),
+  };
+  return readerIndex;
+}
+/** The Delivery record kinds the Delivery reader reads from a table with these
+ * headings, by the same order of evidence it uses for each row: an explicit
+ * record-type column, one identity column, the best kind signature among
+ * several identities, then the register's document type. */
+function deliveryKindsForHeaders(keys:ReadonlySet<string>,documentType:string):DeliveryKind[]{
+  const index=registerReaders();
+  if(keys.has(index.recordType))return [...deliveryKinds];
+  const candidates=deliveryKinds.filter(kind=>index.delivery.get(kind)!.identities.some(id=>keys.has(id)));
+  if(candidates.length===1)return candidates;
+  if(candidates.length>1){
+    const ranked=candidates.map(kind=>({kind,score:index.delivery.get(kind)!.signature.filter(key=>keys.has(key)).length}))
+      .sort((a,b)=>b.score-a.score||a.kind.localeCompare(b.kind));
+    if(ranked[0]!.score>0&&ranked[0]!.score>(ranked[1]?.score??-1))return [ranked[0]!.kind];
+  }
+  const typed=deliveryDocumentKinds[documentType];
+  return typed?[typed]:[];
+}
+/** R1: canonical column -> the shared reader that reads it, for one table. */
+export function registerReaderColumns(headers:readonly string[],documentType=''):Map<string,string>{
+  const index=registerReaders(),keys=new Set(headers),out=new Map<string,string>();
+  for(const kind of deliveryKindsForHeaders(keys,documentType))
+    for(const column of index.delivery.get(kind)!.columns)if(!out.has(column))out.set(column,'Delivery reader');
+  for(const reader of index.commercial)if(reader.reads(keys,documentType))
+    for(const column of reader.columns)if(!out.has(column))out.set(column,reader.label.charAt(0).toUpperCase()+reader.label.slice(1));
+  return out;
 }
 const registerDateMemo=new Map<string,string|null>();
 const memoRegisterDate=(source:string,parsed:string|null)=>{
@@ -267,14 +352,21 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
   if(best<2){const firstWide=input.findIndex(r=>r.filter(v=>v.trim()).length>=2);headerIndex=Math.max(0,firstWide);}
   const rawHeaders=input[headerIndex]??[],headers=rawHeaders.map(h=>canonicalHeader(h,documentType));
+  const readers=registerReaderColumns(headers,documentType);
   const columnAudit=rawHeaders.map((rawHeader,index)=>{
     const field=headers[index]??normalizeHeader(rawHeader);
-    const mapped=fields.has(field)||fields.has(field.replace(/ [a-z]{3}$/,''));
+    const schema=fields.has(field)||fields.has(field.replace(/ [a-z]{3}$/,''));
+    const reader=schema?undefined:readers.get(field)??readers.get(field.replace(/ [a-z]{3}$/,''));
     const kind=registerColumnKind(rawHeader,field);
-    return sourceColumnAuditEntry(rawHeader,field,kind,mapped,
-      'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.');
+    return sourceColumnAuditEntry(rawHeader,field,kind,schema||reader!==undefined,
+      reader?'Read by the shared '+reader.charAt(0).toLowerCase()+reader.slice(1)+'; original source values retained.'
+        :'Recognized by the shared register schema; original source values retained. Consumer use requires separate reconciliation.',
+      undefined,unusedColumnReason(rawHeader));
   });
   const unknown=columnAudit.filter(column=>column.mappingState==='unused').map(column=>column.sourceHeader);
+  // A table owned by a shared reader is recognised when at least two of its
+  // headings are read, by the schema or by that reader.
+  const readHeadings=new Set(headers.filter((_,index)=>columnAudit[index]?.mappingState!=='unused')).size;
   // Column meaning is constant for the table. Do not normalise and match the
   // same header again for every cell in a large BOQ/resource register.
   const dateColumns=headers.map(isRegisterDateHeader);
@@ -286,6 +378,6 @@ export function prepareRegisterRows(input:readonly string[][],documentType='') {
   // R12 follow-up: a payment register is recognised by its certificate number and
   // a stated certified column: net certified, net payable, or gross certified.
   const requiredAny=/payment_cert/.test(documentType)?['net certified',...NET_PAYABLE_HEADERS,'gross certified amount']:[];
-  const recognized=best>=2&&required.every(key=>headers.includes(key))&&(!requiredAny.length||requiredAny.some(key=>headers.includes(key)));
+  const recognized=(best>=2||readers.size>0&&readHeadings>=2)&&required.every(key=>headers.includes(key))&&(!requiredAny.length||requiredAny.some(key=>headers.includes(key)));
   return {headerRow:headerIndex+1,rawHeaders,headers,rows,unknown,columnAudit,recognized,readRowCount:rows.length};
 }
