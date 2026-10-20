@@ -58,20 +58,20 @@ test('W5: an empty-table reason and a single-choice filter note are said in full
  class El{
   nodeType=1;parentNode:El|null=null;childNodes:El[]=[];attrs:Record<string,string>={};text='';disabled=false;multiple=false;value='';title='';
   constructor(public tagName:string,public ownerDocument:any){}
-  get children(){return this.childNodes;}get className(){return this.attrs.class??'';}set className(v:string){this.attrs.class=v;}
+  get children():El[]{return this.childNodes;}get className(){return this.attrs.class??'';}set className(v:string){this.attrs.class=v;}
   get classList(){const self=this;const list=()=>self.className.split(/\s+/).filter(Boolean);return{contains:(c:string)=>list().includes(c),add:(c:string)=>{if(!list().includes(c))self.className=[...list(),c].join(' ');},remove:(c:string)=>{self.className=list().filter(x=>x!==c).join(' ');}};}
   get textContent():string{return this.text+this.childNodes.map(n=>n.textContent).join('');}set textContent(v:string){this.childNodes=[];this.text=v;}
-  get tBodies(){return this.childNodes.filter(c=>c.tagName==='TBODY');}get tHead(){return this.childNodes.find(c=>c.tagName==='THEAD')??null;}
-  get rows(){return this.childNodes.filter(c=>c.tagName==='TR');}get cells(){return this.childNodes.filter(c=>c.tagName==='TD'||c.tagName==='TH');}
-  get options(){return this.childNodes.filter(c=>c.tagName==='OPTION');}
+  get tBodies():El[]{return this.childNodes.filter(c=>c.tagName==='TBODY');}get tHead():El|null{return this.childNodes.find(c=>c.tagName==='THEAD')??null;}
+  get rows():El[]{return this.childNodes.filter(c=>c.tagName==='TR');}get cells():El[]{return this.childNodes.filter(c=>c.tagName==='TD'||c.tagName==='TH');}
+  get options():El[]{return this.childNodes.filter(c=>c.tagName==='OPTION');}
   get nextElementSibling():El|null{const s=this.parentNode?.childNodes??[];return s[s.indexOf(this)+1]??null;}
   getAttribute(n:string){return n in this.attrs?this.attrs[n]!:null;}setAttribute(n:string,v:string){this.attrs[n]=v;}hasAttribute(n:string){return n in this.attrs;}removeAttribute(n:string){delete this.attrs[n];}
   appendChild(n:El){n.parentNode=this;this.childNodes.push(n);return n;}remove(){if(this.parentNode)this.parentNode.childNodes=this.parentNode.childNodes.filter(x=>x!==this);}
   insertAdjacentElement(_w:string,n:El){const p=this.parentNode!;n.parentNode=p;p.childNodes.splice(p.childNodes.indexOf(this)+1,0,n);}
-  matches(sel:string){return sel.split(',').some(one=>{const m=one.trim().match(/^([a-z]*)((?:\.[\w-]+)*)(?:\[([\w-]+)\])?$/i);if(!m)return false;const[,tag,cls,attr]=m;if(tag&&this.tagName!==tag.toUpperCase())return false;if(cls&&!cls.split('.').filter(Boolean).every(c=>this.classList.contains(c)))return false;if(attr&&!(attr in this.attrs))return false;return true;});}
-  closest(sel:string){let n:El|null=this;while(n){if(n.matches(sel))return n;n=n.parentNode;}return null;}
-  querySelectorAll(sel:string){const out:El[]=[];const walk=(e:El)=>{for(const c of e.childNodes){if(c.matches(sel))out.push(c);walk(c);}};walk(this);return out;}
-  querySelector(sel:string){return this.querySelectorAll(sel)[0]??null;}
+  matches(sel:string):boolean{return sel.split(',').some(one=>{const m=one.trim().match(/^([a-z]*)((?:\.[\w-]+)*)(?:\[([\w-]+)\])?$/i);if(!m)return false;const[,tag,cls,attr]=m;if(tag&&this.tagName!==tag.toUpperCase())return false;if(cls&&!cls.split('.').filter(Boolean).every(c=>this.classList.contains(c)))return false;if(attr&&!(attr in this.attrs))return false;return true;});}
+  closest(sel:string):El|null{let n:El|null=this;while(n){if(n.matches(sel))return n;n=n.parentNode;}return null;}
+  querySelectorAll(sel:string):El[]{const out:El[]=[];const walk=(e:El)=>{for(const c of e.childNodes){if(c.matches(sel))out.push(c);walk(c);}};walk(this);return out;}
+  querySelector(sel:string):El|null{return this.querySelectorAll(sel)[0]??null;}
  }
  const doc:any={createElement:(t:string)=>new El(t.toUpperCase(),doc)};
  const el=(tag:string,...kids:El[])=>{const e=new El(tag.toUpperCase(),doc);kids.forEach(k=>e.appendChild(k));return e;};
