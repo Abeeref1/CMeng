@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
+import {countText,countNoun} from '../packages/runtime-api/src/count-text';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 
 type Stage = {
@@ -25,7 +26,9 @@ function renderStage(stage:Stage):string {
     pmcDefined:(v:unknown)=>typeof v==='number'&&Number.isFinite(v),
     planningShortDate:(v:unknown)=>String(v),
     sourceWorkingFloat:()=> 'Not established',
-    managementPanel:(_title:string,_description:string,html:string)=>html
+    managementPanel:(_title:string,_description:string,html:string)=>html,
+    // The renderer now says counts through the shared plural helper (W4, round 15): load the real one.
+    countText,countNoun
   }) as (data:unknown)=>string;
   const output=render({managementContext:{schedule:{programmeStages:[stage]}},visualControl:{},interfaces:{rows:[]}});
   assert.equal(JSON.stringify(stage),original,'renderer must never edit source controls or stage facts');
