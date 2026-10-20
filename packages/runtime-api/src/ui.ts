@@ -6281,7 +6281,8 @@ function renderModuleBasis(data,detail=false,contextOnly=false){
   const scopeHtml=renderClaimsReporting(data?.claimsReporting);
   const contract=data?.reportingContract;
   const populations=contract?uniqueReportingPopulations(Object.values(contract.populations||{})).map(p=>[p.populationId,p]):[];
-  const populationHtml=populations.length?'<details class="planning-panel reporting-populations"><summary>Reporting record groups · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table><thead><tr><th>Record group</th><th>Records included / in source</th><th>Excluded</th><th>Date basis</th><th>Authority</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(humanizeKey(p.name))+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(responseListPopulation(p.exclusions||[]).total)+sourcePopulationControl(p.exclusions||[],'Browse excluded records')+'</td><td>'+escapeHtml(humanizeKey(p.dateBasis))+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
+  // L3: the complete list of record groups is shown first when it shares a selector with the date review of the same groups.
+  const populationHtml=populations.length?'<details class="planning-panel reporting-populations" data-kind-first><summary>Reporting record groups · '+populations.length+' defined groups</summary><div class="planning-panel-body"><p>Denominators use eligible source records, independently of table display limits. Future planned work remains visible as forecast work.</p><div class="table-wrap"><table data-table-kind="record-groups"><thead><tr><th>Record group</th><th>Records included / in source</th><th>Excluded</th><th>Date basis</th><th>Authority</th></tr></thead><tbody>'+populations.map(([key,p])=>'<tr><td>'+escapeHtml(humanizeKey(p.name))+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(responseListPopulation(p.exclusions||[]).total)+sourcePopulationControl(p.exclusions||[],'Browse excluded records')+'</td><td>'+escapeHtml(humanizeKey(p.dateBasis))+'</td><td>'+escapeHtml(humanizeKey(p.authority))+'</td></tr>').join('')+'</tbody></table></div></div></details>':'';
   const baselineHeadline=data?.baselineComparison?.state==='unresolved'&&['schedule_analytics','activity_analytics','milestones','near_critical','progress_report','progress_scurve','variance_trends','lookahead_schedule','challenge_contract'].includes(root.projectionKey)?'<p class="source-scope-summary">Baseline comparisons unresolved: no confirmed baseline.</p>':'';
   const completion=contract?.completionAuthority;
   const completionHeadline=completion&&!completion.governedContractualFinish&&['master_dashboard','command_center','pmo_analysis','independent_forecast','eot_assessment','notices_claims','milestones','commercial_claims_notices','contract_particulars_bonds','challenge_contract'].includes(root.projectionKey)?'<div class="notice warn"><b>Contract completion: unresolved.</b> '+escapeHtml(completion.reason||completion.explanation)+'</div>':'';
@@ -6606,6 +6607,8 @@ function renderModuleResult(result){
   removeDuplicatePageBlocks(container);
   // L1/L3: the answer leads; every other panel goes into More detail (moved, never removed).
   arrangePageDetail(container);
+  // L3: opened detail stays short: long tables page by 25 rows and blocks of the same kind share one selector.
+  compactPageDetail(container);
 }
 function progressBreakdownSystemFailures(data){
   const failures=(data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='system_defect');

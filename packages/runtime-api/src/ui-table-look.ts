@@ -167,6 +167,8 @@ function lookEnhanceTable(table){
  lookEnhanceTableHeaders(table);
  lookMarkEmptyTable(table);
  lookConstantColumns(table);
+ // L3: a long table that arrives later inside collapsed detail also shows 25 rows at a time.
+ if(typeof pageTablePager==='function')pageTablePager(table);
 }
 function lookFilterChoices(select){
  return Array.from(select.options||[]).filter(option=>!option.disabled&&!/^all\b/i.test((option.textContent||'').trim())&&option.value!=='');

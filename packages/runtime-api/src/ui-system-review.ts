@@ -224,6 +224,8 @@ function reportingExclusionCounts(p){
   if(responseListPopulation(rows).total!==rows.length)return {future:null,undated:null};
   return {future:rows.filter(e=>e.reason==='after_data_date').length,undated:rows.filter(e=>/date_missing|date_invalid/.test(e.reason)).length};
 }
+// L3: this table and "Reporting record groups" list the same record groups
+// (data-table-kind="record-groups"); in collapsed detail they share one selector.
 function renderRegisterScope(data,includeComplete=false){
   const contract=data?.reportingContract;if(!contract)return '';
   const populations=Object.values(contract.populations||{}).filter(p=>!['activity','execution_activity','series_point','currency_position','resource','assignment','programme_window'].includes(p.entity)&&!p.dateBasis?.startsWith('Full retained source register')&&!p.dateBasis?.startsWith('Source records after')&&!p.dateBasis?.startsWith('Source records without'));
@@ -234,7 +236,7 @@ function renderRegisterScope(data,includeComplete=false){
   if(!exclusions.length&&!includeComplete)return '';
   if(!includeComplete&&['master_dashboard','command_center','master_control_programme'].includes(data.projectionKey))return '<p class="source-scope-summary">'+(data.registerDateReview?.message||countText(exclusions.length,'group of records','groups of records',fmt)+' '+(exclusions.length===1?'needs':'need')+' date review.')+' '+managementModuleLink('source-quality','Review register dates')+'</p>';
   const disclosure=exclusions.length?countText(exclusions.length,'group of records','groups of records',fmt)+' '+(exclusions.length===1?'includes':'include')+' later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);
-  return '<details class="source-scope-summary"><summary>'+disclosure+'</summary><p>Reporting date: '+planningShortDate(contract.dataDateIso)+'. Counts are per group and may overlap. Future work remains in the plan. Later actual events are excluded from current totals. A zero means no records were excluded on this date rule; other dates may still be missing.</p><div class="table-wrap"><table><thead><tr><th>Register</th><th>Included / all records</th><th>Future excluded</th><th>Date missing / invalid</th><th>Date used</th></tr></thead><tbody>'+unique.map(row).join('')+'</tbody></table></div></details>';
+  return '<details class="source-scope-summary"><summary>'+disclosure+'</summary><p>Reporting date: '+planningShortDate(contract.dataDateIso)+'. Counts are per group and may overlap. Future work remains in the plan. Later actual events are excluded from current totals. A zero means no records were excluded on this date rule; other dates may still be missing.</p><div class="table-wrap"><table data-table-kind="record-groups"><thead><tr><th>Register</th><th>Included / all records</th><th>Future excluded</th><th>Date missing / invalid</th><th>Date used</th></tr></thead><tbody>'+unique.map(row).join('')+'</tbody></table></div></details>';
 }
 function readerModuleSummary(reason){
   const text=String(reason||'').split('Shared readiness gate:')[0].trim();

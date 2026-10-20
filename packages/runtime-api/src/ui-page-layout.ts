@@ -6,7 +6,9 @@
  * styles. A page shows at most 15 collapsed sections: the collapsed sections
  * of a moved panel merge into its More detail group, so each group opens with
  * one click and shows its whole content. A page that already fits (3 screens,
- * 15 collapsed sections) keeps its layout. */
+ * 15 collapsed sections) keeps its layout. Opened detail stays short
+ * (compactPageDetail): long tables show 25 rows at a time and blocks of the same
+ * kind share one selector; every row and block stays reachable on the page. */
 export const pageLayoutStyles=String.raw`
 .page-more-detail{margin:24px 0 0;padding-top:14px;border-top:1px solid #dce4ee}.page-more-detail>h4{margin:0 0 10px;font-size:15px;color:#294766}
 .page-detail-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
@@ -17,8 +19,12 @@ export const pageLayoutStyles=String.raw`
 .page-detail-groups>details>summary span{font-size:12px;color:#61738a;font-weight:400;margin-left:auto}
 .page-detail-body{padding:16px}.page-detail-body>*:last-child{margin-bottom:0}.page-detail-body .page-detail-title-shown{display:none}
 .row-evidence{display:block;font-size:12px;line-height:1.45;color:#526479;overflow-wrap:anywhere}.row-evidence b{font-weight:650;color:#3d5570}
+.table-row-paged,.page-kind-hidden{display:none!important}
+.table-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 14px;font-size:12px;color:#526479}
+.page-kind-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 12px;font-size:13px;color:#294766}.page-kind-pick>b{font-weight:650;margin-right:2px}.page-kind-pick select{max-width:min(100%,640px)}.page-kind-pick span{font-size:12px;color:#61738a}
+.page-kind-option{border:1px solid #cfdbe8;background:#fff;color:#294766;border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;line-height:1.3;cursor:pointer;text-align:left}.page-kind-option[aria-pressed="true"]{background:#e8f0f9;border-color:#7d9cc0;font-weight:650}
 @media(max-width:900px){.page-detail-groups{grid-template-columns:1fr}}
-@media print{.page-detail-groups{display:block}}
+@media print{.page-detail-groups{display:block}.table-row-paged{display:table-row!important}.page-kind-hidden{display:block!important}.table-pager,.page-kind-pick{display:none!important}}
 `;
 export const pageLayoutScript=String.raw`
 const PAGE_SCREEN_PX=700;
@@ -319,8 +325,163 @@ function arrangePageDetail(container){
   dropOptional();chosen=plan(keep);
  }
 }
-// A link to a block inside More detail opens the group that holds it.
+// L3: collapsed detail stays short when it is opened, and nothing is removed.
+// (1) A table of more than 25 rows inside collapsed detail shows 25 rows at a time
+// with Previous / Next; every row stays in the table, so sorting, search, print and
+// downloads keep all of them. (2) Blocks of the same kind side by side in collapsed
+// detail (the same ledger for each register, the same table for each period) are
+// one block with a selector: one is shown and every other one is one choice away,
+// in its own place. The first screen is never changed.
+const PAGE_TABLE_PAGE_ROWS=25;
+function pageCount(value){return Number(value).toLocaleString('en-US');}
+function pageInDetail(node){
+ if(!node?.closest||!node.closest('#moduleContent'))return false;
+ if(node.closest('.page-more-detail'))return true;
+ const section=node.closest('details');
+ return !!section&&!section.open;
+}
+// A table that already pages its own rows (a "Showing …" line or Previous / Next
+// beside it, or rows a script refills) keeps its own control.
+function pageTableOwnPaging(table,wrap){
+ if(table.closest('.diagnosis-table,[data-delivery-table],.paged-evidence-list,[data-own-paging]')||Array.from(table.tBodies).some(body=>body.id))return true;
+ const near=[];
+ for(let node=wrap.previousElementSibling,i=0;node&&i<2;node=node.previousElementSibling,i++)near.push(node);
+ for(let node=wrap.nextElementSibling,i=0;node&&i<2;node=node.nextElementSibling,i++)near.push(node);
+ return near.some(node=>node.matches('.source-population,[role="status"]')||/^Showing\b/i.test(String(node.textContent||'').trim())||
+  Array.from(node.matches('button')?[node]:node.querySelectorAll('button')).some(button=>/^(?:previous|next)\b/i.test(String(button.textContent||'').trim())));
+}
+function pageTablePager(table){
+ if(!table||table.__pageRows||!table.tBodies||table.tBodies.length!==1||typeof document==='undefined')return false;
+ const rows=lookSortableRows(table);
+ if(!rows||rows.filter(row=>!lookIsStateRow(row)).length<=PAGE_TABLE_PAGE_ROWS||!pageInDetail(table))return false;
+ const wrap=table.parentNode?.classList?.contains('table-wrap')?table.parentNode:table;
+ if(pageTableOwnPaging(table,wrap))return false;
+ const bar=document.createElement('div');bar.className='table-pager';bar.setAttribute('data-table-pager','');
+ const status=document.createElement('span');status.setAttribute('role','status');
+ const button=(text,step)=>{const b=document.createElement('button');b.type='button';b.className='btn small';b.textContent=text;b.onclick=()=>{state.page+=step;render();if(wrap!==table)wrap.scrollTop=0;};return b;};
+ const state={page:0};
+ const previous=button('Previous 25 rows',-1),next=button('Next 25 rows',1);
+ bar.append(previous,status,next);
+ const dataRows=()=>lookBodyRows(table).filter(row=>!lookIsStateRow(row));
+ const render=()=>{
+  const all=dataRows(),pages=Math.max(1,Math.ceil(all.length/PAGE_TABLE_PAGE_ROWS));
+  state.page=Math.max(0,Math.min(state.page,pages-1));
+  const start=state.page*PAGE_TABLE_PAGE_ROWS,end=Math.min(start+PAGE_TABLE_PAGE_ROWS,all.length);
+  all.forEach((row,index)=>row.classList.toggle('table-row-paged',index<start||index>=end));
+  status.textContent='Showing rows '+pageCount(all.length?start+1:0)+'–'+pageCount(end)+' of '+pageCount(all.length);
+  previous.disabled=state.page===0;next.disabled=end>=all.length;
+ };
+ table.__pageRows=render;
+ table.__pageShowRow=row=>{const index=dataRows().indexOf(row);if(index>=0){state.page=Math.floor(index/PAGE_TABLE_PAGE_ROWS);render();}};
+ // Sorting reorders every row of the table; the current 25 are then taken again.
+ table.addEventListener('click',event=>{if(event.target?.closest?.('.th-sort'))setTimeout(render,0);});
+ wrap.insertAdjacentElement('afterend',bar);
+ render();
+ return true;
+}
+// The kind of a block: the column headings of every table in it, in order, or the
+// kind a renderer states (data-table-kind) for tables that list the same records.
+function pageTableKind(table){
+ const stated=table.closest('[data-table-kind]');
+ if(stated)return 'kind:'+stated.getAttribute('data-table-kind');
+ const header=lookHeaderRow(table);
+ return header?Array.from(header.cells).map(cell=>lookCellText(cell).toLowerCase()).join('|'):'';
+}
+function pageBlockKind(node){
+ if(!node.querySelectorAll||node.matches('table,.table-wrap,.page-kind-pick,[data-table-pager]'))return '';
+ const tables=Array.from(node.querySelectorAll('table'));
+ if(!tables.length)return '';
+ const kinds=tables.map(pageTableKind);
+ return kinds.some(kind=>!kind)?'':kinds.join('||');
+}
+// A block's own name: its summary line, or its first heading or bold lead.
+function pageKindTitle(node){
+ const line=text=>String(text||'').split('\n').map(s=>s.trim()).find(Boolean)||'';
+ if(node.tagName==='DETAILS'){
+  // A summary line and its note ("4 available measures") are said as two parts.
+  const summary=node.querySelector(':scope>summary');if(!summary)return '';
+  const parts=Array.from(summary.childNodes).map(child=>line(child.textContent)).filter(Boolean);
+  return pageShortTitle(parts.join(' · '));
+ }
+ const head=node.querySelector('h1,h2,h3,h4,h5,summary,b,strong');
+ return head?pageShortTitle(line(head.textContent)):'';
+}
+// A short note between two blocks of the same kind (no table, section or control)
+// stays where it is and does not separate them.
+function pageShortNote(node){
+ return !node.matches('details')&&!node.querySelector('details,table,select,button,input')&&String(node.textContent||'').trim().length<=400;
+}
+// Up to 6 blocks are offered as buttons, so every block's name and count stays on
+// the screen; more than 6 share one list. A renderer can name the block shown
+// first (data-kind-first), for example the complete list before a filtered one.
+const PAGE_KIND_BUTTONS=6;
+function pageJoinRun(members){
+ const titles=members.map(pageKindTitle);
+ // Only blocks that each say what they are can be offered by name.
+ if(titles.some(title=>!title))return false;
+ const labels=titles.map((title,index)=>titles.indexOf(title)!==titles.lastIndexOf(title)?title+' ('+(index+1)+')':title);
+ const pick=document.createElement('div');pick.className='page-kind-pick';pick.setAttribute('data-page-kind-pick','');
+ const lead=document.createElement('b');lead.textContent='Show';pick.appendChild(lead);
+ let select=null;const buttons=[];
+ if(members.length<=PAGE_KIND_BUTTONS){
+  pick.setAttribute('role','group');pick.setAttribute('aria-label','Show one of '+pageCount(members.length));
+  labels.forEach((text,index)=>{const button=document.createElement('button');button.type='button';button.className='page-kind-option';button.textContent=text;button.onclick=()=>show(index);buttons.push(button);pick.appendChild(button);});
+ }else{
+  select=document.createElement('select');select.setAttribute('data-page-kind','');select.setAttribute('aria-label','Show one of '+pageCount(members.length));
+  labels.forEach((text,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=text;select.appendChild(option);});
+  select.addEventListener('change',()=>show(Number(select.value)));
+  pick.appendChild(select);
+  const note=document.createElement('span');note.textContent=pageCount(members.length)+' of the same kind';pick.appendChild(note);
+ }
+ members[0].parentNode.insertBefore(pick,members[0]);
+ function show(index){
+  members.forEach((node,i)=>node.classList.toggle('page-kind-hidden',i!==index));
+  const chosen=members[index];if(chosen.tagName==='DETAILS'&&!chosen.open&&!pageLoadsOnOpen(chosen))chosen.open=true;
+  if(select)select.value=String(index);
+  buttons.forEach((button,i)=>button.setAttribute('aria-pressed',i===index?'true':'false'));
+ }
+ members.forEach((node,index)=>{node.__pageKindShow=()=>show(index);});
+ show(Math.max(0,members.findIndex(node=>node.hasAttribute('data-kind-first'))));
+ return true;
+}
+function pageJoinSameKind(root){
+ let joined=0;
+ const visit=parent=>{
+  const children=Array.from(parent.children).filter(child=>!['STYLE','SCRIPT','TEMPLATE','LINK'].includes(child.tagName));
+  let run=[],kind='',notes=0;
+  const flush=()=>{if(run.length>1&&pageJoinRun(run))joined++;run=[];kind='';notes=0;};
+  for(const child of children){
+   if(child.__pageKindShow||child.matches('[data-page-kind-pick]')){flush();continue;}
+   const own=pageBlockKind(child);
+   // A line with no text between two blocks does not separate them.
+   if(!own&&!String(child.textContent||'').trim())continue;
+   if(own&&own===kind){run.push(child);notes=0;continue;}
+   if(!own&&run.length&&!notes&&pageShortNote(child)){notes=1;continue;}
+   flush();
+   if(own){run=[child];kind=own;}
+  }
+  flush();
+  for(const child of children)if(child.children.length&&!child.matches('table'))visit(child);
+ };
+ visit(root);
+ return joined;
+}
+function compactPageDetail(container){
+ if(!container?.querySelectorAll||typeof document==='undefined'||typeof document.createElement!=='function')return null;
+ const roots=Array.from(container.querySelectorAll('.page-detail-group'));
+ for(const section of Array.from(container.querySelectorAll('details')))if(!section.open&&!section.closest('.page-detail-group')&&!roots.some(root=>root.contains(section)))roots.push(section);
+ let joined=0,paged=0;
+ for(const root of roots)joined+=pageJoinSameKind(root);
+ for(const table of Array.from(container.querySelectorAll('table')))if(pageTablePager(table))paged++;
+ return {joined,paged};
+}
+// A link to a block inside More detail opens the group that holds it, chooses the
+// block when it shares a selector, and turns its table to the row's 25.
 function openPageDetailFor(node){
- for(let parent=node;parent;parent=parent.parentElement)if(parent.tagName==='DETAILS'&&!parent.open)parent.open=true;
+ for(let parent=node;parent;parent=parent.parentElement){
+  if(parent.__pageKindShow&&parent.classList.contains('page-kind-hidden'))parent.__pageKindShow();
+  if(parent.tagName==='TR'&&parent.classList.contains('table-row-paged'))parent.closest('table')?.__pageShowRow?.(parent);
+  if(parent.tagName==='DETAILS'&&!parent.open)parent.open=true;
+ }
 }
 `;

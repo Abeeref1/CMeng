@@ -156,6 +156,8 @@ function deliveryDetailNode(label,value,pointer=null){
  const info=Array.isArray(value)&&pointer?deliveryResponsePaging?.tables?.find(row=>row.kind==='array'&&row.pointer===pointer):null;
   const server=info?{source:deliveryResponsePaging.source,pointer,total:info.total,matched:info.total,
     version:deliveryResponsePaging.projectVersion,request:0,timer:null}:null;
+  // L3: an empty set says so on its line; there is nothing to open, search or page.
+  if(Array.isArray(value)&&!value.length&&!(server?.total>0))return '<span class="delivery-none">None in this set.</span>';
   const id='deliveryEvidence'+(++deliveryDetailSequence);
   deliveryDetailViews[id]={value,page:0,query:'',pointer,server,projectId:typeof project==='function'?project():null};
  return '<details data-delivery-lazy="'+id+'"><summary>'+escapeHtml(label)+(Array.isArray(value)?' · '+deliveryText(server?.total??value.length)+((server?.total??value.length)===1?' item':' items'):'')+'</summary><div data-delivery-detail-content="'+id+'"></div></details>';
