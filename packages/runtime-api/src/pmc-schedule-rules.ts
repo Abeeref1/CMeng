@@ -201,10 +201,12 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
    nearCriticalThresholdHours:workingDayRule?null:config.nearCriticalFloatThresholdHours,
    nearCriticalHoursByCalendar:nearHoursByCalendar,thresholdMethod:rule!.thresholdMethod,thresholdSource:thresholdLabel(rule!.thresholdMethod),
    headlineFloatBasis:rule!.headlineFloatBasis,
-   critical:'critical = total float <= '+config.criticalFloatThresholdHours+' h on the CMeng CPM',
-   nearCritical:'near-critical = total float > '+config.criticalFloatThresholdHours+' h and <= '+(workingDayRule
-    ?config.nearCriticalWorkingDays+' working days of each activity calendar ('+(nearHoursByCalendar.map(c=>(c.calendarId??'no calendar')+': '+(c.hours===null?'not established':c.hours+' h')).join('; ')||'no remaining activity')+')'
-    :config.nearCriticalFloatThresholdHours+' h')+' ('+thresholdLabel(rule!.thresholdMethod)+')',
+   // N7: the screen text gives float in working days with the day type, never hours;
+   // the hour thresholds stay in the stored fields above.
+   critical:'critical = total float of '+(config.criticalFloatThresholdHours===0?'0 working days or less':'the critical threshold of the project schedule control basis or less')+' on the CMeng CPM',
+   nearCritical:'near-critical = more than '+(config.criticalFloatThresholdHours===0?'0':'the critical threshold')+' and up to '+(workingDayRule
+    ?config.nearCriticalWorkingDays+' working days of each activity calendar'
+    :'the near-critical threshold of the project schedule control basis, in working days of each activity calendar')+' ('+thresholdLabel(rule!.thresholdMethod)+')',
    formula:PROGRAMME_QUALITY_FORMULAS.criticality}
   :{state:'not_established' as const,reason:'The project criticality rule was not supplied to this calculation.',formula:PROGRAMME_QUALITY_FORMULAS.criticality};
  const floatErosion=programmeFloatErosion(model,remaining,network?{driving:new Set(network.activityIds),floats:forecast?.activities??null,completionIso:forecast!.independentForecastCompletionIso!}:null,
