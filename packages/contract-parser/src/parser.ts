@@ -146,3 +146,21 @@ export async function parseContractText(
   result.text = text;
   return result;
 }
+
+/** The same text contract reading without the optional AI heading step, as one
+ * synchronous call: used to read a stored text contract again from its
+ * unchanged source bytes. It gives the same result as parseContractText
+ * without an AI resolver. */
+export function readContractText(
+  bytes: Uint8Array,
+  format: ContractTextSource["format"] = "plain",
+): ContractDocumentResult {
+  const text = parseContractTextSource(bytes, format);
+  const result = segmentContractTextBlocks(contractBlocksFromText(text), {
+    sourceType: "text",
+    physicalComplete: text.complete,
+    sourceDiagnostics: [...text.diagnostics],
+  });
+  result.text = text;
+  return result;
+}

@@ -296,6 +296,12 @@ export interface StoredEvidenceDocument {
   uploadedAt: string;
   authority: "candidate_only";
   parserState: EvidenceParserState;
+  /** R3: the source was read in full, but its structure (contract clause
+   * numbering) needs review. parserState says only what was read. */
+  structureReview?: {sourceHashSha256:string;note:string} | null;
+  /** Receipt of the start-up refresh that applied the whole-source reading
+   * rule to a stored document; the earlier state is kept. */
+  readingStateRefresh?: {producerVersion:string;sourceHashSha256:string;refreshedAt:string;previousParserState:EvidenceParserState;contractTextRead:boolean};
   storedPath: string;
   linkedArtifactId: string | null;
   scheduleRole: StoredScheduleRevision["role"] | null;

@@ -2,6 +2,8 @@ import {prepareBoqPageReview,boqPageReview,type BoqPageReviewInput} from './boq-
 import {hasSourceDocumentIdentity} from './evidence-control';
 import {prepareBoqNumericReview,boqNumericReview,type BoqNumericReviewInput} from './boq-numeric-review';
 import {refreshStoredXerCalendars,XER_CALENDAR_READER_VERSION,P6XML_CALENDAR_READER_VERSION} from './refresh-xer-calendars';
+import {contractReadingState,contractRoleForDocumentType,contractTextFormat,referenceTextMedia,wholeTextRead} from './reading-state';
+import {refreshStoredReadingStates} from './refresh-reading-state';
 import {restoreSourcePaths} from './restore-source-paths';
 import {refreshTabularScheduleDates,TABULAR_DATE_READER_VERSION} from './schedule-date-refresh';
 import {isDeepStrictEqual} from 'node:util';
@@ -105,6 +107,7 @@ import type {
   ProjectRuntimeState,
   ScheduleUploadFormat,
   ScheduleUploadSummary,
+  StoredContractDocument,
   StoredEvidenceDocument,
   StoredScheduleRevision,
 } from "./project-state-types";
@@ -419,21 +422,6 @@ function normalizedFilename(
     filename ??
     ""
   ).trim().toLowerCase();
-}
-
-/** A plain-text or Markdown source. The media type decides; the file name only
- * tells Markdown from plain text, or names an untyped upload. CSV, XER, XML and
- * every other typed content keep their own readers. */
-function contractTextFormat(
-  mediaType: string,
-  filename: string,
-): "plain" | "markdown" | null {
-  const media = mediaType.toLowerCase().trim();
-  const untyped = media === "" || media.startsWith("application/octet-stream");
-  if (/^text\/(?:x-)?markdown\b/.test(media)) return "markdown";
-  if (!untyped && !/^text\/plain\b/.test(media)) return null;
-  if (/\.(?:md|markdown)$/.test(filename)) return "markdown";
-  return untyped && !/\.txt$/.test(filename) ? null : "plain";
 }
 
 function startsWith(
@@ -1533,6 +1521,9 @@ export class RuntimeProjectStore {
         const contentBeforeMigration=projectContentFingerprint(state);
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
+        // R3: stored documents get the shared whole-source reading state once.
+        const readingRefresh=refreshStoredReadingStates(state);
+        if(readingRefresh.contractsRead.length)this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
         let controlBasisMigrated = false;
         const priorSourceIntegrationVersion =
           state.sourceIntegrationVersion;
@@ -1716,7 +1707,7 @@ export class RuntimeProjectStore {
             : false;
 
         if (
-          calendarReadRefreshed || scheduleAuthorityMigrated || migrated ||
+          calendarReadRefreshed || readingRefresh.changed || scheduleAuthorityMigrated || migrated ||
           controlBasisMigrated ||
           scheduleRoleMigrated ||
           activeBoqMigrated ||
@@ -5073,19 +5064,7 @@ export class RuntimeProjectStore {
       )
     ) {
       const role =
-        documentType ===
-        "main_contract"
-          ? "main"
-          : documentType ===
-              "contract_amendment"
-            ? "amendment"
-            : documentType ===
-                "contract_appendix"
-              ? "appendix"
-              : documentType ===
-                  "contract_replacement"
-                ? "replacement"
-                : "other";
+        contractRoleForDocumentType(documentType);
       await this.ingestContract({
         projectId:
           input.projectId,
@@ -5370,6 +5349,16 @@ export class RuntimeProjectStore {
         sourceFilename:
           input.sourceFilename,
       });
+    // R3: a reference text file (kept for reference: no register rows, no
+    // numeric or contractual authority) is read completely when every byte
+    // decodes. A type review stays on its identification, not on this state.
+    const referenceTextRead =
+      !deferFullOcr &&
+      identification.method !== "unreadable" &&
+      family.behavior === "reference" &&
+      referenceTextMedia(media)
+        ? wholeTextRead(input.bytes)
+        : null;
     const parserState =
       deferFullOcr
         ? "ocr_pending" as const
@@ -5377,6 +5366,10 @@ export class RuntimeProjectStore {
             .method ===
           "unreadable"
           ? "error" as const
+          : referenceTextRead !== null
+            ? referenceTextRead
+              ? "parsed" as const
+              : "partial" as const
           : identification
               .needsReview
             ? "partial" as const
@@ -5533,6 +5526,80 @@ export class RuntimeProjectStore {
         ),
       diagnostics,
     };
+  }
+
+  /** The contract basis after a contract reading: the active base, else the
+   * earliest main contract, else the document just read; with its additive
+   * amendments and the contract time basis. Shared by the upload and the
+   * start-up reading refresh. Reading never adopts a contract or its terms. */
+  private selectContractBasis(state:ProjectRuntimeState,fallback:StoredContractDocument){
+      const activeBaseId =
+        state.activeEvidenceBasis[
+          "contract:base"
+        ]?.activeDocumentId ??
+        null;
+      const base =
+        (
+          activeBaseId
+            ? state.contractDocuments.find(
+                (item) =>
+                  item.documentId ===
+                  activeBaseId,
+              ) ?? null
+            : null
+        ) ??
+        [...state.contractDocuments]
+          .filter(
+            (item) =>
+              item.role === "main" &&
+              item.lineage.effect !==
+                "full_replacement",
+          )
+          .sort((a, b) =>
+            a.uploadedAt.localeCompare(
+              b.uploadedAt,
+            ),
+          )
+          .at(0) ??
+        fallback;
+
+      state.contract =
+        base.result;
+
+      const amendments =
+        state.contractDocuments
+          .filter(
+            (item) => {
+              if (
+                item.role !==
+                "amendment"
+              ) return false;
+              const evidence =
+                state.evidenceDocuments.find(
+                  (document) =>
+                    document.documentId ===
+                    item.documentId,
+                );
+              return (
+                evidence?.basisState ===
+                "additive"
+              );
+            },
+          )
+          .map(
+            (item) => item.result,
+          );
+
+      state.contractFamily =
+        linkContractFamily(
+          base.result,
+          amendments,
+        );
+      promoteContractTimeBasis(
+        state,
+      );
+
+      this.refreshContractFamily(state);
   }
 
   private refreshContractFamily(state:ProjectRuntimeState){
@@ -6510,6 +6577,8 @@ export class RuntimeProjectStore {
           input.sourceFilename ??
           "contract",
       });
+    const contractReading =
+      contractReadingState(parsed,hash);
     const document:
       StoredEvidenceDocument = {
       documentId,
@@ -6532,10 +6601,13 @@ export class RuntimeProjectStore {
         storedContract.uploadedAt,
       authority:
         "candidate_only",
+      // R3: read completely when every page / paragraph / byte was read; a
+      // missing clause structure is a separate review note, never 'partial'.
       parserState:
-        parsed.complete
-          ? "parsed"
-          : "partial",
+        contractReading.parserState,
+      ...(contractReading.structureReview
+        ? {structureReview:contractReading.structureReview}
+        : {}),
       storedPath,
       linkedArtifactId:
         documentId,
@@ -6572,73 +6644,7 @@ export class RuntimeProjectStore {
       uploadIntent,
     );
 
-    const activeBaseId =
-      state.activeEvidenceBasis[
-        "contract:base"
-      ]?.activeDocumentId ??
-      null;
-    const base =
-      (
-        activeBaseId
-          ? state.contractDocuments.find(
-              (item) =>
-                item.documentId ===
-                activeBaseId,
-            ) ?? null
-          : null
-      ) ??
-      [...state.contractDocuments]
-        .filter(
-          (item) =>
-            item.role === "main" &&
-            item.lineage.effect !==
-              "full_replacement",
-        )
-        .sort((a, b) =>
-          a.uploadedAt.localeCompare(
-            b.uploadedAt,
-          ),
-        )
-        .at(0) ??
-      storedContract;
-
-    state.contract =
-      base.result;
-
-    const amendments =
-      state.contractDocuments
-        .filter(
-          (item) => {
-            if (
-              item.role !==
-              "amendment"
-            ) return false;
-            const evidence =
-              state.evidenceDocuments.find(
-                (document) =>
-                  document.documentId ===
-                  item.documentId,
-              );
-            return (
-              evidence?.basisState ===
-              "additive"
-            );
-          },
-        )
-        .map(
-          (item) => item.result,
-        );
-
-    state.contractFamily =
-      linkContractFamily(
-        base.result,
-        amendments,
-      );
-    promoteContractTimeBasis(
-      state,
-    );
-
-    this.refreshContractFamily(state);
+    this.selectContractBasis(state,storedContract);
     document.diagnostics = [
       ...document.diagnostics,
       ...(

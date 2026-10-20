@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {parsePdfDocument,legiblePdfPageEvidence,type PdfDocumentResult,type OcrProvider} from '../../pdf-document-parser/src';
+import {parseContractTextSource,type ContractTextSource} from '../../contract-parser/src';
 import {sourceTables,sourceTitleSheet,type SourceTable} from '../../truth-kernel/src';
 import {countText} from './count-text';
 import type {ProjectRuntimeState,StoredEvidenceDocument} from './project-state-types';
@@ -27,6 +28,15 @@ function physicalPdfCoverage(pdf:PdfDocumentResult){
     native===pdf.nativePages&&ocr===pdf.ocrPages&&blank===pdf.blankPages&&failed===pdf.failedPages&&
     failed===0&&pdf.unresolvedPages===0;
   return {unreadableNative,readPages,complete};
+}
+
+/** What part of a text file was not read: bytes that do not decode, and NUL characters. */
+function unreadText(text:ContractTextSource){
+  const nul=Number(text.diagnostics.find(code=>code.startsWith('CONTRACT_TEXT_NUL_CHARACTERS:'))?.split(':')[1]??0);
+  const undecoded=text.unreadableCharacterCount-nul;
+  const unread=[undecoded?countText(undecoded,'byte sequence')+' that '+(undecoded===1?'does':'do')+' not decode as '+text.encoding.toUpperCase():'',
+    nul?countText(nul,'NUL character')+' (binary content or a wrong text encoding)':''].filter(Boolean).join(' and ');
+  return `${text.characterCount-text.unreadableCharacterCount} of ${countText(text.characterCount,'character')} read. Not read: ${unread}.`;
 }
 
 /** Upload classification, physical reading and adoption are different facts. */
@@ -60,17 +70,12 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
   const contract=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result;
   const text=contract?.text;
   if(contract&&text){
-    const complete=text.complete,read=text.characterCount-text.unreadableCharacterCount;
-    const nul=Number(text.diagnostics.find(code=>code.startsWith('CONTRACT_TEXT_NUL_CHARACTERS:'))?.split(':')[1]??0);
-    const undecoded=text.unreadableCharacterCount-nul;
-    const unread=[undecoded?countText(undecoded,'byte sequence')+' that '+(undecoded===1?'does':'do')+' not decode as '+text.encoding.toUpperCase():'',
-      nul?countText(nul,'NUL character')+' (binary content or a wrong text encoding)':''].filter(Boolean).join(' and ');
-    const structure=contract.clauses.length===0?' No numbered clauses were found, so the clause structure needs review.':
-      contract.semanticComplete?'':' The clause structure needs review.';
+    const complete=text.complete;
+    // R3: the reading record says what was read. A missing clause structure is
+    // a review note on the contract terms (structureReview), not an unread part.
     return {state:complete?'read':'partial',label:complete?'All text read':'Text needs review',
-      note:(complete?`${countText(text.characterCount,'character')} read: the whole text.`:
-        `${read} of ${countText(text.characterCount,'character')} read. Not read: ${unread}. The unread part needs review.`)+
-        structure+' Reading does not confirm structured facts, compliance or adoption.',
+      note:(complete?`${countText(text.characterCount,'character')} read: the whole text.`:unreadText(text)+' The unread part needs review.')+
+        ' Reading does not confirm structured facts, compliance or adoption.',
       method:'Text',pageCount:null,readPageCount:null,complete};
   }
   const receipt=document.correspondenceNarrativeRefresh;
@@ -130,8 +135,10 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
     try{
       const bytes=readFileSync(document.storedPath);
       if(createHash('sha256').update(bytes).digest('hex')!==hash)throw new Error('SOURCE_HASH_MISMATCH');
-      const text=bytes.toString(bytes[0]===0xff&&bytes[1]===0xfe?'utf16le':'utf8');
-      return {state:'read',label:'Reference text read',note:`${text.length} characters read from the matching source file. Reference reading does not establish numeric or contractual authority.`,method:'Text',pageCount:null,readPageCount:null,complete:true};
+      // The shared text decoder: complete only when every byte decodes.
+      const read=parseContractTextSource(bytes);
+      if(!read.complete)return {state:'partial',label:'Reference text needs review',note:unreadText(read)+' Reference reading does not establish numeric or contractual authority.',method:'Text',pageCount:null,readPageCount:null,complete:false};
+      return {state:'read',label:'Reference text read',note:`${countText(read.characterCount,'character')} read from the matching source file. Reference reading does not establish numeric or contractual authority.`,method:'Text',pageCount:null,readPageCount:null,complete:true};
     }catch{return {state:'unresolved',label:'Reference reading unresolved',note:'The stored source could not be read and matched to its recorded hash.',method:'Text',pageCount:null,readPageCount:null,complete:false};}
   }
   return {state:document.parserState,label:null,note:null,method:null,pageCount:document.identification?.pageCount??null,readPageCount:null,complete:false};
