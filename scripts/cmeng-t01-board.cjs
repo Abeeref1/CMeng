@@ -129,12 +129,23 @@ for(const f of ledger.f){
   f.boardStatus=boardStatusFor(repair,f.verificationMethod.namedTests);
 }
 // 3. S-items: only the IDs are in the plan; definitions are not in the repository.
+// S ids appear in commit subjects as Snn or S-nn. Every commit on this branch
+// whose subject names an S row either way must be linked, or the board stops.
+const branchSubjects=git('log','--format=%H %s','HEAD').split('\n').map(l=>[l.slice(0,8),l.slice(41)]);
+for(const s of ledger.s){
+  const re=new RegExp('\\bS-?'+s.id.slice(1)+'\\b');
+  const own=new Set((s.implementation.sourceCommits??[]).map(x=>x.slice(0,8)));
+  const missed=branchSubjects.filter(([sha,subject])=>re.test(subject)&&!own.has(sha)).map(([sha])=>sha);
+  if(missed.length)throw new Error(s.id+': commits naming it (with or without the hyphen) are not linked: '+missed.join(', '));
+}
 for(const s of ledger.s){
   const own=s.implementation.sourceCommits??[];
+  const def=links.s?.[s.id]?.definitionFromCommitSubjects;
   s.repairReference=own.length?repairFromCommits(own,['T01']):{state:'none_yet',commits:[],plannedTasks:['T01'],liveState:'no_repair'};
+  if(def)s.definitionFromCommitSubjects=def;
   s.repairReference.note=own.length
-    ?'Linked because the commit subject names this S-item. The S-item definition is not in the repository, so coverage cannot be judged.'
-    :'S-item definition not found in the repository and no commit names it; repair cannot be linked until the definition is supplied.';
+    ?'Linked because commit subjects name this S-item (as '+s.id+' or S-'+s.id.slice(1)+').'+(def?' Definition as read from the commit subjects, not the original S-item text: '+def:'')+' The original S-item text is not in the repository, so coverage against it cannot be judged.'
+    :'S-item definition not found in the repository and no commit names it (searched as '+s.id+' and S-'+s.id.slice(1)+'); repair cannot be linked until the definition is supplied.';
   s.verificationMethod={kinds:['expert_review'],guardRules:[],tools:[],namedTests:[...(s.implementation.regressionFiles??[])],
     detail:'Verifier review against the original S-item definition once supplied.'};
   s.boardStatus=boardStatusFor(s.repairReference,s.verificationMethod.namedTests);

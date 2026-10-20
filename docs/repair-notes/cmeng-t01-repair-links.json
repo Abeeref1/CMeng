@@ -1744,31 +1744,159 @@
     "S02": {
       "commits": [
         "f0450972",
-        "10849379"
+        "10849379",
+        "24518780",
+        "356182b5",
+        "2b81744f",
+        "cb4b2b80",
+        "78b259cb",
+        "9fd46e92",
+        "06186cf5",
+        "00719c98",
+        "ea1ce878",
+        "7cd91c1d",
+        "c9141255",
+        "c553713a",
+        "3ff942b9",
+        "c09ce64e",
+        "fe0264fa",
+        "ce59c048",
+        "56370c94"
       ],
       "tests": [],
-      "what": "Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02.",
-      "notCovered": "Plan of 13 Oct still lists S02 open; Accountability 5 to 18 s at b3c76d6."
+      "what": "Cold Accountability scan reduced and key pages warmed (live). Commit subjects name S02. Round 14: 19 commits on this branch name S02 with or without the hyphen (S-02); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "cold page speed: Accountability, look-ahead and control pages within the unchanged 5-second target; portfolio refresh and worker warming never delay foreground cold views; bounded opt-in multi-project worker lanes."
     },
     "S35": {
       "commits": [
         "63262572",
-        "b21deb6d"
+        "b21deb6d",
+        "92269238",
+        "e8d7b8f4",
+        "1fd7c847",
+        "93f4450d",
+        "9c03bac0",
+        "677938fe",
+        "1a482410",
+        "938003a8",
+        "66a0e33b",
+        "df3ed065",
+        "b592f703",
+        "534a20d9"
       ],
-      "tests": [],
-      "what": "Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35.",
-      "notCovered": "Plan of 13 Oct still lists S35 open."
+      "tests": [
+        "tests/register-contract-reconciliation.test.ts",
+        "tests/shared-decision-closure.test.ts"
+      ],
+      "what": "Contract-value reconciliation exceptions and currency-specific aggregate queries (live). Commit subjects name S35. Round 14: 14 commits on this branch name S35 with or without the hyphen (S-35); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "source register totals compared with the same-currency current contract on qualified scope; every comparison retained and every excess queried; late records tied only to completed work are not current blockers."
     },
     "S45": {
       "commits": [
-        "e2c247ed"
+        "e2c247ed",
+        "683b165f",
+        "36b62750",
+        "46456fe7",
+        "21549b1c",
+        "257ad38a"
       ],
-      "tests": [],
-      "what": "Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50.",
-      "notCovered": "Plan of 13 Oct still lists S45 open."
+      "tests": [
+        "tests/ui-management-experience.test.ts"
+      ],
+      "what": "Shared missing/conflict wording, source references and ISO date text (live). Commit subject names S45 with S40 to S50. Round 14: 6 commits on this branch name S45 with or without the hyphen (S-45); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "reader-facing wording: module keys shown as page names, concise decision tables, one missing-column notice, shared value presenter."
+    },
+    "S06": {
+      "commits": [
+        "eb513d28",
+        "cc2367a4",
+        "fbd2b7b9",
+        "9fd46e92",
+        "9df41bb1",
+        "ad183400",
+        "00719c98",
+        "0c330178"
+      ],
+      "tests": [
+        "tests/project-gateway-preservation.test.ts",
+        "tests/reporting-contract-export.test.ts"
+      ],
+      "what": "Round 14: 8 commits on this branch name S06 with or without the hyphen (S-06); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "stable overview statuses independent of specialist page reads and worker warm order; screen and JSON report read one canonical source-version result."
+    },
+    "S07": {
+      "commits": [
+        "683b165f",
+        "656676fb",
+        "332d23f2",
+        "c09ce64e"
+      ],
+      "tests": [
+        "tests/shared-decision-closure.test.ts"
+      ],
+      "what": "Round 14: 4 commits on this branch name S07 with or without the hyphen (S-07); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "one-home ownership for decision blocks; canonical action register on Accountability, kept project-scoped; concise decision tables."
+    },
+    "S17": {
+      "commits": [
+        "f60855dd",
+        "19019de3",
+        "fbf5a1c9",
+        "dff799e5",
+        "d1a0cb23",
+        "9be9ec85",
+        "07da032b",
+        "7c54954e"
+      ],
+      "tests": [
+        "tests/link-candidate-core.test.ts",
+        "tests/wbs-source-separator-links.test.ts"
+      ],
+      "what": "Round 14: 8 commits on this branch name S17 with or without the hyphen (S-17); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "every BOQ / payment source and ranked target window reviewable without a hidden first-50 or first-20 cap; source WBS codes matched exactly (punctuation-equivalent, unique only) with ambiguity contained."
+    },
+    "S21": {
+      "commits": [
+        "f60855dd",
+        "19019de3",
+        "fbf5a1c9",
+        "dff799e5",
+        "ad7a223b"
+      ],
+      "tests": [
+        "tests/link-candidate-core.test.ts",
+        "tests/link-candidate-runtime.test.ts"
+      ],
+      "what": "Round 14: 5 commits on this branch name S21 with or without the hyphen (S-21); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "every payment / BOQ source and ranked target window reviewable without hidden caps; reviewed payment certificate links feed coverage without changing money."
+    },
+    "S32": {
+      "commits": [
+        "00afd3e7",
+        "096e61ca",
+        "23f15c72",
+        "8760f718",
+        "124f6d71",
+        "582bba38",
+        "13ebce5f",
+        "5c5ac0f8"
+      ],
+      "tests": [
+        "tests/shared-decision-closure.test.ts"
+      ],
+      "what": "Round 14: 8 commits on this branch name S32 with or without the hyphen (S-32); linked with the test files they changed.",
+      "notCovered": "The original S-item text is not in the repository; the definition here is read from the commit subjects only, so coverage against the original cannot be judged.",
+      "definitionFromCommitSubjects": "item certification currency and non-apportionment rules: source-qualified item certification, no cross-currency certification, installed-versus-certified only on explicit BOQ item evidence."
     }
   },
-  "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence.",
+  "idMentionSearch": "Searched every commit subject up to bd851ecc and on v/history1 for SW-nn, Fnn and the 8 S IDs. F01 and F61 appear only in register commits (F01-F61 range), not repairs. Other commits carry task codes (T02 to T11) only and are not linked to an item without evidence. Round 14 correction: S ids were searched only as Snn, so commits naming S-06, S-07, S-17, S-21, S-32 (and more for S-02, S-35, S-45) were missed. The board script now searches commit subjects on this branch with /\\bS-?nn\\b/ and refuses to build when a matching commit is not linked.",
   "round2Search": "Round 2 (v/int2): every commit in 413524f5..v/int2 was read with its body and the test files it changed. Links are made only where the commit names the SW item or its guard rule and a test file names the same case.",
   "countsBeforeRound2": {
     "commit": "b4ce3bf9",
@@ -1785,7 +1913,7 @@
     "SW-37": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
-    "S": "S06, S07, S17, S21 and S32: no commit names them and their definitions are not in the repository.",
+    "S": "Round 14: all 8 S rows are linked to commits whose subjects name them as Snn or S-nn; their definitions are read from those subjects, marked as such. 216fcf7c (S-32) and the other S-nn commits outside this branch are not linked.",
     "F": "Final update (v/int5 at 70b965f5): every F row is linked to a shared fix with a named test; open gaps are under each row's Not covered.",
     "SW-32": "Linked in round 9 (44abafc1, t08-sw32-risk-register-only)."
   },
