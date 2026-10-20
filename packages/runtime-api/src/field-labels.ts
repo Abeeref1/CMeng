@@ -21,6 +21,9 @@ export function readableFieldLabel(key: unknown): string {
   if (!raw) return '';
   // W1: one shared map of people's labels for count and rate fields that the
   // generic key/value views show. Used on screen and in downloads.
+  // A 'known' count covers the records read so far ('found'). Plain two-word
+  // keys ('openCount', 'closedCount') keep the shared fallback ('Open count'):
+  // they are used for records, activities and actions alike.
   const fieldLabels: Record<string, string> = {
     reviewPeriodCalendarDays: 'Review period (calendar days)',
     reviewPeriodKnownCount: 'Records with a review period',
@@ -29,7 +32,6 @@ export function readableFieldLabel(key: unknown): string {
     knownRecordCount: 'Records with a known status',
     unknownOutcomeCount: 'Outcome not recorded',
     unknownStatusCount: 'Status not recorded',
-    knownOverdueCount: 'Overdue records',
     // W8/W2: state codes whose plain split would read as jargon. Data values are unchanged.
     not_derivable: 'Cannot be worked out from the current records',
     session_identity_unverified: 'Name not recorded',
@@ -44,6 +46,51 @@ export function readableFieldLabel(key: unknown): string {
     mixed_with_elapsed_fallback: 'Partly elapsed time (no working calendar)',
     date_arithmetic_fallback: 'Date arithmetic (no working calendar)',
     metadata_fallback: 'Identified from file details',
+    knownCurrentCount: 'Current records found',
+    knownCurrentRecordCount: 'Current records found',
+    currentRecordCount: 'Current records',
+    knownOpenCount: 'Open records found',
+    knownOverdueCount: 'Overdue records found',
+    futureRecordCount: 'Records dated after the Data Date',
+    afterDataDateCount: 'Records dated after the Data Date',
+    undatedRecordCount: 'Undated records',
+    undatedStatusCounts: 'Undated records by status',
+    knownOutcomeCount: 'Records with an outcome',
+    knownPassedCount: 'Passed records found',
+    knownFailedCount: 'Failed records found',
+    sourceRecordCount: 'Source records',
+    sourceRecordIds: 'Source record list',
+    evidenceRecordCount: 'Records with evidence',
+    evidenceCoveragePercent: 'Records with evidence %',
+    unknownCostRecordIds: 'Records without a known cost',
+    includedRecordIds: 'Records included',
+    excludedRecordIds: 'Records excluded',
+    sourceDateConflictCount: 'Conflicting source dates',
+    sourceDateConflictRecordIds: 'Records with conflicting source dates',
+    dueAfterDataDateCount: 'Due after the Data Date',
+    statusDateMissingCount: 'Status date missing',
+    missingProbabilityCount: 'Probability missing',
+    missingImpactCount: 'Impact missing',
+    missingDatePolicy: 'Rule for missing dates',
+    ratingInconsistencyGroups: 'Rating mismatches',
+    scoreConflictRows: 'Score conflicts',
+    sourceAnalyticalOnly: 'Source used for analysis only',
+    sourceFactKey: 'Source fact',
+    sourceRevisionId: 'Source revision',
+    revisionId: 'Revision',
+    reviewIntervalDays: 'Review interval (days)',
+    scopeId: 'Reporting scope',
+    populationId: 'Record group',
+    populationState: 'Record group status',
+    procurementPackageIds: 'Procurement packages',
+    programmeActivityIds: 'Programme activities',
+    workfrontIds: 'Workfronts',
+    locationIds: 'Locations',
+    packageIds: 'Packages',
+    itemIds: 'Item references',
+    unmappedItemIds: 'Items not linked',
+    sourceNumericReadings: 'Numbers read from the source',
+    quantityTrackingEstablished: 'Quantity tracking set up',
   };
   if (Object.prototype.hasOwnProperty.call(fieldLabels, raw)) return fieldLabels[raw] as string;
   // Field-name shapes. Every segment starts with a letter, so IDs such as

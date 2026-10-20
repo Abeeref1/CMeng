@@ -698,12 +698,14 @@ const fmtExecutive=v=>{
   if(v===null||v===undefined)return"Not established";
   if(typeof v!=="number"||!Number.isFinite(v))return String(v);
   const a=Math.abs(v);
-  if(a>=1000000000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v/1000000000)+"B";
-  if(a>=1000000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(v/1000000)+"M";
-  if(a>=1000)return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(v/1000)+"k";
-  if(a>=100)return new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(v);
-  if(a>=10)return new Intl.NumberFormat(undefined,{maximumFractionDigits:1}).format(v);
-  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(Number(v.toFixed(6)));
+  if(a>=1000000000)return new Intl.NumberFormat("en-US",{maximumFractionDigits:2}).format(v/1000000000)+"B";
+  if(a>=1000000)return new Intl.NumberFormat("en-US",{maximumFractionDigits:2}).format(v/1000000)+"M";
+  // N6: below one million the full amount is shown with thousands separators ('524,494'), never
+  // a short form ('524.5k') that drops the figure people check against the source. One number
+  // style (en-US, as the shared managementNumber) for every executive figure.
+  if(a>=100)return new Intl.NumberFormat("en-US",{maximumFractionDigits:0}).format(v);
+  if(a>=10)return new Intl.NumberFormat("en-US",{maximumFractionDigits:1}).format(v);
+  return new Intl.NumberFormat("en-US",{maximumFractionDigits:2}).format(Number(v.toFixed(6)));
 };
 // Management-level elapsed calendar days do not show misleading quarter-day
 // precision. Engineering tables retain their full numeric working-day bases.
@@ -2663,8 +2665,16 @@ function renderProgrammeQuality(q){
  const criticalityHtml=definition?'<p><b>Criticality definition:</b> '+(definition.state==='stated'?escapeHtml(definition.critical+'; '+definition.nearCritical+'.')+' Headline critical and near-critical counts use '+escapeHtml(definition.headlineFloatBasis==='independent_cpm'?'the CMeng CPM float.':definition.headlineFloatBasis==='source_total_float'?'the submitted programme float, because the CMeng CPM is not reconciled with it.':'no established float basis.'):'not established. '+escapeHtml(definition.reason||''))+'</p>':'';
  const erosion=q.floatErosion||null;
  const erosionHtml=erosion?'<p><b>Float erosion</b> (CMeng CPM total float, previous to current revision): '+(erosion.state==='calculated'?escapeHtml(planningShortDate(erosion.previousDataDateIso))+' to '+escapeHtml(planningShortDate(erosion.currentDataDateIso))+': '+fmt(erosion.matchedCount)+' of '+fmt(erosion.populationCount)+' near-critical and driving activities compared; '+fmt(erosion.erodingCount)+' losing float; average change '+fmt(erosion.averageFloatChangePerElapsedWorkingDay)+' '+escapeHtml(erosion.unit)+'. Turns critical by: '+(erosion.earliestTurnsCritical?escapeHtml(planningShortDate(erosion.earliestTurnsCritical.dateIso))+' ('+escapeHtml(erosion.earliestTurnsCritical.activityId)+')':'no activity reaches zero float before the CMeng CPM completion at its current rate')+'.':'not established. '+escapeHtml(erosion.reason||''))+'</p>':'';
- const rows=q.checks.map(c=>'<tr><td>'+escapeHtml(c.label)+'</td><td>'+fmt(c.count)+' / '+fmt(c.population)+'</td><td>'+escapeHtml(c.basis)+'</td><td><details><summary>Affected activities</summary>'+escapeHtml(c.activityIds.join(', ')||'None among the checked activities')+'</details></td></tr>').join('');
- return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['Baseline Execution Index (BEI)',q.bei.value,'Tasks completed by the Data Date / tasks baselined to finish by the Data Date'],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Independent CPLI',q.independentCpli?q.independentCpli.value:null,'Independent CPM driving path to the required date'],['Positive lags',experienceRecordCount(q.positiveLags),'relationships'],['Leads',experienceRecordCount(q.negativeLags),'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+(q.drivingChain?'<p>Driving chain to completion (independent CPM): '+(q.drivingChain.state==='calculated'?fmt(q.drivingChain.activityCount)+' activities to '+escapeHtml(planningShortDate(q.drivingChain.completionIso))+'.</p><details><summary>Driving chain activities</summary><p>'+escapeHtml(q.drivingChain.activityIds.join(' > '))+'</p></details>':'not established. '+escapeHtml(q.drivingChain.reason||'')+'</p>'):'')+programmeStageHtml+criticalityHtml+erosionHtml+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / checked</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+(q.bei.formula?escapeHtml(q.bei.formula)+'. ':'')+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; baselined to finish by the Data Date '+fmt(q.bei.planned)+'.'+(q.bei.value==null&&q.bei.reason?' Not established: '+escapeHtml(q.bei.reason):'')+'</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+(q.cpli.totalFloatWorkingHours==null?'not established':fmt(q.cpli.totalFloatWorkingHours)+' h (working days need the critical-path calendar)')+'.</p>'+(q.independentCpli?'<p>'+escapeHtml(q.independentCpli.formula)+'. '+escapeHtml(q.independentCpli.basis)+'</p>':'')+(q.formulas?'<p>Check formulas: '+escapeHtml(Object.keys(q.formulas).map(function(k){return k+': '+q.formulas[k];}).join('; '))+'</p>':'')+'</details></div></section>';
+ // W7: affected activities are a count with an expandable list (one entry per activity), never one long
+ // line of IDs. The count is the check's own count; a shorter list says it is the first part.
+ const affectedList=c=>{const ids=Array.isArray(c.activityIds)?c.activityIds:[];if(!ids.length)return 'None among the checked activities';
+  const total=typeof c.count==='number'&&Number.isFinite(c.count)?Math.max(c.count,ids.length):null;
+  return '<details class="reader-id-list"><summary>Affected activities · '+(total===null?'first '+fmt(ids.length)+' listed; total not established':ids.length<total?'first '+fmt(ids.length)+' of '+fmt(total):fmt(total))+'</summary><ul class="reader-id-items">'+ids.map(id=>'<li>'+escapeHtml(id)+'</li>').join('')+'</ul></details>';};
+ // W1: each formula is listed under its check's name, never under its field key ('missed_tasks').
+ const formulaNames={leads:'Leads (negative lag)',lags:'Lags (positive lag)',sf_links:'Start-to-finish links',bei:'Baseline Execution Index (BEI)',submitted_cpli:'Submitted finish CPLI',independent_cpli:'Independent CPLI',driving_chain:'Driving chain',driving_stage:'Driving-chain stage',criticality:'Criticality',float_erosion:'Float erosion',turns_critical_by:'Turns critical by'};
+ const formulaName=k=>(q.checks||[]).find(c=>c.key===k)?.label||formulaNames[k]||(k.charAt(0).toUpperCase()+k.slice(1)).replace(/_/g,' ');
+ const rows=q.checks.map(c=>'<tr><td>'+escapeHtml(c.label)+'</td><td>'+fmt(c.count)+' / '+fmt(c.population)+'</td><td>'+escapeHtml(c.basis)+'</td><td>'+affectedList(c)+'</td></tr>').join('');
+ return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['Baseline Execution Index (BEI)',q.bei.value,'Tasks completed by the Data Date / tasks baselined to finish by the Data Date'],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Independent CPLI',q.independentCpli?q.independentCpli.value:null,'Independent CPM driving path to the required date'],['Positive lags',experienceRecordCount(q.positiveLags),'relationships'],['Leads',experienceRecordCount(q.negativeLags),'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+(q.drivingChain?'<p>Driving chain to completion (independent CPM): '+(q.drivingChain.state==='calculated'?fmt(q.drivingChain.activityCount)+' activities to '+escapeHtml(planningShortDate(q.drivingChain.completionIso))+'.</p><details><summary>Driving chain activities</summary><p>'+escapeHtml(q.drivingChain.activityIds.join(' > '))+'</p></details>':'not established. '+escapeHtml(q.drivingChain.reason||'')+'</p>'):'')+programmeStageHtml+criticalityHtml+erosionHtml+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / checked</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+(q.bei.formula?escapeHtml(q.bei.formula)+'. ':'')+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; baselined to finish by the Data Date '+fmt(q.bei.planned)+'.'+(q.bei.value==null&&q.bei.reason?' Not established: '+escapeHtml(q.bei.reason):'')+'</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+(q.cpli.totalFloatWorkingHours==null?'not established':fmt(q.cpli.totalFloatWorkingHours)+' h (working days need the critical-path calendar)')+'.</p>'+(q.independentCpli?'<p>'+escapeHtml(q.independentCpli.formula)+'. '+escapeHtml(q.independentCpli.basis)+'</p>':'')+(q.formulas?'<h5>Check formulas</h5><dl class="formula-list">'+Object.keys(q.formulas).map(k=>'<dt>'+escapeHtml(formulaName(k))+'</dt><dd>'+escapeHtml(q.formulas[k])+'</dd>').join('')+'</dl>':'')+'</details></div></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -4228,7 +4238,10 @@ function renderCommercialVisual(key,data){
     : '<div class="empty-visual">'+escapeHtml(emptyMessage)+'</div>';
   const findingValue=(finding,unit="")=>{
     if(!finding||finding.value===null||finding.value===undefined)return"Not established";
-    return fmt(finding.value)+(unit?" "+unit:"");
+    // N6: a stated amount with its unit ('14163 USD per day') shows the figure with thousands
+    // separators ('14,163 USD per day'); the unit text is kept as recorded.
+    const stated=typeof finding.value==="string"?/^(-?[1-9][0-9]{3,}(?:\.[0-9]+)?)(\s+[A-Za-z].*)$/.exec(finding.value.trim()):null;
+    return (stated?fmt(Number(stated[1]))+stated[2]:fmt(finding.value))+(unit?" "+unit:"");
   };
   const findingMeta=(finding)=>{
     if(!finding)return"Missing";
@@ -5225,8 +5238,10 @@ function managementModuleLink(key,label="Open owning module"){
   if(!key)key="documents";
   if(!names[key]&&key!=="documents")return '<span class="muted">Owning page not yet set</span>';
   // A button must never send the user back to the page they are on.
-  if(key!=="documents"&&key===selected&&appView==="project")return '<span class="muted">Shown on this page</span>';
-  return '<button type="button" class="management-module-link" data-module="'+escapeHtml(key)+'">'+escapeHtml(label)+'</button>';
+  if(key!=="documents"&&key===selected&&appView==="project")return '<span class="muted">Shown on this page</span> ';
+  // W1: links placed side by side keep a space between them, so their words never run together
+  // ('Completion forecast' 'Progress measures' read as 'Completion forecastProgress measures').
+  return '<button type="button" class="management-module-link" data-module="'+escapeHtml(key)+'">'+escapeHtml(label)+'</button> ';
 }
 function managementPanel(title,description,body,primary=false){
   return '<section class="planning-panel '+(primary?'primary ':'')+'management-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
@@ -5343,8 +5358,10 @@ function pmcSource(data,domain){return data?.visualControl?.sourceInventory?.dom
 function pmcMoney(value,currency){return pmcDefined(value)?fmtExecutive(value)+(currency?" "+currency:""):"Not established";}
 function pmcDays(value){if(!pmcDefined(value))return"Not established";const n=Number(value);return Math.abs(n).toLocaleString("en-US",{maximumFractionDigits:0})+" days "+(n>0?"behind":n<0?"ahead":"on");}
 function pmcCard({title,value,state="Not established",tone="unresolved",sub="",meta=[],module}){
- const rows=meta.filter(row=>pmcDefined(row?.[1])&&String(row[1]).length).map(row=>'<span><em>'+escapeHtml(row[0])+'</em><b>'+escapeHtml(row[1])+'</b></span>').join("");
- return '<article class="pmc-domain-card '+escapeHtml(tone)+'"><div class="pmc-domain-head"><b>'+escapeHtml(title)+'</b><span class="pmc-domain-state">'+escapeHtml(state)+'</span></div><div class="pmc-domain-value">'+escapeHtml(value)+'</div><div class="pmc-domain-sub">'+escapeHtml(sub)+'</div>'+(rows?'<div class="pmc-domain-meta">'+rows+'</div>':'')+(module?managementModuleLink(module,"Open control"):"")+'</article>';
+ // N6: a raw number (CPI 0.945205) is shown with the shared number format (0.95), never as stored.
+ const shown=v=>typeof v==="number"?fmt(v):v;
+ const rows=meta.filter(row=>pmcDefined(row?.[1])&&String(row[1]).length).map(row=>'<span><em>'+escapeHtml(row[0])+'</em><b>'+escapeHtml(shown(row[1]))+'</b></span>').join("");
+ return '<article class="pmc-domain-card '+escapeHtml(tone)+'"><div class="pmc-domain-head"><b>'+escapeHtml(title)+'</b><span class="pmc-domain-state">'+escapeHtml(state)+'</span></div><div class="pmc-domain-value">'+escapeHtml(shown(value))+'</div><div class="pmc-domain-sub">'+escapeHtml(sub)+'</div>'+(rows?'<div class="pmc-domain-meta">'+rows+'</div>':'')+(module?managementModuleLink(module,"Open control"):"")+'</article>';
 }
 function pmcSourceValue(source){
  if(!source)return null;
@@ -5604,10 +5621,21 @@ function actionDeadlineText(action){
  return parts.join(' · ');
 }
 function renderPmcScope(values){
- const clean=(values||[]).map(value=>typeof readerText==='function'?readerText(value):String(value));
- if(!clean.length)return 'Not classified';
- if(clean.length<=4)return escapeHtml(clean.join('; '));
- return '<details><summary>'+escapeHtml(clean.slice(0,2).join('; '))+' · '+fmt(clean.length)+' scope references</summary><p>'+escapeHtml(clean.join('; '))+'</p></details>';
+ if(!(values||[]).length)return 'Not classified';
+ return readerIdList(values,{noun:'scope reference'})||'Not classified';
+}
+// W7: a list of references is said as its count with an expandable list (one item per entry),
+// never as one long line of IDs. Up to four references stay inline. 'total' is the true count
+// when the list is a preview (e.g. the first 25 of 41); an unknown total is said so.
+function readerIdList(values,{label='',noun='reference',plural,total=null}={}){
+ const list=Array.isArray(values)?values:[];
+ const clean=list.map(value=>typeof readerText==='function'?readerText(value):String(value??'')).filter(value=>value.trim());
+ if(!clean.length)return '';
+ if(!label&&clean.length<=4)return escapeHtml(clean.join('; '));
+ const known=typeof total==='number'&&Number.isFinite(total)?Math.max(total,clean.length):listTotal(list);
+ const count=known===null?'first '+fmt(clean.length)+' listed; total not established':
+   clean.length<known?'first '+fmt(clean.length)+' of '+countText(known,noun,plural,fmt):countText(known,noun,plural,fmt);
+ return '<details class="reader-id-list"><summary>'+escapeHtml((label||clean.slice(0,2).join('; '))+' · '+count)+'</summary><ul class="reader-id-items">'+clean.map(value=>'<li>'+escapeHtml(value)+'</li>').join('')+'</ul></details>';
 }
 // T05/N1: the true number of current actions behind commandActionItems. The
 // canonical list keeps its retained server total. The fallback list merges

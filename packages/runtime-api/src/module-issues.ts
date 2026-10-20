@@ -1,5 +1,6 @@
 import { conditionalNotice, summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
+import {managementNumber} from './management-values';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
@@ -108,7 +109,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(certifiedSourcePresent){
       add('verification_pending','CERTIFIED_PROGRESS_INDEPENDENT_VERIFICATION',
         'Certified financial progress established; independent quantity comparator not verified',
-        'The Progress Report already holds '+heldCertified+'% certified financial progress. The separate independent quantity/valuation comparison remains unavailable and must not be represented as missing source certification.',
+        'The Progress Report already holds '+managementNumber(heldCertified)+'% certified financial progress. The separate independent quantity/valuation comparison remains unavailable and must not be represented as missing source certification.',
         'CMeng must establish a genuinely comparable independent verification if source evidence permits; retain the certified financial amount and percentage without asking for them again.',
         'challenge.items.'+item.metric,'CMeng',item.submitted.sourceRefs??[]);
       continue;

@@ -3,6 +3,7 @@
 // is put on the page: sortable headers (keyboard buttons with aria-sort), a reason for an empty table,
 // filter lists with no real choice switched off, and a reason instead of an empty chart panel.
 // Nothing here changes a figure: sorting only reorders rows that are already on the screen.
+// N11: an ID or code column that repeats one value on every row is said once above the table.
 export const tableLookStyles=String.raw`
 .th-sort{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font:inherit;color:inherit;text-align:left;width:100%}
 .th-sort::after{content:"\2195";font-size:10px;opacity:.55}
@@ -13,6 +14,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,su
 .look-empty-row td{color:#4a5a6d;font-style:italic;padding:12px}
 .look-filter-single{opacity:.75}
 .look-filter-note{display:block;font-size:11px;color:#4a5a6d;margin-top:2px}
+.look-constant-col{display:none!important}
+.look-constant-note{margin:4px 0 6px;font-size:12px;color:#4a5a6d}
+.reader-id-items{display:flex;flex-wrap:wrap;gap:3px 6px;list-style:none;margin:6px 0 0;padding:0;font-size:12px}
+.reader-id-items li{padding:1px 6px;border:1px solid #dfe6ee;border-radius:5px;background:#fbfdff}
+.formula-list{margin:6px 0;font-size:12px}.formula-list dt{font-weight:650;margin-top:6px}.formula-list dd{margin:2px 0 0 0}
 `;
 export const tableLookScript=String.raw`
 const LOOK_UNKNOWN_WORDS=/^(?:|-|\u2013|\u2014|n\/a|na|none|not available|not established|not confirmed|not stated|not recorded|not calculated|not comparable|not known|unknown|missing|withheld)$/i;
@@ -110,10 +116,47 @@ function lookEnhanceTableHeaders(table){
  });
  return added;
 }
+// N11: an ID or code column (WBS, calendar, ID, code, number, reference) that holds the same value on
+// every one of 10 or more rows is said once above the table ('All rows: WBS 10') instead of on every
+// row. The cells stay in the table, only hidden, so sorting, search and downloads keep every value; the
+// column comes back as soon as the rows on screen differ (another page, filter or sort).
+const LOOK_ID_HEADING=/^(?:wbs|calendar|id|code|no\.?|number|ref(?:erence)?|.+ (?:id|code|no\.?|number|ref(?:erence)?))$/i;
+function lookCellText(cell){return String(cell&&cell.textContent||'').replace(/\s+/g,' ').trim();}
+function lookConstantColumns(table){
+ const header=lookHeaderRow(table),rows=header?lookSortableRows(table):null,found=[];
+ if(header&&rows&&rows.length>=10&&Array.from(header.cells||[]).every(cell=>(Number(cell.colSpan)||1)===1)&&rows.every(row=>(row.cells||[]).length===header.cells.length)){
+  Array.from(header.cells).forEach((cell,index)=>{
+   const label=lookCellText(cell);if(!LOOK_ID_HEADING.test(label))return;
+   const cells=rows.map(row=>row.cells[index]);
+   if(cells.some(c=>c.querySelector&&c.querySelector('button,a,input,select,textarea,details')))return;
+   const value=lookCellText(cells[0]);
+   if(!value||LOOK_UNKNOWN_WORDS.test(value)||cells.some(c=>lookCellText(c)!==value))return;
+   found.push({index,label,value});
+  });
+ }
+ if(!found.length&&!table.__lookConstant)return false;
+ const hidden=new Set(found.map(c=>c.index));
+ [header,...lookBodyRows(table)].filter(Boolean).forEach(row=>Array.from(row.cells||[]).forEach((cell,index)=>{
+  const on=hidden.has(index)&&!lookIsStateRow(row);
+  if(on!==cell.classList.contains('look-constant-col')){if(on)cell.classList.add('look-constant-col');else cell.classList.remove('look-constant-col');}
+ }));
+ const text=found.length?'All rows: '+found.map(c=>c.label+' '+c.value).join(' · '):'';
+ const wrap=table.parentNode&&table.parentNode.classList&&table.parentNode.classList.contains('table-wrap')?table.parentNode:table;
+ let note=table.__lookConstantNote||null;
+ if(!text){if(note){note.remove();table.__lookConstantNote=null;}}
+ else{
+  if(!note){note=table.ownerDocument.createElement('p');note.className='look-constant-note';note.setAttribute('data-look-constant-note','');table.__lookConstantNote=note;}
+  if(note.textContent!==text)note.textContent=text;
+  if(note.nextElementSibling!==wrap&&wrap.parentNode)wrap.parentNode.insertBefore(note,wrap);
+ }
+ table.__lookConstant=found.map(c=>c.index+'='+c.value).join('|');
+ return found.length>0;
+}
 function lookEnhanceTable(table){
  if(!table||table.closest&&table.closest('[data-look-skip]'))return;
  lookEnhanceTableHeaders(table);
  lookMarkEmptyTable(table);
+ lookConstantColumns(table);
 }
 function lookFilterChoices(select){
  return Array.from(select.options||[]).filter(option=>!option.disabled&&!/^all\b/i.test((option.textContent||'').trim())&&option.value!=='');

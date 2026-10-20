@@ -351,8 +351,10 @@ test('original ABB approved submittals close their dated review across the full 
  const module=deliveryModule(f.state,'delivery-submittals'),data=module.data as any;
  assert.equal(data.summary.closedCount,600);assert.equal(data.summary.passRatePercent,null);
  const html=runInNewContext(deliveryScript()+';deliveryObjectDetail(summary)',{summary:data.summary,Intl,escapeHtml:(v:unknown)=>String(v),fmt:(v:unknown)=>String(v),humanizeKey:(v:string)=>v});
- assert.match(html,/Closed Count<\/dt><dd>600/);
- assert.match(html,/Pass Rate Percent<\/dt><dd>Not established/);
+ // W1: the summary shows people's labels from the shared label map, never Title Case field names.
+ assert.match(html,/Closed count<\/dt><dd>600/);
+ assert.match(html,/Pass rate %<\/dt><dd>Not established/);
+ assert.doesNotMatch(html,/Closed Count|Pass Rate Percent|Known Open Count/);
  for(const [path,bytes] of originals)assert.deepEqual(readFileSync(path),bytes,'original source bytes retained');
 });
 
