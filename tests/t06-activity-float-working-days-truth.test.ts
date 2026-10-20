@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {countUnit} from '../packages/runtime-api/src/count-text';
 import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
 import {activityFloatReconciliation} from '../packages/runtime-api/src/activity-float-reconciliation';
 import {buildLookAheadProjection} from '../packages/lookahead-schedule/src';
@@ -52,7 +53,7 @@ test('T06 activity screen shows source-calendar days with original hourly audit 
  const html=cmengUatHtml();
  const match=/function sourceWorkingFloat\(row,calculated=false\)\{[\s\S]*?\n\}/.exec(html)?.[0];
  assert.ok(match,'actual browser float renderer is present');
- const render=runInNewContext('('+match+')',{fmt:(n:unknown)=>String(n)}) as (row:any,calculated?:boolean)=>string;
+ const render=runInNewContext('('+match+')',{fmt:(n:unknown)=>String(n),countUnit}) as (row:any,calculated?:boolean)=>string;
  assert.equal(render({status:'in_progress',floatDaysBasis:'source_activity_calendar',
    submittedTotalFloatWorkingDays:-3,submittedTotalFloatHours:-24}),'-3 working days · -24 original h');
  assert.equal(render({status:'in_progress',submittedTotalFloatHours:-24}),
@@ -72,7 +73,7 @@ test('T06 primary per-activity float views use source-calendar working days besi
  assert.doesNotMatch(html,/escapeHtml\(fmt\(a\.totalFloatHours\)\)/);
  const code=/function sourceWorkingFloat\(row,calculated=false\)\{[\s\S]*?\n\}/.exec(html)?.[0];
  assert.ok(code);
- const display=runInNewContext('('+code+')',{fmt:(n:unknown)=>String(n)}) as (row:any)=>string;
+ const display=runInNewContext('('+code+')',{fmt:(n:unknown)=>String(n),countUnit}) as (row:any)=>string;
  assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:-2,submittedTotalFloatHours:-24}),'-2 working days · -24 original h');
  assert.equal(display({status:'in_progress',submittedTotalFloatWorkingDays:null,submittedTotalFloatHours:0}),'Working-day basis not established · 0 original h');
 });
