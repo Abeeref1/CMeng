@@ -102,7 +102,7 @@ test('r14 section dates are never Works completion candidates: a Works date with
    assert.equal(o1?.contractCompletionIso,'2027-01-15',key+' Section 1 date is still read');
   }
  }finally{
-  await new Promise<void>(resolve=>gateway.server.close(()=>resolve()));
+  await gateway.close();
   await rm(root,{recursive:true,force:true});
  }
 });
