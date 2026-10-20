@@ -55,6 +55,24 @@ export function documentReadReview(document:StoredEvidenceDocument,state:Project
       note:`${readPages} of ${pdf.totalPages} pages read: ${pdf.nativePages-unreadableNative} native, ${pdf.ocrPages} OCR, ${pdf.blankPages} blank; ${pdf.failedPages} failed, ${pdf.unresolvedPages+unreadableNative} unresolved. Reading does not confirm structured facts, compliance or adoption.`,
       method:pdf.ocrPages?'Native text / OCR':'Native text',pageCount:pdf.totalPages,readPageCount:readPages,complete};
   }
+  // A plain-text or Markdown contract read by the contract text reader from
+  // these same source bytes: complete only when the whole text was decoded.
+  const contract=state.contractDocuments.find(d=>d.documentId===document.documentId&&d.sourceHashSha256===hash)?.result;
+  const text=contract?.text;
+  if(contract&&text){
+    const complete=text.complete,read=text.characterCount-text.unreadableCharacterCount;
+    const nul=Number(text.diagnostics.find(code=>code.startsWith('CONTRACT_TEXT_NUL_CHARACTERS:'))?.split(':')[1]??0);
+    const undecoded=text.unreadableCharacterCount-nul;
+    const unread=[undecoded?countText(undecoded,'byte sequence')+' that '+(undecoded===1?'does':'do')+' not decode as '+text.encoding.toUpperCase():'',
+      nul?countText(nul,'NUL character')+' (binary content or a wrong text encoding)':''].filter(Boolean).join(' and ');
+    const structure=contract.clauses.length===0?' No numbered clauses were found, so the clause structure needs review.':
+      contract.semanticComplete?'':' The clause structure needs review.';
+    return {state:complete?'read':'partial',label:complete?'All text read':'Text needs review',
+      note:(complete?`${countText(text.characterCount,'character')} read: the whole text.`:
+        `${read} of ${countText(text.characterCount,'character')} read. Not read: ${unread}. The unread part needs review.`)+
+        structure+' Reading does not confirm structured facts, compliance or adoption.',
+      method:'Text',pageCount:null,readPageCount:null,complete};
+  }
   const receipt=document.correspondenceNarrativeRefresh;
   if(receipt?.sourceHashSha256===hash){
     const readPages=receipt.nativePages+receipt.ocrPages;
