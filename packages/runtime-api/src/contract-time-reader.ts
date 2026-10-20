@@ -1,6 +1,6 @@
 import type {ProjectRuntimeState} from './project-state-types';
 import {commercialPositionForState} from './commercial-runtime';
-import {COMPLETION_DATE_TOKEN,explicitDate} from './contract-completion';
+import {COMPLETION_DATE_TOKEN,explicitDate,namesSectionScope,SECTION_SCOPE_FOLLOWS} from './contract-completion';
 import {contractSourceAnalysis} from './contract-source-analysis';
 
 type Metric<T>={value:T|null};
@@ -105,8 +105,13 @@ export function worksTimeForCompletion(result:ContractResult,documentId:string,s
   return statedPeriodsIn(result,documentId,sourceAnalytical,sourceName,
     ()=>/(^|\n)([^\n]*?)\bTime\s+for\s+Completion\b((?:\s+(?:of|for)\s+(?:the\s+)?(?:whole\s+of\s+the\s+)?Works\b)?)([^\n]*)/gi,
     match=>{
-      if(/\bSections?\s+\w/i.test(match[2]!)||/^\s*(?:of|for)\s+(?:each\s+)?Sections?\b/i.test(match[4]!))return null;
-      return match[4]!.replace(/^\s*(?:\([^)]*\)\s*)?[:|=\t\-–]?\s*/,'');
+      // r14: the shared section-scope rule (Section N, Sectional Completion, Portion, Milestone).
+      if(namesSectionScope(match[2]!)||SECTION_SCOPE_FOLLOWS.test(match[4]!))return null;
+      const raw=match[4]!.replace(/^\s*(?:\([^)]*\)\s*)?[:|=\t\-–]?\s*/,'');
+      // "...: 365 days for Section 1" is that Section's period, not the Works.
+      const period=/^(?:shall\s+be\s+|is\s+|will\s+be\s+)?(?:a\s+period\s+of\s+|within\s+)?\d{1,4}(?:\s*\([^)]*\))?\s*(?:calendar\s+|working\s+)?(?:days?|weeks?|months?|years?)\b/i.exec(raw);
+      if(period&&/^\s*[,(]?\s*(?:for|in\s+respect\s+of)\s+(?:the\s+|each\s+|a\s+|any\s+)?(?:Sections?|Sectional|Portions?|Milestones?)\b/i.test(raw.slice(period[0].length)))return null;
+      return raw;
     });
 }
 /** A Section's Time for Completion stated as a period ("Section 1 Time for
