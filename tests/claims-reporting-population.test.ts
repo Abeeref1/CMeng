@@ -60,7 +60,7 @@ test('window lists expose full activity populations and preserve existing comple
  const full={key:'windows-analysis',data:{projectionKey:'windows_analysis',windowCount:2,completeWindowCount:2,partialWindowCount:0,associatedEventCount:240,windows:[window(1,119),window(2,121)]}},before=JSON.stringify(full);
  const page:any=pageProjectResponse(full,'/api/projects/P/schedule/modules/windows-analysis'),kpis:any[]=[];
  const html=runInNewContext('renderWindowsVisual(data)',{...context(page,kpis),planningSignedBars:()=>''});
- assert.match(html,/Finish-driving activities · 130 → 140/);assert.match(html,/Exited critical · 131/);assert.match(html,/Showing 25 of 131 activities/);assert.match(html,/Browse all exited critical activities/);
+ assert.match(html,/Finish-driving activities · 130 → 140/);assert.match(html,/Exited critical · first 25 of 131 activities/,'W7: the shared ID list says the shown and true counts in its summary');assert.doesNotMatch(html,/EXIT0, EXIT1/,'W7: no inline line of IDs');assert.match(html,/Browse all exited critical activities/);
  assert.match(html,/119 temporally associated/);assert.match(html,/121 temporally associated/);assert.equal(kpis.find(r=>r[0]==='Window-associated events')[1],240);
  const last:any=recordDetailPage(full,'/data/windows/1/exitedCriticalActivityIds',125);assert.equal(last.total,131);assert.equal(last.rows.at(-1),'EXIT130');
  assert.equal(JSON.stringify(full),before);

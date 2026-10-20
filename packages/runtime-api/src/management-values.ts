@@ -37,6 +37,18 @@ export function managementNumber(input:number,digits=2):string {
  const effective=precision===0&&Math.abs(input)>0&&Math.abs(input)<1?2:precision;
  return new Intl.NumberFormat('en-US',{maximumFractionDigits:effective,minimumFractionDigits:0}).format(input);
 }
+/** N6: an amount stated next to its currency code in source wording ('USD 28022',
+ * '1500000 SAR') is shown with thousands separators by the shared number style.
+ * Display only: the stored source text is unchanged, decimals are kept as written,
+ * and numbers without a currency code (clause numbers, IDs, years) are left alone. */
+export function statedAmountText(input:unknown):string {
+ const text=input===null||input===undefined?'':String(input);
+ const codes='USD|SAR|AED|QAR|KWD|OMR|BHD|JOD|EGP|EUR|GBP';
+ const amount=(whole:string,fraction:string|undefined)=>{const n=Number(whole);return Number.isSafeInteger(n)?managementNumber(n,0)+(fraction??''):whole+(fraction??'');};
+ return text
+  .replace(new RegExp('\\b('+codes+')(\\s?)(\\d{4,})(\\.\\d+)?(?![\\d,])','g'),(_all:string,code:string,space:string,whole:string,fraction?:string)=>code+space+amount(whole,fraction))
+  .replace(new RegExp('(?<![\\w.,])(\\d{4,})(\\.\\d+)?(\\s?)('+codes+')\\b','g'),(_all:string,whole:string,fraction:string|undefined,space:string,code:string)=>amount(whole,fraction)+space+code);
+}
 export function managementDate(input:unknown):string {
  if(input===null||input===undefined||input==='')return 'Not established';
  const source=String(input),match=/^(\d{4})-(\d{2})-(\d{2})(?=$|T|\s)/.exec(source);

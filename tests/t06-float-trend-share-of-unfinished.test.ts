@@ -126,7 +126,7 @@ test("SW-25: the float trend chart plots the share and its text does not call a 
   const source = createSourceFile("browser.js", script, ScriptTarget.Latest, true);
   const fn = source.statements.filter(isFunctionDeclaration).find(node => node.name?.text === "renderFloatPressureTrend")!.getText(source);
   const charted: any[] = [], panels: string[] = [];
-  runInNewContext(fn + ";renderFloatPressureTrend(points,floatTrend)", {
+  const html: string = runInNewContext(fn + ";renderFloatPressureTrend(points,floatTrend)", {
     points: projection.points, floatTrend: projection.floatTrend, fmt: (value: any) => value == null ? "Unresolved" : String(value),
     renderVisualPanel: (title: string, description: string) => { panels.push(title + " | " + description); return ""; },
     renderLineChart: (points: any[]) => { charted.push(points); return ""; },
@@ -134,7 +134,9 @@ test("SW-25: the float trend chart plots the share and its text does not call a 
   assert.deepEqual(charted[0].map((point: any) => point.criticalCount), [40, 40]);
   const critical = panels.find(panel => panel.startsWith("Critical"))!;
   assert.match(critical, /^Critical · 40% → 40%/);
-  assert.match(critical, /10 → 5 unfinished/);
+  // W5: the unfinished-activity base the three small charts share is said once above them.
+  assert.equal((html.match(/10 → 5 unfinished/g) || []).length, 1);
+  assert.match(html, /A lower count alone does not establish improvement/);
   assert.match(critical, /Share of remaining work unchanged\./);
   assert.match(critical, /The count fell from 4 to 2 while unfinished activities fell from 10 to 5; the share did not fall, so this is not an improvement\./);
   assert.doesNotMatch(critical, /Share of remaining work fell/);

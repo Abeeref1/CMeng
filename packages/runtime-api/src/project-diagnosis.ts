@@ -9,6 +9,7 @@ import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {hasUnreconciledScheduleCalendar} from './forecast-control';
+import {countText} from './count-text';
 
 const numeric=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const difference=(after:string|null,before:string|null)=>{const a=parseScheduleInstant(after),b=parseScheduleInstant(before);return a===null||b===null?null:Number(((a-b)/86400000).toFixed(6));};
@@ -253,9 +254,9 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
    group.rows.push(r);group.linked.push(...linked);
  });
  const actions=[...actionGroups.values()].sort((a,b)=>a.firstRank-b.firstRank).slice(0,10).map((group,index)=>{const r=group.rows[0]!,linked=[...new Map(group.linked.map(c=>[[c.domain,c.recordId,c.explanation].join('|'),c])).values()],described=describe(r),wbsLabels=[...new Set(group.rows.map(x=>shortWbsPath(x.wbsId)))],move=group.movement;
-   const groupedCount=group.rows.length,ids=group.rows.map(x=>x.activityId),movementText=numeric(move)&&move>0?(groupedCount+' activities moved '+move+' elapsed days later since the previous adopted revision'):'';
+   const groupedCount=group.rows.length,ids=group.rows.map(x=>x.activityId),movementText=numeric(move)&&move>0?(countText(groupedCount,'activity','activities')+' moved '+countText(move,'elapsed day')+' later since the previous adopted revision'):'';
    const individualWhy=[drivingIds.has(r.activityId)?'On the calculated finish-driving network':'',numeric(r.totalFloatHours)&&r.totalFloatHours<0?floatHoursText(r.totalFloatHours,sourceCalendarWorkingDays(model).workingDayHours(r.calendarId))+' source float':'',r.missedPlannedStart?'Should have started':'',r.finishOverdue?'Finish overdue':''].filter(Boolean).join('; ');
-   const reason=groupedCount>1?(movementText||groupedCount+' related pressure activities in '+wbsLabels.slice(0,3).join('; ')+(wbsLabels.length>3?' and '+(wbsLabels.length-3)+' more WBS groups':'')):([individualWhy,movementText].filter(Boolean).join('; '));
+   const reason=groupedCount>1?(movementText||groupedCount+' related pressure activities in '+wbsLabels.slice(0,3).join('; ')+(wbsLabels.length>3?' and '+countText(wbsLabels.length-3,'more WBS group','more WBS groups'):'')):([individualWhy,movementText].filter(Boolean).join('; '));
    const linkedEvidence=!linked.length?'':linked.length===1?linked[0]!.explanation:(linked.length+' linked evidence records are available for this grouped finding.');
    const action=groupedCount>1?'Manage this as one grouped schedule finding; open the activities only when the detailed sequence or ownership is needed.':linked.length?'Resolve the identified linked blocker with its record owner and assess a recovery sequence.':r.finishOverdue?'Confirm remaining work and recovery dates for the overdue finish.':r.missedPlannedStart?'Establish why work has not started and agree a feasible start.':'Assess the remaining work and a feasible recovery sequence for this specific pressure activity.';
    return {rank:index+1,...described,groupedCount,activityIds:ids,wbsGroupCount:wbsLabels.length,revisionMovementCalendarDays:move,reason,linkedEvidence,action};

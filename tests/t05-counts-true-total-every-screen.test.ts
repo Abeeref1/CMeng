@@ -66,7 +66,7 @@ test('T05: count captions on every affected screen read the true total, while "S
     `screenCountText(listTotal(r.activityIds))`,
     `'of '+screenCountText(listTotal(f.rows||[]))+' BOQ item rows'`,
     `screenCountText(listTotal(all))+" maximum rows inspected"`,
-    `' representatives of '+escapeHtml(screenCountText(listTotal(all)))`,
+    `'representative',undefined,fmt))+' of '+escapeHtml(screenCountText(listTotal(all)))`,
     `Showing '+fmt(Math.min(30,backlogRows.length))+' of '+screenCountText(backlogCount)+' overdue activities.`,
     `' of '+screenCountText(sourceTotal)+' float review records.`,
     `fmt(listTotal(row.activityIds)-5))+' more'`,

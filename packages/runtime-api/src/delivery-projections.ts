@@ -20,7 +20,7 @@ import {buildDeliveryWorkfrontBreakdown} from '../../progress-breakdown/src/proj
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
 import {sharedProjectPlanPositions} from './shared-plan-positions';
 import {deliveryKinds,deliveryLabels,lifecycleExamples,kindIdentities,type DeliveryRecord,type DeliveryKind} from '../../delivery-core/src/types';
-import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryPopulationBasis,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
+import {deliveryRecords,deliveryStore,deliveryPopulationPosition,deliveryPopulationBasis,deliveryPopulationReason,deliveryCurrentRecord,deliveryAwaitingDecision} from './delivery-records';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 
@@ -987,7 +987,7 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(procurementRegisterMetrics&&metrics===procurementRegisterMetrics)extras.metricsScope='procurement_register';
  // S1: an unknown figure without its own reason takes the page population's stated
  // next step, or names the register the page needs.
- const metricReason=!hasRows?(sourceEvidenceAvailable?'Confirm the applicable source records and their mapping':'Needs '+(DELIVERY_REGISTER_NEED[kind as string]??'the supplied register')):population.state!=='established'?(population.basis||'Confirm the complete set of applicable records'):'';
+ const metricReason=!hasRows?(sourceEvidenceAvailable?'Confirm the applicable source records and their mapping':'Needs '+(DELIVERY_REGISTER_NEED[kind as string]??'the supplied register')):population.state!=='established'?(riskPage?(population.basis||'Confirm the complete set of applicable records'):deliveryPopulationReason(kind)):'';
  if(metricReason)metrics=metrics.map(m=>m.value===null&&!m.reason?{...m,reason:metricReason}:m);
  extras.relationshipAuthorities=Object.fromEntries(Object.entries(p.relationshipAuthorities).map(([kind,rows])=>[kind,rows.map(r=>({id:r.id,label:r.label,authority:kind==='risk'?'Existing project Risk authority':kind==='variation'?'Existing Commercial authority':'Existing Delay / Notices / Claims authority'}))]));
  // W6: a page whose records are read states its position with its own title and

@@ -238,7 +238,7 @@ function renderRegisterScope(data,includeComplete=false){
 }
 function readerModuleSummary(reason){
   const text=String(reason||'').split('Shared readiness gate:')[0].trim();
-  return text?text.replace(/\bgoverned\b/gi,'confirmed').replace(/\bnot established\b/gi,'not confirmed'):'Open this page for its figures and follow-up actions.';
+  return text?text.replace(/\bgoverned\b/gi,word=>word.charAt(0)==='G'?'Confirmed':'confirmed').replace(/\bnot established\b/gi,'not confirmed'):'Open this page for its figures and follow-up actions.';
 }
 function readerIssue(i){
   // Translate CMeng-authored issue descriptions only. The original check text,

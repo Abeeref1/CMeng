@@ -4,6 +4,33 @@ import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
 import { assessModuleIssues, type IssueScanContext } from './module-issues';
 import {comparisonRequirement} from './comparison-requirement';
+import {countText} from './count-text';
+
+/** The evidence state of a page in plain words. */
+export function readinessEvidenceText(evidence: unknown): string {
+  const words: Record<string, string> = {
+    partial: 'evidence incomplete',
+    missing: 'evidence missing',
+    not_established: 'evidence not confirmed',
+    conflicted: 'evidence gives more than one value',
+  };
+  return words[String(evidence)] ?? 'evidence ' + String(evidence).replaceAll('_', ' ');
+}
+
+/** What the submitted/independent comparison still needs, in plain words. */
+export function readinessComparisonText(state: unknown): string {
+  const words: Record<string, string> = {
+    independent_unavailable: 'no independent figure to compare with the submitted one',
+    submitted_missing: 'no submitted figure to compare with the independent one',
+    material_difference: 'submitted and independent figures differ',
+    conflicting_evidence: 'more than one submitted or independent figure in the records',
+    incomparable: 'submitted and independent figures cannot be compared on the same basis',
+    scenario: 'the independent figure is a scenario',
+    comparison_pending: 'submitted and independent figures not yet compared',
+    not_checked: 'submitted and independent figures not yet compared',
+  };
+  return words[String(state)] ?? 'submitted and independent comparison: ' + String(state).replaceAll('_', ' ');
+}
 
 const NON_BLOCKING_REVIEW_CODES = new Set([
   'INDEPENDENT_COMPARISON_NOT_ESTABLISHED',
@@ -73,12 +100,15 @@ export function enforceModuleReadiness(
     return false;
   });
 
+  // W5/W8: the readiness reason is said in plain words, one clause per open check
+  // ('no independent figure to compare with the submitted one', never the state
+  // code 'submitted/independent reconciliation independent unavailable').
   const failures = [
     calculation !== 'checked'
       ? 'calculation checks ' + calculation
       : null,
     evidence !== 'established'
-      ? 'evidence ' + evidence
+      ? readinessEvidenceText(evidence)
       : null,
     professional !== 'defensible'
       ? 'professional review required'
@@ -88,10 +118,10 @@ export function enforceModuleReadiness(
       : null,
     reconciliationRequired &&
     !reconciliationReady
-      ? 'submitted/independent reconciliation ' + String(reconciliation).replaceAll('_', ' ')
+      ? readinessComparisonText(reconciliation)
       : null,
     blockingIssues.length > 0
-      ? String(blockingIssues.length) + ' blocking information/system issue(s)'
+      ? countText(blockingIssues.length, 'blocking information or system issue')
       : null,
   ].filter(Boolean);
 

@@ -174,6 +174,10 @@ export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return d
 /** A3: the population instruction names its own register, so each register page
  * states its own action (one shared sentence for every register read as one action). */
 export function deliveryPopulationBasis(kind:DeliveryKind){return 'Confirm that all applicable records in the '+deliveryLabels[kind]+' register have been captured before relying on a percentage.';}
+/** S1/W5: the short reason an unknown figure shows while its register is not yet
+ * confirmed as complete. The full instruction (deliveryPopulationBasis) is said once,
+ * with the confirm control, instead of under every unknown figure. */
+export function deliveryPopulationReason(kind:DeliveryKind){return 'Confirm the '+deliveryLabels[kind]+' register is complete';}
 /** Shared source-bound population authority. Callers may provide indexed scope
  * rows; reading them here must not reclassify source facts as reviewed facts. */
 export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null,scope:DeliveryRecord[],documents:DeliveryDocumentReceipt[],decision:DeliveryStateStore['populations'][number]|undefined){
