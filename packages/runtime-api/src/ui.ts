@@ -4523,6 +4523,7 @@ function renderCommercialVisual(key,data){
           ["LD cap",findingValue(terms.ldCap),findingMeta(terms.ldCap)]
         ])+
         '<div class="notice info"><b>Performance security:</b> '+escapeHtml(findingValue(terms.performanceBondRequirement))+' · '+escapeHtml(findingMeta(terms.performanceBondRequirement))+'<br><b>Advance-payment security:</b> '+escapeHtml(findingValue(terms.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(terms.advancePaymentBondRequirement))+'<br><b>Insurance clauses:</b> '+escapeHtml(countPosition(terms.state,(terms.insuranceRequirements||[]).length,"clauses"))+' · <b>Precedence clauses:</b> '+escapeHtml(countPosition(terms.state,(terms.hierarchyAndPrecedenceClauses||[]).length,"clauses"))+'</div>'+
+        ((terms.structureReviews||[]).length?'<div class="notice info"><b>Clause structure needs review.</b> '+terms.structureReviews.map(r=>escapeHtml(r.sourceFilename)+': '+escapeHtml(r.note)).join(' ')+' The file was read in full; terms read from it are not adopted until they are confirmed.</div>':'')+
         table(["Clause","Heading","Document role","Governance","Page","Source text"],clauseRows,"No parsed contract clauses are established.")+
         table(["Amendment","Effective","Revised completion","Incorporated EOT","State","Clause actions"],amendmentRows,"No contract amendments are established.")+
         '</div></section>';

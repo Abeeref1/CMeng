@@ -232,6 +232,8 @@ export interface CommercialAmendmentRecord {
 
 export interface CommercialTermsProjection {
   datedTerms?: import('../../runtime-api/src/contract-term-versions').ContractTermVersion[];
+  /** Contracts read in full whose clause structure needs review (R3). */
+  structureReviews?: Array<{documentId:string;sourceFilename:string;note:string}>;
   noticeReview?: {sourceTerms:import('../../runtime-api/src/contract-term-versions').ContractTermVersion[];reference:string|null;treatment:string|null};
   eventTerms?: Array<{eventId:string;eventDate:string|null;terms:Record<string,ReturnType<typeof import('../../runtime-api/src/contract-term-versions').termAtEvent>>}>;
   noticeVersions?: import("../../delay-analysis-core/src").NoticeRequirement[];

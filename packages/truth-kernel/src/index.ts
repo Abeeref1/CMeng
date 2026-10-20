@@ -45,6 +45,9 @@ export interface EvidenceDocument {
   // Stored reading and review state (always recorded on stored documents).
   // Read only by the shared candidate admission rule below.
   parserState?: string;
+  // R3: a source read in full whose structure (contract clause numbering)
+  // needs review. Separate from parserState, which says only what was read.
+  structureReview?: {sourceHashSha256: string; note: string} | null;
   identification?: {needsReview?: boolean} | null;
   lineage?: {needsReview?: boolean; predecessorDocumentIds?: readonly string[]; appliesAsDelta?: boolean} | null;
   supersededByDocumentId?: string | null;
@@ -594,19 +597,22 @@ export type SourceCandidateHold =
   | 'revision_not_applied'
   | 'family_conflict'
   | 'not_fully_read'
+  | 'structure_review'
   | 'review_required'
   | 'superseded';
 export const sourceCandidateHoldDiagnostic=(d:EvidenceDocument,hold:SourceCandidateHold):string=>
   hold==='revision_not_applied'?'CANDIDATE_REVISION_NOT_APPLIED:'+d.documentId
   :hold==='family_conflict'?'CANDIDATE_FAMILY_CONFLICT_REVIEW_REQUIRED:'+d.familyKey+':'+d.documentId
   :hold==='not_fully_read'?'CANDIDATE_NOT_FULLY_READ:'+d.documentId+':'+(d.parserState||'unrecorded')
+  :hold==='structure_review'?'CANDIDATE_STRUCTURE_REVIEW_REQUIRED:'+d.documentId
   :hold==='review_required'?'CANDIDATE_REVIEW_REQUIRED:'+d.documentId
   :hold==='superseded'?'CANDIDATE_SUPERSEDED:'+d.documentId
   :'CANDIDATE_FAMILY_UNKNOWN:'+d.documentId;
 /**
  * T04 ONE RULE for every analysis family. A candidate document (read from
  * source, not formally adopted) takes part in source-qualified analysis only
- * when it is fully parsed, needs no identification or lineage review, is not
+ * when it is fully read, its structure needs no review (a contract whose clause
+ * numbering is not established stays held), needs no identification or lineage review, is not
  * superseded, belongs to a known source family that has no adopted document,
  * and is the only candidate document of that family. Count owning documents,
  * not sheets or table repetitions. A damaged/missing adopted source still owns
@@ -638,6 +644,8 @@ export function sourceCandidateHold(documents: readonly EvidenceDocument[]): (d:
     if(established.has(d.familyKey))return 'revision_not_applied';
     if((candidateFamilies.get(d.familyKey)?.size??0)>1)return 'family_conflict';
     if(d.parserState!=='parsed')return 'not_fully_read';
+    // Read in full, but its clause structure is not established: still held.
+    if(d.structureReview&&d.structureReview.sourceHashSha256===d.sourceHashSha256)return 'structure_review';
     const typeReviewed=!!d.classificationDecision&&d.classificationDecision.sourceHash===d.sourceHashSha256;
     if(d.identification?.needsReview&&!typeReviewed)return 'review_required';
     if(d.lineage?.needsReview){

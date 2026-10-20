@@ -19,6 +19,7 @@ import {
   type CommercialMoney,
 } from "./commercial-canonical";
 import {contractNoticeRules} from "./contract-notice-rules";
+import {contractSourceAnalysis} from "./contract-source-analysis";
 import type {
   ModuleRuntimeResult,
   ProjectRuntimeState,
@@ -524,6 +525,15 @@ export function commercialFoundationForState(
 
   const datedTerms=reportingContractTermVersions(state);
   foundation.commercialTerms.datedTerms=datedTerms;
+  // R3: a contract read in full whose clause structure is not established
+  // carries that review note on its terms. Its terms are still read from the
+  // text and are not adopted by reading.
+  const termSources=contractSourceAnalysis(state);
+  const structureReviews=state.contractDocuments.filter(c=>['main','replacement','amendment'].includes(c.role)&&termSources.eligible(c.documentId)).flatMap(c=>{
+    const document=evidenceById.get(c.documentId),review=document?.structureReview;
+    return document&&review&&review.sourceHashSha256===document.sourceHashSha256?[{documentId:document.documentId,sourceFilename:document.sourceFilename,note:review.note}]:[];
+  });
+  if(structureReviews.length)foundation.commercialTerms.structureReviews=structureReviews;
   const noticeReview=noticeReviewBasis(state);
   foundation.commercialTerms.noticeReview={sourceTerms:noticeReview.candidates,reference:noticeReview.decision?.reference??null,treatment:noticeReview.decision?.choice??null};
   const termKeys=[...new Set(datedTerms.map(v=>v.term))];
