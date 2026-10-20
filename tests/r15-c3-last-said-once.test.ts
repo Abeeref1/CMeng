@@ -34,26 +34,41 @@ function calledNames(name:string){
 }
 const stubsExcept=(name:string,keep:string[])=>Object.fromEntries([...calledNames(name)].filter(n=>!keep.includes(n)&&!['Number','String','Array','Object','Boolean','Set','Map'].includes(n)).map(n=>[n,()=>'']));
 
-test('W5: a commercial card says its shared currency, tax basis and date once; each amount keeps its own record count',()=>{
+test('W5: a commercial card says its shared basis once; an amount that differs only in its record count keeps that count',()=>{
  const m=(value:number,refs:number,taxBasis?:string)=>({value,state:'established',sourceRefs:Array.from({length:refs},(_,i)=>'r'+i),...(taxBasis?{taxBasis}:{})});
  const row={currency:'USD',originalContractValue:m(10_000,2),currentContractValue:m(12_000,2),pendingVariationAmount:m(500,2),grossCertifiedAmount:m(6_000,3),paidAmount:m(5_000,3),
   certifiedUnpaidAmount:m(400,3),retentionDeductedAmount:m(250,3),retentionHeldAmount:m(600,4),claimedAmount:m(650,2),activeBondAmount:m(1_500,2)};
  const keep=['commercialMetricHtml','sumBasisLabel','commercialSourceState','commercialFieldLabel','fmt','escapeHtml'];
- const render=(currency:any)=>text(runInNewContext('renderCommercialVisual("commercial-overview",data)',{...stubsExcept('renderCommercialVisual',keep),escapeHtml,fmt:String,
-  projectionFor:(d:any)=>d,data:{reportingContract:{dataDateIso:'2042-08-18'},position:{currencies:[currency]}}}) as string);
- const page=render(row);
- assert.deepEqual(repeatedSentences(page),[],'before: "Basis: 3 source records · currency USD · tax basis not established · as of ..." on every amount');
+ const render=(key:string,currency:any)=>text(runInNewContext('renderCommercialVisual(key,data)',{...stubsExcept('renderCommercialVisual',keep),escapeHtml,fmt:String,
+  projectionFor:(d:any)=>d,key,data:{reportingContract:{dataDateIso:'2042-08-18'},position:{currencies:[currency]}}}) as string);
+ const basisLines=(page:string)=>page.split('\n').filter(line=>/Basis/.test(line)).length;
+ const page=render('commercial-overview',row);
+ assert.deepEqual(repeatedSentences(page),[],'before: "Basis: 3 source records · currency USD · tax basis not established · as of ..." on 4 amounts');
  assert.equal(count(page,'currency USD · tax basis not established · as of 2042-08-18'),1,'the shared part is said once');
- assert.match(page,/Basis of the amounts above: currency USD · tax basis not established · as of 2042-08-18/);
- assert.equal(count(page,'Basis: 2 source records\n'),5);assert.equal(count(page,'Basis: 3 source records\n'),4);assert.equal(count(page,'Basis: 4 source records\n'),1);
+ assert.match(page,/Basis of the amounts above: 2 source records unless stated · currency USD · tax basis not established · as of 2042-08-18/);
+ assert.equal(count(page,'Basis: 2 source records'),0);assert.equal(count(page,'Basis: 3 source records\n'),4);assert.equal(count(page,'Basis: 4 source records\n'),1);
+ assert.ok(basisLines(page)<=6,'the card is not taller than before (5 amounts with their own label and one shared line)');
  for(const amount of ['10000 USD','6000 USD','1500 USD'])assert.match(page,new RegExp(amount),'every amount is still shown');
+ // Cash Flow: amounts on one basis say nothing more; each label stays next to its value.
+ const cash=render('cash-flow',{...row,grossCertifiedAmountColumn:'net',grossCertifiedAmountLabel:'Certified (net; gross not stated)'});
+ assert.match(cash,/\nCertified \(net; gross not stated\)\n+6000 USD\n/,'R12: the certified label stays next to its value');
+ assert.match(cash,/Basis of the amounts above: 3 source records unless stated · currency USD · tax basis not established · as of 2042-08-18/);
+ assert.equal(count(cash,'Basis: 3 source records'),0);assert.equal(count(cash,'Basis: 4 source records\n'),1);assert.equal(basisLines(cash),2);
  // An amount on another basis keeps its whole basis, and the shared line says so.
- const mixed=render({...row,paidAmount:m(5_000,3,'exclusive')});
+ const mixed=render('commercial-overview',{...row,paidAmount:m(5_000,3,'exclusive')});
  assert.match(mixed,/Basis: 3 source records · currency USD · tax basis exclusive · as of 2042-08-18/);
- assert.match(mixed,/Basis of the amounts above, unless an amount states its own: currency USD · tax basis not established · as of 2042-08-18/);
+ assert.match(mixed,/as of 2042-08-18 \(unless an amount states its own basis\)/);
  // The single-figure renderer keeps the whole F27 label when nothing is shared.
  const one=runInNewContext('commercialMetricHtml(metric,"USD","2042-08-18")',{escapeHtml,fmt:String,planningShortDate:String,metric:m(10,3)}) as string;
  assert.match(text(one),/Basis: 3 source records · currency USD · tax basis not established · as of 2042-08-18/);
+});
+
+test('A clause heading does not run into its own wording',()=>{
+ const html=runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'3',heading:'Retention',textPreview:'3 Retention Retention rate: 10%. Retention cap: 5% of the Accepted Contract Amount.'}}) as string;
+ assert.equal(html,'<b>3 Retention</b><br>Retention rate: 10%. Retention cap: 5% of the Accepted Contract Amount.','before: "3 Retention Retention rate: 10%"');
+ assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'4',heading:null,textPreview:'4 The Contractor shall'}}),'4 The Contractor shall','no heading, no change');
+ assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'5',heading:'Delay Damages',textPreview:'Delay damages rate: USD 28,022 per day.'}}),'Delay damages rate: USD 28,022 per day.','wording without its heading is unchanged');
+ assert.match(script,/<p>"\+clauseWordingHtml\(row,escapeHtml\(statedAmountText\(row\.textPreview\|\|""\)\)\)\+"<\/p>/,'the clause register uses it');
 });
 
 test('W5: EOT checks that cannot be worked out say so in short; the reason and the candidate note are said once per table',()=>{

@@ -4191,6 +4191,14 @@ function renderNoticesClaimsVisual(data){
   const eventRows=table(["Event","Event start","Notice date","Required days","Elapsed days","Assessment"],p.events.map(e=>[e.eventId,planningShortDate(e.eventStartIso),planningShortDate(e.noticeIssuedAt),fmt(e.requiredNoticeDays),e.elapsedNoticeDays===null||e.elapsedNoticeDays===undefined?fmt(e.elapsedNoticeDays):fmt(e.elapsedNoticeDays)+" · "+sumBasisLabel({records:"notice "+String(e.noticeIssuedAt||"").slice(0,10)+" minus "+(e.elapsedFromBasis==="awareness"?"awareness date ":"event start ")+(e.elapsedFromIso?String(e.elapsedFromIso).slice(0,10):"not established")+", calendar days",asOf:null}),humanizeKey(e.noticeTimeliness)]));
   return '<section class="planning-view notices-view">'+summary+integrityWarning+notAssessableNotice+evidenceChainHtml+(populationEstablished?'<details class="source-scope"><summary>Review '+fmt(responseListPopulation(p.events).total)+' notice assessments</summary><p>Showing '+fmt(p.events.length)+' of '+fmt(responseListPopulation(p.events).total)+' assessments.</p>'+eventRows+sourcePopulationControl(p.events,'Browse all notice assessments')+'</details>':'')+'</section>';
 }
+// A clause's source wording starts with its own number and heading ('3 Retention Retention
+// rate: 10%'); the heading is set on its own line so it does not run into its text. The
+// wording itself is unchanged.
+function clauseWordingHtml(row,wordingHtml){
+  const heading=row&&row.heading!==null&&row.heading!==undefined?String(row.heading).trim():"";
+  const head=heading?escapeHtml([row.identifier,heading].filter(value=>value!==null&&value!==undefined&&String(value).trim()).join(" ")):"";
+  return head&&wordingHtml.startsWith(head+" ")?'<b>'+head+'</b><br>'+wordingHtml.slice(head.length+1):wordingHtml;
+}
 function commercialMetricHtml(metric,currency="",asOf=null,sharedBasis=""){
   if(!metric)return'<span class="muted">Not established</span>';
   const state=commercialSourceState(metric);
@@ -4200,10 +4208,13 @@ function commercialMetricHtml(metric,currency="",asOf=null,sharedBasis=""){
   // F27: every displayed money sum states its basis through the one shared label.
   const refs=Array.isArray(metric.sourceRefs)?metric.sourceRefs.length:0;
   const label=currency&&typeof metric.value==="number"?sumBasisLabel({records:refs?fmt(refs)+" source record"+(refs===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}):"";
-  // W5: the part of the basis (currency, tax basis and date) shared by the other figures
-  // of the same card is stated once under the card; the figure keeps its own records.
-  const tail=sharedBasis?" · "+sharedBasis:"";
-  const own=!label||label===sharedBasis?"":tail&&label.endsWith(tail)?label.slice(0,-tail.length):label;
+  // W5: a basis shared by the other figures of the same card is stated once under the
+  // card (sharedBasis.full); a figure that differs only in its record count keeps just
+  // that count, and the currency, tax basis and date it shares (sharedBasis.tail) are
+  // also said under the card.
+  const shared=typeof sharedBasis==="string"?{full:sharedBasis,tail:""}:(sharedBasis||{});
+  const tail=shared.tail?" · "+shared.tail:"";
+  const own=!label||label===shared.full?"":tail&&label.endsWith(tail)?label.slice(0,-tail.length):label;
   const basis=own?'<br><span class="muted">'+escapeHtml(own)+'</span>':"";
   return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>'+basis;
 }
@@ -4324,21 +4335,26 @@ function renderCommercialVisual(key,data){
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
         const asOf=data?.reportingContract?.dataDateIso||null,lineCurrency=field=>["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency;
-        // W5: the F27 basis label (sumBasisLabel, as in commercialMetricHtml) is split in
-        // two: each figure keeps its own record count, and the currency, tax basis and date
-        // that several figures of this card share are said once, under the card.
+        // W5: the F27 basis label (sumBasisLabel, as in commercialMetricHtml) that most
+        // figures of this card share is said once, under the card; a figure that differs only
+        // in its record count keeps just that count; any other figure keeps its whole label.
+        // The card is never taller than when each figure said its whole label.
         const recordsOf=metric=>(Array.isArray(metric.sourceRefs)&&metric.sourceRefs.length)?fmt(metric.sourceRefs.length)+" source record"+(metric.sourceRefs.length===1?"":"s"):null;
         const basisOf=(metric,currency)=>{
-          if(!(metric&&currency&&typeof metric.value==="number"))return "";
-          const records=recordsOf(metric),label=sumBasisLabel({records,currency,taxBasis:metric.taxBasis,asOf});
-          return label.slice(("Basis: "+(records??"records not established")+" · ").length);
+          if(!(metric&&currency&&typeof metric.value==="number"))return null;
+          const records=recordsOf(metric),label=sumBasisLabel({records,currency,taxBasis:metric.taxBasis,asOf}),head="Basis: "+(records??"records not established");
+          return {label,records:head.slice("Basis: ".length),tail:label.slice((head+" · ").length)};
         };
-        const tails=cols.map(([,field])=>basisOf(row[field],lineCurrency(field)));
-        const uses=tail=>tails.filter(other=>other===tail).length;
-        const shared=tails.filter(tail=>tail&&uses(tail)>1).sort((a,b)=>uses(b)-uses(a))[0]||"";
-        const own=tails.some(tail=>tail&&tail!==shared);
+        const bases=cols.map(([,field])=>basisOf(row[field],lineCurrency(field)));
+        const mostUsed=values=>{const uses=value=>values.filter(other=>other===value).length;return values.filter(value=>value&&uses(value)>1).sort((a,b)=>uses(b)-uses(a))[0]||"";};
+        const full=mostUsed(bases.map(basis=>basis?.label));
+        const fullBasis=full?bases.find(basis=>basis?.label===full):null;
+        const tail=fullBasis?fullBasis.tail:mostUsed(bases.map(basis=>basis?.tail));
+        const shared={full,tail};
+        const countOwn=bases.some(basis=>basis&&basis.label!==full&&basis.tail===tail),otherBasis=bases.some(basis=>basis&&basis.tail!==tail);
+        const sharedText=tail?'Basis of the amounts above: '+(fullBasis?fullBasis.records+(countOwn?' unless stated':'')+' · ':'')+tail+(otherBasis?' (unless an amount states its own basis)':''):'';
         const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],lineCurrency(field),asOf,shared)+'</strong></div>').join("");
-        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(shared?'<p class="muted currency-shared-basis">'+escapeHtml((own?'Basis of the amounts above, unless an amount states its own: ':'Basis of the amounts above: ')+shared)+'</p>':'')+'</div>';
+        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(sharedText?'<p class="muted currency-shared-basis">'+escapeHtml(sharedText)+'</p>':'')+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
   const commercialCharts=position.currencies.length
@@ -4493,7 +4509,7 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
-      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+countText(row.occurrenceCount??1,'source section',undefined,fmt)+"</summary><p>"+escapeHtml(statedAmountText(row.textPreview||""))+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
+      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+countText(row.occurrenceCount??1,'source section',undefined,fmt)+"</summary><p>"+clauseWordingHtml(row,escapeHtml(statedAmountText(row.textPreview||"")))+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
       const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(amendmentEotManagementDisplay(row.incorporatedEotDays,data.projectFacts?.time))+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are Separate from the current programme.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
