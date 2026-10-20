@@ -219,8 +219,8 @@ test('F38 uploaded programme: driving chain stages from codes and WBS, float ero
   const definition = q.criticalityDefinition;
   assert.equal(definition.state, 'stated');
   assert.equal(definition.thresholdMethod, projectScheduleControlBasis(reportingState(state)).nearCriticalThresholdMethod);
-  assert.equal(definition.critical, 'critical = total float <= 0 h on the CMeng CPM');
-  assert.equal(definition.nearCritical, 'near-critical = total float > 0 h and <= 5 working days of each activity calendar (C5: 40 h) (CMeng policy default)');
+  assert.equal(definition.critical, 'critical = total float of 0 working days or less on the CMeng CPM');
+  assert.equal(definition.nearCritical, 'near-critical = more than 0 and up to 5 working days of each activity calendar (CMeng policy default)');
 
   // The same shared result reaches the Programme Review and the Near-Critical page.
   for (const key of ['schedule-analytics', 'near-critical']) {
@@ -232,7 +232,7 @@ test('F38 uploaded programme: driving chain stages from codes and WBS, float ero
   assert.match(review, /<kpi>Baseline Execution Index \(BEI\)=0\.6666666666666666\|Tasks completed by the Data Date \/ tasks baselined to finish by the Data Date<\/kpi>/);
   assert.match(review, /Driving chain by stage<\/b> \(from the programme activity codes and WBS\): .*Structure · Plot B43 \(1\) > MEP \(1\) > Painting \(1\) > Snagging \(1\) > Not classified \(1\) > Handover & closeout \(1\)\./);
   assert.match(review, /Stage source: \d from activity codes, 1 from WBS, 1 by the Programme stage name rule \(name match\), 1 not classified\./);
-  assert.match(review, /Criticality definition:<\/b> critical = total float <= 0 h on the CMeng CPM; near-critical = total float > 0 h and <= 5 working days of each activity calendar \(C5: 40 h\) \(CMeng policy default\)\./);
+  assert.match(review, /Criticality definition:<\/b> critical = total float of 0 working days or less on the CMeng CPM; near-critical = more than 0 and up to 5 working days of each activity calendar \(CMeng policy default\)\./);
   assert.match(review, /Float erosion<\/b> \(CMeng CPM total float, previous to current revision\): 2027-01-04T08:00[^ ]* to 2027-01-11T08:00[^ ]*: 8 of 8 near-critical and driving activities compared; 1 losing float; average change -0\.0375 working days of total float per working day elapsed, on the activity calendar\. Turns critical by: 2027-01-15T16:00:00\.000Z \(X1\)\./);
   assert.match(review, /BEI \(Baseline Execution Index\) = detail tasks completed by the Data Date/);
   const nearCritical = renderNearCriticalPage((moduleForProject(projectId, 'near-critical').data as any).projectFacts);

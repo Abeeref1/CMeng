@@ -43,7 +43,8 @@ export function floatHoursToWorkingDays(hours:number|null|undefined,dayHours:num
 export function floatHoursText(hours:number,dayHours:number|null|undefined):string{
  const days=floatHoursToWorkingDays(hours,dayHours);
  // Display only: two decimals as on the screen tables; stored values keep full precision.
- return days===null?hours+' h (working days unknown: calendar hours per day not read)':Number(days.toFixed(2))+' working days ('+hours+' h)';
+ // N7: working days with the day type on screen; hours stay in the stored fields.
+ return days===null?'working days not established (calendar hours per day not read)':Number(days.toFixed(2))+' working days (activity calendar)';
 }
 
 /** T06/N7: relationship lag is shown in working days of the calendar the

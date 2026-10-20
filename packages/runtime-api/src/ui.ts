@@ -5764,7 +5764,7 @@ function renderManagementControlVisual(key,data){
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
     const positionSeverity=p=>{const counts=p.issueAssessment?.counts;if(!counts)return {label:'Checks not established',tone:'review'};const keys=['system_defect','source_conflict','data_quality','missing_information','comparison_difference','governance_review','verification_pending'];if(keys.some(key=>knownScreenCount(counts[key])===null))return {label:'Checks not established',tone:'review'};if(sumKnownScreenCounts(counts,['system_defect','source_conflict','data_quality'])>0)return {label:'Material issue',tone:'blocked'};if(sumKnownScreenCounts(counts,['missing_information','comparison_difference'])>0)return {label:'Qualified',tone:'review'};if(sumKnownScreenCounts(counts,['governance_review','verification_pending'])>0)return {label:'Routine follow-up',tone:'not_applicable'};return {label:'Current',tone:'ready'};}
     const positionRows=positions.map(p=>{const severity=positionSeverity(p);return '<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td><span class="state-pill '+severity.tone+'">'+severity.label+'</span><br>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(readerModuleSummary(p.reason))+(p.reason?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>';}).join("");
-    const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(readerText(item.label))+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(readerReference(item.sourceRef))+'</td><td>'+managementModuleLink(item.owningModule,"Open owner")+'</td></tr>').join("");
+    const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(readerText(item.label))+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(readerReference(item.sourceRef))+'</td><td>'+managementModuleLink(candidateOwnerModule(item),"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(readerReference(item.entity))+'</b></td><td>'+escapeHtml(readerAuditAction(item.action))+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(readerReference(item.sourceRef||"—"))+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+
       renderMcpProgrammeControl(data)+
@@ -6167,6 +6167,27 @@ function bindAdvancedControls(parentKey){
 }
 function pmcDisplayOwner(domain,owner=null){return pmcRoleOwner(domain,owner);}
 
+// A1: the owning page for a table's missing owners: the register's own page from the
+// shared owner map when the table belongs to another page's block or register; null
+// (Actions and data gaps) for actions and for the owner page itself; the document
+// library only for a document source with no register page.
+function ownerRouteFor(node){
+ if(!node||typeof node.closest!=='function')return null;
+ if(node.closest('.project-action,[data-action-id]'))return null;
+ const block=node.closest('[data-owner-topic],[data-owner-link]');
+ const topic=block?(block.dataset?.ownerTopic||block.dataset?.ownerLink):null;
+ const entry=topic?blockOwnerEntry(topic):null;
+ if(entry&&entry.owner!==currentPageKey()&&moduleRegistry.some(m=>m.key===entry.owner))return entry.owner;
+ if(!entry&&node.closest('[data-source-document],.evidence-library'))return 'documents';
+ return null;
+}
+function candidateOwnerModule(item){
+ const own=item?.owningModule;
+ if(own&&(own==='documents'||moduleRegistry.some(m=>m.key===own)))return own;
+ const register=deliveryRegisterOwners[String(item?.type||'')];
+ if(register&&moduleRegistry.some(m=>m.key===register))return register;
+ return ownerSetRoute(null);
+}
 function applyPmcDisplayOwners(root,defaultDomain){
  if(!root||typeof root.querySelectorAll!=='function')return;
  // Missing source individuals receive the accountable PMC role, never a
@@ -6177,15 +6198,16 @@ function applyPmcDisplayOwners(root,defaultDomain){
    const headings=[...table.querySelectorAll('thead th')].map(th=>String(th.textContent||'').trim().toLowerCase());
    const ownerColumns=headings.flatMap((heading,i)=>/\b(?:owner|responsible party|accountable party|accountable owner)\b/i.test(heading)?[i]:[]);
    if(!ownerColumns.length)return;
+   const route=ownerRouteFor(table);
    table.querySelectorAll('tbody tr').forEach(tr=>{
      const cells=[...tr.children].filter(cell=>cell.tagName==='TD');
      for(const i of ownerColumns){
        const cell=cells[i];if(!cell||cell.querySelector('[data-owner-missing]'))continue;
-       if(roleOnly(cell.textContent)){cell.innerHTML=ownerMissingHtml(cell.textContent);continue;}
+       if(roleOnly(cell.textContent)){cell.innerHTML=ownerMissingHtml(cell.textContent,null,route);continue;}
        if(!missing(cell.textContent))continue;
        const section=table.closest('.planning-panel,.card,.data-section,.action,.project-action');
        const area=section?.querySelector('h3,h4,h5,.data-section-head')?.textContent||defaultDomain;
-       cell.innerHTML=ownerMissingHtml(pmcDisplayOwner(area));
+       cell.innerHTML=ownerMissingHtml(pmcDisplayOwner(area),null,route);
      }
    });
  });

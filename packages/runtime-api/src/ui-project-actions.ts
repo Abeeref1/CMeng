@@ -6,11 +6,30 @@ export const projectActionsScript=String.raw`
 ${ownerDisplayState.toString()}
 /** A missing owner is shown as missing, with its accountable role and the way to
  * set it: a named owner in the source register is always kept (pmcRoleOwner). */
-function ownerMissingHtml(owner,accountableRole=null){
+/** A1: the page where a missing owner is set. A register record goes to the
+ * register's own page (shared owner map); anything else to Actions and data gaps
+ * (F30/A4), where the owner can be set. The document library only for a document
+ * source with no register page. Never a page that is not in moduleRegistry. */
+function ownerSetRoute(route=null){
+ const exists=key=>!!key&&typeof moduleRegistry!=='undefined'&&Array.isArray(moduleRegistry)&&moduleRegistry.some(m=>m.key===key);
+ if(route==='documents')return 'documents';
+ if(exists(route))return route;
+ const actions=(typeof blockOwnerEntry==='function'?blockOwnerEntry('review-items')?.owner:null)||'source-quality';
+ return exists(actions)?actions:'documents';
+}
+function ownerSetButton(route=null){
+ const target=ownerSetRoute(route);
+ if(target==='documents')return '<button type="button" class="management-module-link" data-module="documents" data-set-owner>Name the owner in the source register</button>';
+ const title=(typeof names!=='undefined'&&names?.[target])||target;
+ const here=typeof currentPageKey==='function'&&(typeof appView==='undefined'||appView==='project')?currentPageKey():null;
+ if(target===here)return '<small data-set-owner data-owner-page="'+escapeHtml(target)+'">Set the owner on this page</small>';
+ return '<button type="button" class="management-module-link" data-module="'+escapeHtml(target)+'" data-set-owner data-owner-page="'+escapeHtml(target)+'">Set the owner in '+escapeHtml(title)+'</button>';
+}
+function ownerMissingHtml(owner,accountableRole=null,route=null){
  const state=ownerDisplayState(owner);
  if(!state.named&&!state.role&&typeof accountableRole==='string'&&accountableRole.trim())state.role=accountableRole.trim();
  if(state.named)return escapeHtml(owner);
- return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' <button type="button" class="management-module-link" data-module="documents" data-set-owner>Name the owner in the source register</button>';
+ return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' '+ownerSetButton(route);
 }
 let projectActionState=null,projectActionRequest=0,projectActionSearch='',projectActionFilter='all',projectActionPage=0,projectDataGapsPage=0,projectActionSearchTimer=null;
 function actionStateCurrent(){return projectActionState?.projectId===project();}
