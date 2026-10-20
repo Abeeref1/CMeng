@@ -85,14 +85,14 @@ test('R14: a claims register stating both dates keeps both; a conflict on either
  await upload('EOT_Register.csv',claimsB,{uploadIntent:'add_update'});
  for(const name of ['Claims_Register.csv','EOT_Register.csv']){
   const stored=state.evidenceDocuments.find((d:any)=>d.sourceFilename===name) as any;
-  assert.ok(stored&&['active','additive'].includes(stored.basisState),name+' is part of the current basis ('+stored?.basisState+')');
+  assert.ok(stored&&['active','additive'].includes(stored.basisState),name+' is part of the current basis ('+stored?.basisState+', '+stored?.documentType+', '+stored?.familyKey+', '+stored?.logicalDocumentKey+')');
  }
  const facts:any=projectFactsForState(state);
  const queries=facts.claims.pipeline.sourceRecordQueries.map((q:any)=>[q.recordId,q.field,q.values.map((v:any)=>v.value),q.usedValue]);
  assert.deepEqual(queries.sort(),[
   ['CLM-01','notice date',['2031-03-05','2031-03-07'],'2031-03-07'],
   ['CLM-02','submitted date',['2031-04-30','2031-05-02'],'2031-05-02'],
- ],JSON.stringify(queries));
+ ],JSON.stringify({queries,documents:state.evidenceDocuments.map((d:any)=>[d.sourceFilename,d.documentType,d.basisState,d.logicalDocumentKey])}));
  const rows=facts.claims.pipeline.rows.map((r:any)=>r.claimId).sort();
  assert.deepEqual(rows,['CLM-01','CLM-02'],'one claim per id across both files');
 });

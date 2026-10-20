@@ -71,13 +71,17 @@ function documentIdentifier(
       "letter",
       /\b(?:letter|ref(?:erence)?)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
     ],
+    // A notice or claim identifier carries a number (NTC-001, CLM-07). A
+    // register's column heading ("Notice Date", "Claim ID") is not a document
+    // identity: read as one, every claims register shared "claim:id" and a
+    // second, different register was held as a correction candidate.
     [
       "notice",
-      /\bnotice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
+      /\bnotice\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]*\d[A-Z0-9._/-]*)/i,
     ],
     [
       "claim",
-      /\bclaim\s*(?:id|no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]+)/i,
+      /\bclaim\s*(?:id|no\.?|number|#)?\s*[:\-]?\s*([A-Z0-9._/-]*\d[A-Z0-9._/-]*)/i,
     ],
     [
       "meeting",
