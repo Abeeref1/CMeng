@@ -5824,7 +5824,7 @@ function renderManagementControlVisual(key,data){
       ])+renderObservedWbsLabels(w.observedWbsLabels||[]))+
       experienceDisclosure("Control authority & evidence",renderMcpGovernanceMatrix(data)+managementPanel("Specialist positions","Supporting control/evidence status by workstream.",positionRows?'<div class="table-wrap"><table><thead><tr><th>Workstream</th><th>Position</th><th>Status</th><th>Reason</th><th>Correction source</th></tr></thead><tbody>'+positionRows+'</tbody></table></div>':'<div class="empty">No specialist positions are established.</div>'),"Governance and authority supporting the integrated programme")+
       managementPanel("Suggested updates for review","Review each suggested update with its supporting document. Use the relevant page to approve, reject or defer it before it changes the project position.",candidateRows?'<div class="table-wrap"><table><thead><tr><th>Candidate</th><th>Type</th><th>Status</th><th>Source evidence</th><th>Owning module</th></tr></thead><tbody>'+candidateRows+'</tbody></table></div>':'<div class="notice info">No current candidate is waiting for review.</div>')+
-      managementPanel("Information to confirm","Confirm missing information, outdated records and conflicting values.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
+      managementPanel("Information to confirm",(data.evidenceGaps||[]).some(g=>g.state==="conflicted")?"Confirm missing information, outdated records and conflicting values.":"Confirm missing information and outdated records.",renderManagementEvidenceGaps(data.evidenceGaps||[]))+
       managementPanel("Approvals and publication","A report awaiting publication does not change the recorded project figures.",renderManagementEvidenceGaps(data.governanceGaps||[])+renderManagementConsistency(data.consistency,key))+
       managementPanel("Control History","Audit history records evidence updates, board publications and the latest certified recalculation. It does not invent actors that were not recorded.",historyRows?'<div class="table-wrap"><table><thead><tr><th>Date/time</th><th>Entity</th><th>Action</th><th>Actor</th><th>State</th><th>Source</th></tr></thead><tbody>'+historyRows+'</tbody></table></div>':'<div class="empty">No management-control history is available.</div>')+
       '</div>';
@@ -6106,10 +6106,12 @@ function renderIssueAssessment(a,management=false){
   const conflicts=counts?.source_conflict;
   const chooseControl=known(conflicts)&&conflicts>0?' <button class="btn small" type="button" data-choose-source-value onclick="openProjectActions(true)">Choose the value to use</button>':'';
   const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+screenCountText(counts?.[kind])+'</td><td>'+escapeHtml(kind==='source_conflict'&&conflicts===0?'None found by the listed checks.':description)+(kind==='source_conflict'?chooseControl:'')+'</td></tr>').join('');
-  const typed=Object.keys(descriptions).filter(kind=>known(counts?.[kind])&&counts[kind]>0).map(kind=>issueLabel(kind)+' '+fmt(counts[kind]));
-  const uncounted=Object.keys(descriptions).filter(kind=>!known(counts?.[kind])).length;
-  const countFigure=(typed.length?(management?'Pages affected, by type: ':'On this page: ')+typed.join(' · ')+(uncounted?'; '+countText(uncounted,'type')+' not counted':''):uncounted?'Follow-up counts by type are not established for this '+(management?'project':'page'):'Follow-up items '+(management?'across the project':'on this page')+': none')+'.';
-  const classification=ownerPage?experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>'):(typeof ownerLinkPanel==='function'?ownerLinkPanel('review-items',countFigure,'',true).replace(/<[/]section>$/,chooseControl+'</section>'):'<p>'+escapeHtml(countFigure)+'</p>'+chooseControl);
+  const countFigure=()=>{
+    const typed=Object.keys(descriptions).filter(kind=>known(counts?.[kind])&&counts[kind]>0).map(kind=>issueLabel(kind)+' '+fmt(counts[kind]));
+    const uncounted=Object.keys(descriptions).filter(kind=>!known(counts?.[kind])).length;
+    return (typed.length?(management?'Pages affected, by type: ':'On this page: ')+typed.join(' · ')+(uncounted?'; '+countText(uncounted,'type')+' not counted':''):uncounted?'Follow-up counts by type are not established for this '+(management?'project':'page'):'Follow-up items '+(management?'across the project':'on this page')+': none')+'.';
+  };
+  const classification=ownerPage?experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>'):(typeof ownerLinkPanel==='function'?ownerLinkPanel('review-items',countFigure(),'',true).replace(/<[/]section>$/,chooseControl+'</section>'):'<p>'+escapeHtml(countFigure())+'</p>'+chooseControl);
   // F30: a missing-information item is listed once, in Actions and Data gaps, with
   // the upload or control that supplies it. A page links to that list instead of
   // repeating each item; items are counted once by raw field identity.
@@ -6122,8 +6124,8 @@ function renderIssueAssessment(a,management=false){
   // the management page counts them by type, names them and links to that list.
   const others=(a.issues||[]).filter(i=>i.kind!=='missing_information');
   const foldOthers=management&&!ownerPage&&others.length>0;
-  const otherTitles=[...new Set(others.map(i=>readerIssue(i).title))];
-  const otherKinds=Object.keys(descriptions).map(kind=>[kind,others.filter(i=>i.kind===kind).length]).filter(([,n])=>n>0);
+  const otherTitles=foldOthers?[...new Set(others.map(i=>readerIssue(i).title))]:[];
+  const otherKinds=foldOthers?Object.keys(descriptions).map(kind=>[kind,others.filter(i=>i.kind===kind).length]).filter(([,n])=>n>0):[];
   const foldedRow=foldOthers?'<tr><td>'+otherKinds.map(([kind])=>issueBadge({primaryKind:kind})).join(' ')+'</td><td><b>'+escapeHtml(countText(others.length,'project finding')+' listed here: '+otherKinds.map(([kind,n])=>issueLabel(kind)+' '+fmt(n)).join(' · '))+'</b><details><summary>Findings</summary>'+escapeHtml(otherTitles.join('; '))+'</details></td><td colspan="2">Each finding is kept in full, with its owner and next step, in Actions required and on the pages it affects. <button class="btn small" type="button" onclick="openProjectActions()">Open Actions required</button></td></tr>':'';
   const rows=(foldOthers?foldedRow:others.map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,i.detail,...(i.sourceRefs||[])].join(' · ')))+'</details></td></tr>';}).join(''))+missingRow;
   // SW-46: "The listed checks passed" only when the check state says so; a missing state is not a pass.

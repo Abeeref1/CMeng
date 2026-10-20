@@ -105,15 +105,18 @@ test('W6: Financial Claims, Notice Compliance, Resources and Man-Hour S-Curve ea
  assert.match(verdict('manhour-scurve',{earnedHours:{state:'established',earnedHours:12500,actualHoursSpent:14000.4}}),/^12,500 earned hours to the Data Date against 14,000 hours spent\./);
 });
 
+// The page's owner helpers are feature-detected in the renderer (typeof), so the
+// test names them to run the real ones.
+const OWNER_HELPERS='ownsBlock;ownerLinkPanel;';
 const issue=(kind:string,summary:string)=>({kind,code:kind.toUpperCase(),summary,detail:'',action:'Act',owner:'Project controls reviewer',moduleKeys:['near-critical'],evidencePaths:[],sourceRefs:[],checkIds:[]});
 const assessment=(counts:Record<string,number>,issues:any[]=[])=>({counts,affectedModuleCounts:counts,issues,systemCheckState:'unverified',scope:'Each type is counted on its own.'});
 const reviewContext=(pageKey:string|null)=>({escapeHtml,names:{'source-quality':'Actions required','near-critical':'Near-Critical'},currentModuleResult:pageKey?{key:pageKey}:null,openOwnerPage:()=>{}});
 const allKinds=(n:number)=>({system_defect:0,source_conflict:n,data_quality:1,missing_information:0,comparison_difference:0,governance_review:2,verification_pending:0});
 
 test('A3: what each review type means is listed on Actions required; another page shows its counts with a link',()=>{
- const owner=runInNewContext('renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(0))}) as string;
+ const owner=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(0))}) as string;
  assert.match(owner,/A supplied field or link needs correction\./);assert.match(owner,/An approval or authority is not confirmed\./);
- const other=runInNewContext('renderIssueAssessment(a)',{...reviewContext('cost-forecast'),a:assessment(allKinds(0))}) as string;
+ const other=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('cost-forecast'),a:assessment(allKinds(0))}) as string;
  assert.doesNotMatch(other,/A supplied field or link needs correction\.|An approval or authority is not confirmed\./,'before: the type meanings on 31 pages');
  assert.match(other,/data-owner-link="review-items" data-owner-page="source-quality" data-owner-scope="page"/);
  assert.match(other,/On this page: Record needs correction 1 · Review required 2\./,'this page keeps its own counts');
@@ -121,22 +124,22 @@ test('A3: what each review type means is listed on Actions required; another pag
  // A management page counts the project's findings and links to the list; the
  // finding's page (and the summary page) keep the full row.
  const findings=[issue('governance_review','Calculated basis requires review'),issue('comparison_difference','Positions differ')];
- const management=runInNewContext('renderIssueAssessment(a,true)',{...reviewContext('command-center'),a:assessment(allKinds(0),findings)}) as string;
+ const management=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a,true)',{...reviewContext('command-center'),a:assessment(allKinds(0),findings)}) as string;
  assert.match(management,/2 project findings listed here/);assert.match(management,/<summary>Findings<\/summary>[^<]*calculated basis requires review/i);
  assert.doesNotMatch(management,/Project controls reviewer<br>/,'the owner and next step stay on the owner list');
- const own=runInNewContext('renderIssueAssessment(a)',{...reviewContext('near-critical'),a:assessment(allKinds(0),findings)}) as string;
+ const own=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('near-critical'),a:assessment(allKinds(0),findings)}) as string;
  assert.match(own,/Project controls reviewer<br>/,'the affected page keeps its own full row');
- const summary=runInNewContext('renderIssueAssessment(a,true)',{...reviewContext('master-dashboard'),a:assessment(allKinds(0),findings)}) as string;
+ const summary=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a,true)',{...reviewContext('master-dashboard'),a:assessment(allKinds(0),findings)}) as string;
  assert.match(summary,/Project controls reviewer<br>/,'the summary page keeps the full rows');
 });
 
 test('C1: records that disagree come with a choose control; none found is said as none',()=>{
- const some=runInNewContext('renderIssueAssessment(a)',{...reviewContext('cost-forecast'),a:assessment(allKinds(2))}) as string;
+ const some=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('cost-forecast'),a:assessment(allKinds(2))}) as string;
  assert.match(some,/<button[^>]*onclick="openProjectActions\(true\)">Choose the value to use<\/button>/,'opens the same-page decision place (pick a value or enter your own)');
  assert.match(some,/Records disagree 2/);
- const ownerSome=runInNewContext('renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(2))}) as string;
+ const ownerSome=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(2))}) as string;
  assert.match(ownerSome,/Supplied sources make incompatible assertions\. <button[^>]*>Choose the value to use<\/button>/);
- const none=runInNewContext('renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(0))}) as string;
+ const none=runInNewContext(OWNER_HELPERS+'renderIssueAssessment(a)',{...reviewContext('source-quality'),a:assessment(allKinds(0))}) as string;
  assert.doesNotMatch(none,/Choose the value to use/);
  assert.match(none,/None found by the listed checks\./,'a zero count is not read as a conflict');
  const scope=summarizeControlIssues([]).scope;
