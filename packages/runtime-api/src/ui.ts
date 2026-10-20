@@ -4126,7 +4126,9 @@ function renderCommercialLedgerVisual(data,scoped=false){
   const amount=a=>a?'<b>'+escapeHtml(num(a.value))+'</b>'+(a.value===null?"":' <small>'+escapeHtml(a.currency||"Currency unresolved")+'</small>'):"Not established";
   const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
   const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
-  const evidence=list=>'<details><summary>Source evidence ('+(list||[]).length+')</summary>'+table(["Document","Location","Revision / hash","Basis"],(list||[]).map(r=>[escapeHtml(r.documentId),escapeHtml(r.locator),escapeHtml(r.revision||r.sourceHash),escapeHtml(r.basisState)]))+'</details>';
+  // L3: a record's source receipts are listed in its own row (document · location ·
+  // revision or hash · basis) instead of a collapsed table per row. Every receipt stays.
+  const evidence=list=>{const refs=(list||[]).filter(Boolean);return '<div class="row-evidence"><small>Source evidence ('+refs.length+')</small>'+refs.map(r=>'<small>'+escapeHtml([r.documentId,r.locator,r.revision||r.sourceHash,r.basisState].filter(v=>v!==null&&v!==undefined&&v!=='').join(' · '))+'</small>').join('')+'</div>';};
   const panel=(title,description,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
   let content="";
   if(key==="commercial-cost-position"){
@@ -5742,8 +5744,10 @@ function renderManagementControlVisual(key,data){
         managementPanel("Evidence review","Use Information & Actions for missing, conflicting or unread project evidence.",managementModuleLink("source-quality","Open Information & Actions"))+
       '</div>',"Available results and supporting documents")+
       experienceDisclosure("NCR, RFI and risk records",renderOperationalReporting(data.operationalReporting),"Quality, RFI and risk records")+
-      // L1: the commercial exposure (certified unpaid, retention, claims by currency) is part of the Dashboard's first screen.
-      managementPanel("Commercial Exposure by Currency","Amounts are shown separately for each currency.",renderManagementCommercial(data.commercialByCurrency||[])+renderManagementVariationReconciliation(data.variationReconciliation||[])).replace('<section ','<section data-page-answer ')+
+      // L1: the commercial exposure by currency (certified unpaid, retention, claims) is part of the
+      // Dashboard's answer; the variation approval comparison is its own panel under More detail.
+      managementPanel("Commercial Exposure by Currency","Amounts are shown separately for each currency.",renderManagementCommercial(data.commercialByCurrency||[])).replace('<section ','<section data-page-answer ')+
+      ((data.variationReconciliation||[]).length?managementPanel("Variation approvals by currency","Reported variation totals against approvals dated by the reporting date.",renderManagementVariationReconciliation(data.variationReconciliation)):'')+
       '<div class="notice info"><b>Risk assessment:</b> Overall and contract risk require a documented assessment. Missing information remains unconfirmed.</div>'+
       '</div>';
   }
