@@ -324,7 +324,10 @@ function renderSourceQuality(data){
 function renderDashboardDecisions(data){
   if(!Array.isArray(data?.actions))return managementPanel('Source decisions','Not established','<p>The full set of source decisions is not established. Missing action data does not mean no review is needed.</p>');
   const decisions=data.actions.filter(row=>row.recordKey?.startsWith('review|'));
-  const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.consequence||row.requiredAction))+'</p>'+managementModuleLink('source-quality','Review findings and existing evidence before deciding')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
+  // W5: a sentence that several of the listed decisions share is said once under the
+  // list; each decision keeps its own part (such as its record count).
+  const shown=decisions.slice(0,5),texts=shown.map(row=>readerText(row.consequence||row.requiredAction)),said=sentencesSaidOnce(texts);
+  const body=decisions.length?'<div class="decision-list">'+shown.map((row,index)=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b>'+(said.own(texts[index])?'<p>'+escapeHtml(said.own(texts[index]))+'</p>':'')+managementModuleLink('source-quality','Review findings and existing evidence before deciding')+'</article>').join('')+'</div>'+(said.common.length?'<p class="decision-common">For the decisions above: '+escapeHtml(said.common.join(' '))+'</p>':''):'<p>No source confirmation is awaiting action.</p>';
   // T05/N1: data.actions is a 25-row preview on large projects. A subset of it
   // is counted only when the preview is the whole list; otherwise say so.
   const decisionTotal=listTotal(decisions);

@@ -7,10 +7,17 @@ import {
   contractBlocksFromDocx,
   parseContractDocxSource,
 } from "./docx";
+import {
+  contractBlocksFromText,
+  parseContractTextSource,
+} from "./text";
 import { collectAiHeadingOverrides } from "./ai";
 import type {
   ContractDocumentResult,
   ContractParseOptions,
+  ContractSourceType,
+  ContractTextBlock,
+  ContractTextSource,
 } from "./types";
 
 const refreshed=new WeakMap<ContractDocumentResult,ContractDocumentResult>();
@@ -19,11 +26,11 @@ const refreshed=new WeakMap<ContractDocumentResult,ContractDocumentResult>();
 export function refreshContractSegmentation(contract:ContractDocumentResult):ContractDocumentResult {
   if(contract.segmentationVersion==='contract-data-rows-v6')return contract;
   const cached=refreshed.get(contract);if(cached)return cached;
-  const blocks=contract.pdf?contractBlocksFromPdf(contract.pdf):contract.docx?contractBlocksFromDocx(contract.docx):null;
+  const blocks=contract.pdf?contractBlocksFromPdf(contract.pdf):contract.docx?contractBlocksFromDocx(contract.docx):contract.text?contractBlocksFromText(contract.text):null;
   if(!blocks)return contract;
   const result=segmentContractTextBlocks(blocks,{sourceType:contract.sourceType,physicalComplete:contract.physicalComplete,
-    sourceDiagnostics:contract.pdf?.diagnostics??contract.docx?.diagnostics??[]});
-  result.pdf=contract.pdf;result.docx=contract.docx;
+    sourceDiagnostics:contract.pdf?.diagnostics??contract.docx?.diagnostics??contract.text?.diagnostics??[]});
+  result.pdf=contract.pdf;result.docx=contract.docx;if(contract.text)result.text=contract.text;
   // A retained, earlier deterministic reading is still source evidence.
   // Native/PDF refresh may have only part of the document (for example its
   // later scanned pages), and previously this resegmentation silently erased
@@ -43,6 +50,51 @@ export function refreshContractSegmentation(contract:ContractDocumentResult):Con
   refreshed.set(contract,result);return result;
 }
 
+/** The one contract text reader. Every source format reaches it after its own
+ * text extraction (PDF pages, Word paragraphs and table cells, plain-text or
+ * Markdown pages): optional AI heading reading on the exact source spans, then
+ * the shared clause segmentation. */
+async function readContractTextBlocks(
+  blocks: readonly ContractTextBlock[],
+  source: {
+    sourceType: ContractSourceType;
+    physicalComplete: boolean;
+    diagnostics: readonly string[];
+  },
+  options: ContractParseOptions,
+): Promise<ContractDocumentResult> {
+  let headingOverrides:
+    | Map<string, import("./numbering").ContractHeading>
+    | undefined;
+  const diagnostics = [...source.diagnostics];
+
+  if (options.aiResolver) {
+    const ai = await collectAiHeadingOverrides(
+      blocks,
+      options.aiResolver,
+      {
+        ...(options.aiMaxCalls !== undefined
+          ? { maxCalls: options.aiMaxCalls }
+          : {}),
+        ...(options.onAiStep
+          ? { onStep: options.onAiStep }
+          : {}),
+      },
+    );
+    headingOverrides = ai.overrides;
+    diagnostics.push(...ai.diagnostics);
+  }
+
+  return segmentContractTextBlocks(blocks, {
+    sourceType: source.sourceType,
+    physicalComplete: source.physicalComplete,
+    sourceDiagnostics: diagnostics,
+    ...(headingOverrides
+      ? { headingOverrides }
+      : {}),
+  });
+}
+
 export async function parseContractPdf(
   bytes: Uint8Array,
   options: ContractParseOptions = {},
@@ -55,38 +107,11 @@ export async function parseContractPdf(
       ? { aiVerifier: options.aiPageVerifier }
       : {}),
   });
-
-  const blocks = contractBlocksFromPdf(pdf);
-  let headingOverrides:
-    | Map<string, import("./numbering").ContractHeading>
-    | undefined;
-  const diagnostics = [...pdf.diagnostics];
-
-  if (options.aiResolver) {
-    const ai = await collectAiHeadingOverrides(
-      blocks,
-      options.aiResolver,
-      {
-        ...(options.aiMaxCalls !== undefined
-          ? { maxCalls: options.aiMaxCalls }
-          : {}),
-        ...(options.onAiStep
-          ? { onStep: options.onAiStep }
-          : {}),
-      },
-    );
-    headingOverrides = ai.overrides;
-    diagnostics.push(...ai.diagnostics);
-  }
-
-  const result = segmentContractTextBlocks(blocks, {
-    sourceType: "pdf",
-    physicalComplete: pdf.complete,
-    sourceDiagnostics: diagnostics,
-    ...(headingOverrides
-      ? { headingOverrides }
-      : {}),
-  });
+  const result = await readContractTextBlocks(
+    contractBlocksFromPdf(pdf),
+    { sourceType: "pdf", physicalComplete: pdf.complete, diagnostics: pdf.diagnostics },
+    options,
+  );
   result.pdf = pdf;
   return result;
 }
@@ -96,37 +121,28 @@ export async function parseContractDocx(
   options: ContractParseOptions = {},
 ): Promise<ContractDocumentResult> {
   const docx = await parseContractDocxSource(bytes);
-  const blocks = contractBlocksFromDocx(docx);
-  let headingOverrides:
-    | Map<string, import("./numbering").ContractHeading>
-    | undefined;
-  const diagnostics = [...docx.diagnostics];
-
-  if (options.aiResolver) {
-    const ai = await collectAiHeadingOverrides(
-      blocks,
-      options.aiResolver,
-      {
-        ...(options.aiMaxCalls !== undefined
-          ? { maxCalls: options.aiMaxCalls }
-          : {}),
-        ...(options.onAiStep
-          ? { onStep: options.onAiStep }
-          : {}),
-      },
-    );
-    headingOverrides = ai.overrides;
-    diagnostics.push(...ai.diagnostics);
-  }
-
-  const result = segmentContractTextBlocks(blocks, {
-    sourceType: "docx",
-    physicalComplete: docx.complete,
-    sourceDiagnostics: diagnostics,
-    ...(headingOverrides
-      ? { headingOverrides }
-      : {}),
-  });
+  const result = await readContractTextBlocks(
+    contractBlocksFromDocx(docx),
+    { sourceType: "docx", physicalComplete: docx.complete, diagnostics: docx.diagnostics },
+    options,
+  );
   result.docx = docx;
+  return result;
+}
+
+/** A plain-text or Markdown contract: its decoded text goes through the same
+ * reader as PDF page text. Physically complete only when the whole text was
+ * decoded. Reading never adopts a contract or any of its terms. */
+export async function parseContractText(
+  bytes: Uint8Array,
+  options: ContractParseOptions & { format?: ContractTextSource["format"] } = {},
+): Promise<ContractDocumentResult> {
+  const text = parseContractTextSource(bytes, options.format ?? "plain");
+  const result = await readContractTextBlocks(
+    contractBlocksFromText(text),
+    { sourceType: "text", physicalComplete: text.complete, diagnostics: text.diagnostics },
+    options,
+  );
+  result.text = text;
   return result;
 }

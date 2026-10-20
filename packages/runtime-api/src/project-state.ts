@@ -49,6 +49,7 @@ import {
   linkContractFamily,
   parseContractDocx,
   parseContractPdf,
+  parseContractText,
 } from "../../contract-parser/src";
 import type {
   ContractDocumentResult,
@@ -418,6 +419,21 @@ function normalizedFilename(
     filename ??
     ""
   ).trim().toLowerCase();
+}
+
+/** A plain-text or Markdown source. The media type decides; the file name only
+ * tells Markdown from plain text, or names an untyped upload. CSV, XER, XML and
+ * every other typed content keep their own readers. */
+function contractTextFormat(
+  mediaType: string,
+  filename: string,
+): "plain" | "markdown" | null {
+  const media = mediaType.toLowerCase().trim();
+  const untyped = media === "" || media.startsWith("application/octet-stream");
+  if (/^text\/(?:x-)?markdown\b/.test(media)) return "markdown";
+  if (!untyped && !/^text\/plain\b/.test(media)) return null;
+  if (/\.(?:md|markdown)$/.test(filename)) return "markdown";
+  return untyped && !/\.txt$/.test(filename) ? null : "plain";
 }
 
 function startsWith(
@@ -5047,6 +5063,12 @@ export class RuntimeProjectStore {
         media.includes("pdf") ||
         media.includes(
           "wordprocessingml",
+        ) ||
+        // A text file joins only when its own content identified it as a
+        // contract (never by its file name alone).
+        (
+          identification.method === "native_text" &&
+          contractTextFormat(media, normalizedFilename(input.sourceFilename)) !== null
         )
       )
     ) {
@@ -6280,7 +6302,13 @@ export class RuntimeProjectStore {
           "wordprocessingml",
         );
 
-    if (!isPdf && !isDocx) {
+    // A plain-text or Markdown contract is read by the same contract text reader.
+    const textFormat =
+      !isPdf && !isDocx
+        ? contractTextFormat(input.mediaType, name)
+        : null;
+
+    if (!isPdf && !isDocx && !textFormat) {
       throw new Error(
         "CONTRACT_MEDIA_UNSUPPORTED",
       );
@@ -6353,12 +6381,20 @@ export class RuntimeProjectStore {
               ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
             },
           )
-        : await parseContractDocx(
-            input.bytes,
-            {
-              ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
-            },
-          ));
+        : isDocx
+          ? await parseContractDocx(
+              input.bytes,
+              {
+                ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
+              },
+            )
+          : await parseContractText(
+              input.bytes,
+              {
+                format: textFormat ?? "plain",
+                ...(aiResolver?{aiResolver,aiMaxCalls:contractAiMaxCalls,onAiStep:onContractAiStep}:{}),
+              },
+            ));
     if(priorSameSource){
       semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'reused',attempted:false,
         note:'Previously parsed contract source was reused for the identical source hash; no new paid AI call was made.'});

@@ -9,6 +9,7 @@ import type {
   ContractReference,
   ContractSection,
   ContractSourceSpan,
+  ContractSourceType,
   ContractTextBlock,
   ContractUnclassifiedLine,
 } from "./types";
@@ -25,7 +26,7 @@ interface LineRecord {
 }
 
 interface SegmentOptions {
-  sourceType: "pdf" | "docx";
+  sourceType: ContractSourceType;
   physicalComplete: boolean;
   sourceDiagnostics?: string[];
   headingOverrides?: Map<string, ContractHeading>;

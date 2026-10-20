@@ -4,7 +4,7 @@ import type {
   PdfDocumentResult,
 } from "../../pdf-document-parser/src";
 
-export type ContractSourceType = "pdf" | "docx";
+export type ContractSourceType = "pdf" | "docx" | "text";
 
 export type ContractSectionKind =
   | "preamble"
@@ -16,7 +16,23 @@ export type ContractSectionKind =
 export type ContractSourceSpanKind =
   | "pdf_page"
   | "docx_paragraph"
-  | "docx_table_cell";
+  | "docx_table_cell"
+  | "text_page";
+
+/** A plain-text or Markdown contract as read from its exact source bytes.
+ * A form feed is the plain-text page break: a text export of a paged document
+ * keeps its page numbers. Without one the text has no pages (pageNumber null);
+ * none are invented. complete is true only when every byte was decoded. */
+export interface ContractTextSource {
+  format: "plain" | "markdown";
+  encoding: "utf-8" | "utf-16le" | "utf-16be";
+  byteCount: number;
+  characterCount: number;
+  unreadableCharacterCount: number;
+  pages: Array<{ pageNumber: number | null; text: string }>;
+  complete: boolean;
+  diagnostics: string[];
+}
 
 export interface ContractTextBlock {
   sourceKind: ContractSourceSpanKind;
@@ -197,6 +213,8 @@ export interface ContractDocumentResult {
   sourceType: ContractSourceType;
   pdf: PdfDocumentResult | null;
   docx: ContractDocxSource | null;
+  /** Present only for a plain-text or Markdown contract (additive field). */
+  text?: ContractTextSource | null;
   sections: ContractSection[];
   clauses: ContractSection[];
   appendices: ContractSection[];
